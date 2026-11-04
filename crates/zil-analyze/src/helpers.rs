@@ -708,6 +708,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         // change any callback role, invocation signature or helper result.
         if function.parameters.iter().any(|p| {
             !candidates.iter().any(|(_, local)| p == local)
+                && !(budget.stored_borrows && (matches!(&function.locals[p.0 as usize].ty,Type::BorrowedStorage{..}) || matches!(&function.locals[p.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))))
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()
@@ -775,10 +776,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
             }
             if let Some(life) = &role.life {
-                budget.spend(
-                    super::borrowed_fp::work(life),
-                    "higher-rank actual callback signature",
-                )?;
+                crate::signature_life::charge(life, budget)?;
                 super::borrowed_fp::signature_work(
                     &definition.parameters,
                     &definition.result,

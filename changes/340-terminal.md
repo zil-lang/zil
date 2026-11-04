@@ -87,7 +87,56 @@ Sum16/0及borrow23/0；既有impl187原24/0；相关五个库Clippy通过。mixe
 冒充直接解构已完成。精确阶段独审另行绑定；与主树Wire37/HRTB/Task/float组合
 的验收由root执行。Rust四目标与突破的实证/未测区分见terminal-340收据。
 
+126/127接续提案：实际Address作为SSA基址，使用与119/120完全一致的有界
+Field/Variant/ErrorArm路径。126非空，端点真实父资格及mutable权限来自该
+Address而非保存它的局部槽；127允许空路径只读最终头，ErrorUnion归一为
+0 success/1 error。每个所经子树/判别必须仍活动，不能隐式跨Managed、
+Address、Desc或外部稳定存储界。两核独立重建当前真实tag观察与全部祖先
+标签、混合字段区间及父借入；Parameter/Capture/Result继续沿实际来源。
+后端使用原始真实指针和每一步GEP/tag读取，不生成拥有父副本或包装。
+新pass只在实际使用126/127时运行，路径/集合比较/状态分配继续先付费；
+最近反例覆盖同级允许/重叠拒绝、过期guard、同后继假证明和共享输入伪造
+mutable。公共编码由root发布；此提案不把121–124拥有replace提前记为完成。
+
+实际双Package mutable sibling原源还暴露复合赋值的重复窗口误拒：a.n+=b.n
+已经准备真实LHS地址后，不能再为同一个稳定a.n创建一个相交shared子借入。
+对于有界、相同名字/字段/已稳定索引的整型旧值读，直接经已准备地址读取
+再算RHS/写入；effectful位置不做此替换，原求值次序和一次索引求值保持。
+这只消除重复投影，不给RHS其他alias或拥有replace授予两阶段权限。
+
+126/127精确branch阶段：terminal340 34/0；IR60；Analyze Sum26；Verify Sum16、
+borrow23；impl187原24；五库Clippy及impl030/042原复合位置求值各1/0。新增实际
+地址源码28个Clang/API O0/O2配置；source N103790，fresh/warm保持；raw64观察
+新lane三核N134446/247974/247974，旧lane41628/41013/41013，N−1与独立fresh重试
+成立。旧地址pass同因预付/有序集合费用一并修复；branch local-ref迁为17540，
+addressed迁为92292，其他9050/38035/20265/2094103保持。root261的组合边界另记，
+不混同身份。实际Return ref及只捕获返回标量引用已运行；拥有基址捕获资格
+按root明确派工在下一有限profile实施，原captured-owning-base-open.zil保留。
+这不提升FFI、worker、Transfer/Share或源拥有值捕获资格；121–124公共补丁
+仍仅提案。终态剩余及Rust四目标实证/未测界限见更新收据。
+
 
 ### 统一基线的实际Store元素兄弟字段窗口
 
 root37全量重放保留了impl201两个原反例的新Success：借入实际callback字段期间只写同一State的独立Copy value字段，以及callback返回其实际环境bytes期间写该value字段。主规范4.4澄清只有两核从同一元素和已核布局/路径证明不相交区间才分离字段访问；粗Store结构依赖、真实parent loan、回调重入和lending环境保护不缩短。动态index/同型/字段名/符号capture仍不制造apart。先完成原源native与samecallback/raw最近反例独审，再迁原期待；不删除reserve/pop/recall等旧相交反例。
+
+### Explicit ErrorUnion tag patterns for universally checked generic definitions
+
+TypeName(payload) requires a unique actual member; T:Copy does not prove T differs from a concrete Copy error type. Keep that definition-time boundary. Add `.ok(pattern)` / `.err(pattern)` to express the actual tag independently of nominal names, transporting Syntax/Core ErrorArm{is_error,pattern}. Existing physical ErrorArm projections and ordinary tag/loan/init/move/cleanup checks implement it; no new runtime opcode or implicit injection rule. Parser is type-independent, user type names remain ordinary, input evaluates once. Required original generic no-call definitions, same-type ambiguity, wrong-tag, incomplete/exclusive/stale-window raw/Wire and native cleanup controls remain with the implementation. This publication is a contract/data change, not completed consumer acceptance.
+121–124实际拥有位置替换实施：独立ReservationId不进入ValueId/Type，不允许
+票据作为普通地址或值读取/捕获。Reserve只固定实际端点及原有父资格，允许
+合法读旧准备RHS；保留实际address基址及父loan依赖直到Commit/Abort，不能
+因Commit只引用票据而让ValueId末用算法提前释放父权限。所有路径按真实
+Field/Variant/ErrorArm及完整Type解释，每个祖先判别/初始化与实际可写来源
+在两核独立重建；已部分取空子树不能凭reserve复活。相交写/移/销毁、父替换
+及Store失效操作在准备期间禁止；真正不相交的已证字段保持可用。
+
+RHS完整新owner和实际Hold先核验；Commit才激活端点写，要求准备过程临时
+共享借入已结束，旧值只清一次，清旧/发布之间没有可恢复失败。失败退出先
+Abort释放pin，旧值保持；显式self转交仍走旧规则，不伪称能恢复已交出责任。
+CFG按动态activation核票据：静态定义唯一，每条路径一次Commit或Abort，
+退出/合流必须结清或保持同一活动集合；循环回边结清后可再次执行同一静态
+Reserve。源码正常结束不能因编译器默补Abort掩盖缺失Commit；?、return和
+break/continue只结清真实离开作用域的票据，保留外层仍准备中的责任。
+后端使用真实地址、现有结构化清理和部分初始化标记，不给ticket运行时
+包装或额外独占地址表示；新表、状态、路径、比较与清理在分配/复制前预付。

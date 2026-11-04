@@ -1,0 +1,38 @@
+{
+  "decoder_commit": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "status": "UntrustedStructuralTranscode",
+  "fields_added": [
+    "empty life_declarations/life_instances/dyn_declarations/dyn_interfaces/dyn_vtables",
+    "TypedFunction.storage_life=None",
+    "ClosureDefinition.storage_life=None"
+  ],
+  "adapter_source_sha256": "654f661c8158914d05fb9a265e280ca247fb5ebce89c384753df378595a76eb5",
+  "writer_source_sha256": "f4c81c0f26c9aebd7e137951d586aff020bea9caeaa389dae5407b9b3d24bca3",
+  "inputs": {
+    "control_concrete_copy_byvalue_call.wire": "fb32b4f32723edf9a5a67ec72eac27dd24b550a4049590a773d3210648cf3432",
+    "control_shared_callback_i32_argument.wire": "6cea20590a6aa990ec466622f94d88eec58e93c4d9238d296d71064d0f3c3a12",
+    "escape_byvalue_symbolic_fn_call.wire": "91473fabea269a3a8b66103a49ad0b0909940b42765429eb2d816f1cd36e7682",
+    "escape_callback_argument.wire": "cf9769b378fa50364ad66063c5e17789da7151a5a1a94a55c46329e71f6df688",
+    "escape_shared_callback_f_argument.wire": "8c4232ea45cae5e2f258371fdc6e5d6f0b8b1bb48f742d84f17470688385b8ea",
+    "escape_thin_store.wire": "d4575b19c0fa521c5195282f9f4213bae05ef4698f91bec4aa89542c3d0b5190",
+    "escape_two_element_array.wire": "a9be5c4e1d0a967628f87be09ea9152ccd725cd03181fd9505e5950a5b3bdcf6",
+    "parent_stale_no_call_edge.wire": "9fa3ed49db2064f49406705c93f4227c316f84199dd851c2dc43b98826c9d28f",
+    "parent_stale_with_call_edge.wire": "864294fe7b474f53027283e59942f116e18b089abd87fa6d05383a45af7f1813",
+    "parent_valid_no_call_edge.wire": "8538df210a5e1e7f24636598a158fe5094514850fdda7cdeab9258b1ecba343f",
+    "parent_valid_with_call_edge.wire": "6283433af48df0d3f3f7167d5006976bb9a5eaa2576e414f3f85eacac9a9b9d4"
+  },
+  "outputs": {
+    "control_concrete_copy_byvalue_call.wire": "e2372463c723a422705e9b0bef98a6c8e36eb455b0425fa606415e0420935e9e",
+    "control_shared_callback_i32_argument.wire": "6a1eb660cec82b6ae318187a427834809b58f1bd6e66ab9d1e67139decd1b0b3",
+    "escape_byvalue_symbolic_fn_call.wire": "d630c24270bdce9be1e3af5586b9860bd9e7ac6edefd196b763b6c78ecdee7be",
+    "escape_callback_argument.wire": "87df17c79f5c82cc7ce7876e0c68d24c5f4aaf5510515448af5d5cdcdc9486be",
+    "escape_shared_callback_f_argument.wire": "c18728b5b865a7ea0ed6e146e9a64db0d678e9e81e1822ff78ab4ec53d99695e",
+    "escape_thin_store.wire": "4264d99ea5b849625169b10e290144577ea1156a01a4bba50f6ca81b59850969",
+    "escape_two_element_array.wire": "c90a4b17e7cffbfb26a78200a2fa14cc2dd059e30fd5921c10a5bc163680f0b4",
+    "parent_stale_no_call_edge.wire": "921e3a653cd3f07ecba08e44c659dc8a851c243479235a6410442f38226def3f",
+    "parent_stale_with_call_edge.wire": "379ad03f67fe72ac637777bf3351bded02e7e0a1b0fbc6e433d7ab8b730a3baa",
+    "parent_valid_no_call_edge.wire": "15ffe938d63d0c7558ad40905f706aa99f3f3170b8e8ea2448b9b18b23f4b6dc",
+    "parent_valid_with_call_edge.wire": "45576c1238cdfa17c44cdf0e9e8cbd97bc2b784d0d2b534d8ef43244b6af4452"
+  },
+  "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"
+}

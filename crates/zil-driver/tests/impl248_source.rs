@@ -1,7 +1,7 @@
 //! Original source bytes through the independent Verify boundary. Native
 //! execution and failure cleanup are measured by the consumer slice.
-#[path = "../../zil-ir/test-support/schema37_fixture.rs"]
-mod schema37_fixture;
+#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
+mod schema40_fixture;
 
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
@@ -95,8 +95,8 @@ fn callback_return_does_not_revive_a_borrowed_input_window() {
         zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"
     );
-    let bytes = include_bytes!("../../../tests/impl254/v37/loan_revival.wire");
-    let migrated = schema37_fixture::migrate(bytes, &limits);
+    let bytes = include_bytes!("../../../tests/impl254/v40/loan_revival.wire");
+    let migrated = schema40_fixture::migrate(bytes, &limits);
     let bytes = migrated.as_slice();
     let (typed, candidate) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
     for errors in [

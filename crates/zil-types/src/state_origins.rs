@@ -710,6 +710,8 @@ impl MoveWalk<'_, '_> {
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
         self.node(depth, pattern.span)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) => self.bind(name, pattern.span)?,
             CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
                 for field in fields {
@@ -1716,8 +1718,7 @@ impl Walk<'_, '_> {
             _ => None,
         };
         if let Some(signature) = found {
-            let work = inference::signature_snapshot_work("", signature, target.span, self.limits)?;
-            self.state.snapshot(work, target.span)?;
+            self.state.snapshot_signature("", signature, target.span)?;
             Ok(Some(signature.clone()))
         } else {
             Ok(None)

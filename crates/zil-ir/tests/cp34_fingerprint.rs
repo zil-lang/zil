@@ -268,6 +268,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
@@ -312,6 +313,11 @@ fn module(flag: bool) -> TypedModule {
     })
     .collect();
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(19),
         source_fingerprint: Fingerprint::of(b"cp34-current-source"),
@@ -321,6 +327,7 @@ fn module(flag: bool) -> TypedModule {
             .into_iter()
             .enumerate()
             .map(|(i, kind)| ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(i as u32),
                 function: FunctionId(i as u32),
                 captures: all_types.clone(),
@@ -412,7 +419,7 @@ fn frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources() {
 }
 
 #[test]
-fn every_raw_encoding_variant_matches_the_frozen_vec_oracle() {
+fn retained_legacy_variants_match_independent_vec_oracle_with_current_envelope() {
     for flag in [false, true] {
         let mut input = module(flag);
         equal(&input);
@@ -727,11 +734,12 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
         Type::BorrowedFunctionPointer {
             parameters: vec![address.clone()],
             result: Box::new(address),
-            life: FunctionLifeContract {
+            life: StorageLifeContract::from_flat(FunctionLifeContract {
                 binder_count: 1,
                 parameter_lives: vec![Some(0)],
                 result_life: Some(0),
-            },
+            })
+            .unwrap(),
         },
     ] {
         input.functions[0].return_type = ty;
@@ -831,7 +839,7 @@ fn terminal37_higher_rank_and_suspend_fields_match_independent_reference() {
     input.functions[0].call_kind = CallKind::Suspend;
     input.functions[0].callable_contract = Some(contract(false));
     input.functions[0].callable_contract.as_mut().unwrap().roles[0].life =
-        Some(FunctionLifeContract {
+        StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 2,
             parameter_lives: vec![Some(0), None, Some(1)],
             result_life: Some(0),
@@ -855,9 +863,17 @@ fn terminal37_higher_rank_and_suspend_fields_match_independent_reference() {
             let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
             match change {
                 1 => role.life = None,
-                2 => role.life.as_mut().unwrap().binder_count += 1,
-                3 => role.life.as_mut().unwrap().parameter_lives.swap(0, 2),
-                _ => role.life.as_mut().unwrap().result_life = Some(1),
+                2 => role.life.as_mut().unwrap().invocation_binder_count += 1,
+                3 => role.life.as_mut().unwrap().bindings.swap(0, 1),
+                _ => {
+                    role.life
+                        .as_mut()
+                        .unwrap()
+                        .bindings
+                        .last_mut()
+                        .unwrap()
+                        .binder = StorageBinder::Invocation(1)
+                }
             }
         } else {
             let InstructionKind::SuspendCall {

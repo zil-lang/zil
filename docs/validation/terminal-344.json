@@ -558,6 +558,21 @@
       "Artifact CT value schema3 private consumers and full nominal argument lineage remain in progress on344",
       "Anonymous owned cleanup/borrow/move/failure and broader large closure/helper/foreign reliability remain in progress",
       "No author full-workspace test, Windows native execution or Rust performance comparison; parentB0 remains Doing"
-    ]
+    ],
+    "independent_review": {
+      "reviewer": "/root/terminal_architecture",
+      "candidate": "8c17d9aa16001e35b11ac17e6a96d58bf2d2ef26",
+      "review_commit": "126b8eacf",
+      "result": "PassLimited: exact source/harness binding, anonymous11, key-unit1, float10 and unsigned4 independently replayed; f01 accounting finding resolved. CT3 values and owning cleanup excluded."
+    },
+    "build_input_construction": {
+      "isolated_checkout": "Fresh git worktree add -b344-typefix fromf01 before the first isolated Cargo command. Its checkout source mtimes were newer than the previously used primary target artifacts.",
+      "first_check_log": "/tmp/key-typefix344.log: explicitly Checking zil-base, zil-ir, zil-syntax and zil-expand at /workspace/zil-344-typefix; correctly failed on two missed Budget-caller arguments before those were repaired.",
+      "full_source_build_log": "/tmp/key-source344.log: explicitly Compiling all driver dependencies in the isolated path, then anonymous11 and long-prefix N709861 passed.",
+      "final_key_unit_log": "/tmp/key-unit344c.log: final planner including allocation-free array inspection compiled in the isolated path; the new unit executed and printed exact N7041.",
+      "final_replays": "Final aggregate rebuild/anonymous11 replay and inherited float/UInt/CT/Wire replays were streamed tool outputs, not redirected logs. The retained executable identities above are the exact independently replayed binaries; the new key unit and long-prefix test executed, rather than being inferred from runtime source hashes.",
+      "separate_discarded_primary_run": "After switching back to older-mtime primary CT3 files with target344 reused, /tmp/ct3-check344.log initially falsely passed by reusing newer isolated schema2 metadata. It is discarded, never CT3 evidence. Refreshing primary source/manifest mtimes without changing bytes produced /tmp/ct3-fresh-check344.log, which correctly fails on missing MakeAnonymousSum Verify arms.",
+      "future_cross_tree_reuse": "Refresh source/manifests before reusing target344 across worktrees; do not infer compiler input closure from working source hashes alone."
+    }
   }
 }

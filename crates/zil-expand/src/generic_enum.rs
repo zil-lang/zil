@@ -227,7 +227,9 @@ fn shape(
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
-            let arity = if variables.contains(name)
+            let arity = if name == "Managed" {
+                1
+            } else if variables.contains(name)
                 || matches!(
                     name.as_str(),
                     "u8" | "u16"
@@ -241,7 +243,8 @@ fn shape(
                         | "void"
                         | "c_handle"
                         | "c_wstr"
-                ) {
+                )
+            {
                 0
             } else {
                 params(
@@ -314,6 +317,15 @@ fn layout(
             ) && args.is_empty()
             {
                 return Ok(());
+            }
+            if name == "Managed" {
+                let [GenericArg::Type(payload)] = args.as_slice() else {
+                    return Err(error(
+                        ty.span,
+                        "Managed requires one complete resource argument",
+                    ));
+                };
+                return layout(payload, variables, nominals, active, budget, depth + 1);
             }
             let item = nominals
                 .get(name)
@@ -476,7 +488,25 @@ impl Engine<'_> {
                             error(argument.span, "enum payload type cannot be inferred")
                         })?,
                 };
-                let actual = self.original_type(&actual)?;
+                let mut actual = self.original_type(&actual)?;
+                if matches!(
+                    argument.value.kind,
+                    ExprKind::Unary {
+                        op: UnaryOp::Give,
+                        ..
+                    }
+                ) && let TypeKind::Named { path, args } = &grouped(&hint).kind
+                    && path.as_slice() == ["Managed"]
+                    && let [GenericArg::Type(resource)] = args.as_slice()
+                    && type_key(resource, &mut self.budget)? == type_key(&actual, &mut self.budget)?
+                {
+                    // Source `give` supplies a value, while its earlier AST
+                    // hint may still spell the nominal resource. Preserve the
+                    // explicit complete type context. Types and both kernels
+                    // still require an actual owning operand, not a Desc.
+                    self.budget.ty(&hint)?;
+                    actual = hint;
+                }
                 unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
             }
         }
@@ -521,6 +551,27 @@ impl Engine<'_> {
                 });
                 self.enum_pattern(pattern, address.as_ref(), env, depth + 1)?;
             }
+            PatternKind::ErrorArm {
+                is_error,
+                pattern: inner,
+            } => {
+                let ty =
+                    ty.ok_or_else(|| error(pattern.span, "error arm type cannot be inferred"))?;
+                let written = self.original_type(ty)?;
+                let TypeKind::Error {
+                    error: error_ty,
+                    result,
+                } = &grouped(&written).kind
+                else {
+                    return Err(error(pattern.span, "error arm requires an ErrorUnion"));
+                };
+                self.enum_pattern(
+                    inner,
+                    Some(if *is_error { error_ty } else { result }),
+                    env,
+                    depth + 1,
+                )?;
+            }
             PatternKind::Tuple(patterns) => {
                 let types = ty.and_then(|ty| match &grouped(ty).kind {
                     TypeKind::Tuple(fields) => Some(fields.as_slice()),
@@ -535,7 +586,10 @@ impl Engine<'_> {
                     return Err(error(pattern.span, "match enum type cannot be inferred"));
                 };
                 let written = self.original_type(ty)?;
-                if matches!(&grouped(&written).kind, TypeKind::Union(_)) {
+                if matches!(
+                    &grouped(&written).kind,
+                    TypeKind::Union(_) | TypeKind::Error { .. }
+                ) {
                     if path.len() != 1 || arguments.len() != 1 {
                         return Err(error(
                             pattern.span,

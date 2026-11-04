@@ -3,6 +3,7 @@
 //! Sequence bindings identify ordered evaluations. They do not decide a place's
 //! Copy/Move/Borrow mode or extend a borrow; those decisions remain in zil-types.
 pub mod ct_selection;
+mod dyn_lowering;
 mod enums;
 mod foreign;
 mod generated_spans;
@@ -16,7 +17,9 @@ mod project_traits;
 mod receivers;
 mod records;
 mod resources;
+pub mod source_context;
 mod static_traits;
+mod stored_types;
 mod tasks;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -57,7 +60,8 @@ fn byte_buffer_name(name: &str) -> bool {
 fn owned_store_name(name: &str) -> bool {
     matches!(
         name,
-        "Store"
+        "Managed"
+            | "Store"
             | "StoreElement"
             | "store_new"
             | "store_reserve"
@@ -82,12 +86,15 @@ fn sync_name(name: &str) -> bool {
             | "atomic_load"
             | "atomic_store"
             | "atomic_fetch_add"
+            | "atomic_compare_exchange"
     )
 }
 fn task_name(name: &str) -> bool {
     matches!(
         name,
         "TaskI32"
+            | "Task"
+            | "task_create"
             | "task_start"
             | "task_yield"
             | "task_await"
@@ -160,7 +167,7 @@ fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
             Phase::Expand,
             "E-OWNED-STORE-NAME",
             Some(span),
-            "Store and bare owned storage primitives cannot be rebound",
+            "Managed, Store and bare owned storage primitives cannot be rebound",
         )
     } else if byte_buffer_name(name) {
         Diagnostic::error(
@@ -224,6 +231,7 @@ pub struct ExpandedModule {
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
     trait_method_names: BTreeMap<(usize, usize), String>,
+    dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -254,9 +262,33 @@ pub fn expand_with_map_limits_target(
     limits: &Limits,
     target: &zil_base::TargetProfile,
 ) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target_impl(source, module, limits, target, None)
+}
+/// Explicit declaration naming/lineage input; this view grants no permissions.
+pub fn expand_with_map_limits_target_context(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target_impl(source, module, limits, target, Some(context))
+}
+fn expand_with_map_limits_target_impl(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: Option<source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = generics::specialize_products(module, limits, &mut products)?;
+    let specialized = generics::specialize_products_with_context(
+        module,
+        limits,
+        &mut products,
+        context.map(|context| (std::slice::from_ref(source), context)),
+    )?;
     let mut lower_limits = products.trait_limits(limits);
     let mut expanded = expand_inner(
         source,
@@ -266,11 +298,14 @@ pub fn expand_with_map_limits_target(
         &products.trait_signatures,
         products.metered(),
         &products.member_patterns,
+        &products.dynamic,
+        &products.storage,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
+    products.bind_dynamic_targets(&specialized, &expanded, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -322,11 +357,14 @@ pub fn expand_program_module_with_limits_target(
         &products.trait_signatures,
         products.metered(),
         &products.member_patterns,
+        &products.dynamic,
+        &products.storage,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
+    products.bind_dynamic_targets(module, &expanded, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -470,9 +508,32 @@ pub fn expand_program_with_limits_target(
     limits: &Limits,
     target: &zil_base::TargetProfile,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, None)
+}
+/// The snapshot mode requires the complete original closed request. Explicit
+/// mode additionally supplies canonical logical module identities.
+pub fn expand_program_with_limits_target_context(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, Some(context))
+}
+fn expand_program_with_limits_target_impl(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: Option<source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
+    let specialized =
+        modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
@@ -529,6 +590,8 @@ pub fn expand_program_with_limits_target(
                 &products.trait_signatures,
                 products.metered(),
                 &products.member_patterns,
+                &products.dynamic,
+                &products.storage,
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -602,6 +665,14 @@ pub fn expand_program_with_limits_target(
                     Some(module.span),
                 )]
             })?;
+        if !products.dynamic.is_empty() {
+            products.allowance = Some(remaining);
+            products.bind_dynamic_targets(module, &expanded, limits)?;
+            remaining = products
+                .allowance
+                .clone()
+                .expect("dynamic target binding preserves allowance");
+        }
         let mut exports = source_exports(
             module,
             &expanded.core,
@@ -671,6 +742,7 @@ fn debit_trait_lowering(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // Private immutable lowering contexts remain explicit.
 fn expand_inner(
     source: &SourceUnit,
     module: &s::Module,
@@ -679,6 +751,8 @@ fn expand_inner(
     signatures: &generics::trait_instances::Signatures,
     metered_trait_instances: bool,
     member_patterns: &BTreeMap<String, s::TypeRef>,
+    dynamic_catalog: &generics::dynamic::Catalog,
+    storage_catalog: &stored_types::Catalog,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     let legacy_limits = Limits::default();
@@ -699,6 +773,8 @@ fn expand_inner(
             signatures,
             metered_trait_instances,
             member_patterns,
+            dynamic_catalog,
+            storage_catalog,
         ),
         (lowering_limits, owner_limits),
         None,
@@ -716,6 +792,8 @@ type ProjectLowering<'a> = (
     &'a generics::trait_instances::Signatures,
     bool,
     &'a BTreeMap<String, s::TypeRef>,
+    &'a generics::dynamic::Catalog,
+    &'a stored_types::Catalog,
 );
 fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> Declarations<'a> {
     let mut declarations = BTreeMap::new();
@@ -744,6 +822,8 @@ fn expand_inner_project(
         signatures,
         metered_trait_instances,
         member_patterns,
+        dynamic_catalog,
+        storage_catalog,
     ) = project;
     let mut e = Expander::new(
         module.id,
@@ -764,6 +844,8 @@ fn expand_inner_project(
     }
     e.enum_sources = project_modules;
     e.member_patterns = Some(member_patterns);
+    e.dynamic_catalog = Some(dynamic_catalog);
+    e.storage_catalog = Some(storage_catalog);
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -796,6 +878,11 @@ fn expand_inner_project(
     }
     e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
@@ -813,6 +900,7 @@ fn expand_inner_project(
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,
         trait_method_names: e.trait_method_names,
+        dyn_method_emissions: e.dyn_method_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
@@ -841,6 +929,9 @@ struct Expander<'a> {
     enums: Vec<CoreEnum>,
     enum_sources: &'a [&'a s::Module],
     member_patterns: Option<&'a BTreeMap<String, s::TypeRef>>,
+    dynamic_catalog: Option<&'a generics::dynamic::Catalog>,
+    storage_catalog: Option<&'a stored_types::Catalog>,
+    dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
@@ -891,6 +982,9 @@ impl<'a> Expander<'a> {
             enums: Vec::new(),
             enum_sources: &[],
             member_patterns: None,
+            dynamic_catalog: None,
+            storage_catalog: None,
+            dyn_method_emissions: Vec::new(),
             named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
@@ -974,6 +1068,17 @@ impl Expander<'_> {
                 }
                 let id = self.id();
                 self.map_node(id, item.span, ExpansionRole::Source, Vec::new());
+                let fields = a
+                    .fields
+                    .iter()
+                    .map(|f| CoreField {
+                        name: f.name.clone(),
+                        ty: self.dyn_type_ref(&f.ty),
+                        public: f.public,
+                        manages: f.manages,
+                        span: f.span,
+                    })
+                    .collect();
                 self.aggregates.push(CoreAggregate {
                     teardown: self.drop_implementations.get(&a.name).cloned(),
                     id,
@@ -983,17 +1088,7 @@ impl Expander<'_> {
                         s::AggregateKind::Resource => AggregateKind::Resource,
                         s::AggregateKind::Package => AggregateKind::Package,
                     },
-                    fields: a
-                        .fields
-                        .iter()
-                        .map(|f| CoreField {
-                            name: f.name.clone(),
-                            ty: type_ref(&f.ty),
-                            public: f.public,
-                            manages: f.manages,
-                            span: f.span,
-                        })
-                        .collect(),
+                    fields,
                     span: item.span,
                 });
                 let host = Type::Named(a.name.clone());
@@ -1020,6 +1115,13 @@ impl Expander<'_> {
                     };
                     let first = self.functions.len();
                     self.item(m, Some(&name), Some(&host), inherited.as_ref());
+                    if i.trait_type.is_some()
+                        && matches!(m.kind, s::ItemKind::Function(_))
+                        && self.functions.len() > first
+                    {
+                        let target = self.functions.last().expect("emitted method").id;
+                        self.record_dyn_method(member_ordinal, target, m.span);
+                    }
                     if matches!(m.kind, s::ItemKind::Function(_))
                         && let Some(target) = self
                             .trait_method_names
@@ -1069,7 +1171,7 @@ impl Expander<'_> {
         self.unexecuted_attributes(&p.attributes, "parameter");
         CoreParameter {
             name: p.name.clone(),
-            ty: self.type_ref(&p.ty),
+            ty: self.dyn_type_ref(&p.ty),
             mode: mode(p),
             span: p.span,
         }
@@ -1195,7 +1297,8 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
-            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1209,7 +1312,9 @@ impl Expander<'_> {
             } => {
                 if matches!(
                     pattern.kind,
-                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                    s::PatternKind::Tuple(_)
+                        | s::PatternKind::Reference { .. }
+                        | s::PatternKind::ErrorArm { .. }
                 ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(
@@ -1219,7 +1324,7 @@ impl Expander<'_> {
                             s.span,
                         );
                     }
-                    let ty = ty.as_ref().map(|t| self.type_ref(t));
+                    let ty = ty.as_ref().map(|t| self.dyn_type_ref(t));
                     let initializer = self.expr_expected(value, ty.as_ref());
                     let pattern = self.pattern(pattern);
                     return self.statement(
@@ -1243,7 +1348,7 @@ impl Expander<'_> {
                     }
                 };
                 self.scoped_binding(&name, pattern.span);
-                let ty = ty.as_ref().map(|t| self.type_ref(t));
+                let ty = ty.as_ref().map(|t| self.dyn_type_ref(t));
                 let initializer = Some(self.expr_expected(value, ty.as_ref()));
                 CoreStatementKind::Binding {
                     name,
@@ -1403,10 +1508,55 @@ impl Expander<'_> {
         };
         self.statement(kind, s.span)
     }
+    fn generated_ascription(&mut self, e: &s::Expr) -> CoreExprKind {
+        let s::ExprKind::Ascribed { ty, value } = &e.kind else {
+            unreachable!("ascription dispatch")
+        };
+        let ty = self.dyn_type_ref(ty);
+        let value = self.expr_expected(value, Some(&ty));
+        CoreExprKind::Ascribed {
+            ty,
+            value: Box::new(value),
+        }
+    }
     fn expr(&mut self, e: &s::Expr) -> CoreExpr {
         self.expr_expected(e, None)
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        // A thin variant dispatcher keeps unrelated reconstruction/diagnostic
+        // storage off every recursive lowering edge. Group/receiver/record/
+        // pipeline retain their original early-return node behavior.
+        match &e.kind {
+            s::ExprKind::ReceiverMember(n) => self.receiver_member(n, e.span),
+            s::ExprKind::Group(v) => self.expr_expected(v, expected),
+            s::ExprKind::Pipeline { input, target } => self.pipeline(e.span, input, target),
+            s::ExprKind::Record { ty, base, fields } => {
+                if let Some(value) =
+                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
+                {
+                    return value;
+                }
+                self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected)
+            }
+            s::ExprKind::Ascribed { .. } => self.lower_expr_ascribed(e, expected),
+            s::ExprKind::Array(_) => self.lower_expr_array(e, expected),
+            s::ExprKind::Index { .. } => self.lower_expr_index(e, expected),
+            s::ExprKind::Slice { .. } => self.lower_expr_slice(e, expected),
+            s::ExprKind::Tuple(_) => self.lower_expr_tuple(e, expected),
+            s::ExprKind::Unary { .. } => self.lower_expr_unary(e, expected),
+            s::ExprKind::Binary { .. } => self.lower_expr_binary(e, expected),
+            s::ExprKind::Call { .. } => self.lower_expr_call(e, expected),
+            s::ExprKind::Member { .. } => self.lower_expr_member(e, expected),
+            s::ExprKind::Closure { .. } => self.lower_expr_closure(e, expected),
+            s::ExprKind::If { .. } => self.lower_expr_if(e, expected),
+            s::ExprKind::Try(_) => self.lower_expr_try(e, expected),
+            s::ExprKind::MetaEval(_) => self.lower_expr_metaeval(e, expected),
+            _ => self.lower_expr_leaf(e),
+        }
+    }
+
+    #[inline(never)]
+    fn lower_expr_leaf(&mut self, e: &s::Expr) -> CoreExpr {
         let kind = match &e.kind {
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
@@ -1434,24 +1584,73 @@ impl Expander<'_> {
                 _ => CoreExprKind::Unsupported("floating/character literal typing".into()),
             },
             s::ExprKind::Name(n) => CoreExprKind::Name(n.clone()),
-            s::ExprKind::ReceiverMember(n) => return self.receiver_member(n, e.span),
-            s::ExprKind::Group(v) => return self.expr_expected(v, expected),
+            _ => {
+                CoreExprKind::Unsupported("expression requires a later language capability".into())
+            }
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_ascribed(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
+            s::ExprKind::Ascribed { .. } => self.generated_ascription(e),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_array(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Array(values) => {
                 CoreExprKind::Array(values.iter().map(|v| self.expr(v)).collect())
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_index(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Index { object, index } => CoreExprKind::Index {
                 object: Box::new(self.expr(object)),
                 index: Box::new(self.expr(index)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_slice(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Slice { object, start, end } => CoreExprKind::Slice {
                 object: Box::new(self.expr(object)),
                 start: start.as_ref().map(|value| Box::new(self.expr(value))),
                 end: end.as_ref().map(|value| Box::new(self.expr(value))),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_tuple(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Tuple(values) if values.is_empty() => CoreExprKind::Unit,
             s::ExprKind::Tuple(values) => {
                 CoreExprKind::Tuple(values.iter().map(|v| self.expr(v)).collect())
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_unary(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Unary { op, operand } => CoreExprKind::Unary {
                 op: match op {
                     s::UnaryOp::Not => UnaryOp::Not,
@@ -1464,6 +1663,14 @@ impl Expander<'_> {
                 },
                 operand: Box::new(self.expr(operand)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_binary(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Binary { op, left, right } => {
                 let Some(op) = binary(*op) else {
                     return self.expr_node(CoreExprKind::Unsupported("range value".into()), e.span);
@@ -1474,6 +1681,14 @@ impl Expander<'_> {
                     right: Box::new(self.expr(right)),
                 }
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_call(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Call { callee, arguments } => {
                 if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
                     value
@@ -1521,7 +1736,7 @@ impl Expander<'_> {
                             unreachable!()
                         };
                         let target = self.expr(target);
-                        let argument = self.type_ref(ty);
+                        let argument = self.dyn_type_ref(ty);
                         self.expr_node(
                             CoreExprKind::TypeApply {
                                 callee: Box::new(target),
@@ -1538,7 +1753,14 @@ impl Expander<'_> {
                     }
                 }
             }
-            s::ExprKind::Pipeline { input, target } => return self.pipeline(e.span, input, target),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_member(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Member { object, member } => {
                 let (name, owner) = match member {
                     s::MemberName::Name(name) => (name.clone(), None),
@@ -1569,7 +1791,7 @@ impl Expander<'_> {
                         self.callable_work -= cost.work * 3;
                         self.member_owner_work += cost.work * 3;
                         self.member_owner_nodes -= cost.nodes;
-                        (name.clone(), Some(self.type_ref(owner)))
+                        (name.clone(), Some(self.dyn_type_ref(owner)))
                     }
                 };
                 CoreExprKind::Member {
@@ -1578,14 +1800,14 @@ impl Expander<'_> {
                     owner,
                 }
             }
-            s::ExprKind::Record { ty, base, fields } => {
-                if let Some(value) =
-                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
-                {
-                    return value;
-                }
-                return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
-            }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_closure(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Closure {
                 move_capture,
                 params,
@@ -1598,7 +1820,7 @@ impl Expander<'_> {
                         self.scoped_binding(&p.name, p.span);
                         CoreClosureParameter {
                             name: p.name.clone(),
-                            ty: p.ty.as_ref().map(|t| self.type_ref(t)),
+                            ty: p.ty.as_ref().map(|t| self.dyn_type_ref(t)),
                             mode: PassingMode::Infer,
                             span: p.span,
                         }
@@ -1608,7 +1830,7 @@ impl Expander<'_> {
                 self.return_type =
                     return_type
                         .as_ref()
-                        .map(|t| self.type_ref(t))
+                        .map(|t| self.dyn_type_ref(t))
                         .or_else(|| match expected {
                             Some(Type::FunctionPointer { result, .. }) => Some((**result).clone()),
                             _ => None,
@@ -1626,6 +1848,14 @@ impl Expander<'_> {
                     body,
                 }
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_if(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::If {
                 condition,
                 then_value,
@@ -1635,17 +1865,70 @@ impl Expander<'_> {
                 then_value: Box::new(self.expr_expected(then_value, expected)),
                 else_value: Box::new(self.expr_expected(else_value, expected)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_try(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Try(inner) => CoreExprKind::Try(Box::new(self.expr(inner))),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_metaeval(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::MetaEval(inner) => CoreExprKind::CompileTime(Box::new(self.expr(inner))),
-            _ => {
-                CoreExprKind::Unsupported("expression requires a later language capability".into())
-            }
+            _ => unreachable!("lowering expression dispatcher"),
         };
         self.expr_node(kind, e.span)
     }
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+            if let [s::GenericArg::Type(resource)] = args.as_slice() {
+                match type_ref(resource) {
+                    Type::Desc(payload)
+                        if matches!(
+                            payload.as_ref(),
+                            Type::ByteBuffer
+                                | Type::OwnedStore { .. }
+                                | Type::TaskI32
+                                | Type::Task { .. }
+                                | Type::Registration { .. }
+                        ) =>
+                    {
+                        Type::Managed(payload)
+                    }
+                    Type::Managed(_) | Type::Desc(_) => Type::Unsupported(
+                        "Managed requires an actual resource, not another carrier".into(),
+                    ),
+                    resource => Type::Managed(Box::new(resource)),
+                }
+            } else {
+                Type::Unsupported("Managed requires one actual resource type".into())
+            }
+        }
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
+            if let [s::GenericArg::Type(result)] = args.as_slice() {
+                Type::Desc(Box::new(Type::Task {
+                    result: Box::new(type_ref(result)),
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: 0,
+                        ports: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
+                }))
+            } else {
+                Type::Unsupported("Task requires one complete result type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Registration"] => {
             if let [s::GenericArg::Type(environment)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Registration {
@@ -1759,6 +2042,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                         .map(|p| matches!(p, Type::Address { .. }).then_some(0))
                         .collect(),
                     result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
+                };
+                let Some(life) = zil_ir::StorageLifeContract::from_flat(life) else {
+                    return Type::Unsupported("callable relation arity exhausted".into());
                 };
                 Type::BorrowedFunctionPointer {
                     parameters,

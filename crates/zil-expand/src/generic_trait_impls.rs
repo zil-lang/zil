@@ -18,6 +18,7 @@ impl<'a> Engine<'a> {
                 && trait_bounds::plain(&implementation.target).is_some()
                 && !self.traits.has_associated
                 && !self.traits.has_generic_methods
+                && !self.budget.has_dynamic()
             {
                 continue;
             }

@@ -255,7 +255,7 @@ impl FunctionEmitter<'_> {
         );
         Ok((next, p))
     }
-    fn actual_place(
+    pub(super) fn actual_place(
         &mut self,
         root: &Type,
         ptr: &str,
@@ -335,6 +335,65 @@ impl FunctionEmitter<'_> {
             _ => invalid(
                 "E-CODEGEN-PARTIAL",
                 "tag endpoint is not a Sum",
+                Some(i.span),
+            ),
+        }
+    }
+    pub(super) fn borrow_address_place(
+        &mut self,
+        i: &Instruction,
+        address: ValueId,
+        path: &[PlaceProjection],
+    ) -> CompileResult<()> {
+        let Type::Address { inner, .. } = self.value_type(address)?.clone() else {
+            return invalid(
+                "E-CODEGEN-PARTIAL",
+                "mixed input is not Address",
+                Some(i.span),
+            );
+        };
+        let (_, p) = self.actual_place(&inner, &value(address), path)?;
+        self.place_inst(
+            Some(value(result(i)?)),
+            m::Op::Gep {
+                ty: m::Ty::Int(8),
+                ptr: m::val(p),
+                indices: vec![m::Arg::new(m::Ty::Int(32), 0)],
+            },
+        );
+        Ok(())
+    }
+    pub(super) fn tag_address_place(
+        &mut self,
+        i: &Instruction,
+        address: ValueId,
+        path: &[PlaceProjection],
+    ) -> CompileResult<()> {
+        let Type::Address { inner, .. } = self.value_type(address)?.clone() else {
+            return invalid(
+                "E-CODEGEN-PARTIAL",
+                "mixed input is not Address",
+                Some(i.span),
+            );
+        };
+        let (ty, p) = self.actual_place(&inner, &value(address), path)?;
+        match ty {
+            Type::Enum { .. } => self.enum_tag_at(&ty, &p, value(result(i)?)),
+            Type::ErrorUnion { .. } => {
+                let tag = self.error_tag_at(&ty, &p)?;
+                self.place_inst(
+                    Some(value(result(i)?)),
+                    m::Op::Cast {
+                        opcode: "zext".into(),
+                        arg: m::Arg::new(m::Ty::Int(1), m::val(tag)),
+                        to: m::Ty::Int(32),
+                    },
+                );
+                Ok(())
+            }
+            _ => invalid(
+                "E-CODEGEN-PARTIAL",
+                "mixed tag endpoint is not Sum",
                 Some(i.span),
             ),
         }

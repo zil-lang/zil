@@ -127,10 +127,16 @@ fn callable_bound_source_parameters_become_internal_args_tuple() {
         function(&module, 1).return_type.as_ref().unwrap().kind,
         TypeKind::Impl(_)
     ));
-    let TypeKind::Dyn { path, args } = &alias(&module, 2).kind else {
+    let TypeKind::Dyn {
+        path,
+        args,
+        bindings,
+    } = &alias(&module, 2).kind
+    else {
         panic!("dyn callable")
     };
     assert_eq!(path, &["FnMut"]);
+    assert!(bindings.is_empty());
     assert_eq!(args.len(), 2);
 }
 

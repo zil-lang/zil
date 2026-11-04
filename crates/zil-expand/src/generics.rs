@@ -32,14 +32,21 @@ pub(super) mod origins;
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
 pub(super) mod record_enums;
+#[path = "generic_rich_pointer.rs"]
+pub(super) mod rich_pointer;
+#[path = "generic_source_life.rs"]
+mod source_life;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_nominal.rs"]
+mod stored_nominal;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+pub(super) use trait_bounds::dynamic;
 #[path = "generic_trait_defaults.rs"]
 pub(super) mod trait_defaults;
 #[path = "generic_trait_impls.rs"]
@@ -83,11 +90,24 @@ pub(super) fn specialize_products<'a>(
     limits: &Limits,
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
+    specialize_products_with_context(module, limits, products, None)
+}
+pub(super) fn specialize_products_with_context<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products, true)
-            .map(|module| Cow::Owned(module.into_owned())),
-        None => specialize_products_prepared(module, &remaining, products, false),
+        Some(prepared) => {
+            specialize_products_prepared(&prepared, &remaining, products, true, context)
+                .map(|module| Cow::Owned(module.into_owned()))
+        }
+        None => specialize_products_prepared(module, &remaining, products, false, context),
     }
 }
 
@@ -96,6 +116,10 @@ fn specialize_products_prepared<'a>(
     limits: &Limits,
     products: &mut products::Products,
     inserted_option: bool,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -154,6 +178,9 @@ fn specialize_products_prepared<'a>(
         }
         for param in params(item) {
             if matches!(param.kind, GenericParamKind::Lifetime) {
+                if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
+                    names_budget.note_source_identity();
+                }
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -166,7 +193,7 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods {
+    if has_generic_methods || names_budget.needs_source_identity() {
         if let Some(origins) = &mut products.origins {
             if inserted_option {
                 origins
@@ -179,6 +206,19 @@ fn specialize_products_prepared<'a>(
                     .map_err(|e| vec![e])?,
             );
         }
+    }
+    if names_budget.needs_source_identity()
+        && let Some((sources, context)) = context
+    {
+        let resolved = context
+            .resolve(sources, &mut names_budget)
+            .map_err(|e| vec![e])?;
+        products
+            .origins
+            .as_mut()
+            .expect("dyn source ledger")
+            .capture_identities(module, inserted_option, &resolved, &mut names_budget)
+            .map_err(|e| vec![e])?;
     }
     if names_budget.has_primitive_binders() && !has_alias {
         // The existing scoped normalizer also protects aliases. Without an
@@ -215,15 +255,18 @@ fn specialize_products_prepared<'a>(
             aliases::normalize_with_origins(&normalized, names_budget, products.origins.as_mut())
                 .map_err(|e| vec![e])?;
         return match aliased {
-            Some(aliased) => specialize_with_budget(
-                &aliased.module,
-                limits,
-                &aliased.pattern_types,
-                budget,
-                products,
-                has_associated,
-                has_generic_methods,
-            ),
+            Some(mut aliased) => {
+                products.rich_aliases.append(&mut aliased.rich_aliases);
+                specialize_with_budget(
+                    &aliased.module,
+                    limits,
+                    &aliased.pattern_types,
+                    budget,
+                    products,
+                    has_associated,
+                    has_generic_methods,
+                )
+            }
             None => specialize_with_budget(
                 &normalized,
                 limits,
@@ -240,7 +283,8 @@ fn specialize_products_prepared<'a>(
     let (normalized, names_budget) =
         aliases::normalize_with_origins(module, names_budget, products.origins.as_mut())
             .map_err(|e| vec![e])?;
-    if let Some(normalized) = normalized {
+    if let Some(mut normalized) = normalized {
+        products.rich_aliases.append(&mut normalized.rich_aliases);
         if normalized.pattern_types.is_empty()
             && normalized
                 .module
@@ -256,6 +300,8 @@ fn specialize_products_prepared<'a>(
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
+            && !names_budget.needs_source_identity()
+            && !names_budget.has_borrowed_keys()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -280,6 +326,8 @@ fn specialize_products_prepared<'a>(
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
+        && !names_budget.needs_source_identity()
+        && !names_budget.has_borrowed_keys()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -305,6 +353,7 @@ fn specialize_with_budget<'a>(
     has_associated: bool,
     has_generic_methods: bool,
 ) -> R<Module> {
+    source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
     let methods =
         trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
@@ -344,6 +393,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    life_scope: Vec<String>,
+    stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
     enums: BTreeMap<String, &'a EnumDecl>,
@@ -432,6 +483,8 @@ impl<'a> Engine<'a> {
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            life_scope: Vec::new(),
+            stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
             trait_calls: trait_instances::Calls::new(),
@@ -552,10 +605,34 @@ impl<'a> Engine<'a> {
             } else {
                 None
             };
+            // The parameter loop already visits every formal. Only an actual
+            // lifetime formal needs this extra profile query; callable
+            // classification above has already established its own profile.
+            let mut allow_source_life = None;
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
-                if matches!(&item.kind, ItemKind::Function(f) if super::lifetimes::copy_life(f))
-                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && let ItemKind::Function(f) = &item.kind
+                {
+                    let allowed = match allow_source_life {
+                        Some(allowed) => allowed,
+                        None => {
+                            let allowed = if callable.is_some() {
+                                true
+                            } else {
+                                engine.budget.identity_work(f.generics.len(), f.span)?;
+                                super::lifetimes::copy_life(f)
+                            };
+                            allow_source_life = Some(allowed);
+                            allowed
+                        }
+                    };
+                    if allowed {
+                        continue;
+                    }
+                }
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && matches!(item.kind, ItemKind::Aggregate(_))
                 {
                     continue;
                 }
@@ -645,11 +722,17 @@ impl<'a> Engine<'a> {
             if let ItemKind::Enum(e) = &item.kind
                 && !engine.budget.enum_profile(item.span)
                 && e.name != options::TEMPLATE
+                && e.name != options::TASK_POLL
             {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
-                let variables: BTreeSet<_> = a.generics.iter().map(|p| p.name.clone()).collect();
+                let variables: BTreeSet<_> = a
+                    .generics
+                    .iter()
+                    .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                    .map(|p| p.name.clone())
+                    .collect();
                 let bounds = engine
                     .traits
                     .parameter_bounds(&a.generics, &mut engine.budget)?;
@@ -699,6 +782,14 @@ impl<'a> Engine<'a> {
             }
         }
         helper_dependencies.check(&mut engine.budget)?;
+        if engine.budget.has_dynamic() {
+            engine.products.dynamic = dynamic::collect(
+                module,
+                &engine.traits,
+                origins.ok_or_else(|| error(module.span, "dyn source provenance absent"))?,
+                &mut engine.budget,
+            )?;
+        }
         Ok(engine)
     }
     fn tick(&mut self, span: Span, depth: usize) -> R<()> {
@@ -708,7 +799,15 @@ impl<'a> Engine<'a> {
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
+        self.products.borrowed_signatures = self.budget.has_borrowed_keys();
+        self.products.storage.borrowed_signatures = self.products.borrowed_signatures;
         self.collect_products(module)?;
+        // Aliases are checked even when they have no runtime use. These are
+        // complete paid originals retained by alias normalization, not bodies
+        // recovered from a convenient concrete instantiation.
+        for ty in std::mem::take(&mut products.rich_aliases) {
+            self.prepare_rich_pointer(&ty, 0)?;
+        }
         let mut result = Module {
             id: module.id,
             span: module.span,
@@ -721,7 +820,7 @@ impl<'a> Engine<'a> {
             }
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
-                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
+                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| matches!(p.kind,GenericParamKind::Lifetime) || bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.enqueue(
@@ -736,6 +835,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        self.prepare_stored_headers()?;
         let mut output_origins = origins::Origins::default();
         while let Some(origins::Pending {
             mut item,
@@ -755,7 +855,10 @@ impl<'a> Engine<'a> {
             }
             result.items.push(item);
         }
-        self.products.origins = self.origins.map(|_| output_origins);
+        if let Some(original) = self.origins {
+            output_origins.identities = original.copy_identities(&mut self.budget, module.span)?;
+            self.products.origins = Some(output_origins);
+        }
         self.products.allowance = Some(self.budget.remaining_limits());
         *products = std::mem::take(&mut self.products);
         Ok(result)
@@ -987,9 +1090,9 @@ impl<'a> Engine<'a> {
             self.resolved_method_calls.insert(generated.clone(), calls);
         }
         self.budget.item(&instance)?;
-        // Original generic enums retain their existing Copy payload profile,
-        // even though ordinary monomorphic enums now admit owners. Inspect the
-        // actual substituted fields while the real template identity exists.
+        // Inspect complete substituted value fields while their ordinary
+        // template identity exists. Explicit Managed arguments remain owning
+        // values; this never grants Copy or manufactures a resource header.
         if let ItemKind::Enum(e) = &instance.kind
             && template != options::TEMPLATE
         {
@@ -999,12 +1102,24 @@ impl<'a> Engine<'a> {
                         if field.manages {
                             return Err(unsupported(field.span, "owned generic enum payload"));
                         }
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 } else if let VariantFields::Record(fields) = &variant.fields {
                     for field in fields {
                         self.budget.node(field.span, 0)?;
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 }
             }
@@ -1035,7 +1150,9 @@ impl<'a> Engine<'a> {
         if let Some(arguments) = product_arguments {
             self.record_product(template, &generated, arguments, product_scope, span)?;
         }
-        if self.budget.has_anonymous_sums() && matches!(instance.kind, ItemKind::Function(_)) {
+        if (self.budget.has_anonymous_sums() || self.budget.has_type_member_patterns())
+            && matches!(instance.kind, ItemKind::Function(_))
+        {
             self.budget.text(&generated, span)?;
             self.budget.node(span, 0)?;
             // Transfer the already bounded substitution map; no second clone.
@@ -1048,6 +1165,11 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if matches!(ty.kind, TypeKind::ForLifetime { .. })
+            && self.prepare_rich_pointer(ty, depth + 1)?
+        {
+            return Ok(());
+        }
         if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
             *ty = self.traits.normalize_associated(
                 ty,
@@ -1059,6 +1181,15 @@ impl<'a> Engine<'a> {
         }
         match &mut ty.kind {
             TypeKind::Named { path, args } => {
+                if self.stored_nominals
+                    && path.len() == 1
+                    && self.stored_declaration(&path[0], ty.span)?
+                {
+                    let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
+                    *path = vec![name];
+                    args.clear();
+                    return Ok(());
+                }
                 let mut values = Vec::new();
                 let declaration = (path.len() == 1)
                     .then(|| self.templates.get(&path[0]).copied())
@@ -1119,6 +1250,17 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn item(&mut self, item: &mut Item) -> R<()> {
+        let old_life_scope = std::mem::take(&mut self.life_scope);
+        if self.stored_nominals
+            && let ItemKind::Function(function) = &item.kind
+        {
+            for parameter in &function.generics {
+                if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    self.life_scope.push(parameter.name.clone());
+                }
+            }
+        }
         let mut frame = BTreeMap::new();
         if self.traits.has_generic_methods
             && let ItemKind::Function(function) = &item.kind
@@ -1141,11 +1283,19 @@ impl<'a> Engine<'a> {
         let previous = std::mem::replace(&mut self.method_calls, frame);
         let result = self.item_inner(item);
         self.method_calls = previous;
+        self.life_scope = old_life_scope;
         result
     }
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                if self.stored_signature(f)? {
+                    self.budget.function_snapshot(f)?;
+                    self.budget.text(&f.name, f.span)?;
+                    self.stored_lookup_fee(self.signatures.len(), f.name.len(), f.span)?;
+                    self.signatures
+                        .insert(f.name.clone(), Cow::Owned(f.clone()));
+                }
                 let saved_anonymous = self.anonymous_function.take();
                 if self.anonymous_substitutions.contains_key(&f.name) {
                     self.budget.text(&f.name, f.span)?;
@@ -1196,6 +1346,10 @@ impl<'a> Engine<'a> {
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
+                            if let Some(code) = rich_pointer::role_code(bound, &mut self.budget)? {
+                                self.prepare_rich_pointer(&code, 0)?;
+                                continue;
+                            }
                             let bound = callable::bound_inner_mut(bound);
                             if let TypeKind::Named { path, args } = &mut bound.kind
                                 && path.len() == 1
@@ -1247,6 +1401,17 @@ impl<'a> Engine<'a> {
                 self.store_parameter = saved_store;
                 self.product_owner = saved_product_owner;
                 self.anonymous_function = saved_anonymous;
+                if self.stored_nominals {
+                    for name in self.products.storage.functions.keys() {
+                        self.budget.text(name, f.span)?;
+                        self.budget.text(&f.name, f.span)?;
+                    }
+                    if self.products.storage.functions.contains_key(&f.name) {
+                        f.generics.retain(|parameter| {
+                            !matches!(parameter.kind, GenericParamKind::Lifetime)
+                        });
+                    }
+                }
             }
             ItemKind::Aggregate(a) => {
                 let saved = (
@@ -1981,6 +2146,67 @@ impl<'a> Engine<'a> {
             anonymous_context,
             store_success_context,
         };
+        self.expr_dispatch(e, env, context, depth)
+    }
+
+    #[inline(never)]
+    fn expr_dispatch(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        context: ExprExpectedContext<'_>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        match &mut e.kind {
+            ExprKind::Ascribed { .. } => self.expr_variant_ascribed(e, env, depth),
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => self.expr_expected(
+                inner,
+                env,
+                context.expected.or(context.error_context),
+                depth + 1,
+            ),
+            ExprKind::Unary { .. } => self.expr_variant_unary(e, env, context, depth),
+            ExprKind::Binary { .. } => self.expr_variant_binary(e, env, context, depth),
+            ExprKind::Call { .. } => self.expr_call_normal(e, env, context, depth),
+            ExprKind::Tuple(..) => self.expr_variant_tuple(e, env, context, depth),
+            ExprKind::Array(..) => self.expr_variant_array(e, env, context, depth),
+            ExprKind::Member { .. } => self.expr_variant_member(e, env, context, depth),
+            ExprKind::Index { .. } => self.expr_variant_index(e, env, context, depth),
+            ExprKind::Slice { .. } => self.expr_variant_slice(e, env, context, depth),
+            ExprKind::If { .. } => self.expr_variant_if(e, env, context, depth),
+            ExprKind::Record { .. } => self.expr_variant_record(e, env, context, depth),
+            ExprKind::Closure { .. } => self.expr_variant_closure(e, env, context, depth),
+            ExprKind::MetaBlock(..) => self.expr_variant_meta_block(e, env, context, depth),
+            ExprKind::Pipeline { .. } => self.expr_variant_pipeline(e, env, context, depth),
+            ExprKind::Try(inner) => self.expr_try_result(inner, env, depth),
+            _ => self.expr_leaf_result(e, env, context.expected),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_try_result(
+        &mut self,
+        inner: &mut Expr,
+        env: &mut Env,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        let result = match self.expr(inner, env, depth + 1)? {
+            Some(TypeRef {
+                kind: TypeKind::Error { result, .. },
+                ..
+            }) => Some(*result),
+            _ => None,
+        };
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_leaf_result(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        expected: Option<&TypeRef>,
+    ) -> R<Option<TypeRef>> {
         let result = match &mut e.kind {
             ExprKind::Literal(Literal::Integer(text)) => {
                 if let Some(ty) = expected.filter(|ty| check::integer(ty)) {
@@ -2027,30 +2253,6 @@ impl<'a> Engine<'a> {
                     None
                 }
             }
-            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
-                self.expr_expected(inner, env, expected.or(error_context), depth + 1)?
-            }
-            ExprKind::Unary { .. } => return self.expr_variant_unary(e, env, context, depth),
-            ExprKind::Binary { .. } => return self.expr_variant_binary(e, env, context, depth),
-            ExprKind::Call { .. } => return self.expr_call_normal(e, env, context, depth),
-            ExprKind::Tuple(..) => return self.expr_variant_tuple(e, env, context, depth),
-            ExprKind::Array(..) => return self.expr_variant_array(e, env, context, depth),
-            ExprKind::Member { .. } => return self.expr_variant_member(e, env, context, depth),
-            ExprKind::Index { .. } => return self.expr_variant_index(e, env, context, depth),
-            ExprKind::Slice { .. } => return self.expr_variant_slice(e, env, context, depth),
-            ExprKind::If { .. } => return self.expr_variant_if(e, env, context, depth),
-            ExprKind::Record { .. } => return self.expr_variant_record(e, env, context, depth),
-
-            ExprKind::Closure { .. } => return self.expr_variant_closure(e, env, context, depth),
-            ExprKind::MetaBlock(..) => return self.expr_variant_meta_block(e, env, context, depth),
-            ExprKind::Try(inner) => match self.expr(inner, env, depth + 1)? {
-                Some(TypeRef {
-                    kind: TypeKind::Error { result, .. },
-                    ..
-                }) => Some(*result),
-                _ => None,
-            },
-            ExprKind::Pipeline { .. } => return self.expr_variant_pipeline(e, env, context, depth),
             _ => None,
         };
         Ok(result)
@@ -2153,6 +2355,10 @@ fn original_type_observed(
                 args: args
                     .iter()
                     .map(|arg| match arg {
+                        GenericArg::Lifetime(name) => {
+                            budget.text(name, ty.span)?;
+                            Ok(GenericArg::Lifetime(name.clone()))
+                        }
                         GenericArg::Type(t) => Ok(GenericArg::Type(original_type_observed(
                             t,
                             instances,
@@ -2338,9 +2544,15 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    if let Some(key) = rich_pointer::key(ty, budget)? {
+        return Ok(key);
+    }
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
-    if budget.has_anonymous_sums() {
+    if budget.has_anonymous_sums()
+        || budget.has_borrowed_keys()
+        || budget.has_type_member_patterns()
+    {
         type_keys::prepay(ty, budget)?;
     }
     render_type_key(ty)
@@ -2354,6 +2566,12 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
+                    GenericArg::Lifetime(_) => {
+                        return Err(unsupported(
+                            ty.span,
+                            "lifetime instance identity requires scoped canonical storage relation",
+                        ));
+                    }
                     GenericArg::Type(t) => render_type_key(t)?,
                     GenericArg::Const(e) => format!("#{}", consts::key(e)?),
                 };
@@ -2362,6 +2580,7 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             key
         }
         TypeKind::Group(t) => return render_type_key(t),
+        TypeKind::ForLifetime { .. } => return render_borrowed_type_key(ty),
         TypeKind::Reference { mutable, inner, .. } => {
             format!("R{mutable}<{}>", render_type_key(inner)?)
         }
@@ -2449,6 +2668,61 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
         }
     })
 }
+/// Complete source identity for the canonical joint invocation relation.
+/// The key planner prepays binder lookup, remapping and every rendered byte.
+fn render_borrowed_type_key(ty: &TypeRef) -> R<String> {
+    let mut names = Vec::new();
+    let mut inner = ty;
+    while let TypeKind::ForLifetime {
+        lifetime,
+        inner: next,
+    } = &inner.kind
+    {
+        names.push(lifetime.as_str());
+        inner = next;
+    }
+    let TypeKind::Function { params, result } = &inner.kind else {
+        return Err(error(
+            ty.span,
+            "borrowed code key requires a function signature",
+        ));
+    };
+    let mut remap = vec![None; names.len()];
+    let mut count = 0u32;
+    let mut label = |ty: &TypeRef| {
+        let TypeKind::Reference {
+            lifetime: Some(name),
+            ..
+        } = &grouped(ty).kind
+        else {
+            return None;
+        };
+        let old = names.iter().rposition(|candidate| *candidate == name)?;
+        let dense = *remap[old].get_or_insert_with(|| {
+            let next = count;
+            count += 1;
+            next
+        });
+        Some(dense)
+    };
+    let parameters: Vec<_> = params.iter().map(&mut label).collect();
+    let result_life = label(result);
+    if count == 0 {
+        return render_type_key(inner);
+    }
+    let tag = |life: Option<u32>| life.map_or_else(|| "_".to_owned(), |n| n.to_string());
+    let mut key = format!("B{count}[");
+    for life in parameters {
+        key.push_str(&tag(life));
+        key.push(',');
+    }
+    key.push_str("]>");
+    key.push_str(&tag(result_life));
+    key.push(':');
+    key.push_str(&render_type_key(inner)?);
+    Ok(key)
+}
+
 fn unify(
     pattern: &TypeRef,
     actual: &TypeRef,
@@ -2800,6 +3074,7 @@ impl Substitution<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for a in args {
                     match a {
+                        GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
                                 && let Some(value) =
@@ -3002,6 +3277,10 @@ impl Substitution<'_> {
             return;
         }
         match &mut e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty);
+                self.expr(value);
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)
@@ -3029,6 +3308,7 @@ impl Substitution<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
                                 && let Some(value) =

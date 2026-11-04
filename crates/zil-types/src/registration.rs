@@ -94,6 +94,7 @@ pub(super) fn add_definitions(
             let mut pending = vec![root];
             while let Some(t) = pending.pop() {
                 spend(left, 1)?;
+                tasks::require_closed_context(t, f.span)?;
                 match t {
                     Type::Registration { environment } => {
                         let Type::Closure(id) = environment.as_ref() else {
@@ -105,7 +106,9 @@ pub(super) fn add_definitions(
                         spend(left, found.len().saturating_add(32))?;
                         found.insert(*id, t.clone());
                     }
-                    Type::Managed(t)
+                    Type::BorrowedStorage { storage: t, .. }
+                    | Type::Task { result: t, .. }
+                    | Type::Managed(t)
                     | Type::Desc(t)
                     | Type::Address { inner: t, .. }
                     | Type::Opaque { hidden: t, .. }
@@ -324,7 +327,9 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
-                Type::Address { .. }
+                Type::Dyn { .. }
+                | Type::Task { .. }
+                | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)
@@ -340,7 +345,8 @@ pub(super) fn closed_environment(
                     pay(&mut work, 1)?;
                     pending.push(*id)
                 }
-                Type::Managed(t)
+                Type::BorrowedStorage { storage: t, .. }
+                | Type::Managed(t)
                 | Type::Registration { environment: t }
                 | Type::Opaque { hidden: t, .. }
                 | Type::OwnedStore { element: t }

@@ -1,0 +1,56 @@
+{
+  "status": "PassLimitedRawTransport",
+  "scope": "Prospective common runtime39 + Dyn39 + CT4 public data and codecs, independently built from exact reconstructed source. No semantic source/kernels or later Task39 type-field integration acceptance.",
+  "patches": [
+    {
+      "patch": "/tmp/342-public39/runtime39-inventory.patch",
+      "sha256": "b43881318fae7160291be9875df9cbf5b809be7dc76a162711a3ce1ffe320268"
+    },
+    {
+      "patch": "/tmp/342-public39/ct4-scope.patch",
+      "sha256": "c990e08ff142aa93b6d33fa211372a835ff969f4864797d43afcbbf5ebca1eb1"
+    },
+    {
+      "patch": "/workspace/.zil-env/terminal-20261104/dyn39-public/dyn39-public.patch",
+      "sha256": "0be98fd837f657ca8d183b8d0a74901014a5f786e212a4d341acb3e18d378727"
+    }
+  ],
+  "reconstruction": {
+    "runtime_base": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+    "ct_base": "b46027807",
+    "actual_Rust_files_compared": 38,
+    "mismatches": [],
+    "record": "/workspace/.zil-env/terminal-20261104/reviewer-public39/reconstruction.json",
+    "sha256": "9cd9133da6089ea05ce3ab64c6eae1881046af02f2cf3497412e36c659edc5b0",
+    "note": "Initial all-file comparison also included a noncompiled .rs.orig patch backup; this was recorded separately, not treated as a Rust source mismatch."
+  },
+  "independent_build": {
+    "binding": "/workspace/.zil-env/terminal-20261104/reviewer-public39/receipt.json",
+    "binding_sha256": "0779678976148c6d802c6fb332e26fdbb286d4ff968b74e185d6a78790bab2cc",
+    "log": "/workspace/.zil-env/terminal-20261104/reviewer-public39/replay.log",
+    "log_sha256": "6076a83b57464f29e9b67b18b2ba5177d91a1e0ce496924e3313cee6ca12b429",
+    "commands": "Fresh rustc zil-base rlib, zil-ir rlib, then copied codec probe linked against those exact new rlibs; execute probe. No Cargo target added.",
+    "third_party_inputs": "Exact existing sha2 and rustc_apfloat dependency rlibs reused and SHA-bound; not independently rebuilt.",
+    "probe_sha256": "87c20f19e2c264d82ac0228eb5da33940e459bc949d90f3b4ee3a54c243e6b3d",
+    "all_exit_codes": 0
+  },
+  "actual_controls": [
+    "Runtime full nominal inventory and retained metadata roundtrip plus raw fingerprint changes",
+    "Dyn actual retained ports/class maps, vtable port bindings and shared required contracts roundtrip",
+    "CT4 joint numeric owner scope, Lifetime and TypeInContext, node16/constructor12 roundtrip",
+    "CT encoder workN2654 and decoderN3703; N-1 Limit and freshN",
+    "Huge binder counts and long physical/semantic paths reject before unbounded allocation",
+    "Old runtime38/CT3 version mutations reject"
+  ],
+  "code_review": [
+    "Lifetime owner references stay numeric scope backreferences; no physical DAG recursion follows them.",
+    "Runtime paths and rows use cumulative count/byte limits; CT paths explicitly charge elements and allocation before reserve.",
+    "Semantic class/owner validity is deliberately not claimed by codec acceptance; actual SourceIndex/Origins and independent scope/type/proof consumers remain required."
+  ],
+  "limits": [
+    "Probe contains raw data, including semantically invalid shapes; a codec roundtrip is not proof of permission, scope, formation or ownership.",
+    "No Types/Analyze/Verify, native dyn or stored-borrow Task behavior tested.",
+    "Parent must atomically compose Task39 and contextual semantic identity consumers; existing public transport does not authorize them.",
+    "No full language/product/native Windows/Rust cost conclusion."
+  ]
+}

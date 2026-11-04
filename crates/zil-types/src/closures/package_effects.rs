@@ -175,6 +175,8 @@ impl Scan<'_> {
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
         self.visit(depth, pattern.span)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) => self.bind(name, pattern.span)?,
             CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
                 for field in fields {
@@ -426,7 +428,10 @@ impl Scan<'_> {
                 self.expr(state, operand, depth + 1)?;
                 self.borrow_depth -= 1;
             }
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
             | CoreExprKind::NumericConvert { value: operand, .. }
@@ -451,7 +456,10 @@ impl Scan<'_> {
                     self.expr(state, right, depth + 1)?;
                 }
             }
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(state, callee, depth + 1)?;
                 if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(package) = self.named(object)?

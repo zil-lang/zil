@@ -123,7 +123,11 @@ fn terminal342_borrowed_pointer_raw_target_relation_and_indirect_aliases_are_ind
             .chain(f.locals.iter_mut().map(|l| &mut l.ty))
         {
             if let Type::BorrowedFunctionPointer { life, .. } = ty {
-                life.result_life = Some(99);
+                life.bindings
+                    .iter_mut()
+                    .find(|r| r.position.base == zil_ir::StorageBase::Result)
+                    .unwrap()
+                    .binder = zil_ir::StorageBinder::Invocation(99);
             }
         }
     }
@@ -330,13 +334,11 @@ fn terminal342_borrowed_pointer_binders_are_canonical_and_invocation_local() {
                 .chain(function.locals.iter_mut().map(|l| &mut l.ty))
             {
                 if let Type::BorrowedFunctionPointer { life, .. } = ty {
-                    life.binder_count = count;
-                    for tag in life
-                        .parameter_lives
-                        .iter_mut()
-                        .chain(std::iter::once(&mut life.result_life))
-                        .flatten()
-                    {
+                    life.invocation_binder_count = count;
+                    for row in &mut life.bindings {
+                        let zil_ir::StorageBinder::Invocation(tag) = &mut row.binder else {
+                            panic!("unexpected fixed binder")
+                        };
                         *tag += shift;
                     }
                 }
@@ -366,6 +368,7 @@ fn terminal342_borrowed_pointer_binders_are_canonical_and_invocation_local() {
 fn terminal342_borrowed_pointer_ct_wire_retains_dag_relation_with_bounded_metadata() {
     use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
     let value = CtValue::Type(CtTypeRef {
+        ambient_classes: vec![],
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
@@ -375,11 +378,12 @@ fn terminal342_borrowed_pointer_ct_wire_retains_dag_relation_with_bounded_metada
             CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(1), CtTypeNodeId(1)],
                 result: CtTypeNodeId(1),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 2,
                     parameter_lives: vec![Some(0), Some(1)],
                     result_life: Some(0),
-                },
+                })
+                .unwrap(),
             },
         ],
         root: CtTypeNodeId(2),
@@ -396,7 +400,7 @@ fn terminal342_borrowed_pointer_ct_wire_retains_dag_relation_with_bounded_metada
     let CtTypeNode::BorrowedFunctionPointer { life, .. } = &mut ty.nodes[2] else {
         unreachable!()
     };
-    life.binder_count = u32::MAX;
+    life.invocation_binder_count = u32::MAX;
     assert_eq!(
         zil_ir::ct_wire::encode_value(&oversized, &Limits::default()),
         Err(zil_ir::ct_wire::WireError::Limit)

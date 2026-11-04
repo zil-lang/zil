@@ -66,7 +66,7 @@ pub(super) struct Budget<'a> {
     work: usize,
 }
 impl<'a> Budget<'a> {
-    fn new(limits: &'a zil_base::Limits) -> Self {
+    pub(super) fn new(limits: &'a zil_base::Limits) -> Self {
         Self {
             limits,
             nodes: 0,
@@ -167,7 +167,44 @@ impl<'a> Budget<'a> {
     // Prepay the complete subtree before LLVM type construction or Type clones.
     pub(super) fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.pay(depth, 32)?;
+        if let Type::BorrowedFunctionPointer { life, .. } = ty {
+            self.pay(
+                depth,
+                life.bindings
+                    .len()
+                    .saturating_add(life.classes.len())
+                    .saturating_mul(16)
+                    .saturating_add(32),
+            )?;
+            for row in &life.bindings {
+                self.pay(depth, row.position.path.len().saturating_mul(8))?;
+            }
+            for row in &life.classes {
+                self.pay(depth, row.position.path.len().saturating_mul(8))?;
+            }
+        }
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.pay(
+                    depth,
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_mul(16)
+                        .saturating_add(32),
+                )?;
+                for row in &life.slots {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                for row in &life.retained {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                for row in &life.nominal_arguments {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                self.tree(storage, depth + 1)?;
+            }
             Type::Package { name, fields } | Type::Record { name, fields } => {
                 self.pay(depth, name.len().saturating_add(fields.len()))?;
                 for (name, t) in fields {
@@ -270,7 +307,7 @@ fn link(
         };
         return Ok(if matches!(r.payload, Type::Registration { .. }) {
             DropPlan::Leaf("zil.registration.drop".into())
-        } else if r.payload == Type::TaskI32 {
+        } else if matches!(r.payload, Type::TaskI32 | Type::Task { .. }) {
             DropPlan::Leaf("zil.task.drop".into())
         } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())
@@ -281,6 +318,30 @@ fn link(
         });
     }
     unsupported("unsupported complete Sum cleanup leaf", None)
+}
+
+/// Continuations share the actual ordinary leaf cleanup selection. This
+/// returns no second ownership rule and is called only for canonical slots
+/// carried by the immutable verified responsibility artifact.
+pub(super) fn task_leaf(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    meter: &tasks::Meter,
+) -> CompileResult<Option<String>> {
+    let mut bounded = limits.clone();
+    bounded.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&bounded);
+    let result = link(ty, resources, &mut budget, 0);
+    meter.spend(budget.spent())?;
+    match result? {
+        DropPlan::Empty => Ok(None),
+        DropPlan::Leaf(symbol) => Ok(Some(symbol)),
+        _ => unsupported(
+            "continuation canonical slot needs ordinary complete cleanup helper",
+            None,
+        ),
+    }
 }
 fn product_plan(
     ty: &Type,
@@ -635,6 +696,14 @@ pub(super) fn functions(
                         }
                         budget.pay(path.len(), path.len().saturating_mul(32))?;
                     }
+                    InstructionKind::PlaceTagAddress { address, path }
+                    | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                        let ty = &f.values[address.0 as usize];
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(96))?;
+                    }
                     InstructionKind::VariantTagAddress { address, path }
                     | InstructionKind::BorrowVariantAddress { address, path, .. } => {
                         let ty = &f.values[address.0 as usize];
@@ -730,6 +799,76 @@ pub(super) fn functions(
     Ok(code)
 }
 
+/// Whole SSA packages introduced by verified continuation transfers use the
+/// same complete ordinary cleanup recipe. Local partial fields have their own
+/// canonical debt slots, so this never drops an aggregate and its leaves twice.
+pub(super) fn task_helpers(
+    verified: &VerifiedModule,
+    meter: &tasks::Meter,
+) -> CompileResult<m::Code> {
+    if verified.task_worker_ids().is_empty() {
+        return Ok(m::Code::new());
+    }
+    let mut limits = verified.limits().clone();
+    limits.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&limits);
+    let result = (|| {
+        let mut found = BTreeMap::new();
+        for id in verified.task_worker_ids() {
+            budget.pay(0, 1)?;
+            let Some(ownership) = verified.task_ownership(*id) else {
+                continue;
+            };
+            for owner in ownership.owners() {
+                let ty = owner.ty();
+                budget.tree(ty, 0)?;
+                if !matches!(ty, Type::Package { .. }) || new_shape(ty) {
+                    continue;
+                }
+                budget.tree(ty, 0)?;
+                budget.pay(0, found.len().saturating_add(1))?;
+                let hash = key(ty);
+                if let Some(previous) = found.insert(hash, ty) {
+                    budget.tree(ty, 0)?;
+                    if previous != ty {
+                        return invalid(
+                            "E-CODEGEN-SUM-HASH",
+                            "distinct task SSA packages share a cleanup key",
+                            None,
+                        );
+                    }
+                }
+            }
+        }
+        let mut code = m::Code::new();
+        for ty in found.values() {
+            let p = plan(ty, &verified.module().resources, &mut budget, 0)?;
+            let mut emitter = Emitter {
+                code: m::Code::new(),
+                next: 0,
+            };
+            emitter.code.push(m::Event::Begin(m::Function {
+                name: symbol(ty),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature::new(
+                    m::Ty::Void,
+                    vec![m::Param::new(m::Ty::Ptr, "payload")],
+                ),
+                attrs: vec![],
+                blocks: None,
+            }));
+            emitter.code.push(m::Event::Label("entry".into()));
+            emitter.emit(&p, "payload");
+            emitter.inst(None, m::Op::Return(None));
+            emitter.code.push(m::Event::End);
+            code.append(emitter.code);
+        }
+        Ok(code)
+    })();
+    meter.spend(budget.spent())?;
+    result
+}
+
 #[cfg(test)]
 mod impl243_plan_tests {
     use super::*;
@@ -765,6 +904,7 @@ mod impl243_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(0),
@@ -873,6 +1013,7 @@ mod impl243_plan_tests {
         let old_n = threshold(&original);
         let mut copy = original.clone();
         copy.closures.push(ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],

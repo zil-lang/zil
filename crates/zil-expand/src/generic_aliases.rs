@@ -2,16 +2,37 @@
 //! fresh borrow identities; neither a type slot nor a concrete instance grants
 //! an alias proof. Concrete Analyze and Verify still rebuild their own facts.
 use super::*;
+use std::rc::Rc;
+use zil_ir::PlaceProjection;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Position {
     owner: usize,
     field: Option<usize>,
+    route: Option<Rc<[PlaceProjection]>>,
 }
 impl Position {
-    fn overlaps(self, other: Self) -> bool {
-        self.owner == other.owner
-            && (self.field.is_none() || other.field.is_none() || self.field == other.field)
+    fn steps(&self) -> &[PlaceProjection] {
+        self.route.as_deref().unwrap_or(&[])
+    }
+    fn overlaps(&self, other: &Self) -> bool {
+        if self.owner != other.owner || matches!((self.field,other.field),(Some(a),Some(b)) if a!=b)
+        {
+            return false;
+        }
+        for (a, b) in self.steps().iter().zip(other.steps()) {
+            match (a, b) {
+                (PlaceProjection::Field(a), PlaceProjection::Field(b)) if a != b => return false,
+                (PlaceProjection::Variant(a), PlaceProjection::Variant(b))
+                    if a.variant == b.variant && a.index != b.index =>
+                {
+                    return false;
+                }
+                (a, b) if a == b => {}
+                _ => return true,
+            }
+        }
+        true
     }
 }
 
@@ -62,6 +83,13 @@ pub(super) struct LoopMark {
 struct Origin {
     position: Position,
     parents: Vec<usize>,
+}
+
+pub(super) struct PatternPlace {
+    origins: Vec<Origin>,
+    temporary: Option<usize>,
+    coarse: bool,
+    mutable: bool,
 }
 
 fn tree_work(size: usize) -> usize {
@@ -171,7 +199,7 @@ impl Check<'_, '_, '_> {
                     parents.push(mapping[parent]);
                 }
                 let value = Loan {
-                    position: loan.position,
+                    position: loan.position.clone(),
                     mutable: loan.mutable,
                     parents,
                     invalid: loan.invalid,
@@ -259,9 +287,246 @@ impl Check<'_, '_, '_> {
         Ok(())
     }
 
+    fn alias_pattern_mutable(&mut self, value: &Expr, state: &State, depth: usize) -> R<bool> {
+        self.budget.node(value.span, depth)?;
+        match &value.kind {
+            ExprKind::Name(name) => {
+                self.budget.text(name, value.span)?;
+                self.alias_fee(
+                    tree_work(state.locals.len()).saturating_mul(name.len() + 1),
+                    value.span,
+                )?;
+                Ok(state.locals.get(name).is_some_and(|local| local.mutable))
+            }
+            ExprKind::Ascribed { value, .. } | ExprKind::Group(value) => {
+                self.alias_pattern_mutable(value, state, depth + 1)
+            }
+            ExprKind::Unary {
+                op: UnaryOp::Dereference,
+                operand,
+            } => Ok(self
+                .value_hint(operand, state, depth + 1, false)?
+                .is_some_and(|ty| {
+                    matches!(group(&ty).kind, TypeKind::Reference { mutable: true, .. })
+                })),
+            ExprKind::Member { object, .. } | ExprKind::Index { object, .. } => {
+                if let Some(ty) = self.value_hint(object, state, depth + 1, false)?
+                    && let TypeKind::Reference { mutable, .. } = &group(&ty).kind
+                {
+                    return Ok(*mutable);
+                }
+                self.alias_pattern_mutable(object, state, depth + 1)
+            }
+            _ => Ok(true),
+        }
+    }
+    pub(super) fn alias_pattern_prepare(&mut self, value: &Expr, state: &State) -> R<PatternPlace> {
+        let mut base = value;
+        while let ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } = &base.kind {
+            self.budget.node(base.span, 0)?;
+            base = inner;
+        }
+        let stable = matches!(
+            base.kind,
+            ExprKind::Name(_)
+                | ExprKind::Member { .. }
+                | ExprKind::Group(_)
+                | ExprKind::Ascribed { .. }
+                | ExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    ..
+                }
+                | ExprKind::Index { .. }
+        );
+        if stable {
+            let mutable = self.alias_pattern_mutable(value, state, 0)?;
+            let origins = self.alias_origins(value, state, 0)?;
+            if !origins.is_empty() {
+                return Ok(PatternPlace {
+                    origins,
+                    temporary: None,
+                    coarse: false,
+                    mutable,
+                });
+            }
+        }
+        self.alias_fee(2, value.span)?;
+        let owner = self.next_local;
+        self.next_local = owner.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "pattern temporary identity overflow",
+                Some(value.span),
+            )
+        })?;
+        Ok(PatternPlace {
+            origins: vec![Origin {
+                position: Position {
+                    owner,
+                    field: None,
+                    route: None,
+                },
+                parents: Vec::new(),
+            }],
+            temporary: Some(owner),
+            coarse: false,
+            mutable: true,
+        })
+    }
+    pub(super) fn alias_pattern_clone(
+        &mut self,
+        place: &PatternPlace,
+        span: Span,
+    ) -> R<PatternPlace> {
+        self.alias_fee(place.origins.len() + 1, span)?;
+        let mut origins = Vec::with_capacity(place.origins.len());
+        for origin in &place.origins {
+            self.alias_fee(origin.parents.len() + 1, span)?;
+            origins.push(Origin {
+                position: origin.position.clone(),
+                parents: origin.parents.clone(),
+            });
+        }
+        Ok(PatternPlace {
+            origins,
+            temporary: place.temporary,
+            coarse: place.coarse,
+            mutable: place.mutable,
+        })
+    }
+    pub(super) fn alias_pattern_coarse(
+        &mut self,
+        place: &PatternPlace,
+        span: Span,
+    ) -> R<PatternPlace> {
+        self.alias_fee(place.origins.len() + 1, span)?;
+        let mut origins = Vec::with_capacity(place.origins.len());
+        for origin in &place.origins {
+            self.alias_fee(origin.parents.len() + 1, span)?;
+            origins.push(Origin {
+                position: origin.position.clone(),
+                parents: origin.parents.clone(),
+            });
+        }
+        Ok(PatternPlace {
+            origins,
+            temporary: place.temporary,
+            coarse: true,
+            mutable: place.mutable,
+        })
+    }
+    pub(super) fn alias_pattern_borrow(
+        &mut self,
+        place: &PatternPlace,
+        path: &[PlaceProjection],
+        local: Option<usize>,
+        mutable: bool,
+        state: &mut State,
+        span: Span,
+    ) -> R<()> {
+        if mutable && !place.mutable {
+            return Err(error(
+                span,
+                "exclusive pattern requires actual mutable storage",
+            ));
+        }
+        let path = if place.coarse { &[] } else { path };
+        self.alias_fee(place.origins.len() + 1, span)?;
+        let mut projected = Vec::with_capacity(place.origins.len());
+        for origin in &place.origins {
+            if !origin.parents.is_empty() {
+                let aliases = state
+                    .aliases
+                    .as_ref()
+                    .ok_or_else(|| error(span, "pattern parent loan state is absent"))?;
+                for parent in &origin.parents {
+                    self.alias_fee(tree_work(aliases.loans.len()).saturating_add(1), span)?;
+                    let loan = aliases
+                        .loans
+                        .get(parent)
+                        .ok_or_else(|| error(span, "pattern parent loan is absent"))?;
+                    if loan.invalid || mutable && !loan.mutable {
+                        return Err(error(
+                            span,
+                            "pattern reference exceeds its actual parent loan authority",
+                        ));
+                    }
+                }
+            }
+            let count = origin
+                .position
+                .steps()
+                .len()
+                .checked_add(path.len())
+                .ok_or_else(|| {
+                    Diagnostic::limit(Phase::Expand, "pattern path size overflow", Some(span))
+                })?;
+            if count > self.budget.remaining_limits().max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Expand,
+                    "pattern origin path depth exceeded",
+                    Some(span),
+                ));
+            }
+            self.alias_fee(
+                count.saturating_add(origin.parents.len()).saturating_add(3),
+                span,
+            )?;
+            let mut position = origin.position.clone();
+            if !path.is_empty() {
+                let mut steps = Vec::with_capacity(count);
+                steps.extend_from_slice(position.steps());
+                steps.extend_from_slice(path);
+                position.route = Some(Rc::from(steps));
+            }
+            projected.push(Origin {
+                position,
+                parents: origin.parents.clone(),
+            });
+        }
+        let through = self.alias_origin_parents(&projected, span)?;
+        for origin in &projected {
+            self.alias_access(
+                state,
+                origin.position.clone(),
+                mutable,
+                &through,
+                false,
+                span,
+            )?;
+        }
+        self.aliases.result.clear();
+        self.alias_fee(projected.len(), span)?;
+        self.aliases.result.reserve(projected.len());
+        for origin in projected {
+            let id = self.alias_new(state, origin, mutable, span)?;
+            self.aliases.result.push(id)
+        }
+        if let Some(local) = local {
+            self.alias_bind(state, local, span)
+        } else {
+            self.aliases.result.clear();
+            Ok(())
+        }
+    }
+    pub(super) fn alias_pattern_end(
+        &mut self,
+        place: &PatternPlace,
+        state: &mut State,
+        span: Span,
+    ) -> R<()> {
+        if let Some(owner) = place.temporary {
+            self.alias_invalidate(state, owner, None, span)?;
+        }
+        Ok(())
+    }
     fn alias_origins(&mut self, expression: &Expr, state: &State, depth: usize) -> R<Vec<Origin>> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.alias_origins(value, state, depth + 1)
+            }
             ExprKind::Group(inner) => self.alias_origins(inner, state, depth + 1),
             ExprKind::Name(name) => {
                 self.budget.text(name, expression.span)?;
@@ -291,7 +556,7 @@ impl Check<'_, '_, '_> {
                             parents.extend(&loan.parents);
                             parents.push(*id);
                             origins.push(Origin {
-                                position: loan.position,
+                                position: loan.position.clone(),
                                 parents,
                             });
                         }
@@ -319,6 +584,7 @@ impl Check<'_, '_, '_> {
                     position: Position {
                         owner: local.id,
                         field: None,
+                        route: None,
                     },
                     parents: Vec::new(),
                 }])
@@ -327,6 +593,7 @@ impl Check<'_, '_, '_> {
                 let mut origins = self.alias_origins(object, state, depth + 1)?;
                 for origin in &mut origins {
                     if origin.position.field.is_none()
+                        && origin.position.steps().is_empty()
                         && let MemberName::Name(name) | MemberName::Constrained { name, .. } =
                             member
                     {
@@ -370,7 +637,7 @@ impl Check<'_, '_, '_> {
                     let mut parents = loan.parents.clone();
                     parents.push(id);
                     origins.push(Origin {
-                        position: loan.position,
+                        position: loan.position.clone(),
                         parents,
                     });
                 }
@@ -404,7 +671,14 @@ impl Check<'_, '_, '_> {
             self.alias_fee(tree_work(aliases.loans.len()).saturating_add(1), span)?;
             let held = self.aliases.active[index];
             let loan = &aliases.loans[&held.loan];
-            if loan.position.overlaps(position) && (moving || mutable || held.mutable) {
+            self.alias_fee(
+                loan.position
+                    .steps()
+                    .len()
+                    .saturating_add(position.steps().len()),
+                span,
+            )?;
+            if loan.position.overlaps(&position) && (moving || mutable || held.mutable) {
                 return Err(error(
                     span,
                     "State field conflicts with a prepared callee or argument window",
@@ -412,9 +686,16 @@ impl Check<'_, '_, '_> {
             }
         }
         for (id, loan) in &mut aliases.loans {
-            self.alias_fee(through.len().saturating_add(2), span)?;
+            self.alias_fee(
+                through
+                    .len()
+                    .saturating_add(2)
+                    .saturating_add(loan.position.steps().len())
+                    .saturating_add(position.steps().len()),
+                span,
+            )?;
             if !through.contains(id)
-                && loan.position.overlaps(position)
+                && loan.position.overlaps(&position)
                 && (moving || mutable || loan.mutable)
             {
                 loan.invalid = true;
@@ -472,7 +753,7 @@ impl Check<'_, '_, '_> {
         for origin in &origins {
             self.alias_access(
                 state,
-                origin.position,
+                origin.position.clone(),
                 mutable,
                 &through,
                 false,
@@ -511,7 +792,11 @@ impl Check<'_, '_, '_> {
         let id = self.alias_new(
             state,
             Origin {
-                position: Position { owner, field: None },
+                position: Position {
+                    owner,
+                    field: None,
+                    route: None,
+                },
                 parents: Vec::new(),
             },
             mutable,
@@ -629,7 +914,18 @@ impl Check<'_, '_, '_> {
         field: Option<usize>,
         span: Span,
     ) -> R<()> {
-        self.alias_access(state, Position { owner, field }, true, &[], true, span)
+        self.alias_access(
+            state,
+            Position {
+                owner,
+                field,
+                route: None,
+            },
+            true,
+            &[],
+            true,
+            span,
+        )
     }
 
     pub(super) fn alias_replace_place(&mut self, target: &Expr, state: &mut State) -> R<()> {
@@ -668,7 +964,7 @@ impl Check<'_, '_, '_> {
         for origin in origins {
             self.alias_access(
                 state,
-                origin.position,
+                origin.position.clone(),
                 false,
                 &through,
                 false,
@@ -719,7 +1015,7 @@ impl Check<'_, '_, '_> {
         for id in &ids {
             let aliases = state.aliases.as_ref().expect("alias result has records");
             self.alias_fee(tree_work(aliases.loans.len()), span)?;
-            let position = aliases.loans[id].position;
+            let position = aliases.loans[id].position.clone();
             self.alias_access(state, position, mutable, &through, false, span)?;
         }
         let growth = if ids.len()
@@ -857,7 +1153,7 @@ impl Check<'_, '_, '_> {
                 chain.extend(&loan.parents);
                 chain.push(parent.loan);
                 let origin = Origin {
-                    position: loan.position,
+                    position: loan.position.clone(),
                     parents: chain,
                 };
                 let id = self.alias_new(state, origin, *mutable, span)?;

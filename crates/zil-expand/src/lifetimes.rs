@@ -11,6 +11,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         trait_scope: bool,
         impl_scope: bool,
         mutable_life: bool,
+        stored_fields: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -45,11 +46,41 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_trait = self.trait_scope;
             let old_impl = self.impl_scope;
             let old_mutable_life = self.mutable_life;
+            let old_stored_fields = self.stored_fields;
+            self.stored_fields = false;
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
+            if let s::ItemKind::Aggregate(aggregate) = &item.kind {
+                for parameter in &aggregate.generics {
+                    if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                        self.budget
+                            .node(parameter.span, depth)
+                            .map_err(|e| vec![e])?;
+                        self.budget
+                            .text(&parameter.name, parameter.span)
+                            .map_err(|e| vec![e])?;
+                        for name in &self.binders {
+                            self.budget
+                                .text(name, parameter.span)
+                                .map_err(|e| vec![e])?;
+                            self.budget
+                                .text(&parameter.name, parameter.span)
+                                .map_err(|e| vec![e])?;
+                        }
+                        if self.binders.contains(&parameter.name) {
+                            return Err(vec![failure(parameter.span, "duplicate life binder")]);
+                        }
+                        self.binders.push(parameter.name.clone());
+                        self.stored_fields = true;
+                        self.mutable_life = true;
+                        self.budget.note_stored_lifetimes();
+                    }
+                }
+            }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
-                self.mutable_life = only_life(f) || !self.impl_scope && copy_life(f);
+                self.mutable_life =
+                    only_life(f) || !self.impl_scope && (copy_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -88,10 +119,15 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.trait_scope = old_trait;
             self.impl_scope = old_impl;
             self.mutable_life = old_mutable_life;
+            self.stored_fields = old_stored_fields;
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
+                self.budget.note_dynamic();
+            }
             if matches!(ty.kind, s::TypeKind::ForLifetime { .. }) {
+                self.budget.note_borrowed_keys();
                 let old_binders = std::mem::take(&mut self.binders);
                 let old_headers = std::mem::take(&mut self.headers);
                 let old_mutable_life = self.mutable_life;
@@ -165,7 +201,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     self.budget.text("h", ty.span).map_err(|e| vec![e])?;
                 }
                 if (*mutable && !self.mutable_life)
-                    || !self.headers.contains(&std::ptr::from_ref(ty))
+                    || (!self.stored_fields && !self.headers.contains(&std::ptr::from_ref(ty)))
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
@@ -184,6 +220,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         trait_scope: false,
         impl_scope: false,
         mutable_life: false,
+        stored_fields: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;
@@ -251,14 +288,17 @@ pub(super) fn pointer_type(ty: &s::TypeRef) -> Type {
             result: Box::new(lower(result)),
         };
     }
+    let Some(life) = zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+        binder_count: next,
+        parameter_lives,
+        result_life,
+    }) else {
+        return Type::Unsupported("higher-rank callable relation arity exhausted".into());
+    };
     Type::BorrowedFunctionPointer {
         parameters: params.iter().map(lower).collect(),
         result: Box::new(lower(result)),
-        life: zil_ir::FunctionLifeContract {
-            binder_count: next,
-            parameter_lives,
-            result_life,
-        },
+        life,
     }
 }
 
@@ -289,6 +329,21 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
         }
     }
     types == 1 && lives > 0
+}
+
+/// Ordinary helper lifetime formals stay in the function's rigid source
+/// domain; higher-rank callable formals retain their separate invocation scope.
+pub(super) fn callable_life(function: &s::Function) -> bool {
+    let mut lives = 0;
+    let mut callables = 0;
+    for p in &function.generics {
+        match &p.kind {
+            s::GenericParamKind::Lifetime=>lives+=1,
+            s::GenericParamKind::Type(bounds) if bounds.iter().any(|bound|matches!(&generics::callable::bound_inner(bound).kind,s::TypeKind::Named {path,..} if matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce"))))=>callables+=1,
+            _=>return false,
+        }
+    }
+    lives > 0 && (1..=2).contains(&callables)
 }
 
 fn failure(span: Span, text: &str) -> Diagnostic {
@@ -333,8 +388,8 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
-    let mutable_life = only_life(function) || copy_life(function);
-    if !(mutable_life || copy_life(function)) || !function.where_clause.is_empty() {
+    let mutable_life = only_life(function) || copy_life(function) || callable_life(function);
+    if !mutable_life || !function.where_clause.is_empty() {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "life with type/callable/const parameters or where clauses is not implemented",

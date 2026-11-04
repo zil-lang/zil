@@ -10,6 +10,8 @@ pub(super) fn head_address(ty: &Type) -> bool {
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
+mod replacements;
+pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -45,8 +47,31 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(2)?;
+        tasks::require_closed_context(ty, None)?;
         match ty {
-            Type::Array { element, .. }
+            Type::BorrowedStorage { storage, life } => {
+                budget.spend(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_add(1),
+                )?;
+                for r in &life.slots {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.retained {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.nominal_arguments {
+                    budget.spend(r.path.len())?;
+                }
+                pending.push(storage);
+            }
+            Type::Task {
+                result: element, ..
+            }
+            | Type::Array { element, .. }
             | Type::Registration {
                 environment: element,
             }
@@ -77,10 +102,17 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                     pending.extend(fields);
                 }
             }
-            Type::FunctionPointer { parameters, result }
-            | Type::BorrowedFunctionPointer {
-                parameters, result, ..
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                crate::signature_life::charge(life, budget)?;
+                budget.spend(parameters.len().saturating_mul(2))?;
+                pending.extend(parameters);
+                pending.push(result);
             }
+            Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);
@@ -110,7 +142,7 @@ pub(super) fn check_type_for(
     if matches!(inner.as_ref(), Type::Registration { .. }) {
         return registration::carrier(module, ty, span, budget);
     }
-    if inner.as_ref() == &Type::TaskI32 {
+    if matches!(inner.as_ref(), Type::TaskI32 | Type::Task { .. }) {
         return tasks::carrier(module, ty, span, budget);
     }
     if inner.as_ref() == &Type::ByteBuffer {
@@ -183,6 +215,20 @@ pub(super) fn check_definitions(
                 ));
             }
             registration::carrier(
+                module,
+                &Type::Managed(Box::new(resource.payload.clone())),
+                None,
+                budget,
+            )?;
+            continue;
+        }
+        if matches!(resource.payload, Type::Task { .. })
+            || resource.name.starts_with(TASK_RESOURCE_NAME_PREFIX)
+        {
+            if !names.insert(&resource.name) {
+                return Err(reject("E-VERIFY-TASK", None, "task definition repeats"));
+            }
+            tasks::carrier(
                 module,
                 &Type::Managed(Box::new(resource.payload.clone())),
                 None,
@@ -295,7 +341,7 @@ pub(super) fn check_definitions(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Root {
+pub(super) enum Root {
     Local(LocalId),
     // Field identity is exact even while its package shell is only partly
     // populated. A later instance at the same physical slot cannot revive an
@@ -305,6 +351,55 @@ enum Root {
     Parameter(u32),
     OwnedCapture(u32),
     BorrowedCapture(u32),
+    StoreParent(StoreParentRoot),
+}
+
+// Actual Store carrier descriptions remain distinct from descriptions derived
+// from a borrowed element. The parent responsibility identity is preserved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum StoreParentRoot {
+    Local(LocalId),
+    PackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
+    Parameter(u32),
+    OwnedCapture(u32),
+    BorrowedCapture(u32),
+}
+impl Root {
+    fn parent(self) -> Self {
+        match self {
+            Self::StoreParent(StoreParentRoot::Local(value)) => Self::Local(value),
+            Self::StoreParent(StoreParentRoot::PackageField { local, index }) => {
+                Self::PackageField { local, index }
+            }
+            Self::StoreParent(StoreParentRoot::ArrayElement { local, index }) => {
+                Self::ArrayElement { local, index }
+            }
+            Self::StoreParent(StoreParentRoot::Parameter(value)) => Self::Parameter(value),
+            Self::StoreParent(StoreParentRoot::OwnedCapture(value)) => Self::OwnedCapture(value),
+            Self::StoreParent(StoreParentRoot::BorrowedCapture(value)) => {
+                Self::BorrowedCapture(value)
+            }
+            other => other,
+        }
+    }
+    fn store_parent(self) -> Self {
+        match self.parent() {
+            Self::Local(value) => Self::StoreParent(StoreParentRoot::Local(value)),
+            Self::PackageField { local, index } => {
+                Self::StoreParent(StoreParentRoot::PackageField { local, index })
+            }
+            Self::ArrayElement { local, index } => {
+                Self::StoreParent(StoreParentRoot::ArrayElement { local, index })
+            }
+            Self::Parameter(value) => Self::StoreParent(StoreParentRoot::Parameter(value)),
+            Self::OwnedCapture(value) => Self::StoreParent(StoreParentRoot::OwnedCapture(value)),
+            Self::BorrowedCapture(value) => {
+                Self::StoreParent(StoreParentRoot::BorrowedCapture(value))
+            }
+            Self::StoreParent(_) => unreachable!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -771,13 +866,15 @@ fn description_live(
         ));
     }
     for root in &state.desc[row] {
-        let slot = match root {
+        let root = root.parent();
+        let slot = match &root {
             Root::Local(local) => slots.managed_local[local.0 as usize],
             Root::PackageField { local, index } | Root::ArrayElement { local, index } => {
                 slots.package_fields[local.0 as usize][*index as usize]
             }
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
             Root::Parameter(_) | Root::BorrowedCapture(_) => None,
+            Root::StoreParent(_) => unreachable!(),
         };
         if let Some(slot) = slot
             && state.debt[slot] != LIVE
@@ -803,9 +900,9 @@ fn no_live_description(
         if *active {
             budget.spend(roots.len())?;
             if roots.iter().any(|candidate| {
-                *candidate == root
+                candidate.parent() == root.parent()
                     || matches!(
-                        (*candidate, root),
+                        (candidate.parent(), root.parent()),
                         (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
                     )
             }) {
@@ -826,6 +923,7 @@ struct Transfer<'a> {
     after: &'a [Vec<Vec<bool>>],
     effects: &'a [BTreeSet<Root>],
     sum_rows: Option<&'a [Vec<sums::Bridge>]>,
+    replacements: Option<&'a replacements::Plan>,
 }
 
 impl Transfer<'_> {
@@ -876,25 +974,20 @@ impl Transfer<'_> {
                 .is_some_and(|id| self.module.closures[id.0 as usize].kind == CallableKind::Fn)
             && roots
                 .iter()
-                .any(|root| matches!(root, Root::OwnedCapture(_))
-                    || matches!(root, Root::PackageField { local, .. } if self.slots.view(*local).is_some()))
+                .any(|root| matches!(root.parent(), Root::OwnedCapture(_))
+                    || matches!(root.parent(), Root::PackageField { local, .. } if self.slots.view(local).is_some()))
         {
             return Err(bad(
                 span,
                 "a shared Fn entry cannot write an owned resource capture, including through a callee",
             ));
         }
-        written.extend(
-            roots
-                .iter()
-                .filter(|root| {
-                    !matches!(
-                        root,
-                        Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
-                    )
-                })
-                .copied(),
-        );
+        written.extend(roots.iter().map(|root| root.parent()).filter(|root| {
+            !matches!(
+                root,
+                Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
+            )
+        }));
         Ok(())
     }
 
@@ -915,6 +1008,19 @@ impl Transfer<'_> {
                     .saturating_add(1),
             )?;
             let span = instruction.span;
+            let task_before = if validate {
+                task_frames::begin(f, state, budget)?
+            } else {
+                None
+            };
+            if validate
+                && matches!(
+                    instruction.kind,
+                    InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
+                )
+            {
+                task_frames::capture(f, b, i, state, budget)?;
+            }
             if validate {
                 for operand in instruction_operands(&instruction.kind) {
                     if let Some(row) = slots.desc_value[operand.0 as usize] {
@@ -961,6 +1067,9 @@ impl Transfer<'_> {
             if let Some((store, true)) = dynamic_store::access(&instruction.kind) {
                 let row = slots.desc_value[store.0 as usize].expect("checked Store description");
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
+            }
+            if let Some(plan) = self.replacements {
+                plan.step(self, state, instruction, i, b, validate, written, budget)?;
             }
             match &instruction.kind {
                 InstructionKind::MakeOwnedTuple { fields }
@@ -1131,6 +1240,38 @@ impl Transfer<'_> {
                             budget,
                         )?;
                     }
+                }
+                InstructionKind::TaskPoll { .. } => {
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
+                }
+                InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                } => {
+                    budget.spend(arguments.len())?;
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(
+                            if self.module.functions[function.0 as usize].result_mode
+                                == PassingMode::Create
+                            {
+                                FRESH
+                            } else {
+                                INPUT
+                            },
+                        );
+                    }
+                }
+                InstructionKind::TaskCreate { arguments, .. } => {
+                    budget.spend(arguments.len())?;
+                    for &v in arguments {
+                        self.consume(state, v, span, validate)?;
+                    }
+                    fresh_result = Some(FRESH);
                 }
                 InstructionKind::RegistrationStart { callback, .. } => {
                     self.consume(state, *callback, span, validate)?;
@@ -1389,6 +1530,21 @@ impl Transfer<'_> {
                     if validate && state.debt[debt] != LIVE {
                         return Err(bad(span, "head address requires a live managed position"));
                     }
+                }
+                InstructionKind::OwnedStoreBorrow { store, .. }
+                | InstructionKind::OwnedStoreBorrowMut { store, .. }
+                    if instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .is_some() =>
+                {
+                    let dst = slots.desc_value
+                        [instruction.result.expect("Store view result").0 as usize]
+                        .expect("Store view description slot");
+                    let src = slots.desc_value[store.0 as usize]
+                        .ok_or_else(|| bad(span, "Store view lacks an actual source descriptor"))?;
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src].clone();
                 }
                 InstructionKind::DescribeAddress { address } => {
                     let dst = instruction
@@ -1782,7 +1938,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -1813,7 +1969,7 @@ impl Transfer<'_> {
                             budget.spend(self.effects[entry].len())?;
                             if self.effects[entry]
                                 .iter()
-                                .any(|root| matches!(root, Root::BorrowedCapture(_)))
+                                .any(|root| matches!(root.parent(), Root::BorrowedCapture(_)))
                             {
                                 self.write_roots(
                                     &state.desc[row],
@@ -1841,7 +1997,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -1863,7 +2019,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -1980,7 +2136,7 @@ impl Transfer<'_> {
                 }
                 _ => {}
             }
-            if budget.head_descriptions
+            if (budget.head_descriptions || self.replacements.is_some())
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
                 && matches!(
@@ -1999,6 +2155,32 @@ impl Transfer<'_> {
                 })?;
                 state.debt[index] = LIVE;
                 state.fresh[index] = fresh;
+            }
+            if self.replacements.is_some()
+                && let Some(value) = instruction.result
+                && let Some(row) = slots.desc_value[value.0 as usize]
+            {
+                if let Type::Desc(inner) = &f.values[value.0 as usize] {
+                    budget.spend(state.desc[row].len())?;
+                    let parent = matches!(inner.as_ref(), Type::OwnedStore { .. });
+                    state.desc[row] = state.desc[row]
+                        .iter()
+                        .map(|root| {
+                            if parent {
+                                root.store_parent()
+                            } else {
+                                root.parent()
+                            }
+                        })
+                        .collect();
+                } else if matches!(
+                    instruction.kind,
+                    InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                ) {
+                    budget.spend(state.desc[row].len())?;
+                    state.desc[row] = state.desc[row].iter().map(|root| root.parent()).collect();
+                }
             }
             if !state.product_fresh.is_empty() {
                 slots.product.apply(f, slots, instruction, state, budget)?;
@@ -2028,6 +2210,9 @@ impl Transfer<'_> {
                         }
                     }
                 }
+            }
+            if validate {
+                task_frames::finish(f, b, i, task_before, state, budget)?;
             }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
@@ -2099,6 +2284,7 @@ impl Transfer<'_> {
     }
 }
 
+#[cfg(test)]
 fn run_function(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2110,6 +2296,7 @@ fn run_function(
     run_function_with_sums(module, f, graph, effects, validate, None, budget)
 }
 
+#[cfg(test)]
 fn run_function_with_sums(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2119,14 +2306,34 @@ fn run_function_with_sums(
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
+    run_function_data(module, f, graph, effects, validate, sum_rows, budget, None)
+}
+#[allow(clippy::too_many_arguments)]
+fn run_function_data(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    effects: &[BTreeSet<Root>],
+    validate: bool,
+    sum_rows: Option<&[Vec<sums::Bridge>]>,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<BTreeSet<Root>> {
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
-    let slots = Slots::new(module, f, &graph.package_views, budget)?;
+    let mut slots = Slots::new(module, f, &graph.package_views, budget)?;
+    if let Some(plan) = replacements {
+        plan.extend_slots(f, &mut slots, budget)?;
+    }
     if slots.debt_count == 0 && slots.desc_count == 0 {
         return Ok(BTreeSet::new());
     }
-    let mut written = BTreeSet::new();
+    let mut written = if let Some(plan) = replacements {
+        plan.writes(f.id, budget)?
+    } else {
+        BTreeSet::new()
+    };
     let after = liveness(f, graph, &slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
@@ -2162,8 +2369,12 @@ fn run_function_with_sums(
             }
         }
         if let Some(index) = slots.desc_local[local.0 as usize] {
-            initial.desc[index].insert(Root::Parameter(p as u32));
+            let root = Root::Parameter(p as u32);
+            initial.desc[index].insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { root.store_parent() } else { root });
         }
+    }
+    if validate {
+        task_frames::start(f, &slots, &initial, budget)?;
     }
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
@@ -2178,6 +2389,7 @@ fn run_function_with_sums(
         after: &after,
         effects,
         sum_rows,
+        replacements,
     };
     while let Some(b) = pending.pop_front() {
         queued[b] = false;
@@ -2290,7 +2502,7 @@ fn effect_dependents(
     Ok(dependents)
 }
 
-fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span) -> Check<usize> {
+pub(super) fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span) -> Check<usize> {
     let id = match ty {
         Type::Closure(id) => *id,
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -2312,6 +2524,14 @@ fn infer_effects(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
+    infer_effects_data(module, graphs, budget, None)
+}
+fn infer_effects_data(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<Vec<BTreeSet<Root>>> {
     budget.spend(module.functions.len())?;
     let mut effects = vec![BTreeSet::new(); module.functions.len()];
     let dependents = effect_dependents(module, graphs, budget)?;
@@ -2326,13 +2546,15 @@ fn infer_effects(
             scheduled[index] = false;
             #[cfg(test)]
             TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let found = run_function(
+            let found = run_function_data(
                 module,
                 &module.functions[index],
                 &graphs[index],
                 &effects,
                 false,
+                None,
                 budget,
+                replacements,
             )?;
             budget.spend(found.len().saturating_add(effects[index].len()))?;
             let before = effects[index].len();
@@ -2417,9 +2639,23 @@ pub(super) fn check_module(
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.
-    let effects = infer_effects(module, graphs, budget)?;
+    let replacements = if budget.replacements {
+        Some(replacements::Plan::new(
+            module,
+            graphs,
+            &sum_proofs.replacement_writes,
+            budget,
+        )?)
+    } else {
+        None
+    };
+    let effects = if let Some(plan) = &replacements {
+        infer_effects_data(module, graphs, budget, Some(plan))?
+    } else {
+        infer_effects(module, graphs, budget)?
+    };
     for (function, graph) in module.functions.iter().zip(graphs) {
-        run_function_with_sums(
+        run_function_data(
             module,
             function,
             graph,
@@ -2431,6 +2667,7 @@ pub(super) fn check_module(
                 .filter(|rows| !rows.is_empty())
                 .map(Vec::as_slice),
             budget,
+            replacements.as_ref(),
         )?;
     }
     Ok(())

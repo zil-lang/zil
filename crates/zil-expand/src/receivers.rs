@@ -54,6 +54,18 @@ impl Expander<'_> {
                     .roles
                     .into_iter()
                     .map(|role| {
+                        if let Some((parameters, result, life)) = self.source_rich_role(f, &role) {
+                            return CoreCallableParameter {
+                                life: Some(life),
+                                index: role.index as u32,
+                                generic_index: role.generic_index,
+                                generic_name: role.generic_name,
+                                closed_environment: role.closed_environment,
+                                kind: role.kind,
+                                parameters,
+                                result,
+                            };
+                        }
                         let parameters = role
                             .parameters
                             .iter()
@@ -70,8 +82,11 @@ impl Expander<'_> {
                         } else {
                             type_ref(&role.result)
                         };
+                        let life = role
+                            .life
+                            .and_then(|life| self.source_flat_life(life, f.span));
                         CoreCallableParameter {
-                            life: role.life,
+                            life,
                             index: role.index as u32,
                             generic_index: role.generic_index,
                             generic_name: role.generic_name,
@@ -212,7 +227,7 @@ impl Expander<'_> {
                     if life.is_some() {
                         lifetimes::signature_type(self, t)
                     } else {
-                        self.type_ref(t)
+                        self.dyn_type_ref(t)
                     }
                 })
             },
@@ -244,6 +259,7 @@ impl Expander<'_> {
             }
         };
         self.functions.push(CoreFunction {
+            storage_life: None,
             call_kind,
             life,
             callable_return,

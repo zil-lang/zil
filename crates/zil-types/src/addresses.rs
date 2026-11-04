@@ -310,9 +310,12 @@ impl Builder<'_, '_> {
                     ));
                 }
                 if !decl.ty.is_copy_value()
+                    && !stored::shared_value(&decl.ty)
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
-                    && !(mutable && decl.ty == tasks::owner())
+                    && !(mutable
+                        && matches!(decl.ty, Type::Managed(_))
+                        && tasks::resource(&decl.ty))
                     && !product_head
                     && !owned_shapes::sum(&decl.ty)
                 {
@@ -345,6 +348,7 @@ impl Builder<'_, '_> {
             } => {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                    && !stored::shared_address(&result.1)
                     && !result.1.is_shared_resource_head_address()
                     && !result.1.is_package_address()
                     && !reference_patterns::sum_address(&result.1)
@@ -555,7 +559,11 @@ impl Builder<'_, '_> {
             )),
         }
     }
-    fn projection_base(&mut self, object: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
+    pub(super) fn projection_base(
+        &mut self,
+        object: &CoreExpr,
+        mutable: bool,
+    ) -> R<(ValueId, Type)> {
         if matches!(self.known_type(object), Some(Type::Address { .. }))
             || dynamic_store::borrow_expression(object)
         {
@@ -581,7 +589,75 @@ impl Builder<'_, '_> {
             _ => false,
         }
     }
+    fn same_stable_place(&mut self, a: &CoreExpr, b: &CoreExpr, depth: usize) -> R<bool> {
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "assignment place comparison depth exceeded",
+                Some(a.span),
+            ));
+        }
+        let span = a.span;
+        self.closures.snapshot(1, span)?;
+        match (&a.kind, &b.kind) {
+            (CoreExprKind::Name(a), CoreExprKind::Name(b))
+            | (CoreExprKind::Integer(a), CoreExprKind::Integer(b)) => {
+                self.closures
+                    .snapshot(a.len().saturating_add(b.len()), span)?;
+                Ok(a == b)
+            }
+            (
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    operand: a,
+                },
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    operand: b,
+                },
+            ) => self.same_stable_place(a, b, depth + 1),
+            (
+                CoreExprKind::Member {
+                    object: a,
+                    member: an,
+                    owner: ao,
+                },
+                CoreExprKind::Member {
+                    object: b,
+                    member: bn,
+                    owner: bo,
+                },
+            ) => {
+                self.closures
+                    .snapshot(an.len().saturating_add(bn.len()), a.span)?;
+                for owner in [ao, bo].into_iter().flatten() {
+                    self.closures.snapshot_type(owner, 1, 0, a.span)?;
+                }
+                Ok(an == bn && ao == bo && self.same_stable_place(a, b, depth + 1)?)
+            }
+            (
+                CoreExprKind::Index {
+                    object: a,
+                    index: ai,
+                },
+                CoreExprKind::Index {
+                    object: b,
+                    index: bi,
+                },
+            ) => Ok(self.same_stable_place(a, b, depth + 1)?
+                && self.same_stable_place(ai, bi, depth + 1)?),
+            (CoreExprKind::Literal(a), CoreExprKind::Literal(b))
+                if a.ty().is_integer() && b.ty().is_integer() =>
+            {
+                Ok(a == b)
+            }
+            _ => Ok(false),
+        }
+    }
     pub(super) fn assign_address(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<()> {
+        if self.owning_address_assignment(target, rhs)? {
+            return Ok(());
+        }
         let (address, ty) = self.address_place(target, true)?;
         let Type::Address {
             mutable: true,
@@ -600,7 +676,50 @@ impl Builder<'_, '_> {
                 "Store windows cannot replace an owning callback field",
             ));
         }
-        let (value, actual) = self.expr(rhs, Some(&inner))?;
+        let prepared = if let CoreExprKind::Binary { op, left, right } = &rhs.kind
+            && inner.is_integer()
+            && !matches!(
+                op,
+                BinaryOp::Equal
+                    | BinaryOp::NotEqual
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual
+                    | BinaryOp::And
+                    | BinaryOp::Or
+            )
+            && self.same_stable_place(target, left, 0)?
+        {
+            // The old value is read through the actual prepared target. A
+            // second projected child would conflict with the pending write.
+            let old = self.value(
+                InstructionKind::ReadAddress { address },
+                inner.as_ref().clone(),
+                left.span,
+            )?;
+            let (right, ty) = self.expr(right, Some(&inner))?;
+            self.same(&ty, &inner, rhs.span)?;
+            Some((
+                self.value(
+                    InstructionKind::Binary {
+                        op: *op,
+                        left: old,
+                        right,
+                    },
+                    inner.as_ref().clone(),
+                    rhs.span,
+                )?,
+                inner.as_ref().clone(),
+            ))
+        } else {
+            None
+        };
+        let (value, actual) = if let Some(value) = prepared {
+            value
+        } else {
+            self.expr(rhs, Some(&inner))?
+        };
         self.same(&actual, &inner, rhs.span)?;
         self.emit(
             InstructionKind::WriteAddress { address, value },

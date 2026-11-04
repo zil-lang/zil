@@ -39,6 +39,11 @@ pub(super) fn checked_type(
             .get(id.0 as usize)
             .ok_or_else(|| error("CT Type node is out of range"))?;
         Ok(match actual {
+            CtTypeNode::BorrowedStorage { .. } => {
+                return Err(error(
+                    "stored-borrow CT layout consumer is not yet implemented",
+                ));
+            }
             CtTypeNode::Primitive(scalar) => match scalar {
                 CtScalarTy::Unit => Type::Unit,
                 CtScalarTy::Bool => Type::Bool,
@@ -199,12 +204,8 @@ pub(super) fn checked_type(
                 result,
                 life,
             } => {
-                budget.reserve_analysis_work(
-                    (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
-                )?;
-                budget.reserve_temporary_bytes(
-                    (life.parameter_lives.len() as u64).saturating_mul(8),
-                )?;
+                let bytes = super::scope_metadata::signature_cost(life, budget)?;
+                budget.reserve_temporary_bytes(bytes)?;
                 Type::BorrowedFunctionPointer {
                     parameters: parameters
                         .iter()
@@ -314,8 +315,8 @@ pub(super) fn anonymous_sum(
                     result,
                     life,
                 } => {
-                    let lives = (life.parameter_lives.len() as u64).saturating_add(3);
-                    budget.reserve_analysis_work(lives.saturating_add(parameters.len() as u64))?;
+                    let lives = super::scope_metadata::signature_cost(life, budget)?;
+                    budget.reserve_analysis_work(parameters.len() as u64)?;
                     work = work.saturating_add(lives);
                     let scratch = (parameters.len() as u64)
                         .saturating_add(1)

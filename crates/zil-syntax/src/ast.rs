@@ -137,6 +137,8 @@ pub enum TypeKind {
     Dyn {
         path: Vec<String>,
         args: Vec<GenericArg>,
+        /// Explicit closed binding/finite slot list; never inferred from uses.
+        bindings: Vec<DynBinding>,
     },
     ForLifetime {
         lifetime: String,
@@ -149,7 +151,31 @@ pub enum TypeKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct DynBinding {
+    pub kind: DynBindingKind,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum DynBindingKind {
+    Type {
+        member: Vec<String>,
+        value: TypeRef,
+    },
+    Constant {
+        member: Vec<String>,
+        ty: TypeRef,
+        value: Expr,
+    },
+    Method {
+        member: Vec<String>,
+        arguments: Vec<GenericArg>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum GenericArg {
+    /// Explicit lifetime actual, resolved against its lexical declaration.
+    Lifetime(String),
     Type(TypeRef),
     Const(Expr),
 }
@@ -385,6 +411,12 @@ pub enum PatternKind {
         mutable: bool,
         pattern: Box<Pattern>,
     },
+    /// Explicit `.ok(pattern)` / `.err(pattern)` ErrorUnion tag selection.
+    /// Ordinary type, active-tag, place and ownership checks still apply.
+    ErrorArm {
+        is_error: bool,
+        pattern: Box<Pattern>,
+    },
     Tuple(Vec<Pattern>),
     Constructor {
         path: Vec<String>,
@@ -415,6 +447,12 @@ pub enum ExprKind {
     Name(String),
     ReceiverMember(String),
     Group(Box<Expr>),
+    /// Generated value type context. Source parsing does not create this form;
+    /// ordinary expansion and semantic kernels still check the full candidate.
+    Ascribed {
+        ty: TypeRef,
+        value: Box<Expr>,
+    },
     Tuple(Vec<Expr>),
     Array(Vec<Expr>),
     Unary {

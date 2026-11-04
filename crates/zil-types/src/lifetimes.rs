@@ -5,6 +5,28 @@ fn invalid(f: &CoreFunction, message: &str) -> Diagnostic {
     error("E-LIFE-CONTRACT", f.span, message)
 }
 pub(super) fn preflight(f: &CoreFunction, remaining: &mut usize) -> R<()> {
+    if let Some(contract) = &f.storage_life {
+        borrowed_fp::charge_contract(
+            contract,
+            |work| {
+                *remaining = remaining.checked_sub(work).ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "stored signature metadata budget exceeded",
+                        Some(f.span),
+                    )
+                })?;
+                Ok(())
+            },
+            1,
+        )?;
+        if f.life.is_some() {
+            return Err(invalid(
+                f,
+                "rich and flat life contracts cannot be independent authorities",
+            ));
+        }
+    }
     let Some(life) = &f.life else { return Ok(()) };
     let mut charge = |work: usize| -> R<()> {
         *remaining = remaining.checked_sub(work).ok_or_else(|| {

@@ -1,6 +1,6 @@
 use super::*;
 use cfg::{Builder, Value};
-fn scalar_constant(c: &Constant) -> CtTy {
+pub(super) fn scalar_constant(c: &Constant) -> CtTy {
     CtTy::Scalar(match c {
         Constant::Unit => CtScalarTy::Unit,
         Constant::Bool(_) => CtScalarTy::Bool,
@@ -102,12 +102,53 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
+        if let Some(CtTy::AnonymousSum(members)) = expected
+            && !matches!(e.kind, s::ExprKind::If { .. } | s::ExprKind::MetaBlock(_))
+        {
+            let value = self.expr_raw(e, None, depth)?;
+            self.compiler.budget.ty(&value.ty, 0, e.span)?;
+            let expected = expected.expect("sum context");
+            self.compiler.budget.ty(expected, 0, e.span)?;
+            if &value.ty == expected {
+                return Ok(value);
+            }
+            let mut active = None;
+            for (index, member) in members.iter().enumerate() {
+                self.compiler.budget.ty(member, 0, e.span)?;
+                self.compiler.budget.ty(&value.ty, 0, e.span)?;
+                if member == &value.ty && active.replace(index as u32).is_some() {
+                    return Err(error(e.span, "ambiguous CT sum injection"));
+                }
+            }
+            let active = active
+                .ok_or_else(|| error(e.span, "CT sum injection requires an exact member type"))?;
+            for member in members {
+                self.compiler.budget.copy_ty(member, 0, e.span)?;
+            }
+            self.compiler.budget.copy_ty(expected, 0, e.span)?;
+            return self.emit(
+                CtInstructionKind::MakeAnonymousSum {
+                    members: members.clone(),
+                    active,
+                    payload: value.id,
+                },
+                expected.clone(),
+                e.span,
+            );
+        }
+        self.expr_raw(e, expected, depth)
+    }
+    fn expr_raw(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, e.span)?;
         if let Some(ty) = expected {
             self.compiler.budget.ty(ty, 0, e.span)?;
         }
         let span = e.span;
         let value = match &e.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                let ty = self.compiler.ty(self.module, ty, depth + 1)?;
+                self.expr(value, Some(&ty), depth + 1)?
+            }
             s::ExprKind::Literal(s::Literal::Bool(v)) => self.constant(
                 CtConstant::Scalar(Constant::Bool(*v)),
                 CtTy::Scalar(CtScalarTy::Bool),
@@ -146,6 +187,8 @@ impl Builder<'_, '_> {
             s::ExprKind::Name(name) => {
                 if let Some(value) = self.lookup(name, span)? {
                     value
+                } else if let Some(graph) = self.compiler.metadata_binding(name, span)? {
+                    self.metadata_type_value(&graph, graph.root, depth + 1, span)?
                 } else if let Some(ty) = self.compiler.binding(name, span)? {
                     self.bound_type_value(&ty, span, depth + 1)?
                 } else if let Some(t) = types::scalar(name) {
@@ -420,13 +463,17 @@ impl Builder<'_, '_> {
                     let (nominal, arguments) = match &t.kind {
                         s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
-                                let s::GenericArg::Type(actual) = arg else {
-                                    return Err(error(
-                                        t.span,
-                                        "CT record value parameters are unsupported",
-                                    ));
-                                };
-                                self.compiler.source_type_cost(actual, depth + 1)?;
+                                match arg {
+                                    s::GenericArg::Lifetime(name) => {
+                                        self.compiler.budget.text(name, t.span)?
+                                    }
+                                    s::GenericArg::Type(actual) => {
+                                        self.compiler.source_type_cost(actual, depth + 1)?
+                                    }
+                                    s::GenericArg::Const(value) => {
+                                        self.compiler.source_expression_copy(value, depth + 1)?
+                                    }
+                                }
                             }
                             (callee.as_ref(), arguments.clone())
                         }
@@ -528,11 +575,17 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
-                let nominal = self.compiler.symbol(owner, item.span)?;
+                let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut ids = Vec::new();
                 for argument in arguments {
                     self.compiler.budget.node(span)?;
                     let value = match argument {
+                        s::GenericArg::Lifetime(_) => {
+                            return Err(error(
+                                span,
+                                "nominal lifetime CT argument requires a closed numeric scope",
+                            ));
+                        }
                         s::GenericArg::Type(ty) => self.type_ref(self.module, ty, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
                     };
@@ -570,24 +623,26 @@ impl Builder<'_, '_> {
         if path.len() < 2 {
             return Ok(None);
         }
-        let (owner, item) =
-            match self
-                .compiler
-                .named_item(self.module, &path[..path.len() - 1], span)
+        let (_, item) = match self
+            .compiler
+            .named_item(self.module, &path[..path.len() - 1], span)
+        {
+            Ok(item) => item,
+            Err(errors)
+                if errors
+                    .iter()
+                    .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
             {
-                Ok(item) => item,
-                Err(errors)
-                    if errors
-                        .iter()
-                        .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
-                {
-                    return Err(errors);
-                }
-                Err(_) => return Ok(None),
-            };
-        let s::ItemKind::Enum(enumeration) = &item.kind else {
-            return Ok(None);
+                return Err(errors);
+            }
+            Err(_) => return Ok(None),
         };
+        if !matches!(item.kind, s::ItemKind::Enum(_) | s::ItemKind::TypeAlias(_)) {
+            return Ok(None);
+        }
+        for part in &path[..path.len() - 1] {
+            self.compiler.budget.text(part, span)?;
+        }
         let ty = s::TypeRef {
             kind: s::TypeKind::Named {
                 path: path[..path.len() - 1].to_vec(),
@@ -595,9 +650,11 @@ impl Builder<'_, '_> {
             },
             span,
         };
-        let CtTy::Enum(schema) = self.compiler.ty(self.module, &ty, depth + 1)? else {
-            unreachable!()
+        let resolved = self.compiler.ty(self.module, &ty, depth + 1)?;
+        let CtTy::Enum(schema) = resolved else {
+            return Ok(None);
         };
+        let (_, enumeration) = self.compiler.enum_sources[schema.0 as usize];
         let name = path.last().unwrap();
         let mut tag = None;
         for (index, variant) in enumeration.variants.iter().enumerate() {
@@ -610,9 +667,6 @@ impl Builder<'_, '_> {
             }
         }
         let tag = tag.ok_or_else(|| error(span, "CT enum constructor variant is absent"))?;
-        if owner != self.module && !item.public {
-            return Err(error(span, "CT enum is private"));
-        }
         for ty in &self.compiler.enums[schema.0 as usize].variants[tag] {
             self.compiler.budget.ty(ty, 0, span)?;
         }
@@ -644,6 +698,11 @@ impl Builder<'_, '_> {
     }
     fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
         if path.len() == 1
+            && let Some(graph) = self.compiler.metadata_binding(&path[0], span)?
+        {
+            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+        }
+        if path.len() == 1
             && let Some(ty) = self.compiler.binding(&path[0], span)?
         {
             return self.bound_type_value(&ty, span, depth + 1);
@@ -659,7 +718,7 @@ impl Builder<'_, '_> {
             self.compiler.active_aliases.pop();
             return result;
         }
-        let symbol = self.compiler.symbol(owner, item.span)?;
+        let symbol = self.compiler.item_symbol(owner, item)?;
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
     }
     pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
@@ -667,6 +726,9 @@ impl Builder<'_, '_> {
         match &ty.kind {
             s::TypeKind::Named { path, args } if args.is_empty() => {
                 if path.len() == 1 {
+                    if let Some(graph) = self.compiler.metadata_binding(&path[0], ty.span)? {
+                        return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+                    }
                     if let Some(actual) = self.compiler.binding(&path[0], ty.span)? {
                         return self.bound_type_value(&actual, ty.span, depth + 1);
                     }
@@ -693,10 +755,16 @@ impl Builder<'_, '_> {
                     return Err(error(ty.span, "CT type binder takes no type arguments"));
                 }
                 let (owner, item) = self.compiler.named_item(module, path, ty.span)?;
-                let nominal = self.compiler.symbol(owner, item.span)?;
+                let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut arguments = Vec::new();
                 for arg in args {
                     let value = match arg {
+                        s::GenericArg::Lifetime(_) => {
+                            return Err(error(
+                                ty.span,
+                                "nominal lifetime CT argument requires a closed numeric scope",
+                            ));
+                        }
                         s::GenericArg::Type(t) => self.type_ref(module, t, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
                     };
@@ -797,7 +865,9 @@ impl Builder<'_, '_> {
                 let constructor = if life.binder_count == 0 {
                     CtTypeConstructor::FunctionPointer
                 } else {
-                    CtTypeConstructor::BorrowedFunctionPointer { life }
+                    CtTypeConstructor::BorrowedFunctionPointer {
+                        life: self.compiler.budget.rich_relation(life, ty.span)?,
+                    }
                 };
                 self.emit(
                     CtInstructionKind::TypeConstruct {
@@ -1087,6 +1157,16 @@ impl Builder<'_, '_> {
         depth: usize,
         span: Span,
     ) -> R<Value> {
+        if !self.compiler.checking_generics {
+            return self.metadata_generic_call(
+                declaration,
+                explicit,
+                arguments,
+                expected,
+                depth,
+                span,
+            );
+        }
         let d = self.compiler.declarations[declaration];
         let names =
             self.compiler
@@ -1177,6 +1257,13 @@ impl Builder<'_, '_> {
 
     fn bound_type_value(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, span)?;
+        if !self.compiler.checking_generics
+            && matches!(ty, CtTy::Record(_) | CtTy::Enum(_) | CtTy::AnonymousSum(_))
+        {
+            let graph = self.compiler.metadata_data(ty, span, depth + 1)?;
+            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+        }
+
         // Symbolic bodies are checked but never verified, published or run.
         if self.compiler.is_symbolic(ty) {
             return self.emit(
@@ -1194,7 +1281,7 @@ impl Builder<'_, '_> {
                     .work(self.compiler.modules[owner].syntax.items.len(), span)?;
                 let item = self.compiler.modules[owner].syntax.items.iter().find(|item| matches!(&item.kind,s::ItemKind::Aggregate(a) if std::ptr::eq(a,declaration)))
                     .ok_or_else(|| error(span,"CT generic record declaration is absent"))?;
-                let symbol = self.compiler.symbol(owner, item.span)?;
+                let symbol = self.compiler.item_symbol(owner, item)?;
                 let args = &self.compiler.record_arguments[id.0 as usize];
                 for ty in args {
                     self.compiler.budget.copy_ty(ty, 0, span)?;

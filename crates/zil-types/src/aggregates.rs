@@ -67,6 +67,7 @@ impl<'a> Visibility<'a> {
             Type::Managed(p) | Type::Desc(p) => p.as_ref(),
             other => other,
         };
+        let ty = stored::physical(ty);
         let (Type::Record { name, .. } | Type::Package { name, .. }) = ty else {
             return Ok(());
         };
@@ -163,6 +164,16 @@ impl<'a> Visibility<'a> {
                             _ => None,
                         }
                     }
+                    InstructionKind::LoadStoredBorrow { storage, path, .. }
+                    | InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                        match (function.values.get(storage.0 as usize), path.first()) {
+                            (
+                                Some(Type::Address { inner, .. }),
+                                Some(PlaceProjection::Field(index)),
+                            ) => Some((inner.as_ref(), *index)),
+                            _ => None,
+                        }
+                    }
                     InstructionKind::ReadPackageField { local, index }
                     | InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::TakePackageField { local, index }
@@ -213,6 +224,22 @@ pub(super) fn resolve_program(
     let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
     let mut normalized = Vec::new();
     for module in &program.modules {
+        inference::unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
+        let work = inference::life_inventory_snapshot_work(
+            &module.core,
+            &Limits {
+                max_analysis_steps: remaining,
+                ..limits.clone()
+            },
+        )
+        .map_err(|e| vec![e])?;
+        remaining = remaining.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "stored inventory snapshot budget exceeded",
+                None,
+            )]
+        })?;
         let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
             core,
@@ -248,6 +275,7 @@ fn resolve_indexed(
     limits: &Limits,
     remaining: &mut usize,
 ) -> CompileResult<CoreModule> {
+    stored::inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -396,7 +424,56 @@ fn resolve_indexed(
     }
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
+    let mut stored_instances = BTreeMap::new();
+    for (inventory, aggregates, module) in std::iter::once((
+        core.life_instances.as_slice(),
+        core.aggregates.as_slice(),
+        core.module_id,
+    ))
+    .chain(
+        project
+            .iter()
+            .copied()
+            .filter(|source| source.module_id != core.module_id)
+            .map(|source| {
+                (
+                    source.life_instances.as_slice(),
+                    source.aggregates.as_slice(),
+                    source.module_id,
+                )
+            }),
+    ) {
+        for instance in inventory {
+            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                continue;
+            };
+            let Type::Record { name, .. } = storage.as_ref() else {
+                continue;
+            };
+            aggregate_templates::spend(
+                remaining,
+                name.len()
+                    .saturating_add(1)
+                    .saturating_mul(stored_instances.len().saturating_add(1)),
+                Span::default(),
+            )
+            .map_err(|e| vec![e])?;
+            let actual =
+                stored::aggregate(aggregates, module, name, remaining).map_err(|e| vec![e])?;
+            if stored_instances
+                .insert(actual.name.as_str(), instance)
+                .is_some()
+            {
+                return Err(vec![error(
+                    "E-STORED-IDENTITY",
+                    Span::default(),
+                    "duplicate project stored instance",
+                )]);
+            }
+        }
+    }
     let mut resolver = Resolver {
+        stored_instances,
         generic,
         generic_types: BTreeMap::new(),
         generic_active: BTreeSet::new(),
@@ -592,6 +669,43 @@ fn resolve_indexed(
             field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
         }
     }
+    let mut resolved_life_instances = Vec::new();
+    for instance in &core.life_instances {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+            unreachable!("checked stored inventory");
+        };
+        let Type::Record { name, .. } = storage.as_ref() else {
+            unreachable!("checked stored inventory");
+        };
+        aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let actual = stored::aggregate(
+            &core.aggregates,
+            core.module_id,
+            name,
+            &mut resolver.remaining,
+        )
+        .map_err(|e| vec![e])?;
+        let ty = resolver
+            .ty(&Type::Named(actual.name.clone()), 0, Span::default())
+            .map_err(|e| vec![e])?;
+        let mut arguments = Vec::new();
+        for argument in &instance.arguments {
+            resolver.charge(0, Span::default()).map_err(|e| vec![e])?;
+            arguments.push(match argument {
+                LifeNominalActual::Type(ty) => LifeNominalActual::Type(
+                    resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
+                ),
+                LifeNominalActual::Const(value) => LifeNominalActual::Const(value.clone()),
+                LifeNominalActual::Lifetime(class) => LifeNominalActual::Lifetime(*class),
+            });
+        }
+        resolved_life_instances.push(LifeNominalInstance {
+            declaration: instance.declaration,
+            ty,
+            arguments,
+        });
+    }
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {
@@ -606,6 +720,7 @@ fn resolve_indexed(
     core.aggregates = aggregates;
     core.functions = functions;
     core.enums = resolved_enums;
+    core.life_instances = resolved_life_instances;
     Ok(core)
 }
 
@@ -622,6 +737,7 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
+    stored_instances: BTreeMap<&'a str, &'a LifeNominalInstance>,
     generic: aggregate_templates::Index,
     generic_types: BTreeMap<String, Type>,
     generic_active: BTreeSet<aggregate_templates::Family>,
@@ -820,6 +936,18 @@ impl Resolver<'_> {
                     ));
                 }
                 if let Some(cached) = self.cache.get(name) {
+                    if matches!(cached, Type::BorrowedStorage { .. }) {
+                        let cost = inference::type_snapshot_work(
+                            cached,
+                            span,
+                            &Limits {
+                                max_analysis_steps: self.remaining,
+                                ..self.generic_limits.clone()
+                            },
+                        )?;
+                        aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                        return Ok(cached.clone());
+                    }
                     let mut pending = vec![cached];
                     while let Some(t) = pending.pop() {
                         if self.remaining == 0 {
@@ -871,7 +999,9 @@ impl Resolver<'_> {
                         }
                         variants.push((variant.clone(), fields));
                     }
-                    if name.starts_with("$generic_$builtinOption340_") {
+                    if name.starts_with("$generic_$builtinOption340_")
+                        || name.starts_with("$generic_$stdTaskPoll343_")
+                    {
                         for (_, fields) in &variants {
                             for field in fields {
                                 let work = inference::type_snapshot_work(
@@ -902,11 +1032,23 @@ impl Resolver<'_> {
                     ty
                 } else {
                     let d = self.declarations[name];
+                    if !self.stored_instances.is_empty() {
+                        aggregate_templates::spend(
+                            &mut self.remaining,
+                            name.len()
+                                .saturating_add(1)
+                                .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                            span,
+                        )?;
+                    }
+                    let stored_instance = self.stored_instances.get(name.as_str()).copied();
                     let mut fields = Vec::new();
                     let mut new_shape = false;
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
+                            || (stored_instance.is_some()
+                                && matches!(ty, Type::Address { mutable: false, .. }))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && d.name.starts_with("$generic_")
@@ -969,12 +1111,42 @@ impl Resolver<'_> {
                         let payload = Type::Record { name, fields };
                         if d.kind == AggregateKind::Resource {
                             Type::Desc(Box::new(payload))
+                        } else if let Some(instance) = stored_instance {
+                            let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                                unreachable!()
+                            };
+                            let work = inference::type_snapshot_work(
+                                &instance.ty,
+                                span,
+                                &Limits {
+                                    max_analysis_steps: self.remaining,
+                                    ..self.generic_limits.clone()
+                                },
+                            )?;
+                            aggregate_templates::spend(&mut self.remaining, work, span)?;
+                            let qualified = Type::BorrowedStorage {
+                                storage: Box::new(payload),
+                                life: life.clone(),
+                            };
+                            stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                            qualified
                         } else {
                             payload
                         }
                     }
                 };
                 self.active.remove(name);
+                if matches!(result, Type::BorrowedStorage { .. }) {
+                    let cost = inference::type_snapshot_work(
+                        &result,
+                        span,
+                        &Limits {
+                            max_analysis_steps: self.remaining,
+                            ..self.generic_limits.clone()
+                        },
+                    )?;
+                    aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                }
                 self.cache.insert(name.clone(), result.clone());
                 result
             }
@@ -1017,6 +1189,17 @@ impl Resolver<'_> {
                     &self.generic_limits,
                     span,
                 )?
+            }
+            Type::Task {
+                result,
+                retained_life,
+            } => {
+                tasks::require_closed_context(ty, span)?;
+                let result = self.ty(result, depth + 1, span)?;
+                Type::Task {
+                    result: Box::new(result),
+                    retained_life: retained_life.clone(),
+                }
             }
             Type::Registration { environment } => Type::Registration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
@@ -1079,6 +1262,9 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::Task { .. } if matches!(inner.as_ref(), Type::Task { .. }) => {
+                        Box::new(resolved)
+                    }
                     Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
                         Box::new(Type::TaskI32)
                     }
@@ -1106,7 +1292,8 @@ impl Resolver<'_> {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
                     Type::Managed(payload) | Type::Desc(payload)
-                        if *mutable && *payload == Type::TaskI32 =>
+                        if *mutable
+                            && matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. }) =>
                     {
                         Type::Managed(payload)
                     }
@@ -1142,6 +1329,34 @@ impl Resolver<'_> {
                     mutable: *mutable,
                     inner: Box::new(inner),
                 }
+            }
+            Type::BorrowedStorage { .. } => {
+                let work = inference::type_snapshot_work(
+                    ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: self.remaining,
+                        ..self.generic_limits.clone()
+                    },
+                )?;
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    work.saturating_mul(self.stored_instances.len().saturating_add(1)),
+                    span,
+                )?;
+                let name = self
+                    .stored_instances
+                    .iter()
+                    .find_map(|(name, instance)| (&instance.ty == ty).then_some(*name))
+                    .ok_or_else(|| {
+                        error(
+                            "E-STORED-IDENTITY",
+                            span,
+                            "qualified stored type has no matching actual nominal inventory",
+                        )
+                    })?;
+                aggregate_templates::spend(&mut self.remaining, name.len(), span)?;
+                self.ty(&Type::Named(name.to_owned()), depth + 1, span)?
             }
             Type::ErrorUnion {
                 error: failure,
@@ -1193,6 +1408,14 @@ impl Resolver<'_> {
                     .map(|ty| self.ty(ty, depth + 1, span))
                     .collect::<R<Vec<_>>>()?;
                 let result = Box::new(self.ty(result, depth + 1, span)?);
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    borrowed_fp::metadata_work(life),
+                    span,
+                )?;
+                borrowed_fp::qualified_inputs(life, &parameters, &result, |work| {
+                    aggregate_templates::spend(&mut self.remaining, work, span)
+                })?;
                 borrowed_fp::relation(&parameters, &result, life, span)?;
                 Type::BorrowedFunctionPointer {
                     parameters,
@@ -1316,6 +1539,8 @@ impl Resolver<'_> {
     fn pattern(&mut self, p: &mut CorePattern, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
         match &mut p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Variant { ty, fields, .. } => {
                 *ty = self.ty(ty, depth + 1, p.span)?;
                 for field in fields {
@@ -1334,12 +1559,61 @@ impl Resolver<'_> {
     fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
+            CoreExprKind::Unary { operand, .. }
+            | CoreExprKind::CompileTime(operand)
+            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1),
+            CoreExprKind::Binary { left, right, .. } => self.expr_pair(left, right, depth + 1),
+            CoreExprKind::Index { object, index } => self.expr_pair(object, index, depth + 1),
+            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+                self.expr_list(values, depth + 1)
+            }
+            CoreExprKind::Ascribed { .. }
+            | CoreExprKind::IntegerConvert { .. }
+            | CoreExprKind::NumericConvert { .. } => self.expr_variant_ascribed(e, depth),
+            CoreExprKind::Record { .. } => self.expr_variant_record(e, depth),
+            CoreExprKind::RecordUpdate { .. } => self.expr_variant_recordupdate(e, depth),
+            CoreExprKind::TypeApply { .. } => self.expr_variant_typeapply(e, depth),
+            CoreExprKind::Call { .. } => self.expr_variant_call(e, depth),
+            CoreExprKind::Slice { .. } => self.expr_variant_slice(e, depth),
+            CoreExprKind::Member { .. } => self.expr_variant_member(e, depth),
+            CoreExprKind::Sequence { .. } => self.expr_variant_sequence(e, depth),
+            CoreExprKind::Closure { .. } => self.expr_variant_closure(e, depth),
+            CoreExprKind::If { .. } => self.expr_variant_if(e, depth),
+            _ => Ok(()),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_pair(&mut self, first: &mut CoreExpr, second: &mut CoreExpr, depth: usize) -> R<()> {
+        self.expr(first, depth)?;
+        self.expr(second, depth)
+    }
+
+    #[inline(never)]
+    fn expr_list(&mut self, values: &mut [CoreExpr], depth: usize) -> R<()> {
+        for value in values {
+            self.expr(value, depth)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_ascribed(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
             | CoreExprKind::IntegerConvert { target: ty, value }
             | CoreExprKind::NumericConvert { target: ty, value } => {
                 *ty = self.ty(ty, depth + 1, e.span)?;
                 self.expr(value, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_record(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Record { ty, fields } => {
                 *ty = match self.ty(ty, depth + 1, e.span)? {
                     Type::Desc(payload) => Type::Managed(payload),
@@ -1349,6 +1623,14 @@ impl Resolver<'_> {
                     self.expr(v, depth + 1)?;
                 }
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_recordupdate(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 if let Some(t) = ty {
                     *t = self.ty(t, depth + 1, e.span)?;
@@ -1358,13 +1640,14 @@ impl Resolver<'_> {
                     self.expr(v, depth + 1)?;
                 }
             }
-            CoreExprKind::Unary { operand, .. }
-            | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
-            CoreExprKind::Binary { left, right, .. } => {
-                self.expr(left, depth + 1)?;
-                self.expr(right, depth + 1)?;
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_typeapply(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
@@ -1374,39 +1657,70 @@ impl Resolver<'_> {
                 }
                 self.expr(callee, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_call(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(callee, depth + 1)?;
                 for e in arguments {
                     self.expr(e, depth + 1)?;
                 }
             }
-            CoreExprKind::Index { object, index } => {
-                self.expr(object, depth + 1)?;
-                self.expr(index, depth + 1)?;
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_slice(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Slice { object, start, end } => {
                 self.expr(object, depth + 1)?;
                 for endpoint in [start, end].into_iter().flatten() {
                     self.expr(endpoint, depth + 1)?;
                 }
             }
-            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-                for e in values {
-                    self.expr(e, depth + 1)?;
-                }
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_member(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Member { object, owner, .. } => {
                 if let Some(ty) = owner {
                     *ty = self.ty(ty, depth + 1, e.span)?;
                 }
                 self.expr(object, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_sequence(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Sequence { bindings, value } => {
                 for (_, e) in bindings {
                     self.expr(e, depth + 1)?;
                 }
                 self.expr(value, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_closure(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Closure {
                 parameters,
                 return_type,
@@ -1423,6 +1737,14 @@ impl Resolver<'_> {
                 }
                 self.block(body, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_if(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::If {
                 condition,
                 then_value,
@@ -1432,7 +1754,7 @@ impl Resolver<'_> {
                 self.expr(then_value, depth + 1)?;
                 self.expr(else_value, depth + 1)?;
             }
-            _ => {}
+            _ => unreachable!("aggregate expression dispatcher"),
         }
         Ok(())
     }
@@ -1445,6 +1767,7 @@ pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
         Type::Managed(payload) => payload.as_ref(),
         other => other,
     };
+    let ty = stored::physical(ty);
     let selected = match ty {
         Type::Tuple(fields) => name
             .parse::<usize>()
@@ -1515,8 +1838,12 @@ pub(super) fn resolve_type_method<'a>(
     }
 }
 
-impl Builder<'_, '_> {
-    pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
+impl<'a> Builder<'a, '_> {
+    pub(super) fn method_signature(
+        &self,
+        object: &CoreExpr,
+        member: &str,
+    ) -> Option<&'a Signature> {
         let ty = self.known_type(object)?;
         let ty = match ty {
             Type::Address { inner, .. } => match *inner {
@@ -1761,6 +2088,7 @@ impl Builder<'_, '_> {
         } else {
             ty
         };
+        let payload = stored::physical(payload);
         let (Type::Record { fields: decl, .. } | Type::Package { fields: decl, .. }) = payload
         else {
             return Err(error(
@@ -1880,6 +2208,60 @@ impl Builder<'_, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
+        if self
+            .known_type(object)
+            .as_ref()
+            .is_some_and(|ty| stored::shared_value(ty) || stored::shared_address(ty))
+        {
+            let (storage, address_ty) = self.projection_base(object, false)?;
+            let Type::Address { inner, .. } = &address_ty else {
+                unreachable!()
+            };
+            self.closures.snapshot_type(inner, 2, 2, e.span)?;
+            self.member_owner(inner, owner.as_ref(), e.span)?;
+            let (index, ty) = field(inner, member, e.span)?;
+            if matches!(ty, Type::Address { mutable: false, .. }) {
+                return Ok((
+                    self.value(
+                        InstructionKind::LoadStoredBorrow {
+                            storage,
+                            path: vec![PlaceProjection::Field(index)],
+                            mode: StoredBorrowLoad::CopyShared,
+                        },
+                        ty.clone(),
+                        e.span,
+                    )?,
+                    ty,
+                ));
+            }
+            if !ty.is_copy_value() {
+                return Err(unsupported(
+                    e.span,
+                    "nested stored field requires its complete projection consumer",
+                ));
+            }
+            let field_address = self.value(
+                InstructionKind::AddressField {
+                    address: storage,
+                    index,
+                },
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(ty.clone()),
+                },
+                e.span,
+            )?;
+            return Ok((
+                self.value(
+                    InstructionKind::ReadAddress {
+                        address: field_address,
+                    },
+                    ty.clone(),
+                    e.span,
+                )?,
+                ty,
+            ));
+        }
         if matches!(self.known_type(object), Some(Type::Package { .. }))
             && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()
@@ -1901,7 +2283,21 @@ impl Builder<'_, '_> {
                 "instance method value requires an explicit closure",
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
+        let before = self.closures.remaining_work();
+        let mut remaining = before;
+        let owned_tuple_place = (|| -> R<bool> {
+            let Some(ty) = self.borrowed_task_hint(object, &mut remaining, 0)? else {
+                return Ok(false);
+            };
+            if !matches!(ty, Type::Tuple(_)) {
+                return Ok(false);
+            }
+            inference::charge_type_snapshot(ty, e.span, self.limits, &mut remaining, 2)?;
+            Ok(owned_shapes::tuple(ty))
+        })();
+        self.closures.snapshot(before - remaining, e.span)?;
+        if owned_tuple_place?
+            || matches!(self.known_type(object), Some(Type::Address { .. }))
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
@@ -2550,6 +2946,13 @@ impl Resolver<'_> {
                 span,
                 "generic Product formal index is invalid",
             )),
+            CoreAggregateTypeRecipe::Task { result } => {
+                let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::Task {
+                    result: Box::new(result),
+                    retained_life: tasks::empty_context(),
+                })))
+            }
             CoreAggregateTypeRecipe::Registration { environment } => {
                 let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;
                 Ok(Type::Desc(Box::new(Type::Registration {

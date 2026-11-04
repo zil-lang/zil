@@ -1,6 +1,8 @@
 //! Persistent scalar continuation frames. Source TaskYield becomes a saved pc;
 //! all actual machine SSA and local storage survive return from poll.
 use super::*;
+mod owners;
+pub(super) use owners::marker as owner_marker;
 const STATE: u32 = 4;
 const PC: u32 = 5;
 const CANCEL: u32 = 6;
@@ -18,8 +20,20 @@ fn header() -> Vec<m::Ty> {
         m::Ty::Int(32),
     ]
 }
+// Unit has no Direct ABI value. The private poll/frame uses an ordinary
+// zero byte, while the source Ready variant retains exactly Unit.
+fn internal_result_type(ty: &m::Ty) -> m::Ty {
+    if *ty == m::Ty::Void {
+        m::Ty::Int(8)
+    } else {
+        ty.clone()
+    }
+}
 fn result_ty() -> m::Ty {
     m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(32)])
+}
+fn typed_poll_name(payload: &Type) -> String {
+    format!("zil.task.poll.typed.{}", payload.fingerprint())
 }
 pub(super) fn name(id: FunctionId, operation: &str) -> String {
     format!("zil.task.{operation}.{}", id.0)
@@ -50,6 +64,143 @@ impl Meter {
                 )]
             })
     }
+}
+// Bridge expansion is constant-sized in the independently admitted i32
+// profile. This inventory shares the actual remaining task planning ledger.
+pub(super) fn reserve_owner_actions(
+    function: &TypedFunction,
+    ownership: Option<&zil_verify::TaskOwnership>,
+    meter: &Meter,
+) -> CompileResult<()> {
+    let Some(ownership) = ownership else {
+        return Ok(());
+    };
+    meter.spend(function.blocks.len().saturating_add(1))?;
+    let lookups = ownership
+        .action_count()
+        .checked_ilog2()
+        .map_or(1, |n| n as usize + 2)
+        .saturating_mul(12);
+    for b in &function.blocks {
+        meter.spend(b.instructions.len().saturating_mul(lookups))?;
+    }
+    // One instruction may consume an arbitrarily wide prepared argument list.
+    // Pay actual markers, including their operand vectors and symbol strings,
+    // before FunctionEmitter constructs any of them.
+    meter.spend(ownership.action_count())?;
+    for actions in ownership.actions() {
+        meter.spend(
+            actions
+                .before()
+                .len()
+                .saturating_add(actions.after().len())
+                .saturating_mul(256),
+        )?;
+    }
+    meter.spend(
+        function
+            .blocks
+            .len()
+            .saturating_mul(ownership.owners().len())
+            .saturating_mul(4)
+            .saturating_add(
+                function
+                    .parameters
+                    .len()
+                    .saturating_mul(ownership.owners().len())
+                    .saturating_mul(16),
+            ),
+    )
+}
+pub(super) fn reserve_copy_frame(
+    function: &TypedFunction,
+    meter: &Meter,
+    limits: &zil_base::Limits,
+) -> CompileResult<()> {
+    fn structured(t: &Type) -> bool {
+        matches!(
+            t,
+            Type::Managed(_)
+                | Type::Package { .. }
+                | Type::Record { .. }
+                | Type::Tuple(_)
+                | Type::Enum { .. }
+                | Type::ErrorUnion { .. }
+        )
+    }
+    meter.spend(
+        function
+            .locals
+            .len()
+            .saturating_add(function.values.len())
+            .saturating_add(1),
+    )?;
+    if !structured(&function.return_type)
+        && !function.locals.iter().any(|l| structured(&l.ty))
+        && !function.values.iter().any(structured)
+    {
+        return Ok(());
+    }
+    meter.spend(function.blocks.len())?;
+    for block in &function.blocks {
+        meter.spend(block.instructions.len())?;
+    }
+    let before = meter.remaining();
+    let mut left = before;
+    let reserved: CompileResult<()> = (|| {
+        for ty in std::iter::once(&function.return_type)
+            .chain(function.locals.iter().map(|l| &l.ty))
+            .chain(&function.values)
+        {
+            if structured(ty) {
+                for _ in 0..16 {
+                    copy_aggregates::reserve_enum_metadata(ty, &mut left, 0, limits)?;
+                }
+            }
+        }
+        for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let Some(output) = instruction.result {
+                let ty = &function.values[output.0 as usize];
+                if structured(ty) {
+                    let copies = match &instruction.kind {
+                        InstructionKind::MakeAggregate { fields }
+                        | InstructionKind::MakeManaged { fields }
+                        | InstructionKind::MakePackage { fields }
+                        | InstructionKind::MakeVariant { fields, .. } => {
+                            fields.len().saturating_add(16)
+                        }
+                        _ => 16,
+                    };
+                    for _ in 0..copies {
+                        copy_aggregates::reserve_enum_metadata(ty, &mut left, 0, limits)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    })();
+    meter.spend(before - left)?;
+    reserved
+}
+pub(super) fn reserve_bridges(function: &TypedFunction, meter: &Meter) -> CompileResult<()> {
+    meter.spend(function.blocks.len())?;
+    for block in &function.blocks {
+        for i in &block.instructions {
+            meter.spend(1)?;
+            match &i.kind {
+                InstructionKind::TaskCreate { arguments, .. } => {
+                    meter.spend(256usize.saturating_add(arguments.len().saturating_mul(16)))?
+                }
+                InstructionKind::TaskPoll { task } | InstructionKind::TaskPollClose { task }
+                    if matches!(&function.values[task.0 as usize],Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}))) =>
+                {
+                    meter.spend(1024)?
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 fn loc(s: impl Into<String>) -> m::Val {
     m::local(s.into())
@@ -166,11 +317,21 @@ fn compare(
     );
 }
 fn poll_result(v: &mut Vec<m::Inst>, status: i32, value: m::Val, prefix: &str) {
+    poll_result_typed(v, status, value, prefix, &m::Ty::Int(32));
+}
+fn poll_result_typed(
+    v: &mut Vec<m::Inst>,
+    status: i32,
+    value: m::Val,
+    prefix: &str,
+    payload: &m::Ty,
+) {
+    let result = m::Ty::Struct(vec![m::Ty::Int(32), payload.clone()]);
     push(
         v,
         Some(&format!("{prefix}.tag")),
         m::Op::Insert {
-            arg: m::Arg::new(result_ty(), m::Val::Zero),
+            arg: m::Arg::new(result.clone(), m::Val::Zero),
             field: m::Arg::new(m::Ty::Int(32), status),
             index: 0,
         },
@@ -179,12 +340,12 @@ fn poll_result(v: &mut Vec<m::Inst>, status: i32, value: m::Val, prefix: &str) {
         v,
         Some(&format!("{prefix}.value")),
         m::Op::Insert {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.tag"))),
-            field: m::Arg::new(m::Ty::Int(32), value),
+            arg: m::Arg::new(result.clone(), loc(format!("{prefix}.tag"))),
+            field: m::Arg::new(payload.clone(), value),
             index: 1,
         },
     );
-    ret(v, result_ty(), loc(format!("{prefix}.value")));
+    ret(v, result.clone(), loc(format!("{prefix}.value")));
 }
 fn trap_block() -> m::Block {
     let mut v = vec![];
@@ -309,6 +470,7 @@ fn awaited(op: &m::Op) -> Option<FunctionId> {
 }
 struct ChildFrame {
     worker: FunctionId,
+    result: m::Ty,
     frame: u32,
     active: u32,
 }
@@ -316,15 +478,25 @@ struct FramePlan {
     fields: Vec<m::Ty>,
     slots: BTreeMap<String, Slot>,
     children: Vec<ChildFrame>,
+    owners: Option<owners::OwnerFrame>,
+}
+struct AwaitHandoff<'a> {
+    child: &'a ChildFrame,
+    result_marker: Option<m::Inst>,
 }
 fn split_await(
     mut current: m::Block,
     instruction: &m::Inst,
-    child: &ChildFrame,
+    handoff: AwaitHandoff<'_>,
     site: usize,
     pieces: &mut Vec<m::Block>,
     resumes: &mut BTreeSet<usize>,
+    parent_result: &m::Ty,
 ) -> m::Block {
+    let AwaitHandoff {
+        child,
+        result_marker,
+    } = handoff;
     let m::Op::Call { args, .. } = &instruction.op else {
         unreachable!("actual await marker is a call")
     };
@@ -357,7 +529,7 @@ fn split_await(
     call(
         &mut poll,
         Some(&format!("{prefix}.answer")),
-        result_ty(),
+        m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
         m::global(name(child.worker, "poll")),
         vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
     );
@@ -365,7 +537,10 @@ fn split_await(
         &mut poll,
         Some(&format!("{prefix}.tag")),
         m::Op::Extract {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
+            arg: m::Arg::new(
+                m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
+                loc(format!("{prefix}.answer")),
+            ),
             index: 0,
         },
     );
@@ -408,17 +583,35 @@ fn split_await(
         loc("task.pc"),
     );
     store(&mut pending, m::Ty::Int(32), m::val(0), loc("task.state"));
-    poll_result(&mut pending, 0, m::val(0), &format!("{prefix}.pending"));
+    poll_result_typed(
+        &mut pending,
+        0,
+        m::Val::Zero,
+        &format!("{prefix}.pending"),
+        parent_result,
+    );
     pieces.push(block(&format!("{prefix}.pending"), pending));
     let mut ready = vec![];
-    push(
-        &mut ready,
-        instruction.result.as_deref(),
-        m::Op::Extract {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
-            index: 1,
-        },
-    );
+    if instruction.result.is_some() {
+        push(
+            &mut ready,
+            instruction.result.as_deref(),
+            m::Op::Extract {
+                arg: m::Arg::new(
+                    m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
+                    loc(format!("{prefix}.answer")),
+                ),
+                index: 1,
+            },
+        );
+    }
+    // Extract is spilled to the canonical parent slot by the ordinary frame
+    // rewriter before this exact Verify-derived result record becomes live.
+    // Child teardown therefore runs with the transferred result owned by the
+    // parent, not in an unrecorded transient interval.
+    if let Some(marker) = result_marker {
+        ready.push(marker);
+    }
     call(
         &mut ready,
         Some(&format!("{prefix}.closed")),
@@ -426,8 +619,8 @@ fn split_await(
         m::global(name(child.worker, "poll_close")),
         vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
     );
-    // The first child lane independently admits only no-external scalar
-    // workers: close is synchronous. General owning/Pending close will retain
+    // The checked closed child/teardown graph proves synchronous close;
+    // the child result is self-contained. General Pending close will retain
     // this moved result in the parent's PendingExit responsibility instead.
     cond(
         &mut ready,
@@ -452,7 +645,7 @@ fn split_await(
 fn own_frame(machine: &m::Function, meter: &Meter) -> CompileResult<FramePlan> {
     meter.spend(2048usize.saturating_add(machine.signature.params.len().saturating_mul(16)))?;
     let mut fields = header();
-    fields[RESULT as usize] = machine.signature.result.clone();
+    fields[RESULT as usize] = internal_result_type(&machine.signature.result);
     let mut slots = BTreeMap::new();
     for p in &machine.signature.params {
         let n = p.name.clone().expect("scalar worker parameters are named");
@@ -509,6 +702,7 @@ fn own_frame(machine: &m::Function, meter: &Meter) -> CompileResult<FramePlan> {
         fields,
         slots,
         children: vec![],
+        owners: None,
     })
 }
 fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<()> {
@@ -527,6 +721,9 @@ fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<
                 reserve_frame_type(field, meter, depth + 1)?;
             }
         }
+        // Ordinary Enum payloads use one bounded array type, including a
+        // zero-length area. Reserving a type does not enumerate array cells.
+        m::Ty::Array(_, element) => reserve_frame_type(element, meter, depth + 1)?,
         m::Ty::Int(_) | m::Ty::Ptr => {}
         _ => {
             return invalid(
@@ -544,6 +741,7 @@ fn plan_frame(
     plans: &mut BTreeMap<FunctionId, FramePlan>,
     path: &mut BTreeSet<FunctionId>,
     meter: &Meter,
+    verified: Option<&VerifiedModule>,
 ) -> CompileResult<()> {
     meter.spend(plans.len().saturating_add(path.len()).saturating_add(1))?;
     if plans.contains_key(&id) {
@@ -564,13 +762,42 @@ fn plan_frame(
             "actual Suspend child machine is absent",
         )]
     })?;
+    if verified.is_some() {
+        let before = meter.remaining();
+        let mut left = before;
+        let reservation: CompileResult<()> = (|| {
+            for _ in 0..16 {
+                crate::task_abi::prepay_owned_frame(machine, &mut left)?;
+            }
+            Ok(())
+        })();
+        meter.spend(before - left)?;
+        reservation?;
+    }
     let mut plan = own_frame(machine, meter)?;
+    if let Some(verified) = verified {
+        owners::plan(
+            &mut plan,
+            verified.task_ownership(id),
+            &verified.module().resources,
+            verified.limits(),
+            meter,
+        )?;
+    }
     for block in machine.blocks.as_ref().expect("task machine definition") {
         for instruction in &block.instructions {
             meter.spend(1)?;
             if let Some(worker) = awaited(&instruction.op) {
-                plan_frame(worker, machines, plans, path, meter)?;
+                plan_frame(worker, machines, plans, path, meter, verified)?;
                 let child = &plans[&worker];
+                // Prepay each later child-result clone in the poll call and
+                // aggregate extraction before constructing its machine type.
+                let result_type = internal_result_type(&machines[&worker].signature.result);
+                let result = &result_type;
+                for _ in 0..8 {
+                    reserve_frame_type(result, meter, 0)?;
+                }
+                let result = result.clone();
                 for field in &child.fields {
                     reserve_frame_type(field, meter, 0)?;
                 }
@@ -580,6 +807,7 @@ fn plan_frame(
                 plan.fields.push(m::Ty::Int(1));
                 plan.children.push(ChildFrame {
                     worker,
+                    result,
                     frame,
                     active,
                 });
@@ -615,16 +843,25 @@ pub(super) fn lower_workers(
     let mut plans = BTreeMap::new();
     let mut path = BTreeSet::new();
     for &id in machines.keys() {
-        plan_frame(id, &machines, &mut plans, &mut path, meter)?;
+        plan_frame(id, &machines, &mut plans, &mut path, meter, Some(verified))?;
     }
     let mut items = vec![];
+    if machines
+        .keys()
+        .any(|id| verified.task_ownership(*id).is_some())
+    {
+        items.extend(owners::helpers(meter)?);
+    }
     for (id, mut machine) in machines {
         let plan = plans.remove(&id).expect("actual frame was planned");
-        items.extend(lower_worker(id, &machine, plan, meter)?);
+        items.extend(lower_worker(id, &machine, plan, meter, verified)?);
         if verified.is_task_export(id) {
             items.extend(exports(id, meter)?);
         }
         if !verified.is_suspend(id) {
+            for block in machine.blocks.as_mut().expect("actual Direct body") {
+                block.instructions.retain(|i| !owners::is_marker(&i.op));
+            }
             scalar_locals::promote(functions[&id], &mut machine);
             items.push(m::Item::Function(machine));
         }
@@ -636,12 +873,17 @@ fn lower_worker(
     machine: &m::Function,
     plan: FramePlan,
     meter: &Meter,
+    verified: &VerifiedModule,
 ) -> CompileResult<Vec<m::Item>> {
+    let payload_storage = internal_result_type(&machine.signature.result);
+    let payload_ty = &payload_storage;
+    let poll_ty = m::Ty::Struct(vec![m::Ty::Int(32), payload_ty.clone()]);
     let frame_name = format!("zil_task_frame_{}", id.0);
     let FramePlan {
         fields: frame_fields,
         slots,
         children,
+        owners,
     } = plan;
     let frame = m::Ty::Named(frame_name.clone());
     let original = machine.blocks.as_ref().expect("scalar worker definition");
@@ -651,7 +893,8 @@ fn lower_worker(
     let mut resumes = BTreeSet::from([0]);
     for b in original {
         let mut current = block(&b.name, vec![]);
-        for i in &b.instructions {
+        let mut original_instructions = b.instructions.iter().peekable();
+        while let Some(i) = original_instructions.next() {
             if matches!(&i.op, m::Op::Call { callee: m::Val::Global(n), .. } if n == MARKER) {
                 let next = format!("task.resume.{}", pieces.len());
                 // The resume pc is its exact position in the final block table.
@@ -669,22 +912,56 @@ fn lower_worker(
                     m::val(0),
                     loc("task.state"),
                 );
-                poll_result(
+                poll_result_typed(
                     &mut current.instructions,
                     0,
-                    m::val(0),
+                    m::Val::Zero,
                     &format!("pending.{pc}"),
+                    payload_ty,
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
             } else if awaited(&i.op).is_some() {
+                let mut result_marker = None;
+                if let Some(plan) = verified.task_ownership(id) {
+                    meter.spend(plan.owners().len().saturating_add(512))?;
+                    let output = i
+                        .result
+                        .as_deref()
+                        .and_then(|name| name.strip_prefix("v."))
+                        .and_then(|id| id.parse::<u32>().ok())
+                        .map(ValueId);
+                    if let Some(owner) = output.and_then(|out| plan.owner_for_value(out)) {
+                        let m::Event::Instruction(expected) =
+                            owners::marker(zil_verify::TaskOwnerAction::Link(owner))
+                        else {
+                            unreachable!("owner marker instruction")
+                        };
+                        if !original_instructions
+                            .peek()
+                            .is_some_and(|actual| actual.op == expected.op)
+                        {
+                            return invalid(
+                                "E-CODEGEN-TASK",
+                                "owned Await result lacks its exact verified handoff marker",
+                                None,
+                            );
+                        }
+                        original_instructions.next();
+                        result_marker = Some(expected);
+                    }
+                }
                 current = split_await(
                     current,
                     i,
-                    &children[child_site],
+                    AwaitHandoff {
+                        child: &children[child_site],
+                        result_marker,
+                    },
                     child_site,
                     &mut pieces,
                     &mut resumes,
+                    payload_ty,
                 );
                 child_site += 1;
             } else {
@@ -695,6 +972,7 @@ fn lower_worker(
     }
     // pc=0 starts the original entry. Every yield stores the next piece index.
     let mut setup = vec![];
+    owners::setup(&mut setup, &frame, owners.as_ref());
     for (index, label) in [
         (STATE, "task.state"),
         (PC, "task.pc"),
@@ -789,16 +1067,41 @@ fn lower_worker(
             if matches!(i.op, m::Op::Alloca { .. }) {
                 continue;
             }
+            owners::lower(&mut i.op)?;
             rewrite(&mut i.op, &slots, &mut instructions, &mut serial)?;
+            if matches!(i.op, m::Op::Return(None)) && machine.signature.result == m::Ty::Void {
+                store(
+                    &mut instructions,
+                    payload_ty.clone(),
+                    m::Val::Zero,
+                    loc("task.result"),
+                );
+                store(
+                    &mut instructions,
+                    m::Ty::Int(32),
+                    m::val(1),
+                    loc("task.state"),
+                );
+                poll_result_typed(
+                    &mut instructions,
+                    1,
+                    m::Val::Zero,
+                    &format!("unit.ready.{serial}"),
+                    payload_ty,
+                );
+                serial += 1;
+                continue;
+            }
             if let m::Op::Return(Some(arg)) = &i.op {
                 // Generated Pending returns already have the SABI result type.
-                if arg.ty == m::Ty::Int(32) {
+                if arg.ty == *payload_ty {
                     store(
                         &mut instructions,
-                        m::Ty::Int(32),
+                        payload_ty.clone(),
                         arg.value.clone(),
                         loc("task.result"),
                     );
+                    owners::result_debt(&mut instructions, owners.as_ref(), true);
                     store(
                         &mut instructions,
                         m::Ty::Int(32),
@@ -808,12 +1111,19 @@ fn lower_worker(
                     load(
                         &mut instructions,
                         &format!("task.ready.{serial}"),
-                        m::Ty::Int(32),
+                        payload_ty.clone(),
                         loc("task.result"),
                     );
                     let ready = loc(format!("task.ready.{serial}"));
                     serial += 1;
-                    poll_result(&mut instructions, 1, ready, &format!("ready.{serial}"));
+                    owners::result_debt(&mut instructions, owners.as_ref(), false);
+                    poll_result_typed(
+                        &mut instructions,
+                        1,
+                        ready,
+                        &format!("ready.{serial}"),
+                        payload_ty,
+                    );
                     continue;
                 }
             }
@@ -872,7 +1182,7 @@ fn lower_worker(
         if status == 3 {
             store(&mut v, m::Ty::Int(32), m::val(2), loc("task.state"));
         }
-        poll_result(&mut v, status, m::val(0), label);
+        poll_result_typed(&mut v, status, m::Val::Zero, label, payload_ty);
         poll.push(block(label, v));
     }
     poll.push(trap_block());
@@ -880,7 +1190,7 @@ fn lower_worker(
         m::Item::NamedType(frame_name, frame_fields),
         function(
             name(id, "poll"),
-            result_ty(),
+            poll_ty,
             vec![m::Param::new(m::Ty::Ptr, "frame")],
             poll,
         ),
@@ -922,7 +1232,16 @@ fn lower_worker(
         m::Val::Null,
         "ne",
     );
-    cond(&mut init, "allocated", "init", "return");
+    cond(
+        &mut init,
+        "allocated",
+        "init",
+        if owners.is_some() {
+            "failure"
+        } else {
+            "return"
+        },
+    );
     let mut initialize = vec![];
     store(&mut initialize, frame.clone(), m::Val::Zero, loc("frame"));
     for (index, operation) in ["poll", "request_cancel", "poll_close", "finish_into"]
@@ -949,6 +1268,14 @@ fn lower_worker(
             loc(pointer),
         );
     }
+    owners::initialize(
+        &mut initialize,
+        &frame,
+        &slots,
+        owners.as_ref(),
+        verified.task_ownership(id),
+        &verified.module().functions[id.0 as usize],
+    )?;
     push(&mut initialize, None, m::Op::Return(None));
     let mut into_parameters = vec![m::Param::new(m::Ty::Ptr, "frame")];
     into_parameters.extend(machine.signature.params.clone());
@@ -984,15 +1311,24 @@ fn lower_worker(
     branch(&mut commit, "return");
     let mut returned = vec![];
     ret(&mut returned, m::Ty::Ptr, loc("frame"));
+    let mut init_blocks = vec![block("entry", init), block("init", commit)];
+    if owners.is_some() {
+        let mut failed = vec![];
+        owners::allocation_failure(
+            &mut failed,
+            owners.as_ref(),
+            verified.task_ownership(id),
+            &verified.module().functions[id.0 as usize],
+        )?;
+        branch(&mut failed, "return");
+        init_blocks.push(block("failure", failed));
+    }
+    init_blocks.push(block("return", returned));
     items.push(function(
         name(id, "init"),
         m::Ty::Ptr,
         machine.signature.params.clone(),
-        vec![
-            block("entry", init),
-            block("init", commit),
-            block("return", returned),
-        ],
+        init_blocks,
     ));
     let mut cancel = vec![];
     gep(&mut cancel, "cancel", &frame, loc("frame"), CANCEL);
@@ -1095,6 +1431,7 @@ fn lower_worker(
         label = next;
         closed = vec![];
     }
+    owners::drain(&mut closed, &frame, owners.as_ref());
     store(&mut closed, m::Ty::Int(32), m::val(3), loc("state"));
     ret(&mut closed, m::Ty::Int(1), m::val(true));
     close_blocks.push(block(&label, closed));
@@ -1356,6 +1693,60 @@ pub(super) fn runtime(
             trap_block(),
         ],
     ));
+    for resource in lir.resources {
+        let Type::Task { result, .. } = &resource.payload else {
+            continue;
+        };
+        if **result == Type::I32 {
+            continue;
+        }
+        let before = meter.remaining();
+        let mut left = before;
+        let reservation: CompileResult<()> = (|| {
+            for _ in 0..16 {
+                copy_aggregates::reserve_enum_metadata(&resource.payload, &mut left, 0, limits)?;
+            }
+            Ok(())
+        })();
+        meter.spend(before - left)?;
+        reservation?;
+        meter.spend(2048)?;
+        let payload = aggregate_field_type(result)?;
+        let response = m::Ty::Struct(vec![m::Ty::Int(32), payload.clone()]);
+        let mut entry = vec![];
+        load(&mut entry, "frame", m::Ty::Ptr, loc("owner"));
+        compare(
+            &mut entry,
+            "valid",
+            m::Ty::Ptr,
+            loc("frame"),
+            m::Val::Null,
+            "ne",
+        );
+        cond(&mut entry, "valid", "poll", "invalid");
+        let mut poll = vec![];
+        load(&mut poll, "poll.fn", m::Ty::Ptr, loc("frame"));
+        call(
+            &mut poll,
+            Some("answer"),
+            response.clone(),
+            loc("poll.fn"),
+            vec![m::Arg::new(m::Ty::Ptr, loc("frame"))],
+        );
+        ret(&mut poll, response.clone(), loc("answer"));
+        let mut invalid = vec![];
+        poll_result_typed(&mut invalid, 4, m::Val::Zero, "invalid", &payload);
+        items.push(function(
+            typed_poll_name(&resource.payload),
+            response,
+            vec![m::Param::new(m::Ty::Ptr, "owner")],
+            vec![
+                block("entry", entry),
+                block("poll", poll),
+                block("invalid", invalid),
+            ],
+        ));
+    }
     let mut code = m::Code::new();
     for item in items {
         match item {
@@ -1379,6 +1770,249 @@ pub(super) fn runtime(
     Ok(code)
 }
 impl FunctionEmitter<'_> {
+    fn general_task_poll(&mut self, i: &Instruction, task: ValueId) -> CompileResult<()> {
+        let output = result(i)?;
+        let actual = &self.function.values[output.0 as usize];
+        let llvm = llvm_type(actual)?;
+        let slot = self.temp();
+        let answer = self.temp();
+        let tag = self.temp();
+        let serial = self.continuation;
+        self.continuation += 1;
+        let label = |s: &str| format!("task.general.{serial}.{s}");
+        let mut body = vec![];
+        push(
+            &mut body,
+            Some(&m::name(&slot)),
+            m::Op::Alloca {
+                ty: llvm.clone(),
+                align: 0,
+            },
+        );
+        store(&mut body, llvm.clone(), m::Val::Zero, m::val(slot.clone()));
+        if matches!(i.kind, InstructionKind::TaskPollClose { .. }) {
+            call(
+                &mut body,
+                Some(&m::name(&answer)),
+                m::Ty::Int(1),
+                m::global("zil.task.poll_close".into()),
+                vec![m::Arg::new(m::Ty::Ptr, m::val(value(task)))],
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tag)),
+                m::Op::Cast {
+                    opcode: "zext".into(),
+                    arg: m::Arg::new(m::Ty::Int(1), m::val(answer)),
+                    to: m::Ty::Int(32),
+                },
+            );
+            gep(&mut body, &label("tag.ptr"), &llvm, m::val(slot.clone()), 0);
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                m::val(tag),
+                loc(label("tag.ptr")),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+        } else {
+            let Type::ErrorUnion {
+                error,
+                result: poll,
+            } = actual
+            else {
+                unreachable!()
+            };
+            let poll_llvm = llvm_type(poll)?;
+            let error_llvm = llvm_type(error)?;
+            let Type::Address { inner, .. } = &self.function.values[task.0 as usize] else {
+                unreachable!()
+            };
+            let Type::Managed(carrier) = inner.as_ref() else {
+                unreachable!()
+            };
+            let Type::Task {
+                result: payload, ..
+            } = carrier.as_ref()
+            else {
+                unreachable!()
+            };
+            let payload_llvm = aggregate_field_type(payload)?;
+            let raw_llvm = m::Ty::Struct(vec![m::Ty::Int(32), payload_llvm.clone()]);
+            let poll_symbol = if **payload == Type::I32 {
+                "zil.task.poll".into()
+            } else {
+                typed_poll_name(carrier)
+            };
+            call(
+                &mut body,
+                Some(&m::name(&answer)),
+                raw_llvm.clone(),
+                m::global(poll_symbol),
+                vec![m::Arg::new(m::Ty::Ptr, m::val(value(task)))],
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tag)),
+                m::Op::Extract {
+                    arg: m::Arg::new(raw_llvm.clone(), m::val(answer.clone())),
+                    index: 0,
+                },
+            );
+            compare(
+                &mut body,
+                &label("ready.test"),
+                m::Ty::Int(32),
+                m::val(tag.clone()),
+                m::val(1),
+                "eq",
+            );
+            cond(
+                &mut body,
+                &label("ready.test"),
+                &label("ready"),
+                &label("not.ready"),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("ready")));
+            let mut body = vec![];
+            gep(
+                &mut body,
+                &label("poll.ptr"),
+                &llvm,
+                m::val(slot.clone()),
+                2,
+            );
+            gep(
+                &mut body,
+                &label("poll.tag.ptr"),
+                &poll_llvm,
+                loc(label("poll.ptr")),
+                0,
+            );
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                m::val(1),
+                loc(label("poll.tag.ptr")),
+            );
+            if **payload != Type::Unit {
+                gep(
+                    &mut body,
+                    &label("payload.ptr"),
+                    &poll_llvm,
+                    loc(label("poll.ptr")),
+                    1,
+                );
+                // Only Ready may move the actual complete owning payload. Other
+                // poll outcomes never materialize a source T.
+                push(
+                    &mut body,
+                    Some(&label("payload")),
+                    m::Op::Extract {
+                        arg: m::Arg::new(raw_llvm, m::val(answer)),
+                        index: 1,
+                    },
+                );
+                store(
+                    &mut body,
+                    payload_llvm,
+                    loc(label("payload")),
+                    loc(label("payload.ptr")),
+                );
+            }
+            branch(&mut body, &label("done"));
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("not.ready")));
+            let mut body = vec![];
+            compare(
+                &mut body,
+                &label("pending.test"),
+                m::Ty::Int(32),
+                m::val(tag.clone()),
+                m::val(0),
+                "eq",
+            );
+            cond(
+                &mut body,
+                &label("pending.test"),
+                &label("done"),
+                &label("error"),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("error")));
+            let mut body = vec![];
+            gep(
+                &mut body,
+                &label("error.flag"),
+                &llvm,
+                m::val(slot.clone()),
+                0,
+            );
+            store(
+                &mut body,
+                m::Ty::Int(1),
+                m::val(true),
+                loc(label("error.flag")),
+            );
+            gep(
+                &mut body,
+                &label("error.ptr"),
+                &llvm,
+                m::val(slot.clone()),
+                1,
+            );
+            gep(
+                &mut body,
+                &label("error.tag.ptr"),
+                &error_llvm,
+                loc(label("error.ptr")),
+                0,
+            );
+            push(
+                &mut body,
+                Some(&label("error.tag")),
+                m::Op::Binary {
+                    opcode: "sub".into(),
+                    ty: m::Ty::Int(32),
+                    left: m::val(tag),
+                    right: m::val(2),
+                },
+            );
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                loc(label("error.tag")),
+                loc(label("error.tag.ptr")),
+            );
+            branch(&mut body, &label("done"));
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("done")));
+        }
+        if self.copy_values.contains_key(&output) {
+            self.copy_read(output, m::val(slot))?;
+        } else {
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(value(output))),
+                m::Op::Load {
+                    ty: llvm,
+                    ptr: m::val(slot),
+                    align: 0,
+                },
+            )));
+        }
+        Ok(())
+    }
     pub(super) fn task_instruction(&mut self, i: &Instruction) -> CompileResult<()> {
         if let InstructionKind::SuspendCall {
             function,
@@ -1388,6 +2022,7 @@ impl FunctionEmitter<'_> {
             let output = result(i)?;
             let args = arguments
                 .iter()
+                .filter(|id| self.function.values[id.0 as usize] != Type::Unit)
                 .map(|id| {
                     Ok(m::Arg::new(
                         llvm_type(&self.function.values[id.0 as usize])?,
@@ -1396,7 +2031,9 @@ impl FunctionEmitter<'_> {
                 })
                 .collect::<CompileResult<Vec<_>>>()?;
             self.event(m::Event::Instruction(inst(
-                Some(&m::name(value(output))),
+                (self.function.values[output.0 as usize] != Type::Unit)
+                    .then(|| m::name(value(output)))
+                    .as_deref(),
                 m::Op::Call {
                     result: llvm_type(&self.function.values[output.0 as usize])?,
                     result_attrs: vec![],
@@ -1440,6 +2077,67 @@ impl FunctionEmitter<'_> {
                 },
             )));
             return Ok(());
+        }
+        if let InstructionKind::TaskCreate { worker, arguments } = &i.kind {
+            let output = result(i)?;
+            let ty = llvm_type(&self.function.values[output.0 as usize])?;
+            let frame = self.temp();
+            let failed = self.temp();
+            let tagged = self.temp();
+            let mut body = vec![];
+            let args = arguments
+                .iter()
+                .filter(|v| self.function.values[v.0 as usize] != Type::Unit)
+                .map(|v| {
+                    Ok(m::Arg::new(
+                        llvm_type(&self.function.values[v.0 as usize])?,
+                        m::val(value(*v)),
+                    ))
+                })
+                .collect::<CompileResult<Vec<_>>>()?;
+            call(
+                &mut body,
+                Some(&m::name(&frame)),
+                m::Ty::Ptr,
+                m::global(name(*worker, "init")),
+                args,
+            );
+            compare(
+                &mut body,
+                &m::name(&failed),
+                m::Ty::Ptr,
+                m::val(frame.clone()),
+                m::Val::Null,
+                "eq",
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tagged)),
+                m::Op::Insert {
+                    arg: m::Arg::new(ty.clone(), m::Val::Zero),
+                    index: 0,
+                    field: m::Arg::new(m::Ty::Int(1), m::val(failed)),
+                },
+            );
+            // The inactive success field is never exposed on Allocation.
+            push(
+                &mut body,
+                Some(&m::name(value(output))),
+                m::Op::Insert {
+                    arg: m::Arg::new(ty, m::val(tagged)),
+                    index: 2,
+                    field: m::Arg::new(m::Ty::Ptr, m::val(frame)),
+                },
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            return Ok(());
+        }
+        if let InstructionKind::TaskPoll { task } | InstructionKind::TaskPollClose { task } = i.kind
+            && matches!(self.function.values[task.0 as usize],Type::Address{ref inner,..} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..})))
+        {
+            return self.general_task_poll(i, task);
         }
         let (callee, argument, ty) = match i.kind {
             InstructionKind::TaskStart { worker, argument } => (
@@ -1649,6 +2347,7 @@ mod child_frame_tests {
             &mut plans,
             &mut BTreeSet::new(),
             &meter,
+            None,
         )?;
         Ok((
             balance - meter.remaining(),
@@ -1686,7 +2385,8 @@ mod child_frame_tests {
                 &cycle,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                &Meter::new(1_000_000)
+                &Meter::new(1_000_000),
+                None,
             )
             .is_err()
         );

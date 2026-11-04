@@ -6,6 +6,11 @@ use zil_ir::*;
 fn candidate() -> TypedModule {
     let span = Span::new(FileId(0), 0, 1);
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"096 raw byte-storage transport"),
@@ -18,6 +23,7 @@ fn candidate() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),
@@ -215,9 +221,9 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 37);
-    assert_eq!(wire::WIRE_VERSION, 37);
-    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 2);
+    assert_eq!(SCHEMA_VERSION, 41);
+    assert_eq!(wire::WIRE_VERSION, 41);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 5);
     let limits = Limits::default();
     let mut raw = candidate();
     raw.functions[0].foreign = Some(ForeignDeclaration {

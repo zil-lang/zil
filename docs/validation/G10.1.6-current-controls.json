@@ -1,0 +1,126 @@
+{
+  "task": "G10.1.6",
+  "baseline": "53241529410353160263af8b8672d60a6ad0ef5d",
+  "classification": "AuthorLimitedTestCorrection",
+  "scope": "Six remaining8477 consumers: replay existing central schema40-to41 fixture migration; correct review223 current-schema assertions; preserve original owned-write315 as a proved current G1.3 finite lane. No production,decoder,historical bytes,normative or default-budget changes.",
+  "original_failures": {
+    "8477_log": "workspace-8477-failure.json / workspace-final.log retained by root",
+    "repeat_on_current_production": {
+      "impl238_product_replacement": {
+        "passed": 15,
+        "failed": 1,
+        "failure": "owned-write315 original237bytes now Success/Verify1, historical test still expected SafeReject"
+      },
+      "impl248_source": {
+        "passed": 7,
+        "failed": 0
+      },
+      "impl254_capture_probe": {
+        "passed": 1,
+        "failed": 0
+      },
+      "impl254_operands": {
+        "passed": 1,
+        "failed": 0
+      },
+      "impl254_wire": {
+        "passed": 1,
+        "failed": 0
+      },
+      "review223_replay": {
+        "passed": 1,
+        "failed": 1,
+        "failure": "current Wire41 still expected40 in this consumer"
+      }
+    },
+    "interpretation": "The schema40_fixture crashes in original8477 impl248/254/impl238 are already repaired by G10.1.3. No new production defect found in these replays."
+  },
+  "commands": [
+    {
+      "command": "cargo test --locked -j2 -p zil-driver --test impl238_product_replacement --test impl248_source --test impl254_capture_probe --test impl254_operands --test impl254_wire --test review223_replay --no-fail-fast -- --nocapture",
+      "features": [
+        "default"
+      ],
+      "results": {
+        "impl238_product_replacement": [
+          17,
+          0
+        ],
+        "impl248_source": [
+          7,
+          0
+        ],
+        "impl254_capture_probe": [
+          1,
+          0
+        ],
+        "impl254_operands": [
+          1,
+          0
+        ],
+        "impl254_wire": [
+          1,
+          0
+        ],
+        "review223_replay": [
+          2,
+          0
+        ]
+      },
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "command": "cargo test --locked -j2 -p zil-driver --features llvm-api --test impl238_product_replacement original_owned_write315_has_real_ticket_cleanup_and_failure_controls -- --exact --nocapture",
+      "features": [
+        "default",
+        "llvm-api"
+      ],
+      "passed": 1,
+      "failed": 0,
+      "filtered": 16
+    },
+    {
+      "command": "cargo clippy --locked -j2 -p zil-driver --features llvm-api --test impl238_product_replacement --test review223_replay -- -D warnings -A dead_code",
+      "result": "Pass; pre-existing dead_code allowance only"
+    },
+    {
+      "command": "rustfmt --edition 2024 --check crates/zil-driver/tests/impl238_product_replacement.rs crates/zil-driver/tests/review223_replay.rs; git diff --check",
+      "result": "Pass"
+    },
+    {
+      "command": "cargo test --locked -j2 -p zil-driver --test review223_replay -- --nocapture",
+      "passed": 2,
+      "failed": 0,
+      "note": "Final source formatting replay; overlaps the six-target selection."
+    }
+  ],
+  "owned_write315": {
+    "original_source_sha256": "c876d1d7f53f0d18a8bad8d60d375598ec909d0cfc39c1f16cee2441a42ffa7f",
+    "original_source_bytes": 237,
+    "byte_preservation": "Compared the saved original failing source to every emitted original-positive source: identical. Same source retained in existing product315 generator.",
+    "actual_pipeline": "All four positive sources independently Parse/Expand/Types/Analyze/raw Verify/decoded Wire Verify, then native selected backend. Exact ReservePlaceAddress Field0 mutable-address ticket/Commit match; both failure inputs also have matching Abort paths.",
+    "native_profiles": "Four sources x Clang/LLVM API x O0/O2 =16 executions. Backend and no-fallback assertions remain. Original result0 with empty output; traced replace AXB proves old A drops before caller X and committed B drops once; RHS failure XA and prepared-argument failure BXA both prove old field still65 and final old A drops once.",
+    "negatives": [
+      "Shared parent assignment SafeReject/E-ADDRESS-PERMISSION",
+      "Live shared parent across replacement SafeReject/E-BORROW-CONFLICT",
+      "Existing raw/Wire shared upgrade,actual loan and owned-child-without-protocol negatives remain in the full targets."
+    ],
+    "limits": "Direct Managed<CopyRecord> field only. No StoreElement,general owning Package/Sum or unstated alias/ticket admission."
+  },
+  "historical_fixture_integrity": "No historical .wire,hash,ORACLE or production decoder changed. review223 uses existing test-only structural migration,keeps raw/Wire independent checks and frozen old-envelope rejections.",
+  "source_sha256": {
+    "crates/zil-driver/tests/impl238_product_replacement.rs": "8b7c0bd3d8a36ab75c2ecbff9f1e933408cee4b8aebdc96f32da5801434aee32",
+    "crates/zil-driver/tests/review223_replay.rs": "bc2e25099a0e0d09e56936f0422ed594d71ed202fdddaedba10e607aa11283c5"
+  },
+  "log_sha256": {
+    "baseline-targets.log": "49211ba4b94907a566a05ed2081efa9afe2e89fc8bc6a98679cbbebfe5d685ad",
+    "final-default-targets.log": "7804c0019896240505d881375f041132f6296aef2b382d6651a3f16500954b18",
+    "final-api-owned-write.log": "d253061896291e44667437d1d40b65a50fb7e7dab5ce0c1a7330c4ab1bf3c59c",
+    "clippy.log": "2ea88604f7d7a78631b6f887877a425f7a39025f69dc88a346ea098ff713cf94",
+    "final-review223-format.log": "7923686e95c6f04c1fa4c00f8dd3462706db0e170e05fc210f7aea29015af024"
+  },
+  "rust_goals": "No new language implementation or product comparison. Existing current finite owner-replacement safety/cleanup behavior is tested; no Rust runtime/RSS/compile/maintenance or product breakthrough claim.",
+  "full_suite_run": false,
+  "main_merged": false
+}

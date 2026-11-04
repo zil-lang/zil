@@ -119,6 +119,12 @@ pub(super) fn signature_snapshot_work(
     limits: &Limits,
 ) -> R<usize> {
     let mut budget = Budget::new(limits);
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |cost| budget.work(cost, span), 1)?;
+    }
+    if let Some(life) = &signature.life {
+        budget.work(life.parameter_lives.len().saturating_add(1), span)?;
+    }
     budget.work(name.len().saturating_add(signature.parameters.len()), span)?;
     for ty in &signature.parameters {
         validate_type(ty, 0, span, &mut budget)?;
@@ -148,6 +154,36 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
     Ok(limits.max_analysis_steps - budget.work)
 }
 
+/// Borrow only the caller's currently remaining allowance. Charge successful
+/// visits even when planning stops early; a failed planner cannot refund work.
+pub(super) fn charge_type_snapshot(
+    ty: &Type,
+    span: Span,
+    limits: &Limits,
+    remaining: &mut usize,
+    copies: usize,
+) -> R<()> {
+    let allowance = remaining.checked_div(copies).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "invalid type snapshot multiplier", Some(span))
+    })?;
+    let mut budget = Budget::new(limits);
+    budget.work = budget.work.min(allowance);
+    let before = budget.work;
+    let result = validate_type(ty, 0, span, &mut budget);
+    let consumed = before - budget.work;
+    let debit = consumed.checked_mul(copies).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "type snapshot debit overflow", Some(span))
+    })?;
+    *remaining = remaining.checked_sub(debit).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "type snapshot caller allowance exceeded",
+            Some(span),
+        )
+    })?;
+    result
+}
+
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
     if let Some(life) = &bound.life {
         budget.work(borrowed_fp::metadata_work(life), span)?;
@@ -169,6 +205,9 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
         // raw mixed State/callable headers. Its complete cost also bounds the
         // ensuing eligibility traversal; reserve that second use explicitly.
         budget.work(before - budget.work, span)?;
+        borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
+            budget.work(work, span)
+        })?;
         borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
     }
     Ok(())
@@ -206,6 +245,7 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
+    unconsumed_inventory(core).map_err(|e| vec![e])?;
     let mut budget = Budget::new(limits);
     budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
@@ -284,6 +324,7 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         )]);
     }
     for module in &program.modules {
+        unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
         count = count
             .checked_add(module.core.functions.len())
             .filter(|n| *n <= limits.max_functions)
@@ -492,6 +533,7 @@ fn headers(
             "unknown Core schema",
         ));
     }
+    unconsumed_inventory(core)?;
     if core.functions.len() > budget.limits.max_functions {
         return Err(Diagnostic::limit(
             Phase::Types,
@@ -503,6 +545,9 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.storage_life {
+            borrowed_fp::charge_contract(life, |cost| budget.work(cost, function.span), 1)?;
+        }
         if let Some(life) = &function.life {
             budget.work(
                 life.binders
@@ -610,6 +655,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
@@ -675,6 +721,11 @@ fn prepare<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        life_declarations: core.life_declarations.clone(),
+        life_instances: core.life_instances.clone(),
+        dyn_declarations: core.dyn_declarations.clone(),
+        dyn_interfaces: core.dyn_interfaces.clone(),
+        dyn_vtables: core.dyn_vtables.clone(),
         aggregate_templates: core.aggregate_templates.clone(),
         aggregate_applications: core.aggregate_applications.clone(),
         schema_version: core.schema_version,
@@ -686,7 +737,69 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         unsupported: core.unsupported.clone(),
     }
 }
+pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
+    life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits)
+}
+pub(super) fn life_table_snapshot_work(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+    limits: &Limits,
+) -> R<usize> {
+    let mut budget = Budget::new(limits);
+    validate_life_inventory_parts(declarations, instances, &mut budget)?;
+    Ok(limits.max_analysis_steps - budget.work)
+}
+
+fn validate_life_inventory(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    validate_life_inventory_parts(&core.life_declarations, &core.life_instances, budget)
+}
+fn validate_life_inventory_parts(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let span = Span::default();
+    for declaration in declarations {
+        budget.node(0, span)?;
+        budget.work(declaration.identity.package.len(), span)?;
+        for component in declaration
+            .identity
+            .module_path
+            .iter()
+            .chain(&declaration.identity.declaration_path)
+        {
+            budget.node(0, span)?;
+            budget.work(component.len(), span)?;
+        }
+        for _ in &declaration.identity.generation_path {
+            budget.node(0, span)?;
+        }
+        for parameter in &declaration.parameters {
+            budget.node(0, span)?;
+            if let LifeParameterKind::Const(ty) = parameter {
+                validate_type(ty, 0, span, budget)?;
+            }
+        }
+    }
+    for instance in instances {
+        budget.node(0, span)?;
+        validate_type(&instance.ty, 0, span, budget)?;
+        for argument in &instance.arguments {
+            budget.node(0, span)?;
+            match argument {
+                LifeNominalActual::Type(ty) => validate_type(ty, 0, span, budget)?,
+                LifeNominalActual::Const(Constant::WideString(units)) => {
+                    budget.work(units.len(), span)?;
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    validate_life_inventory(core, budget)?;
     aggregate_templates::metadata_snapshot(core, budget.limits, &mut budget.work)?;
     for aggregate in &core.aggregates {
         budget.node(0, aggregate.span)?;
@@ -722,7 +835,29 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 }
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
+    tasks::require_closed_context(ty, span)?;
     match ty {
+        Type::Dyn { .. } => {
+            return Err(unsupported(
+                span,
+                "dyn type consumer is not yet implemented",
+            ));
+        }
+        Type::BorrowedStorage { storage, life } => {
+            for slot in &life.slots {
+                budget.node(depth + 1, span)?;
+                budget.work(slot.path.len(), span)?;
+            }
+            for row in &life.retained {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            for row in &life.nominal_arguments {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            validate_type(storage, depth + 1, span, budget)?;
+        }
         Type::Array { element, length } => {
             budget.work(*length as usize, span)?;
             validate_type(element, depth + 1, span, budget)?;
@@ -758,7 +893,8 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Registration { environment: inner }
+        Type::Task { result: inner, .. }
+        | Type::Registration { environment: inner }
         | Type::Address { inner, .. }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
@@ -786,6 +922,9 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(parameter, depth + 1, span, budget)?;
             }
             validate_type(result, depth + 1, span, budget)?;
+            borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                budget.work(work, span)
+            })?;
             borrowed_fp::relation(parameters, result, life, span)?;
         }
         Type::Named(name) => {
@@ -815,7 +954,9 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
                 validate_pattern(field, depth + 1, budget)?;
             }
         }
-        CorePatternKind::Reference { pattern, .. } => validate_pattern(pattern, depth + 1, budget)?,
+        CorePatternKind::Reference { pattern, .. } | CorePatternKind::ErrorArm { pattern, .. } => {
+            validate_pattern(pattern, depth + 1, budget)?
+        }
         CorePatternKind::Tuple(fields) => {
             for field in fields {
                 validate_pattern(field, depth + 1, budget)?;
@@ -834,6 +975,9 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
+    }
     // Repeated uses must reserve the complete shape before cloning a signature.
     // Reuse the existing finite ordinary ABI shapes, including owned error
     // alternatives. This does not grant a closure capture or callable ABI.
@@ -841,6 +985,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     let admitted = |ty: &Type| {
         ty.is_copy_value()
             || ty.is_scalar_or_address()
+            || closures::signature_parameter(ty)
             || resources::supported(ty)
             || errors::owned(ty)
             || packages::ordinary(ty)
@@ -990,6 +1135,15 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
+    if matches!(
+        e.kind,
+        CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. }
+    ) {
+        return Err(unsupported(
+            e.span,
+            "dyn expression consumer is not yet implemented",
+        ));
+    }
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(_)) => {
@@ -1857,6 +2011,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !stored::shared_address(ty)
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()
@@ -2325,13 +2480,37 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         match term {
             Term::Scalar(variable) => Ok(*variable),
             Term::Function(signature) => {
-                for ty in signature
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&signature.result))
-                {
-                    validate_type(ty, 0, span, self.budget)?;
+                if signature.storage_life.is_some() {
+                    for ty in &signature.parameters {
+                        charge_type_snapshot(
+                            ty,
+                            span,
+                            self.budget.limits,
+                            &mut self.budget.work,
+                            4,
+                        )?;
+                    }
+                    charge_type_snapshot(
+                        &signature.result,
+                        span,
+                        self.budget.limits,
+                        &mut self.budget.work,
+                        5,
+                    )?;
+                    borrowed_fp::static_pointer_slots(signature, |work| {
+                        self.budget.work(work, span)
+                    })?;
+                } else {
+                    for ty in signature
+                        .parameters
+                        .iter()
+                        .chain(std::iter::once(&signature.result))
+                    {
+                        validate_type(ty, 0, span, self.budget)?;
+                    }
                 }
+                self.budget
+                    .work(borrowed_fp::pointer_work(signature), span)?;
                 let ty = signature.pointer_type().ok_or_else(|| unsupported(span,
                     "function pointers require pure Copy parameters and result; indirect address contracts are not implemented"))?;
                 let variable = self.fresh(VALUE, false, span)?;
@@ -2343,6 +2522,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 "closure values cannot escape through scalar signatures, captures or scalar operations",
             )),
         }
+    }
+    fn pattern_term(&self, variable: Variable, span: Span) -> R<Term> {
+        Ok(match self.graph.address_shape(variable, span)? {
+            Some((inner, Some(mutable))) => Term::Address(inner, mutable),
+            _ => Term::Scalar(variable),
+        })
     }
     // A shared aggregate projection constrains its pointee shape only.
     // Ordinary checking still decides place validity and all address permissions.
@@ -2431,6 +2616,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     mutable: wanted,
                     inner,
                 } if (inner.is_address_pointee()
+                    || stored::shared_address(ty)
                     || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
                     || ty.is_exclusive_task_head_address()
@@ -2837,7 +3023,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value, statement.span)?;
                     self.binding_types.insert(index, value.clone());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), *mutable, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, *mutable, span)?;
                     }
                 }
                 CoreStatementKind::Binding {
@@ -3017,7 +3204,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value_type, value.span)?;
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), false, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, false, span)?;
                     }
                     self.block(then_body, depth + 1)?;
                     self.scopes.pop();
@@ -3034,7 +3222,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value_type, value.span)?;
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), false, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, false, span)?;
                     }
                     self.block(body, depth + 1)?;
                     self.scopes.pop();
@@ -3064,7 +3253,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         for (name, variable, span) in
                             self.graph.pattern_bind(&arm.pattern, variable)?
                         {
-                            self.insert(&name, Term::Scalar(variable), false, span)?;
+                            let term = self.pattern_term(variable, span)?;
+                            self.insert(&name, term, false, span)?;
                         }
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();
@@ -3481,7 +3671,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let variable = *variable;
                 self.graph.solve()?;
                 let payload = self.resolved(variable, span)?;
-                let task_head = *op == UnaryOp::BorrowMut && payload == Type::TaskI32;
+                let task_head = *op == UnaryOp::BorrowMut
+                    && matches!(payload, Type::TaskI32 | Type::Task { .. });
                 if !task_head
                     && (*op != UnaryOp::Borrow
                         || !matches!(payload, Type::Record { .. })
@@ -3680,6 +3871,49 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
+            if matches!(name, "task_create" | "task_await") {
+                let Some(worker) = arguments.first() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                };
+                let Term::Function(signature) = self.expr(worker, depth + 1, false)? else {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task_create worker must be static",
+                    ));
+                };
+                if arguments.len() != signature.parameters.len() + 1 {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create actual input count mismatch",
+                    ));
+                }
+                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                    self.bind_term(&term, wanted, argument.span)?;
+                }
+                validate_type(&signature.result, 0, span, self.budget)?;
+                charge_type_snapshot(
+                    &signature.result,
+                    span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    4,
+                )?;
+                return self.known_term(
+                    &if name == "task_await" {
+                        signature.result.clone()
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
+            }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
@@ -3707,11 +3941,22 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ));
                 }
             }
-            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
-                let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
-                self.bind_term(&term, ty, argument.span)?;
+            let mut returned = tasks::result(name);
+            for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, None, depth + 1, false)?;
+                let v = self.projection_base(&term, argument.span)?;
+                if let Some(actual) = self.graph.ty(v)?
+                    && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
+                {
+                    charge_type_snapshot(task, span, self.budget.limits, &mut self.budget.work, 6)?;
+                    let parameter = tasks::parameter_for(name, task);
+                    self.bind_term(&term, &parameter, argument.span)?;
+                    returned = tasks::result_for(name, task);
+                } else {
+                    self.bind_term(&term, wanted, argument.span)?;
+                }
             }
-            return self.known_term(&tasks::result(name), span);
+            return self.known_term(&returned, span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
@@ -3732,6 +3977,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 &byte_buffer::result_type(name).expect("byte primitive"),
                 span,
             );
+        }
+        if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            if arguments.len() != 3 {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "atomic_compare_exchange requires three arguments",
+                ));
+            }
+            let address = scoped_thread::sync_address(SyncCellKind::AtomicI32);
+            for (index, argument) in arguments.iter().enumerate() {
+                let wanted = if index == 0 { &address } else { &Type::I32 };
+                let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                self.bind_term(&term, wanted, argument.span)?;
+            }
+            return self.known_term(&Type::Tuple(vec![Type::I32, Type::Bool]), span);
         }
         if let CoreExprKind::Name(name) = &callee.kind
             && let Some((kind, op)) = scoped_thread::sync_primitive(name)
@@ -4762,6 +5025,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         else {
             unreachable!("expression dispatcher variant");
         };
+        for parameter in parameters {
+            if let Some(ty) = &parameter.ty {
+                self.graph.annotation_context(ty, 0, parameter.span)?;
+            }
+        }
+        if let Some(ty) = return_type {
+            self.graph.annotation_context(ty, 0, span)?;
+        }
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
@@ -5132,4 +5403,18 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(())
     }
+}
+
+/// Initial39 boundary: nonempty new data must reach a real bounded consumer.
+pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
+    if !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+    {
+        return Err(unsupported(
+            Span::default(),
+            "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
+        ));
+    }
+    Ok(())
 }

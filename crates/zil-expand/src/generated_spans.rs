@@ -144,6 +144,7 @@ fn argument<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     match a {
+        s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
     }
@@ -376,8 +377,33 @@ pub(crate) fn walk_type<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     v.node(&mut t.span, depth)?;
+    if let s::TypeKind::Dyn { bindings, .. } = &mut t.kind {
+        for binding in bindings {
+            v.node(&mut binding.span, depth + 1)?;
+            match &mut binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(value, depth + 2)?;
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(ty, depth + 2)?;
+                    v.expression(value, depth + 2)?;
+                }
+                s::DynBindingKind::Method { member, arguments } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    for a in arguments {
+                        argument(v, a, depth + 2)?;
+                    }
+                }
+            }
+        }
+    }
     match &mut t.kind {
-        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args } => {
+        s::TypeKind::Named { path: names, args }
+        | s::TypeKind::Dyn {
+            path: names, args, ..
+        } => {
             path(v, names, t.span, depth + 1)?;
             for a in args {
                 argument(v, a, depth + 1)?;
@@ -433,7 +459,9 @@ fn walk_pattern<V: Visitor + ?Sized>(
         s::PatternKind::Name(n) => v.text(n, p.span)?,
         s::PatternKind::Wildcard => {}
         s::PatternKind::Literal(l) => literal(v, l, p.span)?,
-        s::PatternKind::Reference { pattern, .. } => walk_pattern(v, pattern, depth + 1)?,
+        s::PatternKind::Reference { pattern, .. } | s::PatternKind::ErrorArm { pattern, .. } => {
+            walk_pattern(v, pattern, depth + 1)?
+        }
         s::PatternKind::Tuple(ps) => {
             for p in ps {
                 walk_pattern(v, p, depth + 1)?;
@@ -597,6 +625,10 @@ pub(crate) fn walk_expression<V: Visitor + ?Sized>(
 ) -> CompileResult<()> {
     v.node(&mut e.span, depth)?;
     match &mut e.kind {
+        s::ExprKind::Ascribed { ty, value } => {
+            v.ty(ty, depth + 1)?;
+            v.expression(value, depth + 1)?;
+        }
         s::ExprKind::Literal(l) => literal(v, l, e.span)?,
         s::ExprKind::Name(n) | s::ExprKind::ReceiverMember(n) => v.text(n, e.span)?,
         s::ExprKind::Group(e)

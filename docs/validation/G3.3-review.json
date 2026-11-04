@@ -1,0 +1,164 @@
+{
+  "task": "G3.3",
+  "reviewer": "/root/goal_publish",
+  "implementation_author": "/root/g3_3",
+  "implementation_commit": "46d15e69d781a18009c78e43e9972eac681703de",
+  "baseline": "54e618a07c99126203d44d28b6f03a302e65c266",
+  "verdict": "Pass",
+  "scope": "Limited independent review: actual finite inline scalar capture environments under qualified Fn/FnMut/FnOnce roles, including separate environment receiver modes and shared argument leaves. Actual enclosing captured Fixed context is not implemented; this does not complete G3.3 or approve a common gate/main merge.",
+  "reviewed_at_utc": "2026-11-04T18:03:54.306301+00:00",
+  "method": "Read exact committed production diffs and AGENTS/current normative/task/changes/parent contracts; independent replay author-built current-source test executables with builds paused, no rebuild during disk recovery, and no reviewer language source edits. Checked llvm-api fingerprint and all12 receipt source hashes against clean exact checkout.",
+  "source_checkout_clean_at_replay": true,
+  "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+  "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+  "checks": [
+    {
+      "name": "g3-driver",
+      "command": [
+        "/workspace/.zil-env/target342-40/debug/deps/generics-ba4159fc2009dbc9",
+        "g3_3_",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/zil-G3.3-review-g3-driver.log",
+      "binary_sha256": "319822f7c6038852fb9ae29a867354f64a9cfdf2f95f328346111b96d0d22031"
+    },
+    {
+      "name": "analyze-stored",
+      "command": [
+        "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7",
+        "stored_flow",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/zil-G3.3-review-analyze-stored.log",
+      "binary_sha256": "9795e83cd7d878bd023b8946a90e7e1453ee4b58b066fc0730a6b5f7ffc111b1"
+    },
+    {
+      "name": "verify-stored",
+      "command": [
+        "/workspace/.zil-env/target342-40/debug/deps/zil_verify-e5c00ec0866c83e5",
+        "stored_flow",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/zil-G3.3-review-verify-stored.log",
+      "binary_sha256": "064e616b5e7aed51fb028880d793bab5786dbc89a4b2916336b49b07bfc4ba8a"
+    }
+  ],
+  "results": {
+    "driver": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 33,
+      "features": [
+        "default",
+        "llvm-api"
+      ],
+      "native_executions": 16,
+      "native_scope": "Actual original source Fn/FnMut/FnOnce roles, each Clang/API O0/O2,result42,no fallback; plus FnMut shared stored-leaf alias source on four native profiles."
+    },
+    "analyze_stored_flow": {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 128
+    },
+    "verify_stored_flow": {
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 347
+    },
+    "actual_negative_controls": [
+      "Initial5 source-derived capture/mode/class mutations rejected by Analyze, raw Verify and decoded Wire Verify.",
+      "Actual FnMut definition adapted to Once parameter: duplicate real call with claimed trace forged to match both calls rejected by all3 paths; existing helper provenance/role/event trace proof remains authoritative.",
+      "Concrete kind-FnOnce scalar raw positive derived from real source, adjusted to genuine moves and direct call without helper masking. Repeated same-callee SSA is inserted immediately after first call and before cleanup: Analyze reports resource closure: call uses consumed environment; Verify reports managed SSA value was not available exactly once; Wire reports same reason/code.",
+      "Concrete kind-FnOnce non-Copy Load in place of actual TakeLocal: Analyze reports Load cannot copy an owned carrier; Verify reports Managed positions require DescribeLocal or TakeLocal, never copying Load; Wire same reason/code.",
+      "Source mutable receiver/mode negatives and unused repeated FnOnce remain rejected.",
+      "Fixed-context negative controls remain rejected rather than freshening free Fixed classes."
+    ],
+    "budget_boundaries": {
+      "qualified_scalar_FnMut_Analyze": 24596,
+      "qualified_scalar_FnMut_Verify": 27039,
+      "qualified_scalar_FnMut_Source_through_Lower": 27039,
+      "existing_rich_class_Analyze": 3377,
+      "existing_rich_class_Verify": 4053,
+      "existing_qualified_role_Analyze": 5843,
+      "existing_qualified_role_Verify": 6530,
+      "controls": "Exact N/N-1/fresh with expected ResourceLimit; Source-through-Lower also warm N/N-1/N and zero active queries. Added presence work changes Analyze threshold24595→24596; default limits unchanged."
+    }
+  },
+  "source_sha256": {
+    "crates/zil-analyze/src/class_flow.rs": "7b733029c63728e2dbb0cd315d55e067becf8ede888a422a3fe4450fdc0d13c0",
+    "crates/zil-analyze/src/signature_life.rs": "a1efbb7fec77d2af6621ccd6b5882002201af34b317e2bb8b4d15d575e82f3fb",
+    "crates/zil-analyze/src/stored_callables.rs": "b295742c71aeb8b9778ebfdbf0e575b3ebd1d1591b750382485728c90a6be79a",
+    "crates/zil-analyze/src/stored_flow.rs": "aa327d59713c7ecf8870352ec96b60e870baf8e7f60f966574215be0758b2d5e",
+    "crates/zil-backend-llvm/src/emit.rs": "3d3aae5f43efb36ae7aa506009dc876890d655f6e1a512f3d3bd92ba66a21f02",
+    "crates/zil-backend-llvm/src/emit/stored_borrows.rs": "7b0abeeca47e3e47592b63796c24acbcc32dbc0956395dc6ff036a8400dd6956",
+    "crates/zil-driver/tests/generics.rs": "5e14ea2f977c7452ae3ae5ff5cba4abf40b3e7c7a4061aea2f42a5cfd9159d19",
+    "crates/zil-lower/src/lib.rs": "6e43b6bd0674a91af4f7ac3cd51b22fea5dce0a9d58319e8b5809c1533c76a7b",
+    "crates/zil-verify/src/class_flow.rs": "072d5596977b085f78427dbaba1865299d27366f2f21483aec6edcdee776049c",
+    "crates/zil-verify/src/signature_life.rs": "ab38bc6b6c18ba630dd0aa928ed82511a45132b7d164d8a65bfb30636a3f400e",
+    "crates/zil-verify/src/stored_callables.rs": "48327afeb11cfc2bab2e6053f3e594c7768d3a556793e1cf3cda03cdb8432e7d",
+    "crates/zil-verify/src/stored_flow.rs": "cef46c2caab36b2b86029e2a61e4ad5c093749e711b3263abc5fae7f5564567d"
+  },
+  "resolved_findings": [
+    {
+      "finding": "New FnOnce admission bypasses resources::check_module in Analyze. Local initialization catches repeated TakeLocal, but does not supply SSA once-consumption or prohibit copying a non-Copy closure via Load. Source-only repeated-FnOnce rejection in Expand cannot replace raw Analyze/Verify/Wire controls.",
+      "resolution": "For actual kind-FnOnce definitions, stored_flow::infer invokes the existing independent resource ledger under the same request budget, after actual profile and role checks. Direct no-helper raw/Wire negatives prove this obligation. Existing helper_flow independently handles actual role/event Once adaptation; no duplicate proof assumed."
+    },
+    {
+      "finding": "All argument leaves were accidentally marked write when receiver is FnMut. Receiver exclusivity does not make shared argument leaf permissions exclusive; Analyze corresponding path remains read. This can reject legitimate shared alias combinations.",
+      "resolution": "Verify retains exclusive FnMut receiver access but restores read for shared argument leaves. Genuine same-target shared leaf input source now reaches both kernels and all four native profiles."
+    }
+  ],
+  "static_review_notes": [
+    "No public schema, root Cargo, normative files or shared registry changed.",
+    "Consumers preserve actual declaration/environment identity, exact construction operands, ReadCapture/WriteCapture field modes, actual local/SSA receivers and role-specific class equations; finite scalar captures introduce no new allocator or destructor debt.",
+    "Fixed-context interface request is explicitly a proposal; source private mappings, complete actual vectors, independent instance facts and metadata-only retention still need root-owned publication/consumers. It is not existing implementation evidence."
+  ],
+  "prior_checkpoints": [
+    {
+      "implementation_commit": "dfa4c5b6627a3ee1ad3748e9d2d5f70b2887d496",
+      "verdict": "ChangesRequested",
+      "findings": [
+        {
+          "severity": "high",
+          "file": "crates/zil-analyze/src/lib.rs",
+          "location": "stored_borrows early return after stored_flow::infer",
+          "finding": "New FnOnce admission bypasses resources::check_module in Analyze. Local initialization catches repeated TakeLocal, but does not supply SSA once-consumption or prohibit copying a non-Copy closure via Load. Source-only repeated-FnOnce rejection in Expand cannot replace raw Analyze/Verify/Wire controls.",
+          "author_response": "Confirmed; adding existing independent resources::check_module with the same ledger when actual FnOnce entries require it, and source-derived raw/Wire repeated SSA and closure Load neighbors.",
+          "status": "Awaiting final revision and independent replay",
+          "qualification": "Existing helper_flow independently checks FnOnce role/event consumption, including Fn/FnMut-to-Once adaptation, before Analyze stored return. Therefore an unchanged source-derived helper duplicate may already reject. The missing resource path must be demonstrated with an actual FnOnce environment outside helper role traces, rather than claimed from early return alone."
+        },
+        {
+          "severity": "medium",
+          "file": "crates/zil-verify/src/stored_flow.rs",
+          "location": "windows CallClosureBorrowed argument leaf loop near1670",
+          "finding": "All argument leaves were accidentally marked write when receiver is FnMut. Receiver exclusivity does not make shared argument leaf permissions exclusive; Analyze corresponding path remains read. This can reject legitimate shared alias combinations.",
+          "author_response": "Confirmed accidental replacement; restoring read for shared argument leaves and adding genuine shared leaf alias positive.",
+          "status": "Awaiting final revision and independent replay"
+        }
+      ],
+      "tests": []
+    }
+  ],
+  "unfinished": [
+    "Enclosing Fixed-to-capture semantic context",
+    "Address/owning captures",
+    "Environment lending and general state cleanup",
+    "Complete G3.3 and B0/product acceptance"
+  ],
+  "rust_comparison": "Finite expressiveness/source/API increment reproduced. No same-semantics paired Rust runtime/RSS/maintenance/compilation comparison or product breakthrough established.",
+  "author_checks_not_independently_repeated": [
+    "Full generics existing target36/0",
+    "Clippy across affected crates and generics with -D warnings -A dead_code",
+    "rustfmt check changed Rust and git diff --check"
+  ],
+  "handoff_check": "node tools/handoff.mjs --check exit0; engineering record completeness only",
+  "full_suite_run": false,
+  "goal_status_changed": false,
+  "source_modified_by_reviewer": false
+}

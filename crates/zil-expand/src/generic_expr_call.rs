@@ -39,6 +39,13 @@ impl Engine<'_> {
             }
             if let Some(actual) = hint {
                 let actual = self.original_type(&actual)?;
+                trait_signature = self.products.dynamic.method(
+                    &self.traits,
+                    projection_shape(&actual),
+                    member,
+                    &mut self.budget,
+                    callee.span,
+                )?;
                 if let Some(host) = trait_bounds::plain(projection_shape(&actual))
                     && let Some((target, signature)) =
                         self.traits
@@ -57,6 +64,7 @@ impl Engine<'_> {
                 }
                 if trait_signature.is_none()
                     && !self.traits.recipes.is_empty()
+                    && !dynamic::is_interface(projection_shape(&actual))
                     && let Some((target, signature, witness)) = self.traits.recipe_method(
                         projection_shape(&actual),
                         member,
@@ -87,6 +95,122 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        if let Some(name) = crate::foreign::bare_name(callee).filter(|name| {
+            matches!(
+                *name,
+                "task_create"
+                    | "task_await"
+                    | "task_poll"
+                    | "task_poll_close"
+                    | "task_request_cancel"
+                    | "task_finish_destroy"
+                    | "task_valid"
+            )
+        }) {
+            let name = name.to_owned();
+            if matches!(name.as_str(), "task_create" | "task_await") {
+                let Some(first) = arguments.first() else {
+                    return Err(error(e.span, "task_create requires a static worker"));
+                };
+                let worker = stores::call_name(&first.value)
+                    .ok_or_else(|| error(first.span, "task_create worker must be static"))?;
+                let signature = self
+                    .signatures
+                    .get(worker)
+                    .ok_or_else(|| error(first.span, "task_create worker is absent"))?;
+                self.budget.const_function(signature)?;
+                let signature = (*signature).clone();
+                if arguments.len() != signature.params.len() + 1 {
+                    return Err(error(
+                        e.span,
+                        "task_create argument count differs from worker",
+                    ));
+                }
+                for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
+                    self.expr_expected(&mut argument.value, env, Some(&parameter.ty), depth + 1)?;
+                }
+                let mut result = signature
+                    .return_type
+                    .clone()
+                    .unwrap_or_else(|| named("void", e.span));
+                let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
+                    && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));
+                if owning_result
+                    && !matches!(&result.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
+                {
+                    self.budget.ty(&result)?;
+                    result = TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Named {
+                            path: vec!["Managed".into()],
+                            args: vec![GenericArg::Type(result)],
+                        },
+                    };
+                }
+                if name == "task_await" {
+                    self.ty(&mut result, depth + 1)?;
+                    return Ok(Some(Some(result)));
+                }
+                let mut result = TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Error {
+                        error: Box::new(named(options::TASK_CREATE_ERROR, e.span)),
+                        result: Box::new(TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Named {
+                                path: vec!["Task".into()],
+                                args: vec![GenericArg::Type(result)],
+                            },
+                        }),
+                    },
+                };
+                self.ty(&mut result, depth + 1)?;
+                return Ok(Some(Some(result)));
+            }
+            if arguments.len() == 1
+                && let Some(actual) =
+                    self.expr_expected(&mut arguments[0].value, env, None, depth + 1)?
+            {
+                let mut task = &actual;
+                while let TypeKind::Reference { inner, .. } | TypeKind::Group(inner) = &task.kind {
+                    task = inner;
+                }
+                if let TypeKind::Named { path, args } = &task.kind
+                    && path.as_slice() == ["Task"]
+                    && let [GenericArg::Type(payload)] = args.as_slice()
+                {
+                    self.budget.ty(payload)?;
+                    let mut result = match name.as_str() {
+                        "task_poll" => TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Error {
+                                error: Box::new(named(options::TASK_POLL_STATE, e.span)),
+                                result: Box::new(TypeRef {
+                                    span: e.span,
+                                    kind: TypeKind::Named {
+                                        path: vec![options::TASK_POLL.into()],
+                                        args: vec![GenericArg::Type(payload.clone())],
+                                    },
+                                }),
+                            },
+                        },
+                        "task_poll_close" => TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Named {
+                                path: vec![options::TASK_POLL.into()],
+                                args: vec![GenericArg::Type(named("void", e.span))],
+                            },
+                        },
+                        "task_valid" => named("bool", e.span),
+                        _ => named("void", e.span),
+                    };
+                    self.ty(&mut result, depth + 1)?;
+                    return Ok(Some(Some(result)));
+                }
+            }
+            // Compatibility TaskI32 calls retain the existing signature path.
+            return Ok(Some(None));
+        }
         if let Some(name) = crate::foreign::bare_name(callee).filter(|name| stores::primitive(name))
         {
             return self.expr_call_store(arguments, e.span, env, context, name, depth);
@@ -113,6 +237,26 @@ impl Engine<'_> {
         Ok(None)
     }
     pub(super) fn expr_call_normal(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        context: ExprExpectedContext<'_>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        // Reserved bare/grouped numeric names cannot select a trait member or
+        // another primitive family. Keep their recursive argument visit out
+        // of the ordinary call-state and Task-construction stack frames.
+        if let ExprKind::Call { callee, arguments } = &mut e.kind
+            && let Some(name) = crate::integer_conversion_name(callee)
+        {
+            return self
+                .expr_call_conversion(arguments, e.span, env, name, depth)
+                .map(|result| result.expect("numeric conversion handler"));
+        }
+        self.expr_call_selected(e, env, context, depth)
+    }
+    #[inline(never)]
+    fn expr_call_selected(
         &mut self,
         e: &mut Expr,
         env: &mut Env,
@@ -377,11 +521,10 @@ impl Engine<'_> {
                         if function.params.len() != actual.len() {
                             return Err(error(e.span, "callable helper arity mismatch"));
                         }
-                        if function
-                            .generics
-                            .iter()
-                            .any(|p| !callable.contains_generic(&p.name))
-                        {
+                        if function.generics.iter().any(|p| {
+                            !matches!(p.kind, GenericParamKind::Lifetime)
+                                && !callable.contains_generic(&p.name)
+                        }) {
                             let variables: BTreeSet<_> =
                                 type_parameters(function).map(|p| p.name.clone()).collect();
                             let mut found = if contextual_constraints {
@@ -435,7 +578,10 @@ impl Engine<'_> {
                             let types = function
                                 .generics
                                 .iter()
-                                .filter(|p| !callable.contains_generic(&p.name))
+                                .filter(|p| {
+                                    !matches!(p.kind, GenericParamKind::Lifetime)
+                                        && !callable.contains_generic(&p.name)
+                                })
                                 .map(|p| {
                                     found.get(&p.name).cloned().ok_or_else(|| {
                                         error(

@@ -40,6 +40,11 @@ fn call(callee: CoreExpr, swap: bool) -> CoreStatement {
 }
 fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
     CoreModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
@@ -64,6 +69,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    storage_life: None,
                     call_kind: None,
                     life: None,
                     id: NodeId(index as u32),
@@ -105,6 +111,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
+                    storage_life: None,
                     life: None,
                     id: Some(FunctionId(i as u32)),
                     callable: Vec::new(),
@@ -477,6 +484,8 @@ fn pattern(kind: zil_ir::CorePatternKind) -> zil_ir::CorePattern {
 fn expression_variant(kind: &CoreExprKind) -> &'static str {
     use CoreExprKind::*;
     match kind {
+        MakeDynBorrow { .. } => "MakeDynBorrow",
+        CallDynSlot { .. } => "CallDynSlot",
         Literal(_) => "Literal",
         Ascribed { .. } => "Ascribed",
         Integer(_) => "Integer",
@@ -531,7 +540,7 @@ fn statement_variant(kind: &CoreStatementKind) -> &'static str {
 }
 
 #[test]
-fn every_current_core_variant_preserves_origin_support_and_transfer() {
+fn retained_core_variants_preserve_origin_support_and_transfer() {
     use zil_ir::{CoreClosureParameter, CoreMatchArm, CorePatternKind as P};
     let expressions = vec![
         CoreExprKind::Literal(Constant::I32(0)),

@@ -401,6 +401,16 @@ fn replace_operands(op: &mut m::Op, aliases: &[Option<Operand>]) {
             replace(&mut arg.value, aliases);
             replace(ptr, aliases);
         }
+        m::Op::AtomicCompareExchange {
+            expected,
+            desired,
+            ptr,
+            ..
+        } => {
+            replace(&mut expected.value, aliases);
+            replace(desired, aliases);
+            replace(ptr, aliases);
+        }
         m::Op::Binary { left, right, .. } | m::Op::Compare { left, right, .. } => {
             replace(left, aliases);
             replace(right, aliases);
@@ -483,6 +493,7 @@ mod tests {
     // Source/Verify/native controls live in the driver's integration test.
     fn fixture() -> (TypedFunction, m::Function) {
         let source = TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,

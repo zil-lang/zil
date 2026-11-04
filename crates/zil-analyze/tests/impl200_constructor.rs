@@ -24,6 +24,7 @@ fn ins(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
@@ -133,6 +134,11 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
     ));
     constructor.blocks[0].terminator = Terminator::Return(Some(value));
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw two-input State constructor"),
@@ -144,6 +150,7 @@ fn fixture(inputs: usize, fields: usize) -> TypedModule {
         }],
         functions: vec![body, constructor],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],

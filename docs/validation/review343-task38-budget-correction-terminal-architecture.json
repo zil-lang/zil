@@ -1,0 +1,72 @@
+{
+  "status": "PassLimitedAccountingCorrectionWithCompatibilityProbePending",
+  "source_commit": "3a97ab7bbf2cf4a9699a8eea83291c57b4d3242a",
+  "author_receipt_commit": "f47fe3a61",
+  "scope": "Corrected scalar Task38 planning and standard namespace inventory work, retaining earlier bounded real native bridge controls.",
+  "binding": {
+    "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-source-binding.json",
+    "sha256": "7a7295905660ce3f439ea06907a30c4fa2a346f0aa10fa03a0c6b9b3d0e18f6a",
+    "production_count": 409,
+    "production_sha256": "d5eab37bd7de8cc659e5e1afd138776e2a2ee17fcee18bd9d7ccd63246587576",
+    "harness_binding": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-harnesses.json",
+    "harness_binding_sha256": "7046f200d089f972f8ee4c215e73e894841ef1a2f5cc32f0c4223bff0c230edb",
+    "runtime_read_observer_sha256_before_after": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac"
+  },
+  "execution_kind": "Independent replay of exact retained author-built harnesses; not independent rebuild.",
+  "replays": [
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-generics",
+      "sha256": "c09366095f9b8fe839010a1d62d7ee912b654f59ea28b1fbb6b003b5708402f5",
+      "filter": "general_task343",
+      "passed": 6,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-generics.log",
+      "log_sha256": "39c0c529feac083b5bd4ae24b21f1cfebe677c39500265ce69df02248bdc19e5"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-types",
+      "sha256": "cc0a57ca9b490c6acabff5a07ff366e9261b2ef3356b74a5a98cf81ccd99b748",
+      "filter": "terminal343_snapshot_budget",
+      "passed": 2,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-types.log",
+      "log_sha256": "48ac535db5e1cae84240ad9ff8efb5e1ac60f4530e367fc65af9dc09d36905d4"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-expand",
+      "sha256": "16b9741455d3dd929b6970891b7510f60a937229f44a75b604f8a7733dba29bb",
+      "filter": "terminal343_namespace_budget",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38budget343-expand.log",
+      "log_sha256": "e63b94527a9131c743546d7e71724b928f15387d0ce1523c4011de08baf8deaf"
+    }
+  ],
+  "total": {
+    "passed": 9,
+    "failed": 0
+  },
+  "closed_accounting_findings": [
+    "Types definition/result/task-operation planning borrows actual remaining ledger and debits visited work on failure; TaskCreate copies only prepaid selected params/result. New Solver Task callsites use the same mechanism.",
+    "Task prelude occupied declaration names pay byte-length multiplied by conservative search bound before BTree insertion/lookups. Inventory additionally covers extern/const/trait declarations."
+  ],
+  "boundaries": {
+    "Types_definition": 12,
+    "Expand_namespace_short": 19349,
+    "Expand_namespace_long": 250361,
+    "Analyze_bridge": 12349,
+    "Verify_bridge": 35119,
+    "N_minus_one_and_fresh": "Pass"
+  },
+  "pending_scope_probe": {
+    "status": "Source-inspection concern; no demonstrated regression yet",
+    "detail": "Generic task-operation type hint now only selects a direct named local instead of prior known_type forms, which included Member/Ascribed/Sequence and capture metadata. A concrete Package Holder.task readonly task_valid probe was supplied to author to establish old/new behavior.",
+    "requirement": "Preserve previously admitted forms with a bounded borrowed lookup, or demonstrate that original nearest controls already fail at an earlier boundary. Do not silently narrow acceptance as accounting-only."
+  },
+  "historical_evidence": "Original bcfc stale-plan raw Verify claim remains superseded by4cd8 exact diagnostic controls; this replay repeats corrected controls on3a97. Earlier6/0 receipts retain separate exact artifacts.",
+  "limits": [
+    "No general owning Task inputs/results/spills, borrowed frame or external waker/drain acceptance.",
+    "No Task39 public consumer or CT4 semantic acceptance from this schema38 candidate.",
+    "No full workspace, native Windows or Rust/product conclusion."
+  ]
+}

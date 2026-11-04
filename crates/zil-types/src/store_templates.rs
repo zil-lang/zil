@@ -324,13 +324,14 @@ pub(super) fn substitute_type(
 impl Builder<'_, '_> {
     pub(super) fn call_inferred_type_template(
         &mut self,
-        mut signature: Signature,
+        signature: &Signature,
         arguments: &[CoreExpr],
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let work = inference::signature_snapshot_work("", &signature, span, self.limits)?;
+        let work = inference::signature_snapshot_work("", signature, span, self.limits)?;
         self.closures.snapshot(work, span)?;
+        let mut signature = signature.clone();
         let name = signature
             .type_parameter
             .as_ref()
@@ -591,6 +592,7 @@ impl Builder<'_, '_> {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
+                storage_life: None,
                 reference_return_bound: None,
                 name: function.name,
                 function: id,
@@ -794,6 +796,8 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
     fn pattern(&mut self, pattern: &mut CorePattern, depth: usize) -> R<()> {
         self.node(depth)?;
         match &mut pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Variant { ty, fields, .. } => {
                 self.ty(ty, depth + 1)?;
                 for field in fields {

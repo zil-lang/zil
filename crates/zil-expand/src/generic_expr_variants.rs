@@ -9,6 +9,21 @@ pub(super) struct ExprExpectedContext<'a> {
     pub(super) store_success_context: Option<&'a TypeRef>,
 }
 impl Engine<'_> {
+    pub(super) fn expr_variant_ascribed(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Ascribed { ty, value } = &mut e.kind else {
+            unreachable!("ascription dispatch")
+        };
+        self.ty(ty, depth + 1)?;
+        self.expr_expected(value, env, Some(ty), depth + 1)?;
+        self.budget.ty(ty)?;
+        Ok(Some(ty.clone()))
+    }
+
     pub(super) fn expr_constant_type(
         &mut self,
         e: &mut Expr,
@@ -355,20 +370,33 @@ impl Engine<'_> {
             if let Some(t) = ty
                 && let ExprKind::TypeApply { callee, arguments } = &mut t.kind
                 && let ExprKind::Name(template) = &callee.kind
-                && matches!(
-                    self.templates.get(template).map(|x| &x.kind),
-                    Some(ItemKind::Aggregate(_))
-                )
+                && let Some((declaration, stored)) = self.record_declaration(template, e.span)?
             {
-                let mut types = Vec::new();
-                for arg in arguments {
-                    let GenericArg::Type(value) = arg else {
-                        return Err(unsupported(e.span, "const generic argument"));
-                    };
-                    self.ty(value, depth + 1)?;
-                    types.push(value.clone());
+                if stored {
+                    let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
+                    t.kind = ExprKind::Name(name);
+                } else {
+                    let mut types = Vec::new();
+                    let declaration = Some(declaration);
+                    for (index, arg) in arguments.iter_mut().enumerate() {
+                        let parameter = declaration.and_then(|item| {
+                            params(item)
+                                .iter()
+                                .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                                .nth(index)
+                        });
+                        if let GenericArg::Type(value) = arg
+                            && !parameter
+                                .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                        {
+                            self.ty(value, depth + 1)?;
+                            types.push(value.clone());
+                        } else {
+                            types.push(consts::argument(arg, parameter, &mut self.budget)?);
+                        }
+                    }
+                    t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
                 }
-                t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
             }
             let explicit_type = ty.as_ref().and_then(|t| match &t.kind {
                 ExprKind::Name(n) => Some(named(n, t.span)),
@@ -414,11 +442,21 @@ impl Engine<'_> {
             let mut inner = self.clone_env(env)?;
             for param in params {
                 if let Some(t) = &mut param.ty {
+                    rich_pointer::reject_fixed_closure(
+                        t,
+                        &self.products.storage.instances,
+                        &mut self.budget,
+                    )?;
                     self.ty(t, depth + 1)?;
                 }
                 inner.insert(param.name.clone(), param.ty.clone());
             }
             if let Some(t) = return_type {
+                rich_pointer::reject_fixed_closure(
+                    t,
+                    &self.products.storage.instances,
+                    &mut self.budget,
+                )?;
                 self.ty(t, depth + 1)?;
             }
             let saved = std::mem::replace(&mut self.return_type, return_type.clone());

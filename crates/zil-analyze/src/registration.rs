@@ -101,7 +101,9 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
-                Type::Address { .. }
+                Type::Task { .. }
+                | Type::Dyn { .. }
+                | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)
@@ -116,7 +118,8 @@ fn closed(
                     budget.spend(1, "registration nested concrete environment")?;
                     pending.push(*id)
                 }
-                Type::Managed(t)
+                Type::BorrowedStorage { storage: t, .. }
+                | Type::Managed(t)
                 | Type::Opaque { hidden: t, .. }
                 | Type::OwnedStore { element: t }
                 | Type::Registration { environment: t }

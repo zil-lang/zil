@@ -1,0 +1,117 @@
+{
+  "scope": "WIP construction checkpoint before common39/CT4; not task acceptance",
+  "base": "b4602780713ff7353a3c795a814384624584da83",
+  "production_rust_count": 358,
+  "production_rust_digest": "ecc14fdb588dace196208a4224ed63024fc2e423eb49665b7c3f55159358be8d",
+  "logs": [
+    {
+      "path": "/tmp/344-ct3-source9-final.log",
+      "sha256": "6154170d6471cd0891dd2d30d5a6364053db6b836154595ad578e71972c982ee"
+    },
+    {
+      "path": "/tmp/344-ct3-generic-regression-checkpoint.log",
+      "sha256": "f9777a48edb8dcda4396ad75086d83b448b1a1cfa25af285621558f3e72068a5"
+    },
+    {
+      "path": "/tmp/344-ct3-raw6-second.log",
+      "sha256": "4d73ee791d39dd15f8ce749f2b8d8e5dedefd3404360090c7abc91bb3c47795d"
+    },
+    {
+      "path": "/tmp/344-ct3-checkpoint-clippy.log",
+      "sha256": "3d7f8e50793364ce2c6594aac06bf116ba9e9ae3cdd0afac4381aa1fe791293f"
+    }
+  ],
+  "harnesses": [
+    {
+      "path": "/workspace/.zil-env/target344/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "b6eca24f3cdd20356a962d4e3a49f6e11cb25d9221996ac0e6366c4fc4a6bc53"
+    },
+    {
+      "path": "/workspace/.zil-env/target344/debug/deps/impl260_compiler-5b9c8fbb4dda1d27",
+      "sha256": "df27d15e2e98ac3849472e93d39aba518a9ff01f45f52af3e2b21d800d28bcf2"
+    }
+  ],
+  "sources": [
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/aliases.zil",
+      "sha256": "c168a00d5bace9d9a33a5a2ed874cb261eb0ca7b108cec74ffdc5dfab99ead9e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/artifact-values.zil",
+      "sha256": "7901034179a1306e3364e8dd4fb13441471a46457f5c88432862066df0049ff8"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/basic.zil",
+      "sha256": "01fb4b568282c73c422d0a793ab2cdfcf2ad0241d12ad0baec3b43e23d9916b0"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-composite-callable-metadata.zil",
+      "sha256": "463b37ded859f3a178a9e9e2614b43fcb493eb02dee307c38c726f66dc372f70"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-enum-owner-legal.zil",
+      "sha256": "2903b3ed2b5ff2748062b6d188cc82db603a0cbe19798b7c9053b323ea53aba6"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-generic-callable-arguments.zil",
+      "sha256": "b341f6186e50763c554fca4b282ddb1aa155440a6b2cfc10cef27702d167780e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-generic-enum-values.zil",
+      "sha256": "8c88b8557399f46e4e5ba5f254903ef38f1f77a8c506f02be7579a75d6c53470"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-member-order-permutation.zil",
+      "sha256": "d238da12c616749edbf08f2f1bc414af3335b185e07f24ded6c3d7bfff908572"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-scalar-nominal-arguments.zil",
+      "sha256": "5d07265e91cd77be140fe738985270a7b51e19a6ca47b36762a422b0ec753977"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/ct-types.zil",
+      "sha256": "c4782062af8579d6a3f09a3aecb679228652f0f037be189a9a79317b05dd5703"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/float-enum.zil",
+      "sha256": "3b91a1a9f0142739c1109192e60d99e54ba690ff35c6b9b217ce37919d2877ad"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil",
+      "sha256": "526a0d1ce7b705e57d8f8d85ec80e3094fa47ad37fed8c5d1a97eddbff3d5768"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/phantom-bfp-alpha.zil",
+      "sha256": "adb639850441ac7f2abc1af4e610374de3fd5b842ed2251a94a44e5bf701144b"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/phantom-bfp-metadata.zil",
+      "sha256": "9a1e0a2a445cbc9ef6b5ecc85a9a1137e0606d4d9766d9a80ec07c1d7f905342"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/phantom-fn-ordinary.zil",
+      "sha256": "356871ed0aa10968b8c4e2cec189d13c3b3209f79a3ea10b8031548b33adffbe"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/phantom.zil",
+      "sha256": "2d0db2340184c0e227fb64cd59146d5b89c43e9744dea4db97f39768e0a5b419"
+    }
+  ],
+  "results": {
+    "ct3_source_tests": 9,
+    "failures": 0,
+    "positive_native_programs": 10,
+    "actual_native_profiles": 40,
+    "existing_ct_generic_tests": 16,
+    "raw_ct3_models_separate": 6,
+    "raw_nominal_verify_boundary": 3566,
+    "raw_bfp_verify_boundary": 8372
+  },
+  "remaining": [
+    "common39/CT4 joint numeric lifetime scopes and full context consumers",
+    "owning runtime Sum cleanup",
+    "final combined source budget/cache/default-stack controls",
+    "independent exact candidate acceptance"
+  ],
+  "provenance_note": "Primary target344 only; earlier forced rebuild construction and discarded stale run remain separately preserved. This receipt does not infer complete harness construction from source digest alone."
+}

@@ -33,7 +33,8 @@ impl Selection<'_, '_> {
         self.compiler.budget.depth(depth, pattern.span)?;
         match &pattern.kind {
             s::PatternKind::Name(name) => self.bind(locals, name, domain, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => {
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(locals, pattern, domain, depth + 1)?
             }
             s::PatternKind::RecordConstructor { fields, .. } => {
@@ -351,6 +352,12 @@ impl Selection<'_, '_> {
     ) -> R<bool> {
         self.compiler.budget.depth(depth, expression.span)?;
         Ok(match &expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                let domain = self
+                    .compiler
+                    .ct_only_type(module, ty, depth + 1, &mut Vec::new())?;
+                domain | self.expr(module, value, locals, depth + 1)?
+            }
             s::ExprKind::Quote { .. }
             | s::ExprKind::MetaSplice(_)
             | s::ExprKind::SyntaxIsland { .. } => true,
@@ -456,6 +463,7 @@ impl Selection<'_, '_> {
                         break;
                     }
                     found = match argument {
+                        s::GenericArg::Lifetime(_) => false,
                         s::GenericArg::Type(ty) => {
                             self.compiler
                                 .ct_only_type(module, ty, depth + 1, &mut Vec::new())?

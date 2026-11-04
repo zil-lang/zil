@@ -87,6 +87,11 @@ impl FunctionSession {
             functions.push(entry.function.clone());
         }
         let module = TypedModule {
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
@@ -147,6 +152,11 @@ fn decode(
     if module.target != *target
         || module.functions.len() != count
         || !module.closures.is_empty()
+        || !module.life_declarations.is_empty()
+        || !module.life_instances.is_empty()
+        || !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
         || !module.resources.is_empty()
         || !module.unsupported.is_empty()
         || !candidate.functions.is_empty()
@@ -315,7 +325,8 @@ fn scalar(ty: &Type) -> bool {
     )
 }
 fn scalar_typed(f: &TypedFunction) -> bool {
-    f.foreign.is_none()
+    f.storage_life.is_none()
+        && f.foreign.is_none()
         && f.environment.is_none()
         && f.callable_contract.is_none()
         && f.callable_return_contract.is_none()

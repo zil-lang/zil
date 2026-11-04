@@ -1,0 +1,452 @@
+{
+  "task": "G10.1.7",
+  "reviewer": "root",
+  "implementation_author": "g10_1_review",
+  "implementation_commit": "a2d9ac23708607baca1a64ced11761c8bb40220b",
+  "production_commit": "e7830789d46a3129a4435db3b32ade3e7e9670f0",
+  "verdict": "PassLimited",
+  "scope": "Default worker stack reliability from separating native temporary lifetimes; no source-language/schema or quota extension",
+  "independent_execution": {
+    "filters": 17,
+    "passed": 33,
+    "failed": 0,
+    "default_worker_matrix_requests": 104,
+    "environment": "Sourced pinned env; RUST_MIN_STACK and LD_PRELOAD absent, default std worker spawned by new existing-target regression; no alternate stack in acceptance"
+  },
+  "static_review": [
+    "Source name rewriting remains before source-ordered children; all existing node/depth/text charges stay at their original semantic visits.",
+    "Types early Name/NumericConvert/logical/Call/If/Sequence and enum-member constructor paths retain early return; normal branches retain exactly one shared expected comparison. Constructor member preserves both old enum queries and original charging.",
+    "Definition Check retains alias start, expression tick/trait constant/enum preflight and final substitution/alias end; variants move into separate helpers without a new heap plan. Static-call qualification/preparation/arguments/hints/where/result ordering retained.",
+    "Source-to-Core lowering retains original exceptional early-return node creation and normal post-child node creation; existing normalization/source-map controls execute.",
+    "Generic Engine retains original context filtering and enum admission, Group expected/error propagation and Try result projection. New structs/Boxes/stack sizing do not replace language ownership rules."
+  ],
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "terminal_g10_1_7_life_values_keep_default_worker_stack",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-0.log",
+      "log_sha256": "6a6a7d3082d415d0b4ee1ccf9a557cbec17bd004911325eeb9120f36e6f251db"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "unused",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "9",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-1.log",
+      "log_sha256": "f30776053bf6acd9a58242f775c4347ff7a12a17a6a10c4faa909ff83c66c2d5"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "substituted_type_depth_is_reserved_before_instance_cloning",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-2.log",
+      "log_sha256": "a7ae643af815bd2ebb6082be550a0ae6cdce403e7627e75ccd5dfaa0c93ce13b"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "nested_calls_reach_verify_or_resource_limit_on_default_worker_stack",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-3.log",
+      "log_sha256": "aac97a4efbbc1915cd3aa3e486eeaafdce72261d5380153f85d4ae1b68dd12e6"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "nested_conversions_with_unrelated_generic_methods_keep_default_stack",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-4.log",
+      "log_sha256": "52da524ef2a4fdcc1978d50244f9c28a4bb1c68e62e1c8bf293f1ae8e558c60f"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "terminal340_owner_replacement",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "8",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-5.log",
+      "log_sha256": "91c6ba45acdfb13e9ede8a2255d919e8dd5a0d2b30786b4746030a45473371e4"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl126_helper_sequences",
+        "three_four_sixteen_calls_update_actual_mutable_state",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-6.log",
+      "log_sha256": "03bd41d5e1df703b865fe80f1564cad22d6bc9dfab4e81280ad59e16f5310149"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl205_budget",
+        "actual_types",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "2",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-7.log",
+      "log_sha256": "565d95dfdfa4af500122df36f0261c8826c1343cb0216c25d13250d321f79bdc"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl246_front",
+        "registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-8.log",
+      "log_sha256": "bc486f8cf79ae511fcae12bd94d47415d3fcc87a43c9550d51548f88c77e3eb8"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "terminal_qualified_callable_helper_retains_its_own_input_relation",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-9.log",
+      "log_sha256": "8218f6cab76a6ac690f8f9071777013e14ae862b2c6dca5f61b3235abbfb7f99"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "g3_3_qualified_environment_raw_and_wire_neighbors",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-10.log",
+      "log_sha256": "5609ab30457915dd87ff041efd762de8247959b7e3d4f8e3f5b8969ad8aca3f6"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "g3_3_once_consumption_is_proved_after_source_in_raw_and_wire",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-11.log",
+      "log_sha256": "3999dc8bbc923329a3eecb84c91ed4c1ba3e3eba7dab676f2fd0fd39992bbbda"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "terminal_explicit_stored_closure_annotations_require_their_context",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-12.log",
+      "log_sha256": "38d29266c4c0fc8cf0c82d0cbcea10b19746eb3014998233ae314b0a8b3a7046"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generics",
+        "terminal_stored_project_same_named_helpers_keep_distinct_relations",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-13.log",
+      "log_sha256": "db16084cf3f97ba8c9cddaebc1204d92e1f5590346e167000d341dc46a1b9688"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "normalization",
+        "record_defaults_keep_declaration_scope_and_declared_order",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-14.log",
+      "log_sha256": "f5a5b3100c7483156c95b1a90eb2a0f06ed941563b9084a2fd3a19232fb90e54"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "normalization",
+        "plan_t01_004_pipeline_order_single_input_and_callable_factory",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-15.log",
+      "log_sha256": "f0b2d2724a39fa0f04a69d6e47585ff1e97b8f40fa27b3e0f5ee38c4e5e52d0d"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "-p",
+        "zil-expand",
+        "--test",
+        "normalization",
+        "source_map_covers_unique_core_node_ids_and_is_deterministic",
+        "--",
+        "--nocapture",
+        "--exact"
+      ],
+      "exit": 0,
+      "counts": [
+        [
+          "1",
+          "0"
+        ]
+      ],
+      "log": "/workspace/.zil-env/G10.1.7-review-tmp/case-16.log",
+      "log_sha256": "e2787ac4767145918ec58f7e84e7ba34980b48b8c0118fb951967613649513fc"
+    }
+  ],
+  "limits": [
+    "Author diagnostic-only signal stacks were not independently repeated or used as success evidence.",
+    "Full workspace/reference, final common G3.3.1/G1.3.1 composition and release consumer remain to run on the combined source.",
+    "This is a finite reliability correction, not a theorem for arbitrary configured depths or a Rust-relative performance/product claim."
+  ]
+}

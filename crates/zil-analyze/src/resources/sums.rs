@@ -541,6 +541,33 @@ impl Facts {
         });
         Ok(())
     }
+    pub(super) fn require_place(
+        &self,
+        local: LocalId,
+        path: &[zil_ir::PlaceProjection],
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.lookup(self.locals.len(), "replacement initialized owner tree")?;
+        if let Some(tree) = self.locals.get(&local) {
+            tree.require_replacement(path, budget)?;
+        }
+        Ok(())
+    }
+    pub(super) fn replace_birth(
+        &mut self,
+        local: LocalId,
+        path: &[zil_ir::PlaceProjection],
+        birth: &BTreeSet<Birth>,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<bool> {
+        budget.lookup(self.locals.len(), "replacement actual owner tree update")?;
+        if let Some(tree) = self.locals.get_mut(&local) {
+            tree.replace_leaf_birth(path, birth, check, budget)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
     pub(super) fn unpack_birth(
         &self,
         l: LocalId,
@@ -1212,11 +1239,8 @@ impl Plan {
                 Some(t) => t,
                 None => Tree::unknown(&f.values[v.0 as usize], budget)?,
             };
-            if let InstructionKind::Call { function, .. } = i.kind
-                && module
-                    .functions
-                    .get(function.0 as usize)
-                    .is_some_and(|f| f.result_mode == PassingMode::Create)
+            if matches!(i.kind, InstructionKind::TaskCreate { .. })
+                || (matches!(i.kind,InstructionKind::Call{function,..} if module.functions.get(function.0 as usize).is_some_and(|f|f.result_mode==PassingMode::Create)))
             {
                 match &mut edit(&mut tree, budget)?.node {
                     Node::Leaf(s) => *s = BTreeSet::from([Birth::Created]),
@@ -1389,6 +1413,85 @@ impl Tree {
         }
         .ok_or_else(|| error("mixed place initialization route differs from actual data"))?;
         child.viewed_place(rest, complete, b)
+    }
+    fn require_replacement(
+        &self,
+        path: &[zil_ir::PlaceProjection],
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        b.spend(1, "replacement initialized path observation")?;
+        if self.missing {
+            return Err(error("replacement traverses an unavailable owning subtree"));
+        }
+        let Some((step, rest)) = path.split_first() else {
+            if !self.complete(b)? {
+                return Err(error("replacement endpoint is not completely initialized"));
+            }
+            return Ok(());
+        };
+        let next = match (step, &self.node) {
+            (zil_ir::PlaceProjection::Field(i), Node::Product(fs)) => fs.get(*i as usize),
+            (zil_ir::PlaceProjection::Variant(p), Node::Sum(vs)) => {
+                if vs.len() != 1 {
+                    return Err(error("reservation lacks a current exact active variant"));
+                }
+                vs.get(&p.variant).and_then(|fs| fs.get(p.index as usize))
+            }
+            (zil_ir::PlaceProjection::ErrorArm(e), Node::Sum(vs)) => {
+                if vs.len() != 1 {
+                    return Err(error("reservation lacks a current exact active error arm"));
+                }
+                vs.get(&u32::from(*e)).and_then(|fs| fs.first())
+            }
+            _ => None,
+        }
+        .ok_or_else(|| error("reservation initialization route differs from actual owner"))?;
+        next.require_replacement(rest, b)
+    }
+    fn replace_leaf_birth(
+        self: &mut Arc<Self>,
+        path: &[zil_ir::PlaceProjection],
+        birth: &BTreeSet<Birth>,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.spend(1, "replacement initialized owning subtree")?;
+        if check && self.missing {
+            return Err(error("replacement traverses a moved subtree"));
+        }
+        let at = edit(self, budget)?;
+        let Some((step, rest)) = path.split_first() else {
+            let Node::Leaf(old) = &mut at.node else {
+                return Err(error(
+                    "replacement endpoint is not a managed responsibility leaf",
+                ));
+            };
+            budget.spend(
+                old.len().saturating_add(birth.len()),
+                "replacement owning leaf birth join",
+            )?;
+            old.extend(birth);
+            return Ok(());
+        };
+        let child = match (step, &mut at.node) {
+            (zil_ir::PlaceProjection::Field(i), Node::Product(fs)) => fs.get_mut(*i as usize),
+            (zil_ir::PlaceProjection::Variant(p), Node::Sum(vs)) => {
+                if check && (vs.len() != 1 || !vs.contains_key(&p.variant)) {
+                    return Err(error("replacement needs an actual active variant"));
+                }
+                vs.get_mut(&p.variant)
+                    .and_then(|fs| fs.get_mut(p.index as usize))
+            }
+            (zil_ir::PlaceProjection::ErrorArm(e), Node::Sum(vs)) => {
+                if check && (vs.len() != 1 || !vs.contains_key(&u32::from(*e))) {
+                    return Err(error("replacement needs the actual active error arm"));
+                }
+                vs.get_mut(&u32::from(*e)).and_then(|fs| fs.first_mut())
+            }
+            _ => None,
+        }
+        .ok_or_else(|| error("replacement initialization path differs from actual owner"))?;
+        child.replace_leaf_birth(rest, birth, check, budget)
     }
     fn take_place(
         self: &mut Arc<Self>,

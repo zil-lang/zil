@@ -353,6 +353,26 @@ fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
 }
 
 #[test]
+fn ordinary_package_address_call_inside_closure_keeps_contextual_signature() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn bump(p:&mut P,n:i32){p.n+=n}fn result()->i32{let f=()->i32=>{var p=P{r:R{n:1},n:20};bump(&mut p,22);return p.n};return f()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let denied = text.replace("bump(&mut p,22)", "bump(&p,22)");
+    let report = compile_source(&source(&denied), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn recovery317_component_source_and_nearest_rejections() {
     let report =
@@ -875,6 +895,7 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
     let id = zil_ir::ClosureId(future.closures.len() as u32);
     future.functions[caller].environment = Some(id);
     future.closures.push(zil_ir::ClosureDefinition {
+        storage_life: None,
         id,
         function: future.functions[caller].id,
         captures: vec![],
@@ -3043,6 +3064,7 @@ fn task343_public_semantics_are_independently_bound() {
                 forged.task_interfaces.push(duplicate);
             }
             6 => forged.interfaces[0].exports.push(ScalarFunction {
+                storage_life: None,
                 name: "worker".into(),
                 function: zil_ir::FunctionId(0),
                 parameters: vec![(PassingMode::Infer, Type::I32)],
@@ -4178,7 +4200,7 @@ fn child343_source_and_raw_effect_boundaries() {
 
 #[test]
 fn child343_life_transport_is_not_silently_admitted() {
-    use zil_ir::FunctionLifeContract;
+    use zil_ir::{FunctionLifeContract, StorageLifeContract};
     let src = source(
         "fn apply<F:Fn(i32)->i32>(f:F,x:i32)->i32 {return f(x)} fn main()->i32 {let f=(x:i32)->i32=>x+1;return apply(f,7)}",
     );
@@ -4188,11 +4210,12 @@ fn child343_life_transport_is_not_silently_admitted() {
     let limits = Limits::default();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
-    let relation = FunctionLifeContract {
+    let relation = StorageLifeContract::from_flat(FunctionLifeContract {
         binder_count: 0,
         parameter_lives: vec![None],
         result_life: None,
-    };
+    })
+    .unwrap();
     let mut header = core.clone();
     header
         .functions
@@ -4482,5 +4505,76 @@ fn terminal343_scalar_library_helpers_keep_sealed_identity() {
             );
             std::fs::remove_dir_all(dir).unwrap();
         }
+    }
+}
+
+#[path = "../../../tests/language-readiness/terminal/343/task_general.rs"]
+mod general_task343;
+
+#[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
+mod cas343;
+
+#[test]
+fn terminal_g10_1_7_life_values_keep_default_worker_stack() {
+    const CHILD: &str = "ZIL_G10_1_7_STACK_CHILD";
+    if let Ok(mode) = std::env::var(CHILD) {
+        std::thread::spawn(move || {
+            let directory = std::env::temp_dir().join(format!("zil-g10-1-7-{}-{mode}", std::process::id()));
+            std::fs::create_dir_all(&directory).unwrap();
+            for phantom in [false, true] {
+                for copy in [false, true] {
+                    let depths: &[usize] = if mode == "binary" {
+                        // Left-associated binary syntax remains parseable past
+                        // the call-nesting boundary; keep its nearby cases too.
+                        &[32, 64, 96, 112, 124, 126, 192, 240]
+                    } else {
+                        &[32, 64, 96, 112, 124, 126]
+                    };
+                    for &depth in depths {
+                        let expression = if mode == "binary" {
+                            std::iter::repeat_n("1", depth).collect::<Vec<_>>().join("+")
+                        } else {
+                            let call = match mode.as_str() { "generic" => "same", "conversion" => "i32", _ => "plain" };
+                            format!("{}0{}", format!("{call}(").repeat(depth), ")".repeat(depth))
+                        };
+                        let gate = if phantom { "struct Phantom<life s>{n:i32}" } else { "" };
+                        let (generics, parameters, arguments) = if copy {
+                            ("life a,T:Copy", "p:&'a i32,witness:T", "&n,n")
+                        } else { ("life a", "p:&'a i32", "&n") };
+                        let text = format!("{gate}fn same<T:Copy>(x:T)->T{{return x}}fn plain(x:i32)->i32{{return x}}fn value<{generics}>({parameters})->i32{{return {expression}}}fn main()->i32{{let n=0;return value({arguments})}}");
+                        let path = directory.join(format!("{phantom}-{copy}-{depth}.zil"));
+                        std::fs::write(&path, text).unwrap();
+                        let options = zil_driver::CompileOptions { stop_after: zil_driver::Stage::Verify, ..Default::default() };
+                        let report = zil_driver::compile_path(&path, &options);
+                        let exhausted = depth == 126 && mode != "binary";
+                        let expected = if exhausted { ResultCategory::ResourceLimit } else { ResultCategory::Success };
+                        assert_eq!(report.status, expected, "{mode}/{phantom}/{copy}/{depth}: {}", report.to_json());
+                        assert_eq!(report.verification_runs, usize::from(!exhausted));
+                        if exhausted { assert_eq!(report.phase, zil_base::Phase::Parse); }
+                    }
+                }
+            }
+        }).join().unwrap();
+        return;
+    }
+    for mode in ["plain", "generic", "binary", "conversion"] {
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "terminal_g10_1_7_life_values_keep_default_worker_stack",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env_remove("LD_PRELOAD")
+            .env(CHILD, mode)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{mode}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
     }
 }

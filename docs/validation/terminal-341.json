@@ -664,6 +664,120 @@
     "corrected_native_sha256": "d3ab1c7f42525583ae4b1272472c20e75abc59d9092685452d80b3a0503ae450",
     "call_site_identity": "Original member/callee node in one owned AST; no offset, Span, name or post-substitution ordinal coincidence. Ephemeral node anchors exist only across transformations that preserve these method-site root Boxes; missing sites reject. Published per-body ordinals are freshly derived afterward.",
     "definition_identity": "Source-node origin map is assigned before definition-only Self/equation rewriting, composed when const definition checking clones the body, and borrowed directly by Check. No synthetic receiver-child identity is invented.",
-    "new_walks": "All original/cloned/current AST maps, sparse-anchor maps and queue remaps prepay actual traversal/entry work; limits unchanged."
+    "new_walks": "All original/cloned/current AST maps, sparse-anchor maps and queue remaps prepay actual traversal/entry work; limits unchanged.",
+    "independent_review": {
+      "review_commit": "d556e0ece",
+      "status": "PassLimited",
+      "exact_tests_passed": 20,
+      "binding": "Exact e5b3e9ae6 production/test/harness hashes match; growth92 and shared-Span raw/Wire/native pass; original source independently exits0; root integration replay separate."
+    }
+  },
+  "dyn_wip": {
+    "status": "WIP, no ordinary dyn or terminal acceptance",
+    "public_patch": "/workspace/.zil-env/terminal-20261104/dyn39-public/dyn39-public.patch",
+    "public_patch_sha256": "0be98fd837f657ca8d183b8d0a74901014a5f786e212a4d341acb3e18d378727",
+    "external_checks": {
+      "combined_ir": "rustc compiled, zero warnings/errors",
+      "syntax_existing_unit_target": "1 Pass",
+      "raw_transport_probe": "2 Pass, encode/decode nodes91;90 ResourceLimit; raw tables/ops/contracts, unknown claims and scalar bits preserved; truncation/oldWire reject"
+    },
+    "private_catalog": "Actual trait/inherited applications + MemberId providers; committed witnesses before payload; declared default/impl origins; unknown trait/Self/argument formation rejects; unmet conditional recipe publishes no table; ordinary dyn method syntax preserved for consumer. Existing Expand unit tests2 Pass.",
+    "open": [
+      "public root publication",
+      "explicit finite binding consumers",
+      "concrete generic coercion requests and helpers/function IDs",
+      "stable package/logical module context bridge",
+      "full context-aware semantic keys",
+      "joint dyn CT graph",
+      "Types/Analyze/independent Verify/Lower/Clang/LLVM API/source/raw/Wire/native/budget/cache controls"
+    ]
+  },
+  "source_context_handoff": {
+    "status": "WIP frontend handoff; no dyn acceptance",
+    "base": "5873c4aed",
+    "driver_check": "cargo check -p zil-driver --lib Pass (existing WIP warnings)",
+    "actual_checks": {
+      "source_context_units": 4,
+      "driver_generics_source_control": 1,
+      "namespace_work": 221,
+      "namespace_nodes": 5,
+      "controls": "Alias equivalence groups, original bytes, ID/source-order/native-path relocation, Explicit canonical paths and edit stability, duplicate IDs/paths, empty component/nonroot empty alias rejection; exact N/N-1. Actual original-source View reachesCore with namespace preserved across native file labels; transformed source Unavailable rejectsbeforeBuildpublication."
+    },
+    "open": [
+      "genuine aligned lineage across selection/materialization",
+      "dyn concrete source/vtable emission",
+      "context-aware full type/interface keys",
+      "actual Types/Analyze/Verify/Lower/Clang/LLVM API dynamic consumers",
+      "combined raw/Wire/native/budget/cache validation"
+    ]
+  },
+  "retained_original_lineage_checkpoint": {
+    "status": "WIP frontend retained-original lineage; no dyn/safety/native acceptance",
+    "source_algorithm": "Python pathlib component-order sort of crates/*/src/**/*.rs; relative path+NUL+bytes+NUL",
+    "production_files": 373,
+    "production_sha256": "995ef5acbb40c4dc82149536aae2a93f58c8656404a4bf52592cae1a294c9c75",
+    "checks": {
+      "expand_source_context": 5,
+      "driver_declaration_filter": 3,
+      "source_variants": 3,
+      "capture_work": 698,
+      "capture_nodes": 33,
+      "namespace_work": 221,
+      "namespace_nodes": 5,
+      "limits": "unchanged; both exact N/N-1 controls pass"
+    },
+    "scope": "capture_original before CT; actual retained-position transport through CT-only removal and import pruning; Aligned uses original complete snapshot and continued remaining budget",
+    "open": [
+      "selection/generated item/member lineage",
+      "actual Dyn source metadata and dynamic instructions",
+      "independent Dyn safety/native consumers",
+      "CT4 phantom source composition with344 pending combined checkpoint"
+    ],
+    "known_regression": "34fc discovery Budget.item rejected pendingSyntaxIsland before materialization; corrected by8a22b6361"
+  },
+  "retained_original_lineage_correction": {
+    "production_files": 373,
+    "production_sha256": "61e0346e824639409b8c4eba6d046e1426565247da94fa108a480674b8cc47a0",
+    "correction": "8a22b6361 paid borrowed discovery visitor; no generic-clone admission during CT syntax discovery",
+    "checks": {
+      "expand_source_context": 5,
+      "driver_declaration_filter": 3,
+      "existing_ct_generic_type_return_record_reflection_and_syntax": 1,
+      "capture_work": 700,
+      "capture_nodes": 35,
+      "exact_N_N_minus_1": true
+    },
+    "scope": "same retained-original profile; selection/generated/member lineage and actualDyn remain open"
+  },
+  "dyn39_source_provider_checkpoint": {
+    "status": "WIP actual Core metadata and registered ordinary provider targets; kernel/runtime/native admission remains closed",
+    "production_files": 382,
+    "production_sha256": "9c04b95cafb9c3ed16757f95b6ee03b19500fc3cfd8dbe24ac038a7f4badfa9d",
+    "source_algorithm": "Python pathlib component-order sort; relative path+NUL+bytes+NUL",
+    "scope": "borrowed concrete receivers; scalar trait actuals, nonreceiver parameters and result; exact Origins and actual member emission IDs; unknown contract claims None",
+    "checks": {
+      "expand_library": 35,
+      "focused_driver_project": 1,
+      "full_core_work": 3475,
+      "full_core_nodes": 739,
+      "N_minus_1": "ResourceLimit",
+      "controls": [
+        "Read<i32>/Read<bool> same Self",
+        "inherited default+same declaration Spans",
+        "actual mixed Self/Dyn header and prepaid host substitution",
+        "a.Read/b.Read distinct logical modules",
+        "missingcontext and non-scalar traitactual reject",
+        "Buildclosed/commandsand executable absent"
+      ]
+    },
+    "clippy": "-D warnings -A dead_code; existing unconsumed WIP fields/module wrappers remain",
+    "open": [
+      "complete context Type/interface keys",
+      "coercion and131132 source operations",
+      "generic impl coercions and finite generic slots",
+      "associated binding consumption",
+      "rich retained/phantom/lending/port/effect contracts",
+      "Types Analyze Verify Lower and bothnativebackends"
+    ]
   }
 }

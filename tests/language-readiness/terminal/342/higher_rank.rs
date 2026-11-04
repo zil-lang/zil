@@ -103,17 +103,23 @@ fn terminal342_each_hrtb_role_checks_actual_callback_roots_on_raw_and_wire() {
         let life = roles[1].life.as_mut().unwrap();
         match fault {
             0 => {
-                life.binder_count = 2;
-                life.parameter_lives = vec![Some(0), Some(1)];
-                life.result_life = Some(1);
+                *life = zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+                    binder_count: 2,
+                    parameter_lives: vec![Some(0), Some(1)],
+                    result_life: Some(1),
+                })
+                .unwrap();
             }
             1 => {
-                life.binder_count = 2;
-                life.parameter_lives = vec![Some(1), Some(1)];
-                life.result_life = Some(1);
+                *life = zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+                    binder_count: 2,
+                    parameter_lives: vec![Some(1), Some(1)],
+                    result_life: Some(1),
+                })
+                .unwrap();
             }
             _ => {
-                life.binder_count = u32::MAX;
+                life.invocation_binder_count = u32::MAX;
             }
         }
         assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
@@ -348,8 +354,6 @@ fn terminal342_hrtb_actual_mutable_arguments_and_returned_children_keep_windows(
 }
 #[test]
 fn terminal342_hrtb_capture_paths_substitute_actual_storage_through_helpers() {
-    assert_eq!(zil_base::SCHEMA_VERSION, 37);
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 37);
     for (valid, invalid) in [
         (
             STORAGE,
@@ -361,7 +365,9 @@ fn terminal342_hrtb_capture_paths_substitute_actual_storage_through_helpers() {
         ),
     ] {
         let module = typed(valid);
+        assert_eq!(module.schema_version, zil_base::SCHEMA_VERSION);
         let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        assert_eq!(plan.schema_version, zil_base::SCHEMA_VERSION);
         zil_verify::verify_module(
             module.clone(),
             plan.clone(),
@@ -571,7 +577,7 @@ fn terminal342_hrtb_module_cache_and_interfaces_keep_numeric_relations() {
     let cold = session.compile_project(&project(api, main), &options);
     assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
     assert!(
-        cold.to_json().contains("\"parameter_lives\":[0,1]"),
+        cold.to_json().contains(r#""fixed_binder_count":0,"invocation_binder_count":2,"bindings":[{"base":{"parameter":0},"path":[],"binder":{"invocation":0}},{"base":{"parameter":1},"path":[],"binder":{"invocation":1}},{"base":"result","path":[],"binder":{"invocation":0}}],"classes":[]"#),
         "{}",
         cold.to_json()
     );
@@ -764,7 +770,7 @@ fn terminal342_hrtb_deep_wide_pointee_relations_pay_each_actual_signature() {
         .as_mut()
         .unwrap()
         .roles[1];
-    role.life.as_mut().unwrap().parameter_lives[0] = None;
+    role.life.as_mut().unwrap().bindings.remove(0);
     assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
     let mut fake = plan;
     fake.module_fingerprint = changed.fingerprint();
@@ -1080,9 +1086,15 @@ fn terminal342_hrtb_closed_environment_bound_order_retains_relation() {
             .life
             .clone()
             .expect("selected actual Fn bound retains HRTB relation");
-        assert_eq!(relation.binder_count, 1);
-        assert_eq!(relation.parameter_lives, vec![Some(0)]);
-        assert_eq!(relation.result_life, Some(0));
+        assert_eq!(
+            relation,
+            zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+                binder_count: 1,
+                parameter_lives: vec![Some(0)],
+                result_life: Some(0)
+            })
+            .unwrap()
+        );
         relations.push(relation);
         let bytes =
             zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();

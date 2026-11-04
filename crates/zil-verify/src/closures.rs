@@ -62,6 +62,12 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        if closure.storage_life.is_some() {
+            return Err(unsupported(
+                "stored-borrow closure contract consumer is not yet implemented",
+                None,
+            ));
+        }
         budget.spend(1)?;
         if closure.lending_captures.len() > limits.max_locals {
             return Err(limit(
@@ -117,11 +123,12 @@ pub(super) fn check_definitions(
                     "lending requires a shared result, a non-consuming entry and explicit environment sources",
                 ));
             }
-            self_contained(module, closure.id, budget)?;
+            lending_environment(module, closure, budget)?;
             for index in &closure.lending_captures {
                 budget.spend(1)?;
                 let ty = &closure.captures[*index as usize];
-                if !(ty.is_copy_value() || byte_buffers::is_owned(ty)) {
+                if !(ty.is_copy_value() || byte_buffers::is_owned(ty) || owning_capture_address(ty))
+                {
                     return Err(reject(
                         "E-VERIFY-LENDING",
                         None,
@@ -164,6 +171,7 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            budget.owning_address_captures |= owning_capture_address(ty);
             if ty.is_package_address() {
                 let Type::Address {
                     mutable: false,
@@ -278,6 +286,17 @@ pub(super) fn check_definitions(
         }
         if !owning_signature {
             for ty in &closure.parameters {
+                if budget.stored_borrows && super::stored_callables::finite(module, closure.id) {
+                    let actual = if let Type::Address { inner, .. } = ty {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    };
+                    if matches!(actual, Type::BorrowedStorage { .. }) {
+                        super::stored_flow::qualification(module, actual, limits, budget)?;
+                        continue;
+                    }
+                }
                 if ty.is_shared_sync_cell_address() {
                     continue;
                 }
@@ -565,6 +584,36 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
         }
     }
     Ok((work, contains_store))
+}
+
+fn owning_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
+        if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+}
+
+fn lending_environment(
+    module: &TypedModule,
+    closure: &ClosureDefinition,
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(closure.captures.len())?;
+    for ty in &closure.captures {
+        match ty {
+            Type::Address { inner, .. } if owning_capture_address(ty) => {
+                sums::check_type_for(module, inner, None, budget)?;
+            }
+            Type::Closure(child) => self_contained(module, *child, budget)?,
+            Type::Managed(_) | Type::Package { .. } => {}
+            ty if ty.is_copy_value() => {}
+            _ => {
+                return Err(unsupported(
+                    "lending capture requires self-contained storage or a qualified owning-base address",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn self_contained(

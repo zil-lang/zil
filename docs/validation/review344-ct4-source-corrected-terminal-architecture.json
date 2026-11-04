@@ -1,0 +1,116 @@
+{
+  "status": "PassLimitedCT4SourceAfterOwnerLookupAccountingCorrection",
+  "method": "Exact source audit, independently recomputed Git manifests and SHA-verified retained author/integrator harness replays. No reviewer rebuild. Historical e65 and corrected integrated629 identities stay separate.",
+  "historical": {
+    "binding": {
+      "source": "e65e351fb4e3054dc575e8430f8ff31a00263c15",
+      "count": 403,
+      "sha256": "55ac8548025aaa3b7e495cd0909dbe5789bbbccc428b3211dd08b52c6462521f",
+      "algorithm": "sorted tracked crates paths containing /src/ and ending .rs, plus crate Cargo.toml/build.rs; path + space + lowercase SHA256(file bytes) + LF",
+      "binding": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source344-source-binding.json",
+        "sha256": "26f540ff2236ab5a5be6605dd8fa617bebe4b69c1144dd435f1190acd699cb5e"
+      }
+    },
+    "harnesses": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source344-harnesses.json",
+      "sha256": "ba54f875b63976dc93264395135a3842035782481c3b59f46c23b2f2a886b591"
+    },
+    "replays": [
+      {
+        "selector": "ct4_",
+        "result": "5/0; three real source programs, 12 native Clang/API O0/O2 profiles returning42; default-worker subprocess; whole-source warm/fresh budget controls",
+        "log": {
+          "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source344-aggregates.log",
+          "sha256": "a7d79072da94938b66a91c7e64c464ab0ce2b8f602f98758fac77fc8b9c68c3a"
+        }
+      },
+      {
+        "selector": "ct_artifact::materialize::scoped_tests::",
+        "result": "3/0",
+        "log": {
+          "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source344-materializer.log",
+          "sha256": "bdcada15e48614cf051ea46508a2164ebfb72573d57e7b82fa25018977ebd766"
+        }
+      },
+      {
+        "selector": "CT library complete",
+        "result": "54/0",
+        "log": {
+          "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source344-ct.log",
+          "sha256": "0268f4d1c102fd1739396f1669191e725bf92e486cc0a709030983c3368e5b11"
+        }
+      }
+    ],
+    "finding": "BorrowedStorage owner_node searched the actual data_source_scopes vector without its own per-use length charge. Author confirmed multiple owners are possible and corrected this in d668e2606; root cherry-pick629 supplies the exact corrected replay below.",
+    "budgets": {
+      "source": [
+        22056,
+        29217
+      ],
+      "materializer": [
+        5467,
+        15302,
+        6542
+      ]
+    }
+  },
+  "corrected": {
+    "binding": {
+      "source": "62975377a4ac48945567c1e7f11a0fb074a4841e",
+      "count": 403,
+      "sha256": "197195da5ad9615fff40ab68beb7a8dff12464f798132828e8f385972289fee4",
+      "algorithm": "sorted tracked crates paths containing /src/ and ending .rs, plus crate Cargo.toml/build.rs; path + space + lowercase SHA256(file bytes) + LF",
+      "binding": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source629-source-binding.json",
+        "sha256": "45785c63ea29782fa9fb79745471d453405e4aae0f2a9b69c8ac7b57b6d5fb5b"
+      }
+    },
+    "harnesses": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source629-harnesses.json",
+      "sha256": "199581080364604952d5441f6ad3b0fdb8ee9df03e0f17ab1a0910bbc8108f70"
+    },
+    "replays": [
+      {
+        "selector": "ct4_",
+        "result": "5/0;12 real native profiles and default-worker subprocess repeated",
+        "log": {
+          "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source629-aggregates.log",
+          "sha256": "e5790ead70569ec32031b856294dbae9f463dc767e144a7a0887e09f77f67daa"
+        }
+      },
+      {
+        "selector": "ct_artifact::materialize::scoped_tests::",
+        "result": "3/0",
+        "log": {
+          "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4source629-materializer.log",
+          "sha256": "982dc5a07763946521af712a567eaaf983ae09c49bf5021e129faa113b84d12e"
+        }
+      }
+    ],
+    "budgets": {
+      "source": [
+        22057,
+        29218
+      ],
+      "materializer": [
+        5468,
+        15303,
+        6543
+      ],
+      "boundaries": "N-1 ResourceLimit and N fresh/warm success retained; no quota change"
+    },
+    "correction": "Reserve actual data_source_scopes.len before the BorrowedStorage search; earlier construction work is not reused as permission for this lookup."
+  },
+  "review": [
+    "Actual query scope resolves through the frozen declaration entry and full original generic parameter ordinals; source spellings are recovered only after declaration and parameter-kind checks. Span containment is an additional rejection check, not a claim of a general generated-owner authority mechanism.",
+    "Closed schema reuse checks both authentic definition owner and full actual lifetime-ordinal vector. Same local Fixed graph with different source handles rejects instead of independently freshening or silently deduplicating.",
+    "Joint nominal actuals retain their class relation; generic Copy forwarding reaches real source/native. Wrong joint class, free source lifetime and local-field escape controls reject. Phantom-only metadata supplies no actual target roots.",
+    "The separate CT54 replay exercises independent scoped graph validation, Wire and VM at the exact e65 identity; it is not retroactively attributed to integrated629."
+  ],
+  "limits": [
+    "Only the three retained phantom/fixed/joint/generic source cases are accepted by this review. Mixed ordinary Type/Const/Lifetime full-ordinal source and rich borrowed-function-pointer metadata remain explicitly rejected/pending.",
+    "No CT5 ambient value cache/export identity acceptance, generated-owner/shared-span lineage generalization, physical borrowed CT values, physical ErrorUnion values or complete owned anonymous cleanup follows.",
+    "No full workspace, product performance or platform acceptance follows."
+  ]
+}

@@ -203,6 +203,12 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
             }
             for arg in args {
                 let child = match arg {
+                    GenericArg::Lifetime(_) => {
+                        return Err(unsupported(
+                            ty.span,
+                            "lifetime instance identity requires scoped canonical storage relation",
+                        ));
+                    }
                     GenericArg::Type(child) => shape(child, budget, depth + 1)?,
                     GenericArg::Const(expression) => {
                         scalar_shape(expression, true, budget, depth + 1)?.finish(1, 0, ty.span)?
@@ -220,6 +226,42 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
             )
         }
         TypeKind::Group(inner) => return shape(inner, budget, depth + 1),
+        TypeKind::ForLifetime { .. } => {
+            let mut inner = ty;
+            let mut binders = 0usize;
+            let mut names = 0usize;
+            while let TypeKind::ForLifetime {
+                lifetime,
+                inner: next,
+            } = &inner.kind
+            {
+                budget.identity_node(add(depth, binders, ty.span)?, inner.span)?;
+                budget.identity_work(lifetime.len(), inner.span)?;
+                binders = add(binders, 1, ty.span)?;
+                names = add(names, lifetime.len(), ty.span)?;
+                inner = next;
+            }
+            let TypeKind::Function { params, .. } = &inner.kind else {
+                return Err(unsupported(
+                    ty.span,
+                    "borrowed code key requires a function signature",
+                ));
+            };
+            let slots = add(params.len(), 1, ty.span)?;
+            // Long common binder names must be charged before lexical lookup;
+            // labels and remap vectors need at most 24 bytes per relation slot.
+            budget.identity_work(mul(add(names, binders, ty.span)?, slots, ty.span)?, ty.span)?;
+            let mut body = shape(inner, budget, add(depth, binders, ty.span)?)?;
+            let extra = add(
+                32,
+                mul(add(binders, slots, ty.span)?, 24, ty.span)?,
+                ty.span,
+            )?;
+            body.bytes = add(body.bytes, extra, ty.span)?;
+            body.work = add(body.work, mul(extra, 4, ty.span)?, ty.span)?;
+            return Ok(body);
+        }
+
         TypeKind::Reference { mutable, inner, .. } => {
             result.child(shape(inner, budget, depth + 1)?, ty.span)?;
             (if *mutable { 7 } else { 8 }, 1)

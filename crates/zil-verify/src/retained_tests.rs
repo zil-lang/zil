@@ -237,6 +237,7 @@ fn owning_fixture(kind: CallableKind, retain_input: bool) -> TypedModule {
     };
     entry.blocks[0].terminator = Terminator::Return(Some(result));
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(3),
         captures: if retain_input {

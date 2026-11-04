@@ -109,15 +109,322 @@
         "Same-semantic Rust runtime/RSS/compile comparison and whole-language acceptance are NotRun."
       ],
       "rust_goals": "Safety: independent actual tag/init/loan checks and real cleanup order, including negative raw/Wire proof neighbors. Runtime/memory: inline storage, actual GEPs and private bounded stack flags without payload copies, RC or wrapper allocation; Rust runtime/RSS comparison NotRun. Expression/maintenance: ordinary mixed move/ref Tuple/Enum and nested statement control flow compose. Compile cost: charged route comparison/state copies and measured exact request boundaries, no Rust compile-time advantage claim. Breakthrough: a real partially moved aggregate retains disjoint owning siblings and header/tag authority with native declaration-order residual cleanup."
+    },
+    {
+      "name": "copy-error-union-own-discriminant-correction",
+      "source_commits": [
+        "790ce8e1e",
+        "c041ed903"
+      ],
+      "result": "PassLimited",
+      "binding": "These focused source commits were published after126 public8e069, before private126 consumers; they are not claimed as standalone buildable candidates. Root applied them to acc12 integration and independently bound clean261c35c5e.",
+      "root_integration": "261c35c5e",
+      "root_independent_review": "6abfba2c8",
+      "evidence": "Own Copy ErrorUnion discriminants are rebuilt after mutable endpoint grants and actual calls/writes in both independent kernels, including legacy106 parity. Source nested in an owning Tuple executes native AB42 through actual success-to-error mutation; source-derived raw120/119 ErrorArm fresh guards pass, stale pre-call guard and repeated moved sibling reject Analyze/Verify/Wire. Author WIP selector29/0 preceded the clean root integration replay29/0 plus HRTB15/0 and impl18725/0. Root integrated addressed89853 and mixedlongprefix2093659 are separate from the branch historical Ns."
+    },
+    {
+      "name": "actual-addressed-mixed-inline-patterns",
+      "source_parent": "c041ed903",
+      "public_commit": "8e0697393",
+      "result": "PassLimited",
+      "independent_review": "Pending",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture; cargo clippy -p zil-types -p zil-analyze -p zil-verify -p zil-lower -p zil-backend-llvm --lib -- -D warnings; cargo test -p zil-ir --lib; cargo test -p zil-analyze --lib sum_tests::; cargo test -p zil-verify --lib package_tests::sums; cargo test -p zil-verify --lib borrow; cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes; cargo test -p zil-driver --features llvm-api --test impl030 compound_projection_indices_evaluate_once_before_rhs -- --exact; cargo test -p zil-driver --features llvm-api --test impl042 compound_dereference_keeps_one_authority_and_evaluates_address_once -- --exact",
+      "gates": {
+        "terminal340": "34/0",
+        "scoped_library_clippy": "Pass",
+        "ir_lib": "60/0",
+        "analyze_sum_tests": "26/0",
+        "verify_package_sums": "16/0",
+        "verify_borrow": "23/0",
+        "impl187_borrowed_bytes": "24/0",
+        "impl030_compound_index_exact": "1/0",
+        "impl042_compound_authority_exact": "1/0"
+      },
+      "retained_test_executable": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+      "retained_test_executable_sha256": "6cf66ae2c6028dfcbbc48f3bfba84cb200d7ef8dbd6bef6dc3fa630237287bc7",
+      "impl187_executable_sha256": "38d5d4efc7ba131a3a5d032e0672c506c0f5d0e510ae7d3f22e4c84c37cc3806",
+      "content_identity": {
+        "algorithm": "Sorted unique repository-relative path NUL lowercase-SHA256(file-bytes) LF stream, then SHA256. production selects all /src/ .rs files, all Cargo.toml and Cargo.lock. targeted_tests selects aggregates.rs, impl187_borrowed_bytes.rs, impl030.rs, impl042.rs and terminal/340 fixtures.",
+        "production": {
+          "files": 362,
+          "sha256": "93fb040536a648b7b03f027f27d8077e8ed392087427c8c3bf42572b0fc8f32c"
+        },
+        "targeted_tests": {
+          "files": 15,
+          "sha256": "8dadf398935cc0339b8115151d1677f352cd59aa5664f469a277a5acc8952fac"
+        }
+      },
+      "evidence": "126/127 reconstruct actual Address base authority, full mixed Field/Variant/ErrorArm paths and precise inline intervals; source never copies an owning pointee into a stand-in local. Each independent kernel checks current actual tag observations and all selected ancestors, mutable authority, live parent loans and overlapping fresh windows. LLVM follows the real pointer with guarded GEPs/header loads. New mixed-address fixture and five additional return/sibling/index source cases plus an actual ErrorUnion mutation source execute Clang/API O0/O2 (28 new native profiles). Shared/mutable returned nested payload refs and a closure-held returned scalar reference execute; whole parent movement with later returned-ref use rejects. Seven raw/decoded-Wire address forgeries reject: valid opposite variant, shared-to-mut upgrade, wrong ErrorArm ancestor, stale guard across an actual ordinary call, same true/false successor, mutable same-field siblings and shared-versus-mut payload overlap. Source-derived actual127/126 ErrorArm fresh guards pass across success-to-error mutation; stale pre-call proof and repeated moved owning sibling reject independently, retaining true ErrorUnion identity. Integer compound field assignment reads its old value through the already prepared actual target; a second overlapping child projection is eliminated, and existing compound evaluation-order regressions pass. Ordinary closure inference admits existing complete owned Tuple constraints and ordinary addressed Sum signatures without granting new capture, worker or FFI qualifications.",
+      "accounting": "Both new mixed and retained107/108 address passes prepay set entry scans before path scans/clones, bounded ordered-set/map comparison and insertion, all observed-read lookups, explicit repeated instruction scans and invalidation walks. Checked route cost and8x bounded-log comparisons precede work. A raw64-observation neighbor without a large fact set covers both lanes: independent Analyze/Verify/decoded-Wire exact N/N-1 and repeated fresh agreement. The source fixture separately checks full-request N/N-1/fresh/warm and no active-query leak.",
+      "budget_boundaries": {
+        "unsigned": 9050,
+        "option": 38035,
+        "complete_owned_tuple": 20265,
+        "mixed_long_prefix": 2094103,
+        "local_reference": 17540,
+        "addressed": 92292,
+        "actual_mixed_address": 103790
+      },
+      "raw_observation64_boundaries": {
+        "mixed_analyze": 134446,
+        "mixed_verify": 247974,
+        "mixed_decoded_wire": 247974,
+        "legacy_analyze": 41628,
+        "legacy_verify": 41013,
+        "legacy_decoded_wire": 41013
+      },
+      "budget_migration": "Branch local-reference18127->17540 and addressed90264->92292 reflect removal of duplicate prepared-target reads plus honest retained-lane accounting/ordinary owning-address lowering. Earlier intermediate Ns are not acceptance values. Root261 integration Ns are distinct. Default limits and formal performance gates are unchanged.",
+      "limitations": [
+        "Exact new candidate independent review is pending.",
+        "This branch retains schema35; root Wire37/HRTB/Task/float integration and its budget boundaries are separate.",
+        "The original captured-owning-base-open.zil remains an explicit pending root-authorized captured Address<owning Enum/Tuple> profile. The existing capture gate is not weakened in this checkpoint; only a returned scalar reference is captured here.",
+        "Direct E!T TypeName(payload) source pattern transport remains pending; ?-derived raw ErrorArm controls are not presented as direct source destructuring.",
+        "Selective Product-root/nested consuming Package members and transactional actual owned-field replacement121-124 remain unfinished. ReservationId public diff is review-only outside source, not published or claimed implemented.",
+        "No whole-workspace/formal performance gate or same-semantic Rust runtime/RSS/compile comparison was run."
+      ],
+      "rust_goals": "Safety: independent actual-address path/tag/parent/alias checks and real drop-order controls, with raw/Wire forgeries. Runtime/memory: actual pointers/GEPs without owning pointee copies or wrapper allocations; no Rust runtime/RSS comparison. Expression/maintenance: ordinary nested borrowed owning data returns references and composes through scalar-reference closures, with direct mutable Package siblings and once-only compound indices. Compile cost: paid state/ordered-set work and measured source plus per-kernel raw boundaries, no Rust compile-time advantage claim. Breakthrough: mixed actual borrowed owning Tuple/Enum paths preserve caller storage and parent authority through ordinary returned-reference APIs."
+    },
+    {
+      "name": "direct-error-union-patterns",
+      "source_parent": "b8198c5f4",
+      "result": "PassLimitedPendingIndependentReview",
+      "authority": "Main-tree norm/grammar dcc036b76; Syntax/Core publication8b3d69aa1. Unified root37 baseline a8a1015bc; common39/CT4 integration is later and not claimed here.",
+      "commands": [
+        "cargo test -p zil-driver --features llvm-api --test aggregates --test impl187_borrowed_bytes",
+        "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture",
+        "cargo test -p zil-ir --lib",
+        "cargo test -p zil-types --lib terminal340_prepared_owner_budget",
+        "cargo test -p zil-analyze --lib sum_tests::",
+        "cargo test -p zil-verify --lib package_tests::sums",
+        "cargo test -p zil-verify --lib borrow",
+        "cargo clippy -p zil-syntax -p zil-expand -p zil-types -p zil-ct -p zil-lower -p zil-analyze -p zil-verify -p zil-backend-llvm -p zil-driver --features llvm-api --lib -- -D warnings"
+      ],
+      "gates": {
+        "aggregates": "122/0",
+        "terminal340": "39/0",
+        "impl187_borrowed_bytes": "25/0",
+        "ir_lib": "61/0",
+        "types_prepared_owner_budget": "2/0",
+        "analyze_sum": "26/0",
+        "verify_sum": "16/0",
+        "verify_borrow": "23/0",
+        "clippy_nine_libraries": "Pass",
+        "full_workspace": "NotRun"
+      },
+      "evidence": "Explicit .ok/.err parser/visitors, match/if-let/while-let generic definition checking, concrete full TypeName aliases (including imported and Tuple aliases), equal-type generic definitions, unit payload, both owning arm cleanup, normal fallthrough and nested-let/return. Actual mutable/shared borrowed payloads keep original ErrorArm storage.72 new Clang/API O0/O2 native profiles, including8 raw equal-type E!T profiles covering both physical tags. Opposite equal-type ErrorArm path rejects Analyze/Verify/decoded Wire. Unused wrong payload/missing/duplicate/nonunion/refutable-let/type-name ambiguity, reserved nested ref binders and replacing the parent while a payload ref remains used all reject. Existing mutation-epoch/raw/Wire and source cleanup controls replay on the same compiler.",
+      "correctness_fixes": [
+        "Restore prepared-temporary tail per mutually exclusive consuming arm; preserve enclosing statement floor and caller-owned prefix. Both direct ErrorUnion and old consuming Enum shell cleanup are tested.",
+        "Verify rebuilds full actual Copy callee result alternatives instead of interpreting absent owning summaries as impossible Copy data.",
+        "Lower admits the independently verified real Address<ErrorUnion> through its bounded actual-pointee admission even when a legacy flat layout did not set the newer owned-layout flag.",
+        "Structural visitors descend through ErrorArm and Reference. u64/usize/f32/f64 join existing primitive value-binding reservations; generic binder shadowing remains separate.",
+        "New coverage and complete type-key copies reserve remaining budget before traversal/allocation."
+      ],
+      "source_boundaries": {
+        "unsigned": 9050,
+        "option": 38301,
+        "complete_tuple": 20265,
+        "local_reference": 17540,
+        "addressed": 91861,
+        "mixed_long_prefix": 2093659,
+        "actual_mixed_address": 102269,
+        "direct_error_union": 83726
+      },
+      "raw_observation64_boundaries": {
+        "mixed_analyze": 133566,
+        "mixed_verify": 246133,
+        "mixed_decoded_wire": 246133,
+        "legacy_analyze": 41628,
+        "legacy_verify": 41013,
+        "legacy_decoded_wire": 41013
+      },
+      "budget_identity": "All listed Ns are this unified root37 candidate. They do not replace c262 or historical branch/root Ns. Necessary consuming-arm snapshot work is charged (Option historical38035 versus this38301); new Reference visitor scans and the unified37 baseline have their own actual values. Defaults and formal performance gates unchanged.",
+      "retained_executables": {
+        "aggregates": {
+          "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+          "sha256": "569042bb1200d8006694c7984d02364805d837466a61e6f57c87a9cbf494b355"
+        },
+        "impl187": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl187_borrowed_bytes-182a7c94849f47e8",
+          "sha256": "faaa2178cbcd96f9da11a3453ca65e588d04207ee8974654a34779b2cd937773"
+        }
+      },
+      "source_binding": {
+        "algorithm": "Sort unique git ls-files paths at this source commit. For each selected path feed UTF8(path), NUL, lowercase hexadecimal SHA256(file bytes), LF into SHA256. Only repository-root Cargo.lock is selected.",
+        "production_selector": "(path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+        "production_count": 398,
+        "production_sha256": "95c292d64236186d4595a12e51417997bd7da570de54de3d3b9108ff0ab82dad",
+        "test_selector": "All tracked terminal/340 paths plus aggregates.rs, impl187_borrowed_bytes.rs, impl030.rs, impl042.rs, impl260_member_owner.rs under crates/zil-driver/tests",
+        "test_count": 17,
+        "test_sha256": "2272a608ab23bb601338308be5e0c2018e3a1e38c68f4d844f3898f79dddd5d3"
+      },
+      "retained_failures": "First broad run121/122 exposed the new reserved-u64 negative; the next run exposed the omitted f32 reserve. Both original controls remain, the actual primitive-name checks are corrected, and final122/0 is on this source. No failure expectation was weakened.",
+      "construction_segregation": "b8198c5f4 contains fail-closed reservation121-124 barriers and proposal only. The two place_replacements.rs static-inventory prototypes remain unlinked, untracked WIP outside this delivered source. No reservation pin/commit capability is claimed.",
+      "limitations": [
+        "Independent review of this exact ErrorArm checkpoint pending.",
+        "Physical CT ErrorUnion value construction/execution/patterns remain open; CT3 Type metadata and traversed syntax are not physical value support (confirmed344).",
+        "Finite ordinary captured owning-base Address, selective Product-root/nested Package transfers, and transactional actual owning-field replacement121-124 remain ongoing.",
+        "No common39/CT4 consumer integration, whole-language acceptance, full workspace gate, Rust runtime/RSS/compile comparison or formal performance claim."
+      ],
+      "rust_goals": "Safety: actual tagged places and independent raw/Wire rejection plus native owning cleanup. Runtime/memory: existing inline ErrorUnion slots and real addresses without wrappers or payload copies. Expression/maintenance: direct generic E!T match/conditions and complete member identity. Compile cost: paid copies and exact request/fresh/warm boundaries, without a Rust comparative claim. Breakthrough: direct generic ErrorUnion destructuring composes with actual owning success/error cleanup."
+    },
+    {
+      "name": "generic-pattern-reference-origins-root39",
+      "result": "PassLimitedPendingIndependentReview",
+      "source_parent": "4f5dfe01b",
+      "implementation_commits": [
+        "6f27d38a9",
+        "6279afa86",
+        "cb3a380b2"
+      ],
+      "evidence": "Exact019 independent review confirmed erased unused generic stale-reference acceptance in match/if-let/while-let and mutable-authority promotion. The corrected definition-time alias engine retains the actual scrutinee root once before bindings, real Field/Variant/ErrorArm paths, actual parent loan ancestry and mode. It preserves last-use positives, disjoint Tuple siblings, grouped fresh rvalues, saved relay-call results across two arms, independent Copy snapshots and temporary expiry on normal/break/continue joins. Whole-tree disjointness planning and string/set/path work are prepaid. All21 Expand units and terminal40 now execute on this combined common39/CT4 baseline. The new driver control has bad=SafeReject, nearest=Success, with the real instantiated good function running Clang/API O0/O2. Historical019 runtime evidence remains separate.",
+      "commands": [
+        "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture",
+        "cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes",
+        "cargo test -p zil-expand --lib -- --nocapture",
+        "cargo test -p zil-analyze --lib sum_tests::",
+        "cargo test -p zil-verify --lib package_tests::sums",
+        "cargo test -p zil-verify --lib borrow"
+      ],
+      "gates": {
+        "terminal340": "40/0",
+        "impl187_borrowed_bytes": "25/0",
+        "expand_lib": "21/0",
+        "analyze_sum": "26/0",
+        "verify_sum": "16/0",
+        "verify_borrow": "23/0",
+        "expand_clippy_all": "Pass with4 preexisting dyn-catalog dead-code warnings; -D warnings not claimed",
+        "seven_library_clippy_all": "Blocked by shared Task39 collapsible_if in crates/zil-types/src/tasks/hint.rs270; reported to343/root",
+        "full_workspace": "NotRun"
+      },
+      "source_boundaries": {
+        "unsigned": 9050,
+        "option": 38301,
+        "complete_tuple": 20265,
+        "local_reference": 17540,
+        "addressed": 91861,
+        "mixed_long_prefix": 2093659,
+        "actual_mixed_address": 102269,
+        "direct_error_union": 83726
+      },
+      "expand_boundaries": {
+        "member_disjointness_wide_grouped_prefix": 37839,
+        "nested_reference_pattern_origins": 8103
+      },
+      "raw_observation64_boundaries": {
+        "mixed_analyze": 133566,
+        "mixed_verify": 246133,
+        "mixed_decoded_wire": 246133,
+        "legacy_analyze": 41628,
+        "legacy_verify": 41013,
+        "legacy_decoded_wire": 41013
+      },
+      "retained_executables": {
+        "aggregates": {
+          "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+          "sha256": "566c9131a68ab34186e3df0b641a26dfebda064776dda921009d90ef482d72c1"
+        },
+        "impl187": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl187_borrowed_bytes-182a7c94849f47e8",
+          "sha256": "cd7a223b5421205a6164980d594a43a9c5e5394bb2ee7f76de1b128c6982e74c"
+        },
+        "expand": {
+          "path": "/workspace/.zil-env/target340/debug/deps/zil_expand-f102b30535c7baef",
+          "sha256": "69b902c386fc4cbb9ac3005fbd222735e0ab6730b1e230fe94d3fb656bc94635"
+        }
+      },
+      "source_binding": {
+        "algorithm": "Sorted unique git ls-files paths; feed UTF8(path), NUL, lowercase SHA256(file), LF into SHA256. Only root Cargo.lock.",
+        "production_selector": "(path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+        "production_count": 418,
+        "production_sha256": "ad88b3c522cfe0f589c6b060505250353ecf0fa7e2a9efaf171ebf955233d520",
+        "test_selector": "All tracked terminal/340 paths plus driver aggregates,impl187,impl030,impl042,impl260 tests",
+        "test_count": 17,
+        "test_sha256": "1ef5691e5c308cbc4ad1d6b109ec26aafd14642690840cc27cdd995b1210c0e7"
+      },
+      "limitations": [
+        "Full132 aggregates target and full Rust comparison/formal workspace gates not run at this39 identity.",
+        "Anonymous generic member ref windows conservatively retain the actual whole parent when final runtime tag order is unresolved; no syntax ordinal becomes a physical tag/apart proof.",
+        "Captured owning-base Address, partial Product-root/nested Package transfer, actual reservation121-124 pin/commit and physical CT ErrorUnion values remain ongoing.",
+        "Two unlinked reservation inventory prototypes remain untracked outside delivered source; fences are not replacement functionality."
+      ],
+      "rust_goals": "Safety: invalid unused definitions now reject before erasure with actual source roots/modes. Runtime/memory: no new runtime op, ABI object or allocation. Expression/maintenance: ordinary last-use and disjoint sibling positives remain available, including address-return helper calls and fresh temporary conditions. Compile cost: two exact paid Expand boundaries plus source/raw request retries; no Rust performance comparison. Breakthrough: definition-time reference-pattern safety agrees with concrete independent kernels without relying on observed instantiations."
+    },
+    {
+      "name": "ordinary-captured-owning-address-and-derived-results",
+      "source_parent": "03faea4fb",
+      "result": "ScopedAuthorPassPendingIndependentReview",
+      "evidence": "Actual pointer captures of finite Tuple/Enum/ErrorUnion retain complete target identity and parent mode. Both inference layers preserve ref-mut pointer terms. Native selected paths and Drop markers run across Clang/API O0/O2, including actual Address function parameters, shared derived results that survive the local closure activation, disjoint sibling access, helper-returned children and last-use release. Independently reconstructed selected capture slots and actual Capture/Window return summaries substitute real target roots; SSA/loan ancestry remains separate from access footprints. Dead intermediate external capture windows are not reactivated as live whole-parent views when only the precise child survives. Independently live closure/input/other child windows remain active. Raw selected-slot rebound, mutable Fn capture and invalid slot index plus reordered parent TakeLocal reject Analyze, Verify and decoded Wire.",
+      "commands": [
+        "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture",
+        "cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes",
+        "cargo test -p zil-driver --features llvm-api --test impl184_lending",
+        "cargo clippy -p zil-analyze -p zil-verify --lib -- -D warnings",
+        "cargo test -p zil-analyze --lib sum_tests::",
+        "cargo test -p zil-verify --lib package_tests::sums",
+        "cargo test -p zil-verify --lib borrow"
+      ],
+      "gates": {
+        "terminal340": "50/0",
+        "new_capture_tests": "10/0",
+        "impl187_borrowed_bytes": "25/0",
+        "impl184_lending": "13/0",
+        "kernel_clippy_warnings": "Pass",
+        "full_workspace": "NotRun",
+        "full_aggregates": "Earlier WIP141/1; unchanged default-stack conversion regression independently reproduced on accepted03fa baseline. Exact full target held for separate stack fix; no full-pass claim.",
+        "types_clippy": "Blocked by preexisting shared Task hint.rs269 collapsible_if; no Types Clippy pass claimed.",
+        "analyze_sum": "26/0",
+        "verify_sum": "16/0",
+        "verify_borrow": "23/0"
+      },
+      "budgets": {
+        "source_full_request": 68065,
+        "analyze_raw": 66078,
+        "verify_raw": 68065,
+        "verify_decoded_wire": 68065,
+        "retry": "N/N-1/N succeeds/ResourceLimit/succeeds; source fresh/warm/fresh agree; default limits unchanged"
+      },
+      "original_source": "captured-owning-base-open.zil bytes retained. Its let-bound writing closure now reaches the ordinary FnMut E-CLOSURE-MUTABILITY rule. captured-owning-base.zil differs only by var f and executes with A42 newline. No invocation mutability rule weakened.",
+      "retained_executables": {
+        "aggregates": {
+          "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+          "sha256": "7b090b44c337c65b247069271e872ab3e1b50ec47a57eec908d096ea7f455017"
+        },
+        "impl187": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl187_borrowed_bytes-182a7c94849f47e8",
+          "sha256": "9a7919359fbdd236aebdc8306df43b1bdf1d1f284c83e404df8576b84db202d0"
+        },
+        "impl184": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl184_lending-3cc1146305c111e9",
+          "sha256": "80312aebf04407aa0f54fd8975e797e9d25cf7180ecce3e701fc0e8b20c558e5"
+        }
+      },
+      "source_binding": {
+        "algorithm": "Sorted unique git ls-files paths; feed UTF8(path), NUL, lowercase SHA256(file), LF into SHA256. Only root Cargo.lock.",
+        "production_selector": "(path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+        "production_count": 419,
+        "production_sha256": "7e9cca3b30683e494cb9381f93dea1f33a5c641a6b1159c5dfd158084b753eb6",
+        "test_selector": "All tracked terminal/340 paths plus exact driver aggregates.rs,impl187_borrowed_bytes.rs,impl030.rs,impl042.rs,impl260_member_owner.rs",
+        "test_count": 19,
+        "test_sha256": "d3c59d8223a74d0ba506424319c5d983a9da6a84553b1524fb7f93466d466790"
+      },
+      "limitations": [
+        "External owning-address lending through a callable parameter is explicitly Unsupported in both kernels. No symbolic carrier parameter is treated as its captured target; a complete ParameterCapture selector/substitution remains pending.",
+        "Transactional owning-place reservations121-124, selective Product-root/nested Package transfer, physical CT ErrorUnion values and unresolved anonymous generic precise refs remain open.",
+        "No full-workspace/formal performance or same-semantic Rust runtime/RSS/compile comparison.",
+        "Independent review pending at this candidate."
+      ],
+      "rust_goals": "Safety: real selected target/tag/mode/parent and independent raw/Wire forgeries, with source last-use/sibling controls. Runtime/memory: direct pointer environment fields and GEP payloads, no copied owners or new wrapper allocation; Rust timing/RSS not measured. Expression/maintenance: ordinary owning input addresses can be captured and yield shared child refs across local closure activation; callable-parameter generalization remains closed. Compile cost: all new slot/CFG/ancestry work prepaid on live kernel budgets and four exact retry boundaries; no Rust compile speed claim. Breakthrough: actual external owning aggregate storage now composes with local closures and returned references on both native implementations."
     }
   ],
   "remaining": [
     "selective Product-root and nested consuming Package member patterns",
-    "direct ErrorUnion destructuring and owning arm cleanup",
-    "general actual-address mixed paths126/127",
-    "transactional actual-address owning-field replacement121-124",
-    "independent review of the selective mixed checkpoint",
-    "whole-language acceptance"
+    "transactional actual owning-field replacement121-124",
+    "physical CT ErrorUnion value construction/execution/patterns (coordinated344)",
+    "remaining anonymous generic projected-ref expressiveness under unresolved member order",
+    "whole-language acceptance",
+    "external owning-address lending callable-parameter slot substitution",
+    "independent review of ordinary captured-owning-address checkpoint",
+    "common39 unchanged nested-conversion default-stack regression (separate next fix)"
   ],
   "rust_goals": {
     "safety": "Typed and independent Wire verifier accept real inferred source; nearest nominal mismatch rejects. General safety is unfinished.",
@@ -145,7 +452,7 @@
     "ir_lib": 61,
     "independent_vec_fingerprint": 13,
     "focused_terminal340": 29,
-    "audit_fix": "Both independent main invalidators and both legacy106 endpoints invalidate Copy ErrorUnion tags while preserving missing children; retained source/raw/Wire success→error control rejects stale guard and repeated moved sibling",
+    "audit_fix": "Both independent main invalidators and both legacy106 endpoints invalidate Copy ErrorUnion tags while preserving missing children; retained source/raw/Wire success\u2192error control rejects stale guard and repeated moved sibling",
     "logs": {
       "root37-mixed-first.log": "49d245691a2f6a484b49f92e6cc9db7396211e2408cdea1bea30d6dd109fffa3",
       "root37-mixed-combined.log": "700ad11bea68fd9ecf7b4919909b59a75d15c1090dac49a913e560f4f471cd64",

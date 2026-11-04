@@ -9,6 +9,10 @@ use zil_base::{
 
 pub mod ct_artifact;
 pub mod ct_wire;
+mod dynamic;
+mod dynamic_fingerprint;
+pub use dynamic::*;
+use dynamic_fingerprint::*;
 mod program;
 pub mod wire;
 pub use program::*;
@@ -17,6 +21,8 @@ pub use program::*;
 pub const BYTE_BUFFER_RESOURCE_NAME: &str = "@builtin:ByteBuffer";
 /// Exact sealed scalar cooperative-task resource identity, never producer authority.
 pub const TASK_I32_RESOURCE_NAME: &str = "@builtin:TaskI32";
+/// General task family prefix; actual result identity and every responsibility remain untrusted.
+pub const TASK_RESOURCE_NAME_PREFIX: &str = "@builtin:Task:";
 
 macro_rules! identity {
     ($($name:ident),+ $(,)?) => {$(
@@ -25,7 +31,15 @@ macro_rules! identity {
     )+};
 }
 identity!(
-    FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
+    FunctionId,
+    LocalId,
+    ValueId,
+    BlockId,
+    PlaceId,
+    ClosureId,
+    OriginId,
+    ScopeId,
+    ReservationId
 );
 
 /// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
@@ -66,10 +80,330 @@ pub struct FunctionLifeContract {
     pub result_life: Option<u32>,
 }
 
+/// Untrusted permitted leaf access. Desc variants are uppers, not authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StoredBorrowMode {
+    SharedAddress,
+    ExclusiveAddress,
+    ReadOnlyDescription,
+    WritableDescription,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeSlot {
+    pub path: Vec<PlaceProjection>,
+    pub binder: u32,
+    pub mode: StoredBorrowMode,
+}
+/// Metadata-only traversal of a complete semantic type. These selectors never
+/// authorize a byte address. Every edge must match the actual constructor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LifeTypeProjection {
+    Place(PlaceProjection),
+    TypeArgument(u32),
+    /// Full typed opaque-port leaf; metadata only.
+    Port(u32),
+    /// Fixed associated type of an actual dyn interface.
+    AssociatedType(u32),
+    Pointee,
+    Element,
+    Parameter(u32),
+    Result,
+}
+
+/// Raw declaration reference, resolved through the actual declaration inventory.
+/// Cross-request identity uses its stable module/declaration identity, not these
+/// relocation numbers or the compiler flag alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LifeDeclarationId {
+    pub module: ModuleId,
+    pub declaration: NodeId,
+    pub compiler: bool,
+}
+
+/// One nested carrier CLASS maps once into its enclosing fixed domain. Several
+/// actual ports may share this class; they are not independently freshened.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageRetainedBinding {
+    pub path: Vec<LifeTypeProjection>,
+    pub class: u32,
+    pub binder: u32,
+}
+
+/// Full nominal actual-position identity, including phantom lifetime actuals.
+/// `argument` is the position in ALL ordered generic arguments, not the index
+/// among lifetime arguments. The selected declaration and kind must agree.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct NominalLifeArgument {
+    pub path: Vec<LifeTypeProjection>,
+    pub declaration: LifeDeclarationId,
+    pub argument: u32,
+    pub binder: u32,
+}
+
+/// A typed abstract borrowed position of an opaque carrier. The port is not a
+/// physical field and cannot be loaded by a PlaceProjection operation.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedBorrowPort {
+    pub leaf: Type,
+    pub mode: StoredBorrowMode,
+    pub binder: u32,
+}
+
+/// Persistent class domain of an opaque carrier such as dyn or a borrowed Task.
+/// The complete owner contributes nominal/trait/result class occurrences when
+/// checking canonical numbering; a phantom occurrence never supplies a root.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedLifeShape {
+    pub binder_count: u32,
+    pub ports: Vec<RetainedBorrowPort>,
+    pub retained: Vec<StorageRetainedBinding>,
+    pub nominal_arguments: Vec<NominalLifeArgument>,
+}
+
+/// Untrusted mapping to actual constructor/entry parameter or capture storage.
+/// The concrete owner (vtable or task worker) determines the legal base domain.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RetainedPortBinding {
+    pub port: u32,
+    pub source: StoragePosition,
+}
+
+/// Canonical dense fixed classes across actual stored leaves; never target roots.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeShape {
+    pub binder_count: u32,
+    pub slots: Vec<StorageLifeSlot>,
+    pub retained: Vec<StorageRetainedBinding>,
+    pub nominal_arguments: Vec<NominalLifeArgument>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StorageBase {
+    Parameter(u32),
+    Capture(u32),
+    Result,
+}
+/// Contract-only selection; retained ports/classes never authorize byte access.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ContractProjection {
+    Place(PlaceProjection),
+    /// Typed opaque port selection for access/effect/result substitution.
+    RetainedPort(u32),
+    /// Fixed class selection for binding only, never read/write/manage access.
+    RetainedClass(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StoragePosition {
+    pub base: StorageBase,
+    pub path: Vec<ContractProjection>,
+}
+/// Existing Fixed classes cannot be narrowed or freshened by an invocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StorageBinder {
+    Fixed(u32),
+    Invocation(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeBinding {
+    pub position: StoragePosition,
+    pub binder: StorageBinder,
+}
+/// Selects one persistent semantic class of an actual qualified type. This is
+/// not an access selector, target root, loan, GEP or retained permission port.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SignatureLifeClass {
+    pub base: StorageBase,
+    pub path: Vec<LifeTypeProjection>,
+    pub class: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SignatureLifeClassBinding {
+    pub position: SignatureLifeClass,
+    pub binder: StorageBinder,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeContract {
+    pub fixed_binder_count: u32,
+    pub invocation_binder_count: u32,
+    pub bindings: Vec<StorageLifeBinding>,
+    pub classes: Vec<SignatureLifeClassBinding>,
+}
+impl StorageLifeContract {
+    /// Lossless raw embedding of a legacy outer-address relation. Callers must
+    /// prepay the input/output traversal; this does not validate the signature.
+    pub fn from_flat(life: FunctionLifeContract) -> Option<Self> {
+        if life.parameter_lives.len() > u32::MAX as usize {
+            return None;
+        }
+        let mut bindings = Vec::with_capacity(life.parameter_lives.len().saturating_add(1));
+        for (index, binder) in life.parameter_lives.into_iter().enumerate() {
+            if let Some(binder) = binder {
+                bindings.push(StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: Vec::new(),
+                    },
+                    binder: StorageBinder::Invocation(binder),
+                });
+            }
+        }
+        if let Some(binder) = life.result_life {
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                },
+                binder: StorageBinder::Invocation(binder),
+            });
+        }
+        Some(Self {
+            fixed_binder_count: 0,
+            invocation_binder_count: life.binder_count,
+            bindings,
+            classes: Vec::new(),
+        })
+    }
+    /// Exact raw outer-address projection, for consumers with that explicit
+    /// limited profile. Rich classes, Fixed domains, captures and nonempty paths
+    /// cannot disappear through this adapter. The caller bounds/prepays output
+    /// arity and independently checks the actual complete signature afterward.
+    pub fn to_flat(&self, parameters: usize) -> Option<FunctionLifeContract> {
+        if self.fixed_binder_count != 0
+            || !self.classes.is_empty()
+            || parameters > u32::MAX as usize
+        {
+            return None;
+        }
+        let mut parameter_lives = vec![None; parameters];
+        let mut result_life = None;
+        let mut last_parameter = None;
+        let mut saw_result = false;
+        for binding in &self.bindings {
+            if !binding.position.path.is_empty() {
+                return None;
+            }
+            let StorageBinder::Invocation(index) = binding.binder else {
+                return None;
+            };
+            if index >= self.invocation_binder_count {
+                return None;
+            }
+            let slot = match binding.position.base {
+                StorageBase::Parameter(index) => {
+                    if saw_result || last_parameter.is_some_and(|previous| previous >= index) {
+                        return None;
+                    }
+                    last_parameter = Some(index);
+                    parameter_lives.get_mut(index as usize)?
+                }
+                StorageBase::Result => {
+                    saw_result = true;
+                    &mut result_life
+                }
+                StorageBase::Capture(_) => return None,
+            };
+            if slot.replace(index).is_some() {
+                return None;
+            }
+        }
+        Some(FunctionLifeContract {
+            binder_count: self.invocation_binder_count,
+            parameter_lives,
+            result_life,
+        })
+    }
+    /// Complete untrusted relation identity. Validate and prepay every row and
+    /// selector before hashing; this fingerprint grants no borrowing authority.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-STORAGE-LIFE-CONTRACT-2\0");
+        encode_required_storage_contract(&mut bytes, self);
+        bytes.finish()
+    }
+}
+/// Actual permission, initialization, target/parent loans and epochs are checked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredBorrowLoad {
+    CopyShared,
+    CopyDescription,
+    Reborrow { mutable: bool },
+    Take,
+}
+
+/// Stable cross-request spelling of a REAL source/generated declaration. This
+/// is identity data, never visibility, builtin, trait or borrowing authority.
+/// The producer obtains it through SourceIndex/Origins, not parsed type names.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LifeDeclarationIdentity {
+    pub package: String,
+    pub module_path: Vec<String>,
+    pub declaration_path: Vec<String>,
+    pub generation_path: Vec<u32>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LifeNominalKind {
+    Record,
+    Package,
+    Resource,
+    Enum,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LifeParameterKind {
+    Type,
+    Const(Type),
+    Lifetime,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LifeNominalDeclaration {
+    pub id: LifeDeclarationId,
+    pub identity: LifeDeclarationIdentity,
+    pub kind: LifeNominalKind,
+    /// Full original declaration order, including phantom parameters.
+    pub parameters: Vec<LifeParameterKind>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LifeNominalActual {
+    Type(Type),
+    Const(Constant),
+    /// The instance type's OWN qualified fixed scope, not an enclosing numeric
+    /// class coincidentally having this ordinal. Outer maps explicitly compose.
+    Lifetime(u32),
+}
+/// Complete semantic instance descriptor. Unique exact qualified Type mapping;
+/// duplicate type -> different declaration/actual vectors must reject.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LifeNominalInstance {
+    pub declaration: LifeDeclarationId,
+    pub ty: Type,
+    pub arguments: Vec<LifeNominalActual>,
+}
+
+/// Complete declaration context for table-bearing stored types. Callers must
+/// validate and prepay the full inventory, including each type and identity.
+/// This raw context digest is not an independent semantic or permission proof.
+pub fn life_inventory_fingerprint(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) -> Fingerprint {
+    let mut bytes = FingerprintStream::new();
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V41\0");
+    encode_life_inventory(&mut bytes, declarations, instances);
+    bytes.finish()
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Type {
+    /// Unsized pointee. Address<Dyn> is the fat (environment,vtable) address.
+    /// Raw references require the complete declaration/interface context.
+    Dyn {
+        interface: DynInterfaceId,
+    },
+    /// Relational shape; machine layout is exactly the actual storage layout.
+    BorrowedStorage {
+        storage: Box<Type>,
+        life: StorageLifeShape,
+    },
     Unit,
     Bool,
     I32,
@@ -100,6 +434,13 @@ pub enum Type {
     },
     /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
     TaskI32,
+    /// Sealed stable owning task payload. Result T does not qualify hidden frame
+    /// inputs/captures/children. Empty shape still requires actual PC0/state proof.
+    /// The shared retained shape carries no Transfer, Share, close or Drop proof.
+    Task {
+        result: Box<Type>,
+        retained_life: RetainedLifeShape,
+    },
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -156,7 +497,7 @@ pub enum Type {
     BorrowedFunctionPointer {
         parameters: Vec<Type>,
         result: Box<Type>,
-        life: FunctionLifeContract,
+        life: StorageLifeContract,
     },
     Closure(ClosureId),
     Opaque {
@@ -166,11 +507,14 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
-    /// Stable complete type identity, never a proof of type or access validity.
+    /// Raw structural identity, never a proof of type or access validity.
+    /// Table-bearing forms (Dyn and qualified nominal life inventory) require
+    /// a context-aware semantic key for exports/cross-request caches. Raw table
+    /// relocation numbers here are not independently meaningful identities.
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V35\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V41\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -208,7 +552,7 @@ impl Type {
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     pub fn is_exclusive_task_head_address(&self) -> bool {
-        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if payload.as_ref() == &Self::TaskI32))
+        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if matches!(payload.as_ref(), Self::TaskI32 | Self::Task { .. })))
     }
     pub fn is_shared_sync_cell_address(&self) -> bool {
         matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
@@ -216,7 +560,9 @@ impl Type {
     /// Structural eligibility only; each checker separately proves sources,
     /// bounds, liveness, permissions and the supported target profile.
     pub fn is_address_pointee(&self) -> bool {
-        self.is_copy_value() || matches!(self, Self::Slice { element } if element.is_copy_value())
+        self.is_copy_value()
+            || matches!(self, Self::Dyn { .. })
+            || matches!(self, Self::Slice { element } if element.is_copy_value())
     }
     /// Structural eligibility for a shared actual user-resource header. This
     /// does not establish its nominal definition, initialization, provenance or
@@ -309,6 +655,7 @@ impl Type {
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::Registration { environment } => format!("Registration<{}>", environment.name()),
             Self::TaskI32 => "TaskI32".into(),
+            Self::Task { result, .. } => format!("Task<{}>", result.name()),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
             Self::SyncCell(kind) => match kind {
@@ -401,6 +748,12 @@ pub struct UnsupportedFeature {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreModule {
+    pub dyn_declarations: Vec<DynDeclaration>,
+    pub dyn_interfaces: Vec<DynInterface>,
+    pub dyn_vtables: Vec<CoreDynVtable>,
+    /// Raw nominal kind/full-actual inventory; no structural capability proof.
+    pub life_declarations: Vec<LifeNominalDeclaration>,
+    pub life_instances: Vec<LifeNominalInstance>,
     pub schema_version: u32,
     pub module_id: ModuleId,
     pub source_fingerprint: Fingerprint,
@@ -458,6 +811,10 @@ pub enum CoreAggregateTypeRecipe {
     Registration {
         environment: Box<CoreAggregateTypeRecipe>,
     },
+    /// General sealed task application, retaining its full actual result recipe.
+    Task {
+        result: Box<CoreAggregateTypeRecipe>,
+    },
     Apply {
         module: ModuleId,
         template: NodeId,
@@ -486,6 +843,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
     pub call_kind: Option<CallKind>,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
@@ -530,7 +889,7 @@ pub struct CoreCallableReturn {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
     /// Invocation-local raw binder relation; fixed environment Hold is separate.
-    pub life: Option<FunctionLifeContract>,
+    pub life: Option<StorageLifeContract>,
     pub index: u32,
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
@@ -633,6 +992,11 @@ pub enum CorePatternKind {
     Tuple(Vec<CorePattern>),
     Reference {
         mutable: bool,
+        pattern: Box<CorePattern>,
+    },
+    /// Explicit ErrorUnion tag selection; never a nominal-name authority.
+    ErrorArm {
+        is_error: bool,
         pattern: Box<CorePattern>,
     },
     Variant {
@@ -743,6 +1107,20 @@ pub struct CoreExpr {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CoreExprKind {
+    /// Source is an actual borrowed concrete Self address, evaluated once.
+    MakeDynBorrow {
+        interface: DynInterfaceId,
+        vtable: DynVtableId,
+        source: Box<CoreExpr>,
+        mutable: bool,
+    },
+    /// Callee is evaluated once before nonreceiver arguments and supplies arg0.
+    CallDynSlot {
+        callee: Box<CoreExpr>,
+        interface: DynInterfaceId,
+        slot: u32,
+        arguments: Vec<CoreExpr>,
+    },
     /// Compiler-normalized static foreign literal; still untrusted Core data.
     Literal(Constant),
     /// Internal value type context; ordinary checking must validate its child.
@@ -915,7 +1293,7 @@ pub struct CallableParameterContract {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableRole {
     /// Untrusted invocation-local relation; actual closure CFG roots are independently checked.
-    pub life: Option<FunctionLifeContract>,
+    pub life: Option<StorageLifeContract>,
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -1018,6 +1396,12 @@ pub enum CallableFlowNext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedModule {
+    pub dyn_declarations: Vec<DynDeclaration>,
+    pub dyn_interfaces: Vec<DynInterface>,
+    pub dyn_vtables: Vec<DynVtable>,
+    /// Raw nominal kind/full-actual inventory; no structural capability proof.
+    pub life_declarations: Vec<LifeNominalDeclaration>,
+    pub life_instances: Vec<LifeNominalInstance>,
     pub schema_version: u32,
     pub module_id: ModuleId,
     pub source_fingerprint: Fingerprint,
@@ -1038,18 +1422,24 @@ pub struct ResourceDefinition {
 /// this record does not grant address lifetime or calling authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClosureDefinition {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     pub id: ClosureId,
     pub function: FunctionId,
     pub captures: Vec<Type>,
     pub parameters: Vec<Type>,
     pub result: Type,
     pub kind: CallableKind,
-    /// Sorted unique capture positions that own storage borrowed by the result.
-    /// Distinct from external captured Address/Desc targets and ordinary parameters.
+    /// Sorted unique source capture positions used by the returned borrow.
+    /// May select inline owned storage or a qualified direct owning-base Address;
+    /// each actual target and parent loan is independently reconstructed. This
+    /// does not make arbitrary captured Address/Desc or ordinary parameters eligible.
     pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
     pub call_kind: CallKind,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
@@ -1119,14 +1509,14 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 /// One checked step through a real Enum variant payload. It never creates a
 /// view or grants ownership; each selected tag must be independently proved.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariantProjection {
     pub variant: u32,
     pub index: u32,
 }
 /// One actual inline place step. Field never crosses Managed, Address or
 /// external stable storage; Variant always retains its selected tag and field.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PlaceProjection {
     Field(u32),
     Variant(VariantProjection),
@@ -1135,6 +1525,31 @@ pub enum PlaceProjection {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
+    MakeDynBorrow {
+        interface: DynInterfaceId,
+        vtable: DynVtableId,
+        source: ValueId,
+        mutable: bool,
+    },
+    /// arguments excludes the receiver supplied by this exact callee.
+    CallDynSlot {
+        callee: ValueId,
+        interface: DynInterfaceId,
+        slot: u32,
+        arguments: Vec<ValueId>,
+    },
+    /// Real stored-leaf selection from an actual storage Address.
+    LoadStoredBorrow {
+        storage: ValueId,
+        path: Vec<PlaceProjection>,
+        mode: StoredBorrowLoad,
+    },
+    /// Invariant initialized/vacant leaf store; new Hold precedes old release.
+    StoreStoredBorrow {
+        storage: ValueId,
+        path: Vec<PlaceProjection>,
+        value: ValueId,
+    },
     /// Construct an empty owning prefix; no allocation. Element metadata is a
     /// raw claim and must be independently checked before executable admission.
     OwnedStoreNew {
@@ -1493,10 +1908,27 @@ pub enum InstructionKind {
         value: Option<ValueId>,
         ordering: AtomicOrdering,
     },
+    /// Strong conditional RMW on an actual live sealed AtomicI32 cell.
+    /// Result is ordinary Tuple[I32, Bool]: observed value, then exchanged.
+    /// Raw fields carry no root, order compatibility or synchronization proof.
+    SyncI32CompareExchange {
+        address: ValueId,
+        expected: ValueId,
+        desired: ValueId,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    },
     /// Explicit allocation/execution root for a verified scalar Suspend worker.
     TaskStart {
         worker: FunctionId,
         argument: ValueId,
+    },
+    /// General fallible execution root. Arguments are evaluated/transferred once.
+    /// Result is ordinary TaskCreateError ! Managed(Task<actual worker result>).
+    /// Failure cleans all transferred inputs once; success owns a non-null frame.
+    TaskCreate {
+        worker: FunctionId,
+        arguments: Vec<ValueId>,
     },
     /// A source suspension point. Its live scalar state is spilled in the SABI frame.
     TaskYield,
@@ -1504,7 +1936,8 @@ pub enum InstructionKind {
     TaskValid {
         task: ValueId,
     },
-    /// Unique head authority; result status/value moves a Ready result at most once.
+    /// Unique head authority. TaskI32 keeps its compatibility status/value;
+    /// general Task<T> returns ordinary TaskPollState ! Poll<T>, moving Ready T once.
     TaskPoll {
         task: ValueId,
     },
@@ -1512,7 +1945,8 @@ pub enum InstructionKind {
     TaskRequestCancel {
         task: ValueId,
     },
-    /// Unique head authority; actual no-external scalar profile closes without hidden blocking.
+    /// Unique head authority. TaskI32 retains Bool; general Task<T> returns
+    /// ordinary Poll<Unit>. Pending retains all frame/child/result/loan obligations.
     TaskPollClose {
         task: ValueId,
     },
@@ -1609,6 +2043,52 @@ pub enum InstructionKind {
     PlaceTagLocal {
         local: LocalId,
         path: Vec<PlaceProjection>,
+    },
+    /// Borrow actual addressed inline storage through a nonempty bounded
+    /// mixed path. Derive all authority and root/parent loans from address;
+    /// every selected ancestor must be active and initialized. Never treats
+    /// an Address-valued local as inline pointee storage or crosses a view.
+    BorrowPlaceAddress {
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+        mutable: bool,
+    },
+    /// Observe the final live Enum/ErrorUnion header of actual addressed
+    /// storage. Empty path observes the pointee root. Every selected ancestor
+    /// tag/init is checked; i32 ordinal or ErrorUnion0 success/1 error. Header
+    /// reads grant neither payload authority nor permission to replace parent.
+    PlaceTagAddress {
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Prepare a replacement at actual initialized owning local storage.
+    /// This independent ticket is not a ValueId or an Address permission.
+    /// Preparing pins the location while allowing ordinary legal reads;
+    /// intersecting write/move/drop/storage invalidation is forbidden.
+    ReservePlaceLocal {
+        reservation: ReservationId,
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Prepare through a real mutable Address and retain its parent authority.
+    /// Never copies an exclusive permission or crosses a view implicitly.
+    ReservePlaceAddress {
+        reservation: ReservationId,
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Consume this activation after checking a complete exact-type new owner,
+    /// its actual Hold and all live loans. Activate the write, drop the old
+    /// owner once and commit with no recoverable failure between drop/store.
+    CommitPlaceReplace {
+        reservation: ReservationId,
+        value: ValueId,
+    },
+    /// Settle a prepared activation without changing its old initialized value.
+    /// Every exit and CFG join must settle active tickets; repeated loop
+    /// execution may create a new activation only after the previous settled.
+    AbortPlaceReservation {
+        reservation: ReservationId,
     },
     /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
     /// nonempty field path retains parent storage, initialization and mutability.
@@ -2039,11 +2519,25 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V37\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V41\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
     encode_text(bytes, &module.target.to_json());
+    encode_life_inventory(bytes, &module.life_declarations, &module.life_instances);
+    encode_len(bytes, module.dyn_declarations.len());
+    for row in &module.dyn_declarations {
+        encode_dyn_declaration(bytes, row);
+    }
+    encode_len(bytes, module.dyn_interfaces.len());
+    for row in &module.dyn_interfaces {
+        encode_dyn_interface(bytes, row);
+    }
+    encode_len(bytes, module.dyn_vtables.len());
+    for row in &module.dyn_vtables {
+        encode_dyn_vtable(bytes, row);
+    }
+
     encode_len(bytes, module.functions.len());
     for f in &module.functions {
         encode_function(bytes, f);
@@ -2071,6 +2565,7 @@ fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
         for index in &closure.lending_captures {
             encode_u32(bytes, *index);
         }
+        encode_storage_contract(bytes, &closure.storage_life);
     }
     encode_len(bytes, module.resources.len());
     for resource in &module.resources {
@@ -2108,8 +2603,267 @@ fn encode_optional_span(b: &mut impl FingerprintSink, s: Option<Span>) {
         encode_span(b, s);
     }
 }
+fn encode_storage_path(b: &mut impl FingerprintSink, path: &[PlaceProjection]) {
+    encode_len(b, path.len());
+    for step in path {
+        match step {
+            PlaceProjection::Field(i) => {
+                b.push(0);
+                encode_u32(b, *i);
+            }
+            PlaceProjection::Variant(p) => {
+                b.push(1);
+                encode_u32(b, p.variant);
+                encode_u32(b, p.index);
+            }
+            PlaceProjection::ErrorArm(error) => b.extend_from_slice(&[2, u8::from(*error)]),
+        }
+    }
+}
+fn encode_life_type_path(b: &mut impl FingerprintSink, path: &[LifeTypeProjection]) {
+    encode_len(b, path.len());
+    for step in path {
+        match step {
+            LifeTypeProjection::Place(p) => {
+                b.push(0);
+                encode_storage_path(b, std::slice::from_ref(p));
+            }
+            LifeTypeProjection::TypeArgument(i) => {
+                b.push(1);
+                encode_u32(b, *i);
+            }
+            LifeTypeProjection::Pointee => b.push(2),
+            LifeTypeProjection::Element => b.push(3),
+            LifeTypeProjection::Parameter(i) => {
+                b.push(4);
+                encode_u32(b, *i);
+            }
+            LifeTypeProjection::Result => b.push(5),
+            LifeTypeProjection::Port(i) => {
+                b.push(6);
+                encode_u32(b, *i);
+            }
+            LifeTypeProjection::AssociatedType(i) => {
+                b.push(7);
+                encode_u32(b, *i);
+            }
+        }
+    }
+}
+fn encode_storage_shape(b: &mut impl FingerprintSink, shape: &StorageLifeShape) {
+    encode_u32(b, shape.binder_count);
+    encode_len(b, shape.slots.len());
+    for slot in &shape.slots {
+        encode_storage_path(b, &slot.path);
+        encode_u32(b, slot.binder);
+        b.push(slot.mode as u8);
+    }
+    encode_len(b, shape.retained.len());
+    for binding in &shape.retained {
+        encode_life_type_path(b, &binding.path);
+        encode_u32(b, binding.class);
+        encode_u32(b, binding.binder);
+    }
+    encode_len(b, shape.nominal_arguments.len());
+    for argument in &shape.nominal_arguments {
+        encode_life_type_path(b, &argument.path);
+        encode_u32(b, argument.declaration.module.0);
+        encode_u32(b, argument.declaration.declaration.0);
+        b.push(u8::from(argument.declaration.compiler));
+        encode_u32(b, argument.argument);
+        encode_u32(b, argument.binder);
+    }
+}
+fn encode_declaration_id(b: &mut impl FingerprintSink, id: &LifeDeclarationId) {
+    encode_u32(b, id.module.0);
+    encode_u32(b, id.declaration.0);
+    b.push(u8::from(id.compiler));
+}
+fn encode_declaration_identity(b: &mut impl FingerprintSink, id: &LifeDeclarationIdentity) {
+    encode_text(b, &id.package);
+    for path in [&id.module_path, &id.declaration_path] {
+        encode_len(b, path.len());
+        for part in path {
+            encode_text(b, part);
+        }
+    }
+    encode_len(b, id.generation_path.len());
+    for part in &id.generation_path {
+        encode_u32(b, *part);
+    }
+}
+fn encode_parameter_kind(b: &mut impl FingerprintSink, kind: &LifeParameterKind) {
+    match kind {
+        LifeParameterKind::Type => b.push(0),
+        LifeParameterKind::Const(ty) => {
+            b.push(1);
+            encode_type(b, ty);
+        }
+        LifeParameterKind::Lifetime => b.push(2),
+    }
+}
+fn encode_storage_binder(b: &mut impl FingerprintSink, binder: &StorageBinder) {
+    match binder {
+        StorageBinder::Fixed(i) => {
+            b.push(0);
+            encode_u32(b, *i)
+        }
+        StorageBinder::Invocation(i) => {
+            b.push(1);
+            encode_u32(b, *i)
+        }
+    }
+}
+fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosition) {
+    match position.base {
+        StorageBase::Parameter(i) => {
+            b.push(0);
+            encode_u32(b, i)
+        }
+        StorageBase::Capture(i) => {
+            b.push(1);
+            encode_u32(b, i)
+        }
+        StorageBase::Result => b.push(2),
+    }
+    encode_len(b, position.path.len());
+    for step in &position.path {
+        match step {
+            ContractProjection::Place(p) => {
+                b.push(0);
+                encode_storage_path(b, std::slice::from_ref(p))
+            }
+            ContractProjection::RetainedPort(i) => {
+                b.push(1);
+                encode_u32(b, *i)
+            }
+            ContractProjection::RetainedClass(i) => {
+                b.push(2);
+                encode_u32(b, *i)
+            }
+        }
+    }
+}
+fn encode_life_maps(
+    b: &mut impl FingerprintSink,
+    retained: &[StorageRetainedBinding],
+    nominal_arguments: &[NominalLifeArgument],
+) {
+    encode_len(b, retained.len());
+    for binding in retained {
+        encode_life_type_path(b, &binding.path);
+        encode_u32(b, binding.class);
+        encode_u32(b, binding.binder);
+    }
+    encode_len(b, nominal_arguments.len());
+    for argument in nominal_arguments {
+        encode_life_type_path(b, &argument.path);
+        encode_declaration_id(b, &argument.declaration);
+        encode_u32(b, argument.argument);
+        encode_u32(b, argument.binder);
+    }
+}
+fn encode_retained_shape(b: &mut impl FingerprintSink, shape: &RetainedLifeShape) {
+    encode_u32(b, shape.binder_count);
+    encode_len(b, shape.ports.len());
+    for port in &shape.ports {
+        encode_type(b, &port.leaf);
+        b.push(port.mode as u8);
+        encode_u32(b, port.binder);
+    }
+    encode_life_maps(b, &shape.retained, &shape.nominal_arguments);
+}
+fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &StorageLifeContract) {
+    encode_u32(b, contract.fixed_binder_count);
+    encode_u32(b, contract.invocation_binder_count);
+    encode_len(b, contract.bindings.len());
+    for binding in &contract.bindings {
+        encode_storage_position(b, &binding.position);
+        encode_storage_binder(b, &binding.binder);
+    }
+    encode_len(b, contract.classes.len());
+    for binding in &contract.classes {
+        match binding.position.base {
+            StorageBase::Parameter(i) => {
+                b.push(0);
+                encode_u32(b, i);
+            }
+            StorageBase::Capture(i) => {
+                b.push(1);
+                encode_u32(b, i);
+            }
+            StorageBase::Result => b.push(2),
+        }
+        encode_life_type_path(b, &binding.position.path);
+        encode_u32(b, binding.position.class);
+        encode_storage_binder(b, &binding.binder);
+    }
+}
+fn encode_storage_contract(b: &mut impl FingerprintSink, contract: &Option<StorageLifeContract>) {
+    b.push(u8::from(contract.is_some()));
+    if let Some(contract) = contract {
+        encode_required_storage_contract(b, contract);
+    }
+}
+fn encode_retained_port_binding(b: &mut impl FingerprintSink, binding: &RetainedPortBinding) {
+    encode_u32(b, binding.port);
+    encode_storage_position(b, &binding.source);
+}
+fn encode_life_inventory(
+    b: &mut impl FingerprintSink,
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) {
+    encode_len(b, declarations.len());
+    for declaration in declarations {
+        encode_declaration_id(b, &declaration.id);
+        encode_declaration_identity(b, &declaration.identity);
+        b.push(match declaration.kind {
+            LifeNominalKind::Record => 0,
+            LifeNominalKind::Package => 1,
+            LifeNominalKind::Resource => 2,
+            LifeNominalKind::Enum => 3,
+        });
+        encode_len(b, declaration.parameters.len());
+        for parameter in &declaration.parameters {
+            encode_parameter_kind(b, parameter);
+        }
+    }
+    encode_len(b, instances.len());
+    for instance in instances {
+        encode_declaration_id(b, &instance.declaration);
+        encode_type(b, &instance.ty);
+        encode_len(b, instance.arguments.len());
+        for argument in &instance.arguments {
+            match argument {
+                LifeNominalActual::Type(ty) => {
+                    b.push(0);
+                    encode_type(b, ty)
+                }
+                LifeNominalActual::Const(value) => {
+                    b.push(1);
+                    encode_constant(b, value)
+                }
+                LifeNominalActual::Lifetime(i) => {
+                    b.push(2);
+                    encode_u32(b, *i)
+                }
+            }
+        }
+    }
+}
+
 fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     match t {
+        Type::Dyn { interface } => {
+            b.push(36);
+            encode_dyn_interface_id(b, interface);
+        }
+        Type::BorrowedStorage { storage, life } => {
+            b.push(35);
+            encode_storage_shape(b, life);
+            encode_type(b, storage)
+        }
         Type::Unit => b.push(0),
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
@@ -2130,6 +2884,14 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_type(b, environment);
         }
         Type::TaskI32 => b.push(33),
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            b.push(34);
+            encode_retained_shape(b, retained_life);
+            encode_type(b, result);
+        }
         Type::ForeignHandle => b.push(20),
         Type::SyncCell(kind) => {
             b.push(30);
@@ -2225,18 +2987,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             life,
         } => {
             b.push(31);
-            encode_u32(b, life.binder_count);
-            encode_len(b, life.parameter_lives.len());
-            for tag in &life.parameter_lives {
-                b.push(u8::from(tag.is_some()));
-                if let Some(tag) = tag {
-                    encode_u32(b, *tag);
-                }
-            }
-            b.push(u8::from(life.result_life.is_some()));
-            if let Some(tag) = life.result_life {
-                encode_u32(b, tag);
-            }
+            encode_required_storage_contract(b, life);
             encode_len(b, parameters.len());
             for ty in parameters {
                 encode_type(b, ty);
@@ -2260,6 +3011,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     b.push(f.call_kind as u8);
+    encode_storage_contract(b, &f.storage_life);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {
         encode_len(b, bound.len());
@@ -2397,6 +3149,33 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::MakeDynBorrow {
+            interface,
+            vtable,
+            source,
+            mutable,
+        } => {
+            b.push(131);
+            encode_dyn_interface_id(b, interface);
+            encode_dyn_vtable_id(b, vtable);
+            encode_u32(b, source.0);
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::CallDynSlot {
+            callee,
+            interface,
+            slot,
+            arguments,
+        } => {
+            b.push(132);
+            encode_u32(b, callee.0);
+            encode_dyn_interface_id(b, interface);
+            encode_u32(b, *slot);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
         InstructionKind::ConvertNumber { value, target } => {
             b.push(98);
             encode_u32(b, value.0);
@@ -2562,6 +3341,33 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for field in fields {
                 encode_u32(b, field.0);
             }
+        }
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode,
+        } => {
+            b.push(129);
+            encode_u32(b, storage.0);
+            encode_storage_path(b, path);
+            match mode {
+                StoredBorrowLoad::CopyShared => b.push(0),
+                StoredBorrowLoad::CopyDescription => b.push(1),
+                StoredBorrowLoad::Reborrow { mutable } => {
+                    b.extend_from_slice(&[2, u8::from(*mutable)])
+                }
+                StoredBorrowLoad::Take => b.push(3),
+            }
+        }
+        InstructionKind::StoreStoredBorrow {
+            storage,
+            path,
+            value,
+        } => {
+            b.push(130);
+            encode_u32(b, storage.0);
+            encode_storage_path(b, path);
+            encode_u32(b, value.0);
         }
         InstructionKind::DescribeAddress { address } => {
             b.push(109);
@@ -2737,6 +3543,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             }
             b.push(*ordering as u8);
         }
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            b.push(133);
+            encode_u32(b, address.0);
+            encode_u32(b, expected.0);
+            encode_u32(b, desired.0);
+            b.push(*success as u8);
+            b.push(*failure as u8);
+        }
         InstructionKind::TaskStart { worker, argument } => {
             b.push(99);
             encode_u32(b, worker.0);
@@ -2748,6 +3568,14 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
         } => {
             b.push(125);
             encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::TaskCreate { worker, arguments } => {
+            b.push(128);
+            encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
                 encode_u32(b, argument.0);
@@ -2905,6 +3733,99 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
                 b.push(u8::from(*mutable));
             }
+        }
+        InstructionKind::BorrowPlaceAddress { address, path, .. }
+        | InstructionKind::PlaceTagAddress { address, path } => {
+            b.push(if matches!(i, InstructionKind::BorrowPlaceAddress { .. }) {
+                126
+            } else {
+                127
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+            if let InstructionKind::BorrowPlaceAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::ReservePlaceLocal {
+            reservation,
+            local,
+            path,
+        } => {
+            b.push(121);
+            encode_u32(b, reservation.0);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+        }
+        InstructionKind::ReservePlaceAddress {
+            reservation,
+            address,
+            path,
+        } => {
+            b.push(122);
+            encode_u32(b, reservation.0);
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+        }
+        InstructionKind::CommitPlaceReplace { reservation, value } => {
+            b.push(123);
+            encode_u32(b, reservation.0);
+            encode_u32(b, value.0);
+        }
+        InstructionKind::AbortPlaceReservation { reservation } => {
+            b.push(124);
+            encode_u32(b, reservation.0);
         }
         InstructionKind::BorrowFieldLocal {
             local,
@@ -3165,7 +4086,7 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-6\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -3208,18 +4129,7 @@ fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterC
         b.push(callable_kind_tag(role.kind));
         b.push(u8::from(role.life.is_some()));
         if let Some(life) = &role.life {
-            encode_u32(b, life.binder_count);
-            encode_len(b, life.parameter_lives.len());
-            for tag in &life.parameter_lives {
-                b.push(u8::from(tag.is_some()));
-                if let Some(tag) = tag {
-                    encode_u32(b, *tag);
-                }
-            }
-            b.push(u8::from(life.result_life.is_some()));
-            if let Some(tag) = life.result_life {
-                encode_u32(b, tag);
-            }
+            encode_required_storage_contract(b, life);
         }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());

@@ -8,6 +8,7 @@ mod addresses;
 mod aggregate_templates;
 mod aggregates;
 mod borrowed_fp;
+mod borrowed_fp_qualified;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
@@ -24,6 +25,7 @@ mod functions;
 mod helpers;
 mod incremental;
 mod inference;
+mod interface_identity;
 pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod lifetimes;
@@ -33,6 +35,7 @@ mod names;
 mod owned_enums;
 mod owned_shapes;
 mod owning_factory;
+mod owning_place_replace;
 mod packages;
 mod partial_patterns;
 mod preparation;
@@ -53,6 +56,7 @@ mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
 mod store_templates;
+mod stored;
 mod tasks;
 mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
@@ -60,6 +64,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
@@ -127,6 +132,34 @@ fn signatures(
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
     'function: for f in &core.functions {
+        if f.storage_life.is_some()
+            && (f.foreign.is_some()
+                || !f.type_parameters.is_empty()
+                || !f.state_parameters.is_empty()
+                || f.callable_return.is_some())
+        {
+            return Err(vec![unsupported(
+                f.span,
+                "stored-borrow generic, foreign or returned callable signature requires its definition consumer",
+            )]);
+        }
+        if let Some(life) = &f.storage_life {
+            borrowed_fp::charge_contract(
+                life,
+                |cost| {
+                    foreign_work = foreign_work.checked_sub(cost).ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "complete static signature budget exceeded",
+                            Some(f.span),
+                        )
+                    })?;
+                    Ok(())
+                },
+                1,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
+        }
         if let Some(life) = &f.life {
             foreign_work = foreign_work
                 .checked_sub(
@@ -183,25 +216,11 @@ fn signatures(
             }
         }
         if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
-            let work = inference::type_snapshot_work(
-                ty,
-                span,
-                &Limits {
-                    max_analysis_steps: foreign_work,
-                    ..limits.clone()
-                },
-            )?;
-            foreign_work = foreign_work
-                .checked_sub(work.saturating_mul(2))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "ordinary Sum helper parameter qualification budget exceeded",
-                        Some(span),
-                    )
-                })?;
-            Ok(())
+            inference::charge_type_snapshot(ty, span, limits, &mut foreign_work, 2)
         }) {
+            if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                return Err(vec![diagnostic]);
+            }
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = store_templates::validate_header(f) {
@@ -218,6 +237,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
@@ -291,6 +311,8 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
+        || stored::shared_value(&f.return_type)
+        || stored::shared_address(&f.return_type)
         || reference_patterns::sum_address(&f.return_type)
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
@@ -334,6 +356,8 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         }
         if !(p.ty.is_copy_value()
             || p.ty.is_scalar_or_address()
+            || stored::shared_value(&p.ty)
+            || stored::shared_address(&p.ty)
             || reference_patterns::sum_address(&p.ty)
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
@@ -358,6 +382,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
                 || p.ty.is_shared_sync_cell_address()
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()
+                || stored::shared_address(&p.ty)
                 || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::BorrowMut
                 && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
@@ -476,8 +501,13 @@ pub fn check(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resource_definitions, &mut remaining)
-        .map_err(|e| vec![e])?;
+    tasks::add_definition(
+        &functions,
+        &mut resource_definitions,
+        &mut remaining,
+        limits,
+    )
+    .map_err(|e| vec![e])?;
     registration::add_definitions(&functions, &mut resource_definitions, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
@@ -490,7 +520,14 @@ pub fn check(
         limits,
     )
     .map_err(|e| vec![e])?;
+    let (life_declarations, life_instances) =
+        stored::copy_inventory(core, &mut remaining, limits).map_err(|e| vec![e])?;
     let mut module = TypedModule {
+        life_declarations,
+        life_instances,
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
         module_id: core.module_id,
@@ -543,6 +580,8 @@ struct Builder<'a, 'c> {
     next_unsafe_region: u32,
     resource_temps: Vec<LocalId>,
     resource_temp_floor: usize,
+    next_replacement: u32,
+    prepared_replacements: Vec<owning_place_replace::Prepared>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
@@ -567,10 +606,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
+        if let Some(contract) = &f.storage_life {
+            borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
+        }
         let first_closure = closures.pending.len();
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
+                storage_life: f.storage_life.clone(),
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,
@@ -627,6 +670,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             next_unsafe_region: 0,
             resource_temps: Vec::new(),
             resource_temp_floor: 0,
+            next_replacement: 0,
+            prepared_replacements: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
@@ -655,7 +700,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(b)
     }
-    fn resolve_callee(&self, callee: &CoreExpr) -> R<&Signature> {
+    fn resolve_callee(&self, callee: &CoreExpr) -> R<&'a Signature> {
         match &callee.kind {
             CoreExprKind::Name(name) => {
                 if self.lookup(name).is_some() {
@@ -733,6 +778,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.block(body)?;
         if self.current.is_some() {
             if self.function.return_type == Type::Unit {
+                if !self.prepared_replacements.is_empty() {
+                    return Err(error(
+                        "E-PLACE-REPLACE",
+                        body.span,
+                        "ordinary function completion leaves an owning replacement prepared",
+                    ));
+                }
                 self.end_scopes_kind(0, CleanupExitKind::Return, body.span)?;
                 self.terminate(Terminator::Return(None));
             } else {
@@ -787,7 +839,8 @@ impl<'a, 'c> Builder<'a, 'c> {
         span: Span,
         start: bool,
     ) -> R<LocalId> {
-        if scoped_thread::sync_primitive(name).is_some() || matches!(name, "MutexI32" | "AtomicI32")
+        if scoped_thread::sync_primitive(name).is_some()
+            || matches!(name, "MutexI32" | "AtomicI32" | "atomic_compare_exchange")
         {
             return Err(error(
                 "E-SYNC-NAME",
@@ -1020,6 +1073,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.end_scopes_kind(depth, CleanupExitKind::Fallthrough, span)
     }
     fn end_scopes_kind(&mut self, depth: usize, kind: CleanupExitKind, span: Span) -> R<()> {
+        self.abort_exiting_replacements(depth, kind, span)?;
         for index in (depth..self.scopes.len()).rev() {
             let mut locals = self.scopes[index].values().copied().collect::<Vec<_>>();
             locals.sort_unstable_by(|a, b| b.cmp(a));
@@ -1090,11 +1144,19 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn stmt(&mut self, s: &CoreStatement) -> R<()> {
         let previous = self.resource_temp_floor;
+        let replacement_floor = self.prepared_replacements.len();
         self.resource_temp_floor = self.resource_temps.len();
         let result = (|| {
             let rewritten = self.rewrite_managed_statement(s)?;
             self.stmt_inner(rewritten.as_ref().unwrap_or(s))?;
             if self.current.is_some() {
+                if self.prepared_replacements.len() != replacement_floor {
+                    return Err(error(
+                        "E-PLACE-REPLACE",
+                        s.span,
+                        "normal statement failed to settle its owning replacement",
+                    ));
+                }
                 self.finish_resource_temps(s.span)?;
             }
             Ok(())
@@ -1605,13 +1667,54 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.inject_error_union(value, actual, union, e.span)
     }
     fn expr_non_call(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
-        let result = match &e.kind {
-            CoreExprKind::Literal(value) => {
-                foreign::check_literal(value, e.span)?;
-                self.constant(value.clone(), e.span)?
+        // These variants historically return before the common expected-type
+        // comparison. Preserve that behavior while keeping recursive dispatch
+        // free of unrelated literal/member temporary storage.
+        match &e.kind {
+            CoreExprKind::Name(..) => return self.scalar_expr_name(e, expected),
+            CoreExprKind::NumericConvert { value, target } => {
+                return self.numeric_conversion(value, target, expected, e.span);
             }
-            CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty))?,
-            CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected)?,
+            CoreExprKind::Binary {
+                op: BinaryOp::And,
+                left,
+                right,
+            } => {
+                return self.short_circuit(left, right, false, e.span);
+            }
+            CoreExprKind::Binary {
+                op: BinaryOp::Or,
+                left,
+                right,
+            } => {
+                return self.short_circuit(left, right, true, e.span);
+            }
+            CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
+            CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
+            CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
+            CoreExprKind::Member { .. } => return self.expr_member_body(e, expected),
+            _ => {}
+        }
+        let result = self.expr_non_call_value(e, expected)?;
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, e.span)?
+        }
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_non_call_value(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        match &e.kind {
+            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => Err(
+                unsupported(e.span, "dyn expression consumer is not yet implemented"),
+            ),
+            CoreExprKind::Literal(_)
+            | CoreExprKind::Float(_)
+            | CoreExprKind::Integer(_)
+            | CoreExprKind::Bool(_)
+            | CoreExprKind::Unit => self.expr_literal_body(e, expected),
+            CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty)),
+            CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected),
             CoreExprKind::Try(operand) => {
                 if self.defer_body {
                     return Err(error(
@@ -1620,93 +1723,98 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "a defer body cannot propagate an error outside its cleanup boundary",
                     ));
                 }
-                self.try_expr(operand, e.span)?
+                self.try_expr(operand, e.span)
             }
-            CoreExprKind::Float(text) => {
-                self.closures
-                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
-                self.constant(floats::literal(text, expected, e.span)?, e.span)?
-            }
-            CoreExprKind::NumericConvert { value, target } => {
-                return self.numeric_conversion(value, target, expected, e.span);
-            }
-            CoreExprKind::Integer(text) => {
-                self.constant(integer(text, expected, false, e.span)?, e.span)?
-            }
-            CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span)?,
-            CoreExprKind::Unit => self.constant(Constant::Unit, e.span)?,
-            CoreExprKind::Name(..) => return self.scalar_expr_name(e, expected),
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
-            } => self.resource_give(operand, e.span)?,
+            } => self.resource_give(operand, e.span),
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow,
                 operand,
-            } => self.borrow_place(operand)?,
+            } => self.borrow_place(operand),
             CoreExprKind::Unary {
                 op: UnaryOp::BorrowMut,
                 operand,
-            } => self.borrow_place_mode(operand, true)?,
+            } => self.borrow_place_mode(operand, true),
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
                 ..
-            } => self.scalar_expr_dereference(e, expected)?,
+            } => self.scalar_expr_dereference(e, expected),
             CoreExprKind::Unary {
                 op: UnaryOp::Negate,
                 operand,
             } if matches!(operand.kind, CoreExprKind::Integer(_)) => {
-                let CoreExprKind::Integer(text) = &operand.kind else {
-                    unreachable!()
-                };
-                self.constant(integer(text, expected, true, e.span)?, e.span)?
+                self.expr_literal_body(e, expected)
             }
-            CoreExprKind::Unary { .. } => self.scalar_expr_unary(e, expected)?,
-            CoreExprKind::Binary {
-                op: BinaryOp::And,
-                left,
-                right,
-            } => return self.short_circuit(left, right, false, e.span),
-            CoreExprKind::Binary {
-                op: BinaryOp::Or,
-                left,
-                right,
-            } => return self.short_circuit(left, right, true, e.span),
-            CoreExprKind::Binary { .. } => self.scalar_expr_binary(e, expected)?,
-            CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
-            CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
-            CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
-            CoreExprKind::Closure { .. } => self.scalar_expr_closure(e, expected)?,
-            CoreExprKind::Member { .. } if self.enum_constructor(e)?.is_some() => {
-                let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
-                return self.make_variant(&ty, variant, &[], expected, e.span);
-            }
-            CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
-                self.function_reference(e, expected)?
-            }
-            CoreExprKind::Member { object, .. }
-                if matches!(object.kind, CoreExprKind::Member { .. })
-                    && !self.package_captures.is_empty() =>
-            {
-                if let Some(value) = self.captured_product_copy_projection(e)? {
-                    value
-                } else {
-                    self.aggregate(e, expected)?
-                }
-            }
+            CoreExprKind::Unary { .. } => self.scalar_expr_unary(e, expected),
+            CoreExprKind::Binary { .. } => self.scalar_expr_binary(e, expected),
+            CoreExprKind::Closure { .. } => self.scalar_expr_closure(e, expected),
             CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_)
             | CoreExprKind::Index { .. }
             | CoreExprKind::Record { .. }
-            | CoreExprKind::RecordUpdate { .. }
-            | CoreExprKind::Member { .. } => self.aggregate(e, expected)?,
-            CoreExprKind::Unsupported(feature) => return Err(unsupported(e.span, feature)),
-            _ => {
-                return Err(unsupported(
-                    e.span,
-                    "aggregate, closure, string or projection typing",
-                ));
+            | CoreExprKind::RecordUpdate { .. } => self.aggregate(e, expected),
+            CoreExprKind::Unsupported(feature) => Err(unsupported(e.span, feature)),
+            _ => Err(unsupported(
+                e.span,
+                "aggregate, closure, string or projection typing",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_literal_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        match &e.kind {
+            CoreExprKind::Literal(value) => {
+                foreign::check_literal(value, e.span)?;
+                self.constant(value.clone(), e.span)
             }
+            CoreExprKind::Float(text) => {
+                self.closures
+                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
+                self.constant(floats::literal(text, expected, e.span)?, e.span)
+            }
+            CoreExprKind::Integer(text) => {
+                self.constant(integer(text, expected, false, e.span)?, e.span)
+            }
+            CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span),
+            CoreExprKind::Unit => self.constant(Constant::Unit, e.span),
+            CoreExprKind::Unary {
+                op: UnaryOp::Negate,
+                operand,
+            } => {
+                let CoreExprKind::Integer(text) = &operand.kind else {
+                    unreachable!()
+                };
+                self.constant(integer(text, expected, true, e.span)?, e.span)
+            }
+            _ => unreachable!("literal expression dispatcher"),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_member_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Member { object, .. } = &e.kind else {
+            unreachable!("member expression dispatcher")
+        };
+        if self.enum_constructor(e)?.is_some() {
+            let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
+            return self.make_variant(&ty, variant, &[], expected, e.span);
+        }
+        let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
+        {
+            self.function_reference(e, expected)?
+        } else if matches!(object.kind, CoreExprKind::Member { .. })
+            && !self.package_captures.is_empty()
+        {
+            if let Some(value) = self.captured_product_copy_projection(e)? {
+                value
+            } else {
+                self.aggregate(e, expected)?
+            }
+        } else {
+            self.aggregate(e, expected)?
         };
         if let Some(expected) = expected {
             self.same(&result.1, expected, e.span)?
@@ -1715,7 +1823,7 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn expr_direct_call(
         &mut self,
-        signature: Signature,
+        signature: &Signature,
         arguments: &[CoreExpr],
         expected: Option<&Type>,
         span: Span,
@@ -1739,13 +1847,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                 values.push(self.stage_argument(v, &actual, a.span)?)
             }
             let values = self.commit_arguments(values, span)?;
-            let call = self.direct_call(&signature, values, span)?;
+            let call = self.direct_call(signature, values, span)?;
             if signature.result == Type::Unit {
                 self.emit(call, None, span)?;
                 self.constant(Constant::Unit, span)?
             } else {
                 let id = self.value(call, signature.result.clone(), span)?;
-                (id, signature.result)
+                (id, signature.result.clone())
             }
         };
         if let Some(expected) = expected {
@@ -1814,6 +1922,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 return Ok((value, Type::I64));
             }
+            if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
+                return self.compare_exchange_call(arguments, expected, e.span);
+            }
             if let CoreExprKind::Name(name) = &callee.kind
                 && let Some((kind, op)) = scoped_thread::sync_primitive(name)
             {
@@ -1839,12 +1950,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 member,
                 owner,
             } = &callee.kind
-                && let Some(signature) = self.method_signature(object, member).cloned()
+                && let Some(signature) = self.method_signature(object, member)
             {
                 return self.method_call(
                     object,
                     arguments,
-                    &signature,
+                    signature,
                     owner.as_ref(),
                     expected,
                     e.span,
@@ -1861,7 +1972,10 @@ impl<'a, 'c> Builder<'a, 'c> {
             if !direct {
                 return self.call_closure(callee, arguments, expected, e.span);
             }
-            let signature = self.resolve_callee(callee)?.clone();
+            // Declaration tables outlive this builder. Keep their signature
+            // borrowed across recursive arguments instead of retaining another
+            // complete signature snapshot in every host call frame.
+            let signature = self.resolve_callee(callee)?;
             if signature.type_parameter.is_some() {
                 return self.call_inferred_type_template(signature, arguments, expected, e.span);
             }
@@ -1875,7 +1989,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ));
             }
             if !signature.callable.is_empty() {
-                return self.call_helper(&signature, arguments, expected, e.span);
+                return self.call_helper(signature, arguments, expected, e.span);
             }
             self.expr_direct_call(signature, arguments, expected, e.span)
         }
@@ -2221,6 +2335,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
+                    || stored::shared_value(ty)
+                    || (*op == UnaryOp::BorrowMut && matches!(ty,Type::Managed(_)) && tasks::resource(ty))
                     || owned_shapes::sum(ty)
                     || matches!(ty, Type::Package { .. })
                     || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)
@@ -2234,6 +2350,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 operand,
             } => match self.known_type(operand)? {
                 Type::Address { inner, .. } if inner.is_address_pointee()
+                    || stored::shared_value(&inner)
                     || owned_shapes::sum(&inner)
                     || matches!(inner.as_ref(), Type::Package { .. }) => Some(*inner),
                 _ => None,
@@ -2332,8 +2449,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         ) = expected
         {
             if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                if !life.classes.is_empty() {
+                    self.closures.snapshot_type(
+                        expected.expect("matched borrowed pointer"),
+                        2,
+                        0,
+                        span,
+                    )?;
+                }
                 self.closures
                     .snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.closures.snapshot(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(
@@ -2362,6 +2490,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 callable_return: None,
@@ -2558,6 +2687,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            storage_life: None,
             call_kind: None,
             life: None,
             callable_return: None,
@@ -3124,12 +3254,18 @@ mod tests {
     }
     fn module(value: CoreExpr) -> CoreModule {
         CoreModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 callable_return: None,

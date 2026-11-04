@@ -9,6 +9,11 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
     let span = Span::new(FileId(0), 0, 1);
     let ty = left.ty();
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"124 independent raw shift"),
@@ -17,6 +22,7 @@ fn module(left: Constant, right: Constant, op: BinaryOp) -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),

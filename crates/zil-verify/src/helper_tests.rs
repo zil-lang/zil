@@ -47,6 +47,7 @@ impl Body {
     fn new(id: u32) -> Self {
         Self {
             f: TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
@@ -314,12 +315,18 @@ fn fixture(
     };
     let mut raw = Raw {
         module: TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"independent raw helper fixtures"),
             target: TargetProfile::host_llvm(),
             functions: vec![],
             closures: vec![ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(1),

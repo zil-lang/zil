@@ -134,18 +134,33 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<()> {
         let (value, ty) = self.transfer_expr(expression, None)?;
-        let work = inference::type_snapshot_work(&ty, span, self.limits)?;
-        self.closures
-            .snapshot(work.saturating_mul(3).saturating_add(arms.len()), span)?;
+        self.owned_enum_match_value(value, ty, arms, span)
+    }
+    pub(super) fn owned_enum_match_value(
+        &mut self,
+        value: ValueId,
+        ty: Type,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
+        self.closures.snapshot_type(&ty, 3, arms.len(), span)?;
         // End the scrutinee's full-expression preparation before the hidden
         // match owner is registered. These older temporaries can still own
         // resource headers used only to compute Copy payload expressions.
-        self.finish_resource_temps(expression.span)?;
-        let hidden = self.temp(ty.clone(), expression.span)?;
-        self.store(hidden, value, expression.span)?;
+        self.finish_resource_temps(span)?;
+        let hidden = self.temp(ty.clone(), span)?;
+        self.store(hidden, value, span)?;
         self.check_match_coverage(&ty, arms, span)?;
+        // Mutually exclusive arms start with the same prepared owners. A
+        // cleanup emitted for one arm must not remove another arm's debt.
+        self.closures.snapshot(self.resource_temps.len(), span)?;
+        let prepared = self.resource_temps[self.resource_temp_floor..].to_vec();
         let mut ends = Vec::new();
         for arm in arms {
+            self.closures.snapshot(prepared.len(), arm.span)?;
+            self.resource_temps.truncate(self.resource_temp_floor);
+            self.resource_temps.extend_from_slice(&prepared);
+
             let fail = self.block_id()?;
             let mut copies = Vec::new();
             self.observe_owned_pattern(

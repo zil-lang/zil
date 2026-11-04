@@ -174,7 +174,8 @@ impl Materializer<'_, '_> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             s::PatternKind::Name(name) => self.bind_name(name, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => self.bind(pattern, depth + 1)?,
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => self.bind(pattern, depth + 1)?,
             s::PatternKind::RecordConstructor { fields, .. } => {
                 for field in fields {
                     self.budget.node(field.span, depth + 1)?;
@@ -400,6 +401,10 @@ impl Materializer<'_, '_> {
             self.substitute(e)?;
         }
         match &mut e.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                charge_ascribed_type(self.budget, ty, depth + 1)?;
+                self.expression(value, depth + 1)?;
+            }
             s::ExprKind::Group(e)
             | s::ExprKind::Try(e)
             | s::ExprKind::MetaEval(e)
@@ -428,6 +433,7 @@ impl Materializer<'_, '_> {
                 self.expression(callee, depth + 1)?;
                 for a in arguments {
                     match a {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Const(e) => self.expression(e, depth + 1)?,
                         s::GenericArg::Type(ty) if !self.iterations.is_empty() => {
                             self.generation_type(ty, depth + 1)?;
@@ -520,4 +526,17 @@ impl Materializer<'_, '_> {
         }
         Ok(())
     }
+}
+
+fn charge_ascribed_type(budget: &mut Budget, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+    struct Paid<'a>(&'a mut Budget);
+    impl Visitor for Paid<'_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.0.node(span, depth)
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.0.text(text, span)
+        }
+    }
+    syntax::walk_type(&mut Paid(budget), ty, depth)
 }

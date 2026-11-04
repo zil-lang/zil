@@ -64,6 +64,7 @@ impl Body {
     fn new(id: u32, name: &str, result: Type) -> Self {
         Self {
             function: TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(id),
@@ -246,6 +247,11 @@ fn external(parameters: Vec<Type>) -> (TypedFunction, FunctionPlan) {
 fn case(parts: Vec<(TypedFunction, FunctionPlan)>) -> Case {
     let (functions, plans) = parts.into_iter().unzip();
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"082 independent raw fixture"),

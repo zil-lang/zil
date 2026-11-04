@@ -680,6 +680,7 @@ mod tests203 {
     fn fixture() -> (TypedModule, Type) {
         let closures = (0..2)
             .map(|id| ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(id),
                 function: FunctionId(id),
                 kind: CallableKind::Fn,
@@ -690,6 +691,11 @@ mod tests203 {
             })
             .collect();
         let module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"203 producer raw qualification"),

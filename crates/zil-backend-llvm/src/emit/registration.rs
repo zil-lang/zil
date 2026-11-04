@@ -647,6 +647,12 @@ pub(super) fn reserve_function(
             )]);
         }
         match t {
+            Type::Dyn { .. } => {
+                return unsupported(
+                    "dynamic registration environments require explicit retained interface lowering",
+                    None,
+                );
+            }
             Type::Closure(id) => {
                 meter.spend(active.len().saturating_add(1))?;
                 if !active.insert(*id) {
@@ -674,11 +680,13 @@ pub(super) fn reserve_function(
                 if matches!(
                     p.as_ref(),
                     Type::Registration { .. }
+                        | Type::Task { .. }
                         | Type::TaskI32
                         | Type::ByteBuffer
                         | Type::OwnedStore { .. }
                 ) => {}
-            Type::Managed(t)
+            Type::BorrowedStorage { storage: t, .. }
+            | Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
             | Type::Registration { environment: t }
@@ -728,6 +736,7 @@ pub(super) fn reserve_function(
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ByteBuffer
+            | Type::Task { .. }
             | Type::TaskI32
             | Type::SyncCell(_) => {}
         }
@@ -787,6 +796,7 @@ mod tests {
         // Internal planning fixture only; source/runtime/Verify evidence lives
         // in the driver tests. This does not grant authority to the raw model.
         let f = TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -824,6 +834,7 @@ mod tests {
                 .collect(),
         };
         let definition = ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(3),
             parameters: vec![Type::I32],

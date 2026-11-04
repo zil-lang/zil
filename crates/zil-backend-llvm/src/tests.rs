@@ -76,6 +76,7 @@ fn function(
     blocks: Vec<BasicBlock>,
 ) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -147,6 +148,11 @@ fn checked_with_closures(
     claims: BoundaryClaims,
 ) -> VerifiedModule {
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(17),
@@ -1377,6 +1383,7 @@ fn runtime_closure_environments_are_independent_copies_and_repeatable() {
     let verified = checked_with_closures(
         vec![check, calculate, closure],
         vec![ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(2),
@@ -1546,6 +1553,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
         vec![check, mixed, unit, empty],
         vec![
             ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(1),
@@ -1555,6 +1563,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
                 kind: CallableKind::Fn,
             },
             ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: ClosureId(1),
                 function: FunctionId(2),
@@ -1564,6 +1573,7 @@ fn empty_environments_and_unit_mixed_fields_use_one_consistent_native_abi() {
                 kind: CallableKind::Fn,
             },
             ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: ClosureId(2),
                 function: FunctionId(3),
@@ -1612,6 +1622,7 @@ fn empty_closure_fixture(environment_name: &str) -> VerifiedModule {
     checked_with_closures(
         vec![check, closure],
         vec![ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),

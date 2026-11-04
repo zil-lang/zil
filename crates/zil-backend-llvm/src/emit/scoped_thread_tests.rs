@@ -20,6 +20,7 @@ fn function(
     returned: u32,
 ) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -195,6 +196,7 @@ fn model() -> (m::Module, LirModule) {
         target: TargetProfile::host_llvm(),
         functions: vec![parent, worker, body, observer],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             id: closure,
             function: FunctionId(2),
             captures: vec![],
@@ -234,6 +236,7 @@ fn model() -> (m::Module, LirModule) {
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
         code.append(
             FunctionEmitter {
+                task_ownership: None,
                 function: f,
                 target: &lir.target,
                 functions: &functions,
@@ -245,6 +248,7 @@ fn model() -> (m::Module, LirModule) {
                 temporary: 0,
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
+                replacements: BTreeMap::new(),
                 partial_sums: BTreeMap::new(),
                 safe_divisors: None,
                 copy_values: &BTreeMap::new(),

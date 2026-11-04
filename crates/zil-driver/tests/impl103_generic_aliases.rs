@@ -318,7 +318,9 @@ fn declarations_and_phantom_arguments_are_checked_even_when_unused() {
         "type Ignore<T>=i64;type Bad=Ignore<i32<i64>>;fn value(){}",
         "type Id<T>=T;fn value(x:Id){}",
         "struct Cell<T>{x:T;}type Entry<T>=Cell<T>;fn value(){let x=Entry{x:1}}",
-        "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;fn value(x:Maybe<i64>){match x{Maybe.None()=>{},Maybe.Some(_)=>{}}}",
+        "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;type Bad=Maybe<i64,bool>;fn value(){}",
+        "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;fn value(x:Maybe<i64>){match x{Maybe.None()=>{},Maybe.Some(_,_)=>{}}}",
+        "enum Pair<A,B>{Both(A,B)}type Same<T>=Pair<T,T>;fn value(x:Pair<i64,bool>){match x{Same.Both(_,_)=>{}}}",
     ] {
         rejection(text, ResultCategory::SafeReject, "E-GENERIC-ARGUMENT");
     }
@@ -333,6 +335,20 @@ fn declarations_and_phantom_arguments_are_checked_even_when_unused() {
     ] {
         rejection(text, ResultCategory::Unsupported, "E-UNSUPPORTED");
     }
+    // Exact parameter forwarding is an existing nominal-family alias path.
+    // Keep the former negative unchanged as a full pipeline positive, then
+    // exercise both variants and the real i64 payload through that same path.
+    success(&check(
+        "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;fn value(x:Maybe<i64>){match x{Maybe.None()=>{},Maybe.Some(_)=>{}}}",
+    ));
+    let forwarded = "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;fn read(x:Maybe<i64>)->i64{match x{Maybe.None()=>{return 2},Maybe.Some(n)=>{return n}}}fn value()->i64{return read(Maybe::<i64>.Some(40))+read(Maybe::<i64>.None())}";
+    native(forwarded, 42);
+    native(
+        &forwarded
+            .replace("type Maybe<T>=LegacyOption<T>;", "")
+            .replace("Maybe", "LegacyOption"),
+        42,
+    );
     success(&check("type Optional<T>=T?;fn value(){}"));
     native(
         "type Optional<T>=T?;fn value()->i64{let x:Optional<i64>=Option.Some(42);match x{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",

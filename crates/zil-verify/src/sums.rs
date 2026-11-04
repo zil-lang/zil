@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
 mod partial_places;
+pub(super) mod replacements;
 
 pub(super) fn owned_enum(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && !ty.is_copy_value()
@@ -980,6 +981,7 @@ impl State {
 #[derive(Default)]
 pub(super) struct Proofs {
     pub(super) rows: Vec<Vec<Vec<Bridge>>>,
+    pub(super) replacement_writes: Vec<BTreeSet<resources::Root>>,
 }
 type FieldFresh = Vec<(usize, u8)>;
 type UnpackedFresh = (LocalId, u8, FieldFresh);
@@ -1012,6 +1014,7 @@ struct Flow<'a> {
     summaries: &'a [Content],
     partial: bool,
     place_meta: Option<partial_places::Meta>,
+    replacements: Option<&'a replacements::Context<'a>>,
 }
 
 impl Flow<'_> {
@@ -1313,6 +1316,11 @@ impl Flow<'_> {
                             .forget_copy_tags(&self.f.locals[local].ty, budget)?;
                     }
                 }
+            }
+            if let Some(context) = self.replacements
+                && let Some(value) = context.step(self, state, instruction, validate, budget)?
+            {
+                result = Some(value);
             }
             match &instruction.kind {
                 InstructionKind::BorrowLocalMut { local }
@@ -1699,12 +1707,21 @@ impl Flow<'_> {
                     function,
                     arguments,
                 } => {
-                    let mut returned = self.instantiate(
-                        &self.summaries[function.0 as usize],
-                        arguments,
-                        state,
-                        budget,
-                    )?;
+                    let result_ty = &self.module.functions[function.0 as usize].return_type;
+                    resources::charge_payload(result_ty, budget)?;
+                    let mut returned = if result_ty.is_copy_value() {
+                        // Copy callees have no owning-source summary. Its
+                        // bottom placeholder is not an impossible runtime
+                        // value: rebuild all actual Copy alternatives.
+                        content(result_ty, None, &mut Vec::new(), false, budget)?
+                    } else {
+                        self.instantiate(
+                            &self.summaries[function.0 as usize],
+                            arguments,
+                            state,
+                            budget,
+                        )?
+                    };
                     returned.returned(budget)?;
                     if self.module.functions[function.0 as usize].result_mode == PassingMode::Create
                         && errors::managed_success(
@@ -1764,6 +1781,18 @@ fn run(
     summaries: &[Content],
     validate: bool,
     budget: &mut Budget,
+) -> Check<(Content, Vec<Vec<Bridge>>)> {
+    run_with_replacements(module, f, graph, summaries, validate, budget, None)
+}
+#[allow(clippy::too_many_arguments)]
+fn run_with_replacements(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    summaries: &[Content],
+    validate: bool,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Context<'_>>,
 ) -> Check<(Content, Vec<Vec<Bridge>>)> {
     let mut locals = Vec::new();
     let mut values = Vec::new();
@@ -1836,6 +1865,7 @@ fn run(
         observers,
         summaries,
         partial,
+        replacements,
         place_meta: if partial {
             Some(partial_places::Meta::new(f, budget)?)
         } else {
@@ -1884,6 +1914,9 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Proofs> {
+    if budget.replacements {
+        return replacements::check(module, graphs, budget);
+    }
     if !budget.sums {
         return Ok(Proofs::default());
     }
@@ -1990,5 +2023,8 @@ pub(super) fn check_module(
             run(module, f, &graphs[index], &summaries, true, budget)?.1
         });
     }
-    Ok(Proofs { rows })
+    Ok(Proofs {
+        rows,
+        ..Proofs::default()
+    })
 }

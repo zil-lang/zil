@@ -180,6 +180,76 @@ mod reviewer332_thread_lease {
         assert_eq!(zero.work_left, 0);
         assert_eq!(zero.pending[0].inference.graph.work_left.get(), before);
     }
+    #[test]
+    fn qualified_pending_snapshots_pay_storage_and_metadata_before_copying() {
+        let mut costs = Vec::new();
+        for width in [4, 32] {
+            let ty = Type::BorrowedStorage {
+                storage: Box::new(Type::Record {
+                    name: "ScopedRecord".into(),
+                    fields: (0..width)
+                        .map(|i| {
+                            (
+                                format!("field_{i}"),
+                                Type::Address {
+                                    mutable: false,
+                                    inner: Box::new(Type::I32),
+                                },
+                            )
+                        })
+                        .collect(),
+                }),
+                life: StorageLifeShape {
+                    binder_count: 1,
+                    slots: (0..width)
+                        .map(|i| StorageLifeSlot {
+                            path: vec![PlaceProjection::Field(i)],
+                            binder: 0,
+                            mode: StoredBorrowMode::SharedAddress,
+                        })
+                        .collect(),
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            };
+            let mut ample = pending_state(Some(ty.clone()), 1);
+            let before = ample.work_left;
+            assert_eq!(ample.thread_result(ClosureId(0)).unwrap(), Some(ty.clone()));
+            let cost = before - ample.work_left;
+            assert!(cost > width as usize * 2);
+            for allowance in [cost, cost - 1, cost] {
+                let mut state = pending_state(Some(ty.clone()), 1);
+                state.work_left = allowance;
+                let result = state.thread_result(ClosureId(0));
+                if allowance == cost {
+                    assert_eq!(result.unwrap(), Some(ty.clone()));
+                    assert_eq!(state.work_left, 0);
+                } else {
+                    exhausted(result);
+                }
+            }
+            costs.push(cost);
+        }
+        assert!(costs[1] > costs[0]);
+        let limits = Limits {
+            max_call_depth: 2,
+            ..Limits::default()
+        };
+        let graph = Graph::new(&limits);
+        let mut deep = Type::I32;
+        for _ in 0..4 {
+            deep = Type::BorrowedStorage {
+                storage: Box::new(deep),
+                life: StorageLifeShape {
+                    binder_count: 0,
+                    slots: vec![],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                },
+            };
+        }
+        exhausted(graph.reserve_type(&deep, 0, Span::default()));
+    }
 }
 impl Capture {
     pub fn stored_type(&self) -> Type {
@@ -435,6 +505,90 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn snapshot_type(
+        &mut self,
+        ty: &Type,
+        copies: usize,
+        extra: usize,
+        span: Span,
+    ) -> R<()> {
+        self.snapshot(extra, span)?;
+        inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
+    }
+
+    pub(super) fn snapshot_helper(
+        &mut self,
+        function: &CoreFunction,
+        copies: usize,
+    ) -> R<(usize, bool)> {
+        let allowance = self
+            .work_left
+            .checked_div(copies)
+            .ok_or_else(|| limit("invalid helper snapshot multiplier", function.span))?;
+        let (work, shapes) = inference::helper_snapshot_work(
+            function,
+            &Limits {
+                max_analysis_steps: allowance,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(copies), function.span)?;
+        Ok((work, shapes))
+    }
+
+    pub(super) fn snapshot_signature(
+        &mut self,
+        name: &str,
+        signature: &Signature,
+        span: Span,
+    ) -> R<()> {
+        let work = inference::signature_snapshot_work(
+            name,
+            signature,
+            span,
+            &Limits {
+                max_analysis_steps: self.work_left / 2,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(2), span)
+    }
+
+    pub(super) fn snapshot_capture(
+        &mut self,
+        closure: ClosureId,
+        index: usize,
+        span: Span,
+    ) -> R<()> {
+        let capture = self
+            .pending
+            .get(closure.0 as usize)
+            .and_then(|p| p.captures.get(index))
+            .ok_or_else(|| {
+                error(
+                    "E-CLOSURE-INFERENCE",
+                    span,
+                    "missing actual capture snapshot",
+                )
+            })?;
+        inference::charge_type_snapshot(&capture.ty, span, &self.limits, &mut self.work_left, 2)
+    }
+
+    pub(super) fn borrowed_task_result(
+        &self,
+        id: ClosureId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<&Type>> {
+        let Some(pending) = self.pending.get(id.0 as usize) else {
+            return Ok(None);
+        };
+        pending
+            .inference
+            .graph
+            .borrowed_task_type(pending.inference.result, left, span)
+    }
+
     // Thread-only queries join this request's existing work counter. General
     // expression inference keeps its historical independent Graph profile.
     pub(super) fn thread_result(&mut self, id: ClosureId) -> R<Option<Type>> {
@@ -683,6 +837,7 @@ impl State {
                 )
             })?;
             definitions.push(ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: pending.id,
                 function: pending.function,
@@ -724,7 +879,8 @@ pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
     ty.is_copy_value()
         || ty.is_shared_sync_cell_address()
-        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+        || stored::shared_address(ty)
+        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
@@ -935,12 +1091,45 @@ impl Graph {
         );
         Ok(())
     }
+    fn reserve_type_uses(&self, ty: &Type, uses: usize, span: Span) -> R<()> {
+        let original = self.work_left.get();
+        let allowance = original
+            .checked_div(uses)
+            .ok_or_else(|| limit("invalid type formation reservation", span))?;
+        self.work_left.set(allowance);
+        let result = self.reserve_type(ty, 0, span);
+        let consumed = allowance - self.work_left.get();
+        // consumed <= original / uses; arithmetic cannot exceed original.
+        self.work_left.set(original - consumed * uses);
+        result
+    }
     pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+        tasks::require_closed_context(ty, span)?;
         self.spend(span)?;
         if depth > self.depth_limit {
             return Err(limit("closure aggregate type depth exceeded", span));
         }
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.spend_count(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len()),
+                    span,
+                )?;
+                for slot in &life.slots {
+                    self.spend_count(slot.path.len(), span)?;
+                }
+                for row in &life.retained {
+                    self.spend_count(row.path.len(), span)?;
+                }
+                for row in &life.nominal_arguments {
+                    self.spend_count(row.path.len(), span)?;
+                }
+                self.reserve_type(storage, depth + 1, span)?;
+            }
+
             Type::Tuple(fields) => {
                 for field in fields {
                     self.reserve_type(field, depth + 1, span)?;
@@ -962,7 +1151,10 @@ impl Graph {
                     }
                 }
             }
-            Type::Array { element, .. }
+            Type::Task {
+                result: element, ..
+            }
+            | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::Registration {
                 environment: element,
@@ -995,9 +1187,87 @@ impl Graph {
                     self.reserve_type(parameter, depth + 1, span)?;
                 }
                 self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.spend_count(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
+            _ => {}
+        }
+        Ok(())
+    }
+    /// Core types may already contain inferred local storage binders. Source
+    /// lexical annotations are checked in Expand, before that distinction is
+    /// erased. A callable's free Fixed domain still needs an enclosing context.
+    pub(super) fn annotation_context(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+        self.spend(span)?;
+        if depth > self.depth_limit {
+            return Err(limit("closure annotation depth exceeded", span));
+        }
+        match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                // StorageLifeShape binders are local to this value, not proof
+                // of a reference to an outer source definition. Inferred Core
+                // passes through this walk again before ordinary Types.
+                self.annotation_context(storage, depth + 1, span)?;
+            }
+            Type::BorrowedFunctionPointer { life, .. } => {
+                // Its Invocation domain belongs to the code signature. A free
+                // Fixed domain still needs an actual retained outer context.
+                if life.fixed_binder_count != 0 {
+                    return Err(unsupported(
+                        span,
+                        "explicit callable closure annotation requires its retained enclosing life context",
+                    ));
+                }
+            }
+            Type::Tuple(fields) => {
+                for field in fields {
+                    self.annotation_context(field, depth + 1, span)?;
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, field) in fields {
+                    self.annotation_context(field, depth + 1, span)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    self.spend(span)?;
+                    for field in fields {
+                        self.annotation_context(field, depth + 1, span)?;
+                    }
+                }
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Task {
+                result: element, ..
+            }
+            | Type::Registration {
+                environment: element,
+            }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element)
+            | Type::Opaque {
+                hidden: element, ..
+            } => {
+                self.annotation_context(element, depth + 1, span)?;
+            }
+            Type::ErrorUnion { error, result } => {
+                self.annotation_context(error, depth + 1, span)?;
+                self.annotation_context(result, depth + 1, span)?;
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                for parameter in parameters {
+                    self.annotation_context(parameter, depth + 1, span)?;
+                }
+                self.annotation_context(result, depth + 1, span)?;
+            }
             _ => {}
         }
         Ok(())
@@ -1037,6 +1307,23 @@ impl Graph {
             shape: None,
         });
         variable
+    }
+    fn borrowed_task_type(
+        &self,
+        mut variable: Variable,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<&Type>> {
+        loop {
+            *left = left
+                .checked_sub(1)
+                .ok_or_else(|| limit("task closure hint work budget exceeded", span))?;
+            let node = &self.nodes[variable];
+            if node.parent == variable {
+                return Ok(node.concrete.as_ref());
+            }
+            variable = node.parent;
+        }
     }
     fn root(&self, mut variable: Variable) -> Variable {
         while self.nodes[variable].parent != variable {
@@ -1083,15 +1370,18 @@ impl Graph {
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+            ty if matches!(ty, Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
                 || ty.is_copy_value()
+                || stored::shared_value(ty)
+                || stored::shared_address(ty)
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
+                || owned_shapes::tuple(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
-                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
@@ -1524,7 +1814,11 @@ impl Graph {
                 }
                 if let Some(ty) = self.ty(base)? {
                     let ty = match ty {
-                        Type::Address { inner, .. } if inner.is_address_pointee() => *inner,
+                        Type::Address { inner, .. }
+                            if inner.is_address_pointee() || stored::shared_value(&inner) =>
+                        {
+                            *inner
+                        }
                         other => other,
                     };
                     let field = match &projection {
@@ -1722,7 +2016,7 @@ impl Inference {
     }
     pub fn resolve_borrowed(
         &mut self,
-        life: &FunctionLifeContract,
+        life: &StorageLifeContract,
         span: Span,
     ) -> R<(Vec<Type>, Type)> {
         self.resolve_inner(false, Some(life), span)
@@ -1730,7 +2024,7 @@ impl Inference {
     fn resolve_inner(
         &mut self,
         defaults: bool,
-        life: Option<&FunctionLifeContract>,
+        life: Option<&StorageLifeContract>,
         span: Span,
     ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
@@ -1756,6 +2050,9 @@ impl Inference {
             for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
                 self.graph.reserve_type(ty, 0, span)?;
             }
+            borrowed_fp::qualified_inputs(life, &signature.0, &signature.1, |work| {
+                self.graph.spend_count(work, span)
+            })?;
             borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
             return Ok(signature);
         }
@@ -1827,6 +2124,7 @@ impl LocalType {
                     inner,
                 },
             ) if (inner.is_address_pointee()
+                || stored::shared_address(ty)
                 || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
                 || ty.is_exclusive_task_head_address()
@@ -1944,6 +2242,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let mut graph = Graph::new(limits);
         let result = graph.fresh(VALUE, false);
         if let Some(ty) = input.result {
+            graph.annotation_context(ty, 0, input.span)?;
             if matches!(ty, Type::Slice { .. }) {
                 return Err(unsupported(
                     input.span,
@@ -1992,6 +2291,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             let variable = this.graph.fresh(VALUE, false);
             if let Some(ty) = &parameter.ty {
+                this.graph.annotation_context(ty, 0, parameter.span)?;
                 if !signature_parameter(ty) && !owned_signature_head(ty) {
                     return Err(unsupported(
                         parameter.span,
@@ -2059,6 +2359,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if let Type::Address { inner, .. } = ty
+            && matches!(
+                inner.as_ref(),
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            )
+        {
+            owned_shapes::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
+        }
         if ty.is_package_address() {
             let Type::Address {
                 mutable: false,
@@ -2192,6 +2500,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             {
                 (inner.as_ref(), Some(*mutable))
             }
+            Type::Address { mutable, inner }
+                if matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
+            {
+                (inner.as_ref(), Some(*mutable))
+            }
             Type::Address {
                 mutable: false,
                 inner,
@@ -2243,6 +2559,32 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.captured_variables.insert(*local, value);
         Ok(value)
     }
+    fn pattern_needs_mutable(&mut self, pattern: &CorePattern, depth: usize) -> R<bool> {
+        self.visit(depth, pattern.span)?;
+        match &pattern.kind {
+            CorePatternKind::Reference { mutable, pattern } => {
+                Ok(*mutable || self.pattern_needs_mutable(pattern, depth + 1)?)
+            }
+            CorePatternKind::ErrorArm { pattern, .. } => {
+                self.pattern_needs_mutable(pattern, depth + 1)
+            }
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
+                for field in fields {
+                    if self.pattern_needs_mutable(field, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn pattern_local(&self, variable: Variable, span: Span) -> R<LocalType> {
+        Ok(match self.graph.address_shape(variable, span)? {
+            Some((inner, Some(mutable))) => LocalType::Address(inner, mutable),
+            _ => LocalType::Scalar(variable),
+        })
+    }
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.visit(depth, block.span)?;
         self.scopes.push(BTreeMap::new());
@@ -2260,12 +2602,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         variable.bind(&mut self.graph, ty, statement.span)?;
                     }
                     let value = variable.scalar(statement.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(initializer, depth + 1)?;
+                    }
                     for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
+                        let value = self.pattern_local(variable, span)?;
                         if self
                             .scopes
                             .last_mut()
                             .expect("scope")
-                            .insert(name.clone(), LocalType::Scalar(variable))
+                            .insert(name.clone(), value)
                             .is_some()
                         {
                             return Err(error(
@@ -2370,13 +2716,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     then_body,
                     else_body,
                 } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(value, depth + 1)?;
+                    }
                     self.scopes.push(BTreeMap::new());
-                    for (name, variable, _) in self.graph.pattern_bind(pattern, value)? {
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                        let value = self.pattern_local(variable, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
-                            .insert(name, LocalType::Scalar(variable));
+                            .insert(name, value);
                     }
                     self.block(then_body, depth + 1)?;
                     self.scopes.pop();
@@ -2389,13 +2739,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     value,
                     body,
                 } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(value, depth + 1)?;
+                    }
                     self.scopes.push(BTreeMap::new());
-                    for (name, variable, _) in self.graph.pattern_bind(pattern, value)? {
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                        let value = self.pattern_local(variable, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
-                            .insert(name, LocalType::Scalar(variable));
+                            .insert(name, value);
                     }
                     self.block(body, depth + 1)?;
                     self.scopes.pop();
@@ -2420,14 +2774,20 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.scopes.pop();
                 }
                 CoreStatementKind::Match { value, arms } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
                     for arm in arms {
+                        if self.pattern_needs_mutable(&arm.pattern, depth + 1)? {
+                            self.mark_address_write(value, depth + 1)?;
+                        }
                         self.scopes.push(BTreeMap::new());
-                        for (name, variable, _) in self.graph.pattern_bind(&arm.pattern, value)? {
+                        for (name, variable, span) in
+                            self.graph.pattern_bind(&arm.pattern, variable)?
+                        {
+                            let value = self.pattern_local(variable, span)?;
                             self.scopes
                                 .last_mut()
                                 .expect("pattern scope")
-                                .insert(name, LocalType::Scalar(variable));
+                                .insert(name, value);
                         }
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();
@@ -2860,6 +3220,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     let field = aggregates::field(&ty, member, expression.span)?.1;
                     return self.known(&field, expression.span);
                 }
+                if let LocalType::Address(variable, _) = probe
+                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                {
+                    self.graph.reserve_type(&ty, 0, expression.span)?;
+                    let field = aggregates::field(&ty, member, expression.span)?.1;
+                    if matches!(&field, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+                    {
+                        // A replacement target is the actual owning slot.
+                        // Ordinary member reads still project a descriptor.
+                        self.mark_address_write(object, depth + 1)?;
+                        return self.known(&field, expression.span);
+                    }
+                }
                 let base = if matches!(probe, LocalType::Resource(..)) {
                     self.mark_resource_write(probe, expression.span)?;
                     probe
@@ -3147,7 +3520,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .graph
                     .ty(variable)?
                     .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
-                if payload != Type::TaskI32 {
+                if !matches!(payload, Type::TaskI32 | Type::Task { .. }) {
                     return Err(unsupported(
                         span,
                         "exclusive resource head requires TaskI32",
@@ -3308,10 +3681,47 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         if let Some(name) = tasks::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
-            *self.work_left = self
-                .work_left
-                .checked_sub(12)
-                .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
+            self.graph.spend_count(12, span)?;
+            if matches!(name, "task_create" | "task_await") {
+                let Some(worker) = arguments.first() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                };
+                self.visit(depth + 1, worker.span)?;
+                if !self.direct(worker) {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                }
+                let signature = self.callee(worker)?.clone();
+                if arguments.len() != signature.parameters.len() + 1 {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create actual input count mismatch",
+                    ));
+                }
+                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                    term.bind(&mut self.graph, wanted, argument.span)?;
+                }
+                for _ in 0..4 {
+                    self.graph.reserve_type(&signature.result, 0, span)?;
+                }
+                return self.known(
+                    &if name == "task_await" {
+                        signature.result
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
+            }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
@@ -3341,11 +3751,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ));
                 }
             }
-            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
-                let term = self.expr_expected(argument, Some(ty), depth + 1)?;
-                term.bind(&mut self.graph, ty, argument.span)?;
+            let mut returned = tasks::result(name);
+            for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, None, depth + 1)?;
+                let variable = match term {
+                    LocalType::Address(v, _) | LocalType::Resource(v, _) | LocalType::Scalar(v) => {
+                        v
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            span,
+                            "task operand has unresolved callable shape",
+                        ));
+                    }
+                };
+                if let Some(actual) = self.graph.ty(variable)?
+                    && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
+                {
+                    for _ in 0..6 {
+                        self.graph.reserve_type(task, 0, span)?;
+                    }
+                    let parameter = tasks::parameter_for(name, task);
+                    term.bind(&mut self.graph, &parameter, argument.span)?;
+                    returned = tasks::result_for(name, task);
+                } else {
+                    term.bind(&mut self.graph, wanted, argument.span)?;
+                }
             }
-            return self.known(&tasks::result(name), span);
+            return self.known(&returned, span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
@@ -3373,6 +3806,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 &byte_buffer::result_type(name).expect("byte primitive"),
                 span,
             );
+        }
+        if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
+            self.visit(depth + 1, callee.span)?;
+            self.graph.spend_count(8, span)?;
+            if arguments.len() != 3 {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "atomic_compare_exchange requires three arguments",
+                ));
+            }
+            let address = scoped_thread::sync_address(SyncCellKind::AtomicI32);
+            for (index, argument) in arguments.iter().enumerate() {
+                let wanted = if index == 0 { &address } else { &Type::I32 };
+                let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                self.graph.thread_work(self.work_left, |graph| {
+                    term.bind(graph, wanted, argument.span)
+                })?;
+            }
+            return self.known(&Type::Tuple(vec![Type::I32, Type::Bool]), span);
         }
         if let CoreExprKind::Name(name) = &callee.kind
             && let Some((kind, op)) = scoped_thread::sync_primitive(name)
@@ -4439,6 +4892,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.storage_life {
+            borrowed_fp::charge_contract(life, |work| self.graph.spend_count(work, span), 1)?;
+        }
         if let Some(life) = &signature.life {
             self.graph
                 .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
@@ -4465,6 +4921,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     }
     fn pointer_type(&self, signature: &Signature, span: Span) -> R<Type> {
         self.reserve_signature(signature, span)?;
+        if signature.storage_life.is_some() {
+            for ty in &signature.parameters {
+                self.graph.reserve_type_uses(ty, 4, span)?;
+            }
+            self.graph.reserve_type_uses(&signature.result, 5, span)?;
+            borrowed_fp::static_pointer_slots(signature, |work| {
+                self.graph.spend_count(work, span)
+            })?;
+        }
+        self.graph
+            .spend_count(borrowed_fp::pointer_work(signature), span)?;
         signature.pointer_type().ok_or_else(|| unsupported(span,
             "function pointers require pure Copy parameters and result; indirect address contracts are not implemented"))
     }
@@ -4522,6 +4989,65 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 Ok(signature)
             }
             _ => Err(unsupported(callee.span, "indirect call in closure body")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod terminal340_prepared_owner_budget {
+    use super::*;
+    use zil_base::ResultCategory;
+    #[test]
+    fn remaining_allowance_stops_owner_planning_before_deep_tail_and_is_not_refunded() {
+        let limits = Limits {
+            max_call_depth: 8,
+            ..Limits::default()
+        };
+        let mut owner = Type::I32;
+        for _ in 0..32 {
+            owner = Type::Record {
+                name: "R".into(),
+                fields: vec![("x".into(), owner)],
+            };
+        }
+        let uncapped = inference::type_snapshot_work(&owner, Span::default(), &limits).unwrap_err();
+        assert!(uncapped.message.contains("depth"), "{uncapped:?}");
+        let mut state = State::new(0, &limits);
+        state
+            .snapshot(limits.max_analysis_steps - 3, Span::default())
+            .unwrap();
+        let error = state
+            .snapshot_type(&owner, 1, 0, Span::default())
+            .unwrap_err();
+        assert_eq!(error.category, ResultCategory::ResourceLimit);
+        assert!(error.message.contains("work"), "{error:?}");
+        assert_eq!(
+            state.remaining_work(),
+            0,
+            "failed visits refunded the caller allowance"
+        );
+    }
+    #[test]
+    fn complete_owner_comparison_preserves_exact_n_and_fresh_retry() {
+        let limits = Limits::default();
+        let owner = Type::Record {
+            name: "Owner".into(),
+            fields: vec![("nested".into(), Type::Tuple(vec![Type::I32, Type::I64]))],
+        };
+        let work = inference::type_snapshot_work(&owner, Span::default(), &limits).unwrap();
+        let boundary = work * 2 + 2;
+        for (allowance, success) in [(boundary, true), (boundary - 1, false), (boundary, true)] {
+            let mut state = State::new(0, &limits);
+            state
+                .snapshot(limits.max_analysis_steps - allowance, Span::default())
+                .unwrap();
+            let checked = state.snapshot_type(&owner, 2, 2, Span::default());
+            assert_eq!(checked.is_ok(), success, "{checked:?}");
+            if success {
+                assert_eq!(state.remaining_work(), 0);
+            } else {
+                assert_eq!(checked.unwrap_err().category, ResultCategory::ResourceLimit);
+            }
         }
     }
 }

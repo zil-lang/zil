@@ -106,7 +106,8 @@ impl Renamer<'_> {
     fn pattern(&mut self, pattern: &mut s::Pattern) -> CompileResult<()> {
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, pattern.span),
-            s::PatternKind::Reference { pattern, .. } => self.pattern(pattern),
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => self.pattern(pattern),
             s::PatternKind::RecordConstructor { fields, .. } => {
                 // Only value binders are renamed. Member labels retain their
                 // source spelling for the later nominal field check.
@@ -242,6 +243,7 @@ impl Renamer<'_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
                     }
@@ -280,6 +282,10 @@ impl Renamer<'_> {
     fn expr(&mut self, expr: &mut s::Expr) -> CompileResult<()> {
         match &mut expr.kind {
             s::ExprKind::Name(name) => self.reference(name, expr.span),
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(ty)?;
+                self.expr(value)
+            }
             s::ExprKind::Group(value)
             | s::ExprKind::Try(value)
             | s::ExprKind::Unary { operand: value, .. } => self.expr(value),
@@ -336,6 +342,7 @@ impl Renamer<'_> {
                 self.expr(callee)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
                     }

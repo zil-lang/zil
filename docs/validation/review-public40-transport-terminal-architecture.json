@@ -1,0 +1,36 @@
+{
+  "status": "PassLimitedPublicTransportAndContractDesign",
+  "source": "7ffbfc8563b76cc99866d2624a088a97649af3cf",
+  "method": "Independent public-source/codec/identity review and replay of final SHA-bound author-built IR executable. Parent rebuilt final7ff IR sources after the formatting/lint-only edits; reviewer copied that final rebuild. No independent rebuild and no language consumer acceptance.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/public40-source-binding.json",
+    "sha256": "64b68a238b2596169214ee6990659dfd6cca6f224e6e1eb1213e413ce3be49b8"
+  },
+  "production_files": 435,
+  "production_digest": "2b874d8645f5241e1be1de6819a56c7f12a0a47eb485a48822f5526912183930",
+  "replay": {
+    "harness": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/public40-final-ir",
+      "sha256": "9ada4d9cbf6afce0b3503a75e7eb63a1018b06ed5845e6208c911b3573970433"
+    },
+    "selector": "all IR unit tests, --test-threads=1",
+    "result": "63 passed,0 failed,0 ignored,0 filtered",
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/public40-final-ir.log",
+      "sha256": "6c2ec7766709d52a336b4231b2f46f5b41eb55bfc6ecd8995ac8fce7ba0bfb7a"
+    },
+    "construction": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/public40-final-harness.json",
+      "sha256": "298e7b62ee7381a116fbc589cbecbdaa80a4fdf4aee89da891855d3528e6dec2"
+    }
+  },
+  "review": [
+    "One rich StorageLifeContract carries actual access bindings separately from semantic SignatureLifeClass rows for borrowed pointers and callable roles; dyn slots have one common contract. Fixed and Invocation remain distinct domains.",
+    "Raw codec paths reserve row/path counts before allocation and preserve complete class, retained and ambient metadata. Tests cover unknown tags, truncation, oversized counts and identity mutations.",
+    "Flat projection accepts only canonical increasing Parameter rows followed by at most Result, with no Fixed/classes/nonempty paths; reordered parameter/result controls reject.",
+    "Runtime Typed/Wire/type identity is40; CT schema/artifact/provider/dependency/function/value domains are5. Callable, storage contract and life inventory identities are revised for changed bytes.",
+    "CT ambient owner/declaration/instance references are transport references, not authority or physical DAG edges. The eventual consumer must authenticate actual frozen declaration/binder/full-actual context and preserve joint equality.",
+    "CtValue-only fingerprints remain raw structural. Identical ambient indices under distinct tables can have identical raw value fingerprints; semantic dependency/cache/export keys must bind the same authenticated resolved context."
+  ],
+  "limits": "Transport and model only. Rich source production, independent runtime permission consumers, authenticated CT5 ambient/contextual value keys and native composition are separate unfinished implementation stages. The earlier a8b6 harness replay remains historical and is not substituted for the final9ada binding."
+}

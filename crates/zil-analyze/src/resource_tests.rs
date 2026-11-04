@@ -203,6 +203,11 @@ fn scoped_fixture(mode: u8) -> TypedModule {
         f
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
@@ -211,6 +216,7 @@ fn scoped_fixture(mode: u8) -> TypedModule {
         unsupported: vec![],
         closures: vec![
             ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(0),
                 function: FunctionId(1),
                 kind: CallableKind::FnMut,
@@ -220,6 +226,7 @@ fn scoped_fixture(mode: u8) -> TypedModule {
                 lending_captures: vec![],
             },
             ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(1),
                 function: FunctionId(2),
                 kind: CallableKind::FnOnce,
@@ -1267,6 +1274,7 @@ fn scoped_wrapper_checks_actual_argument_aliases_and_keeps_disjoint_borrowing() 
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -1408,12 +1416,18 @@ fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> TypedModule {
         entry.value(Type::I32, InstructionKind::ReadDesc { desc: d, index: 0 })
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
         functions: vec![main.finish(result), entry.finish(result_entry)],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),
@@ -1754,6 +1768,7 @@ fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
     let n = child.constant(0);
     m.functions.push(child.finish(n));
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(2),
         captures: vec![],
@@ -2115,6 +2130,7 @@ fn local_composition_282(child: bool, captured: bool) -> TypedModule {
         );
         module.functions.push(entry.finish(result));
         module.closures.push(ClosureDefinition {
+            storage_life: None,
             id: ClosureId(2),
             function: FunctionId(5),
             captures: vec![Type::Closure(ClosureId(1))],
@@ -3078,6 +3094,7 @@ fn supplied_body_hidden_in_with_282(twice: bool) -> TypedModule {
     }
     module.functions.push(entry.finish(result));
     module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(2),
         function: FunctionId(5),
         kind: CallableKind::FnOnce,

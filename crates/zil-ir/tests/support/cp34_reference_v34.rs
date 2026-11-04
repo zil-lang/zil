@@ -1,4 +1,6 @@
-// Independent Vec-based current TypedV37 reference; callable contract domain5.
+// Independent Vec-based TypedV41 reference for the retained legacy cases.
+// New nonempty life/dyn inventories and storage instructions are tested separately.
+// Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V37\0"
+        b"ZIL-TYPED-MODULE-V41\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -41,6 +43,15 @@ fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
     encode_text(&mut bytes, &module.target.to_json());
+    assert!(module.life_declarations.is_empty());
+    assert!(module.life_instances.is_empty());
+    assert!(module.dyn_declarations.is_empty());
+    assert!(module.dyn_interfaces.is_empty());
+    assert!(module.dyn_vtables.is_empty());
+    if v32 {
+        // Five empty table counts are part of the new module envelope.
+        bytes.extend_from_slice(&[0; 40]);
+    }
     encode_len(&mut bytes, module.functions.len());
     for f in &module.functions {
         encode_function(&mut bytes, f, v32);
@@ -67,6 +78,10 @@ fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
         encode_len(&mut bytes, closure.lending_captures.len());
         for index in &closure.lending_captures {
             encode_u32(&mut bytes, *index);
+        }
+        assert!(closure.storage_life.is_none());
+        if v32 {
+            bytes.push(0);
         }
     }
     encode_len(&mut bytes, module.resources.len());
@@ -121,6 +136,9 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::F64 => b.push(29),
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
+        Type::Task { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => {
+            panic!("new contextual carriers are outside this retained legacy oracle")
+        }
         Type::Registration { environment } => {
             b.push(32);
             encode_type(b, environment);
@@ -131,18 +149,7 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
             life,
         } => {
             b.push(31);
-            encode_u32(b, life.binder_count);
-            encode_len(b, life.parameter_lives.len());
-            for index in &life.parameter_lives {
-                b.push(u8::from(index.is_some()));
-                if let Some(index) = index {
-                    encode_u32(b, *index);
-                }
-            }
-            b.push(u8::from(life.result_life.is_some()));
-            if let Some(index) = life.result_life {
-                encode_u32(b, index);
-            }
+            encode_closed_relation(b, life);
             encode_len(b, parameters.len());
             for ty in parameters {
                 encode_type(b, ty);
@@ -266,7 +273,9 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
             "schema31 cannot represent Suspend selection"
         );
     }
+    assert!(f.storage_life.is_none());
     if v32 {
+        b.push(0); // absent storage relation in retained legacy fixtures
         b.push(u8::from(f.reference_return_bound.is_some()));
         if let Some(bound) = &f.reference_return_bound {
             encode_len(b, bound.len());
@@ -417,6 +426,18 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::MakeDynBorrow { .. }
+        | InstructionKind::CallDynSlot { .. }
+        | InstructionKind::LoadStoredBorrow { .. }
+        | InstructionKind::StoreStoredBorrow { .. }
+        | InstructionKind::BorrowPlaceAddress { .. }
+        | InstructionKind::PlaceTagAddress { .. }
+        | InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => {
+            panic!("new storage/dyn/reservation operations are outside this retained legacy oracle")
+        }
         InstructionKind::ConvertNumber { value, target } => {
             assert!(v32, "schema31 cannot represent floating conversions");
             b.push(98);
@@ -459,6 +480,29 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             for argument in arguments {
                 encode_u32(b, argument.0);
             }
+        }
+        InstructionKind::TaskCreate { worker, arguments } => {
+            assert!(v32, "schema31 cannot represent general task creation");
+            b.push(128);
+            encode_u32(b, worker.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            b.push(133);
+            encode_u32(b, address.0);
+            encode_u32(b, expected.0);
+            encode_u32(b, desired.0);
+            b.push(*success as u8);
+            b.push(*failure as u8);
         }
         InstructionKind::TaskStart { worker, argument } => {
             assert!(v32, "schema31 cannot represent tasks");
@@ -1200,7 +1244,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-6\0".to_vec();
     encode_callable_contract(&mut bytes, contract, true);
     Fingerprint::of(&bytes)
 }
@@ -1244,18 +1288,7 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract, curr
         if current {
             b.push(u8::from(role.life.is_some()));
             if let Some(life) = &role.life {
-                encode_u32(b, life.binder_count);
-                encode_len(b, life.parameter_lives.len());
-                for tag in &life.parameter_lives {
-                    b.push(u8::from(tag.is_some()));
-                    if let Some(tag) = tag {
-                        encode_u32(b, *tag);
-                    }
-                }
-                b.push(u8::from(life.result_life.is_some()));
-                if let Some(tag) = life.result_life {
-                    encode_u32(b, tag);
-                }
+                encode_closed_relation(b, life);
             }
         } else {
             assert!(
@@ -1319,4 +1352,45 @@ fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
         CallableExit::Return => 0,
         CallableExit::Trap => 1,
     });
+}
+
+// Independent Vec encoding for the closed raw relations exercised by this
+// historical oracle. Rich contextual rows are covered separately, never erased.
+fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
+    assert!(
+        life.classes.is_empty(),
+        "contextual classes need the rich oracle"
+    );
+    encode_u32(bytes, life.fixed_binder_count);
+    encode_u32(bytes, life.invocation_binder_count);
+    encode_len(bytes, life.bindings.len());
+    for row in &life.bindings {
+        assert!(
+            row.position.path.is_empty(),
+            "projected rows need the rich oracle"
+        );
+        match row.position.base {
+            StorageBase::Parameter(index) => {
+                bytes.push(0);
+                encode_u32(bytes, index);
+            }
+            StorageBase::Capture(index) => {
+                bytes.push(1);
+                encode_u32(bytes, index);
+            }
+            StorageBase::Result => bytes.push(2),
+        }
+        encode_len(bytes, 0);
+        match row.binder {
+            StorageBinder::Fixed(index) => {
+                bytes.push(0);
+                encode_u32(bytes, index);
+            }
+            StorageBinder::Invocation(index) => {
+                bytes.push(1);
+                encode_u32(bytes, index);
+            }
+        }
+    }
+    encode_len(bytes, 0);
 }

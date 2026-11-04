@@ -45,6 +45,7 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
         .into_iter()
         .enumerate()
         .map(|(id, name)| TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -82,6 +83,11 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
         })
         .collect();
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: vec![],
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(13),

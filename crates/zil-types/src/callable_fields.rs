@@ -207,6 +207,15 @@ pub(super) fn specialize_type(t: &mut Type, name: &str, id: ClosureId) {
                 }
             }
         }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            specialize_type(result, name, id);
+            for port in &mut retained_life.ports {
+                specialize_type(&mut port.leaf, name, id);
+            }
+        }
         Type::Managed(t)
         | Type::Desc(t)
         | Type::Address { inner: t, .. }
@@ -467,6 +476,15 @@ pub(super) fn specialize_type_all(ty: &mut Type, bindings: &[(&str, ClosureId)])
                 for ty in fields {
                     specialize_type_all(ty, bindings);
                 }
+            }
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            specialize_type_all(result, bindings);
+            for port in &mut retained_life.ports {
+                specialize_type_all(&mut port.leaf, bindings);
             }
         }
         Type::Managed(inner)

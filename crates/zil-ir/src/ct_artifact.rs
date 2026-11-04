@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 2;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v2";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v2";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v2";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 5;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v5";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v5";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v5";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -76,23 +76,65 @@ pub enum CtTy {
     ImplInfo,
     LayoutInfo,
     Tuple(Vec<CtTy>),
-    Array { element: Box<CtTy>, length: u32 },
+    Array {
+        element: Box<CtTy>,
+        length: u32,
+    },
     List(Box<CtTy>),
     Record(CtRecordSchemaId),
     Enum(CtEnumSchemaId),
+    /// Strictly canonical complete structural member identities. Record/Enum
+    /// references resolve their public nominal symbol and ordered arguments;
+    /// numeric schema IDs and payload layout are not member identities.
+    AnonymousSum(Vec<CtTy>),
+}
+
+/// Numeric scope reference inside the enclosing complete CtTypeRef or schema
+/// life_context. The owner is a real binder-owning type node. This is a semantic
+/// backreference, NEVER a physical type child/cycle/layout edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CtLifetimeArgument {
+    pub owner: CtTypeNodeId,
+    pub binder: crate::StorageBinder,
 }
 
 /// Public user schemas are pure data. Built-in query result schemas are not
 /// constructible through MakeRecord/MakeVariant; verifier checks their origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSchemaArgument {
+    /// Full canonical type metadata, including phantom callable signatures and
+    /// borrowed-function lifetime relations. This never represents a runtime
+    /// pointer value or grants declaration access/construction authority.
+    Type(CtTypeRef),
+    /// Required for EVERY type actual when schema.life_context is Some.
+    /// This ID belongs only to that one joint context, never a local Type graph.
+    TypeInContext(CtTypeNodeId),
+    Scalar(Constant),
+    Lifetime(CtLifetimeArgument),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtRecordSchema {
     pub name: CtSymbolId,
+    /// One JOINT closed type/lifetime context for the entire application.
+    /// None iff no argument (including nested/phantom arguments) uses a life.
+    /// Root identifies this exact nominal application under its retained scope.
+    /// All argument values must match the corresponding context projections.
+    pub life_context: Option<CtTypeRef>,
+    /// Complete actual arguments in declaration parameter order, including
+    /// phantom arguments. Data alone grants no declaration access or bounds.
+    pub arguments: Vec<CtSchemaArgument>,
     pub fields: Vec<CtTy>,
     pub origin: CtSchemaOrigin,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtEnumSchema {
     pub name: CtSymbolId,
+    /// One JOINT closed type/lifetime context for the entire application.
+    /// None iff no argument (including nested/phantom arguments) uses a life.
+    /// Root identifies this exact nominal application under its retained scope.
+    /// All argument values must match the corresponding context projections.
+    pub life_context: Option<CtTypeRef>,
+    pub arguments: Vec<CtSchemaArgument>,
     pub variants: Vec<Vec<CtTy>>,
     pub origin: CtSchemaOrigin,
 }
@@ -116,9 +158,48 @@ pub enum CtBuiltinType {
 pub struct CtTypeRef {
     pub nodes: Vec<CtTypeNode>,
     pub root: CtTypeNodeId,
+    /// Free Fixed classes refer to the same authenticated invocation namespace
+    /// as the complete artifact/value context. Empty does not invent forall.
+    pub ambient_classes: Vec<CtAmbientClassBinding>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CtAmbientScopeId(pub u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CtAmbientLifeReference {
+    pub scope: CtAmbientScopeId,
+    /// Original full generic ordinal, including intervening Type/Const kinds.
+    pub parameter: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtScopeActual {
+    Type(CtTypeRef),
+    Scalar(crate::Constant),
+    Lifetime(CtAmbientLifeReference),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtScopeInstance {
+    Definition,
+    Instantiated(Vec<CtScopeActual>),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtAmbientLifeScope {
+    pub declaration: CtSymbolId,
+    pub binder_site: Vec<u32>,
+    pub instance: CtScopeInstance,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtAmbientClassBinding {
+    pub owner: CtTypeNodeId,
+    pub class: u32,
+    pub source: CtAmbientLifeReference,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
+    /// One actual storage DAG edge; relation metadata creates no physical edge.
+    BorrowedStorage {
+        storage: CtTypeNodeId,
+        life: crate::StorageLifeShape,
+    },
     Primitive(CtScalarTy),
     Builtin(CtBuiltinType),
     Nominal {
@@ -138,7 +219,7 @@ pub enum CtTypeNode {
     BorrowedFunctionPointer {
         parameters: Vec<CtTypeNodeId>,
         result: CtTypeNodeId,
-        life: crate::FunctionLifeContract,
+        life: crate::StorageLifeContract,
     },
     Address {
         mutable: bool,
@@ -169,6 +250,7 @@ pub enum CtTypeNode {
 pub enum CtTypeArgument {
     Type(CtTypeNodeId),
     Scalar(Constant),
+    Lifetime(CtLifetimeArgument),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,6 +423,10 @@ pub struct CtLayoutInfo {
     pub field_offsets: Vec<u64>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
+// Reflected fields retain two complete contextual type descriptors inline.
+// Keep the existing allocation model; bounded codecs account for size_of<CtValue>
+// before growing containers and separately account for every owned descriptor.
+#[allow(clippy::large_enum_variant)]
 pub enum CtValue {
     Scalar(Constant),
     Text(String),
@@ -364,6 +450,13 @@ pub enum CtValue {
         schema: CtEnumSchemaId,
         tag: u32,
         fields: Vec<CtValue>,
+    },
+    /// Retains inactive member identities; only the matching active member
+    /// supplies a payload. Raw values confer no nominal/syntax authority.
+    AnonymousSum {
+        members: Vec<CtTy>,
+        active: u32,
+        payload: Box<CtValue>,
     },
 }
 /// Only scalar/text literals are raw constants. Type, Syntax, Ident, and query
@@ -412,9 +505,12 @@ pub enum CtTerminator {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeConstructor {
+    BorrowedStorage {
+        life: crate::StorageLifeShape,
+    },
     /// Raw invocation relation; children remain actual Type arguments.
     BorrowedFunctionPointer {
-        life: crate::FunctionLifeContract,
+        life: crate::StorageLifeContract,
     },
     Array,
     Tuple,
@@ -519,6 +615,14 @@ pub enum CtInstructionKind {
         schema: CtEnumSchemaId,
         tag: u32,
         fields: Vec<CtValueId>,
+    },
+    /// Exact-type injection after independent member canonicality validation.
+    /// VariantTag/VariantField also consume this structural one-field sum;
+    /// extraction must match the real active tag and field zero.
+    MakeAnonymousSum {
+        members: Vec<CtTy>,
+        active: u32,
+        payload: CtValueId,
     },
     Length(CtValueId),
     VariantTag(CtValueId),
@@ -650,6 +754,7 @@ pub struct CtArtifactProgram {
     /// Selected target width, never the host VM pointer width.
     pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
+    pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,
     pub constants: Vec<CtConstant>,

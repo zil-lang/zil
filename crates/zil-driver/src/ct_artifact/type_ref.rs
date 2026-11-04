@@ -70,6 +70,11 @@ impl Builder<'_> {
     fn ty(&mut self, ty: &Type) -> CompileResult<CtTypeNodeId> {
         use CtScalarTy as S;
         match ty {
+            Type::Dyn { .. } => Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "dyn Type metadata requires a complete CT4 node and context bridge",
+                None,
+            )]),
             Type::Unit => self.push(CtTypeNode::Primitive(S::Unit)),
             Type::Bool => self.push(CtTypeNode::Primitive(S::Bool)),
             Type::U8 => self.push(CtTypeNode::Primitive(S::U8)),
@@ -146,10 +151,20 @@ impl Builder<'_> {
             } => {
                 self.left = self
                     .left
-                    .checked_sub(
-                        (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
-                    )
+                    .checked_sub(life.bindings.len().saturating_add(life.classes.len()))
                     .ok_or_else(|| reject("CT borrowed pointer metadata exceeds node budget"))?;
+                for row in &life.bindings {
+                    self.left = self
+                        .left
+                        .checked_sub(row.position.path.len())
+                        .ok_or_else(|| reject("CT signature metadata exceeds node budget"))?;
+                }
+                for row in &life.classes {
+                    self.left = self
+                        .left
+                        .checked_sub(row.position.path.len())
+                        .ok_or_else(|| reject("CT signature metadata exceeds node budget"))?;
+                }
                 let parameters = parameters
                     .iter()
                     .map(|ty| self.ty(ty))
@@ -182,11 +197,13 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::Named(_)
+            Type::BorrowedStorage { .. }
+            | Type::Named(_)
             | Type::Opaque { .. }
             | Type::Closure(_)
             | Type::Unsupported(_)
             | Type::Registration { .. }
+            | Type::Task { .. }
             | Type::TaskI32
             | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }
@@ -210,6 +227,7 @@ pub(super) fn from_checked_type(
     let value = CtTypeRef {
         nodes: builder.nodes,
         root,
+        ambient_classes: Vec::new(),
     };
     if value
         .nodes

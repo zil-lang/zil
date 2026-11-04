@@ -340,6 +340,7 @@ impl<'a> World<'a> {
             | Op::Binary { ty, .. }
             | Op::Phi { ty, .. } => Some(ty),
             Op::AtomicRmw { arg, .. } => Some(&arg.ty),
+            Op::AtomicCompareExchange { result, .. } => Some(result),
             Op::Compare { .. } => Some(&COMPARISON_RESULT),
             Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
@@ -404,6 +405,44 @@ impl<'a> World<'a> {
                 atomic_type_alignment(&arg.ty, *align)?;
                 self.arg(arg, defs, false)?;
                 value(ptr, &Ty::Ptr)?;
+            }
+            Op::AtomicCompareExchange {
+                result,
+                expected,
+                desired,
+                ptr,
+                align,
+                success,
+                failure,
+            } => {
+                atomic_type_alignment(&expected.ty, *align)?;
+                if !expected.attrs.is_empty() {
+                    return fail("compare exchange operands cannot carry call attributes");
+                }
+                self.arg(expected, defs, false)?;
+                value(desired, &expected.ty)?;
+                value(ptr, &Ty::Ptr)?;
+                if !matches!(result,Ty::Struct(fields) if fields.as_slice()==[expected.ty.clone(),Ty::Int(1)])
+                {
+                    return fail("compare exchange result must be exact {integer,i1}");
+                }
+                let valid = match success {
+                    AtomicOrdering::Relaxed | AtomicOrdering::Release => {
+                        *failure == AtomicOrdering::Relaxed
+                    }
+                    AtomicOrdering::Acquire | AtomicOrdering::AcqRel => {
+                        matches!(failure, AtomicOrdering::Relaxed | AtomicOrdering::Acquire)
+                    }
+                    AtomicOrdering::SeqCst => matches!(
+                        failure,
+                        AtomicOrdering::Relaxed | AtomicOrdering::Acquire | AtomicOrdering::SeqCst
+                    ),
+                };
+                if !valid {
+                    return fail(
+                        "compare exchange success/failure ordering pair is outside the C11 subset",
+                    );
+                }
             }
             Op::Binary {
                 opcode,

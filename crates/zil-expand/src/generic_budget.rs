@@ -12,7 +12,13 @@ pub(crate) struct Budget<'a> {
     enum_header: Option<Span>,
     primitive_binders: bool,
     anonymous_sums: bool,
+    borrowed_keys: bool,
+    type_member_patterns: bool,
+    reference_patterns: bool,
     generic_methods: bool,
+    dynamic_interfaces: bool,
+    stored_lifetimes: bool,
+    source_identity: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -26,8 +32,32 @@ impl<'a> Budget<'a> {
             enum_header: None,
             primitive_binders: false,
             anonymous_sums: false,
+            borrowed_keys: false,
+            type_member_patterns: false,
+            reference_patterns: false,
             generic_methods: false,
+            dynamic_interfaces: false,
+            stored_lifetimes: false,
+            source_identity: false,
         }
+    }
+    pub(crate) fn has_dynamic(&self) -> bool {
+        self.dynamic_interfaces
+    }
+    pub(crate) fn has_stored_lifetimes(&self) -> bool {
+        self.stored_lifetimes
+    }
+    pub(crate) fn note_stored_lifetimes(&mut self) {
+        self.stored_lifetimes = true;
+    }
+    pub(crate) fn note_dynamic(&mut self) {
+        self.dynamic_interfaces = true;
+    }
+    pub(crate) fn needs_source_identity(&self) -> bool {
+        self.dynamic_interfaces || self.source_identity
+    }
+    pub(crate) fn note_source_identity(&mut self) {
+        self.source_identity = true;
     }
     pub(crate) fn has_generic_methods(&self) -> bool {
         self.generic_methods
@@ -60,8 +90,20 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(crate) fn has_borrowed_keys(&self) -> bool {
+        self.borrowed_keys
+    }
+    pub(crate) fn note_borrowed_keys(&mut self) {
+        self.borrowed_keys = true;
+    }
     pub(crate) fn has_anonymous_sums(&self) -> bool {
         self.anonymous_sums
+    }
+    pub(crate) fn has_reference_patterns(&self) -> bool {
+        self.reference_patterns
+    }
+    pub(crate) fn has_type_member_patterns(&self) -> bool {
+        self.type_member_patterns
     }
     pub(crate) fn has_primitive_binders(&self) -> bool {
         self.primitive_binders
@@ -138,6 +180,10 @@ impl<'a> Budget<'a> {
     pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
         self.expr(expression, 0, None)
     }
+    pub(crate) fn const_expression_depth(&mut self, expression: &Expr, depth: usize) -> R<()> {
+        self.expr(expression, depth, None)
+    }
+
     pub(crate) fn const_function(&mut self, function: &Function) -> R<()> {
         self.function(function, 0, None)
     }
@@ -161,6 +207,9 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn item(&mut self, item: &Item) -> R<()> {
         self.item_at(item, 0, None)
+    }
+    pub(crate) fn function_snapshot(&mut self, function: &Function) -> R<()> {
+        self.function(function, 0, None)
     }
     pub(crate) fn substituted_item(
         &mut self,
@@ -228,6 +277,37 @@ impl<'a> Budget<'a> {
                 return self.ty_context(value, depth, None, slice_element);
             }
         }
+        if matches!(ty.kind, TypeKind::Dyn { .. }) {
+            self.dynamic_interfaces = true;
+        }
+        if let TypeKind::Dyn { bindings, .. } = &ty.kind {
+            for binding in bindings {
+                self.node(binding.span, depth + 1)?;
+                match &binding.kind {
+                    DynBindingKind::Type { member, value } => {
+                        for name in member {
+                            self.text(name, binding.span)?;
+                        }
+                        self.ty_context(value, depth + 2, substitutions, false)?;
+                    }
+                    DynBindingKind::Constant { member, ty, value } => {
+                        for name in member {
+                            self.text(name, binding.span)?;
+                        }
+                        self.ty_context(ty, depth + 2, substitutions, false)?;
+                        self.expr(value, depth + 2, substitutions)?;
+                    }
+                    DynBindingKind::Method { member, arguments } => {
+                        for name in member {
+                            self.text(name, binding.span)?;
+                        }
+                        for actual in arguments {
+                            self.arg(actual, depth + 2, substitutions)?;
+                        }
+                    }
+                }
+            }
+        }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
         }
@@ -240,7 +320,7 @@ impl<'a> Budget<'a> {
             self.text(replacement, ty.span)?;
         }
         match &ty.kind {
-            TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+            TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
                 for name in path {
                     self.text(name, ty.span)?;
                 }
@@ -260,6 +340,7 @@ impl<'a> Budget<'a> {
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?
             }
             TypeKind::ForLifetime { lifetime, inner } => {
+                self.borrowed_keys = true;
                 self.text(lifetime, ty.span)?;
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?;
             }
@@ -328,6 +409,7 @@ impl<'a> Budget<'a> {
         subs: Option<&BTreeMap<String, TypeRef>>,
     ) -> R<()> {
         match arg {
+            GenericArg::Lifetime(name) => self.text(name, Span::default()),
             GenericArg::Type(t) => self.ty_at(t, depth, subs),
             GenericArg::Const(e) => self.expr(e, depth, subs),
         }
@@ -357,6 +439,7 @@ impl<'a> Budget<'a> {
         params: &[GenericParam],
         depth: usize,
         subs: Option<&BTreeMap<String, TypeRef>>,
+        nominal: bool,
     ) -> R<()> {
         for p in params {
             self.node(p.span, depth)?;
@@ -374,7 +457,11 @@ impl<'a> Budget<'a> {
                     }
                 }
                 GenericParamKind::Const(t) => self.ty_at(t, depth + 1, subs)?,
-                GenericParamKind::Lifetime => {}
+                GenericParamKind::Lifetime => {
+                    if nominal {
+                        self.note_source_identity();
+                    }
+                }
             }
         }
         Ok(())
@@ -419,7 +506,7 @@ impl<'a> Budget<'a> {
     ) -> R<()> {
         self.node(f.span, depth)?;
         self.text(&f.name, f.span)?;
-        self.generics(&f.generics, depth + 1, subs)?;
+        self.generics(&f.generics, depth + 1, subs, false)?;
         self.bounds(&f.where_clause, depth + 1, subs)?;
         for clause in &f.contract {
             self.node(clause.span, depth + 1)?;
@@ -473,7 +560,7 @@ impl<'a> Budget<'a> {
         match &item.kind {
             ItemKind::TypeAlias(a) => {
                 self.text(&a.name, item.span)?;
-                self.generics(&a.generics, depth + 1, subs)?;
+                self.generics(&a.generics, depth + 1, subs, false)?;
                 for t in &a.bounds {
                     self.ty_at(t, depth + 1, subs)?;
                 }
@@ -484,7 +571,7 @@ impl<'a> Budget<'a> {
             ItemKind::Function(f) => self.function(f, depth + 1, subs)?,
             ItemKind::Aggregate(a) => {
                 self.text(&a.name, item.span)?;
-                self.generics(&a.generics, depth + 1, subs)?;
+                self.generics(&a.generics, depth + 1, subs, true)?;
                 for f in &a.fields {
                     self.node(f.span, depth + 1)?;
                     self.text(&f.name, f.span)?;
@@ -501,7 +588,7 @@ impl<'a> Budget<'a> {
             ItemKind::Enum(e) => {
                 self.text(&e.name, item.span)?;
                 let old_header = self.enum_header.replace(item.span);
-                self.generics(&e.generics, depth + 1, subs)?;
+                self.generics(&e.generics, depth + 1, subs, true)?;
                 self.enum_header = old_header;
                 for v in &e.variants {
                     self.node(v.span, depth + 1)?;
@@ -530,7 +617,7 @@ impl<'a> Budget<'a> {
                 }
             }
             ItemKind::Impl(i) => {
-                self.generics(&i.generics, depth + 1, subs)?;
+                self.generics(&i.generics, depth + 1, subs, false)?;
                 self.bounds(&i.where_clause, depth + 1, subs)?;
                 self.ty_at(&i.target, depth + 1, subs)?;
                 if let Some(t) = &i.trait_type {
@@ -553,7 +640,7 @@ impl<'a> Budget<'a> {
             }
             ItemKind::Trait(t) => {
                 self.text(&t.name, item.span)?;
-                self.generics(&t.generics, depth + 1, subs)?;
+                self.generics(&t.generics, depth + 1, subs, false)?;
                 for bound in &t.bounds {
                     self.ty_at(bound, depth + 1, subs)?;
                 }
@@ -613,6 +700,7 @@ impl<'a> Budget<'a> {
                 }
             }
             PatternKind::Constructor { path, arguments } => {
+                self.type_member_patterns |= path.len() == 1;
                 for s in path {
                     self.text(s, p.span)?;
                 }
@@ -630,7 +718,11 @@ impl<'a> Budget<'a> {
                     self.pattern(&field.pattern, depth + 1)?;
                 }
             }
-            PatternKind::Reference { pattern, .. } => self.pattern(pattern, depth + 1)?,
+            PatternKind::Reference { pattern, .. } => {
+                self.reference_patterns = true;
+                self.pattern(pattern, depth + 1)?;
+            }
+            PatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             PatternKind::Literal(l) => self.literal(l, p.span)?,
             PatternKind::Wildcard => {}
         }
@@ -669,6 +761,9 @@ impl<'a> Budget<'a> {
             self.statement(s, depth + 1, subs)?;
         }
         Ok(())
+    }
+    pub(crate) fn statement_snapshot(&mut self, statement: &Stmt) -> R<()> {
+        self.statement(statement, 0, None)
     }
     fn statement(
         &mut self,
@@ -789,6 +884,7 @@ impl<'a> Budget<'a> {
             self.text("self", e.span)?;
         }
         match &e.kind {
+            ExprKind::Ascribed { .. } => self.expr_ascribed(e, depth, subs),
             ExprKind::Literal(..) => self.expr_literal(e, depth, subs),
             ExprKind::Name(..) | ExprKind::ReceiverMember(..) => self.expr_name(e, depth, subs),
             ExprKind::Group(..)
@@ -812,6 +908,18 @@ impl<'a> Budget<'a> {
                 self.expr_syntax(e, depth, subs)
             }
         }
+    }
+    fn expr_ascribed(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        let ExprKind::Ascribed { ty, value } = &e.kind else {
+            unreachable!("budget expression dispatch")
+        };
+        self.ty_at(ty, depth + 1, subs)?;
+        self.expr(value, depth + 1, subs)
     }
     fn expr_literal(
         &mut self,

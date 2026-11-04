@@ -88,6 +88,11 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .collect();
             modules.push(ProgramModule {
                 core: CoreModule {
+                    life_declarations: module.core.life_declarations.clone(),
+                    life_instances: module.core.life_instances.clone(),
+                    dyn_declarations: module.core.dyn_declarations.clone(),
+                    dyn_interfaces: module.core.dyn_interfaces.clone(),
+                    dyn_vtables: module.core.dyn_vtables.clone(),
                     aggregate_templates: Vec::new(),
                     aggregate_applications: Vec::new(),
                     schema_version: module.core.schema_version,
@@ -144,6 +149,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
+            storage_life: None,
             call_kind: None,
             life: None,
             callable_return: None,
@@ -760,20 +766,27 @@ impl Collector<'_> {
         for contract in &function.callable_parameters {
             self.charge(0)?;
             if let Some(life) = &contract.life {
-                if life.binder_count as usize > self.limits.max_locals
-                    || life.parameter_lives.len() > self.limits.max_locals
+                if life.bindings.len() > self.limits.max_locals
+                    || life.classes.len() > self.limits.max_nodes
                 {
                     return Err(vec![Diagnostic::limit(
                         Phase::Ct,
-                        "higher-rank source relation exceeds binder/parameter bounds",
+                        "rich source relation exceeds bounds",
                         Some(function.span),
                     )]);
                 }
                 self.text_len(
-                    (life.binder_count as usize)
-                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                    life.bindings
+                        .len()
+                        .saturating_add(life.classes.len())
                         .saturating_add(2),
                 )?;
+                for row in &life.bindings {
+                    self.text_len(row.position.path.len())?;
+                }
+                for row in &life.classes {
+                    self.text_len(row.position.path.len())?;
+                }
             }
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;
@@ -914,6 +927,8 @@ impl Collector<'_> {
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Tuple(fields) => {
                 for field in fields {
                     self.pattern(field, depth + 1)?;

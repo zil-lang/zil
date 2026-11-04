@@ -1,0 +1,152 @@
+{
+  "task": "G3.3.1",
+  "baseline": "8477e08c1d8e124f6b9b920295cc461332213c49",
+  "ct_subvalue_composed": "8ce77e9796de189334d0cd42cc3fe985924ea220",
+  "normal_common_merge": "d8b3e3e397b5f09b22bfced3fede019c5531aa81",
+  "normative": {
+    "version": "ZIL-LANG-1.4",
+    "spec_sha256": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+    "full_sha256": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+    "rules": [
+      "ZIL-ORIGIN §3.3–3.4",
+      "ZIL-TRAIT §18 common40 Fixed/Invocation class mapping",
+      "CT5 source ambient scope/full ordinal"
+    ]
+  },
+  "write_set_sha256": {
+    "crates/zil-expand/src/generic_source_life.rs": "9f9c16200f9483e9aaf32a9fbcfc1f0308426bf4de304e34a35c0d452624d896",
+    "crates/zil-expand/src/generic_alias.rs": "2155cd9773b52ee97392fc43ea9ad059dc5f0542d698969845e013122ab32b29",
+    "crates/zil-expand/src/generics.rs": "71a7a960c38d80f880a4c6f815f6f0a26d2f8ecdac9ccceb792166ffedf4db69",
+    "crates/zil-driver/tests/generics.rs": "9aafa1b0157fdb611a9ea83f073d8525260ac6f381bc383f2909af4a3a5d1364"
+  },
+  "original_8477": {
+    "ordinary-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-projected-phantom": {
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0
+    }
+  },
+  "source_fix": {
+    "actual_producer": "Expand before canonical stored type header/body erasure, after alias normalization",
+    "identity": "borrowed actual declaration slot plus original full generic ordinal; method host and own function have separate owner domains",
+    "obligation": "persistent nominal classes invariant; ordinary outer address uppers may intersect; unknown qualified facts cannot discharge required source classes",
+    "kernels": "no Core/Typed/Wire authority bit, no kernel bypass, no default budget change; accepted sources continue through Types/Analyze/Verify",
+    "alias": "enter actual function lifetime generic scope for alias actual normalization",
+    "header_accounting": "Each Impl/Trait generic any scan and each method inherited-host generic any scan prepays its full borrowed header length on the same budget, independently of previous syntax walks."
+  },
+  "commands": [
+    "cargo test -p zil-driver --test generics --features llvm-api -j2",
+    "cargo test -p zil-driver --test generics --features llvm-api -j2 g3_3_1_ -- --nocapture",
+    "cargo clippy -p zil-expand -p zil-driver --test generics --features zil-driver/llvm-api -j2 -- -D warnings",
+    "cargo fmt --all -- --check",
+    "git diff --check"
+  ],
+  "results": {
+    "generics": {
+      "passed": 43,
+      "failed": 0
+    },
+    "new_selected": {
+      "passed": 7,
+      "failed": 0,
+      "native_executions": 56,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimization": [
+        "O0",
+        "O2"
+      ],
+      "exit": 42
+    },
+    "source_through_lower_max_analysis_steps": {
+      "ordinary": 17552,
+      "CT-projection": 29755,
+      "N_minus_1": "ResourceLimit",
+      "N": "Success",
+      "fresh_and_warm": true,
+      "active_queries_after_request": 0
+    },
+    "default_worker": {
+      "source": "512 consecutive shallow let saved=wrap(saved) in scoped-life function",
+      "stack": "std test worker with RUST_MIN_STACK removed; no stack_size override",
+      "previous_new_walk": "SIGABRT independently reproduced by review",
+      "current": "Expand ResourceLimit, normal exit; generated exact original 512-wrap source in committed existing test"
+    },
+    "unused_aggregate_method": "wrong source annotation SafeReject/Expand E-GENERIC-ARGUMENT; correct own-life method Verify Success",
+    "ordinary_borrow": "borrow-return and reborrow helpers accepted; shared upper intersection with only scalar observation accepted; forcing unknown intersection into a/b annotation Unsupported",
+    "repeated_host_header_fee": {
+      "method_count": 8,
+      "host_generic_widths": [
+        16,
+        64
+      ],
+      "exact_analysis_step_N": [
+        4119,
+        20055
+      ],
+      "at_N": "existing Expand Unsupported generic resource or methods require capability resolution",
+      "at_N_minus_1": "Expand ResourceLimit",
+      "fresh_warm_retry": true,
+      "acceptance_claim": false
+    }
+  },
+  "limits": [
+    "Private source relation repair; not general type inference or loan authority",
+    "Generic host method execution retains existing capability-resolution fence; wrong unused method still checked",
+    "Scoped aggregate containers retain prior runtime Types consumer fence; source Core constraints tested separately",
+    "Unresolved qualified call/type result requiring a class is explicit Unsupported; ordinary class-free calls retain prior consumers",
+    "CT enum-scoped construction and mixed Type/life function phantom constructor prior producer fences not opened",
+    "Outer Fixed callable environment public consumer remains proposal from G3.3, not implemented here",
+    "Independent review and formal common gates belong to root; this receipt is author limited verification"
+  ],
+  "rust_goals": {
+    "safety": "Original ordinary and CT wrong-class acceptances closed while independent runtime kernels remain mandatory; general life/lending still incomplete",
+    "runtime_memory": "No new runtime representation/implicit allocation; 56 actual backend/optimization native executions; no Rust speed/RSS comparison",
+    "expression_maintenance": "Same-class alias, relay, CT block/projection, borrow-return/reborrow and full nominal ordinals remain usable; generic host methods retain prior boundary",
+    "compile_cost": "Actual Fact depth, node/work, text, maps, clone and substitution charged before growth; N/N−1/fresh/warm; no defaults raised; no Rust timing claim",
+    "breakthrough": "Reproducible safety and default-worker reliability correction, not product-wide Rust net advantage or B0 completion"
+  },
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang_and_llvm_api": "23.1.4 (7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "jobs": 2,
+    "debug": 0,
+    "incremental": 0,
+    "target_dir": "exclusive target342-40",
+    "TMPDIR": "workspace G3.3.1-tmp"
+  },
+  "ct_fix_before_life_repair": {
+    "ordinary-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-projected-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    }
+  },
+  "historical_comparison": "8477 ordinary/direct CT wrongly accepted; projection originally stopped at CT schema fence. d1 composed removes that independent fence and exposes projection wrong-class acceptance too. M37 rejected the lifetime generic syntax at Parse, so is not an older acceptance witness.",
+  "previous_checkpoint": {
+    "sha": "a4aa0179a85dd304a883d8c7400a275da8b5ba8c",
+    "result": "independently functional Pass; repeated Impl/Trait/host-header scanning fees subsequently confirmed incomplete, so not final accounting acceptance"
+  }
+}

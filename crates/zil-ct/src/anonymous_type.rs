@@ -3,6 +3,23 @@
 use crate::CtExecutionBudget;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ir::{Constant, ct_artifact::*};
+#[path = "anonymous_type_scoped.rs"]
+mod scoped;
+
+pub(crate) fn scoped_graph(reference: &CtTypeRef) -> bool {
+    !reference.ambient_classes.is_empty()
+        || reference.nodes.iter().any(|node| {
+            matches!(node, CtTypeNode::BorrowedStorage { .. })
+                || matches!(node, CtTypeNode::Nominal { arguments, .. }
+                if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
+        })
+}
+pub(crate) fn retained_bytes(reference: &CtTypeRef) -> u64 {
+    (std::mem::size_of::<CtTypeRef>() as u64).saturating_add(
+        crate::ct_artifact::storage::graph(reference, None)
+            .expect("admitted graph byte arithmetic"),
+    )
+}
 
 fn bad(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-ARTIFACT", None, message)]
@@ -21,8 +38,61 @@ fn mul(a: u64, b: u64) -> CompileResult<u64> {
     a.checked_mul(b).ok_or_else(bound)
 }
 
+/// Paid, lossless projection for the closed direct-address adapter profile.
+/// Rich signatures remain explicit candidates until their independent consumer lands.
+pub(crate) fn flat_life(
+    life: &zil_ir::StorageLifeContract,
+    parameters: usize,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<zil_ir::FunctionLifeContract> {
+    budget.reserve_analysis_work(add(
+        add(life.bindings.len() as u64, life.classes.len() as u64)?,
+        parameters as u64,
+    )?)?;
+    for row in &life.bindings {
+        budget.reserve_analysis_work(row.position.path.len() as u64)?;
+    }
+    for row in &life.classes {
+        budget.reserve_analysis_work(row.position.path.len() as u64)?;
+    }
+    let bytes = mul(parameters as u64, std::mem::size_of::<Option<u32>>() as u64)?;
+    budget.reserve_temporary_bytes(bytes)?;
+    let result = life.to_flat(parameters).ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "rich CT5 signature consumer is not yet implemented",
+            None,
+        )]
+    });
+    budget.release_temporary_bytes(bytes);
+    result
+}
+pub(crate) fn life_bytes(life: &zil_ir::StorageLifeContract) -> u64 {
+    let rows = (life.bindings.len() as u64)
+        .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>() as u64)
+        .saturating_add(
+            (life.classes.len() as u64)
+                .saturating_mul(std::mem::size_of::<zil_ir::SignatureLifeClassBinding>() as u64),
+        );
+    life.bindings
+        .iter()
+        .fold(rows, |n, row| {
+            n.saturating_add(
+                (row.position.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>() as u64),
+            )
+        })
+        .saturating_add(life.classes.iter().fold(0u64, |n, row| {
+            n.saturating_add(
+                (row.position.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>() as u64),
+            )
+        }))
+}
+
 pub(crate) fn children(node: &CtTypeNode) -> Vec<CtTypeNodeId> {
     match node {
+        CtTypeNode::BorrowedStorage { storage, .. } => vec![*storage],
         CtTypeNode::Nominal { arguments, .. } => arguments
             .iter()
             .filter_map(|a| match a {
@@ -54,6 +124,13 @@ pub(crate) fn remap(
     mut map: impl FnMut(CtTypeNodeId) -> CompileResult<CtTypeNodeId>,
 ) -> CompileResult<CtTypeNode> {
     Ok(match node {
+        CtTypeNode::BorrowedStorage { .. } => {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "stored-borrow CT remapping is not yet implemented",
+                None,
+            )]);
+        }
         CtTypeNode::Primitive(s) => CtTypeNode::Primitive(*s),
         CtTypeNode::Builtin(s) => CtTypeNode::Builtin(*s),
         CtTypeNode::Opaque { identity } => CtTypeNode::Opaque {
@@ -66,6 +143,11 @@ pub(crate) fn remap(
                 .map(|a| match a {
                     CtTypeArgument::Type(id) => map(*id).map(CtTypeArgument::Type),
                     CtTypeArgument::Scalar(c) => Ok(CtTypeArgument::Scalar(c.clone())),
+                    CtTypeArgument::Lifetime(_) => Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 lifetime owner relocation is not yet implemented",
+                        None,
+                    )]),
                 })
                 .collect::<CompileResult<_>>()?,
         },
@@ -141,7 +223,15 @@ struct Key<'a> {
 impl Key<'_> {
     fn bytes(&mut self, bytes: &[u8]) -> CompileResult<()> {
         self.budget.reserve_analysis_work(bytes.len() as u64)?;
-        self.budget.reserve_temporary_bytes(bytes.len() as u64)?;
+        let needed = self.out.len().checked_add(bytes.len()).ok_or_else(bound)?;
+        if needed > self.out.capacity() {
+            let capacity = needed.max(self.out.capacity().saturating_mul(2)).max(8);
+            self.budget.reserve_analysis_work(self.out.len() as u64)?;
+            self.budget
+                .reserve_temporary_bytes(capacity.saturating_sub(self.out.capacity()) as u64)?;
+            self.out
+                .reserve_exact(capacity.saturating_sub(self.out.len()));
+        }
         self.out.extend_from_slice(bytes);
         Ok(())
     }
@@ -198,14 +288,47 @@ pub fn canonicalize_anonymous_type(
     reference: &CtTypeRef,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
+    canonical_type_key_mode(reference, budget, false).map(|(ty, _)| ty)
+}
+
+/// Full structural key and normalized graph. Both outputs remain charged until
+/// their caller drops them; this supplies data identity, never source access.
+pub(crate) fn canonical_type_key(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    canonical_type_key_mode(reference, budget, true)
+}
+fn canonical_type_key_mode(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+    keep_key: bool,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    let before = budget.live_temporary_bytes();
+    let result = canonical_type_key_mode_inner(reference, budget, keep_key);
+    let keep = result.as_ref().map_or(0, |(ty, key)| {
+        retained_bytes(ty).saturating_add(key.capacity() as u64)
+    });
+    let added = budget.live_temporary_bytes().saturating_sub(before);
+    budget.release_temporary_bytes(added.saturating_sub(keep));
+    result
+}
+fn canonical_type_key_mode_inner(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+    keep_key: bool,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    budget.reserve_analysis_work(reference.nodes.len() as u64)?;
+    if scoped_graph(reference) {
+        return scoped::canonical(reference, budget, keep_key);
+    }
     if reference.root.0 as usize >= reference.nodes.len() {
         return Err(bad("CT type root is outside its graph"));
     }
     let count = reference.nodes.len() as u64;
-    budget.reserve_analysis_work(count)?;
     let scratch = mul(count, 96)?;
     budget.reserve_temporary_bytes(scratch)?;
-    let mut canonical: Vec<Canonical> = Vec::new();
+    let mut canonical: Vec<Canonical> = Vec::with_capacity(reference.nodes.len());
     let mut charged = scratch;
     let result = (|| {
         for (index, node) in reference.nodes.iter().enumerate() {
@@ -234,10 +357,12 @@ pub fn canonicalize_anonymous_type(
             {
                 return Err(bad("CT type argument is not a pure scalar"));
             }
-            let life_bytes = if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
-                let slots = life.parameter_lives.len() as u64;
-                budget.reserve_analysis_work(add(slots, 3)?)?;
-                add(mul(slots, std::mem::size_of::<Option<u32>>() as u64)?, 32)?
+            let life_bytes = if let CtTypeNode::BorrowedFunctionPointer {
+                life, parameters, ..
+            } = node
+            {
+                flat_life(life, parameters.len(), budget)?;
+                life_bytes(life)
             } else {
                 0
             };
@@ -306,8 +431,8 @@ pub fn canonicalize_anonymous_type(
             budget.reserve_generated_nodes(output_nodes)?;
             budget.reserve_temporary_bytes(bytes)?;
             charged = add(charged, bytes)?;
-            let mut nodes = Vec::new();
-            let mut mapped = Vec::new();
+            let mut nodes = Vec::with_capacity(usize::try_from(output_nodes).map_err(|_| bound())?);
+            let mut mapped = Vec::with_capacity(ids.len());
             for id in &ids {
                 let child = &canonical[id.0 as usize].ty;
                 let offset = u32::try_from(nodes.len()).map_err(|_| bound())?;
@@ -328,6 +453,13 @@ pub fn canonicalize_anonymous_type(
                 budget,
             };
             let tag = match node {
+                CtTypeNode::BorrowedStorage { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "stored-borrow CT identity is not yet implemented",
+                        None,
+                    )]);
+                }
                 CtTypeNode::Primitive(_) => 0,
                 CtTypeNode::Builtin(_) => 1,
                 CtTypeNode::Nominal { .. } => 2,
@@ -362,6 +494,13 @@ pub fn canonicalize_anonymous_type(
                                 key.number(c.len() as u64)?;
                                 key.bytes(c)?;
                             }
+                            CtTypeArgument::Lifetime(_) => {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Ct,
+                                    "CT4 lifetime identity is not yet implemented",
+                                    None,
+                                )]);
+                            }
                             CtTypeArgument::Scalar(c) => {
                                 key.bytes(&[1])?;
                                 key.scalar(c)?;
@@ -369,7 +508,12 @@ pub fn canonicalize_anonymous_type(
                         }
                     }
                 }
-                CtTypeNode::BorrowedFunctionPointer { life, .. } => key.life(life)?,
+                CtTypeNode::BorrowedFunctionPointer {
+                    life, parameters, ..
+                } => {
+                    let life = flat_life(life, parameters.len(), key.budget)?;
+                    key.life(&life)?;
+                }
                 CtTypeNode::Opaque { identity } => key.symbol(identity)?,
                 CtTypeNode::Array { length, .. } => key.number(u64::from(*length))?,
                 CtTypeNode::Address { mutable, .. } => key.bytes(&[u8::from(*mutable)])?,
@@ -384,7 +528,7 @@ pub fn canonicalize_anonymous_type(
                 }
             }
             let key = key.out;
-            charged = add(charged, key.len() as u64)?;
+            charged = add(charged, key.capacity() as u64)?;
             let final_node = if matches!(node, CtTypeNode::AnonymousSum(_)) {
                 CtTypeNode::AnonymousSum(mapped)
             } else {
@@ -394,16 +538,28 @@ pub fn canonicalize_anonymous_type(
             let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| bound())?);
             nodes.push(final_node);
             canonical.push(Canonical {
-                ty: CtTypeRef { nodes, root },
+                ty: CtTypeRef {
+                    nodes,
+                    root,
+                    ambient_classes: Vec::new(),
+                },
                 key,
                 depth,
             });
         }
         let result = canonical.swap_remove(reference.root.0 as usize);
-        let output_bytes = add(16, mul(result.ty.nodes.len() as u64, 64)?)?;
+        let output_bytes = retained_bytes(&result.ty);
         // Keep precisely the VM's returned Type-value charge after scratch dies.
-        budget.reserve_temporary_bytes(output_bytes)?;
-        Ok(result.ty)
+        budget.reserve_temporary_bytes(add(
+            output_bytes,
+            if keep_key {
+                result.key.capacity() as u64
+            } else {
+                0
+            },
+        )?)?;
+        let key = if keep_key { result.key } else { Vec::new() };
+        Ok((result.ty, key))
     })();
     drop(canonical);
     budget.release_temporary_bytes(charged);
@@ -429,6 +585,7 @@ mod tests {
         CtTypeRef {
             root: CtTypeNodeId(nodes.len() as u32 - 1),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]
@@ -513,16 +670,18 @@ mod tests {
     #[test]
     fn anonymous_type_borrowed_code_keeps_complete_life_and_signature_identity() {
         use zil_ir::FunctionLifeContract;
-        let one = FunctionLifeContract {
+        let one = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 1,
             parameter_lives: vec![Some(0), Some(0)],
             result_life: Some(0),
-        };
-        let two = FunctionLifeContract {
+        })
+        .unwrap();
+        let two = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 2,
             parameter_lives: vec![Some(0), Some(1)],
             result_life: Some(0),
-        };
+        })
+        .unwrap();
         let input = graph(vec![
             CtTypeNode::Primitive(CtScalarTy::I32),
             CtTypeNode::Address {

@@ -206,7 +206,7 @@ pub(super) fn join(to: &mut Origins, from: &Origins, budget: &mut Budget) -> Com
     Ok(changed)
 }
 
-fn birth(
+pub(super) fn birth(
     state: &State,
     carrier: Carrier,
     path: &[u32],
@@ -244,7 +244,7 @@ fn birth(
     Ok(value.clone())
 }
 
-fn set(
+pub(super) fn set(
     state: &mut State,
     carrier: Carrier,
     path: &[u32],

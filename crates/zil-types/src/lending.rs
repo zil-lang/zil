@@ -9,6 +9,11 @@ pub(super) fn supported_result(ty: &Type) -> bool {
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
 
+fn owning_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
+        if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Source {
     Local(LocalId),
@@ -180,7 +185,8 @@ fn sources(
                             | InstructionKind::ReadCapture { index } => {
                                 found.insert(Source::Capture(*index));
                             }
-                            InstructionKind::ReborrowAddress { address, .. }
+                            InstructionKind::BorrowPlaceAddress { address, .. }
+                            | InstructionKind::ReborrowAddress { address, .. }
                             | InstructionKind::AddressField { address, .. }
                             | InstructionKind::AddressIndex { address, .. }
                             | InstructionKind::AddressSlice { address, .. }
@@ -337,11 +343,10 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
                 "environment lending requires a shared result and a non-consuming Fn/FnMut entry",
             ));
         }
-        if closure
-            .captures
-            .iter()
-            .any(|ty| matches!(ty, Type::Address { .. } | Type::Desc(_)))
-        {
+        if closure.captures.iter().any(|ty| {
+            matches!(ty, Type::Desc(_))
+                || matches!(ty, Type::Address { .. }) && !owning_capture_address(ty)
+        }) {
             return Err(unsupported(
                 f.span,
                 "environment lending requires self-contained captures, not external Address/Desc targets",
@@ -359,6 +364,7 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             };
             if !closure.captures.get(*index as usize).is_some_and(|ty| {
                 ty.is_copy_value()
+                    || owning_capture_address(ty)
                     || matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer)
             }) {
                 return Err(unsupported(

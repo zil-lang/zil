@@ -9,6 +9,9 @@ pub(crate) use hrtb::{inner as bound_inner, inner_mut as bound_inner_mut};
 #[derive(Clone)]
 pub(crate) struct CallableTemplate {
     pub life: Option<zil_ir::FunctionLifeContract>,
+    // Header shape, separate from the direct-address life relation: a
+    // quantified storage class can exist without such a direct relation.
+    pub has_role_binders: bool,
     pub index: usize,
     pub generic_index: u32,
     pub generic_name: String,
@@ -136,7 +139,7 @@ pub(super) fn dual_scope(
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
     match &ty.kind {
-        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
             path.as_slice() == [name]
                 || args
                     .iter()
@@ -173,7 +176,7 @@ fn selector_refers(ty: &TypeRef, name: &str, remaining: &mut usize) -> R<bool> {
         .checked_sub(3usize.saturating_add(name.len()))
         .ok_or_else(limit)?;
     Ok(match &ty.kind {
-        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
             for part in path {
                 *remaining = remaining
                     .checked_sub(part.len().saturating_add(1))
@@ -603,7 +606,12 @@ fn template_with_state(
         ));
     }
     if callables.len() > 2
-        || function.generics.len() > callables.len() + 1
+        || function
+            .generics
+            .iter()
+            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+            .count()
+            > callables.len() + 1
         || !function.where_clause.is_empty()
     {
         return Err(unsupported(
@@ -611,11 +619,9 @@ fn template_with_state(
             "at most two callable types and one ordinary Copy type with direct bounds are implemented",
         ));
     }
-    for ordinary in function
-        .generics
-        .iter()
-        .filter(|p| !callables.iter().any(|c| c.name == p.name))
-    {
+    for ordinary in function.generics.iter().filter(|p| {
+        !matches!(p.kind, GenericParamKind::Lifetime) && !callables.iter().any(|c| c.name == p.name)
+    }) {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
             if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
         {
@@ -811,6 +817,10 @@ fn template_with_state(
             }
             let binding = CallableTemplate {
                 life: life.clone(),
+                has_role_binders: matches!(
+                    grouped(callable_bound).kind,
+                    TypeKind::ForLifetime { .. }
+                ),
                 index,
                 generic_index: generic_index as u32,
                 generic_name: parameter.name.clone(),

@@ -150,6 +150,162 @@ Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及
 新增32字段+8层pointee正例经两个role重复使用同一ClosureId，Types/Analyze/Verify N15796/31925/72533；raw与Wire N−1 ResourceLimit、freshN同值。新增raw混合header的32层/16深度限制及256字段/128工作额度在递归资格判断前都返回Types ResourceLimit。当前HRTB STORAGE阶段N1514/530/11724/12330（相对13677为Types+4、两核各+24），其它既有控制N保持，默认限额不变。最终既有十目标70/35/10/9/7/18/14/10/37/4零失败；同十目标Clippy-Dwarnings通过，Types32/Verify344单位通过。Analyze限定122通过、2个已记录v34冻结fixture因版本不适用明确排除，原两项E-WIRE-VERSION失败记录仍保留。当前focused HRTB12项包含64native，无新增机器profile重复计数。修正待独立精确源码复核。
 
 
+## Next public contract proposal: common stored borrows, State and lending
+
+
+This is the next slice after the corrected HRTB checkpoint. It does not claim general §5.2 protocol execution, dyn, Iterator, Task or registration completion. The producer and each kernel must consume the representation before acceptance. Type tag35 is reserved by root; root owns the actual schema/Wire/CT versions and publication.
+
+## Actual storage, target and declaration relation are separate
+
+A storage position identifies bytes/initialization/epoch. Its current borrowed leaf identifies an actual target and loan ancestry. A declared life class restricts that leaf; it is neither target equality nor separation nor permission. Moving a complete carrier preserves its fixed leaf bounds and actual instance identity. Updating one leaf does not freshen those bounds. Every call creates fresh invocation substitutions; captured fixed environment classes are distinct.
+
+Reuse Field/Variant/ErrorArm from PlaceProjection. Variant/ErrorArm steps require the actual active initialized ancestor; paths never silently dereference stored Address/Desc leaves. 340's BorrowPlaceAddress126/PlaceTagAddress127 can walk real inline storage and stop at those leaves. A dedicated load then resolves the actual stored target.
+
+Proposed common declarations (names can be adjusted together):
+
+```rust
+pub enum StoredBorrowMode {
+    SharedAddress,
+    ExclusiveAddress,
+    ReadOnlyDescription,
+    WritableDescription,
+}
+pub struct StorageLifeSlot {
+    pub path: Vec<PlaceProjection>,
+    pub binder: u32,
+    pub mode: StoredBorrowMode,
+}
+pub struct StorageLifeShape {
+    pub binder_count: u32,
+    pub slots: Vec<StorageLifeSlot>,
+}
+// New Type tag35, physical layout exactly storage's existing layout.
+Type::BorrowedStorage { storage: Box<Type>, life: StorageLifeShape }
+
+pub enum StorageBase { Parameter(u32), Capture(u32), Result }
+pub struct StoragePosition { pub base: StorageBase, pub path: Vec<PlaceProjection> }
+pub enum StorageBinder { Fixed(u32), Invocation(u32) }
+pub struct StorageLifeBinding { pub position: StoragePosition, pub binder: StorageBinder }
+pub struct StorageLifeContract {
+    pub fixed_binder_count: u32,
+    pub invocation_binder_count: u32,
+    pub bindings: Vec<StorageLifeBinding>,
+}
+```
+
+Modes must match the actual Address leaf and its mutable bit exactly, or describe the permitted Desc access upper bound. A mode cannot upgrade an actual shared/read-only origin. Empty wrappers erase to the existing type; raw empty or direct double wrappers reject. The storage root must be an explicitly supported finite Record/Package/Tuple/Enum/ErrorUnion. It cannot be Address/Desc/Managed/foreign/dynamic storage or an opaque type. Nested finite storage may contain meaningful child borrowed-storage types; their relative maps must compose consistently. Every real Address/Desc storage leaf is covered exactly once, with no missing/extra/duplicate path. Owning children retain their separately checked responsibility and cleanup qualification; the wrapper does not grant Copy, StoreElement, capture, Share or Transfer automatically.
+
+Slot order is deterministic structural declaration order, and labels are dense by first actual occurrence jointly across all stored slots. Reject unused tails, gaps, out-of-range labels, duplicate slots and inconsistent mutable leaf claims. Alpha renaming and binder declaration reordering cannot change the relation; changing which slots share a class changes semantic type identity. Permission remains separate from a class shared by multiple slots.
+
+## Signature binding and source preservation
+
+CoreFunction and TypedFunction receive an optional storage life contract only on actual storage consumers; ClosureDefinition receives the same shape when actual fixed capture or stored-result relations require it. Function parameters/results refer to their actual positions and full projected paths. A closure's Fixed binders refer only to actual captured storage; Invocation binders refer only to that call's actual arguments. An invocation-result relation cannot substitute a fixed capture merely because both use numeric index0. Parameter/Capture/Result rows are checked against actual function/environment layout and complete signatures. A contract with a fixed result source uses the general lending proof; it is not passed through the existing invocation-only FunctionLifeContract shortcut.
+
+For a signature with stored slots, the new contract must include its participating top-level Address leaves as empty paths. It replaces the flat relation for that signature, or root may require an exact checked projection into the old flat field; two independently meaningful, potentially contradictory relations are not allowed. Existing flat FunctionLifeContract encoding remains unchanged on old signatures. Source role/State bound relations need the same stored-slot mapping only when the corresponding implementation consumes them; no placeholder CoreStateBinding field is proposed.
+
+The existing AST GenericArg supports only Type/Const. Add root-owned GenericArg::Lifetime(String) so ordinary Iter<'s,T> applications can express the actual relationship; lifetime declaration kinds already exist. Private parsing/substitution/key work must preserve argument kind and ordinal, lexical binder scope and canonical joint maps. No lexical-name-only key, no dropping life arguments as if they were omitted types, and no classifying Address type arguments as Copy. The actual source target is an ordinary declaration such as SliceIter<life s,T:Copy>{slice:&'s[T],index:i64}, with Option<&'s T> results and ordinary trait methods, without an Iterator builtin.
+
+Address slots have explicit source life labels. Descriptor slots must acquire a fixed upper from a real declared/inferred Hold relation; a bare resource type or empty trait does not invent one. Any source syntax needed for explicitly named descriptor Hold must be settled with root rather than guessed in lowering.
+
+## Actual leaf operations
+
+Propose two untrusted runtime operations, using an actual Address to qualified storage as base (root assigns append-only opcodes):
+
+```rust
+pub enum StoredBorrowLoad {
+    CopyShared,
+    CopyDescription,
+    Reborrow { mutable: bool },
+    Take,
+}
+InstructionKind::LoadStoredBorrow {
+    storage: ValueId,
+    path: Vec<PlaceProjection>,
+    mode: StoredBorrowLoad,
+}
+InstructionKind::StoreStoredBorrow {
+    storage: ValueId,
+    path: Vec<PlaceProjection>,
+    value: ValueId,
+}
+```
+
+CopyShared is only a real shared Address leaf. It returns the actual external target loan, preserving its fixed bound; a shared SliceIter result can outlive the short borrow of the iterator itself. CopyDescription preserves actual target, read/write restriction and parent view windows. Reborrow creates a fresh child of the actual stored target permission and storage slot epoch; exclusive reborrow requires both an exclusive storage base and an exclusive leaf. Take requires exclusive initialized storage, moves that leaf permission and marks that exact position unavailable. It cannot duplicate an exclusive loan. Store requires exclusive storage, exact actual leaf type/mode and invariant fixed upper, checks the new Hold before discarding old permission, and rejects any overlapping live call/result loan. Owning field replacement continues the separate responsibility/cleanup operations; this operation writes only an Address/Desc leaf.
+
+These operations must not materialize a freely usable Address<Address<T>> pointer slot or turn ReadAddress/WriteAddress into unchecked pointer copying. If root prefers an existing opcode with an equally explicit storage-only protocol, the same independent checks and nonescaping cut point remain required.
+
+## Independent proofs and evidence
+
+Analyze and Verify each reconstruct storage initialization/version, actual target roots, loan parents, live uses and call/CFG joins. Paths and actual instance identities are private proof state, not public permission flags. Calls substitute parameter/capture paths into actual targets and propagate post-call slot Holds; result summaries refer to actual source positions, including stored leaves, rather than only coarse Parameter numbers. Signature life is checked as an upper bound. Local targets, stale slot versions, missing origins and cleanup after an escaped borrow reject. A loop/backedge or recursive call does not reset the fixed upper or the analysis ledger.
+
+This same mechanism covers ordinary borrowed records, borrowed State fields, shared SliceIter, exclusive lending next, and later owning-pointee lending. Active tags, partial initialization and responsibility remain separate. Replacement must validate the prepared new value before old Cleanup; a new value borrowing the old environment cannot survive destruction of that old environment. No independent iterator/state special case, hidden Box/RC, runtime borrow checker or implicit pinning is introduced.
+
+CT Type DAG/read view/constructor/Wire must preserve storage child node IDs and the complete numeric shape. CT reconstruction or source materialization may not print free lexical labels, erase the wrapper or turn it into ordinary Copy storage. Proposed CT node BorrowedStorage{storage:CtTypeNodeId,life:StorageLifeShape} has one actual DAG edge; constructor takes the storage type operand plus complete shape, with all clones/edges/path comparisons prepaid. Core/Typed/module/type/interface/JSON/CT/cache identities include the actual maps. Root chooses the joint versions; candidate decoding reruns current kernels rather than accepting an old proof.
+
+Bounded metering includes every repeated shape/path walk, ordered common-prefix comparison, root set join/copy, slot epoch state, active-loan substitution and fixed point. A shared remaining ledger is retained throughout each phase. Validate size/depth before recursive classification and before clone/growth. Default limits do not increase.
+
+Retain original SliceIter/lending/State source, unused definition obligations, nearest short-lived field overwrite, same-root mutable alias, stale epoch after overwrite, result crossing parent replacement, active-tag forgery, raw+decoded Wire and current cache/body mutation controls. Native Clang/API O0/O2 must include successful iteration and owned/error/argument-preparation cleanup. General §5.2 protocol transitions and explicit dyn follow this substrate and remain separately reported until real consumers exist.
+
+## Clarifications requested by root before publication
+
+CopyShared snapshots the actual external target permission, not a loan of the pointer slot. Its result retains the target's real root/owner and fixed life upper but is detached from that slot's epoch. A later valid write of that slot must not invalidate or freeze this copied shared result. Replacing/destroying the real target remains blocked. Reborrow keeps the slot's parent/epoch dependency. A real Take transfers the actual exclusive permission, marks the old slot unavailable and detaches the transferred value from the old slot epoch; its fixed upper and actual target/owner/parent ancestry remain. Neither operation is implemented as CopyShared of an exclusive pointer.
+
+Representative ordinary source for the positive/nearest negative (new generic lifetime argument syntax is required):
+
+```zil
+struct Saved<life s> { pointer:&'s i64 }
+fn replace<life s>(saved:&mut Saved<'s>, next:&'s i64)->i64 {
+    let old=saved.pointer
+    saved.pointer=next       // allowed: same fixed upper; old refers to old target
+    return *old
+}
+```
+
+An actual caller may use two distinct targets that both satisfy the fixed upper. An old shared result copied out before replacement continues to refer to the first target; writing that first target while the result remains live rejects. This is distinct from writing the pointer slot. An exclusive child reborrowed from a stored exclusive leaf keeps the storage epoch and blocks overwriting that leaf until the child's last use.
+
+Owned-field description and stored-description load are separate operations. DescribeAddress/DescribePackageField derives a description from a real owning Managed field and its actual carrier permission. CopyDescription can only load a real Desc leaf already stored in qualified storage; it intersects (a) that stored value's actual access fact, (b) the declared description access upper, and (c) the current storage base permission. A shared base produces only readonly access absent an independently supported interior-mutation protocol. A mutable carrier cannot upgrade a readonly description stored earlier. The public description mode is an access upper, not a promise that every current value actually has write authority; independent actual permission facts must remain attached.
+
+Representative normal source using an inferred fixed Hold for a descriptor field:
+
+```zil
+struct Described { bytes:ByteBuffer }
+package Owner { manages bytes:ByteBuffer }
+fn reserve(saved:&mut Described) { bytes_reserve(saved.bytes,8) }
+fn observe(saved:&Described)->i64 { return bytes_len(saved.bytes) }
+```
+
+Construction from an actual live writable descriptor, followed by reserve(&mut saved), is positive; observe(&saved) is positive. Loading through &Described and attempting bytes_reserve rejects. A second positive constructs the stored descriptor through an exclusive Owner head. The nearest negative constructs it from a shared Owner head, then passes the resulting carrier by &mut to reserve: the actual readonly permission survives storage, so reserve rejects. Destroying/moving the original owner before a future stored-description use also rejects. These are intended source/CFG controls for implementation, not acceptance claims for the current compiler.
+
+## Consuming transfer and call-state boundary
+
+A real consuming Take transfers that leaf's actual permission and target loan ancestry to the result, marks the original slot unavailable, and detaches the transferred result from the old slot epoch. Refill with a different valid target does not invalidate the transferred result. The fixed upper and actual target/owner/parent dependencies remain. Reborrow alone retains the original storage borrow and epoch dependency.
+
+A concrete ordinary positive prepares the new permission before consuming the old leaf:
+
+```zil
+struct Exclusive<life s> { pointer:&'s mut i64 }
+fn replace<life s>(saved:&mut Exclusive<'s>, next:&'s mut i64)->&'s mut i64 {
+    let old=give saved.pointer
+    saved.pointer=next
+    return old
+}
+```
+
+The proposed existing give-place surface here lowers to the real consuming stored-leaf operation. Caller targets must actually be disjoint, even though both have the same allowed life class. A second `give saved.pointer` before refill rejects. Returning after only the first Take rejects the incomplete borrowed carrier. Moving/calling with that whole incomplete carrier rejects. An aliased actual replacement target must reject while `old` remains an exclusive result; two distinct live targets are positive. Raw/Wire controls must test these actual target aliases independently of source's earlier rejection.
+
+StoreStoredBorrow accepts a vacant borrowed-leaf slot for refill, still requiring its invariant bound/type/mode and all active ancestors. A positive prepares a new target first, Takes the old exclusive permission, refills the slot with the new target, and returns/uses the old permission. The intended ordinary consuming field expression lowers to Take (the existing explicit `give` place surface can be extended for this actual affine leaf; root owns the final syntax norm). Nearest negatives are a second Take before refill, moving/calling with the whole carrier while incomplete, and refilling from the same actual target while the transferred exclusive permission remains live. Different target names or life labels do not establish separation.
+
+A function borrowing an external carrier by &mut must restore its declared legal complete state on every normal returning path, including error returns, or really transition it to a valid empty Enum branch. A temporary vacant slot cannot silently persist in a caller still treating that carrier as complete. Cross-call missing/refill states require a separately proved real state protocol. Cleanup of a partly moved local remains checked independently against its remaining responsibility.
+
+For signature StoragePosition traversal, an empty parameter path denotes that actual outer Address leaf if present. A nonempty path may unwrap the entry Address once and then traverse only inline storage/metadata-transparent borrowed-storage wrappers. It cannot silently dereference an Address/Desc encountered inside the path. Capture bases name actual current environment fields; any nested capture traversal is checked against the real layout and is not ordinary pointer-place authority.
+
+An Invocation binder meeting a stored class is bound to that existing class; it cannot narrow or freshen the stored class's invariant fixed upper. Fresh call substitution never grants write permission or changes a carrier's fixed bounds. CopyShared's independence from the pointer slot does not remove a real target owner/parent dependency, including when a separately supported target is actually owned by the same carrier.
+
+### HRTB export identity work proposal
+
+343审查联合program finish余额时发现新增interface_fingerprint的HRTB export/role扫描和数值关系序列化未从同一余额逐次收费；signature快照只支付自身遍历/复制。下一修正把该余额传到identity构建，预付新扫描与新增关系字节的growth/hash工作，保持字节顺序和语义身份不变，overflow/不足返回Types ResourceLimit；默认限额不变。以真实跨模块普通HRTB源的Types project N/N−1/fresh和既有live/restored接口缓存控制核验，记录必要旧预算迁移。
+
+实际export identity修正通过：同一真实双模块源的Types project N662→784，N−1 ResourceLimit/fresh N相同；新增guard不改任何已序列化字节及顺序。完整既有十目标71/35/10/9/7/18/14/10/37/4通过，同十目标Clippy llvm-api -D warnings通过；原HRTB STORAGE和deep阶段N均保持530/11724/12330及15796/31925/72533。现有alpha/changed-relation、live/restored cache与原生清理控制仍通过。原ebcc独审PassLimited254de49db及nested Product独审8808a1fa6保留；root已集成相同fee补丁及两项相邻field/ClosedEnvironment source控制，root73/0另记，不作为作者树直接执行证据。
 ### 集成当前Wire37回归迁移
 
 真实root组合HRTB/Task37与generic receiver methods通过cross73、generic_regressions59、generics23、trait58。独立Vec当前oracle补完整CallKind、role.life及SuspendCall，保留V31的95操作原固定样本；IR61及oracle13通过。历史v32/v34字节全部保持，只以固定80bec5278的结构decoder离线转码，显式加入Direct/None life；current核重验，旧plan不授予权限。初次迁移漏更新六个driver模块的helper路径，fmt暴露后统一覆盖所有17个历史输入；Analyze2及driver16/7/1/1/1/2实际通过，tools/migrate-impl253-wire37.py可复现。不会只改版本头冒充新记录。
@@ -185,3 +341,93 @@ This model patch does not add a free-name CtTypeArgument::Lifetime. CtTypeArgume
 Until that representation and materialization consumer exist, CT nominal Type/Syntax reconstruction involving lifetime/phantom actuals must explicitly reject Unsupported. The source consumer must also keep unsupported phantom-only lifetime types explicit where this first stored-leaf shape cannot yet retain the required semantic arguments; it must not normalize them to an ordinary type or discard lifetime actuals. Empty wrapper erasure is permitted only when no actual lifetime/nominal relationship is being discarded. This is a remaining terminal obligation, not a permanent language rejection or acceptance waiver.
 
 Proposed schema changes in this external candidate: SCHEMA_VERSION38, runtime Wire38, typed-module fingerprint domainV38 (old function/closure bytes gain optional storage metadata). TypeIdentityV35 and existing callable contract domains remain when their old encodings do not change. Root will compose Task34/128 and Dyn36/131/132 alongside this patch and publish the final unified registry. Data registration/codec roundtrip and standalone IR compilation are not language/kernel acceptance.
+## Stored-borrow baseline and actual Store resource-head continuation
+
+The shared Wire38 records are staged before their consumers. Private adapters keep unimplemented stored-borrow operations and CT reconstruction explicitly unsupported while preserving every existing operand and ClosedEnvironment traversal; this is not a capability-completion claim. The complete retained-class/nominal-argument supplement is delivered externally for root publication.
+
+The unchanged impl180 source `let v=store_at_mut(s,0);v.owner.code=90;return 0` currently loses the actual Store origin in resource flow, then rejects a real exclusive resource-head Copy-field projection. Repair both independent resource flows by forwarding the actual Store descriptor origins to its borrowed Package result. Permit a Managed payload field projection only from an independently admitted real head Address, preserving the actual base mutable bit, resource responsibility and Store/view loan windows. This does not permit whole owner replacement, copying Managed responsibility, shared writes or stale view use after Store mutation. Retain the exact original source as a positive with native cleanup observation and nearest shared/stale-window negatives, plus raw and decoded Wire provenance/permission forgeries in both kernels.
+
+Store-head validation on staged38: unchanged b377 impl180 constructed runtime source is byte-equal to the retained `store_resource_head.zil`. The actual exclusive resource field write succeeds with normal cleanup stdout `ZB`; its nearest last-use then reserve case also succeeds in Clang/API O0/O2 (8 new profiles). Four new focused tests retain shared/stale/destroyed/unknown-index source negatives, both-kernel raw+decoded-Wire permission/owner/reserve/caller-alias negatives, live/restored current-body cache checks, Analyze N22441 and Verify N38508 with N−1 ResourceLimit and fresh N success. Existing cross_function_borrows77 and impl180_store_mut19 pass in full; same two-target Clippy with llvm-api and `-D warnings` passes. The historical37 schema assertion alone follows root's published38 version; earlier source and fee receipts remain unchanged. General stored-borrow types/operations/CT stay unimplemented and fail closed at the staged boundary; this checkpoint does not complete SliceIter, lending, dyn or State. Rust goals: actual resource bytes and deterministic cleanup remain explicit; the source API now composes an ordinary Store view with its real owned head's Copy field. No heap wrapper, extra allocation, synthetic permission or index-based separation was introduced. General reusable borrowed storage remains the next obligation.
+
+## Ordinary stored-carrier source continuation
+
+The next private proof stage keeps exact physical target origins and carrier locations separate. A returned target summary selects its actual parameter stored-leaf path, and every caller substitutes the current actual leaf facts. Target-parent loan ancestry survives CopyShared; the pointer-slot dependency is represented separately for Reborrow/Take continuation. Actual simultaneous windows produce path-aware symbolic separation requirements which each caller instantiates; distinct input/leaf labels never establish actual separation. The first executable profile is finite physical shared Address fields and ordinary direct calls, with later exclusive stored-leaf/state and opaque retained carriers remaining explicitly closed until their consumers exist. Both kernels will own their own CFG/root/loan reconstruction. Existing modules retain their existing admission path and work identities; all new container comparison, clone, fixed-point and signature work spends the same request ledger before use.
+
+The next actual source is an ordinary `SliceIter<life s,T:Copy>` containing `slice:&'s [T]` and `index:i64`, with ordinary factory/method calls and `Option<&'s T>` results. There is no Iterator builtin route. Nominal actual syntax must preserve Lifetime/Type/Const kind and full ordinal before specialization; parsing a lifetime actual does not qualify storage or authorize an otherwise unresolved key. The factory may bind its result's stored class to the actual slice argument, while `next(&mut self)` uses that already fixed class and an independent short receiver invocation. Reading the stored shared slice detaches that pointer-slot epoch while retaining the actual slice target, permitting index updates and the next call with a prior element still live. Mutable reborrow/Take/refill follow the distinct common rules already recorded above. The runtime and each kernel must reconstruct the actual stored target separately from the carrier's byte position; generic definition obligations remain before specialization.
+
+Stored-source WIP checkpoint before root39 refresh: the ordinary fixture now parses and its Life/Type/Const actual-order control passes. Analyze and Verify have separate physical path/type/mode checks for129/130; neither replaces actual tag, initialization, upper-bound, loan-parent or epoch reconstruction. The full BorrowedStorage type/signature admission guards remain Unsupported, so this is not a stored-borrow consumer pass. Driver check and cross-target Clippy pass; existing terminal34241 controls pass (37 unrelated cross tests explicitly filtered). Source/native SliceIter and the general storage proof remain unfinished. No public schema or other author's BFP key implementation was changed.
+
+## First actual physical stored-target kernel checkpoint
+
+The two independent kernels now consume finite qualified Record/Tuple shared Address slots through real executable constructors, direct helpers and forwarded returns. A private target identifies its input stored-leaf path separately from the carrier byte location and any actual inline pointee projection. Current complete nominal inventories, full generic kind/ordinal, exact qualified instance, dense class/position order and actual physical fields are checked before identity/recursive classification. Empty module paths remain valid root identities. A stored label never supplies target roots or permission.
+
+The analyzer uses sparse ordered target/slot states; the verifier reconstructs vector states using reverse batches. Both derive direct-call summaries from actual reachable bodies, substitute exact actual stored leaves and preserve target-parent loans. CopyShared has no pointer-slot/short-receiver dependency in this immutable-slot slice: ending the carrier is allowed while a copied external target remains live, and mutating/destroying that actual target still rejects. Calls create fresh Address-result and returned-slot child loans, so repeated use of one exclusive input cannot duplicate its permission while a previous result is live. Symbolic input/leaf separation requirements are instantiated at every actual caller. Recursive bottom remains unknown until the fixed point and is rejected if still ungrounded; forward declarations do not become early false rejects. Existing flat reference return uppers remain enforced when mixed with qualified carriers.
+
+This first slice admits one retained input carrier/class and independent fresh receiver borrows; multiple retained classes/inputs and a new naked input meeting an existing Fixed upper remain explicitly unimplemented until actual invariant-class substitution exists. Ordinary WriteAddress cannot replace qualified carriers or stored leaves. Reborrow, Take, replacement/refill, descriptions, enum alternatives, owned/captured/opaque carriers and general State/lending remain closed. The current slot state is complete and immutable; no unimplemented epoch transition is accepted. Source Type-generic definitions still need their symbolic stored-leaf obligations before specialization.
+
+Raw shared-field/factory/relay controls pass full Analyze, full Verify and decoded Wire, including carrier-end versus actual-target mutation, fresh exclusive call-result neighbors, full nominal metadata mutations, recursive cycles and a current cached body's activation-local escape. New raw work boundaries are Analyze8728 and Verify11365, each with N−1 ResourceLimit/fresh N equality; defaults do not increase. Full existing cross81 and scoped kernel libraries128/348 pass; two-kernel library/test Clippy with `-D warnings` passes. The first cross80/1 historical Wire38 assertion failure is retained, then the two current schema/Wire assertions explicitly migrate to published39; no historical receipt or Wire bytes are rewritten.
+
+This is a kernel/raw checkpoint, not source/native SliceIter completion. Root's ordinary View source/Core producer is parallel; Types and transparent Lower/LLVM are not part of this proof receipt yet. Rust goals: actual compiler-side referent retention is now independent of pointer-slot storage in both kernels, with no public proof bit or new runtime allocation. There is no new native/runtime/RSS result, no Rust cost comparison, and no complete framework/product breakthrough claim; the added proof implementation's maintenance/compile costs remain unmeasured. General storage and the original terminal obligations continue.
+
+## Ordinary View native continuation
+
+Root's573080f77 source/Types producer and the unchanged `stored_view.zil` now compose with the physical proof. Lower retains the complete semantic wrapper/contracts in LIR and recognizes its already checked finite physical layout. LLVM uses the underlying record layout; CopyShared129 emits a real typed field GEP and shared leaf load. No runtime lifetime metadata, allocation, Box, RC or permission bit is introduced. Other stored actions remain explicitly unsupported. A readonly VerifiedModule profile query enables downstream work payment only; the backend still binds the full actual LIR/CFG/contracts to that immutable capability. Erasing a stored signature or altering a stored field path in raw LIR rejects before emission.
+
+New Lower metadata/layout visits use its existing cumulative Sum budget. LLVM pays actual stored type/signature binding, clones and operation expansion before use from the same remaining ledger later consumed by Copy ABI and Task/Registration emission; it does not renew that allowance. Legacy modules retain their existing meter path. The original View source runs Clang and LLVM API at O0/O2, prints42, and emits the inline `{ptr}` record plus actual GEP/load. The four focused raw/native tests pass with the original raw N8728/11365 unchanged; scoped Verify/Lower/LLVM production Clippy with llvm-api and `-D warnings` passes. Original source and actual native LLVM/executables/reports are retained with byte hashes.
+
+Broader Lower/backend library-test compilation encountered an old machine-CGU test literal missing `storage_life`; that failed command remains recorded. Root separately published its one-field None migration f078d4333, outside this native checkpoint's tested573 base. This failure is not reported as a library-suite pass. Phantom-only nominal carriers, richer class handshakes, enum/Option, mutable stored actions and general SliceIter/State/lending/dyn remain subsequent work. Rust goals: this adds a real ordinary source-to-native borrowed-field composition with an inline pointer representation. No Rust runtime/RSS/compile-cost comparison or framework/product-level breakthrough has been established.
+
+### Nominal-only class correction WIP
+
+344's exact `Phantom<life s>{n:i32}` source exposes an over-rejection: a canonical nominal lifetime occurrence can exist with zero actual Address/Desc fields. Both physical validators must permit that meaningful metadata-only class without fabricating a target, parent loan, or physical slot. Analyzer final origin completeness must require roots for actual borrowed leaves/Addresses, not for phantom-only aggregate data. Empty, unqualified wrappers still reject. The positive and its local-field escape neighbor are retained byte-equal to344's original inputs. Initial author573 source replay stops earlier at the old CT numeric-scope guard; root-authorized unified-base replay and raw no-root controls remain pending at this WIP backup.
+
+## Actual shared stored source to Typed composition
+
+The first producer consumer preserves full nominal declarations/actuals and the rich direct-function relation through real project restoration, CT passthrough, Types normalization and exports. Restored helpers are selected by the actual module and function mapping, so same-named helpers in separate modules cannot exchange contracts. Types checks physical fields against the actual aggregate, validates and snapshots the full shape under work/depth/node limits, and emits LoadStoredBorrow CopyShared from an actual carrier Address. Runtime roots remain the independent kernels' obligation. Public wrappers expose the existing exact storage-contract and nominal-inventory encoders for contextual interface identity, with explicit domains and prepaid full traversal. There is no wire layout change.
+
+The first real View source, declaration-order relay, alpha control, stale-target and local-escape neighbors, a three-module same-name helper composition, raw mismatched declaration/identity controls and normalization idempotence have reached their source/Types/two-kernel boundaries. Initial project restoration loss and missing interface type hashing panic are retained as failures and corrected. Native transparent layout, richer class substitution, generic definition obligations, nested and affine stored carriers remain under construction. These changes do not turn the current source/Verify slice into terminal language acceptance.
+
+### Shared native accounting and phantom correction
+
+The nominal-only zero-slot correction now passes after the authorized unified39 integration. The exact CT-produced Phantom source succeeds; returning its activation-local scalar field remains an actual local-target escape. Raw and decoded-Wire controls independently reject an invented Param0 Hold and that escape. Nominal class metadata contributes no target or loan. Vacuous zero-slot wrappers without meaningful nominal metadata remain rejected.
+
+Both kernels now inspect the implemented instruction profile in every block, including unreachable blocks, before downstream structural binding. LLVM's binding reservation explicitly covers every admitted vector payload and its exhaustive type visitor covers recursive signatures and lifetime metadata; unsupported instructions reject before comparison. The actual separately allocated wide shared LIR reservation component has Codegen N11374, with N−1 ResourceLimit before both matching and forged inputs, and fresh N equality. This is an internal reservation-component boundary: attempted public whole-emitter threshold isolation remains dominated by the preceding Verify boundary and those failed attempts are retained. No default allowance or production API changed.
+
+On unified39 base123ec, full cross_function_borrows84 passes, including the original four Clang/API O0/O2 View profiles. Analyze128, Verify348, Lower5 and LLVM148 library tests pass. All four crates' library/test Clippy with llvm-api and `-D warnings` passes after correcting one test-only replace_box lint; the initial failed Clippy log is retained. The new raw boundaries are Analyze8728 and Verify11382 (the latter pays the additional all-block inspection), with N−1/fresh controls. Previous native/raw receipts keep their original source and thresholds. Rust goals: actual phantom-only metadata composes without invented roots; native comparison work is now paid before use. No new runtime/RSS/Rust cost comparison or terminal product completion is claimed. Rich40 relation migration and the remaining mutable storage, Option/SliceIter, state and lending work continue separately.
+## Rich40 runtime relation migration
+
+Consume the published semantic class rows at actual qualified type boundaries. Direct Address bindings remain actual borrowed positions; qualified Record classes use the root or one Pointee step exactly once. Derive each physical stored slot's relation from its checked local class and that class mapping, instead of requiring duplicate flattened signature rows. Existing fixed-point target, parent-loan and actual window proofs remain independent. Preserve exact flat consumers only through lossless adapters; richer BFP and callable-role admission must retain and independently check all class equations and actual target eligibility. Metadata selectors grant no physical access or target roots. Unsupported owning/nested/opaque and mutable-slot consumers remain closed while the corresponding proof is developed.
+
+Rich40 adapter backup: Analyze compiles and its four existing stored-flow tests plus one joint Tag-class signature test pass. Verify runtime consumers are migrated, but the combined crate check currently stops on ten CT-only flat-field errors owned by344; no Verify or driver pass is claimed. BFP/role declarations retain all rows. Stored executable FunctionRef/indirect/callback admission remains closed pending the actual call-equation and target consumers. Raw342 fixture/JSON migrations are source-preserving but await the composed driver build. This backup is not an accepted production milestone.
+
+The next rich40 WIP adds independent persistent class-equation environments: Analyze uses a parent arena and Verify rewrites explicit representatives. Each actual incoming contract variable is rigid; every call allocates its own formal substitution, while a constructor's existential phantom class belongs to that one SSA definition and survives storage/load/reuse. Analyze's actual direct/indirect phantom controls pass: two independently constructed phantom values may meet two different retained inputs, while using the same constructor against both rejects. The first rich stored indirect lane is scalar-result only and checks concrete target class implication, actual argument types and simultaneous outer/stored-leaf windows. Rich returned borrows/callback integration remains closed. Analyze full libraries128/2 currently fail only old schema39 fixture assertions at published40; no full suite pass is claimed.
+
+### Rich40 scalar pointer raw checkpoint
+
+The published rich relation now reaches actual FunctionRef and indirect scalar-result calls in both independent kernels. A concrete target must have the complete actual parameter/result types and an ordinary Direct body; every equality required by its class contract must follow from the pointer contract. Each call substitutes fresh formal variables into the actual incoming outer borrows and persistent qualified classes. Existing actual classes remain rigid. A constructor's rootless phantom variable is created once for its SSA definition and survives storage/load/reuse; a second call cannot independently re-instantiate that same value. Distinct constructor values can meet different incoming fixed classes. Metadata equations never supply target roots, initialized slots or loan ancestry.
+
+The immutable shared physical target proofs remain in force. Indirect calls inspect simultaneous actual outer and stored-leaf windows; repeating the same exclusive argument rejects even when every class equation matches. Scalar-result admission does not open a returned Address or carrier substitution. Headers map each qualified type once at [] or [Pointee], and derive physical slot relations from the actual validated shape. Extra flattened field relation rows reject. Complete relation row/count reservation now occurs before walking the rows, with per-use path work charged from the same remaining ledger.
+
+Analyze stored-flow8/0, Verify stored-flow7/0 and the independent joint-signature control1/0 pass; the Verify controls exercise full raw and decoded Wire admission. Rich raw request boundaries are Analyze3377 and Verify4053, with N−1 ResourceLimit and repeat/fresh N equality; defaults do not increase. Both kernels' library/test Clippy passes with `-D warnings`. An earlier full Analyze run has128 passes and two historical39 fixture assertions at40, explicitly left to root's byte-preserving fixture migration. Earlier CT adapter/test-literal and temporary standalone-probe setup failures remain logged. This slice claims no40 source/native execution, rich returned-borrow or closure-role completion. Root/341 source producers and343 ABI execution continue separately. Rust goals: actual persistent fixed-class composition now survives real raw calls without an added runtime representation or invented target; no Rust runtime/RSS/cost comparison or terminal product completion is established.
+
+Rich40 domain hardening: reject an impossible fixed/invocation domain before allocating the grounding vector. Checked row/domain arithmetic first establishes that the claimed domains fit actual relation occurrences; each Fixed class also needs an incoming class occurrence. The per-use live ledger already reserves that bounded scan. Both kernels reject a tiny signature claiming u32::MAX fixed classes without allocating its claimed vector. The three signature controls and kernel library/test Clippy pass. After root's real39-to40 fixture migration, the preceding scalar checkpoint's complete Analyze133 and Verify351 libraries also pass; these counts remain bound to that pre-hardening source, rather than retroactively relabelled as the new signature-test run.
+
+## Unbound fixed code-pointer correction
+
+Independent raw replay of the scalar rich pointer slice shows that changing a pointer's invocation class to Fixed still permits that same value to be called against different incoming retained classes. The pointer value has no genuine enclosing class map in the currently implemented lane. Direct functions may substitute their input-grounded Fixed formal, but a free Fixed class on a thin pointer or role cannot be re-created at each invocation. Close that pointer/role admission until its enclosing semantic context is independently represented and checked; inferred source pointers remain Invocation-only. Retain the original Invocation positive and a raw/decoded-Wire Fixed-only mutation in both kernels. No memory-unsafe native result is claimed by this contract reproduction.
+
+The isolated correction passes Analyze stored9/0 and Verify stored8/0, including the Invocation nearest positive and Fixed-only raw/decoded-Wire rejection. Both kernel library/test Clippy with warnings denied passes. Rich raw N3377/4053 and N−1/fresh controls remain unchanged. The free Fixed domain is rejected before any call substitution; no Invocation rewriting or public schema change is used. Genuine enclosing fixed-pointer/role context remains an explicit implementation obligation, while ordinary input-grounded function Fixed substitution stays admitted.
+## Qualified scalar callback continuation proposal
+
+Start the actual rich-role consumer with capture-free Fn environments and scalar results. Validate each concrete definition/entry signature, retain independent input classes when it has no global relation, and separately recheck that actual entry under every full role relation, including multiple roles sharing one ClosureId. Helper receiver origins must identify the actual parameter position; closure type/layout identity cannot select one role. Preserve the actual environment borrow and simultaneous argument/stored-leaf windows. Callback helpers still use their independent joint call-language/cleanup checker. Captured Fixed classes, FnMut/FnOnce, owned or lending callback results and arbitrary environment storage remain closed until their corresponding producers and state consumers exist. A helper's Address<Closure> relation is scoped to its checked actual callback parameter; ordinary code pointers must not erase callable-role dependencies.
+
+Qualified-role construction backup: private capture-free definition/receiver/role helpers and per-role equation entrypoints are in place, with header callback positions kept separate from ordinary code pointer signatures. Both runtime crates compile; staged helpers are not yet dispatched and currently produce dead-code warnings. The executable stored profile still rejects closures, so no qualified callback acceptance or Clippy/test pass is claimed at this backup. Root's actual static rich-pointer source/Types producer will be composed before activating these consumers.
+
+Qualified-role dispatch WIP backup: actual capture-free Fn/scalar definitions, helper call-language checks, per-parameter role selection and conservative per-definition/per-role class entrypoints are now wired; both kernels compile. Mutable/owning/captured/lending environments stay closed. No new callback execution test or acceptance is claimed yet. Full root common40 source/Types consumers were composed as54d6f7f61 to avoid selective dependency loss. The separate unbound Fixed pointer correction is applied before executable role controls.
+### Qualified capture-free Fn raw checkpoint
+
+The actual capture-free Fn/scalar lane now executes ordinary closure construction and borrowed/shared callback calls under both independent stored-flow proofs. Every actual definition/entry signature is checked. With no global definition relation, input classes are independent rigid variables. Each actual parameter role then rechecks that immutable entry under its own complete contract; no role is copied into the definition and no ClosureId deduplication can skip the second contract. Receiver tracing selects the exact function parameter ordinal. A single closure under two distinct valid role relations passes; changing only the second role to an incompatible relation rejects. Wrong actual class equations reject independently of ordinary target/loan facts.
+
+Callback calls retain the actual environment borrow and every simultaneous argument/stored-leaf window. Repeated exclusive arguments reject in raw and decoded Wire even when their class equations are valid. Captures, genuine enclosing Fixed context, FnMut/FnOnce, lending/address results, arbitrary receiver forwarding, owned/opaque storage and mutable slot transitions remain closed. The unbound Fixed pointer/role correction is retained. Source closure annotations with enclosing Fixed dependencies require root's producer guard; inferred independent parameters are the intended first actual source path.
+
+Final scoped gates pass Analyze13/0 and Verify12/0, including full raw/decoded Wire controls. The qualified two-role request boundaries are Analyze5842 and Verify6530, with N−1 ResourceLimit and repeat/fresh N equality; scalar pointer3377/4053 stays unchanged. Full libraries138/356 passed before adding the two budget-only tests; both kernel library/test Clippy passes with warnings denied. The initial collapsible-if lint failure remains logged and was corrected. No actual Source/native callback claim is made by this raw checkpoint. Root composes the ordinary source helper producer/annotation guard and343's paid native visitor extension next. Rust goals: higher-rank class relationships now compose through an actual concrete callback entry without using nominal/layout identity as value identity or adding runtime lifetime state. There is no Rust runtime/RSS/cost comparison or terminal product completion claim.

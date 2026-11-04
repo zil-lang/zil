@@ -1,0 +1,48 @@
+{
+  "status": "PassLimitedRetainedOriginalDeclarationLineage",
+  "source": "34fc89a9f19bbb353d47bdb64795dcb9534cda0d",
+  "production_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/lineage341-source-binding.json",
+    "sha256": "ff5ec49e015ef28357e1ba96c5d17cf2e4efd53d098c50631a725673d76c848b"
+  },
+  "production_files": 373,
+  "production_digest": "995ef5acbb40c4dc82149536aae2a93f58c8656404a4bf52592cae1a294c9c75",
+  "method": "Independent read-only review and retained exact author-built executable replay; no independent rebuild.",
+  "replays": [
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/lineage341-expand",
+        "sha256": "7162f9fbc21e4847957e2be2f9f34f596de1dcec4d721919636d8dac60943464"
+      },
+      "filter": "source_context",
+      "result": "5 passed, 0 failed, 22 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/lineage341-expand.log",
+        "sha256": "0cdf67ca830b68855610b8fe7ed0cbd25337227e2cfa8a73c76906ba1bff063e"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/lineage341-generics",
+        "sha256": "b4378b284988e34391782a34e08c3c290480740eee99afbab13c6145ba2bcad4"
+      },
+      "filter": "declaration_",
+      "result": "3 passed, 0 failed, 22 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/lineage341-generics.log",
+        "sha256": "1e379bb74bee9416cedf4b5dc68cd73b01c94a3186ca8ce25c05b5a30051da7c"
+      }
+    }
+  ],
+  "review": [
+    "Original rows use the same paid Origins capture and complete source namespace as ordinary Expand; no new symbol spelling reconstruction.",
+    "Materializer moves rows with actual retained items after CT-only removal; Driver import pruning removes corresponding rows in the same operation. Counts/module owners are checked before moves.",
+    "Capture remaining limits feed CT Environment; materialization and subsequent import-row moves debit the remaining ledger and forward it to final Expand.",
+    "Selection/generation or nested member-vector changes invalidate this top-level-only lineage. The consumer receives Unavailable instead of fabricating final-position identity."
+  ],
+  "budgets": "Original capture work698/nodes33 and namespace221/nodes5 N-1 controls replayed.",
+  "limits": [
+    "Only retained original top-level declaration correspondence.",
+    "No generated/member lineage, authenticated ambient lifetime source context, dyn safety, full CT4 scoped source bridge, kernel/native or complete language acceptance."
+  ]
+}

@@ -458,7 +458,20 @@ impl Parser<'_> {
         };
         let value = if self.eat(Symbol::Eq) {
             self.newlines();
-            Some(self.ty()?)
+            let mut value = self.ty()?;
+            // Only a direct dyn alias RHS accepts this block. A function body
+            // after `-> &dyn Trait` is never consumed as a type binding block.
+            if matches!(value.kind, TypeKind::Dyn { .. }) && self.at(Symbol::LBrace) {
+                let bindings = self.dyn_bindings()?;
+                let TypeKind::Dyn {
+                    bindings: target, ..
+                } = &mut value.kind
+                else {
+                    unreachable!()
+                };
+                *target = bindings;
+            }
+            Some(value)
         } else if associated {
             None
         } else {
@@ -470,6 +483,53 @@ impl Parser<'_> {
             generics,
             bounds,
             value,
+        })
+    }
+    fn dyn_bindings(&mut self) -> P<Vec<DynBinding>> {
+        self.expect(Symbol::LBrace)?;
+        self.scoped(false, |p| {
+            let mut bindings = Vec::new();
+            p.separators();
+            while !p.at(Symbol::RBrace) && p.peek().kind != TokenKind::Eof {
+                let binding = p.nested(|p| {
+                    let start = p.peek().span;
+                    let kind = if p.eat_word("type") {
+                        let member = p.qualified_kind(QuoteNameNamespace::Type)?;
+                        p.expect(Symbol::Eq)?;
+                        DynBindingKind::Type {
+                            member,
+                            value: p.ty()?,
+                        }
+                    } else if p.eat_word("const") {
+                        let member = p.qualified_kind(QuoteNameNamespace::Value)?;
+                        p.expect(Symbol::Colon)?;
+                        let ty = p.ty()?;
+                        p.expect(Symbol::Eq)?;
+                        DynBindingKind::Constant {
+                            member,
+                            ty,
+                            value: p.expr(true)?,
+                        }
+                    } else if p.eat_word("fn") {
+                        let member = p.qualified_kind(QuoteNameNamespace::Value)?;
+                        p.expect(Symbol::ColonColon)?;
+                        let arguments = p.type_args()?;
+                        DynBindingKind::Method { member, arguments }
+                    } else {
+                        return p.fail(
+                        "E-PARSE-DYN-BINDING",
+                        "dyn bindings contain type/const equations or explicit method applications",
+                    );
+                    };
+                    let span = p.span_from(start);
+                    p.end()?;
+                    Ok(DynBinding { kind, span })
+                })?;
+                bindings.push(binding);
+                p.separators();
+            }
+            p.expect(Symbol::RBrace)?;
+            Ok(bindings)
         })
     }
     fn const_decl(&mut self, associated: bool) -> P<ConstDecl> {

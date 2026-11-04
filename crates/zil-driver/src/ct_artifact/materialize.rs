@@ -48,6 +48,80 @@ pub(crate) struct Materialized {
     pub previews: Vec<Preview>,
     pub required_imports: Vec<(ModuleId, CoreImport)>,
     pub usage: CtUsageReceipt,
+    /// Rows move with actual original items. No generated/member lineage is
+    /// inferred from the output's names, spans or new vector positions.
+    pub declaration_origins: Option<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>,
+    pub lineage_remaining: Option<Limits>,
+}
+impl Materialized {
+    pub(crate) fn retain_items(
+        &mut self,
+        index: usize,
+        mut keep: impl FnMut(&s::Item) -> bool,
+    ) -> CompileResult<()> {
+        let module = &mut self.modules[index];
+        let Some(origins) = &mut self.declaration_origins else {
+            module.items.retain(keep);
+            return Ok(());
+        };
+        let rows = origins
+            .get_mut(index)
+            .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+        if rows.module != module.id || rows.items.len() != module.items.len() {
+            return Err(category(
+                "declaration-origin placement differs before import removal",
+                module.span,
+            ));
+        }
+        let count = rows.items.len();
+        let remaining = self
+            .lineage_remaining
+            .as_mut()
+            .ok_or_else(|| category("declaration lineage ledger absent", module.span))?;
+        // The original rows are moved, not cloned; reserve the complete visit
+        // and destination vector before filtering either aligned collection.
+        remaining.max_analysis_steps =
+            remaining
+                .max_analysis_steps
+                .checked_sub(count)
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "declaration lineage move work exhausted",
+                        Some(module.span),
+                    )]
+                })?;
+        remaining.max_nodes = remaining.max_nodes.checked_sub(count).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "declaration lineage move nodes exhausted",
+                Some(module.span),
+            )]
+        })?;
+        self.usage.analysis_work = self
+            .usage
+            .analysis_work
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage work count overflow", module.span))?;
+        self.usage.generated_nodes = self
+            .usage
+            .generated_nodes
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage node count overflow", module.span))?;
+        let mut input = std::mem::take(&mut rows.items).into_iter();
+        let mut moved = Vec::with_capacity(count);
+        module.items.retain(|item| {
+            let row = input.next().expect("checked aligned declaration count");
+            if keep(item) {
+                moved.push(row);
+                true
+            } else {
+                false
+            }
+        });
+        rows.items = moved;
+        Ok(())
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Preview {
@@ -123,7 +197,11 @@ struct Materializer<'a, 'b> {
     previews: Vec<Preview>,
     required_imports: Vec<(ModuleId, CoreImport)>,
     runtime_scopes: Vec<BTreeSet<String>>,
+    data_source_scopes: Vec<super::execute::value_context::ValueSourceScope>,
     max_depth: usize,
+    track_declarations: bool,
+    declaration_lineage_preserved: bool,
+    generated_context: bool,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -332,7 +410,8 @@ impl Materializer<'_, '_> {
                 s::PatternKind::Name(name) => {
                     scope.insert(name.clone());
                 }
-                s::PatternKind::Reference { pattern, .. } => pending.push(pattern),
+                s::PatternKind::Reference { pattern, .. }
+                | s::PatternKind::ErrorArm { pattern, .. } => pending.push(pattern),
                 s::PatternKind::RecordConstructor { fields, .. } => {
                     pending.extend(fields.iter().map(|field| &field.pattern));
                 }
@@ -432,6 +511,18 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
+            CtTypeNode::BorrowedStorage { storage, .. } => {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
+                if !self.data_source_scopes.iter().any(|s| s.owner == id) {
+                    return Err(category(
+                        "stored-borrow Type has no genuine scoped source handle",
+                        span,
+                    ));
+                }
+                return self.owner_node(ty, *storage, caller, span, depth + 1);
+            }
             CtTypeNode::Primitive(primitive) => named(
                 match primitive {
                     CtScalarTy::Unit => "Unit",
@@ -491,6 +582,115 @@ impl Materializer<'_, '_> {
                             span,
                             depth + 1,
                         )?)),
+                        CtTypeArgument::Lifetime(value) => {
+                            if let zil_ir::StorageBinder::Fixed(binder) = value.binder {
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
+                                let scope = self
+                                    .data_source_scopes
+                                    .iter()
+                                    .find(|s| s.owner == value.owner)
+                                    .ok_or_else(|| {
+                                        runtime(
+                                            "fixed lifetime has no authentic source handle",
+                                            span,
+                                        )
+                                    })?;
+                                let ordinal =
+                                    *scope.parameters.get(binder as usize).ok_or_else(|| {
+                                        runtime("fixed lifetime source ordinal is absent", span)
+                                    })?;
+                                let definition = scope.definition.clone();
+                                self.environment.budget.reserve_analysis_work(
+                                    self.environment
+                                        .index
+                                        .symbol_lookup_work()
+                                        .saturating_add(self.parsed.len() as u64),
+                                )?;
+                                if definition.generation_path.is_some()
+                                    || !self.environment.index.contains(&definition)
+                                {
+                                    return Err(runtime(
+                                        "source lifetime owner is not an actual original declaration",
+                                        span,
+                                    ));
+                                }
+                                let parsed = self
+                                    .parsed
+                                    .iter()
+                                    .find(|parsed| parsed.module.id == definition.module)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime module is absent", span)
+                                    })?;
+                                let max_depth =
+                                    self.environment.budget.remaining().max_call_depth as usize;
+                                let original = super::compiler::source_scope::original_function(
+                                    &parsed.module,
+                                    definition.declaration,
+                                    max_depth,
+                                    |work| {
+                                        self.environment.budget.reserve_analysis_work(work as u64)
+                                    },
+                                )?
+                                .ok_or_else(|| {
+                                    runtime(
+                                        "source lifetime owner is not an original function",
+                                        span,
+                                    )
+                                })?;
+                                if original.generic_host {
+                                    return Err(category(
+                                        "source member lifetime lacks enclosing generic context",
+                                        span,
+                                    ));
+                                }
+                                let parameter = original
+                                    .function
+                                    .generics
+                                    .get(ordinal as usize)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime full ordinal is absent", span)
+                                    })?;
+                                if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                                    return Err(runtime(
+                                        "source lifetime full ordinal selects a different parameter kind",
+                                        span,
+                                    ));
+                                }
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(parameter.name.len() as u64 + 1)?;
+                                self.environment
+                                    .budget
+                                    .reserve_temporary_bytes(parameter.name.len() as u64)?;
+                                args.push(s::GenericArg::Lifetime(parameter.name.clone()));
+                                continue;
+                            }
+                            let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
+                                unreachable!()
+                            };
+                            let Some(CtTypeNode::BorrowedFunctionPointer { life, .. }) =
+                                ty.nodes.get(value.owner.0 as usize)
+                            else {
+                                return Err(runtime(
+                                    "lifetime metadata has no invocation owner",
+                                    span,
+                                ));
+                            };
+                            if binder >= life.invocation_binder_count {
+                                return Err(runtime(
+                                    "lifetime metadata ordinal exceeds its owner",
+                                    span,
+                                ));
+                            }
+                            self.environment.budget.reserve_analysis_work(32)?;
+                            self.environment.budget.reserve_temporary_bytes(32)?;
+                            args.push(s::GenericArg::Lifetime(format!(
+                                "zil_life_{}_{}",
+                                value.owner.0, binder
+                            )));
+                        }
                         CtTypeArgument::Scalar(value) => {
                             if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_))
                             {
@@ -600,6 +800,11 @@ impl Materializer<'_, '_> {
                 result,
                 life,
             } => {
+                let life = super::scope_metadata::closed_signature(
+                    life,
+                    parameters.len(),
+                    &mut self.environment.budget,
+                )?;
                 self.environment.budget.reserve_analysis_work(
                     (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
                 )?;
@@ -617,7 +822,7 @@ impl Materializer<'_, '_> {
                                 span,
                             ));
                         };
-                        *lifetime = Some(format!("zil_life_{tag}"));
+                        *lifetime = Some(format!("zil_life_{}_{tag}", id.0));
                     }
                     Ok(ty)
                 };
@@ -638,7 +843,7 @@ impl Materializer<'_, '_> {
                 let mut kind = s::TypeKind::Function { params, result };
                 for i in (0..life.binder_count).rev() {
                     kind = s::TypeKind::ForLifetime {
-                        lifetime: format!("zil_life_{i}"),
+                        lifetime: format!("zil_life_{}_{i}", id.0),
                         inner: Box::new(s::TypeRef { kind, span }),
                     };
                 }
@@ -693,24 +898,39 @@ impl Materializer<'_, '_> {
         expression: &s::Expr,
         expected: Option<CtTy>,
     ) -> CompileResult<CtValue> {
+        self.expression_data(module, owner, expression, expected)
+            .map(|output| output.value)
+    }
+    fn expression_data(
+        &mut self,
+        module: ModuleId,
+        owner: &CtSymbolId,
+        expression: &s::Expr,
+        expected: Option<CtTy>,
+    ) -> CompileResult<super::execute::EvaluatedData> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
-            return self.provider(
-                module,
-                path,
-                tree,
-                expression.span,
-                expected.as_ref().ok_or_else(|| {
-                    category(
-                        "provider output needs a Syntax receiving category",
-                        expression.span,
-                    )
-                })?,
-            );
+            return self
+                .provider(
+                    module,
+                    path,
+                    tree,
+                    expression.span,
+                    expected.as_ref().ok_or_else(|| {
+                        category(
+                            "provider output needs a Syntax receiving category",
+                            expression.span,
+                        )
+                    })?,
+                )
+                .map(|value| super::execute::EvaluatedData {
+                    value,
+                    context: None,
+                });
         }
         let input = self.environment.empty_input(expression.span)?;
         self.reject_runtime_capture(expression)?;
         let has_receiving_category = expected.is_some();
-        self.environment.evaluate(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
+        self.environment.evaluate_data(Entry::Expression { module, expression, definition: owner.clone(), lexical_owner: (!self.generated_context).then(|| owner.clone()), expected, parameters: &[] },
             &input, None, &[], expression.span).map_err(|mut errors| {
                 if has_receiving_category {
                     for error in &mut errors {
@@ -1059,17 +1279,69 @@ impl Materializer<'_, '_> {
         inherited: Option<&CtSymbolId>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<Option<Vec<usize>>> {
         self.depth(
             depth,
             items.first().map_or(Span::default(), |item| item.span),
         )?;
         let mut output = Vec::new();
-        for mut item in std::mem::take(items) {
+        let mut retained = self.track_declarations.then(Vec::new);
+        for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
-            let owner = self.owner(module, item.span, inherited)?;
+            let owner = if self.track_declarations && inherited.is_none() && !generated {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.environment.index.symbol_lookup_work())?;
+                let symbol =
+                    CtSymbolId {
+                        module,
+                        declaration: zil_base::NodeId(u32::try_from(ordinal).map_err(|_| {
+                            category("original declaration index overflow", item.span)
+                        })?),
+                        generation_path: None,
+                    };
+                if !self.environment.index.contains(&symbol) {
+                    return Err(category(
+                        "original declaration absent from frozen inventory",
+                        item.span,
+                    ));
+                }
+                symbol
+            } else if self.track_declarations
+                && !generated
+                && !self.generated_context
+                && inherited.is_some()
+            {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.parsed.len() as u64)?;
+                let parsed = self
+                    .parsed
+                    .iter()
+                    .find(|p| p.module.id == module)
+                    .ok_or_else(|| category("original member module is absent", item.span))?;
+                let parent = inherited.expect("checked inherited declaration");
+                let max_depth = self.environment.budget.remaining().max_call_depth as usize;
+                if let Some(declaration) = compiler::source_scope::original_member(
+                    &parsed.module,
+                    parent.declaration,
+                    ordinal,
+                    max_depth,
+                    |work| self.environment.budget.reserve_analysis_work(work as u64),
+                )? {
+                    CtSymbolId {
+                        module,
+                        declaration,
+                        generation_path: None,
+                    }
+                } else {
+                    self.owner(module, item.span, inherited)?
+                }
+            } else {
+                self.owner(module, item.span, inherited)?
+            };
             if self.environment.ct_only.contains(&owner)
                 && matches!(
                     item.kind,
@@ -1078,8 +1350,11 @@ impl Materializer<'_, '_> {
             {
                 continue;
             }
+            let previous_generated = self.generated_context;
+            self.generated_context |= generated;
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
+                    self.declaration_lineage_preserved = false;
                     let value = self.expression_value(
                         module,
                         &owner,
@@ -1094,7 +1369,7 @@ impl Materializer<'_, '_> {
                             item.span,
                         ));
                     };
-                    self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
+                    self.nested_items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
                     output.extend(generated_items);
                 }
                 s::ItemKind::Meta(s::MetaItem::If {
@@ -1102,21 +1377,53 @@ impl Materializer<'_, '_> {
                     else_items,
                     ..
                 }) => {
-                    self.items(module, then_items, Some(&owner), depth + 1, generated)?;
-                    self.items(module, else_items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, then_items, Some(&owner), depth + 1, generated)?;
+                    self.nested_items(module, else_items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 s::ItemKind::Meta(s::MetaItem::For { items, .. }) => {
-                    self.items(module, items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 _ => {
                     self.item(module, &mut item, &owner, depth + 1)?;
+                    if let Some(retained) = &mut retained {
+                        self.environment.budget.reserve_analysis_work(1)?;
+                        self.environment
+                            .budget
+                            .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
+                        retained.push(ordinal);
+                    }
                     output.push(item);
                 }
             }
+            self.generated_context = previous_generated;
         }
         *items = output;
+        Ok(retained)
+    }
+    fn nested_items(
+        &mut self,
+        module: ModuleId,
+        items: &mut Vec<s::Item>,
+        inherited: Option<&CtSymbolId>,
+        depth: usize,
+        generated: bool,
+    ) -> CompileResult<()> {
+        let original_count = items.len();
+        let retained = self.items(module, items, inherited, depth, generated)?;
+        if let Some(retained) = retained {
+            self.environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            if retained.into_iter().ne(0..original_count) {
+                // The current public ledger has top-level rows only. Member
+                // ordinals cannot be recovered after deleting nested items.
+                self.declaration_lineage_preserved = false;
+            }
+        }
         Ok(())
     }
     fn item(
@@ -1152,7 +1459,7 @@ impl Materializer<'_, '_> {
                         self.expr(module, e, owner, depth + 1)?;
                     }
                 }
-                self.items(module, &mut a.methods, Some(owner), depth + 1, false)?;
+                self.nested_items(module, &mut a.methods, Some(owner), depth + 1, false)?;
             }
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {
@@ -1186,11 +1493,11 @@ impl Materializer<'_, '_> {
             }
             s::ItemKind::Trait(t) => {
                 self.associated_constants(module, &mut t.members, &t.generics, owner)?;
-                self.items(module, &mut t.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut t.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Impl(i) => {
                 self.associated_constants(module, &mut i.members, &i.generics, owner)?;
-                self.items(module, &mut i.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut i.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}
         }
@@ -1366,6 +1673,33 @@ impl Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.depth(depth, ty.span)?;
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            self.environment
+                .budget
+                .reserve_analysis_work(bindings.len() as u64)?;
+            for binding in bindings {
+                match &mut binding.kind {
+                    s::DynBindingKind::Type { value, .. } => {
+                        self.ty(module, value, owner, depth + 2)?
+                    }
+                    s::DynBindingKind::Constant { ty, value, .. } => {
+                        self.ty(module, ty, owner, depth + 2)?;
+                        self.expr(module, value, owner, depth + 2)?;
+                    }
+                    s::DynBindingKind::Method { arguments, .. } => {
+                        for argument in arguments {
+                            match argument {
+                                s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 2)?,
+                                s::GenericArg::Const(value) => {
+                                    self.expr(module, value, owner, depth + 2)?
+                                }
+                                s::GenericArg::Lifetime(_) => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
         match &mut ty.kind {
             s::TypeKind::MetaSplice(expression) => {
                 self.reject_alias_cycle(owner, expression)?;
@@ -1400,6 +1734,7 @@ impl Materializer<'_, '_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
                     }
@@ -1449,6 +1784,10 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<()> {
         self.depth(depth, expression.span)?;
         match &mut expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(module, ty, owner, depth + 1)?;
+                self.expr(module, value, owner, depth + 1)?;
+            }
             s::ExprKind::MetaSplice(inner) => {
                 let value = self.expression_value(
                     module,
@@ -1497,8 +1836,24 @@ impl Materializer<'_, '_> {
                     // context. Selection happens before either VM runs.
                     return Ok(());
                 }
-                let value = self.expression_value(module, owner, inner, None)?;
-                let CtValue::Scalar(scalar) = value else {
+                let evaluated = self.expression_data(module, owner, inner, None)?;
+                if let Some(context) = evaluated.context {
+                    let replacement = self.data_expression(
+                        module,
+                        &evaluated.value,
+                        &context.ty,
+                        &context,
+                        expression.span,
+                        depth + 1,
+                    );
+                    self.environment.budget.release_value(&evaluated.value);
+                    self.environment
+                        .budget
+                        .release_temporary_bytes(context.bytes);
+                    *expression = replacement?;
+                    return Ok(());
+                }
+                let CtValue::Scalar(scalar) = evaluated.value else {
                     return Err(runtime(
                         "Type, Syntax, Ident and CT views cannot enter runtime expressions",
                         expression.span,
@@ -1560,6 +1915,7 @@ impl Materializer<'_, '_> {
                 self.expr(module, callee, owner, depth + 1)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
                     }
@@ -1639,7 +1995,22 @@ pub(crate) fn materialize(
     target: &TargetProfile,
     limits: &Limits,
     registry: Option<&CtLockedProviderRegistry>,
+    original_declarations: bool,
 ) -> CompileResult<Materialized> {
+    let (mut declaration_origins, capture_remaining) = if original_declarations {
+        zil_expand::source_context::capture_original(
+            sources,
+            modules,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root,
+                aliases: paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            limits,
+        )?
+    } else {
+        (None, limits.clone())
+    };
     let mut environment = Environment::new(
         sources,
         parsed,
@@ -1648,8 +2019,9 @@ pub(crate) fn materialize(
         root,
         fingerprint,
         target,
-        limits,
+        &capture_remaining,
     )?;
+    environment.bind_source_origins(declaration_origins.as_deref())?;
     environment.classify_definitions()?;
     let mut output = modules
         .iter()
@@ -1664,16 +2036,77 @@ pub(crate) fn materialize(
         previews: Vec::new(),
         required_imports: Vec::new(),
         runtime_scopes: Vec::new(),
+        data_source_scopes: Vec::new(),
         max_depth: limits.max_call_depth,
+        track_declarations: declaration_origins.is_some(),
+        declaration_lineage_preserved: true,
+        generated_context: false,
     };
-    for module in &mut output {
-        materializer.items(module.id, &mut module.items, None, 0, false)?;
+    for (index, module) in output.iter_mut().enumerate() {
+        let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
+        if !materializer.declaration_lineage_preserved {
+            declaration_origins = None;
+        }
+        if let Some(origins) = &mut declaration_origins {
+            let rows = origins
+                .get_mut(index)
+                .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+            if rows.module != module.id {
+                return Err(category(
+                    "declaration-origin module owner differs",
+                    module.span,
+                ));
+            }
+            let original_count = rows.items.len();
+            materializer
+                .environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            let mut retained = retained
+                .ok_or_else(|| category("retained declaration positions absent", module.span))?
+                .into_iter()
+                .peekable();
+            let mut moved = Vec::new();
+            for (ordinal, row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
+                if retained.peek() == Some(&ordinal) {
+                    materializer
+                        .environment
+                        .budget
+                        .reserve_temporary_bytes(std::mem::size_of_val(&row) as u64)?;
+                    moved.push(row);
+                    retained.next();
+                }
+            }
+            if retained.next().is_some() || moved.len() != module.items.len() {
+                return Err(category(
+                    "retained declaration positions differ from output",
+                    module.span,
+                ));
+            }
+            rows.items = moved;
+        }
     }
+    if !materializer.declaration_lineage_preserved {
+        declaration_origins = None;
+    }
+    let lineage_remaining =
+        original_declarations.then(|| materializer.environment.remaining_limits_for_input());
+    let mut usage = materializer.environment.budget.usage().clone();
+    usage.analysis_work = usage
+        .analysis_work
+        .checked_add((limits.max_analysis_steps - capture_remaining.max_analysis_steps) as u64)
+        .ok_or_else(|| category("declaration capture work count overflow", Span::default()))?;
+    usage.generated_nodes = usage
+        .generated_nodes
+        .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
+        .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
     Ok(Materialized {
         modules: output,
         previews: materializer.previews,
         required_imports: materializer.required_imports,
-        usage: environment.budget.usage().clone(),
+        usage,
+        declaration_origins,
+        lineage_remaining,
     })
 }
 
@@ -1807,5 +2240,334 @@ mod float_tests {
             "fn result()->f32{return @bits:f32:7fc00001}",
         );
         assert!(zil_syntax::parse(&source).into_result().is_err());
+    }
+}
+
+#[path = "materialize_value.rs"]
+mod data_value;
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+    fn run(text: &str) -> CompileResult<Materialized> {
+        run_limited(text, &Limits::default())
+    }
+    fn run_limited(text: &str, limits: &Limits) -> CompileResult<Materialized> {
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        let syntax = &parsed.module;
+        materialize(
+            std::slice::from_ref(&source),
+            std::slice::from_ref(&parsed),
+            &[syntax],
+            &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &TargetProfile::host_llvm(),
+            limits,
+            None,
+            true,
+        )
+    }
+    #[test]
+    fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
+        check_shared_scope_spans(
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",
+        );
+        check_shared_scope_spans(
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} struct Reader{fn first<life left>(self:Self,p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(self:Self,p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n}} fn main()->i32{let n=0;let r=Reader{};return r.first(&n)+r.second(&n)-42}",
+        );
+    }
+    fn check_shared_scope_spans(text: &str) {
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "shared-scope-spans.zil",
+            text,
+        );
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let shared = parsed.module.span;
+        for item in &mut parsed.module.items {
+            match &mut item.kind {
+                s::ItemKind::Function(f) if f.name == "first" || f.name == "second" => {
+                    item.span = shared
+                }
+                s::ItemKind::Aggregate(a) => {
+                    for member in &mut a.methods {
+                        member.span = shared;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let parsed = Arc::new(parsed);
+        let sources = std::slice::from_ref(&source);
+        let syntax = [&parsed.module];
+        let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let output = materialize(
+            sources,
+            std::slice::from_ref(&parsed),
+            &syntax,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &target,
+            &limits,
+            None,
+            true,
+        )
+        .unwrap();
+        for (name, lifetime) in [("first", "left"), ("second", "right")] {
+            let function = output.modules[0]
+                .items
+                .iter()
+                .flat_map(|item| match &item.kind {
+                    s::ItemKind::Aggregate(a) if !a.methods.is_empty() => a.methods.as_slice(),
+                    _ => std::slice::from_ref(item),
+                })
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == name => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(block) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                panic!("scoped value lost ascription")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual)if actual==lifetime));
+        }
+        let origins = output.declaration_origins.as_ref().unwrap();
+        let refs = output.modules.iter().collect::<Vec<_>>();
+        let expanded = zil_expand::expand_program_with_limits_target_context(
+            sources,
+            &refs,
+            &[vec![]],
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Aligned(origins),
+            },
+        )
+        .unwrap();
+        let core = zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: source.fingerprint(),
+            modules: expanded
+                .into_iter()
+                .map(|(module, _)| zil_ir::ProgramModule {
+                    core: module.core,
+                    imports: module.imports,
+                    exports: module.exports,
+                })
+                .collect(),
+        };
+        let typed = zil_types::check_program(&core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze_program(&typed, &limits).unwrap();
+        zil_verify::verify_shared_program_module(
+            Arc::new(typed),
+            Arc::new(candidate),
+            &target,
+            &limits,
+        )
+        .unwrap();
+    }
+    #[test]
+    fn ct5_generated_member_keeps_naming_owner_without_original_binder_authority() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+        );
+        let probe = zil_syntax::parse(&SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "generated.zil",
+            text,
+        ));
+        assert!(probe.diagnostics.is_empty(), "{:?}", probe.diagnostics);
+        let output = run(text).unwrap();
+        assert!(output.declaration_origins.is_none());
+        let generated = text
+            .replace("#(scalar(i32,42))", "#(Phantom::<'s>{n:scalar(i32,42)})")
+            .replace("return value\n", "return value.n\n");
+        let errors = run(&generated)
+            .err()
+            .expect("generated own binder needs authentic lineage");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("actual lexical source owner")),
+            "{errors:?}"
+        );
+    }
+    #[test]
+    fn ct4_materialization_binds_original_full_lifetime_ordinal() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        );
+        for (text, name) in [
+            (text.to_owned(), "s"),
+            (
+                text.replace("result<life s>", "result<T:Copy,life renamed>")
+                    .replace("'s", "'renamed")
+                    .replace("return result(&n)", "return result::<i32>(&n)"),
+                "renamed",
+            ),
+        ] {
+            let output = run(&text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == "result" => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, value } = &value.kind else {
+                panic!("missing full type ascription {value:?}")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Record { fields, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { value, .. } = &fields[0].value.as_ref().unwrap().kind
+            else {
+                unreachable!()
+            };
+            assert!(matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="42"));
+            assert_eq!(args.len(), 1);
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual) if actual==name));
+            assert!(output.usage.analysis_work > 0);
+        }
+        let collision = "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}";
+        let output = run(collision).expect("CT5 preserves both full original lifetime ordinals");
+        assert!(output.declaration_origins.is_some());
+    }
+    #[test]
+    fn ct4_materialization_scope_work_is_exact_and_request_local() {
+        let original = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        );
+        let long = format!("scope_{}", "x".repeat(512));
+        let renamed = original
+            .replace("life s", &format!("life {long}"))
+            .replace("'s", &format!("'{long}"));
+        let generic = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        );
+        for text in [original, renamed.as_str(), generic] {
+            let defaults = Limits::default();
+            let run = |work| {
+                run_limited(
+                    text,
+                    &Limits {
+                        max_analysis_steps: work,
+                        ..defaults.clone()
+                    },
+                )
+            };
+            assert!(run(defaults.max_analysis_steps).is_ok());
+            let (mut low, mut high) = (1, defaults.max_analysis_steps);
+            while low < high {
+                let middle = (low + high) / 2;
+                match run(middle) {
+                    Ok(_) => high = middle,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                    {
+                        low = middle + 1
+                    }
+                    Err(errors) => panic!("unexpected budget result {errors:?}"),
+                }
+            }
+            for (work, good) in [(low, true), (low - 1, false), (low, true)] {
+                let result = run(work);
+                assert_eq!(result.is_ok(), good);
+                if !good {
+                    assert!(
+                        result
+                            .err()
+                            .unwrap()
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                    );
+                }
+            }
+            eprintln!("344 authentic CT4 source materialization N={low}/N-1/fresh");
+        }
+    }
+    #[test]
+    fn ct4_materialization_preserves_joint_and_mixed_nominal_actuals() {
+        for text in [
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+        ] {
+            let output = run(text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(f) if f.name == "result" => Some(f),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            if text.contains("struct Pair") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="a"));
+                assert!(matches!(&args[1],s::GenericArg::Lifetime(name) if name=="b"));
+            } else if text.contains("#N:i32") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+                assert!(
+                    matches!(&args[1],s::GenericArg::Type(ty) if matches!(&ty.kind,s::TypeKind::Named {path,args} if path==&["i32"] && args.is_empty()))
+                );
+                assert!(
+                    matches!(&args[2],s::GenericArg::Const(value) if matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="7"))
+                );
+            } else {
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+            }
+        }
     }
 }

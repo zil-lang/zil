@@ -1,0 +1,105 @@
+{
+  "status": "ReplayPassedButUnusedDefinitionBoundaryFailed",
+  "source_commit": "019f3ba3fee6dc887ad6032b15302b5e182fd6fd",
+  "scope": "Direct runtime ErrorUnion .ok/.err and exact TypeName patterns, owning cleanup, source-derived tagged-address controls, and existing borrowed-buffer regressions.",
+  "execution_kind": "Independent replay of exact retained author-built harnesses; not independent rebuild.",
+  "binding": {
+    "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-source-binding.json",
+    "source_manifest_sha256": "8d45d543ba3af5b8994b1137d7cc528dfcb5de5bfb17e4cfb31a504f3bc6ceba",
+    "production_count": 398,
+    "production_sha256": "95c292d64236186d4595a12e51417997bd7da570de54de3d3b9108ff0ab82dad",
+    "test_count": 17,
+    "test_sha256": "2272a608ab23bb601338308be5e0c2018e3a1e38c68f4d844f3898f79dddd5d3",
+    "harness_binding": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-harnesses.json",
+    "harness_binding_sha256": "567433eac1f2e2e5d599f9611f67b1dc5ee64106f001288d133fe648b0ee340b"
+  },
+  "replays": [
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-aggregates",
+      "sha256": "569042bb1200d8006694c7984d02364805d837466a61e6f57c87a9cbf494b355",
+      "filter": "terminal340",
+      "passed": 39,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-aggregates.log",
+      "log_sha256": "2120e3027b25c97a11a940c28bb4132e0b9a6d07512326e2015f464315c7568e"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-impl187",
+      "sha256": "faaa2178cbcd96f9da11a3453ca65e588d04207ee8974654a34779b2cd937773",
+      "filter": null,
+      "passed": 25,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm340-impl187.log",
+      "log_sha256": "bc92d0b3dae5cd4aa002b4156375bed529cd59682ae4c139273103baf2fcaab6"
+    }
+  ],
+  "total": {
+    "passed": 64,
+    "failed": 0
+  },
+  "reviewed": [
+    "Explicit tag identity preserves equal-payload ErrorUnion arms; raw opposite ErrorArm projection rebinds plan fingerprint and rejects Analyze, Verify and decoded Wire.",
+    "Concrete TypeName selection requires an exact unique member; generic selection conservatively rejects possibly equal members.",
+    "Mutually exclusive consuming arms restore prepared temporary tails while retaining the enclosing statement floor; retained native both-arm and nested cleanup controls pass.",
+    "Verify reconstructs actual Copy callee result alternatives instead of treating absence of owning summaries as impossible Copy data.",
+    "Published reservation121-124 remain explicitly Unsupported in independent kernels/backend; no pin or commit implementation is inferred."
+  ],
+  "boundaries": {
+    "direct_error_union": 83726,
+    "N_minus_one_fresh_warm": "Pass; retained same-source controls also replayed"
+  },
+  "findings": [
+    {
+      "id": "generic-reference-pattern-origin",
+      "status": "Independently reproduced on fresh exact019f Parse\u2192Expand build",
+      "path": "crates/zil-expand/src/generic_check_enum.rs::pattern PatternKind::Reference",
+      "detail": "New generic ref pattern recursively binds an Address-typed local but does not seed the ordinary alias engine with its actual scrutinee/projected payload loan. The new local cannot substitute for the referent origin.",
+      "probe": "enum F{Bad} fn unused<T:Copy>(x:F!T)->i32 { var value=x; match value { .ok(ref n)=>{value=x; let observed=*n; return 0}, .err(_)=>{return 0} } } fn main()->i32{return 0}",
+      "nearest_positive": "Read *n before replacing value; retain same source declaration unused.",
+      "required": "Actual scrutinee/arm/field roots and parent ancestry through shared/mutable match/if-let/while-let bindings, normal branch/loop alias joins, plus source negative and nearest positive controls. No full reference-pattern acceptance until corrected.",
+      "observed": "Both stale and nearest fresh sources accepted; only main emitted, unsupported list empty. The invalid unused definition is erased before later kernels."
+    },
+    {
+      "id": "generic-member-disjointness-work",
+      "status": "Focused6f27d38a9 source correction inspected and addresses the identified scan; execution still pending current39 adapter completion.",
+      "path": "crates/zil-expand/src/generic_check_enum.rs::error_members_may_equal",
+      "detail": "New traversal checks vars.contains before string/search reservation, unwraps Group/associated paths without corresponding per-use visits, and scans non-Type generic arguments without per-argument debit. No enclosing complete reservation was identified before this call.",
+      "required": "Use the actual remaining Budget for all visited structure and name comparisons, including const/life arguments, before allocation/lookup; retain wide/long-prefix boundary controls."
+    }
+  ],
+  "author_only_not_independently_replayed": [
+    "Full aggregates122 and narrow IR/Types/Analyze/Verify library targets and Clippy are author-reported."
+  ],
+  "limits": [
+    "This exact checkpoint precedes common39; later adapter builds are not attributed to it.",
+    "No physical CT ErrorUnion value, captured owning-base, Product-root or transactional reservation completion.",
+    "No whole-language, native Windows or Rust/product/performance conclusion."
+  ],
+  "independent_failure_probe": {
+    "directory": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe",
+    "receipt": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/receipt.json",
+    "receipt_sha256": "c8a1c75b7c0a6958af92771ac47e54b571b92be80c504e79d42fa9fec43113dd",
+    "source_commit": "019f3ba3fee6dc887ad6032b15302b5e182fd6fd",
+    "build": "Four exact Git-source crates built afresh using rustc outside all source/Cargo target trees; third-party dependencies hash-bound.",
+    "negative": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/stale.zil",
+    "negative_sha256": "c7d125fe5377d533e71fb872024b8323250183bf5d8bfa6c8eb8dbd7f8c010d5",
+    "nearest_positive": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/fresh.zil",
+    "nearest_positive_sha256": "069e5d48c1452e44e362b0e5b0bba77503ce7bedc5d37f59c4c3d1a79a8abb11",
+    "observed": "stale Accepted; fresh Accepted; both emitted only main and no unsupported items",
+    "scope": "Actual Parse\u2192Expand source-definition gate; no later kernel/native claim.",
+    "condition_and_address_neighbors": {
+      "receipt": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/neighbors-receipt.json",
+      "sha256": "1883811f30a3aaf0cff3d8b75651948ee1751a6763535f35c3c0377456eda648",
+      "observed": {
+        "if-let": "stale and fresh Accepted, emitted only main, unsupported empty",
+        "while-let": "stale and fresh Accepted, emitted only main, unsupported empty",
+        "addressed-match": "stale and fresh both Unsupported: generic address has no established symbolic borrow origin"
+      }
+    },
+    "mutability_neighbors": {
+      "receipt": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/mutability-receipt.json",
+      "sha256": "237bd99e152a1cd39ad01ff41d6fff17506dd89f05659b9e76a1c1bd52a65867",
+      "observed": "immutable parameter ref-mut Accepted and erased, nearest mutable local Accepted; shared and exclusive addressed variants both reject missing symbolic borrow origin"
+    }
+  }
+}

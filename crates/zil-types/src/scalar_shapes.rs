@@ -15,7 +15,12 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     // trivial, and all owning-mode and receiver transformations inapplicable.
     // Current inference bounded this immutable input before preparation.
     if program.modules.iter().any(|module| {
-        !module.core.aggregate_templates.is_empty()
+        !module.core.life_declarations.is_empty()
+            || !module.core.life_instances.is_empty()
+            || !module.core.dyn_declarations.is_empty()
+            || !module.core.dyn_interfaces.is_empty()
+            || !module.core.dyn_vtables.is_empty()
+            || !module.core.aggregate_templates.is_empty()
             || !module.core.aggregate_applications.is_empty()
             || !module.core.aggregates.is_empty()
             || !module.core.enums.is_empty()
@@ -273,6 +278,11 @@ mod tests {
                 imports: vec![],
                 exports: vec![],
                 core: CoreModule {
+                    dyn_declarations: Vec::new(),
+                    dyn_interfaces: Vec::new(),
+                    dyn_vtables: Vec::new(),
+                    life_declarations: Vec::new(),
+                    life_instances: Vec::new(),
                     aggregate_templates: Vec::new(),
                     aggregate_applications: Vec::new(),
                     schema_version: SCHEMA_VERSION,
@@ -282,6 +292,7 @@ mod tests {
                     enums: vec![],
                     unsupported: vec![],
                     functions: vec![CoreFunction {
+                        storage_life: None,
                         call_kind: None,
                         life: None,
                         id: NodeId(1),

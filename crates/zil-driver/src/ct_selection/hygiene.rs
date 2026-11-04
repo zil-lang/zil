@@ -86,8 +86,33 @@ impl<'a> Renamer<'a> {
     }
     fn ty(&mut self, ty: &mut s::TypeRef, depth: usize) -> CompileResult<()> {
         self.budget.node(ty.span, depth)?;
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            for binding in bindings {
+                self.budget.node(binding.span, depth + 1)?;
+                let member = match &mut binding.kind {
+                    s::DynBindingKind::Type { member, value } => {
+                        self.ty(value, depth + 2)?;
+                        member
+                    }
+                    s::DynBindingKind::Constant { member, ty, value } => {
+                        self.ty(ty, depth + 2)?;
+                        self.expression(value, depth + 2)?;
+                        member
+                    }
+                    s::DynBindingKind::Method { member, arguments } => {
+                        for arg in arguments {
+                            self.argument(arg, depth + 2)?;
+                        }
+                        member
+                    }
+                };
+                for name in member {
+                    self.budget.text(name, binding.span)?;
+                }
+            }
+        }
         match &mut ty.kind {
-            s::TypeKind::Named { path, args } | s::TypeKind::Dyn { path, args } => {
+            s::TypeKind::Named { path, args } | s::TypeKind::Dyn { path, args, .. } => {
                 if path.len() == 1 {
                     self.type_reference(&mut path[0], ty.span)?;
                 }
@@ -130,6 +155,7 @@ impl<'a> Renamer<'a> {
     }
     fn argument(&mut self, argument: &mut s::GenericArg, depth: usize) -> CompileResult<()> {
         match argument {
+            s::GenericArg::Lifetime(_) => Ok(()),
             s::GenericArg::Type(ty) => self.ty(ty, depth),
             s::GenericArg::Const(value) => self.expression(value, depth),
         }
@@ -150,7 +176,8 @@ impl<'a> Renamer<'a> {
         self.budget.node(pattern.span, depth)?;
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, rename, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => {
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(pattern, rename, depth + 1)?
             }
             s::PatternKind::Tuple(patterns) => {
@@ -331,6 +358,10 @@ impl<'a> Renamer<'a> {
         let span = expression.span;
         self.budget.node(span, depth)?;
         match &mut expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(ty, depth + 1)?;
+                self.expression(value, depth + 1)?;
+            }
             s::ExprKind::Name(name) => self.reference(name, span)?,
             s::ExprKind::Literal(_) | s::ExprKind::ReceiverMember(_) => {}
             s::ExprKind::Group(value)

@@ -1,0 +1,13 @@
+{
+  "status": "VerifiedGitHubMainMerge",
+  "pull_request": "https://github.com/zil-lang/zil/pull/33",
+  "candidate": "31864832c972773b9a0446b5abb157aa2e587247",
+  "github_main": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "candidate_tree": "6df9413672ed0b444db394b1828ece59222d322b",
+  "github_main_tree": "6df9413672ed0b444db394b1828ece59222d322b",
+  "tree_byte_identity": true,
+  "acceptance": "docs/validation/terminal-root37-integration-20261104.json",
+  "ci": "NotStartedBillingBlocked; no CI pass claim",
+  "terminal_complete": false,
+  "remaining": "docs/LANGUAGE-REMAINING.md"
+}

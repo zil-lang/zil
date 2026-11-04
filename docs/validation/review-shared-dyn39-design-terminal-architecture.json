@@ -1,0 +1,34 @@
+{
+  "status": "PassLimitedDesignInspection",
+  "patch": "/workspace/.zil-env/terminal-20261104/dyn39-public/dyn39-public.patch",
+  "patch_sha256": "0be98fd837f657ca8d183b8d0a74901014a5f786e212a4d341acb3e18d378727",
+  "contract": "/workspace/.zil-env/terminal-20261104/dyn39-public/contract.md",
+  "contract_sha256": "73d0eede94dcf04d5a42f07c5827a45a09addc27473ba92dbca03fce6a8aa99b",
+  "scope": "Prospective common39 + dyn39 external public shapes and raw codec/fingerprint source; no runtime source or independent consumer acceptance.",
+  "review": [
+    "Single evaluated callee supplies receiver0; slot parameters exclude it while invocation/storage indexes include it. Receiver descriptor avoids requiring a self-recursive Type table edge.",
+    "Shared declaration inventory IDs remain relocation-only; stable identity resolves full declaration/application/nominal context. Raw Type fingerprint cannot substitute for semantic context.",
+    "Fixed retained classes map once independently of actual ports; Invocation domains stay per slot; full nominal phantom actual order survives. RetainedPort/Class are metadata selectors, never physical GEP paths.",
+    "Public raw encoding includes full actual order, associated equations, modes/CallKind, contracts, retained shape, port bindings and entry targets. Reader uses common bounded counts/bytes; schema consumer must independently validate references and canonical scope relations.",
+    "Explicit alias binding parser keeps function return-body grammar distinct; finite generic method applications are explicit rather than inferred from caller uses."
+  ],
+  "author_reported_only": [
+    "Standalone common39 IR and parser compilation",
+    "New existing-target parser control1/0",
+    "Raw transport probe"
+  ],
+  "independent_execution": "None for this external public candidate. Only source/data contract inspection performed.",
+  "outstanding": [
+    "Full contextual semantic fingerprints and full independent inventory/interface validation",
+    "Source Types/Analyze/Verify/lowering and both backends",
+    "Joint CT4 context consumers and shared fixed/phantom relation preservation",
+    "Source/native/raw/Wire negative, budget, cleanup and retained environment controls"
+  ],
+  "next_controls": [
+    "Two ports in one Fixed class versus two independently mapped classes",
+    "Same numeric ordinal in Fixed and slot Invocation domains remains distinct",
+    "Relocation-invariant semantic identity; changing phantom relation or one slot mode/effect changes identity",
+    "Borrowed environment or returned loan retains actual owners, parent loans and epochs through the common proof path"
+  ],
+  "limits": "No dyn, stored-borrow, Task borrowing, complete language, native Windows, or product gate completion claim."
+}

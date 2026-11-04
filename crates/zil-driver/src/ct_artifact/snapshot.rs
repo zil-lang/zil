@@ -18,9 +18,30 @@ pub(super) struct ImplSnapshot {
 }
 
 fn plain_type(ty: &s::TypeRef) -> bool {
+    if let TypeKind::Dyn { bindings, .. } = &ty.kind {
+        for binding in bindings {
+            let plain = match &binding.kind {
+                s::DynBindingKind::Type { value, .. } => plain_type(value),
+                s::DynBindingKind::Constant { ty, value, .. } => {
+                    plain_type(ty) && matches!(value.kind, s::ExprKind::Literal(_))
+                }
+                s::DynBindingKind::Method { arguments, .. } => {
+                    arguments.iter().all(|arg| match arg {
+                        GenericArg::Type(ty) => plain_type(ty),
+                        GenericArg::Const(value) => matches!(value.kind, s::ExprKind::Literal(_)),
+                        GenericArg::Lifetime(_) => false,
+                    })
+                }
+            };
+            if !plain {
+                return false;
+            }
+        }
+    }
     match &ty.kind {
         TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
             args.iter().all(|arg| match arg {
+                GenericArg::Lifetime(_) => false,
                 GenericArg::Type(ty) => plain_type(ty),
                 GenericArg::Const(expr) => matches!(expr.kind, s::ExprKind::Literal(_)),
             })
@@ -92,8 +113,23 @@ fn name(item: &s::Item) -> Option<&str> {
 }
 
 fn referenced_type(ty: &s::TypeRef, names: &mut Vec<Vec<String>>) {
+    if let TypeKind::Dyn { bindings, .. } = &ty.kind {
+        for binding in bindings {
+            match &binding.kind {
+                s::DynBindingKind::Type { value, .. } => referenced_type(value, names),
+                s::DynBindingKind::Constant { ty, .. } => referenced_type(ty, names),
+                s::DynBindingKind::Method { arguments, .. } => {
+                    for arg in arguments {
+                        if let GenericArg::Type(ty) = arg {
+                            referenced_type(ty, names);
+                        }
+                    }
+                }
+            }
+        }
+    }
     match &ty.kind {
-        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
             names.push(path.clone());
             for arg in args {
                 if let GenericArg::Type(ty) = arg {

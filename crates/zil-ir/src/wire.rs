@@ -10,7 +10,9 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 37;
+pub const WIRE_VERSION: u32 = 41;
+#[path = "dynamic_wire.rs"]
+mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -384,6 +386,276 @@ impl<'a> Writer<'a> {
         self.text(&target.rule_version)?;
         self.boolean(target.checked_arithmetic)
     }
+    fn storage_step(&mut self, p: PlaceProjection) -> WireResult<()> {
+        match p {
+            PlaceProjection::Field(i) => {
+                self.u8(0)?;
+                self.u32(i)
+            }
+            PlaceProjection::Variant(v) => {
+                self.u8(1)?;
+                self.u32(v.variant)?;
+                self.u32(v.index)
+            }
+            PlaceProjection::ErrorArm(e) => {
+                self.u8(2)?;
+                self.boolean(e)
+            }
+        }
+    }
+    fn storage_path(&mut self, path: &[PlaceProjection]) -> WireResult<()> {
+        self.count(path.len(), self.limits.max_call_depth)?;
+        for p in path {
+            self.storage_step(*p)?;
+        }
+        Ok(())
+    }
+    fn life_type_path(&mut self, path: &[LifeTypeProjection]) -> WireResult<()> {
+        self.count(path.len(), self.limits.max_call_depth)?;
+        for step in path {
+            match step {
+                LifeTypeProjection::Place(p) => {
+                    self.u8(0)?;
+                    self.storage_step(*p)?;
+                }
+                LifeTypeProjection::TypeArgument(i) => {
+                    self.u8(1)?;
+                    self.u32(*i)?;
+                }
+                LifeTypeProjection::Pointee => self.u8(2)?,
+                LifeTypeProjection::Element => self.u8(3)?,
+                LifeTypeProjection::Parameter(i) => {
+                    self.u8(4)?;
+                    self.u32(*i)?;
+                }
+                LifeTypeProjection::Result => self.u8(5)?,
+                LifeTypeProjection::Port(i) => {
+                    self.u8(6)?;
+                    self.u32(*i)?;
+                }
+                LifeTypeProjection::AssociatedType(i) => {
+                    self.u8(7)?;
+                    self.u32(*i)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn declaration_id(&mut self, id: &LifeDeclarationId) -> WireResult<()> {
+        self.u32(id.module.0)?;
+        self.u32(id.declaration.0)?;
+        self.boolean(id.compiler)
+    }
+    pub(super) fn declaration_identity(&mut self, id: &LifeDeclarationIdentity) -> WireResult<()> {
+        self.text(&id.package)?;
+        for path in [&id.module_path, &id.declaration_path] {
+            self.count(path.len(), self.limits.max_nodes)?;
+            for part in path {
+                self.text(part)?;
+            }
+        }
+        self.count(id.generation_path.len(), self.limits.max_call_depth)?;
+        for part in &id.generation_path {
+            self.u32(*part)?;
+        }
+        Ok(())
+    }
+    pub(super) fn parameter_kind(
+        &mut self,
+        kind: &LifeParameterKind,
+        depth: usize,
+    ) -> WireResult<()> {
+        match kind {
+            LifeParameterKind::Type => self.u8(0),
+            LifeParameterKind::Const(ty) => {
+                self.u8(1)?;
+                self.ty(ty, depth + 1)
+            }
+            LifeParameterKind::Lifetime => self.u8(2),
+        }
+    }
+    pub(super) fn storage_binder(&mut self, binder: &StorageBinder) -> WireResult<()> {
+        match binder {
+            StorageBinder::Fixed(i) => {
+                self.u8(0)?;
+                self.u32(*i)
+            }
+            StorageBinder::Invocation(i) => {
+                self.u8(1)?;
+                self.u32(*i)
+            }
+        }
+    }
+    pub(super) fn storage_position(&mut self, position: &StoragePosition) -> WireResult<()> {
+        match position.base {
+            StorageBase::Parameter(i) => {
+                self.u8(0)?;
+                self.u32(i)?;
+            }
+            StorageBase::Capture(i) => {
+                self.u8(1)?;
+                self.u32(i)?;
+            }
+            StorageBase::Result => self.u8(2)?,
+        }
+        self.count(position.path.len(), self.limits.max_call_depth)?;
+        for step in &position.path {
+            match step {
+                ContractProjection::Place(p) => {
+                    self.u8(0)?;
+                    self.storage_step(*p)?;
+                }
+                ContractProjection::RetainedPort(i) => {
+                    self.u8(1)?;
+                    self.u32(*i)?;
+                }
+                ContractProjection::RetainedClass(i) => {
+                    self.u8(2)?;
+                    self.u32(*i)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn life_maps(
+        &mut self,
+        retained: &[StorageRetainedBinding],
+        nominal_arguments: &[NominalLifeArgument],
+    ) -> WireResult<()> {
+        self.count(retained.len(), self.limits.max_nodes)?;
+        for binding in retained {
+            self.life_type_path(&binding.path)?;
+            self.u32(binding.class)?;
+            self.u32(binding.binder)?;
+        }
+        self.count(nominal_arguments.len(), self.limits.max_nodes)?;
+        for argument in nominal_arguments {
+            self.life_type_path(&argument.path)?;
+            self.declaration_id(&argument.declaration)?;
+            self.u32(argument.argument)?;
+            self.u32(argument.binder)?;
+        }
+        Ok(())
+    }
+    pub(super) fn retained_shape(
+        &mut self,
+        shape: &RetainedLifeShape,
+        depth: usize,
+    ) -> WireResult<()> {
+        if depth > self.limits.max_call_depth {
+            return Err(quota("retained life shape nesting exceeds wire limit"));
+        }
+        self.count(shape.binder_count as usize, self.limits.max_nodes)?;
+        self.count(shape.ports.len(), self.limits.max_nodes)?;
+        for port in &shape.ports {
+            self.ty(&port.leaf, depth + 1)?;
+            self.u8(port.mode as u8)?;
+            self.u32(port.binder)?;
+        }
+        self.life_maps(&shape.retained, &shape.nominal_arguments)
+    }
+    fn storage_shape(&mut self, shape: &StorageLifeShape) -> WireResult<()> {
+        self.count(shape.binder_count as usize, self.limits.max_nodes)?;
+        self.count(shape.slots.len(), self.limits.max_nodes)?;
+        for slot in &shape.slots {
+            self.storage_path(&slot.path)?;
+            self.u32(slot.binder)?;
+            self.u8(slot.mode as u8)?;
+        }
+        self.life_maps(&shape.retained, &shape.nominal_arguments)
+    }
+    pub(super) fn required_storage_contract(
+        &mut self,
+        contract: &StorageLifeContract,
+    ) -> WireResult<()> {
+        self.count(contract.fixed_binder_count as usize, self.limits.max_nodes)?;
+        self.count(
+            contract.invocation_binder_count as usize,
+            self.limits.max_nodes,
+        )?;
+        self.count(contract.bindings.len(), self.limits.max_nodes)?;
+        for binding in &contract.bindings {
+            self.storage_position(&binding.position)?;
+            self.storage_binder(&binding.binder)?;
+        }
+        self.count(contract.classes.len(), self.limits.max_nodes)?;
+        for binding in &contract.classes {
+            match binding.position.base {
+                StorageBase::Parameter(i) => {
+                    self.u8(0)?;
+                    self.u32(i)?;
+                }
+                StorageBase::Capture(i) => {
+                    self.u8(1)?;
+                    self.u32(i)?;
+                }
+                StorageBase::Result => self.u8(2)?,
+            }
+            self.life_type_path(&binding.position.path)?;
+            self.u32(binding.position.class)?;
+            self.storage_binder(&binding.binder)?;
+        }
+        Ok(())
+    }
+    fn storage_contract(&mut self, contract: &Option<StorageLifeContract>) -> WireResult<()> {
+        self.boolean(contract.is_some())?;
+        if let Some(contract) = contract {
+            self.required_storage_contract(contract)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn retained_port_binding(
+        &mut self,
+        binding: &RetainedPortBinding,
+    ) -> WireResult<()> {
+        self.u32(binding.port)?;
+        self.storage_position(&binding.source)
+    }
+    fn life_inventory(
+        &mut self,
+        declarations: &[LifeNominalDeclaration],
+        instances: &[LifeNominalInstance],
+    ) -> WireResult<()> {
+        self.count(declarations.len(), self.limits.max_nodes)?;
+        for declaration in declarations {
+            self.declaration_id(&declaration.id)?;
+            self.declaration_identity(&declaration.identity)?;
+            self.u8(match declaration.kind {
+                LifeNominalKind::Record => 0,
+                LifeNominalKind::Package => 1,
+                LifeNominalKind::Resource => 2,
+                LifeNominalKind::Enum => 3,
+            })?;
+            self.count(declaration.parameters.len(), self.limits.max_nodes)?;
+            for parameter in &declaration.parameters {
+                self.parameter_kind(parameter, 0)?;
+            }
+        }
+        self.count(instances.len(), self.limits.max_nodes)?;
+        for instance in instances {
+            self.declaration_id(&instance.declaration)?;
+            self.ty(&instance.ty, 0)?;
+            self.count(instance.arguments.len(), self.limits.max_nodes)?;
+            for argument in &instance.arguments {
+                match argument {
+                    LifeNominalActual::Type(ty) => {
+                        self.u8(0)?;
+                        self.ty(ty, 0)?;
+                    }
+                    LifeNominalActual::Const(value) => {
+                        self.u8(1)?;
+                        self.constant(value)?;
+                    }
+                    LifeNominalActual::Lifetime(i) => {
+                        self.u8(2)?;
+                        self.u32(*i)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     fn ty(&mut self, ty: &Type, depth: usize) -> WireResult<()> {
         // Keep the wire's preorder and accounting without consuming one Rust
         // stack frame per untrusted type level. Collection continuations visit
@@ -433,6 +705,15 @@ impl<'a> Writer<'a> {
             }
             self.charge(1)?;
             match ty {
+                Type::Dyn { interface } => {
+                    self.u8(36)?;
+                    self.dyn_interface_id(interface)?;
+                }
+                Type::BorrowedStorage { storage, life } => {
+                    self.u8(35)?;
+                    self.storage_shape(life)?;
+                    pending.push(Task::Type(storage, depth + 1));
+                }
                 Type::Unit => self.u8(0)?,
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
@@ -449,6 +730,14 @@ impl<'a> Writer<'a> {
                     pending.push(Task::Type(environment, depth + 1));
                 }
                 Type::TaskI32 => self.u8(33)?,
+                Type::Task {
+                    result,
+                    retained_life,
+                } => {
+                    self.u8(34)?;
+                    self.retained_shape(retained_life, depth)?;
+                    pending.push(Task::Type(result, depth + 1));
+                }
                 Type::ForeignHandle => self.u8(20)?,
                 Type::SyncCell(kind) => {
                     self.u8(30)?;
@@ -524,18 +813,7 @@ impl<'a> Writer<'a> {
                     life,
                 } => {
                     self.u8(31)?;
-                    self.count(life.binder_count as usize, self.limits.max_locals)?;
-                    self.count(life.parameter_lives.len(), self.limits.max_locals)?;
-                    for tag in &life.parameter_lives {
-                        self.boolean(tag.is_some())?;
-                        if let Some(tag) = tag {
-                            self.u32(*tag)?;
-                        }
-                    }
-                    self.boolean(life.result_life.is_some())?;
-                    if let Some(tag) = life.result_life {
-                        self.u32(tag)?;
-                    }
+                    self.required_storage_contract(life)?;
                     self.count(parameters.len(), self.limits.max_locals)?;
                     pending.push(Task::Type(result, depth + 1));
                     pending.push(Task::Types(parameters, depth + 1));
@@ -653,6 +931,20 @@ impl<'a> Writer<'a> {
         self.u32(module.module_id.0)?;
         self.fingerprint(module.source_fingerprint)?;
         self.target(&module.target)?;
+        self.life_inventory(&module.life_declarations, &module.life_instances)?;
+        self.count(module.dyn_declarations.len(), self.limits.max_nodes)?;
+        for row in &module.dyn_declarations {
+            self.dyn_declaration(row)?;
+        }
+        self.count(module.dyn_interfaces.len(), self.limits.max_nodes)?;
+        for row in &module.dyn_interfaces {
+            self.dyn_interface(row)?;
+        }
+        self.count(module.dyn_vtables.len(), self.limits.max_nodes)?;
+        for row in &module.dyn_vtables {
+            self.dyn_vtable(row)?;
+        }
+
         self.count(module.functions.len(), self.limits.max_functions)?;
         for function in &module.functions {
             self.function(function)?;
@@ -680,6 +972,7 @@ impl<'a> Writer<'a> {
             for index in &closure.lending_captures {
                 self.u32(*index)?;
             }
+            self.storage_contract(&closure.storage_life)?;
         }
         self.count(module.resources.len(), self.limits.max_nodes)?;
         for resource in &module.resources {
@@ -701,28 +994,7 @@ impl<'a> Writer<'a> {
             self.u8(callable_kind_tag(role.kind))?;
             self.boolean(role.life.is_some())?;
             if let Some(life) = &role.life {
-                metadata = flow_count(
-                    metadata,
-                    life.binder_count as usize,
-                    self.limits.max_analysis_steps,
-                )?;
-                metadata = flow_count(
-                    metadata,
-                    life.parameter_lives.len(),
-                    self.limits.max_analysis_steps,
-                )?;
-                self.count(life.binder_count as usize, self.limits.max_locals)?;
-                self.count(life.parameter_lives.len(), self.limits.max_locals)?;
-                for tag in &life.parameter_lives {
-                    self.boolean(tag.is_some())?;
-                    if let Some(tag) = tag {
-                        self.u32(*tag)?;
-                    }
-                }
-                self.boolean(life.result_life.is_some())?;
-                if let Some(tag) = life.result_life {
-                    self.u32(tag)?;
-                }
+                self.required_storage_contract(life)?;
             }
             for indices in [&role.hold, &role.call, &role.writes] {
                 metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
@@ -789,6 +1061,7 @@ impl<'a> Writer<'a> {
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.u8(function.call_kind as u8)?;
+        self.storage_contract(&function.storage_life)?;
         self.boolean(function.reference_return_bound.is_some())?;
         if let Some(bound) = &function.reference_return_bound {
             self.count(bound.len(), self.limits.max_locals)?;
@@ -993,6 +1266,61 @@ impl<'a> Writer<'a> {
                     self.u32(field.0)?;
                 }
             }
+            InstructionKind::MakeDynBorrow {
+                interface,
+                vtable,
+                source,
+                mutable,
+            } => {
+                self.u8(131)?;
+                self.dyn_interface_id(interface)?;
+                self.dyn_vtable_id(vtable)?;
+                self.u32(source.0)?;
+                self.boolean(*mutable)?;
+            }
+            InstructionKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } => {
+                self.u8(132)?;
+                self.u32(callee.0)?;
+                self.dyn_interface_id(interface)?;
+                self.u32(*slot)?;
+                self.count(arguments.len(), self.limits.max_values)?;
+                for argument in arguments {
+                    self.u32(argument.0)?;
+                }
+            }
+            InstructionKind::LoadStoredBorrow {
+                storage,
+                path,
+                mode,
+            } => {
+                self.u8(129)?;
+                self.u32(storage.0)?;
+                self.storage_path(path)?;
+                match mode {
+                    StoredBorrowLoad::CopyShared => self.u8(0)?,
+                    StoredBorrowLoad::CopyDescription => self.u8(1)?,
+                    StoredBorrowLoad::Reborrow { mutable } => {
+                        self.u8(2)?;
+                        self.boolean(*mutable)?;
+                    }
+                    StoredBorrowLoad::Take => self.u8(3)?,
+                }
+            }
+            InstructionKind::StoreStoredBorrow {
+                storage,
+                path,
+                value,
+            } => {
+                self.u8(130)?;
+                self.u32(storage.0)?;
+                self.storage_path(path)?;
+                self.u32(value.0)?;
+            }
             InstructionKind::DescribeAddress { address } => {
                 self.u8(109)?;
                 self.u32(address.0)?;
@@ -1177,6 +1505,20 @@ impl<'a> Writer<'a> {
                 }
                 self.u8(*ordering as u8)?;
             }
+            InstructionKind::SyncI32CompareExchange {
+                address,
+                expected,
+                desired,
+                success,
+                failure,
+            } => {
+                self.u8(133)?;
+                self.u32(address.0)?;
+                self.u32(expected.0)?;
+                self.u32(desired.0)?;
+                self.u8(*success as u8)?;
+                self.u8(*failure as u8)?;
+            }
             InstructionKind::TaskStart { worker, argument } => {
                 self.u8(99)?;
                 self.u32(worker.0)?;
@@ -1188,6 +1530,14 @@ impl<'a> Writer<'a> {
             } => {
                 self.u8(125)?;
                 self.u32(function.0)?;
+                self.count(arguments.len(), self.limits.max_values)?;
+                for argument in arguments {
+                    self.u32(argument.0)?;
+                }
+            }
+            InstructionKind::TaskCreate { worker, arguments } => {
+                self.u8(128)?;
+                self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
                     self.u32(argument.0)?;
@@ -1347,6 +1697,105 @@ impl<'a> Writer<'a> {
                 }
             }
 
+            InstructionKind::BorrowPlaceAddress { address, path, .. }
+            | InstructionKind::PlaceTagAddress { address, path } => {
+                self.u8(
+                    if matches!(
+                        &instruction.kind,
+                        InstructionKind::BorrowPlaceAddress { .. }
+                    ) {
+                        126
+                    } else {
+                        127
+                    },
+                )?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+                if let InstructionKind::BorrowPlaceAddress { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
+                }
+            }
+
+            InstructionKind::ReservePlaceLocal {
+                reservation,
+                local,
+                path,
+            } => {
+                self.u8(121)?;
+                self.u32(reservation.0)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+            }
+            InstructionKind::ReservePlaceAddress {
+                reservation,
+                address,
+                path,
+            } => {
+                self.u8(122)?;
+                self.u32(reservation.0)?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+            }
+            InstructionKind::CommitPlaceReplace { reservation, value } => {
+                self.u8(123)?;
+                self.u32(reservation.0)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::AbortPlaceReservation { reservation } => {
+                self.u8(124)?;
+                self.u32(reservation.0)?;
+            }
             InstructionKind::BorrowFieldLocal {
                 local,
                 path,
@@ -1892,6 +2341,291 @@ impl<'a> Reader<'a> {
             checked_arithmetic,
         })
     }
+    fn storage_step(&mut self) -> WireResult<PlaceProjection> {
+        Ok(match self.u8()? {
+            0 => PlaceProjection::Field(self.u32()?),
+            1 => PlaceProjection::Variant(VariantProjection {
+                variant: self.u32()?,
+                index: self.u32()?,
+            }),
+            2 => PlaceProjection::ErrorArm(self.boolean()?),
+            _ => return Err(malformed("E-WIRE-TAG", "unknown stored place projection")),
+        })
+    }
+    fn storage_path(&mut self) -> WireResult<Vec<PlaceProjection>> {
+        let n = self.count(self.limits.max_call_depth, 2)?;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(self.storage_step()?);
+        }
+        Ok(out)
+    }
+    fn life_type_path(&mut self) -> WireResult<Vec<LifeTypeProjection>> {
+        let n = self.count(self.limits.max_call_depth, 1)?;
+        let mut path = Vec::with_capacity(n);
+        for _ in 0..n {
+            path.push(match self.u8()? {
+                0 => LifeTypeProjection::Place(self.storage_step()?),
+                1 => LifeTypeProjection::TypeArgument(self.u32()?),
+                2 => LifeTypeProjection::Pointee,
+                3 => LifeTypeProjection::Element,
+                4 => LifeTypeProjection::Parameter(self.u32()?),
+                5 => LifeTypeProjection::Result,
+                6 => LifeTypeProjection::Port(self.u32()?),
+                7 => LifeTypeProjection::AssociatedType(self.u32()?),
+                _ => return Err(malformed("E-WIRE-TAG", "unknown life type projection")),
+            });
+        }
+        Ok(path)
+    }
+    pub(super) fn declaration_id(&mut self) -> WireResult<LifeDeclarationId> {
+        Ok(LifeDeclarationId {
+            module: ModuleId(self.u32()?),
+            declaration: NodeId(self.u32()?),
+            compiler: self.boolean()?,
+        })
+    }
+    pub(super) fn declaration_identity(&mut self) -> WireResult<LifeDeclarationIdentity> {
+        let package = self.text()?;
+        let mut paths = Vec::with_capacity(2);
+        for _ in 0..2 {
+            let n = self.count(self.limits.max_nodes, 4)?;
+            let mut path = Vec::with_capacity(n);
+            for _ in 0..n {
+                path.push(self.text()?);
+            }
+            paths.push(path);
+        }
+        let n = self.count(self.limits.max_call_depth, 4)?;
+        let mut generation_path = Vec::with_capacity(n);
+        for _ in 0..n {
+            generation_path.push(self.u32()?);
+        }
+        let declaration_path = paths.pop().expect("two declaration paths");
+        let module_path = paths.pop().expect("two declaration paths");
+        Ok(LifeDeclarationIdentity {
+            package,
+            module_path,
+            declaration_path,
+            generation_path,
+        })
+    }
+    pub(super) fn parameter_kind(&mut self, depth: usize) -> WireResult<LifeParameterKind> {
+        Ok(match self.u8()? {
+            0 => LifeParameterKind::Type,
+            1 => LifeParameterKind::Const(self.ty(depth + 1)?),
+            2 => LifeParameterKind::Lifetime,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown nominal parameter kind")),
+        })
+    }
+    pub(super) fn storage_binder(&mut self) -> WireResult<StorageBinder> {
+        Ok(match self.u8()? {
+            0 => StorageBinder::Fixed(self.u32()?),
+            1 => StorageBinder::Invocation(self.u32()?),
+            _ => {
+                return Err(malformed(
+                    "E-WIRE-TAG",
+                    "unknown storage life binder domain",
+                ));
+            }
+        })
+    }
+    pub(super) fn storage_position(&mut self) -> WireResult<StoragePosition> {
+        let base = match self.u8()? {
+            0 => StorageBase::Parameter(self.u32()?),
+            1 => StorageBase::Capture(self.u32()?),
+            2 => StorageBase::Result,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown storage contract base")),
+        };
+        let n = self.count(self.limits.max_call_depth, 3)?;
+        let mut path = Vec::with_capacity(n);
+        for _ in 0..n {
+            path.push(match self.u8()? {
+                0 => ContractProjection::Place(self.storage_step()?),
+                1 => ContractProjection::RetainedPort(self.u32()?),
+                2 => ContractProjection::RetainedClass(self.u32()?),
+                _ => return Err(malformed("E-WIRE-TAG", "unknown contract projection")),
+            });
+        }
+        Ok(StoragePosition { base, path })
+    }
+    fn stored_borrow_mode(&mut self) -> WireResult<StoredBorrowMode> {
+        Ok(match self.u8()? {
+            0 => StoredBorrowMode::SharedAddress,
+            1 => StoredBorrowMode::ExclusiveAddress,
+            2 => StoredBorrowMode::ReadOnlyDescription,
+            3 => StoredBorrowMode::WritableDescription,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown stored borrow mode")),
+        })
+    }
+    fn life_maps(&mut self) -> WireResult<(Vec<StorageRetainedBinding>, Vec<NominalLifeArgument>)> {
+        let n = self.count(self.limits.max_nodes, 12)?;
+        let mut retained = Vec::with_capacity(n);
+        for _ in 0..n {
+            retained.push(StorageRetainedBinding {
+                path: self.life_type_path()?,
+                class: self.u32()?,
+                binder: self.u32()?,
+            });
+        }
+        let n = self.count(self.limits.max_nodes, 21)?;
+        let mut nominal_arguments = Vec::with_capacity(n);
+        for _ in 0..n {
+            nominal_arguments.push(NominalLifeArgument {
+                path: self.life_type_path()?,
+                declaration: self.declaration_id()?,
+                argument: self.u32()?,
+                binder: self.u32()?,
+            });
+        }
+        Ok((retained, nominal_arguments))
+    }
+    pub(super) fn retained_shape(&mut self, depth: usize) -> WireResult<RetainedLifeShape> {
+        if depth > self.limits.max_call_depth {
+            return Err(quota("retained life shape nesting exceeds wire limit"));
+        }
+        let binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let n = self.count(self.limits.max_nodes, 6)?;
+        let mut ports = Vec::with_capacity(n);
+        for _ in 0..n {
+            ports.push(RetainedBorrowPort {
+                leaf: self.ty(depth + 1)?,
+                mode: self.stored_borrow_mode()?,
+                binder: self.u32()?,
+            });
+        }
+        let (retained, nominal_arguments) = self.life_maps()?;
+        Ok(RetainedLifeShape {
+            binder_count,
+            ports,
+            retained,
+            nominal_arguments,
+        })
+    }
+    fn storage_shape(&mut self) -> WireResult<StorageLifeShape> {
+        let binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let n = self.count(self.limits.max_nodes, 9)?;
+        let mut slots = Vec::with_capacity(n);
+        for _ in 0..n {
+            slots.push(StorageLifeSlot {
+                path: self.storage_path()?,
+                binder: self.u32()?,
+                mode: self.stored_borrow_mode()?,
+            });
+        }
+        let (retained, nominal_arguments) = self.life_maps()?;
+        Ok(StorageLifeShape {
+            binder_count,
+            slots,
+            retained,
+            nominal_arguments,
+        })
+    }
+    pub(super) fn required_storage_contract(&mut self) -> WireResult<StorageLifeContract> {
+        let fixed_binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let invocation_binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let n = self.count(self.limits.max_nodes, 10)?;
+        let mut bindings = Vec::with_capacity(n);
+        for _ in 0..n {
+            bindings.push(StorageLifeBinding {
+                position: self.storage_position()?,
+                binder: self.storage_binder()?,
+            });
+        }
+        let n = self.count(self.limits.max_nodes, 14)?;
+        let mut classes = Vec::with_capacity(n);
+        for _ in 0..n {
+            let base = match self.u8()? {
+                0 => StorageBase::Parameter(self.u32()?),
+                1 => StorageBase::Capture(self.u32()?),
+                2 => StorageBase::Result,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown semantic class base")),
+            };
+            classes.push(SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base,
+                    path: self.life_type_path()?,
+                    class: self.u32()?,
+                },
+                binder: self.storage_binder()?,
+            });
+        }
+        Ok(StorageLifeContract {
+            fixed_binder_count,
+            invocation_binder_count,
+            bindings,
+            classes,
+        })
+    }
+    fn storage_contract(&mut self) -> WireResult<Option<StorageLifeContract>> {
+        if self.boolean()? {
+            self.required_storage_contract().map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub(super) fn retained_port_binding(&mut self) -> WireResult<RetainedPortBinding> {
+        Ok(RetainedPortBinding {
+            port: self.u32()?,
+            source: self.storage_position()?,
+        })
+    }
+    fn life_inventory(
+        &mut self,
+    ) -> WireResult<(Vec<LifeNominalDeclaration>, Vec<LifeNominalInstance>)> {
+        let n = self.count(self.limits.max_nodes, 30)?;
+        let mut declarations = Vec::with_capacity(n);
+        for _ in 0..n {
+            let id = self.declaration_id()?;
+            let identity = self.declaration_identity()?;
+            let kind = match self.u8()? {
+                0 => LifeNominalKind::Record,
+                1 => LifeNominalKind::Package,
+                2 => LifeNominalKind::Resource,
+                3 => LifeNominalKind::Enum,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown nominal declaration kind")),
+            };
+            let n = self.count(self.limits.max_nodes, 1)?;
+            let mut parameters = Vec::with_capacity(n);
+            for _ in 0..n {
+                parameters.push(self.parameter_kind(0)?);
+            }
+            declarations.push(LifeNominalDeclaration {
+                id,
+                identity,
+                kind,
+                parameters,
+            });
+        }
+        let n = self.count(self.limits.max_nodes, 14)?;
+        let mut instances = Vec::with_capacity(n);
+        for _ in 0..n {
+            let declaration = self.declaration_id()?;
+            let ty = self.ty(0)?;
+            let n = self.count(self.limits.max_nodes, 1)?;
+            let mut arguments = Vec::with_capacity(n);
+            for _ in 0..n {
+                arguments.push(match self.u8()? {
+                    0 => LifeNominalActual::Type(self.ty(0)?),
+                    1 => LifeNominalActual::Const(self.constant()?),
+                    2 => LifeNominalActual::Lifetime(self.u32()?),
+                    _ => {
+                        return Err(malformed(
+                            "E-WIRE-TAG",
+                            "unknown nominal actual argument kind",
+                        ));
+                    }
+                });
+            }
+            instances.push(LifeNominalInstance {
+                declaration,
+                ty,
+                arguments,
+            });
+        }
+        Ok((declarations, instances))
+    }
     fn ty(&mut self, depth: usize) -> WireResult<Type> {
         // Finish tasks assemble already charged children. Names and variants
         // have their own stacks so nested records/enums cannot consume a
@@ -1917,7 +2651,7 @@ impl<'a> Reader<'a> {
             },
             BorrowedFunction {
                 start: usize,
-                life: FunctionLifeContract,
+                life: StorageLifeContract,
             },
             Record {
                 start: usize,
@@ -1934,6 +2668,8 @@ impl<'a> Reader<'a> {
                 name: String,
             },
             Array,
+            BorrowedStorage(StorageLifeShape),
+            RetainedFrame(RetainedLifeShape),
             Unary(u8),
             Address(bool),
             Opaque(NodeId),
@@ -2047,6 +2783,19 @@ impl<'a> Reader<'a> {
                     });
                     continue;
                 }
+                Task::BorrowedStorage(life) => {
+                    let storage = Box::new(values.pop().expect("read storage type"));
+                    values.push(Type::BorrowedStorage { storage, life });
+                    continue;
+                }
+                Task::RetainedFrame(retained_life) => {
+                    let result = Box::new(values.pop().expect("read task result type"));
+                    values.push(Type::Task {
+                        result,
+                        retained_life,
+                    });
+                    continue;
+                }
                 Task::Unary(tag) => {
                     let inner = Box::new(values.pop().expect("read unary type child"));
                     values.push(match tag {
@@ -2082,10 +2831,19 @@ impl<'a> Reader<'a> {
             self.charge(1)?;
             let tag = self.u8()?;
             let ty = match tag {
+                35 => {
+                    let life = self.storage_shape()?;
+                    pending.push(Task::BorrowedStorage(life));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
                 0 => Type::Unit,
                 1 => Type::Bool,
                 2 => Type::I32,
                 3 => Type::I64,
+                36 => Type::Dyn {
+                    interface: self.dyn_interface_id()?,
+                },
                 26 => Type::U64,
                 27 => Type::Usize,
                 28 => Type::F32,
@@ -2093,6 +2851,12 @@ impl<'a> Reader<'a> {
                 18 => Type::U8,
                 19 => Type::U16,
                 33 => Type::TaskI32,
+                34 => {
+                    let retained_life = self.retained_shape(depth)?;
+                    pending.push(Task::RetainedFrame(retained_life));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
                 20 => Type::ForeignHandle,
                 30 => Type::SyncCell(match self.u8()? {
                     0 => SyncCellKind::MutexI32,
@@ -2111,29 +2875,11 @@ impl<'a> Reader<'a> {
                     continue;
                 }
                 31 => {
-                    let binder_count = self.count(self.limits.max_locals, 0)? as u32;
-                    let count = self.count(self.limits.max_locals, 1)?;
-                    let mut parameter_lives = Vec::with_capacity(count);
-                    for _ in 0..count {
-                        parameter_lives.push(if self.boolean()? {
-                            Some(self.u32()?)
-                        } else {
-                            None
-                        });
-                    }
-                    let result_life = if self.boolean()? {
-                        Some(self.u32()?)
-                    } else {
-                        None
-                    };
+                    let life = self.required_storage_contract()?;
                     let count = self.count(self.limits.max_locals, 1)?;
                     pending.push(Task::BorrowedFunction {
                         start: values.len(),
-                        life: FunctionLifeContract {
-                            binder_count,
-                            parameter_lives,
-                            result_life,
-                        },
+                        life,
                     });
                     pending.push(Task::Type(depth + 1));
                     pending.push(Task::Types {
@@ -2309,6 +3055,23 @@ impl<'a> Reader<'a> {
         let module_id = ModuleId(self.u32()?);
         let source_fingerprint = self.fingerprint()?;
         let target = self.target()?;
+        let (life_declarations, life_instances) = self.life_inventory()?;
+        let n = self.count(self.limits.max_nodes, 1)?;
+        let mut dyn_declarations = Vec::with_capacity(n);
+        for _ in 0..n {
+            dyn_declarations.push(self.dyn_declaration()?);
+        }
+        let n = self.count(self.limits.max_nodes, 1)?;
+        let mut dyn_interfaces = Vec::with_capacity(n);
+        for _ in 0..n {
+            dyn_interfaces.push(self.dyn_interface()?);
+        }
+        let n = self.count(self.limits.max_nodes, 1)?;
+        let mut dyn_vtables = Vec::with_capacity(n);
+        for _ in 0..n {
+            dyn_vtables.push(self.dyn_vtable()?);
+        }
+
         let count = self.count(self.limits.max_functions, 4)?;
         let mut functions = Vec::with_capacity(count);
         for _ in 0..count {
@@ -2345,6 +3108,7 @@ impl<'a> Reader<'a> {
                 result,
                 kind,
                 lending_captures: self.callable_indices()?,
+                storage_life: self.storage_contract()?,
             });
         }
         let count = self.count(self.limits.max_nodes, 6)?;
@@ -2361,6 +3125,11 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedModule {
+            dyn_declarations,
+            dyn_interfaces,
+            dyn_vtables,
+            life_declarations,
+            life_instances,
             resources,
             schema_version,
             module_id,
@@ -2416,32 +3185,7 @@ impl<'a> Reader<'a> {
             let closure = ClosureId(self.u32()?);
             let kind = self.callable_kind()?;
             let life = if self.boolean()? {
-                let binder_count = self.count(self.limits.max_locals, 0)? as u32;
-                metadata = flow_count(
-                    metadata,
-                    binder_count as usize,
-                    self.limits.max_analysis_steps,
-                )?;
-                let count = self.count(self.limits.max_locals, 1)?;
-                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
-                let mut parameter_lives = Vec::with_capacity(count);
-                for _ in 0..count {
-                    parameter_lives.push(if self.boolean()? {
-                        Some(self.u32()?)
-                    } else {
-                        None
-                    });
-                }
-                let result_life = if self.boolean()? {
-                    Some(self.u32()?)
-                } else {
-                    None
-                };
-                Some(FunctionLifeContract {
-                    binder_count,
-                    parameter_lives,
-                    result_life,
-                })
+                Some(self.required_storage_contract()?)
             } else {
                 None
             };
@@ -2529,6 +3273,7 @@ impl<'a> Reader<'a> {
             1 => CallKind::Suspend,
             _ => return Err(malformed("E-WIRE-TAG", "unknown function call kind")),
         };
+        let storage_life = self.storage_contract()?;
         let reference_return_bound = if self.boolean()? {
             Some(self.callable_indices()?)
         } else {
@@ -2641,6 +3386,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            storage_life,
             call_kind,
             reference_return_bound,
             callable_return_contract,
@@ -2658,6 +3404,16 @@ impl<'a> Reader<'a> {
             entry: BlockId(self.u32()?),
             span: self.span()?,
         })
+    }
+    fn atomic_ordering(&mut self) -> WireResult<AtomicOrdering> {
+        match self.u8()? {
+            0 => Ok(AtomicOrdering::Relaxed),
+            1 => Ok(AtomicOrdering::Acquire),
+            2 => Ok(AtomicOrdering::Release),
+            3 => Ok(AtomicOrdering::AcqRel),
+            4 => Ok(AtomicOrdering::SeqCst),
+            _ => Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
+        }
     }
     fn instruction(&mut self) -> WireResult<Instruction> {
         let result = self.optional_value()?;
@@ -2815,6 +3571,82 @@ impl<'a> Reader<'a> {
                     _ => InstructionKind::PlaceTagLocal { local, path },
                 }
             }
+            tag @ 126..=127 => {
+                let address = ValueId(self.u32()?);
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                if tag == 126 {
+                    InstructionKind::BorrowPlaceAddress {
+                        address,
+                        path,
+                        mutable: self.boolean()?,
+                    }
+                } else {
+                    InstructionKind::PlaceTagAddress { address, path }
+                }
+            }
+            tag @ 121..=122 => {
+                let reservation = ReservationId(self.u32()?);
+                let base = self.u32()?;
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                if tag == 121 {
+                    InstructionKind::ReservePlaceLocal {
+                        reservation,
+                        local: LocalId(base),
+                        path,
+                    }
+                } else {
+                    InstructionKind::ReservePlaceAddress {
+                        reservation,
+                        address: ValueId(base),
+                        path,
+                    }
+                }
+            }
+            123 => InstructionKind::CommitPlaceReplace {
+                reservation: ReservationId(self.u32()?),
+                value: ValueId(self.u32()?),
+            },
+            124 => InstructionKind::AbortPlaceReservation {
+                reservation: ReservationId(self.u32()?),
+            },
             110 => {
                 let local = LocalId(self.u32()?);
                 let count = self.count(self.limits.max_call_depth, 4)?;
@@ -3011,6 +3843,51 @@ impl<'a> Reader<'a> {
                 }
                 InstructionKind::MakeManaged { fields }
             }
+            129 => {
+                let storage = ValueId(self.u32()?);
+                let path = self.storage_path()?;
+                let mode = match self.u8()? {
+                    0 => StoredBorrowLoad::CopyShared,
+                    1 => StoredBorrowLoad::CopyDescription,
+                    2 => StoredBorrowLoad::Reborrow {
+                        mutable: self.boolean()?,
+                    },
+                    3 => StoredBorrowLoad::Take,
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown stored load mode")),
+                };
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode,
+                }
+            }
+            131 => InstructionKind::MakeDynBorrow {
+                interface: self.dyn_interface_id()?,
+                vtable: self.dyn_vtable_id()?,
+                source: ValueId(self.u32()?),
+                mutable: self.boolean()?,
+            },
+            132 => {
+                let callee = ValueId(self.u32()?);
+                let interface = self.dyn_interface_id()?;
+                let slot = self.u32()?;
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut arguments = Vec::with_capacity(count);
+                for _ in 0..count {
+                    arguments.push(ValueId(self.u32()?));
+                }
+                InstructionKind::CallDynSlot {
+                    callee,
+                    interface,
+                    slot,
+                    arguments,
+                }
+            }
+            130 => InstructionKind::StoreStoredBorrow {
+                storage: ValueId(self.u32()?),
+                path: self.storage_path()?,
+                value: ValueId(self.u32()?),
+            },
             109 => InstructionKind::DescribeAddress {
                 address: ValueId(self.u32()?),
             },
@@ -3256,6 +4133,13 @@ impl<'a> Reader<'a> {
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
                 },
             },
+            133 => InstructionKind::SyncI32CompareExchange {
+                address: ValueId(self.u32()?),
+                expected: ValueId(self.u32()?),
+                desired: ValueId(self.u32()?),
+                success: self.atomic_ordering()?,
+                failure: self.atomic_ordering()?,
+            },
             99 => InstructionKind::TaskStart {
                 worker: FunctionId(self.u32()?),
                 argument: ValueId(self.u32()?),
@@ -3271,6 +4155,15 @@ impl<'a> Reader<'a> {
                     function,
                     arguments,
                 }
+            }
+            128 => {
+                let worker = FunctionId(self.u32()?);
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut arguments = Vec::with_capacity(count);
+                for _ in 0..count {
+                    arguments.push(ValueId(self.u32()?));
+                }
+                InstructionKind::TaskCreate { worker, arguments }
             }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {
@@ -3424,3 +4317,6 @@ mod flow_tests;
 
 #[cfg(test)]
 mod owned_sum_tests;
+
+#[cfg(test)]
+mod retained_tests;

@@ -1,0 +1,1 @@
+extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum S{Data((P,i32))}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let input=&mut value;let f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};return f()}

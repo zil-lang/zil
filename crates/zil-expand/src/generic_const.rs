@@ -64,6 +64,10 @@ pub(super) fn argument(
     budget: &mut Budget<'_>,
 ) -> R<TypeRef> {
     match arg {
+        GenericArg::Lifetime(_) => Err(unsupported(
+            Span::default(),
+            "lifetime argument requires a scoped storage application",
+        )),
         GenericArg::Const(e) => carrier(e, budget),
         GenericArg::Type(ty)
             if parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_))) =>
@@ -172,6 +176,47 @@ pub(super) fn normalize(
         },
         budget,
     )
+}
+
+/// Reify only a value already checked by normalize, using its same integer
+/// parser/domain. In particular u64/usize never pass through a signed carrier.
+pub(super) fn normalized_value(actual: &TypeRef, budget: &mut Budget<'_>) -> R<zil_ir::Constant> {
+    let expression =
+        expression(actual).ok_or_else(|| error(actual.span, "normalized const carrier absent"))?;
+    budget.node(expression.span, 0)?;
+    match &expression.kind {
+        ExprKind::Literal(Literal::Bool(value)) => Ok(zil_ir::Constant::Bool(*value)),
+        ExprKind::Literal(Literal::Integer(text)) => {
+            budget.text(text, expression.span)?;
+            let (value, domain) = integer(text, expression.span)?;
+            let invalid = || {
+                error(
+                    expression.span,
+                    "normalized const scalar is outside its exact domain",
+                )
+            };
+            Ok(match domain {
+                Some("u8") => zil_ir::Constant::U8(u8::try_from(value).map_err(|_| invalid())?),
+                Some("u16") => zil_ir::Constant::U16(u16::try_from(value).map_err(|_| invalid())?),
+                Some("u64") => zil_ir::Constant::U64(u64::try_from(value).map_err(|_| invalid())?),
+                Some("usize") => {
+                    zil_ir::Constant::Usize(u64::try_from(value).map_err(|_| invalid())?)
+                }
+                Some("i32") => zil_ir::Constant::I32(i32::try_from(value).map_err(|_| invalid())?),
+                Some("i64") => zil_ir::Constant::I64(i64::try_from(value).map_err(|_| invalid())?),
+                _ => {
+                    return Err(error(
+                        expression.span,
+                        "normalized const scalar domain absent",
+                    ));
+                }
+            })
+        }
+        _ => Err(error(
+            expression.span,
+            "normalized const scalar value absent",
+        )),
+    }
 }
 
 pub(super) fn key(expression: &Expr) -> R<String> {
@@ -298,6 +343,7 @@ pub(super) fn definition<'a>(
                 }
                 for arg in args {
                     match arg {
+                        GenericArg::Lifetime(name) => self.text(name, ty.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
                                 self.parameters.iter().any(|p| {
@@ -322,6 +368,7 @@ pub(super) fn definition<'a>(
                 self.expression(callee, depth + 1)?;
                 for argument in arguments {
                     match argument {
+                        GenericArg::Lifetime(name) => self.text(name, expression.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
                                 self.parameters.iter().any(|p| {
@@ -497,7 +544,9 @@ pub(super) fn hide(pattern: &Pattern, substitutions: &mut BTreeMap<String, TypeR
         PatternKind::Name(name) => {
             hide_name(name, substitutions);
         }
-        PatternKind::Reference { pattern, .. } => hide(pattern, substitutions),
+        PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
+            hide(pattern, substitutions)
+        }
         PatternKind::Tuple(patterns)
         | PatternKind::Constructor {
             arguments: patterns,
@@ -525,7 +574,9 @@ pub(super) fn scoped<'a>(
             PatternKind::Name(name) => substitutions
                 .get(name)
                 .is_some_and(|t| expression(t).is_some()),
-            PatternKind::Reference { pattern, .. } => shadows(pattern, substitutions),
+            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
+                shadows(pattern, substitutions)
+            }
             PatternKind::Tuple(ps) | PatternKind::Constructor { arguments: ps, .. } => {
                 ps.iter().any(|p| shadows(p, substitutions))
             }

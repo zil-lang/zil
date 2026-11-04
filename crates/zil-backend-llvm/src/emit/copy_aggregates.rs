@@ -17,8 +17,9 @@ pub(super) type Plan = BTreeMap<ValueId, Slot>;
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
+    remaining_work: usize,
 ) -> CompileResult<super::large_copy_abi::Plans> {
-    let mut work = limits.max_analysis_steps;
+    let mut work = remaining_work;
     let mut plans = BTreeMap::new();
     for function in lir.functions {
         let mut values = Plan::new();
@@ -154,6 +155,9 @@ pub(super) fn reserve_enum_metadata(
     if depth > limits.max_call_depth {
         return Err(exhausted());
     }
+    if let Type::BorrowedFunctionPointer { life, .. } = ty {
+        stored_borrows::contract(life, work)?;
+    }
     let mut name = |name: &str| -> CompileResult<()> {
         *work = work.checked_sub(name.len()).ok_or_else(exhausted)?;
         Ok(())
@@ -182,6 +186,22 @@ pub(super) fn reserve_enum_metadata(
                     reserve_enum_metadata(field, work, depth + 1, limits)?;
                 }
             }
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            if retained_life.binder_count != 0
+                || !retained_life.ports.is_empty()
+                || !retained_life.retained.is_empty()
+                || !retained_life.nominal_arguments.is_empty()
+            {
+                return unsupported(
+                    "borrowed Task native frame mapping is not implemented",
+                    None,
+                );
+            }
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
         }
         Type::Array { element, .. }
         | Type::Slice { element }
@@ -238,6 +258,9 @@ pub(super) fn reserve(
             "Copy snapshot type depth exceeded",
             None,
         )]);
+    }
+    if let Type::BorrowedFunctionPointer { life, .. } = ty {
+        stored_borrows::contract(life, work)?;
     }
     match ty {
         Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,

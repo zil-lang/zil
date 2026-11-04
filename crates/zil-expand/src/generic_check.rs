@@ -6,6 +6,8 @@ use loop_control::BlockFlow;
 mod deferred;
 #[path = "generic_factory.rs"]
 mod factory;
+#[path = "generic_role_check.rs"]
+mod role_check;
 #[path = "generic_scoped.rs"]
 mod scoped;
 
@@ -56,6 +58,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
     let callable = callable::template(function, budget)?;
+    let class_scope = role_check::Scope::new(
+        source_definition.unwrap_or(function),
+        callable.is_some(),
+        budget,
+    )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
@@ -70,7 +77,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         if !parameter_names.insert(&p.name) {
             return Err(error(p.span, "duplicate generic function parameter"));
         }
-        type_key(&p.ty, budget)?;
+        role_check::key(&p.ty, class_scope, budget)?;
         if matches!(&group(&p.ty).kind, TypeKind::Reference { inner, .. }
             if matches!(group(inner).kind, TypeKind::Reference { .. }))
         {
@@ -93,7 +100,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         if owned_factory {
             budget.ty(t)?;
         } else {
-            type_key(t, budget)?;
+            role_check::key(t, class_scope, budget)?;
         }
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
@@ -114,6 +121,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         .as_ref()
         .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        class_scope,
         higher_rank,
         variables,
         definition_bound_context,
@@ -137,6 +145,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
+        pattern_place: None,
+        pattern_route: Vec::new(),
+        pattern_read: None,
         factory_scopes: Vec::new(),
         factory_values: BTreeMap::new(),
         factory_return_identity: None,
@@ -161,7 +172,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
-    if super::super::lifetimes::copy_life(function) {
+    if super::super::lifetimes::copy_life(function) || check.class_scope.active {
         let mut remaining = check.budget.remaining_limits();
         let life =
             super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
@@ -174,7 +185,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .chain(function.return_type.iter())
         {
             check.budget.node(ty.span, 0)?;
-            if let TypeKind::Reference { inner, .. } = &group(ty).kind {
+            if super::super::lifetimes::copy_life(function)
+                && let TypeKind::Reference { inner, .. } = &group(ty).kind
+            {
                 let pointee = match &group(inner).kind {
                     TypeKind::Array {
                         element,
@@ -398,7 +411,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     match &function.body {
         FunctionBody::Block(body) => {
             if check.block(body, &mut state)?.fallthrough {
-                same(&unit(body.span), &check.result, body.span, check.budget)?;
+                role_check::same(
+                    &unit(body.span),
+                    &check.result,
+                    body.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             }
         }
         FunctionBody::Expression(value) => {
@@ -409,9 +428,21 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             } else if check.callable.is_some()
                 || matches!(group(&result).kind, TypeKind::Error { .. })
             {
-                same_return(&actual, &result, value.span, check.budget)?;
+                role_check::same_return(
+                    &actual,
+                    &result,
+                    value.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             } else {
-                same(&actual, &result, value.span, check.budget)?;
+                role_check::same(
+                    &actual,
+                    &result,
+                    value.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             }
         }
         FunctionBody::Declaration => {
@@ -668,9 +699,10 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
                     .iter()
                     .any(|a| matches!(a, GenericArg::Type(t) if dependent(t, vars)))
         }
-        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {
-            dependent(inner, vars)
-        }
+        TypeKind::Reference { inner, .. }
+        | TypeKind::Group(inner)
+        | TypeKind::Optional(inner)
+        | TypeKind::ForLifetime { inner, .. } => dependent(inner, vars),
         TypeKind::Tuple(ts) | TypeKind::Union(ts) => ts.iter().any(|t| dependent(t, vars)),
         TypeKind::Array { element, .. } => dependent(element, vars),
         TypeKind::Error { error, result } => dependent(error, vars) || dependent(result, vars),
@@ -692,6 +724,7 @@ fn known_copy(
         TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
+        | TypeKind::ForLifetime { .. }
         | TypeKind::ForeignFunction { .. } => true,
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
@@ -764,6 +797,7 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    class_scope: role_check::Scope<'s>,
     source_definition: &'s Function,
     definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
     variables: BTreeSet<String>,
@@ -784,6 +818,9 @@ struct Check<'s, 'b, 'l> {
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
+    pattern_place: Option<state_aliases::PatternPlace>,
+    pattern_route: Vec<zil_ir::PlaceProjection>,
+    pattern_read: Option<usize>,
     factory_scopes: Vec<factory::Scope>,
     factory_values: BTreeMap<usize, Span>,
     factory_return_identity: Option<Span>,
@@ -828,6 +865,10 @@ impl Check<'_, '_, '_> {
                     Some(roots) => self.life_copy(roots, expression.span),
                     None => Ok(BTreeSet::new()),
                 }
+            }
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.life_expression(value, state)
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
             ExprKind::Unary {
@@ -986,7 +1027,7 @@ impl Check<'_, '_, '_> {
             .return_type
             .as_ref()
             .expect("mixed complete result");
-        same(owner, result, result.span, self.budget)?;
+        role_check::same(owner, result, result.span, self.class_scope, self.budget)?;
         let TypeKind::Named { path, args } = &group(owner).kind else {
             return Err(unsupported(
                 owner.span,
@@ -1137,6 +1178,10 @@ impl Check<'_, '_, '_> {
     fn owned_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
         Ok(match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.owned_resource_expression(value, state)?
+            }
             ExprKind::Group(inner) => self.owned_resource_expression(inner, state)?,
             // The expression's actual concrete resource type is checked after
             // evaluation; ordinary records and Package values cannot set it.
@@ -1379,6 +1424,10 @@ impl Check<'_, '_, '_> {
                 Ok(())
             }
             PatternKind::Wildcard => Ok(()),
+            PatternKind::ErrorArm { .. } => Err(error(
+                pattern.span,
+                "ordinary binding requires an irrefutable pattern",
+            )),
             PatternKind::Tuple(patterns) => {
                 let fields = match &group(ty).kind {
                     TypeKind::Tuple(fields) => fields.as_slice(),
@@ -1410,7 +1459,9 @@ impl Check<'_, '_, '_> {
     }
     fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
         match &expression.kind {
-            ExprKind::Group(inner) => self.owning_store_expression(inner, state),
+            ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => {
+                self.owning_store_expression(inner, state)
+            }
             ExprKind::Name(name) => state
                 .locals
                 .get(name)
@@ -1467,6 +1518,10 @@ impl Check<'_, '_, '_> {
     fn fresh_store_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.fresh_store_expression(value, state)
+            }
             ExprKind::Group(inner) => self.fresh_store_expression(inner, state),
             ExprKind::Name(name) => Ok(state.locals.get(name).is_some_and(|local| {
                 state.store_results.contains(&local.id) && state.fresh_stores.contains(&local.id)
@@ -1578,7 +1633,8 @@ impl Check<'_, '_, '_> {
             ));
         }
         if let Some((error_type, _)) = stores::success(&expected)
-            && type_key(&actual, self.budget)? == type_key(error_type, self.budget)?
+            && role_check::key(&actual, self.class_scope, self.budget)?
+                == role_check::key(error_type, self.class_scope, self.budget)?
         {
             // This return injects the Copy error and owns zero success Stores.
             return Ok(actual);
@@ -1608,6 +1664,10 @@ impl Check<'_, '_, '_> {
                 .and_then(|local| state.store_origins.get(&local.id))
                 .cloned()
                 .unwrap_or_default()),
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.store_origins(value, state)
+            }
             ExprKind::Group(inner) => self.store_origins(inner, state),
             ExprKind::Member {
                 object,
@@ -2014,6 +2074,10 @@ impl Check<'_, '_, '_> {
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Ascribed { ty, .. } => {
+                self.budget.ty(ty)?;
+                Ok(Some(ty.clone()))
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, state, depth + 1, default_integer)
             }
@@ -2296,7 +2360,7 @@ impl Check<'_, '_, '_> {
             ));
         }
         let end = self.expr(right, state, Some(&ty), false)?;
-        same(&end, &ty, right.span, self.budget)?;
+        role_check::same(&end, &ty, right.span, self.class_scope, self.budget)?;
 
         let mut iteration = self.clone_loop_state(state, span)?;
         self.budget.text(name, pattern.span)?;
@@ -2356,6 +2420,10 @@ impl Check<'_, '_, '_> {
     ) -> R<Option<TypeRef>> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, .. } => {
+                self.budget.ty(ty)?;
+                Ok(Some(ty.clone()))
+            }
             ExprKind::Group(inner) => self.method_argument_hint(inner, state, depth + 1),
             ExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
@@ -2500,7 +2568,13 @@ impl Check<'_, '_, '_> {
                     let GenericParamKind::Const(actual_domain) = &binder.kind else {
                         unreachable!()
                     };
-                    same(actual_domain, domain, object.span, self.budget)?;
+                    role_check::same(
+                        actual_domain,
+                        domain,
+                        object.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
                     if state.locals.get(name).is_none_or(|local| {
                         local.id != self.source_definition.params.len() + ordinal
                     }) {
@@ -2539,7 +2613,13 @@ impl Check<'_, '_, '_> {
             TypeKind::Reference { mutable, .. } => {
                 if matches!(group(actual).kind, TypeKind::Reference { .. }) {
                     let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
-                    same(&actual, &expected, object.span, self.budget)?;
+                    role_check::same(
+                        &actual,
+                        &expected,
+                        object.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
                 } else {
                     let (place, writable) = self.place(object, state)?;
                     if *mutable && !writable {
@@ -2548,7 +2628,7 @@ impl Check<'_, '_, '_> {
                             "mutable trait receiver requires a writable place",
                         ));
                     }
-                    same(&place, host, object.span, self.budget)?;
+                    role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
                 }
             }
             _ => {
@@ -2559,7 +2639,13 @@ impl Check<'_, '_, '_> {
                     ));
                 }
                 let consumed = self.expr(object, state, Some(&expected), false)?;
-                same(&consumed, &expected, object.span, self.budget)?;
+                role_check::same(
+                    &consumed,
+                    &expected,
+                    object.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
             }
         }
         for (index, (argument, parameter)) in arguments.iter().zip(&method.params[1..]).enumerate()
@@ -2609,7 +2695,13 @@ impl Check<'_, '_, '_> {
                 index + 1,
             )?;
             if variables.is_empty() {
-                same(&actual, &expected, argument.span, self.budget)?;
+                role_check::same(
+                    &actual,
+                    &expected,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
             } else {
                 unify_argument(
                     &expected,
@@ -2702,7 +2794,18 @@ impl Check<'_, '_, '_> {
     ) -> R<TypeRef> {
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let mut ty = self.expr_inner(e, state, expected, borrowing)?;
+        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        self.finish_expr(e, state, base, ty)
+    }
+
+    #[inline(never)]
+    fn finish_expr(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        base: usize,
+        mut ty: TypeRef,
+    ) -> R<TypeRef> {
         if let Some(equations) = self.definition_equations {
             self.budget.substituted_type(&ty, equations)?;
             Substitution {
@@ -2714,17 +2817,56 @@ impl Check<'_, '_, '_> {
             ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
             | ExprKind::Group(_)
+            | ExprKind::Ascribed { .. }
             | ExprKind::MetaEval(_)
             | ExprKind::If { .. }
             | ExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 ..
             } => {}
+            _ if self.pattern_read == Some(e as *const Expr as usize) => {}
             _ => self.aliases.result.clear(),
         }
         Ok(ty)
     }
 
+    fn expr_ascribed(
+        &mut self,
+        ty: &TypeRef,
+        value: &Expr,
+        state: &mut State,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        self.budget.ty(ty)?;
+        let actual = self.expr(value, state, Some(ty), borrowing)?;
+        let actual_key = role_check::key(&actual, self.class_scope, self.budget)?;
+        if actual_key != role_check::key(ty, self.class_scope, self.budget)? {
+            let TypeKind::Union(members) = &group(ty).kind else {
+                return Err(error(
+                    value.span,
+                    "ascribed value differs from its complete type",
+                ));
+            };
+            let mut found = false;
+            for member in members {
+                if actual_key == role_check::key(member, self.class_scope, self.budget)? {
+                    if found {
+                        return Err(error(value.span, "ascribed sum member is ambiguous"));
+                    }
+                    found = true;
+                }
+            }
+            if !found {
+                return Err(error(
+                    value.span,
+                    "ascribed payload is not an exact sum member",
+                ));
+            }
+        }
+        self.budget.ty(ty)?;
+        Ok(ty.clone())
+    }
+    #[inline(never)]
     fn expr_inner(
         &mut self,
         e: &Expr,
@@ -2732,6 +2874,25 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        if let Some(ty) = self.expr_head(e, state, expected)? {
+            return Ok(ty);
+        }
+        // Binary chains recurse through this compact dispatcher. Do not retain
+        // unrelated call/record/closure temporaries from the large variant body
+        // on every operand edge of the source expression tree.
+        if matches!(e.kind, ExprKind::Binary { .. }) {
+            return self.expr_binary(e, state, expected);
+        }
+        self.expr_non_binary(e, state, expected, borrowing)
+    }
+
+    #[inline(never)]
+    fn expr_head(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<Option<TypeRef>> {
         self.tick(e.span)?;
         if self.traits.has_constants
             && let ExprKind::Member {
@@ -2755,17 +2916,144 @@ impl Check<'_, '_, '_> {
         {
             return self
                 .traits
-                .constant_type(&value, &self.bounds, &self.variables, self.budget);
+                .constant_type(&value, &self.bounds, &self.variables, self.budget)
+                .map(Some);
         }
         if trait_bounds::constants::parts(e).is_some() {
             return self
                 .traits
-                .constant_type(e, &self.bounds, &self.variables, self.budget);
+                .constant_type(e, &self.bounds, &self.variables, self.budget)
+                .map(Some);
         }
         let enum_context = expected.map(|ty| stores::success(ty).map_or(ty, |(error, _)| error));
         if let Some(ty) = self.enum_expression(e, state, enum_context)? {
-            return Ok(ty);
+            return Ok(Some(ty));
         }
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_binary(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<TypeRef> {
+        let ExprKind::Binary { op, left, right } = &e.kind else {
+            unreachable!("binary expression dispatcher")
+        };
+        let needs_bound = || {
+            unsupported(
+                e.span,
+                "operation on an unconstrained type parameter requires a declared bound",
+            )
+        };
+        // A comparison produces bool; that result hint is not the
+        // operand type of an ordinary helper call on its left.
+        let operand_hint = if matches!(
+            op,
+            BinaryOp::Equal
+                | BinaryOp::NotEqual
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+        ) {
+            None
+        } else {
+            expected
+        };
+        let float_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+            self.value_hint(right, state, 1, false)?.filter(floating)
+        } else {
+            None
+        };
+        let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
+        let rhs = self.expr(right, state, Some(&lhs), false)?;
+        if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
+            return Err(needs_bound());
+        }
+        role_check::same(&rhs, &lhs, e.span, self.class_scope, self.budget)?;
+        let valid = match op {
+            BinaryOp::And | BinaryOp::Or => boolean(&lhs),
+            BinaryOp::Equal | BinaryOp::NotEqual => {
+                integer(&lhs)
+                    || floating(&lhs)
+                    || boolean(&lhs)
+                    || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
+            }
+            BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Multiply
+            | BinaryOp::Divide
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
+            _ => integer(&lhs),
+        };
+        if !valid {
+            return Err(error(
+                e.span,
+                "invalid concrete binary operand types in generic body",
+            ));
+        }
+        if matches!(
+            op,
+            BinaryOp::Equal
+                | BinaryOp::NotEqual
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+                | BinaryOp::And
+                | BinaryOp::Or
+        ) {
+            Ok(named("bool", e.span))
+        } else {
+            Ok(lhs)
+        }
+    }
+
+    #[inline(never)]
+    fn expr_non_binary(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        // Recursive variants enter only their own native frame. The common
+        // tick/constant/enum checks and alias accounting stay in their callers.
+        match &e.kind {
+            ExprKind::Ascribed { .. } => self.expr_generic_ascribed(e, state, expected, borrowing),
+            ExprKind::Group(_) | ExprKind::MetaEval(_) => {
+                self.expr_generic_group(e, state, expected, borrowing)
+            }
+            ExprKind::Tuple(_) => self.expr_generic_tuple(e, state, expected, borrowing),
+            ExprKind::Array(_) => self.expr_generic_array(e, state, expected, borrowing),
+            ExprKind::Record { .. } => self.expr_generic_record(e, state, expected, borrowing),
+            ExprKind::Index { .. } => self.expr_generic_index(e, state, expected, borrowing),
+            ExprKind::Slice { .. } => self.expr_generic_slice(e, state, expected, borrowing),
+            ExprKind::Unary { .. } => self.expr_generic_unary(e, state, expected, borrowing),
+            ExprKind::Call { .. } => self.expr_generic_call(e, state, expected, borrowing),
+            ExprKind::Try(_) => self.expr_generic_try(e, state, expected, borrowing),
+            ExprKind::If { .. } => self.expr_generic_if(e, state, expected, borrowing),
+            ExprKind::Member { .. } => self.expr_generic_member(e, state, expected, borrowing),
+            ExprKind::Closure { .. } => self.expr_generic_closure(e, state, expected, borrowing),
+            _ => self.expr_non_binary_leaf(e, state, expected, borrowing),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_non_binary_leaf(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
         let needs_bound = || {
             unsupported(
                 e.span,
@@ -2879,9 +3167,61 @@ impl Check<'_, '_, '_> {
                 checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
+            ExprKind::Binary { .. } => {
+                unreachable!("binary expression uses the compact recursive frame")
+            }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_ascribed(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
+            ExprKind::Ascribed { ty, value } => self.expr_ascribed(ty, value, state, borrowing),
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_group(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_tuple(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Tuple(values) => {
                 let hints = expected.and_then(|t| match &group(t).kind {
                     TypeKind::Tuple(ts) => Some(ts),
@@ -2896,6 +3236,22 @@ impl Check<'_, '_, '_> {
                     kind: TypeKind::Tuple(fields),
                 })
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_record(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        _borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Record {
                 ty: Some(constructor),
                 base: None,
@@ -2980,7 +3336,7 @@ impl Check<'_, '_, '_> {
                         };
                         self.expr(&local, state, Some(&want), false)?
                     };
-                    same(&actual, &want, field.span, self.budget)?;
+                    role_check::same(&actual, &want, field.span, self.class_scope, self.budget)?;
                 }
                 if seen.len() != declaration.fields.len() {
                     return Err(error(e.span, "missing generic record field"));
@@ -3004,6 +3360,22 @@ impl Check<'_, '_, '_> {
                 )?;
                 Ok(result)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_array(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Array(values) => {
                 let mut element = expected
                     .and_then(|ty| match &group(ty).kind {
@@ -3014,7 +3386,13 @@ impl Check<'_, '_, '_> {
                 for value in values {
                     let actual = self.expr(value, state, element.as_ref(), borrowing)?;
                     if let Some(element) = &element {
-                        same(&actual, element, value.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            element,
+                            value.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     } else {
                         element = Some(actual);
                     }
@@ -3027,6 +3405,28 @@ impl Check<'_, '_, '_> {
                     e.span,
                 )
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_index(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        let needs_bound = || {
+            unsupported(
+                e.span,
+                "operation on an unconstrained type parameter requires a declared bound",
+            )
+        };
+        match &e.kind {
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
                 if !borrowing {
@@ -3063,6 +3463,22 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_slice(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Slice { .. } => {
                 if !borrowing {
                     return Err(unsupported(
@@ -3072,6 +3488,28 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(self.place(e, state)?.0)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_unary(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        let needs_bound = || {
+            unsupported(
+                e.span,
+                "operation on an unconstrained type parameter requires a declared bound",
+            )
+        };
+        match &e.kind {
             ExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
@@ -3177,804 +3615,1020 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
-            ExprKind::Binary { op, left, right } => {
-                // A comparison produces bool; that result hint is not the
-                // operand type of an ordinary helper call on its left.
-                let operand_hint = if matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                ) {
-                    None
-                } else {
-                    expected
-                };
-                let float_hint =
-                    if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
-                        self.value_hint(right, state, 1, false)?.filter(floating)
-                    } else {
-                        None
-                    };
-                let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
-                let rhs = self.expr(right, state, Some(&lhs), false)?;
-                if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
-                    return Err(needs_bound());
-                }
-                same(&rhs, &lhs, e.span, self.budget)?;
-                let valid = match op {
-                    BinaryOp::And | BinaryOp::Or => boolean(&lhs),
-                    BinaryOp::Equal | BinaryOp::NotEqual => {
-                        integer(&lhs)
-                            || floating(&lhs)
-                            || boolean(&lhs)
-                            || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
-                    }
-                    BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
-                    BinaryOp::Add
-                    | BinaryOp::Subtract
-                    | BinaryOp::Multiply
-                    | BinaryOp::Divide
-                    | BinaryOp::Less
-                    | BinaryOp::LessEqual
-                    | BinaryOp::Greater
-                    | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
-                    _ => integer(&lhs),
-                };
-                if !valid {
-                    return Err(error(
-                        e.span,
-                        "invalid concrete binary operand types in generic body",
-                    ));
-                }
-                if matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                        | BinaryOp::And
-                        | BinaryOp::Or
-                ) {
-                    Ok(named("bool", e.span))
-                } else {
-                    Ok(lhs)
-                }
-            }
-            ExprKind::Call { callee, arguments } => {
-                if let Some(name) =
-                    super::super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
-                {
-                    if arguments.len() != stores::arity(name)
-                        || arguments.iter().any(|arg| arg.spread)
-                    {
-                        return Err(error(
-                            e.span,
-                            "Store primitive argument count or shape differs",
-                        ));
-                    }
-                    let element = if name == "store_new" {
-                        expected
-                            .and_then(stores::carrier)
-                            .and_then(stores::element)
-                            .cloned()
-                            .ok_or_else(|| {
-                                error(
-                                    e.span,
-                                    "store_new requires an explicit Store element context",
-                                )
-                            })?
-                    } else {
-                        let store = self.expr(&arguments[0].value, state, None, true)?;
-                        stores::element(&store).cloned().ok_or_else(|| {
-                            error(e.span, "Store primitive requires a Store description")
-                        })?
-                    };
-                    self.traits.store_element(
-                        &element,
-                        &self.bounds,
-                        &self.variables,
-                        self.budget,
-                        self.callable.as_ref().map_or(
-                            callable::StoreCallbacks::None,
-                            callable::CallableTemplates::store_callbacks,
-                        ),
-                    )?;
-                    if arguments.len() == 2 {
-                        let wanted = if name == "store_push" {
-                            element.clone()
-                        } else {
-                            named("i64", e.span)
-                        };
-                        let actual = self.expr(&arguments[1].value, state, Some(&wanted), false)?;
-                        same(&actual, &wanted, arguments[1].span, self.budget)?;
-                    }
-                    if matches!(name, "store_at" | "store_at_mut") {
-                        self.alias_borrow(&arguments[0].value, state, name == "store_at_mut")?;
-                    } else if name != "store_new" {
-                        if matches!(name, "store_len" | "store_capacity") {
-                            self.alias_read_place(&arguments[0].value, state)?;
-                        } else {
-                            self.alias_replace_place(&arguments[0].value, state)?;
-                        }
-                    }
-                    return Ok(stores::result(name, &element, e.span));
-                }
-                if let Some((parameters, result)) = super::super::foreign::bare_name(callee)
-                    .and_then(|name| bytes::signature(name, e.span))
-                {
-                    if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread)
-                    {
-                        return Err(error(
-                            e.span,
-                            "byte primitive argument count or shape differs",
-                        ));
-                    }
-                    for (index, (argument, parameter)) in
-                        arguments.iter().zip(&parameters).enumerate()
-                    {
-                        // Ordinary ByteBuffer observation takes a descriptor;
-                        // it does not consume the carrier in this expression.
-                        let actual =
-                            self.expr(&argument.value, state, Some(parameter), index == 0)?;
-                        same(&actual, parameter, argument.span, self.budget)?;
-                    }
-                    let name = super::super::foreign::bare_name(callee).expect("byte primitive");
-                    if name != "bytes_new" {
-                        if matches!(name, "bytes_view" | "bytes_view_mut") {
-                            self.alias_borrow(
-                                &arguments[0].value,
-                                state,
-                                name == "bytes_view_mut",
-                            )?;
-                        } else if matches!(name, "bytes_len" | "bytes_capacity") {
-                            self.alias_read_place(&arguments[0].value, state)?;
-                        } else {
-                            self.alias_replace_place(&arguments[0].value, state)?;
-                        }
-                    }
-                    self.budget.ty(&result)?;
-                    return Ok(result);
-                }
-                let (method_callee, method_explicit) = match &callee.kind {
-                    ExprKind::TypeApply { callee, arguments } => {
-                        (callee.as_ref(), Some(arguments.as_slice()))
-                    }
-                    _ => (callee.as_ref(), None),
-                };
-                if let ExprKind::Member {
-                    object,
-                    member: MemberName::Name(name) | MemberName::Constrained { name, .. },
-                } = &method_callee.kind
-                {
-                    if method_explicit.is_none()
-                        && let Some(result) = self.state_field_call(callee, arguments, state)?
-                    {
-                        return Ok(result);
-                    }
-                    let ty = self.expr(object, state, None, true)?;
-                    if name == "len"
-                        && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
-                    {
-                        if !arguments.is_empty() {
-                            return Err(error(e.span, "slice len requires no arguments"));
-                        }
-                        return Ok(named("i64", e.span));
-                    }
-                    return self.bound_method(
-                        object,
-                        &ty,
-                        name,
-                        trait_methods::Arguments {
-                            site: method_callee,
-                            values: arguments,
-                            explicit: method_explicit,
-                            expected,
-                        },
-                        state,
-                    );
-                }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
 
-                if let Some(value) =
-                    super::super::foreign::literal_constructor(callee, arguments, e.span)
-                {
-                    let value = value?;
-                    if let zil_ir::Constant::WideString(units) = &value {
-                        self.budget.wide_units(units, e.span)?;
-                    }
-                    return Ok(named(&value.ty().name(), e.span));
-                }
-                if super::super::foreign::bare_name(callee) == Some("thread_scope") {
+    #[inline(never)]
+    fn expr_generic_call(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        _borrowing: bool,
+    ) -> R<TypeRef> {
+        let ExprKind::Call { callee, .. } = &e.kind else {
+            unreachable!("call dispatcher")
+        };
+        if let Some(result) = self.expr_call_special(e, state, expected)? {
+            return Ok(result);
+        }
+        let (target, explicit) = match &callee.kind {
+            ExprKind::Name(n) => (n, None),
+            ExprKind::TypeApply { callee, arguments } => match &callee.kind {
+                ExprKind::Name(n) => (n, Some(arguments.as_slice())),
+                _ => {
                     return Err(unsupported(
                         e.span,
-                        "thread_scope in generic callable wrappers is not implemented",
+                        "parametric qualified callable resolution",
                     ));
                 }
-                if let Some(name) = super::super::foreign::bare_name(callee).filter(|n| {
-                    matches!(
-                        *n,
-                        "c_register" | "registration_valid" | "registration_close"
+            },
+            _ => {
+                return Err(unsupported(
+                    e.span,
+                    "parametric indirect callable resolution",
+                ));
+            }
+        };
+
+        if let Some(result) = self.expr_call_local(e, state, expected, target, explicit)? {
+            return Ok(result);
+        }
+        if let Some(result) = self.expr_call_foreign(e, state, target, explicit)? {
+            return Ok(result);
+        }
+        self.expr_call_static(e, state, expected, target, explicit)
+    }
+
+    #[inline(never)]
+    fn expr_call_special(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { callee, .. } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        if let Some(name) =
+            super::super::foreign::bare_name(callee).filter(|name| stores::primitive(name))
+        {
+            return self.expr_call_store(e, state, expected, name);
+        }
+        if let Some((parameters, result)) =
+            super::super::foreign::bare_name(callee).and_then(|name| bytes::signature(name, e.span))
+        {
+            return self.expr_call_bytes(e, state, &parameters, result);
+        }
+        if let Some(result) = self.expr_call_method(e, state, expected)? {
+            return Ok(Some(result));
+        }
+        if let Some(result) = self.expr_call_foreign_special(e, state)? {
+            return Ok(Some(result));
+        }
+        if let Some(name) = super::super::integer_conversion_name(callee) {
+            return self.expr_call_conversion(e, state, name);
+        }
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_call_store(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        name: &str,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        if arguments.len() != stores::arity(name) || arguments.iter().any(|arg| arg.spread) {
+            return (Err(error(
+                e.span,
+                "Store primitive argument count or shape differs",
+            )))
+            .map(Some);
+        }
+        let element = if name == "store_new" {
+            expected
+                .and_then(stores::carrier)
+                .and_then(stores::element)
+                .cloned()
+                .ok_or_else(|| {
+                    error(
+                        e.span,
+                        "store_new requires an explicit Store element context",
                     )
-                }) {
-                    return self.registration_call(name, arguments, state, e.span);
+                })?
+        } else {
+            let store = self.expr(&arguments[0].value, state, None, true)?;
+            stores::element(&store)
+                .cloned()
+                .ok_or_else(|| error(e.span, "Store primitive requires a Store description"))?
+        };
+        self.traits.store_element(
+            &element,
+            &self.bounds,
+            &self.variables,
+            self.budget,
+            self.callable.as_ref().map_or(
+                callable::StoreCallbacks::None,
+                callable::CallableTemplates::store_callbacks,
+            ),
+        )?;
+        if arguments.len() == 2 {
+            let wanted = if name == "store_push" {
+                element.clone()
+            } else {
+                named("i64", e.span)
+            };
+            let actual = self.expr(&arguments[1].value, state, Some(&wanted), false)?;
+            role_check::same(
+                &actual,
+                &wanted,
+                arguments[1].span,
+                self.class_scope,
+                self.budget,
+            )?;
+        }
+        if matches!(name, "store_at" | "store_at_mut") {
+            self.alias_borrow(&arguments[0].value, state, name == "store_at_mut")?;
+        } else if name != "store_new" {
+            if matches!(name, "store_len" | "store_capacity") {
+                self.alias_read_place(&arguments[0].value, state)?;
+            } else {
+                self.alias_replace_place(&arguments[0].value, state)?;
+            }
+        }
+        Ok(Some(stores::result(name, &element, e.span)))
+    }
+
+    #[inline(never)]
+    fn expr_call_bytes(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        parameters: &[TypeRef],
+        result: TypeRef,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        if arguments.len() != parameters.len() || arguments.iter().any(|arg| arg.spread) {
+            return (Err(error(
+                e.span,
+                "byte primitive argument count or shape differs",
+            )))
+            .map(Some);
+        }
+        for (index, (argument, parameter)) in arguments.iter().zip(parameters).enumerate() {
+            // Ordinary ByteBuffer observation takes a descriptor;
+            // it does not consume the carrier in this expression.
+            let actual = self.expr(&argument.value, state, Some(parameter), index == 0)?;
+            role_check::same(
+                &actual,
+                parameter,
+                argument.span,
+                self.class_scope,
+                self.budget,
+            )?;
+        }
+        let name = super::super::foreign::bare_name(callee).expect("byte primitive");
+        if name != "bytes_new" {
+            if matches!(name, "bytes_view" | "bytes_view_mut") {
+                self.alias_borrow(&arguments[0].value, state, name == "bytes_view_mut")?;
+            } else if matches!(name, "bytes_len" | "bytes_capacity") {
+                self.alias_read_place(&arguments[0].value, state)?;
+            } else {
+                self.alias_replace_place(&arguments[0].value, state)?;
+            }
+        }
+        self.budget.ty(&result)?;
+        Ok(Some(result))
+    }
+
+    #[inline(never)]
+    fn expr_call_method(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        let (method_callee, method_explicit) = match &callee.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee.as_ref(), None),
+        };
+        if let ExprKind::Member {
+            object,
+            member: MemberName::Name(name) | MemberName::Constrained { name, .. },
+        } = &method_callee.kind
+        {
+            if method_explicit.is_none()
+                && let Some(result) = self.state_field_call(callee, arguments, state)?
+            {
+                return Ok(Some(result));
+            }
+            let ty = self.expr(object, state, None, true)?;
+            if name == "len"
+                && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
+            {
+                if !arguments.is_empty() {
+                    return (Err(error(e.span, "slice len requires no arguments"))).map(Some);
                 }
-                if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
-                    return self.scoped_callback_call(arguments, state, e.span);
+                return Ok(Some(named("i64", e.span)));
+            }
+            return (self.bound_method(
+                object,
+                &ty,
+                name,
+                trait_methods::Arguments {
+                    site: method_callee,
+                    values: arguments,
+                    explicit: method_explicit,
+                    expected,
+                },
+                state,
+            ))
+            .map(Some);
+        }
+
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_call_foreign_special(&mut self, e: &Expr, state: &mut State) -> R<Option<TypeRef>> {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        if let Some(value) = super::super::foreign::literal_constructor(callee, arguments, e.span) {
+            let value = value?;
+            if let zil_ir::Constant::WideString(units) = &value {
+                self.budget.wide_units(units, e.span)?;
+            }
+            return Ok(Some(named(&value.ty().name(), e.span)));
+        }
+        if super::super::foreign::bare_name(callee) == Some("thread_scope") {
+            return (Err(unsupported(
+                e.span,
+                "thread_scope in generic callable wrappers is not implemented",
+            )))
+            .map(Some);
+        }
+        if let Some(name) = super::super::foreign::bare_name(callee).filter(|n| {
+            matches!(
+                *n,
+                "c_register" | "registration_valid" | "registration_close"
+            )
+        }) {
+            return (self.registration_call(name, arguments, state, e.span)).map(Some);
+        }
+        if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
+            return (self.scoped_callback_call(arguments, state, e.span)).map(Some);
+        }
+        if super::super::foreign::bare_name(callee) == Some("c_callback") {
+            let [argument] = arguments.as_slice() else {
+                return (Err(super::super::foreign::callback_error(
+                    e.span,
+                    "c_callback requires one static symbol",
+                )))
+                .map(Some);
+            };
+            if argument.spread {
+                return (Err(super::super::foreign::callback_error(
+                    e.span,
+                    "C callback constructor does not accept spread arguments",
+                )))
+                .map(Some);
+            }
+            let Some(target) = super::super::foreign::bare_name(&argument.value)
+                .filter(|name| !state.locals.contains_key(*name))
+            else {
+                return (Err(super::super::foreign::callback_error(
+                    e.span,
+                    "c_callback requires one static symbol",
+                )))
+                .map(Some);
+            };
+            let Some(function) = self.signatures.get(target) else {
+                return (Err(super::super::foreign::callback_error(
+                    e.span,
+                    "unknown callback symbol",
+                )))
+                .map(Some);
+            };
+            for parameter in &function.params {
+                self.budget.ty(&parameter.ty)?;
+            }
+            if let Some(result) = &function.return_type {
+                self.budget.ty(result)?;
+            }
+            return (super::super::foreign::callback_syntax_type(function, e.span)).map(Some);
+        }
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_call_conversion(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        name: &str,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
+            unreachable!("special call dispatcher")
+        };
+        if arguments.len() != 1 || arguments[0].spread {
+            return (Err(super::super::conversion_error(
+                e.span,
+                "integer conversion requires exactly one non-spread argument",
+            )))
+            .map(Some);
+        }
+        let actual = self.expr(&arguments[0].value, state, None, false)?;
+        if !integer(&actual) && !floating(&actual) {
+            return (Err(super::super::conversion_error(
+                e.span,
+                "integer conversion requires a known integer operand",
+            )))
+            .map(Some);
+        }
+        Ok(Some(named(name, e.span)))
+    }
+
+    #[inline(never)]
+    fn expr_call_local(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        target: &str,
+        explicit: Option<&[GenericArg]>,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("call dispatcher")
+        };
+        if let Some(local) = state.locals.get(target) {
+            if local.description_reference_depth.is_some() {
+                return (Err(error(
+                    e.span,
+                    "a declared resource description is not a callable parameter",
+                )))
+                .map(Some);
+            }
+            // A factory's visible signature may itself be large. Pay
+            // its full type before cloning the symbolic local.
+            self.budget.ty(&local.ty)?;
+            let local = local.clone();
+            let Some(bounds) = self.callable.as_ref() else {
+                return (Err(unsupported(
+                    e.span,
+                    "generic callable parameter requires a Fn bound",
+                )))
+                .map(Some);
+            };
+            let owned_state = bounds.owned_state || bounds.owned_factory || bounds.forwarded;
+            let bound = bounds
+                .bindings()
+                .find(|bound| callable::parameter_mode(&local.ty, &bound.generic_name).is_some());
+            // Flat callable headers have no role binders to look up.
+            // Use the actual header shape, not the direct-address life
+            // relation, which does not describe nested storage classes.
+            let mut role_frame = if let Some(bound) = bound.filter(|b| b.has_role_binders) {
+                role_check::Frame::new(
+                    &bound.generic_name,
+                    self.class_scope.source,
+                    self.budget,
+                    e.span,
+                )?
+            } else {
+                None
+            };
+            let (kind, mode, parameters, mut result, factory_local) = if let Some(bound) = bound {
+                for parameter in &bound.parameters {
+                    self.budget.ty(parameter)?;
                 }
-                if super::super::foreign::bare_name(callee) == Some("c_callback") {
-                    let [argument] = arguments.as_slice() else {
-                        return Err(super::super::foreign::callback_error(
-                            e.span,
-                            "c_callback requires one static symbol",
-                        ));
-                    };
-                    if argument.spread {
-                        return Err(super::super::foreign::callback_error(
-                            e.span,
-                            "C callback constructor does not accept spread arguments",
-                        ));
-                    }
-                    let Some(target) = super::super::foreign::bare_name(&argument.value)
-                        .filter(|name| !state.locals.contains_key(*name))
-                    else {
-                        return Err(super::super::foreign::callback_error(
-                            e.span,
-                            "c_callback requires one static symbol",
-                        ));
-                    };
-                    let Some(function) = self.signatures.get(target) else {
-                        return Err(super::super::foreign::callback_error(
-                            e.span,
-                            "unknown callback symbol",
-                        ));
-                    };
-                    for parameter in &function.params {
-                        self.budget.ty(&parameter.ty)?;
-                    }
-                    if let Some(result) = &function.return_type {
-                        self.budget.ty(result)?;
-                    }
-                    return super::super::foreign::callback_syntax_type(function, e.span);
+                self.budget.ty(&bound.result)?;
+                (
+                    bound.kind,
+                    callable::parameter_mode(&local.ty, &bound.generic_name).unwrap(),
+                    bound.parameters.clone(),
+                    bound.result.clone(),
+                    false,
+                )
+            } else if let Some((kind, parameters, result)) = callable::opaque_signature(&local.ty) {
+                for parameter in parameters {
+                    self.budget.ty(parameter)?;
                 }
-                if let Some(name) = super::super::integer_conversion_name(callee) {
-                    if arguments.len() != 1 || arguments[0].spread {
-                        return Err(super::super::conversion_error(
-                            e.span,
-                            "integer conversion requires exactly one non-spread argument",
-                        ));
-                    }
-                    let actual = self.expr(&arguments[0].value, state, None, false)?;
-                    if !integer(&actual) && !floating(&actual) {
-                        return Err(super::super::conversion_error(
-                            e.span,
-                            "integer conversion requires a known integer operand",
-                        ));
-                    }
-                    return Ok(named(name, e.span));
-                }
-                let (target, explicit) = match &callee.kind {
-                    ExprKind::Name(n) => (n, None),
-                    ExprKind::TypeApply { callee, arguments } => match &callee.kind {
-                        ExprKind::Name(n) => (n, Some(arguments)),
-                        _ => {
-                            return Err(unsupported(
-                                e.span,
-                                "parametric qualified callable resolution",
-                            ));
-                        }
-                    },
-                    _ => {
-                        return Err(unsupported(
-                            e.span,
-                            "parametric indirect callable resolution",
-                        ));
-                    }
-                };
-                if let Some(local) = state.locals.get(target) {
-                    if local.description_reference_depth.is_some() {
-                        return Err(error(
-                            e.span,
-                            "a declared resource description is not a callable parameter",
-                        ));
-                    }
-                    // A factory's visible signature may itself be large. Pay
-                    // its full type before cloning the symbolic local.
-                    self.budget.ty(&local.ty)?;
-                    let local = local.clone();
-                    let Some(bounds) = self.callable.as_ref() else {
-                        return Err(unsupported(
-                            e.span,
-                            "generic callable parameter requires a Fn bound",
-                        ));
-                    };
-                    let owned_state =
-                        bounds.owned_state || bounds.owned_factory || bounds.forwarded;
-                    let bound = bounds.bindings().find(|bound| {
-                        callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
-                    });
-                    let (kind, mode, parameters, result, factory_local) = if let Some(bound) = bound
-                    {
-                        for parameter in &bound.parameters {
-                            self.budget.ty(parameter)?;
-                        }
-                        self.budget.ty(&bound.result)?;
-                        (
-                            bound.kind,
-                            callable::parameter_mode(&local.ty, &bound.generic_name).unwrap(),
-                            bound.parameters.clone(),
-                            bound.result.clone(),
-                            false,
-                        )
-                    } else if let Some((kind, parameters, result)) =
-                        callable::opaque_signature(&local.ty)
-                    {
-                        for parameter in parameters {
-                            self.budget.ty(parameter)?;
-                        }
-                        self.budget.ty(result)?;
-                        (kind, None, parameters.to_vec(), result.clone(), true)
-                    } else {
-                        return Err(error(
+                self.budget.ty(result)?;
+                (kind, None, parameters.to_vec(), result.clone(), true)
+            } else {
+                return (Err(error(
                             e.span,
                             "called generic local is neither the callable parameter nor a direct opaque factory result",
-                        ));
-                    };
-                    if explicit.is_some() || arguments.len() != parameters.len() {
-                        return Err(error(e.span, "callable bound argument count differs"));
-                    }
-                    if state.moved.contains(&local.id) {
-                        return Err(error(
-                            e.span,
-                            "generic callable used after its environment was consumed",
-                        ));
-                    }
-                    self.defer_use(local.id, kind == zil_ir::CallableKind::FnOnce, callee.span)?;
-                    self.defer_held(
-                        state,
-                        local.id,
-                        kind != zil_ir::CallableKind::Fn,
-                        callee.span,
-                    )?;
-                    self.factory_use(
-                        local.id,
-                        kind == zil_ir::CallableKind::FnMut,
-                        kind == zil_ir::CallableKind::FnOnce,
-                        callee.span,
-                    )?;
-                    self.alias_use_local(state, local.id, callee.span)?;
-                    match kind {
-                        zil_ir::CallableKind::Fn => {}
-                        zil_ir::CallableKind::FnMut if mode == Some(true) => {}
-                        zil_ir::CallableKind::FnMut
-                            if local.mutable && (factory_local || owned_state) => {}
-                        zil_ir::CallableKind::FnMut if factory_local => {
-                            return Err(error(
-                                e.span,
-                                "local FnMut call requires a mutable binding",
-                            ));
-                        }
-                        zil_ir::CallableKind::FnMut
-                            if self
-                                .callable
-                                .as_ref()
-                                .is_some_and(|bounds| bounds.forwarded) =>
-                        {
-                            return Err(error(
-                                e.span,
-                                "FnMut forwarding call requires a mutable binding",
-                            ));
-                        }
-                        zil_ir::CallableKind::FnOnce if mode.is_none() => {
-                            self.alias_invalidate(state, local.id, None, callee.span)?;
-                            state.moved.insert(local.id);
-                        }
-                        _ => {
-                            return Err(unsupported(
-                                e.span,
-                                "callable bound requires its matching environment passing mode",
-                            ));
-                        }
-                    }
-                    if kind != zil_ir::CallableKind::FnOnce {
-                        if mode.is_none() {
-                            self.alias_borrow(callee, state, kind == zil_ir::CallableKind::FnMut)?;
-                        }
-                        self.alias_hold_result(
-                            state,
-                            kind == zil_ir::CallableKind::FnMut,
-                            callee.span,
-                            None,
-                        )?;
-                    }
-                    for (index, (argument, parameter)) in
-                        arguments.iter().zip(&parameters).enumerate()
-                    {
-                        if argument.spread {
-                            return Err(unsupported(argument.span, "callable helper tuple spread"));
-                        }
-                        let actual = self.argument(
-                            &argument.value,
-                            state,
-                            parameter,
-                            Some(parameter),
-                            index,
-                        )?;
-                        same(&actual, parameter, argument.span, self.budget)?;
-                    }
-                    return Ok(result);
+                        ))).map(Some);
+            };
+            if explicit.is_some() || arguments.len() != parameters.len() {
+                return (Err(error(e.span, "callable bound argument count differs"))).map(Some);
+            }
+            if state.moved.contains(&local.id) {
+                return (Err(error(
+                    e.span,
+                    "generic callable used after its environment was consumed",
+                )))
+                .map(Some);
+            }
+            self.defer_use(local.id, kind == zil_ir::CallableKind::FnOnce, callee.span)?;
+            self.defer_held(
+                state,
+                local.id,
+                kind != zil_ir::CallableKind::Fn,
+                callee.span,
+            )?;
+            self.factory_use(
+                local.id,
+                kind == zil_ir::CallableKind::FnMut,
+                kind == zil_ir::CallableKind::FnOnce,
+                callee.span,
+            )?;
+            self.alias_use_local(state, local.id, callee.span)?;
+            match kind {
+                zil_ir::CallableKind::Fn => {}
+                zil_ir::CallableKind::FnMut if mode == Some(true) => {}
+                zil_ir::CallableKind::FnMut if local.mutable && (factory_local || owned_state) => {}
+                zil_ir::CallableKind::FnMut if factory_local => {
+                    return (Err(error(e.span, "local FnMut call requires a mutable binding")))
+                        .map(Some);
                 }
-                if let Some((abi, function)) = self.foreign_signatures.get(target.as_str()) {
-                    if !self.defer_body
-                        && !self
-                            .callable
-                            .as_ref()
-                            .is_some_and(|b| b.dual_names().is_some())
-                    {
-                        return Err(unsupported(
-                            e.span,
-                            "foreign calls in this parametric profile are not implemented",
-                        ));
-                    }
-                    if !self.unsafe_scope {
-                        return Err(error(
-                            e.span,
-                            "foreign call requires an explicit unsafe block",
-                        ));
-                    }
-                    let scalar = |ty: &TypeRef, result: bool| match &group(ty).kind {
-                        TypeKind::Named { path, args } if args.is_empty() => {
-                            matches!(path.as_slice(), [name] if matches!(name.as_str(), "i32" | "i64" | "c_handle")
-                                || result && name == "void")
-                        }
-                        TypeKind::Tuple(fields) if result => fields.is_empty(),
-                        _ => false,
-                    };
-                    self.budget.node(e.span, 0)?;
-                    if *abi != "\"C\""
-                        || explicit.is_some()
-                        || !function.generics.is_empty()
-                        || !function.contract.is_empty()
-                        || !function.where_clause.is_empty()
-                        || function
-                            .params
-                            .iter()
-                            .any(|p| p.give || !scalar(&p.ty, false))
-                        || function
-                            .return_type
-                            .as_ref()
-                            .is_some_and(|ty| !scalar(ty, true))
-                    {
-                        return Err(unsupported(
-                            e.span,
-                            "dual State marker calls require a direct concrete C scalar signature",
-                        ));
-                    }
-                    if arguments.len() != function.params.len()
-                        || arguments.iter().any(|a| a.spread)
-                    {
-                        return Err(error(
-                            e.span,
-                            "foreign call argument count or shape differs",
-                        ));
-                    }
-                    for (index, (argument, parameter)) in
-                        arguments.iter().zip(&function.params).enumerate()
-                    {
-                        self.budget.ty(&parameter.ty)?;
-                        let actual = self.argument(
-                            &argument.value,
-                            state,
-                            &parameter.ty,
-                            Some(&parameter.ty),
-                            index,
-                        )?;
-                        same(&actual, &parameter.ty, argument.span, self.budget)?;
-                    }
-                    return if let Some(result) = &function.return_type {
-                        self.budget.ty(result)?;
-                        Ok(result.clone())
+                zil_ir::CallableKind::FnMut
+                    if self
+                        .callable
+                        .as_ref()
+                        .is_some_and(|bounds| bounds.forwarded) =>
+                {
+                    return (Err(error(
+                        e.span,
+                        "FnMut forwarding call requires a mutable binding",
+                    )))
+                    .map(Some);
+                }
+                zil_ir::CallableKind::FnOnce if mode.is_none() => {
+                    self.alias_invalidate(state, local.id, None, callee.span)?;
+                    state.moved.insert(local.id);
+                }
+                _ => {
+                    return (Err(unsupported(
+                        e.span,
+                        "callable bound requires its matching environment passing mode",
+                    )))
+                    .map(Some);
+                }
+            }
+            if kind != zil_ir::CallableKind::FnOnce {
+                if mode.is_none() {
+                    self.alias_borrow(callee, state, kind == zil_ir::CallableKind::FnMut)?;
+                }
+                self.alias_hold_result(
+                    state,
+                    kind == zil_ir::CallableKind::FnMut,
+                    callee.span,
+                    None,
+                )?;
+            }
+            for (index, (argument, parameter)) in arguments.iter().zip(&parameters).enumerate() {
+                if argument.spread {
+                    return (Err(unsupported(argument.span, "callable helper tuple spread")))
+                        .map(Some);
+                }
+                let actual = self.argument(
+                    &argument.value,
+                    state,
+                    parameter,
+                    if role_frame.is_some() {
+                        None
                     } else {
-                        Ok(unit(e.span))
-                    };
-                }
-                let function = self
-                    .signatures
-                    .get(target)
-                    .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
-                    self.dependencies.edge(
-                        self.definition,
-                        &function.name,
-                        function.span,
+                        Some(parameter)
+                    },
+                    index,
+                )?;
+                if let Some(frame) = &mut role_frame {
+                    frame.argument(
+                        parameter,
+                        &actual,
+                        &argument.value,
+                        state,
+                        self.class_scope.source,
+                        self.budget,
+                        0,
+                    )?;
+                    let parameter =
+                        frame.substitute(parameter, self.class_scope.source, self.budget)?;
+                    role_check::same(
+                        &actual,
+                        &parameter,
+                        argument.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
+                } else {
+                    role_check::same(
+                        &actual,
+                        parameter,
+                        argument.span,
+                        self.class_scope,
                         self.budget,
                     )?;
                 }
-                if arguments.len() != function.params.len() {
-                    return Err(error(e.span, "parametric call arity mismatch"));
+            }
+            if let Some(frame) = role_frame {
+                result = frame.substitute(&result, self.class_scope.source, self.budget)?;
+            }
+            return Ok(Some(result));
+        }
+
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_call_foreign(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        target: &str,
+        explicit: Option<&[GenericArg]>,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
+            unreachable!("call dispatcher")
+        };
+        if let Some((abi, function)) = self.foreign_signatures.get(target) {
+            if !self.defer_body
+                && !self
+                    .callable
+                    .as_ref()
+                    .is_some_and(|b| b.dual_names().is_some())
+            {
+                return (Err(unsupported(
+                    e.span,
+                    "foreign calls in this parametric profile are not implemented",
+                )))
+                .map(Some);
+            }
+            if !self.unsafe_scope {
+                return (Err(error(
+                    e.span,
+                    "foreign call requires an explicit unsafe block",
+                )))
+                .map(Some);
+            }
+            let scalar = |ty: &TypeRef, result: bool| match &group(ty).kind {
+                TypeKind::Named { path, args } if args.is_empty() => {
+                    matches!(path.as_slice(), [name] if matches!(name.as_str(), "i32" | "i64" | "c_handle")
+                                || result && name == "void")
                 }
-                let variables: BTreeSet<_> =
-                    type_parameters(function).map(|p| p.name.clone()).collect();
-                let mut found = BTreeMap::new();
-                if let Some(args) = explicit {
-                    if args.len() != consts::parameters(function).count() {
-                        return Err(error(e.span, "parametric type argument arity mismatch"));
-                    }
-                    for (param, arg) in consts::parameters(function).zip(args) {
-                        let actual = consts::argument(arg, Some(param), self.budget)?;
-                        let actual = if let GenericParamKind::Const(wanted) = &param.kind
-                            && let Some(Expr {
-                                kind: ExprKind::Name(name),
-                                ..
-                            }) = consts::expression(&actual)
-                        {
-                            // Only this declaration's original immutable const
-                            // binder is compile-time evidence. A same-spelled
-                            // runtime parameter or shadowing local is not.
-                            let source = self.source_definition;
-                            let (ordinal, binder) = consts::symbolic_parameter(source, name)
-                                .ok_or_else(|| {
-                                    error(e.span, "const argument names a runtime value")
-                                })?;
-                            let GenericParamKind::Const(domain) = &binder.kind else {
-                                unreachable!()
-                            };
-                            same(domain, wanted, e.span, self.budget)?;
-                            if state
-                                .locals
-                                .get(name)
-                                .is_none_or(|local| local.id != source.params.len() + ordinal)
-                            {
-                                return Err(error(
-                                    e.span,
-                                    "const argument is shadowed by a runtime value",
-                                ));
-                            }
-                            actual
-                        } else {
-                            consts::normalize(param, &actual, self.budget)?
-                        };
-                        found.insert(param.name.clone(), actual);
-                    }
-                }
-                if self.callable.as_ref().is_some_and(|bounds| {
-                    bounds.forwarded
-                        && expected.is_some_and(|ty| {
-                            bounds.single_generic().is_some_and(|name| {
-                                callable::parameter_mode(ty, name) == Some(None)
-                            })
-                        })
-                }) && function
+                TypeKind::Tuple(fields) if result => fields.is_empty(),
+                _ => false,
+            };
+            self.budget.node(e.span, 0)?;
+            if *abi != "\"C\""
+                || explicit.is_some()
+                || !function.generics.is_empty()
+                || !function.contract.is_empty()
+                || !function.where_clause.is_empty()
+                || function
+                    .params
+                    .iter()
+                    .any(|p| p.give || !scalar(&p.ty, false))
+                || function
                     .return_type
                     .as_ref()
-                    .is_some_and(|ty| callable::opaque_signature(ty).is_some())
+                    .is_some_and(|ty| !scalar(ty, true))
+            {
+                return (Err(unsupported(
+                    e.span,
+                    "dual State marker calls require a direct concrete C scalar signature",
+                )))
+                .map(Some);
+            }
+            if arguments.len() != function.params.len() || arguments.iter().any(|a| a.spread) {
+                return (Err(error(
+                    e.span,
+                    "foreign call argument count or shape differs",
+                )))
+                .map(Some);
+            }
+            for (index, (argument, parameter)) in arguments.iter().zip(&function.params).enumerate()
+            {
+                self.budget.ty(&parameter.ty)?;
+                let actual = self.argument(
+                    &argument.value,
+                    state,
+                    &parameter.ty,
+                    Some(&parameter.ty),
+                    index,
+                )?;
+                role_check::same(
+                    &actual,
+                    &parameter.ty,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
+            }
+            return (if let Some(result) = &function.return_type {
+                self.budget.ty(result)?;
+                Ok(result.clone())
+            } else {
+                Ok(unit(e.span))
+            })
+            .map(Some);
+        }
+
+        Ok(None)
+    }
+
+    #[inline(never)]
+    fn expr_call_static(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        target: &str,
+        explicit: Option<&[GenericArg]>,
+    ) -> R<TypeRef> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
+            unreachable!("call dispatcher")
+        };
+        let function = self
+            .signatures
+            .get(target)
+            .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
+        self.check_static_target(function, e, arguments)?;
+        let (variables, mut found) =
+            self.prepare_static_arguments(function, e, state, expected, explicit)?;
+        self.check_static_arguments(function, e, state, &variables, &mut found)?;
+        self.finish_static_call(function, e, &variables, &found)
+    }
+
+    #[inline(never)]
+    fn check_static_target(
+        &mut self,
+        function: &Function,
+        e: &Expr,
+        arguments: &[Argument],
+    ) -> R<()> {
+        if self.class_scope.active {
+            role_check::reject_callee_context(function, self.budget)?;
+        }
+        if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
+            self.dependencies
+                .edge(self.definition, &function.name, function.span, self.budget)?;
+        }
+        if arguments.len() != function.params.len() {
+            return Err(error(e.span, "parametric call arity mismatch"));
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn prepare_static_arguments(
+        &mut self,
+        function: &Function,
+        e: &Expr,
+        state: &State,
+        expected: Option<&TypeRef>,
+        explicit: Option<&[GenericArg]>,
+    ) -> R<(BTreeSet<String>, BTreeMap<String, TypeRef>)> {
+        let variables: BTreeSet<_> = type_parameters(function).map(|p| p.name.clone()).collect();
+        let mut found = BTreeMap::new();
+        if let Some(args) = explicit {
+            if args.len() != consts::parameters(function).count() {
+                return Err(error(e.span, "parametric type argument arity mismatch"));
+            }
+            for (param, arg) in consts::parameters(function).zip(args) {
+                let actual = consts::argument(arg, Some(param), self.budget)?;
+                let actual = if let GenericParamKind::Const(wanted) = &param.kind
+                    && let Some(Expr {
+                        kind: ExprKind::Name(name),
+                        ..
+                    }) = consts::expression(&actual)
+                {
+                    // Only this declaration's original immutable const
+                    // binder is compile-time evidence. A same-spelled
+                    // runtime parameter or shadowing local is not.
+                    let source = self.source_definition;
+                    let (ordinal, binder) = consts::symbolic_parameter(source, name)
+                        .ok_or_else(|| error(e.span, "const argument names a runtime value"))?;
+                    let GenericParamKind::Const(domain) = &binder.kind else {
+                        unreachable!()
+                    };
+                    role_check::same(domain, wanted, e.span, self.class_scope, self.budget)?;
+                    if state
+                        .locals
+                        .get(name)
+                        .is_none_or(|local| local.id != source.params.len() + ordinal)
+                    {
+                        return Err(error(
+                            e.span,
+                            "const argument is shadowed by a runtime value",
+                        ));
+                    }
+                    actual
+                } else {
+                    consts::normalize(param, &actual, self.budget)?
+                };
+                found.insert(param.name.clone(), actual);
+            }
+        }
+        if self.callable.as_ref().is_some_and(|bounds| {
+            bounds.forwarded
+                && expected.is_some_and(|ty| {
+                    bounds
+                        .single_generic()
+                        .is_some_and(|name| callable::parameter_mode(ty, name) == Some(None))
+                })
+        }) && function
+            .return_type
+            .as_ref()
+            .is_some_and(|ty| callable::opaque_signature(ty).is_some())
+        {
+            return Err(error(
+                e.span,
+                "callable forwarding must return the actual input instance, not a fresh factory environment",
+            ));
+        }
+        if let (Some(result), Some(expected)) = (&function.return_type, expected)
+            && !self.callable.as_ref().is_some_and(|bounds| {
+                bounds.owned_factory && callable::opaque_signature(result).is_some()
+            })
+            && let Some(expected) = stores::call_context(result, expected)
+        {
+            unify(
+                result,
+                expected,
+                &variables,
+                &mut found,
+                e.span,
+                self.budget,
+            )?;
+        }
+        Ok((variables, found))
+    }
+
+    #[inline(never)]
+    fn check_static_arguments(
+        &mut self,
+        function: &Function,
+        e: &Expr,
+        state: &mut State,
+        variables: &BTreeSet<String>,
+        found: &mut BTreeMap<String, TypeRef>,
+    ) -> R<()> {
+        let ExprKind::Call { arguments, .. } = &e.kind else {
+            unreachable!("static arguments")
+        };
+        for (index, (parameter, argument)) in function.params.iter().zip(arguments).enumerate() {
+            if argument.spread {
+                return Err(unsupported(argument.span, "parametric tuple spread"));
+            }
+            let hint = self.static_argument_hint(
+                function,
+                &parameter.ty,
+                arguments,
+                state,
+                variables,
+                found,
+            )?;
+            if parameter.give
+                && stores::carrier(&hint).is_some()
+                && !self.owning_store_expression(&argument.value, state)
+            {
+                return Err(error(
+                    argument.span,
+                    "generic give parameter requires an actual Store create/give value",
+                ));
+            }
+            let actual = self.argument(
+                &argument.value,
+                state,
+                &hint,
+                (!dependent(&hint, variables)).then_some(&hint),
+                index,
+            )?;
+            if !context_argument(
+                &parameter.ty,
+                &actual,
+                variables,
+                found,
+                e.span,
+                self.budget,
+            )? {
+                unify(
+                    &parameter.ty,
+                    &actual,
+                    variables,
+                    found,
+                    e.span,
+                    self.budget,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn static_argument_hint(
+        &mut self,
+        function: &Function,
+        parameter: &TypeRef,
+        arguments: &[Argument],
+        state: &State,
+        variables: &BTreeSet<String>,
+        found: &mut BTreeMap<String, TypeRef>,
+    ) -> R<TypeRef> {
+        let mut hint = substituted_type(parameter, found, self.budget)?;
+        if matches!(group(&hint).kind, TypeKind::Error { .. })
+            && context_unresolved(parameter, variables, found, self.budget)?
+        {
+            // Read-only lookahead collects whole-type constraints;
+            // actual argument checks below retain source order.
+            for union_pass in [false, true] {
+                for (other, value) in function.params.iter().zip(arguments) {
+                    self.budget.node(value.span, 0)?;
+                    if !independent_input(&other.ty, variables, found, union_pass, self.budget)? {
+                        continue;
+                    }
+                    if let Some(actual) = self.value_hint(&value.value, state, 0, true)? {
+                        self.budget.ty(&other.ty)?;
+                        self.budget.ty(&actual)?;
+                        if !matches!(group(&other.ty).kind, TypeKind::Error { .. })
+                            || matches!(group(&actual).kind, TypeKind::Error { .. })
+                        {
+                            unify(
+                                &other.ty,
+                                &actual,
+                                variables,
+                                found,
+                                value.span,
+                                self.budget,
+                            )?;
+                        }
+                    }
+                }
+            }
+            hint = substituted_type(parameter, found, self.budget)?;
+        }
+        Ok(hint)
+    }
+
+    #[inline(never)]
+    fn finish_static_call(
+        &mut self,
+        function: &Function,
+        e: &Expr,
+        variables: &BTreeSet<String>,
+        found: &BTreeMap<String, TypeRef>,
+    ) -> R<TypeRef> {
+        if variables.iter().any(|name| !found.contains_key(name)) {
+            return Err(error(e.span, "unconstrained nested generic argument"));
+        }
+        let callable = callable::template(function, self.budget)?;
+        if let Some(callees) = &callable {
+            for callee in callees.bindings() {
+                self.budget.node(e.span, 0)?;
+                let actual = &found[&callee.generic_name];
+                if callee.life.is_some()
+                    && let Some(bounds) = &self.callable
+                {
+                    for bound in bounds.bindings() {
+                        self.budget.ty(actual)?;
+                        self.budget.text(&bound.generic_name, e.span)?;
+                    }
+                }
+                let caller = self.callable.as_ref().and_then(|bounds| {
+                    bounds.bindings().find(|caller| {
+                        callable::parameter_mode(actual, &caller.generic_name) == Some(None)
+                    })
+                });
+                if let Some(wanted) = &callee.life {
+                    let available=caller.and_then(|caller|caller.life.as_ref()).ok_or_else(||error(e.span,"nested higher-rank helper requires its declared universal invocation relation"))?;
+                    self.budget.node(e.span, 0)?;
+                    for _ in available
+                        .parameter_lives
+                        .iter()
+                        .chain(&wanted.parameter_lives)
+                    {
+                        self.budget.node(e.span, 0)?;
+                    }
+                    if available.parameter_lives.len() != wanted.parameter_lives.len()
+                        || (available.result_life.is_some()
+                            && available
+                                .parameter_lives
+                                .iter()
+                                .zip(&wanted.parameter_lives)
+                                .any(|(actual, expected)| {
+                                    *actual == available.result_life
+                                        && *expected != wanted.result_life
+                                }))
+                    {
+                        return Err(error(
+                            e.span,
+                            "forwarded callback return relation is wider than the requested invocation bound",
+                        ));
+                    }
+                }
+                let (kind, parameters, result) = if let Some(caller) = caller {
+                    if !callees.owned_state
+                        && !callees.forwarded
+                        && !self.callable.as_ref().unwrap().owned_state
+                        && caller.kind != callee.kind
+                    {
+                        return Err(unsupported(
+                            e.span,
+                            "nested synchronous helpers require the same declared callable kind for each forwarded role",
+                        ));
+                    }
+                    (caller.kind, caller.parameters.as_slice(), &caller.result)
+                } else if let Some(signature) = callable::opaque_signature(actual) {
+                    signature
+                } else {
+                    return Err(error(
+                        e.span,
+                        "nested callable State helper requires an established callable bound",
+                    ));
+                };
+                if !matches!(
+                    (kind, callee.kind),
+                    (zil_ir::CallableKind::Fn, _)
+                        | (
+                            zil_ir::CallableKind::FnMut,
+                            zil_ir::CallableKind::FnMut | zil_ir::CallableKind::FnOnce
+                        )
+                        | (zil_ir::CallableKind::FnOnce, zil_ir::CallableKind::FnOnce)
+                ) || parameters.len() != callee.parameters.len()
                 {
                     return Err(error(
                         e.span,
-                        "callable forwarding must return the actual input instance, not a fresh factory environment",
+                        "nested callable State helper requires a compatible callable capability",
                     ));
                 }
-                if let (Some(result), Some(expected)) = (&function.return_type, expected)
-                    && !self.callable.as_ref().is_some_and(|bounds| {
-                        bounds.owned_factory && callable::opaque_signature(result).is_some()
-                    })
-                    && let Some(expected) = stores::call_context(result, expected)
-                {
-                    unify(
-                        result,
-                        expected,
-                        &variables,
-                        &mut found,
-                        e.span,
-                        self.budget,
-                    )?;
+                for (actual, expected) in parameters.iter().zip(&callee.parameters) {
+                    let expected = substituted_type(expected, found, self.budget)?;
+                    role_check::same(actual, &expected, e.span, self.class_scope, self.budget)?;
                 }
-                for (index, (parameter, argument)) in
-                    function.params.iter().zip(arguments).enumerate()
-                {
-                    if argument.spread {
-                        return Err(unsupported(argument.span, "parametric tuple spread"));
-                    }
-                    let mut hint = substituted_type(&parameter.ty, &found, self.budget)?;
-                    if matches!(group(&hint).kind, TypeKind::Error { .. })
-                        && context_unresolved(&parameter.ty, &variables, &found, self.budget)?
-                    {
-                        // Read-only lookahead collects whole-type constraints;
-                        // actual argument checks below retain source order.
-                        for union_pass in [false, true] {
-                            for (other, value) in function.params.iter().zip(arguments) {
-                                self.budget.node(value.span, 0)?;
-                                if !independent_input(
-                                    &other.ty,
-                                    &variables,
-                                    &found,
-                                    union_pass,
-                                    self.budget,
-                                )? {
-                                    continue;
-                                }
-                                if let Some(actual) =
-                                    self.value_hint(&value.value, state, 0, true)?
-                                {
-                                    self.budget.ty(&other.ty)?;
-                                    self.budget.ty(&actual)?;
-                                    if !matches!(group(&other.ty).kind, TypeKind::Error { .. })
-                                        || matches!(group(&actual).kind, TypeKind::Error { .. })
-                                    {
-                                        unify(
-                                            &other.ty,
-                                            &actual,
-                                            &variables,
-                                            &mut found,
-                                            value.span,
-                                            self.budget,
-                                        )?;
-                                    }
-                                }
-                            }
-                        }
-                        hint = substituted_type(&parameter.ty, &found, self.budget)?;
-                    }
-                    if parameter.give
-                        && stores::carrier(&hint).is_some()
-                        && !self.owning_store_expression(&argument.value, state)
-                    {
-                        return Err(error(
-                            argument.span,
-                            "generic give parameter requires an actual Store create/give value",
-                        ));
-                    }
-                    let actual = self.argument(
-                        &argument.value,
-                        state,
-                        &hint,
-                        (!dependent(&hint, &variables)).then_some(&hint),
-                        index,
-                    )?;
-                    if !context_argument(
-                        &parameter.ty,
-                        &actual,
-                        &variables,
-                        &found,
-                        e.span,
-                        self.budget,
-                    )? {
-                        unify(
-                            &parameter.ty,
-                            &actual,
-                            &variables,
-                            &mut found,
-                            e.span,
-                            self.budget,
-                        )?;
-                    }
-                }
-                if variables.iter().any(|name| !found.contains_key(name)) {
-                    return Err(error(e.span, "unconstrained nested generic argument"));
-                }
-                let callable = callable::template(function, self.budget)?;
-                if let Some(callees) = &callable {
-                    for callee in callees.bindings() {
-                        self.budget.node(e.span, 0)?;
-                        let actual = &found[&callee.generic_name];
-                        if callee.life.is_some()
-                            && let Some(bounds) = &self.callable
-                        {
-                            for bound in bounds.bindings() {
-                                self.budget.ty(actual)?;
-                                self.budget.text(&bound.generic_name, e.span)?;
-                            }
-                        }
-                        let caller = self.callable.as_ref().and_then(|bounds| {
-                            bounds.bindings().find(|caller| {
-                                callable::parameter_mode(actual, &caller.generic_name) == Some(None)
-                            })
-                        });
-                        if let Some(wanted) = &callee.life {
-                            let available=caller.and_then(|caller|caller.life.as_ref()).ok_or_else(||error(e.span,"nested higher-rank helper requires its declared universal invocation relation"))?;
-                            self.budget.node(e.span, 0)?;
-                            for _ in available
-                                .parameter_lives
-                                .iter()
-                                .chain(&wanted.parameter_lives)
-                            {
-                                self.budget.node(e.span, 0)?;
-                            }
-                            if available.parameter_lives.len() != wanted.parameter_lives.len()
-                                || (available.result_life.is_some()
-                                    && available
-                                        .parameter_lives
-                                        .iter()
-                                        .zip(&wanted.parameter_lives)
-                                        .any(|(actual, expected)| {
-                                            *actual == available.result_life
-                                                && *expected != wanted.result_life
-                                        }))
-                            {
-                                return Err(error(
-                                    e.span,
-                                    "forwarded callback return relation is wider than the requested invocation bound",
-                                ));
-                            }
-                        }
-                        let (kind, parameters, result) = if let Some(caller) = caller {
-                            if !callees.owned_state
-                                && !callees.forwarded
-                                && !self.callable.as_ref().unwrap().owned_state
-                                && caller.kind != callee.kind
-                            {
-                                return Err(unsupported(
-                                    e.span,
-                                    "nested synchronous helpers require the same declared callable kind for each forwarded role",
-                                ));
-                            }
-                            (caller.kind, caller.parameters.as_slice(), &caller.result)
-                        } else if let Some(signature) = callable::opaque_signature(actual) {
-                            signature
-                        } else {
-                            return Err(error(
-                                e.span,
-                                "nested callable State helper requires an established callable bound",
-                            ));
-                        };
-                        if !matches!(
-                            (kind, callee.kind),
-                            (zil_ir::CallableKind::Fn, _)
-                                | (
-                                    zil_ir::CallableKind::FnMut,
-                                    zil_ir::CallableKind::FnMut | zil_ir::CallableKind::FnOnce
-                                )
-                                | (zil_ir::CallableKind::FnOnce, zil_ir::CallableKind::FnOnce)
-                        ) || parameters.len() != callee.parameters.len()
-                        {
-                            return Err(error(
-                                e.span,
-                                "nested callable State helper requires a compatible callable capability",
-                            ));
-                        }
-                        for (actual, expected) in parameters.iter().zip(&callee.parameters) {
-                            let expected = substituted_type(expected, &found, self.budget)?;
-                            same(actual, &expected, e.span, self.budget)?;
-                        }
-                        let expected = substituted_type(&callee.result, &found, self.budget)?;
-                        same(result, &expected, e.span, self.budget)?;
-                    }
-                }
-                let origin = self.traits.function_origin(function, self.budget)?;
-                self.budget.with_origin(origin, |budget| {
-                    self.traits.check_arguments(
-                        &function.generics,
-                        &found,
-                        (
-                            &self.bounds,
-                            &self.variables,
-                            self.callable.as_ref().map_or(
-                                callable::StoreCallbacks::None,
-                                callable::CallableTemplates::store_callbacks,
-                            ),
-                        ),
-                        budget,
-                        e.span,
-                        callable.as_ref(),
-                    )?;
-                    self.traits.check_where(
-                        &function.where_clause,
-                        &found,
-                        &self.bounds,
-                        &self.variables,
-                        budget,
-                    )?;
-                    Ok(())
-                })?;
-                match &function.return_type {
-                    Some(result) => substituted_type(result, &found, self.budget),
-                    None => Ok(unit(e.span)),
-                }
+                let expected = substituted_type(&callee.result, found, self.budget)?;
+                role_check::same(result, &expected, e.span, self.class_scope, self.budget)?;
             }
+        }
+        let origin = self.traits.function_origin(function, self.budget)?;
+        self.budget.with_origin(origin, |budget| {
+            self.traits.check_arguments(
+                &function.generics,
+                found,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    self.callable.as_ref().map_or(
+                        callable::StoreCallbacks::None,
+                        callable::CallableTemplates::store_callbacks,
+                    ),
+                ),
+                budget,
+                e.span,
+                callable.as_ref(),
+            )?;
+            self.traits.check_where(
+                &function.where_clause,
+                found,
+                &self.bounds,
+                &self.variables,
+                budget,
+            )?;
+            Ok(())
+        })?;
+        match &function.return_type {
+            Some(result) => substituted_type(result, found, self.budget),
+            None => Ok(unit(e.span)),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_try(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        _borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Try(operand) => {
                 if self.defer_body {
                     return Err(Self::defer_control(
@@ -4000,9 +4654,31 @@ impl Check<'_, '_, '_> {
                         "propagation requires an error-returning helper",
                     ));
                 };
-                same(actual_error, expected_error, e.span, self.budget)?;
+                role_check::same(
+                    actual_error,
+                    expected_error,
+                    e.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
                 Ok(result.as_ref().clone())
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_if(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::If {
                 condition,
                 then_value,
@@ -4010,7 +4686,13 @@ impl Check<'_, '_, '_> {
             } => {
                 let condition_type =
                     self.expr(condition, state, Some(&named("bool", e.span)), false)?;
-                same(&condition_type, &named("bool", e.span), e.span, self.budget)?;
+                role_check::same(
+                    &condition_type,
+                    &named("bool", e.span),
+                    e.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
                 let mut a = self.clone_state(state)?;
                 let mut b = self.clone_state(state)?;
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
@@ -4026,12 +4708,34 @@ impl Check<'_, '_, '_> {
                 {
                     self.factory_same_result(&lhs, &rhs, e.span)?;
                 } else {
-                    same(&lhs, &rhs, e.span, self.budget)?;
+                    role_check::same(&lhs, &rhs, e.span, self.class_scope, self.budget)?;
                 }
                 self.join_states(state, &[&a, &b], e.span)?;
                 self.alias_result_join(aliases_a, aliases_b, e.span)?;
                 Ok(lhs)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_member(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        _expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        let needs_bound = || {
+            unsupported(
+                e.span,
+                "operation on an unconstrained type parameter requires a declared bound",
+            )
+        };
+        match &e.kind {
             ExprKind::Member {
                 object,
                 member: MemberName::TupleIndex(i),
@@ -4082,7 +4786,7 @@ impl Check<'_, '_, '_> {
                     ..
                 } = &e.kind
                 {
-                    same(base, group(owner), e.span, self.budget)?;
+                    role_check::same(base, group(owner), e.span, self.class_scope, self.budget)?;
                 }
                 let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
@@ -4156,6 +4860,22 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
+            _ => Err(unsupported(
+                e.span,
+                "this generic expression requires additional symbolic checking",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_generic_closure(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        _borrowing: bool,
+    ) -> R<TypeRef> {
+        match &e.kind {
             ExprKind::Closure {
                 move_capture,
                 params,
@@ -4189,6 +4909,7 @@ impl Check<'_, '_, '_> {
             )),
         }
     }
+
     /// A direct callable field is a value invocation, not a trait method.
     /// Resolve the actual Package place and its declared field before using
     /// the existing symbolic F bound; the concrete pipeline still proves its
@@ -4311,7 +5032,13 @@ impl Check<'_, '_, '_> {
             }
             let actual =
                 self.argument(&argument.value, state, parameter, Some(parameter), index)?;
-            same(&actual, parameter, argument.span, self.budget)?;
+            role_check::same(
+                &actual,
+                parameter,
+                argument.span,
+                self.class_scope,
+                self.budget,
+            )?;
         }
         Ok(Some(bound.result))
     }
@@ -4423,9 +5150,21 @@ impl Check<'_, '_, '_> {
                     )?;
                     if let Some(ty) = ty {
                         if matches!(group(ty).kind, TypeKind::Error { .. }) {
-                            same_return(&actual, ty, statement.span, self.budget)?;
+                            role_check::same_return(
+                                &actual,
+                                ty,
+                                statement.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                         } else {
-                            same(&actual, ty, statement.span, self.budget)?;
+                            role_check::same(
+                                &actual,
+                                ty,
+                                statement.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                         }
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
@@ -4475,6 +5214,14 @@ impl Check<'_, '_, '_> {
                         }
                     }
                 }
+                StmtKind::Binding { pattern, .. }
+                    if matches!(pattern.kind, PatternKind::ErrorArm { .. }) =>
+                {
+                    return Err(error(
+                        pattern.span,
+                        "ordinary binding requires an irrefutable pattern",
+                    ));
+                }
                 StmtKind::Binding {
                     pattern,
                     ty,
@@ -4486,7 +5233,13 @@ impl Check<'_, '_, '_> {
                     // every field, including those discarded by the pattern.
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     if let Some(expected) = ty {
-                        same(&actual, expected, statement.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     copy::require(
                         &actual,
@@ -4573,7 +5326,7 @@ impl Check<'_, '_, '_> {
                     let resource_replacement =
                         self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
-                    same(&actual, &ty, value.span, self.budget)?;
+                    role_check::same(&actual, &ty, value.span, self.class_scope, self.budget)?;
                     let life_origins = if self.life_allowed.is_some()
                         && matches!(group(&ty).kind, TypeKind::Reference { .. })
                     {
@@ -4664,15 +5417,51 @@ impl Check<'_, '_, '_> {
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
                     {
-                        same_return(&actual, &expected, statement.span, self.budget)?;
+                        role_check::same_return(
+                            &actual,
+                            &expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     } else {
-                        same(&actual, &expected, statement.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            &expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     flow.fallthrough = false;
                     flow.returns = true;
                 }
                 StmtKind::Expression(e) => {
                     self.expr(e, state, None, false)?;
+                }
+                StmtKind::If {
+                    condition: Condition::Let { pattern, value },
+                    then_body,
+                    else_body,
+                } => {
+                    let checked = self.enum_if_let(
+                        pattern,
+                        value,
+                        then_body,
+                        else_body.as_ref(),
+                        state,
+                        statement.span,
+                    )?;
+                    flow.returns |= checked.returns;
+                    flow.fallthrough = checked.fallthrough;
+                }
+                StmtKind::While {
+                    condition: Condition::Let { pattern, value },
+                    body,
+                } => {
+                    let checked =
+                        self.enum_while_let(pattern, value, body, state, statement.span)?;
+                    flow.returns |= checked.returns;
                 }
                 StmtKind::If {
                     condition: Condition::Expression(condition),
@@ -4685,10 +5474,11 @@ impl Check<'_, '_, '_> {
                         Some(&named("bool", condition.span)),
                         false,
                     )?;
-                    same(
+                    role_check::same(
                         &actual,
                         &named("bool", condition.span),
                         condition.span,
+                        self.class_scope,
                         self.budget,
                     )?;
                     let mut a = self.clone_state(state)?;
@@ -4733,10 +5523,11 @@ impl Check<'_, '_, '_> {
                         Some(&named("bool", condition.span)),
                         false,
                     )?;
-                    same(
+                    role_check::same(
                         &actual,
                         &named("bool", condition.span),
                         condition.span,
+                        self.class_scope,
                         self.budget,
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;

@@ -313,7 +313,8 @@ impl References<'_, '_> {
                     shadows |= self.pattern(field, depth + 1)?;
                 }
             }
-            CorePatternKind::Reference { pattern, .. } => {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => {
                 shadows |= self.pattern(pattern, depth + 1)?
             }
             CorePatternKind::Variant {
@@ -477,7 +478,10 @@ impl References<'_, '_> {
                 }
                 found |= self.expr(callee, shadow, depth + 1)?;
             }
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Try(operand)
             | CoreExprKind::CompileTime(operand) => {
                 found |= self.expr(operand, shadow, depth + 1)?
@@ -490,7 +494,10 @@ impl References<'_, '_> {
                 found |= self.expr(left, shadow, depth + 1)?;
                 found |= self.expr(right, shadow, depth + 1)?;
             }
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 found |= self.expr(callee, shadow, depth + 1)?;
                 for arg in arguments {
                     found |= self.expr(arg, shadow, depth + 1)?;

@@ -14,7 +14,7 @@ type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
-        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn has_sources(
@@ -187,6 +187,40 @@ fn reverse(live: &mut [bool], instruction: &Instruction, value_count: usize) {
         live[operand.0 as usize] = true;
     }
 }
+fn replacement_schedule(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    budget: &mut Budget,
+) -> Check<
+    Option<(
+        crate::place_replacements::Inventory,
+        crate::place_replacements::Schedule,
+    )>,
+> {
+    if !budget.replacements || f.foreign.is_some() {
+        return Ok(None);
+    }
+    let inventory = crate::place_replacements::Inventory::reconstruct(module, f, budget)?;
+    let schedule = inventory.schedule(f, graph, budget)?;
+    Ok(Some((inventory, schedule)))
+}
+fn retain_replacement_values(
+    live: &mut [bool],
+    schedule: Option<&crate::place_replacements::Schedule>,
+    block: usize,
+    position: usize,
+    budget: &mut Budget,
+) -> Check<()> {
+    if let Some(schedule) = schedule {
+        let row = &schedule.retained[block][position];
+        budget.spend(row.len())?;
+        for value in row {
+            live[value.0 as usize] = true;
+        }
+    }
+    Ok(())
+}
 fn term_use(live: &mut [bool], terminator: &Terminator) {
     match terminator {
         Terminator::Return(Some(value))
@@ -214,6 +248,8 @@ fn check(
     } = graph;
     let values = &facts.values;
     let inputs = &facts.inputs;
+    let replacements = replacement_schedule(module, f, graph, budget)?;
+    let schedule = replacements.as_ref().map(|(_, s)| s);
     let m = f.locals.len();
     let v = f.values.len();
     let n = f.blocks.len();
@@ -287,9 +323,10 @@ fn check(
             }
             live_out[b].clone_from(&live);
             term_use(&mut live, &f.blocks[b].terminator);
-            for instruction in f.blocks[b].instructions.iter().rev() {
+            for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
                 reverse(&mut live, instruction, v);
+                retain_replacement_values(&mut live, schedule, b, position, budget)?;
             }
             budget.spend(width)?;
             if live != live_in[b] {
@@ -378,6 +415,7 @@ fn check(
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
             reverse(&mut live, instruction, v);
+            retain_replacement_values(&mut live, schedule, b, i, budget)?;
         }
         state_cost(&inputs[b], budget)?;
         let mut locals = inputs[b].clone();
@@ -385,7 +423,9 @@ fn check(
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
             let span = Some(instruction.span);
-            for operand in instruction_operands(&instruction.kind) {
+            let hidden = schedule.map_or(&[][..], |s| s.retained[b][i].as_slice());
+            budget.spend(hidden.len())?;
+            for operand in instruction_operands(&instruction.kind).chain(hidden.iter().copied()) {
                 let held = &values[operand.0 as usize];
                 budget.spend(held.len())?;
                 if held.iter().any(|root| {
@@ -573,6 +613,13 @@ fn reconstruct(
     let mut product_captures = false;
     loop {
         let mut changed = false;
+        let capture_facts = if budget.owning_address_captures {
+            Some(captures::reconstruct_roots(
+                module, f, graph, &values, budget,
+            )?)
+        } else {
+            None
+        };
         for (b, block) in f.blocks.iter().enumerate() {
             budget.spend(1)?;
             if !reachable[b] {
@@ -604,6 +651,11 @@ fn reconstruct(
             }
             state_cost(&state, budget)?;
             inputs[b].clone_from(&state);
+            let mut capture_state = if let Some(facts) = &capture_facts {
+                captures::input_state(facts, b, budget)?
+            } else {
+                captures::State::new()
+            };
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 if let Some(result) = instruction.result {
@@ -633,7 +685,7 @@ fn reconstruct(
                         match &instruction.kind {
                             InstructionKind::DescribeLocal { local }
                                 if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
-                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
                             {
                                 row.push(Root::Local(*local));
                             }
@@ -679,6 +731,16 @@ fn reconstruct(
                             }
                             InstructionKind::BorrowFieldLocal { local, path, .. } => {
                                 row.push(roots::inline_field_root(f, *local, path, budget)?);
+                            }
+                            InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                                row = roots::mixed_address_roots(
+                                    f,
+                                    *address,
+                                    path,
+                                    false,
+                                    &values[address.0 as usize],
+                                    budget,
+                                )?;
                             }
                             InstructionKind::BorrowVariantAddress { address, path, .. } => {
                                 row = roots::address_roots(
@@ -742,12 +804,49 @@ fn reconstruct(
                             | InstructionKind::CallClosureMut { callee, .. }
                                 if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                             {
-                                row.push(Root::Local(*callee));
+                                if capture_facts.is_some() {
+                                    let d = captures::lending_entry(module, f, &instruction.kind)
+                                        .ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-LENDING",
+                                            Some(instruction.span),
+                                            "lending closure missing",
+                                        )
+                                    })?;
+                                    lookup(budget, capture_state.len())?;
+                                    row = captures::lending_result(
+                                        d,
+                                        &summaries[d.function.0 as usize],
+                                        capture_state.get(callee),
+                                        &[Root::Local(*callee)],
+                                        budget,
+                                    )?;
+                                } else {
+                                    row.push(Root::Local(*callee));
+                                }
                             }
                             InstructionKind::CallClosureBorrowed { callee, .. }
                                 if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                             {
-                                roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                                if let Some(capture_facts) = &capture_facts {
+                                    let d = captures::lending_entry(module, f, &instruction.kind)
+                                        .ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-LENDING",
+                                            Some(instruction.span),
+                                            "borrowed lending closure missing",
+                                        )
+                                    })?;
+                                    row = captures::lending_result(
+                                        d,
+                                        &summaries[d.function.0 as usize],
+                                        Some(&capture_facts.values[callee.0 as usize]),
+                                        &values[callee.0 as usize],
+                                        budget,
+                                    )?;
+                                } else {
+                                    roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                                }
                             }
                             InstructionKind::CallIndirect { callee, arguments } => {
                                 for index in
@@ -801,6 +900,14 @@ fn reconstruct(
                     changed |= roots_join(&mut values[result.0 as usize], &row, budget)?;
                 }
                 local_transfer(&mut state, instruction, &values, budget)?;
+                if let Some(capture_facts) = &capture_facts {
+                    captures::local_transfer(
+                        &mut capture_state,
+                        instruction,
+                        &capture_facts.values,
+                        budget,
+                    )?;
+                }
             }
             state_cost(&state, budget)?;
             state_cost(&outputs[b], budget)?;
@@ -856,7 +963,14 @@ fn reconstruct_module(
                 let callee = match instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
                     _ => borrowed_fp::invocation_call(module, f, &instruction.kind)
-                        .map(|(d, _)| d.function),
+                        .map(|(d, _)| d.function)
+                        .or_else(|| {
+                            budget
+                                .owning_address_captures
+                                .then(|| captures::lending_entry(module, f, &instruction.kind))
+                                .flatten()
+                                .map(|d| d.function)
+                        }),
                 };
                 let Some(callee) = callee else {
                     continue;
@@ -913,6 +1027,9 @@ fn reconstruct_module(
                             .iter()
                             .filter_map(|root| match root.coarse() {
                                 HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                HoldRoot::Capture(_) if budget.owning_address_captures => {
+                                    Some(*root)
+                                }
                                 _ => None,
                             })
                             .collect();
@@ -1148,14 +1265,14 @@ pub(super) fn check_module(
                 if function.environment.is_some() && !invocation {
                     budget.spend(roots.len().saturating_add(1))?;
                     for root in roots {
-                        let Root::Capture(index) = root else {
+                        let HoldRoot::Capture(index) = root.coarse() else {
                             return Err(reject(
                                 "E-BORROW-ESCAPE",
                                 Some(function.span),
                                 "lending result must borrow actual environment storage, not an activation local or explicit parameter",
                             ));
                         };
-                        lending_sources.insert(*index);
+                        lending_sources.insert(index);
                     }
                 } else if roots
                     .iter()
@@ -1293,16 +1410,12 @@ fn check_callback_return(
     graphs: &[FunctionGraph],
     facts: &[Facts],
     d: &ClosureDefinition,
-    life: Option<&FunctionLifeContract>,
+    life: Option<&StorageLifeContract>,
     budget: &mut Budget,
 ) -> Check<()> {
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
-        budget.spend(
-            (life.binder_count as usize)
-                .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                .saturating_add(2),
-        )?;
+        crate::signature_life::charge(life, budget)?;
         borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
@@ -1317,7 +1430,9 @@ fn check_callback_return(
     {
         if *live && let Terminator::Return(Some(v)) = block.terminator {
             let origins = &facts[d.function.0 as usize].values[v.0 as usize];
-            budget.spend(origins.len())?;
+            budget.spend(origins.len().saturating_mul(
+                life.map_or(1, |c| c.bindings.len().saturating_mul(2).saturating_add(1)),
+            ))?;
             let mutable = matches!(d.result, Type::Address { mutable: true, .. });
             if origins.is_empty()
                 || origins.iter().any(|root| {
@@ -1333,7 +1448,8 @@ fn check_callback_return(
                         .get(*index as usize)
                         .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
                         || life.is_some_and(|life| {
-                            life.parameter_lives[*index as usize] != life.result_life
+                            super::signature_life::outer(life, StorageBase::Parameter(*index))
+                                != super::signature_life::outer(life, StorageBase::Result)
                         })
                 })
             {
@@ -1440,6 +1556,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
@@ -1470,6 +1587,11 @@ mod frontier_tests {
             })
             .collect();
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),

@@ -4,6 +4,7 @@ type PatternBindings = Vec<(String, ValueId, Type, Span)>;
 pub(super) fn has_reference(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { .. } => true,
+        CorePatternKind::ErrorArm { pattern, .. } => has_reference(pattern),
         CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
             fields.iter().any(has_reference)
         }
@@ -13,6 +14,7 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
 fn needs_mutable(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { mutable, pattern } => *mutable || needs_mutable(pattern),
+        CorePatternKind::ErrorArm { pattern, .. } => needs_mutable(pattern),
         CorePatternKind::Tuple(fs) | CorePatternKind::Variant { fields: fs, .. } => {
             fs.iter().any(needs_mutable)
         }
@@ -252,14 +254,17 @@ impl Builder<'_, '_> {
     }
     pub(super) fn condition_uses_place(&self, p: &CorePattern, e: &CoreExpr) -> bool {
         has_reference(p)
-            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t))
+            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..}))
             || matches!(
                 &e.kind,
                 CoreExprKind::Unary {
                     op: UnaryOp::Dereference,
                     ..
                 }
-            ) && matches!(self.known_type(e), Some(Type::Enum { .. } | Type::Tuple(_)))
+            ) && matches!(
+                self.known_type(e),
+                Some(Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. })
+            )
     }
     pub(super) fn reference_condition(
         &mut self,
@@ -273,7 +278,10 @@ impl Builder<'_, '_> {
                 op: UnaryOp::Dereference,
                 ..
             }
-        ) && self.known_type(e).as_ref().is_some_and(owned_shapes::sum)
+        ) && self
+            .known_type(e)
+            .as_ref()
+            .is_some_and(|ty| owned_shapes::sum(ty) || matches!(ty, Type::ErrorUnion { .. }))
         {
             return self.partial_pattern_condition(p, e, fail);
         }
@@ -641,6 +649,55 @@ impl Builder<'_, '_> {
         fail: BlockId,
         bindings: &mut Vec<(String, ValueId, Type, Span)>,
     ) -> R<()> {
+        if matches!(
+            p.kind,
+            CorePatternKind::Tuple(_)
+                | CorePatternKind::Variant { .. }
+                | CorePatternKind::ErrorArm { .. }
+        ) {
+            fn profile(ty: &Type) -> (bool, bool) {
+                let fold = |fields: &[Type]| {
+                    fields
+                        .iter()
+                        .map(profile)
+                        .fold((false, false), |(owned, mixed), (o, m)| {
+                            (owned || o, mixed || m)
+                        })
+                };
+                match ty {
+                    Type::ErrorUnion { error, result } => {
+                        let (a, _) = profile(error);
+                        let (c, _) = profile(result);
+                        (a || c, true)
+                    }
+                    Type::Tuple(fields) => {
+                        let (owned, mixed) = fold(fields);
+                        (owned, owned || mixed)
+                    }
+                    Type::Enum { variants, .. } => {
+                        let (owned, mixed) = variants
+                            .iter()
+                            .map(|(_, fs)| fold(fs))
+                            .fold((false, false), |(a, b), (c, d)| (a || c, b || d));
+                        (owned, owned || mixed)
+                    }
+                    _ => (!ty.is_copy_value(), false),
+                }
+            }
+            let work = inference::type_snapshot_work(ty, p.span, self.limits)?;
+            self.closures.snapshot(work, p.span)?;
+            if profile(ty).1 {
+                self.closures.snapshot(path.len(), p.span)?;
+                let mut mixed = path
+                    .iter()
+                    .copied()
+                    .map(zil_ir::PlaceProjection::Variant)
+                    .collect();
+                return self.reference_mixed_address_test(
+                    p, address, &mut mixed, ty, available, fail, bindings,
+                );
+            }
+        }
         self.closures.snapshot(path.len() + 1, p.span)?;
         match &p.kind {
             CorePatternKind::Wildcard => Ok(()),
@@ -770,6 +827,170 @@ impl Builder<'_, '_> {
                 } else {
                     self.value(
                         InstructionKind::BorrowVariantAddress {
+                            address,
+                            path: path.clone(),
+                            mutable: false,
+                        },
+                        t,
+                        p.span,
+                    )?
+                };
+                let value = self.value(
+                    InstructionKind::ReadAddress { address: pointer },
+                    ty.clone(),
+                    p.span,
+                )?;
+                self.pattern_test(p, value, ty, fail, bindings)
+            }
+            _ => Err(error(
+                "E-PATTERN-MOVE-BORROW",
+                p.span,
+                "borrowed payload cannot transfer its owner's responsibility",
+            )),
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn reference_mixed_address_test(
+        &mut self,
+        p: &CorePattern,
+        address: ValueId,
+        path: &mut Vec<zil_ir::PlaceProjection>,
+        ty: &Type,
+        available: bool,
+        fail: BlockId,
+        bindings: &mut Vec<(String, ValueId, Type, Span)>,
+    ) -> R<()> {
+        self.closures.snapshot(path.len() + 1, p.span)?;
+        match &p.kind {
+            CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Tuple(fields) if fields.is_empty() && *ty == Type::Unit => Ok(()),
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = ty
+                else {
+                    return Err(error(
+                        "E-MATCH-TYPE",
+                        p.span,
+                        "error arm requires an ErrorUnion",
+                    ));
+                };
+                let tag = self.value(
+                    InstructionKind::PlaceTagAddress {
+                        address,
+                        path: path.clone(),
+                    },
+                    Type::I32,
+                    p.span,
+                )?;
+                self.pattern_branch(tag, Constant::I32(i32::from(*is_error)), fail, p.span)?;
+                path.push(zil_ir::PlaceProjection::ErrorArm(*is_error));
+                self.reference_mixed_address_test(
+                    pattern,
+                    address,
+                    path,
+                    if *is_error { error_ty } else { result },
+                    available,
+                    fail,
+                    bindings,
+                )?;
+                path.pop();
+                Ok(())
+            }
+            CorePatternKind::Tuple(fields) if matches!(ty, Type::Tuple(_)) => {
+                let Type::Tuple(types) = ty else {
+                    unreachable!()
+                };
+                for (index, (field, ty)) in fields.iter().zip(types).enumerate() {
+                    path.push(zil_ir::PlaceProjection::Field(index as u32));
+                    self.reference_mixed_address_test(
+                        field, address, path, ty, available, fail, bindings,
+                    )?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            CorePatternKind::Variant { fields, .. } => {
+                let index = self.pattern_variant_index(p, ty)?;
+                let tag = self.value(
+                    InstructionKind::PlaceTagAddress {
+                        address,
+                        path: path.clone(),
+                    },
+                    Type::I32,
+                    p.span,
+                )?;
+                self.pattern_branch(tag, Constant::I32(index as i32), fail, p.span)?;
+                match ty {
+                    Type::Enum { variants, .. } => {
+                        for (field, (p, t)) in
+                            fields.iter().zip(&variants[index as usize].1).enumerate()
+                        {
+                            path.push(zil_ir::PlaceProjection::Variant(VariantProjection {
+                                variant: index,
+                                index: field as u32,
+                            }));
+                            self.reference_mixed_address_test(
+                                p, address, path, t, available, fail, bindings,
+                            )?;
+                            path.pop();
+                        }
+                    }
+                    Type::ErrorUnion { error, result } => {
+                        path.push(zil_ir::PlaceProjection::ErrorArm(index == 1));
+                        self.reference_mixed_address_test(
+                            &fields[0],
+                            address,
+                            path,
+                            if index == 1 { error } else { result },
+                            available,
+                            fail,
+                            bindings,
+                        )?;
+                        path.pop();
+                    }
+                    _ => unreachable!("coverage checked Sum"),
+                }
+                Ok(())
+            }
+            CorePatternKind::Reference { mutable, pattern } => {
+                if *mutable && !available {
+                    return Err(error(
+                        "E-ADDRESS-PERMISSION",
+                        p.span,
+                        "shared input cannot grant an exclusive pattern",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let kind = if path.is_empty() {
+                    InstructionKind::ReborrowAddress {
+                        address,
+                        mutable: *mutable,
+                    }
+                } else {
+                    InstructionKind::BorrowPlaceAddress {
+                        address,
+                        path: path.clone(),
+                        mutable: *mutable,
+                    }
+                };
+                let v = self.value(kind, t.clone(), p.span)?;
+                self.pattern_test(pattern, v, &t, fail, bindings)
+            }
+            _ if ty.is_copy_value() => {
+                let t = Type::Address {
+                    mutable: false,
+                    inner: Box::new(ty.clone()),
+                };
+                let pointer = if path.is_empty() {
+                    address
+                } else {
+                    self.value(
+                        InstructionKind::BorrowPlaceAddress {
                             address,
                             path: path.clone(),
                             mutable: false,

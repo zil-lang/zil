@@ -1,0 +1,97 @@
+{
+  "goal": "G3.3",
+  "baseline": "54e618a07c99126203d44d28b6f03a302e65c266",
+  "classification": "AuthorLimitedCheckpoint",
+  "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target342-40 cargo test -j2 -p zil-driver --test generics g3_3_ --features llvm-api -- --nocapture",
+  "result": {
+    "passed": 3,
+    "failed": 0,
+    "filtered": 33,
+    "native_profiles": "Fn/FnMut/FnOnce role x Clang/LLVM API x O0/O2 =12; FnMut same-target shared stored-leaf control x4; total16 executions, result42, no fallback",
+    "independent_controls": "5 initial source-derived mutations x Analyze/raw Verify/Wire Verify; adapted FnMut-to-Once role actual double call and matching forged trace rejected in all3; actual FnOnce no-helper source-derived raw positive plus double same-SSA/owned Load rejected in all3; 3 source mode/mutability negatives and unused repeated Once rejected"
+  },
+  "representation": "Existing inline scalar capture environment and actual local/SSA receiver. No allocation or ABI/schema change; scalar fields carry no cleanup debt.",
+  "prior_failures": [
+    "native initially stopped at prepaid ReadCapture fence, then LLVM finite closure admission; corrected consumers pass",
+    "one local compile typo called nonexistent Lower Budget::spend; replaced with paid existing borrowed shape walk",
+    "raw/Wire rerun interrupted by disk full; root freed idle build caches, unchanged rerun passed",
+    "Independent review of dfa4c5b66 identified stored Analyze bypassing responsibility proof and Verify receiver write mode leaking into shared argument leaves. Successor wires actual Once definitions to its existing resource ledger; fixes only receiver mode and adds direct raw/Wire consumption neighbors plus real shared-alias native control."
+  ],
+  "unfinished": [
+    "Actual enclosing Fixed-to-capture semantic context",
+    "address/owning captures, environment lending and general state cleanup",
+    "Independent review/common acceptance/product Rust comparison"
+  ],
+  "implementation_checkpoint": "dfa4c5b66",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "23.1.4 (7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)"
+  },
+  "bounds": {
+    "Analyze": 24596,
+    "Verify": 27039,
+    "Source-through-Lower": 27039,
+    "controls": "N succeeds, N-1 ResourceLimit, fresh N succeeds; Source-through-Lower warm session N/N-1/N succeeds/rejects/succeeds with zero active queries"
+  },
+  "regressions": [
+    {
+      "command": "cargo test -j2 -p zil-analyze -p zil-verify --lib stored_flow -- --nocapture",
+      "passed": [
+        13,
+        12
+      ],
+      "failed": 0,
+      "filtered": [
+        128,
+        347
+      ]
+    },
+    {
+      "command": "cargo test -j2 -p zil-driver --test generics --features llvm-api -- --nocapture",
+      "passed": 36,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    {
+      "command": "cargo clippy -j2 -p zil-analyze -p zil-verify -p zil-lower -p zil-backend-llvm --lib -- -D warnings -A dead_code",
+      "result": "Pass"
+    },
+    {
+      "command": "cargo clippy -j2 -p zil-driver --test generics --features llvm-api -- -D warnings -A dead_code",
+      "result": "Pass"
+    },
+    {
+      "command": "rustfmt --edition 2024 --check changed-rust-files; git diff --check",
+      "result": "Pass"
+    }
+  ],
+  "rust_goals": {
+    "safety": "Independent actual environment/mode/class checks and source/raw/Wire negatives; enclosing Fixed and wider ownership/lending remain incomplete.",
+    "runtime_memory": "16 native profiles use existing inline fields without new allocation; scalar environment has no destructor debt. Same-semantics Rust runtime/RSS not measured.",
+    "expression_maintenance": "Qualified callbacks can now carry and mutate an actual scalar environment through ordinary generic helpers; full framework maintenance not measured.",
+    "compilation": "Bounded paid walks with unchanged limits and exact N/N-1/fresh/warm controls; Rust compilation comparison not measured.",
+    "breakthrough": "Finite source/API composition increment reproduced; no product-level net breakthrough claim."
+  },
+  "once_proof": {
+    "actual_kind_FnOnce": "Analyze stored_flow calls its own resources::check_module after actual profile checks. Verify already runs its independent resources ledger; raw/Wire double same SSA emits managed SSA value was not available exactly once. Non-Copy Load rejects in each kernel.",
+    "Fn_or_FnMut_adapted_to_role_FnOnce": "Existing independent helpers/helper_flow preserve actual parameter provenance and role/event mode, enforce finite Once call allowance. The negative also forges the trace to match both actual calls so trace mismatch alone is insufficient.",
+    "evidence_level": "FnOnce role positive is original source through native. Concrete kind-FnOnce scalar positive/negative are source-derived raw transformations: set conservative kind, use proper environment moves, replace unused preparatory copy with scalar constant, and call directly without helper role. No native/source-kind-FnOnce completion claimed."
+  },
+  "fixed_request": "changes/G3.3-fixed-context-interface.md (proposal only, no schema or Fixed admission change)",
+  "source_sha256": {
+    "crates/zil-analyze/src/class_flow.rs": "7b733029c63728e2dbb0cd315d55e067becf8ede888a422a3fe4450fdc0d13c0",
+    "crates/zil-analyze/src/signature_life.rs": "a1efbb7fec77d2af6621ccd6b5882002201af34b317e2bb8b4d15d575e82f3fb",
+    "crates/zil-analyze/src/stored_callables.rs": "b295742c71aeb8b9778ebfdbf0e575b3ebd1d1591b750382485728c90a6be79a",
+    "crates/zil-analyze/src/stored_flow.rs": "aa327d59713c7ecf8870352ec96b60e870baf8e7f60f966574215be0758b2d5e",
+    "crates/zil-backend-llvm/src/emit.rs": "3d3aae5f43efb36ae7aa506009dc876890d655f6e1a512f3d3bd92ba66a21f02",
+    "crates/zil-backend-llvm/src/emit/stored_borrows.rs": "7b0abeeca47e3e47592b63796c24acbcc32dbc0956395dc6ff036a8400dd6956",
+    "crates/zil-driver/tests/generics.rs": "5e14ea2f977c7452ae3ae5ff5cba4abf40b3e7c7a4061aea2f42a5cfd9159d19",
+    "crates/zil-lower/src/lib.rs": "6e43b6bd0674a91af4f7ac3cd51b22fea5dce0a9d58319e8b5809c1533c76a7b",
+    "crates/zil-verify/src/class_flow.rs": "072d5596977b085f78427dbaba1865299d27366f2f21483aec6edcdee776049c",
+    "crates/zil-verify/src/signature_life.rs": "ab38bc6b6c18ba630dd0aa928ed82511a45132b7d164d8a65bfb30636a3f400e",
+    "crates/zil-verify/src/stored_callables.rs": "48327afeb11cfc2bab2e6053f3e594c7768d3a556793e1cf3cda03cdb8432e7d",
+    "crates/zil-verify/src/stored_flow.rs": "cef46c2caab36b2b86029e2a61e4ad5c093749e711b3263abc5fae7f5564567d"
+  }
+}

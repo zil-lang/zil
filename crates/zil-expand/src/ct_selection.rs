@@ -63,6 +63,7 @@ fn attributes<V: Visitor + ?Sized>(
 }
 fn argument<V: Visitor + ?Sized>(v: &mut V, a: &s::GenericArg, depth: usize) -> CompileResult<()> {
     match a {
+        s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
     }
@@ -299,8 +300,33 @@ pub fn walk_type<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     v.node(t.span, depth)?;
+    if let s::TypeKind::Dyn { bindings, .. } = &t.kind {
+        for binding in bindings {
+            v.node(binding.span, depth + 1)?;
+            match &binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(value, depth + 2)?;
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(ty, depth + 2)?;
+                    v.expression(value, depth + 2)?;
+                }
+                s::DynBindingKind::Method { member, arguments } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    for a in arguments {
+                        argument(v, a, depth + 2)?;
+                    }
+                }
+            }
+        }
+    }
     match &t.kind {
-        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args } => {
+        s::TypeKind::Named { path: names, args }
+        | s::TypeKind::Dyn {
+            path: names, args, ..
+        } => {
             path(v, names, t.span, depth + 1)?;
             for a in args {
                 argument(v, a, depth + 1)?;
@@ -359,7 +385,9 @@ pub fn walk_pattern<V: Visitor + ?Sized>(
         s::PatternKind::Name(n) => v.text(n, p.span)?,
         s::PatternKind::Wildcard => {}
         s::PatternKind::Literal(l) => literal(v, l, p.span)?,
-        s::PatternKind::Reference { pattern, .. } => walk_pattern(v, pattern, depth + 1)?,
+        s::PatternKind::Reference { pattern, .. } | s::PatternKind::ErrorArm { pattern, .. } => {
+            walk_pattern(v, pattern, depth + 1)?
+        }
         s::PatternKind::Tuple(ps) => {
             for p in ps {
                 walk_pattern(v, p, depth + 1)?;
@@ -532,6 +560,10 @@ pub fn walk_expression<V: Visitor + ?Sized>(
 ) -> CompileResult<()> {
     v.node(e.span, depth)?;
     match &e.kind {
+        s::ExprKind::Ascribed { ty, value } => {
+            v.ty(ty, depth + 1)?;
+            v.expression(value, depth + 1)?;
+        }
         s::ExprKind::Literal(l) => literal(v, l, e.span)?,
         s::ExprKind::Name(n) | s::ExprKind::ReceiverMember(n) => v.text(n, e.span)?,
         s::ExprKind::Group(e)
@@ -744,6 +776,13 @@ pub(crate) fn member_owner_type_cost(
     fn core_shape(v: &mut dyn Visitor, ty: &Type, span: Span, depth: usize) -> CompileResult<()> {
         v.node(span, depth)?;
         match ty {
+            Type::Dyn { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Expand,
+                    "dynamic owner metadata requires its complete declaration context",
+                    Some(span),
+                )]);
+            }
             Type::Named(name) | Type::Unsupported(name) => v.text(name, span)?,
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 v.text(name, span)?;
@@ -766,6 +805,45 @@ pub(crate) fn member_owner_type_cost(
                 for ty in types {
                     core_shape(v, ty, span, depth + 1)?;
                 }
+            }
+            Type::BorrowedStorage {
+                storage: inner,
+                life,
+            } => {
+                if !life.retained.is_empty() || !life.nominal_arguments.is_empty() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Expand,
+                        "retained storage owner metadata requires its complete declaration context",
+                        Some(span),
+                    )]);
+                }
+                for _ in 0..life.binder_count {
+                    v.node(span, depth + 1)?;
+                }
+                for slot in &life.slots {
+                    v.node(span, depth + 1)?;
+                    for _ in &slot.path {
+                        v.node(span, depth + 2)?;
+                    }
+                }
+                core_shape(v, inner, span, depth + 1)?;
+            }
+            Type::Task {
+                result,
+                retained_life,
+            } => {
+                if retained_life.binder_count != 0
+                    || !retained_life.ports.is_empty()
+                    || !retained_life.retained.is_empty()
+                    || !retained_life.nominal_arguments.is_empty()
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Expand,
+                        "retained Task classes require an implemented source frame mapping",
+                        Some(span),
+                    )]);
+                }
+                core_shape(v, result, span, depth + 1)?;
             }
             Type::Managed(inner)
             | Type::Desc(inner)
@@ -791,11 +869,23 @@ pub(crate) fn member_owner_type_cost(
                 result,
                 life,
             } => {
-                for _ in 0..life.binder_count {
+                for _ in 0..life.fixed_binder_count {
                     v.node(span, depth + 1)?;
                 }
-                for _ in &life.parameter_lives {
+                for _ in 0..life.invocation_binder_count {
                     v.node(span, depth + 1)?;
+                }
+                for binding in &life.bindings {
+                    v.node(span, depth + 1)?;
+                    for _ in &binding.position.path {
+                        v.node(span, depth + 2)?;
+                    }
+                }
+                for class in &life.classes {
+                    v.node(span, depth + 1)?;
+                    for _ in &class.position.path {
+                        v.node(span, depth + 2)?;
+                    }
                 }
                 for ty in parameters {
                     core_shape(v, ty, span, depth + 1)?;

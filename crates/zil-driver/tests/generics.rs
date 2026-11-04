@@ -8,6 +8,334 @@ use std::{
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
+const STORED_VIEW: &str =
+    include_str!("../../../tests/language-readiness/terminal/342/stored_view.zil");
+
+#[test]
+fn terminal_stored_view_source_keeps_actual_targets_through_direct_calls() {
+    for text in [
+        STORED_VIEW.to_owned(),
+        STORED_VIEW
+            .replace("life a", "life renamed")
+            .replace("'a", "'renamed"),
+        STORED_VIEW
+            .replace(
+                "fn make",
+                "fn relay<life b>(p:&'b i64)->View<'b>{return make(p)}\nfn make",
+            )
+            .replace("let v = make(&n)", "let v = relay(&n)"),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for text in [
+        STORED_VIEW
+            .replace("let n: i64", "var n: i64")
+            .replace("return i32(*q);", "n=43; return i32(*q);"),
+        STORED_VIEW.replace(
+            "return View::<'a> { p: p };",
+            "let local:i64=0; return View::<'a> { p: &local };",
+        ),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.phase, Phase::Analyze | Phase::Verify)),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal_stored_project_same_named_helpers_keep_distinct_relations() {
+    let modules = [
+        (
+            "main.zil",
+            "import a;import b;fn main()->i32{let x:i64=20;let y:i64=22;let va=a.make(&x);let vb=b.make(&x,&y);let pa=a.read(&va);let pb=b.read(&vb);return i32(*pa+*pb)}",
+        ),
+        (
+            "a.zil",
+            "struct View<life a>{p:&'a i64}pub fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}pub fn read<life a>(v:&View<'a>)->&'a i64{return v.p}",
+        ),
+        (
+            "b.zil",
+            "struct View<life a>{p:&'a i64}pub fn make<life a>(unused:&i64,p:&'a i64)->View<'a>{return View::<'a>{p:p}}pub fn read<life a>(v:&View<'a>)->&'a i64{return v.p}",
+        ),
+    ];
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: modules
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, text))| {
+                SourceUnit::new(FileId(index as u32), ModuleId(index as u32), name, text)
+            })
+            .collect(),
+        paths: [
+            (vec!["a".into()], ModuleId(1)),
+            (vec!["b".into()], ModuleId(2)),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let report = zil_driver::compile_project(&project, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let unit = source(STORED_VIEW);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(typed.life_instances.len(), 1);
+    assert!(typed.functions.iter().any(|f| {
+        f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, zil_ir::InstructionKind::LoadStoredBorrow { .. }))
+    }));
+    let mut low = 1;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let tight = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        if zil_types::check(&core, &target, &tight).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let tight = Limits {
+        max_analysis_steps: high,
+        ..limits.clone()
+    };
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    assert_eq!(
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: high - 1,
+                ..limits.clone()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::ResourceLimit
+    );
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    eprintln!("stored source Types work N={high}; N-1 ResourceLimit; fresh N stable");
+    let mut wrong = core.clone();
+    wrong.aggregates[0].fields[0].ty = zil_ir::Type::I64;
+    assert!(zil_types::check(&wrong, &target, &limits).is_err());
+    let mut wrong = core.clone();
+    let mut duplicate = wrong.life_declarations[0].clone();
+    duplicate.id.declaration.0 += 1;
+    wrong.life_declarations.push(duplicate);
+    assert!(zil_types::check(&wrong, &target, &limits).is_err());
+    let program = zil_ir::CoreProgram {
+        root: core.module_id,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let normalized = zil_types::resolve_program_shapes(&program, &limits).unwrap();
+    let again = zil_types::resolve_program_shapes(&normalized, &limits).unwrap();
+    assert_eq!(
+        again, normalized,
+        "normalization changes the actual stored identity"
+    );
+    let mut exported = program.clone();
+    let make = exported.modules[0]
+        .core
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    let make_id = exported.modules[0].core.functions[make].id;
+    exported.modules[0].exports.push(make_id);
+    let first = zil_types::check_program(&exported, &target, &limits).unwrap();
+    let contract = exported.modules[0].core.functions[make]
+        .storage_life
+        .as_mut()
+        .unwrap();
+    contract.invocation_binder_count += 1;
+    contract.bindings.last_mut().unwrap().binder = zil_ir::StorageBinder::Invocation(1);
+    let altered = zil_types::check_program(&exported, &target, &limits).unwrap();
+    assert_ne!(
+        first.interfaces[0].signature_fingerprint, altered.interfaces[0].signature_fingerprint,
+        "an untrusted exported relation was erased from interface identity"
+    );
+}
+
+#[test]
+fn terminal341_retained_declaration_rows_survive_ct_removal() {
+    let scalar = "fn scalar(marker:Type,n:i32)->i32{return n}";
+    let view = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}";
+    let main = "fn main()->i32{return #(scalar(i32,0))}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-retained-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for (index, (text, expected)) in [
+        (format!("{scalar}{view}{main}"), 1),
+        (format!("import std.meta;{scalar}{view}{main}"), 2),
+        (format!("{view}{scalar}{main}"), 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                emit_dir: Some(directory.join(index.to_string())),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        assert!(dump.contains("life_declarations: ["), "{dump}");
+        let declaration = dump.split("life_declarations: [").nth(1).unwrap();
+        assert!(
+            declaration
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&format!("declaration:NodeId({expected},)")),
+            "{declaration}"
+        );
+        assert!(declaration.contains("\"View\""), "{declaration}");
+        assert!(!dump.contains("name: \"$module0_scalar\""), "{dump}");
+        if index == 1 {
+            assert!(dump.contains("imports: []"), "{dump}");
+        }
+    }
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
+    let text = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}fn main(){}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut packages = Vec::new();
+    for path in ["first-location.zil", "other/location.zil"] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path, text);
+        let options = CompileOptions {
+            stop_after: Stage::Core,
+            emit_dir: Some(directory.join(packages.len().to_string())),
+            ..CompileOptions::default()
+        };
+        let report = compile_source(&source, &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        let package = dump
+            .split("package: \"")
+            .filter_map(|part| part.strip_prefix("closed-snapshot:v1:"))
+            .next()
+            .expect("Driver did not pass original context")
+            .split('"')
+            .next()
+            .unwrap()
+            .to_owned();
+        packages.push(package);
+    }
+    assert_eq!(
+        packages[0], packages[1],
+        "native file labels changed logical snapshot identity"
+    );
+    let transformed = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "transformed.zil",
+        format!("#if(true){{fn selected(){{}}}}{text}"),
+    );
+    let report = compile_source(
+        &transformed,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(directory.join("must-not-publish")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("explicit source lineage")),
+        "{}",
+        report.to_json()
+    );
+    assert!(report.commands.is_empty());
+    assert!(!directory.join("must-not-publish").exists());
+    let _ = fs::remove_dir_all(directory);
+}
+
 #[test]
 fn terminal341_generic_methods_specialize_ordinary_calls() {
     for text in [
@@ -1019,4 +1347,1244 @@ fn generic_instance_growth_is_bounded_before_type_building() {
     let error = zil_expand::expand_with_map_limits(&source, &parsed, &limits).unwrap_err();
     assert_eq!(error[0].phase, Phase::Expand);
     assert_eq!(error[0].code, "E-RESOURCE-LIMIT");
+}
+
+include!("../../../tests/language-readiness/terminal/181/interface_source.rs");
+
+#[test]
+fn terminal_static_function_value_keeps_qualified_input_classes() {
+    use zil_driver::{CompilationSession, NativeBackend, Optimization};
+    let text = "struct Tag<life a>{n:i32} fn read<life a>(v:&Tag<'a>)->i32{return v.n} fn apply<life a>(p:&'a i32)->i32{let v:Tag<'a>=Tag::<'a>{n:*p};let f=read;return f(&v)} fn result()->i32{let n=42;return apply(&n)} fn main()->i32{return result()}";
+    let explicit = format!(
+        "type Code=for<life a>for<life b> fn(&'a Tag<'b>)->i32;{}",
+        text.replace("let f=read", "let f:Code=read")
+    );
+    for (label, text) in [("inferred", text), ("explicit", explicit.as_str())] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let bad = "struct Tag<life a>{n:i32} fn both<life a>(p:&Tag<'a>,q:&Tag<'a>)->i32{return p.n+q.n} fn bad<life a,life b>(p:&Tag<'a>,q:&Tag<'b>)->i32{let f=both;return f(p,q)} fn main()->i32{return 0}";
+        let report = compile_source(&source(bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let out = std::env::temp_dir().join(format!(
+                    "zil-static-rich-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir(&out).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        output: Some(out.join("program")),
+                        backend,
+                        optimization,
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let actual = report.native_codegen.as_ref().unwrap();
+                assert_eq!(actual.backend, backend);
+                assert!(actual.fallback.is_none());
+                run(&report.artifacts["executable"], 42);
+                fs::remove_dir_all(out).unwrap();
+            }
+        }
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        let options = |steps| CompileOptions {
+            limits: zil_base::Limits {
+                max_analysis_steps: steps,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&source(text), &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        for (steps, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&source(text), &options(steps)),
+                compile_source(&source(text), &options(steps)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!(
+            "static qualified pointer {label} source Types/analysis whole request N={low}/N-1/warm/fresh"
+        );
+    }
+}
+
+#[test]
+fn terminal_static_function_formation_prepays_wide_copy_result_types() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let mut boundaries = Vec::new();
+    for width in [4, 32] {
+        let fields = (0..width)
+            .map(|i| format!("n{i}:i32"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let text = format!(
+            "struct Tag<life a>{{n:i32}} struct Inner{{{fields}}} struct Wide{{left:Inner,right:Inner}} fn produce<life a>(tag:&Tag<'a>,value:Wide)->Wide{{return value}} fn apply<life a>(tag:&Tag<'a>,value:Wide)->Wide{{let code=produce;return code(tag,value)}} fn main()->i32{{return 0}}"
+        );
+        let unit = source(&text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let aliases = Default::default();
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &unit,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let run = |steps| {
+            zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..limits.clone()
+                },
+            )
+        };
+        let typed = run(limits.max_analysis_steps).unwrap();
+        assert!(typed.functions.iter().flat_map(|f|&f.values).any(|ty|matches!(ty,zil_ir::Type::BorrowedFunctionPointer{result,..} if matches!(result.as_ref(),zil_ir::Type::Record{fields,..} if fields.len()==2))));
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(_) => high = middle,
+                Err(errors) => {
+                    assert_eq!(
+                        errors[0].category,
+                        ResultCategory::ResourceLimit,
+                        "{errors:?}"
+                    );
+                    low = middle + 1
+                }
+            }
+        }
+        let exact = run(low).unwrap();
+        assert_eq!(exact, typed);
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        assert_eq!(run(low).unwrap(), typed);
+        eprintln!("static function wide Copy result width={width} Types N={low}/N-1/fresh");
+        boundaries.push(low);
+    }
+    assert!(boundaries[1] > boundaries[0]);
+}
+
+#[test]
+fn terminal_explicit_stored_closure_annotations_require_their_context() {
+    let closed = "struct Tag<life a>{n:i32} type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32;fn read<life a>(v:&Tag<'a>)->i32{return v.n}fn main()->i32{let callback=(code:Code)->i32=>42;return callback(read)}";
+    let report = compile_source(&source(closed), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+
+    terminal_native_profiles(closed, "main", 42);
+    for body in [
+        "let f=(p:&Tag<'s>)->i32=>p.n;return f(&v)",
+        "let f=()->Tag<'s> => v;return f().n",
+    ] {
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};{body}}} fn main()->i32{{let n=42;return apply(&n)}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("retained enclosing life context")
+                    || d.message.contains("genuine enclosing definition context")),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+#[test]
+fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
+    for body in ["42", "p.n+*q"] {
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        terminal_native_profiles(&text, "result", 42);
+        if body == "p.n+*q" {
+            let options = |steps| CompileOptions {
+                stop_after: Stage::Lower,
+                limits: zil_base::Limits {
+                    max_analysis_steps: steps,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+            while low < high {
+                let mid = low + (high - low) / 2;
+                let report = compile_source(&source(&text), &options(mid));
+                match report.status {
+                    ResultCategory::Success => high = mid,
+                    ResultCategory::ResourceLimit => low = mid + 1,
+                    _ => panic!("{}", report.to_json()),
+                }
+            }
+            let mut warm = zil_driver::CompilationSession::default();
+            for (steps, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                for report in [
+                    warm.compile_source(&source(&text), &options(steps)),
+                    compile_source(&source(&text), &options(steps)),
+                ] {
+                    assert_eq!(report.status, expected, "{}", report.to_json());
+                }
+                assert_eq!(warm.active_query_count(), 0);
+            }
+            eprintln!(
+                "qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh"
+            );
+        }
+    }
+    let unused = "struct Tag<life s>{n:i32} fn invoke<life s,life t,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'t i32)->i32{return f(p,q)} fn main()->i32{return 0}";
+    let report = compile_source(&source(unused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("cannot equate distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
+
+fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
+    use zil_driver::{NativeBackend, Optimization};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = std::env::temp_dir().join(format!(
+                "zil-rich-role-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&out).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some(entry.into()),
+                    output: Some(out.join("program")),
+                    backend,
+                    optimization,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let actual = report.native_codegen.as_ref().unwrap();
+            assert_eq!(actual.backend, backend);
+            assert!(actual.fallback.is_none());
+            run(&report.artifacts["executable"], expected);
+            fs::remove_dir_all(out).unwrap();
+        }
+    }
+}
+
+#[test]
+fn g3_3_qualified_inline_environment_modes() {
+    for (kind, passing, argument, closure, body) in [
+        (
+            "Fn",
+            "&F",
+            "&f",
+            "let marker=1;let f=move (p,q)=>p.n+*q+marker",
+            "invoke(&f,&v,x)-1",
+        ),
+        (
+            "FnMut",
+            "&mut F",
+            "&mut f",
+            "var marker=0;var f=move (p,q)=>{marker=marker+1;return p.n+*q+marker}",
+            "invoke(&mut f,&v,x)+invoke(&mut f,&v,x)-45",
+        ),
+        (
+            "FnOnce",
+            "F",
+            "f",
+            "var marker=0;let f=move (p,q)=>{marker=marker+1;return p.n+*q+marker}",
+            "invoke(f,&v,x)-1",
+        ),
+    ] {
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>{kind}(&'a Tag<'b>,&'b i32)->i32>(f:{passing},p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};{closure};return {body}}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{kind} {argument}: {}",
+            report.to_json()
+        );
+        terminal_native_profiles(&text, "result", 42);
+        if kind == "FnMut" {
+            // The environment is exclusive; its two shared input leaves may
+            // still name the same actual n. They do not inherit receiver mode.
+            let shared = text
+                .replace("Tag<life s>{n:i32}", "Tag<life s>{p:&'s i32}")
+                .replace("Tag::<'s>{n:*x}", "Tag::<'s>{p:x}")
+                .replace("p.n+*q", "*p.p+*q");
+            let report = compile_source(&source(&shared), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            terminal_native_profiles(&shared, "result", 42);
+        }
+    }
+}
+
+#[test]
+fn g3_3_qualified_environment_raw_and_wire_neighbors() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallableKind, InstructionKind, Type};
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>FnMut(&'a Tag<'b>,&'b i32)->i32>(f:&mut F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};var marker=0;var f=move (p,q)=>{marker=marker+1;return p.n+*q+marker};return invoke(&mut f,&v,x)-1} fn main()->i32{let n=21;return apply(&n)}";
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    // Whole request thresholds include the real environment and role walks.
+    for phase in ["Analyze", "Verify", "Source-through-Lower"] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            match phase {
+                "Analyze" => zil_analyze::analyze(&typed, &limits)
+                    .map(|_| ())
+                    .map_err(|e| e[0].category),
+                "Verify" => {
+                    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                        .map(|_| ())
+                        .map_err(|e| e[0].category)
+                }
+                _ => {
+                    let report = compile_source(
+                        &source(text),
+                        &CompileOptions {
+                            stop_after: Stage::Lower,
+                            limits,
+                            ..Default::default()
+                        },
+                    );
+                    if report.status == ResultCategory::Success {
+                        Ok(())
+                    } else {
+                        Err(report.status)
+                    }
+                }
+            }
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(()) => high = mid,
+                Err(ResultCategory::ResourceLimit) => low = mid + 1,
+                Err(error) => panic!("{phase} unexpected boundary result {error:?}"),
+            }
+        }
+        assert_eq!(run(low), Ok(()));
+        assert_eq!(run(low - 1), Err(ResultCategory::ResourceLimit));
+        assert_eq!(run(low), Ok(()));
+        if phase == "Source-through-Lower" {
+            let mut session = zil_driver::CompilationSession::default();
+            for (steps, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                let report = session.compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Lower,
+                        limits: Limits {
+                            max_analysis_steps: steps,
+                            ..Limits::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                assert_eq!(session.active_query_count(), 0);
+            }
+        }
+        eprintln!("G3.3 qualified scalar FnMut {phase} whole request N={low}/N-1/fresh");
+    }
+    assert_eq!(typed.closures.len(), 1);
+    assert_eq!(typed.closures[0].captures, vec![Type::I32]);
+    assert_eq!(typed.closures[0].kind, CallableKind::FnMut);
+    assert!(
+        typed
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
+    );
+    for mutation in 0..5 {
+        let mut wrong = typed.clone();
+        match mutation {
+            0 => wrong.closures[0].kind = CallableKind::Fn,
+            1 => wrong.closures[0].captures[0] = Type::I64,
+            2 => {
+                let i = wrong
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+                    .unwrap();
+                let InstructionKind::MakeClosure { captures, .. } = &mut i.kind else {
+                    unreachable!()
+                };
+                captures.clear();
+            }
+            3 => {
+                let i = wrong
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::ReadCapture { .. }))
+                    .unwrap();
+                let InstructionKind::ReadCapture { index } = &mut i.kind else {
+                    unreachable!()
+                };
+                *index = 1;
+            }
+            4 => {
+                let role = wrong
+                    .functions
+                    .iter_mut()
+                    .filter_map(|f| f.callable_contract.as_mut())
+                    .flat_map(|c| &mut c.roles)
+                    .find(|r| r.life.is_some())
+                    .unwrap();
+                role.life.as_mut().unwrap().classes[0].binder =
+                    zil_ir::StorageBinder::Invocation(0);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&wrong, &limits).is_err(),
+            "Analyze accepted mutation {mutation}"
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = wrong.fingerprint();
+        assert!(
+            zil_verify::verify_module(wrong.clone(), candidate.clone(), &target, &limits).is_err(),
+            "Verify accepted mutation {mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&wrong, &candidate, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire Verify accepted mutation {mutation}"
+        );
+    }
+    for (before, after) in [
+        ("var f=move", "let f=move"),
+        ("f:&mut F", "f:&F"),
+        ("FnMut(", "FnOnce("),
+    ] {
+        let report = compile_source(
+            &source(&text.replace(before, after)),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let unused = "struct Tag<life s>{n:i32} fn bad<life s,F:for<life a>for<life b>FnOnce(&'a Tag<'b>,&'b i32)->i32>(f:F,p:&Tag<'s>,q:&'s i32)->i32{let first=f(p,q);return f(p,q)} fn main()->i32{return 0}";
+    let report = compile_source(&source(unused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+}
+
+#[test]
+fn g3_3_once_consumption_is_proved_after_source_in_raw_and_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallableKind, InstructionKind, Type, ValueId};
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>FnOnce(&'a Tag<'b>,&'b i32)->i32>(f:F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};var marker=0;let f=move (p,q)=>{marker=marker+1;return p.n+*q+marker};return invoke(f,&v,x)-1} fn main()->i32{let n=21;return apply(&n)}";
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let (limits, target, aliases) = (
+        Limits::default(),
+        TargetProfile::default(),
+        Default::default(),
+    );
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let core = zil_types::infer_source_closures(&core, &limits).unwrap();
+    let adapted = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(adapted.closures[0].kind, CallableKind::FnMut);
+    let check = |module: &zil_ir::TypedModule| {
+        let plan = zil_analyze::analyze(module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(module, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        plan
+    };
+    let adapted_plan = check(&adapted);
+    // The same real FnMut environment is consumed through its declared Once
+    // parameter. Permit the claimed trace to match the forged two actual calls;
+    // the independent per-role allowance still must reject it.
+    let mut twice = adapted.clone();
+    let helper = twice
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap();
+    let new_value = ValueId(helper.values.len() as u32);
+    helper.values.push(Type::I32);
+    let original = helper
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+        .unwrap()
+        .clone();
+    let mut duplicate = original;
+    duplicate.result = Some(new_value);
+    helper.blocks[0].instructions.push(duplicate);
+    let zil_ir::CallableTraces::Finite(traces) =
+        &mut helper.callable_contract.as_mut().unwrap().traces
+    else {
+        panic!("expected finite source helper")
+    };
+    for trace in traces {
+        trace.calls.push(trace.calls[0]);
+    }
+    let helper_index = helper.id.0 as usize;
+    let mut candidate = adapted_plan.clone();
+    candidate.module_fingerprint = twice.fingerprint();
+    candidate.functions[helper_index]
+        .holds
+        .push(zil_ir::ValueHold {
+            value: new_value,
+            roots: vec![],
+        });
+    assert!(zil_analyze::analyze(&twice, &limits).is_err());
+    assert!(zil_verify::verify_module(twice.clone(), candidate.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&twice, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+
+    // A concrete Once definition needs a responsibility ledger even when its
+    // actual inline fields are scalars. Derive it from this real source entry;
+    // use TakeLocal for its now non-Copy environments and call the actual entry
+    // directly at the former helper site, so no helper role can mask the test.
+    let mut actual = adapted.clone();
+    actual.closures[0].kind = CallableKind::FnOnce;
+    let helper_id = actual
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let mut direct_site = None;
+    for f in &mut actual.functions {
+        for block in &mut f.blocks {
+            for i in &mut block.instructions {
+                if let InstructionKind::Load(local) = i.kind
+                    && matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                {
+                    if f.callable_contract.is_some() {
+                        // The source callee pre-evaluation Load is unused;
+                        // the actual Once call already has its own Take.
+                        i.kind = InstructionKind::Constant(zil_ir::Constant::I32(0));
+                        f.values[i.result.unwrap().0 as usize] = Type::I32;
+                    } else {
+                        i.kind = InstructionKind::TakeLocal { local };
+                    }
+                }
+                if let InstructionKind::Call {
+                    function,
+                    arguments,
+                } = &i.kind
+                    && *function == helper_id
+                {
+                    i.kind = InstructionKind::CallClosureOnce {
+                        callee: arguments[0],
+                        arguments: arguments[1..].to_vec(),
+                    };
+                    direct_site = Some((f.id, block.id));
+                }
+            }
+        }
+    }
+    let actual_plan = check(&actual);
+    let (function, block) = direct_site.unwrap();
+    assert!(
+        actual.functions[function.0 as usize]
+            .callable_contract
+            .is_none()
+    );
+    for mutation in ["same SSA consumed twice", "non-Copy Load"] {
+        let mut wrong = actual.clone();
+        let f = &mut wrong.functions[function.0 as usize];
+        let mut candidate = actual_plan.clone();
+        if mutation == "same SSA consumed twice" {
+            let mut copy = f.blocks[block.0 as usize]
+                .instructions
+                .iter()
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap()
+                .clone();
+            let v = ValueId(f.values.len() as u32);
+            f.values.push(Type::I32);
+            copy.result = Some(v);
+            let position = f.blocks[block.0 as usize]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap();
+            f.blocks[block.0 as usize]
+                .instructions
+                .insert(position + 1, copy);
+            candidate.functions[function.0 as usize]
+                .holds
+                .push(zil_ir::ValueHold {
+                    value: v,
+                    roots: vec![],
+                });
+        } else {
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::TakeLocal{local}if matches!(f.locals[local.0 as usize].ty,Type::Closure(_)))).unwrap();
+            let InstructionKind::TakeLocal { local } = i.kind else {
+                unreachable!()
+            };
+            i.kind = InstructionKind::Load(local);
+        }
+        candidate.module_fingerprint = wrong.fingerprint();
+        let errors = zil_analyze::analyze(&wrong, &limits).unwrap_err();
+        eprintln!("G3.3 actual Once {mutation}: Analyze {}", errors[0].message);
+        let reason = if mutation == "same SSA consumed twice" {
+            "call uses consumed environment"
+        } else {
+            "Load cannot copy an owned carrier"
+        };
+        assert!(
+            errors.iter().any(|e| e.message.contains(reason)),
+            "{errors:?}"
+        );
+        let verified =
+            zil_verify::verify_module(wrong.clone(), candidate.clone(), &target, &limits)
+                .unwrap_err();
+        eprintln!(
+            "G3.3 actual Once {mutation}: Verify {}",
+            verified[0].message
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&wrong, &candidate, &limits).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        assert_eq!(decoded[0].code, verified[0].code);
+        assert_eq!(decoded[0].message, verified[0].message);
+    }
+}
+
+#[test]
+fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
+    let constructors = [
+        "Phantom::<'CLASS>{n:42}",
+        "#(Phantom::<'CLASS>{n:scalar(i32,42)})",
+        "#((Phantom::<'a>{n:scalar(i32,0)},Phantom::<'CLASS>{n:scalar(i32,42)}).1)",
+        "#(#{yield Phantom::<'CLASS>{n:scalar(i32,42)}})",
+    ];
+    for constructor in constructors {
+        for intermediate in [false, true] {
+            for actual in ["a", "b"] {
+                let init = constructor.replace("CLASS", actual);
+                let binding = if intermediate {
+                    format!("let saved={init};let x:Phantom<'a>=saved;")
+                } else {
+                    format!("let x:Phantom<'a>={init};")
+                };
+                let text = format!(
+                    "struct Phantom<life s>{{n:i32}}fn scalar(t:Type,n:i32)->i32{{return n}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{binding}return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+                );
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    terminal_native_profiles(&text, "main", 42);
+                } else {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::SafeReject,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+                    assert!(
+                        report.diagnostics.iter().any(|d| d.message.contains(
+                            "source annotation cannot equate distinct declared lifetime classes"
+                        )),
+                        "{}",
+                        report.to_json()
+                    );
+                }
+            }
+        }
+    }
+    // The outer reference relation is not nominal class equality. Preserve a
+    // genuine borrow return through a helper, along with a class-bearing helper.
+    let compatible = "struct Phantom<life s>{n:i32}fn borrow<life x>(p:&'x i32)->&'x i32{return p}fn make<life x>(p:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x:Phantom<'a>=make(borrow(pa));return x.n}fn main()->i32{let a=42;let b=0;return value(&a,&b)}";
+    let report = compile_source(&source(compatible), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    terminal_native_profiles(compatible, "main", 42);
+    let wrong = compatible.replace("make(borrow(pa))", "make(borrow(pb))");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
+    let prefix = "struct Phantom<life s>{n:i32}type Id<T>=T;struct Reader{}";
+    for (good, bad, executable) in [
+        (
+            "let x:Id<Phantom<'a>>=Phantom::<'a>{n:42};return x.n",
+            "let x:Id<Phantom<'a>>=Phantom::<'b>{n:42};return x.n",
+            true,
+        ),
+        (
+            "let values=[Phantom::<'a>{n:42}];let x:Phantom<'a>=values[0];return x.n",
+            "let values=[Phantom::<'b>{n:42}];let x:Phantom<'a>=values[0];return x.n",
+            false,
+        ),
+        (
+            "var x=Phantom::<'a>{n:0};x=Phantom::<'a>{n:42};return x.n",
+            "var x=Phantom::<'a>{n:0};x=Phantom::<'b>{n:42};return x.n",
+            true,
+        ),
+        (
+            "let pair=(0,Phantom::<'a>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
+            "let pair=(0,Phantom::<'b>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
+            false,
+        ),
+    ] {
+        for (body, expected) in [
+            (good, ResultCategory::Success),
+            (bad, ResultCategory::SafeReject),
+        ] {
+            let text = format!(
+                "{prefix}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+            );
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    stop_after: if executable {
+                        Stage::Verify
+                    } else {
+                        Stage::Core
+                    },
+                    ..Default::default()
+                },
+            );
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::Success && executable {
+                terminal_native_profiles(&text, "main", 42);
+            }
+            if expected == ResultCategory::Success && !executable {
+                let full = compile_source(&source(&text), &CompileOptions::default());
+                assert_eq!(
+                    full.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    full.to_json()
+                );
+                assert_eq!(full.phase, Phase::Types, "{}", full.to_json());
+            }
+            if expected == ResultCategory::SafeReject {
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("distinct declared lifetime classes")),
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
+    for host in ["struct Reader", "struct Reader<life outer>"] {
+        for actual in ["a", "b"] {
+            let text = format!(
+                "struct Phantom<life s>{{n:i32}}{host}{{fn read<life a,life b>(self:Self,pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<'a>=Phantom::<'{actual}>{{n:42}};return x.n}}}}fn main()->i32{{return 0}}"
+            );
+            let report = compile_source(&source(&text), &CompileOptions::default());
+            if actual == "b" {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("distinct declared lifetime classes")),
+                    "{}",
+                    report.to_json()
+                );
+            } else if host.contains('<') {
+                // Existing generic-host method emission is a separate consumer
+                // fence; the class check itself must not reject equal classes.
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    report.diagnostics.iter().any(|d| d
+                        .message
+                        .contains("generic resource or methods require capability resolution")),
+                    "{}",
+                    report.to_json()
+                );
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
+    let reborrow = "struct Phantom<life s>{n:i32}fn make<life x>(p:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p}}fn both<life x>(p:&'x i32,q:&'x i32)->i32{return *p+*q}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x:Phantom<'a>=make(&*pa);return x.n+both(pa,pb)}fn main()->i32{let a=21;let b=0;return value(&a,&b)}";
+    let report = compile_source(&source(reborrow), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    terminal_native_profiles(reborrow, "main", 42);
+}
+
+#[test]
+fn g3_3_1_full_nominal_ordinals_and_enclosing_method_life_are_not_class_zero() {
+    for actual in ["a", "b"] {
+        let text = format!(
+            "struct Phantom<T,life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<i32,'a>=Phantom::<i32,'{actual}>{{n:42}};return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        if actual == "a" {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            terminal_native_profiles(&text, "main", 42);
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("distinct declared lifetime classes")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    let wrong = "struct Phantom<life s>{n:i32}struct Reader<life outer>{fn bad<life inner>(self:Self,p:&'inner i32)->i32{let x:Phantom<'outer>=Phantom::<'inner>{n:42};return x.n}}fn main()->i32{return 0}";
+    let report = compile_source(&source(wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g3_3_1_borrow_intersection_keeps_unknown_class_without_choosing_an_upper() {
+    let text = "struct Phantom<life s>{n:i32}fn make<life x>(p:&'x i32,q:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p+*q}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x=make(pa,pb);return x.n}fn main()->i32{let a=20;let b=22;return value(&a,&b)}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    terminal_native_profiles(text, "main", 42);
+    for class in ["a", "b"] {
+        let annotated = text.replace("let x=", &format!("let x:Phantom<'{class}>="));
+        let report = compile_source(&source(&annotated), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand);
+    }
+}
+
+#[test]
+fn g3_3_1_flat_fact_growth_is_bounded_on_the_default_worker() {
+    const CHILD: &str = "ZIL_G3_3_1_FACT_DEFAULT_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        // Each expression is shallow. Only inferred source facts become deep.
+        let mut text = "struct Phantom<life s>{n:i32}struct Wrap<T:Copy>{item:T}fn wrap<T:Copy>(x:T)->Wrap<T>{return Wrap::<T>{item:x}}fn value<life a>(p:&'a i32)->i32{let saved=Phantom::<'a>{n:42};".to_owned();
+        for _ in 0..512 {
+            text.push_str("let saved=wrap(saved);");
+        }
+        text.push_str("return 0}fn main()->i32{let n=0;return value(&n)}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::ResourceLimit,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand);
+        return;
+    }
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "g3_3_1_flat_fact_growth_is_bounded_on_the_default_worker",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env_remove("RUST_MIN_STACK")
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "default worker subprocess: {:?}\n{}\n{}",
+        child.status,
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+#[test]
+fn g3_3_1_source_class_work_has_exact_fresh_and_warm_limits() {
+    for (label, init) in [
+        ("ordinary", "Phantom::<'a>{n:42}"),
+        (
+            "CT-projection",
+            "#((Phantom::<'b>{n:scalar(i32,0)},Phantom::<'a>{n:scalar(i32,42)}).1)",
+        ),
+    ] {
+        let text = format!(
+            "struct Phantom<life s>{{n:i32}}fn scalar(t:Type,n:i32)->i32{{return n}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let saved={init};let x:Phantom<'a>=saved;return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+        );
+        let options = |steps| CompileOptions {
+            stop_after: Stage::Lower,
+            limits: zil_base::Limits {
+                max_analysis_steps: steps,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&source(&text), &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = zil_driver::CompilationSession::default();
+        for (steps, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&source(&text), &options(steps)),
+                session.compile_source(&source(&text), &options(steps)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!("G3.3.1 {label} source-through-Lower N={low}/N-1/fresh/warm");
+    }
+}
+
+#[test]
+fn g3_3_1_repeated_host_headers_prepay_each_method_before_the_existing_fence() {
+    let mut boundaries = Vec::new();
+    for width in [16, 64] {
+        let names = (0..width)
+            .map(|n| format!("life h{n}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let methods = (0..8)
+            .map(|n| format!("fn inspect{n}(self:Self)->i32{{return 0}}"))
+            .collect::<String>();
+        let text = format!("struct Reader<{names}>{{{methods}}}fn main()->i32{{return 42}}");
+        let options = |steps| CompileOptions {
+            limits: zil_base::Limits {
+                max_analysis_steps: steps,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&source(&text), &options(mid));
+            match report.status {
+                ResultCategory::Unsupported => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = zil_driver::CompilationSession::default();
+        for (steps, expected) in [
+            (low, ResultCategory::Unsupported),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Unsupported),
+        ] {
+            for report in [
+                compile_source(&source(&text), &options(steps)),
+                session.compile_source(&source(&text), &options(steps)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                assert_eq!(report.phase, Phase::Expand);
+                if expected == ResultCategory::Unsupported {
+                    assert!(
+                        report.diagnostics.iter().any(|d| d
+                            .message
+                            .contains("generic resource or methods require capability resolution")),
+                        "{}",
+                        report.to_json()
+                    );
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!(
+            "G3.3.1 inherited host width={width}, methods=8 request N={low}/N-1/fresh/warm into existing Unsupported fence"
+        );
+        boundaries.push(low);
+    }
+    assert!(boundaries[1] > boundaries[0]);
+}
+
+#[test]
+fn g10_1_8_nested_source_classes_keep_default_stack_and_compatibility() {
+    const CHILD: &str = "ZIL_G10_1_8_CLASS_CHILD";
+    if let Ok(actual) = std::env::var(CHILD) {
+        std::thread::spawn(move || {
+            for depth in [32, 96] {
+                let initializer = format!("{}Phantom::<'{actual}>{{n:42}}{}", "(".repeat(depth), ")".repeat(depth));
+                let text = format!("struct Phantom<life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<'a>={initializer};return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}");
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(report.status, ResultCategory::Success, "{depth}: {}", report.to_json());
+                    assert_eq!(report.verification_runs, 1);
+                } else {
+                    assert_eq!(report.status, ResultCategory::SafeReject, "{depth}: {}", report.to_json());
+                    assert_eq!(report.phase, Phase::Expand);
+                    assert!(report.diagnostics.iter().any(|d| d.message.contains("source annotation cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+                }
+            }
+            for left in [false, true] {
+                let payload = format!("((()->i32=>{{let x:Phantom<'a>=Phantom::<'{actual}>{{n:41}};return x.n}})())");
+                let binary = if left { format!("{payload}+1") } else { format!("1+{payload}") };
+                let text = format!("struct Phantom<life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{return {binary}}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}");
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(report.status, ResultCategory::Success, "binary left={left}: {}", report.to_json());
+                    assert_eq!(report.verification_runs, 1);
+                } else {
+                    assert_eq!(report.status, ResultCategory::SafeReject, "binary left={left}: {}", report.to_json());
+                    assert_eq!(report.phase, Phase::Expand);
+                    assert!(report.diagnostics.iter().any(|d| d.message.contains("source annotation cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+                }
+            }
+        }).join().unwrap();
+        return;
+    }
+    for actual in ["a", "b"] {
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "g10_1_8_nested_source_classes_keep_default_stack_and_compatibility",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env_remove("LD_PRELOAD")
+            .env(CHILD, actual)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{actual}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+    }
 }

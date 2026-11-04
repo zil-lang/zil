@@ -1,0 +1,31 @@
+{
+  "task": "G4.4.1",
+  "baseline": "8477e08c1d8e124f6b9b920295cc461332213c49",
+  "scope": "Author limited regression repair: returned CT child values retain their own authentic schema context. Original scoped test and expectation remain unchanged; no public schema, language rule, default limit, runtime profile or product gate change.",
+  "original_failure": {
+    "command": "cargo test -p zil-driver --lib ct_artifact::materialize::scoped_tests::ct4_materialization_binds_original_full_lifetime_ordinal -j2 -- --exact --nocapture",
+    "result": "Reproduced 0 passed, 1 failed, 91 filtered: E-CT-ARTIFACT returned CT data schema is absent at unchanged collision source.",
+    "source": "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}"
+  },
+  "root_cause": "type_with_scopes required every private SourceLifeBinding in the artifact to occur in each returned subgraph. A valid Phantom<a> child therefore rejected the unrelated Phantom<b> schema binding. Validate each private binding once at capture against its own exact schema kind/ID, root class mapping and authentic frozen scope; discard that already-checked private ledger. Each child still authenticates its complete public ambient map.",
+  "checks": [
+    {"command": "cargo test -p zil-driver --lib ct_artifact::materialize::scoped_tests -j2 -- --nocapture", "result": "5 passed, 0 failed, 87 filtered. Includes the unchanged original collision; existing materialization N6718/N16553/N8002, N-1/fresh controls."},
+    {"command": "cargo test -p zil-driver --lib ct5_ -j2 -- --nocapture", "result": "8 passed, 0 failed, 84 filtered. Both actual top-level/member source controls retain independent raw/Wire N3906/N-1/fresh. New private schema capture N77/N-1/fresh preserves 37 caller bytes on failure; wrong schema ID, enum kind, full ordinal and sibling owner each reject in both source controls."},
+    {"command": "cargo test -p zil-driver --features llvm-api --test aggregates ct5_ -j2 -- --nocapture", "result": "4 passed, 0 failed, 155 filtered. Actual source joint-schema projection and nested repeated-schema projection each run Clang and LLVM API O0/O2: 8 new executions, stdout42, no fallback. Existing CT5 controls add 16 executions (24 in this command). Class-collapse source neighbor SafeReject. New whole Source-through-Verify N51770/N52897, N-1/warm/fresh; existing member N37432.", "features": ["default", "llvm-api"], "executable": "aggregates-e68efd3bca6e242d"},
+    {"command": "cargo test -p zil-driver --features llvm-api --test aggregates ct4_ -j2 -- --nocapture", "result": "4 passed, 0 failed, 155 filtered. Existing source/native, default worker subprocess, whole-request N23307/N30679/N27552 with N-1/warm/fresh."},
+    {"command": "cargo clippy -p zil-driver --features llvm-api --lib --test aggregates -j2 -- -D warnings -A dead_code", "result": "Pass with pre-existing dead_code allowance."}
+  ],
+  "source": "tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil",
+  "additional_observations": [
+    "An initial full-source Tuple<Phantom<a>,Phantom<b>> probe reaches the existing Types ordinary owning composition Unsupported fence; the unchanged regression concerns CT materialization, which now passes. Native controls project within CT and return one qualified record, retaining multiple artifact schemas and exercising the same former false rejection.",
+    "An attempted single-Phantom opposite-ordinal annotation neighbor reaches ordinary Source-to-Verify Success after correct CT reification. This does not show safe UB; ordinary local ambient annotation identity remains a separate G4.4 follow-up and is not claimed fixed here. The delivered source negative checks coupled-class collapse; private schema attribution independently rejects wrong full ordinals.",
+    "A first local build referenced generation_path as a vector; the actual field is fixed-width Fingerprint. Corrected before passing tests; fixed-width symbol comparisons are prepaid."
+  ],
+  "rust_goals": {
+    "safety": "CT independent verification, authentic frozen scope checks and ordinary Analyze/Verify remain required; metadata creates no permission.",
+    "runtime_memory": "New native sources use inline Copy scalar records; no new runtime allocation or ownership cleanup. No paired Rust timing/RSS measurement.",
+    "expression_maintenance": "Existing valid CT tuple and active-subvalue source are restored without altering the original test expectation; general qualified tuple runtime composition remains unfinished.",
+    "compile": "Schema consistency is paid once at capture; removed repeated whole-artifact scans and retained clone. Exact source/capture budget boundaries checked; default limits unchanged. No Rust compilation advantage measured.",
+    "breakthrough": "Concrete correctness repair only; no product-level breakthrough or complete G4.4 acceptance claim."
+  }
+}

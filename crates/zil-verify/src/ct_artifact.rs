@@ -5,6 +5,9 @@ use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, Phase, Span};
 use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 
+#[path = "ct_artifact_identity.rs"]
+mod identity;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CtSymbolUsage {
     FunctionDefinition,
@@ -16,9 +19,27 @@ pub enum CtSymbolUsage {
     DefinitionName,
 }
 
+/// Source facts only. These do not grant construction, borrowing or Copy rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CtScopeParameterKind {
+    Type,
+    Scalar(CtScalarTy),
+    Lifetime,
+}
+
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
+        None
+    }
+    fn scope_parameter_kind(
+        &self,
+        _scope: &CtAmbientLifeScope,
+        _ordinal: usize,
+    ) -> Option<CtScopeParameterKind> {
+        None
+    }
     fn source_fingerprint(&self) -> Fingerprint;
     fn snapshot(&self) -> &CtSnapshotRequest;
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool;
@@ -130,8 +151,12 @@ pub fn verify_ct_artifact_metered(
                             CtInstructionKind::TypeConstruct {
                                 constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
                                 ..
-                            } => (life.binder_count as usize)
-                                .saturating_add(life.parameter_lives.len().saturating_mul(2)),
+                            } => life
+                                .bindings
+                                .len()
+                                .saturating_mul(8)
+                                .saturating_add(life.classes.len().saturating_mul(16))
+                                .saturating_add(2),
                             _ => 0,
                         })
                     },
@@ -139,7 +164,63 @@ pub fn verify_ct_artifact_metered(
         },
     );
     meter.charge(initial_work.max(1), None)?;
+    for instruction in raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+    {
+        if let CtInstructionKind::TypeConstruct {
+            constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
+            arguments,
+        } = &instruction.kind
+        {
+            meter.charge(
+                arguments
+                    .len()
+                    .saturating_add(life.bindings.len())
+                    .saturating_add(life.classes.len()),
+                Some(instruction.span),
+            )?;
+            for row in &life.bindings {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            for row in &life.classes {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            if life.to_flat(arguments.len().saturating_sub(1)).is_none() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "rich CT5 borrowed signature construction is not yet implemented",
+                    Some(instruction.span),
+                )]);
+            }
+        }
+    }
+
     preflight(&raw, limits)?;
+    check_ambient_metadata(&raw, limits, authority, meter)?;
+    check_type_metadata(&raw, limits, meter)?;
+    for instruction in raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+    {
+        if matches!(
+            instruction.kind,
+            CtInstructionKind::TypeConstruct {
+                constructor: CtTypeConstructor::BorrowedStorage { .. },
+                ..
+            }
+        ) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT4 stored type construction is not yet implemented",
+                Some(instruction.span),
+            )]);
+        }
+    }
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
@@ -161,9 +242,6 @@ pub fn verify_ct_artifact_metered(
                 "CT record schema is not an authenticated pure declaration",
             ));
         }
-        for ty in &schema.fields {
-            check_ty(ty, &raw, limits, meter)?;
-        }
     }
     for schema in &raw.enum_schemas {
         if schema.origin != CtSchemaOrigin::UserPure
@@ -174,12 +252,8 @@ pub fn verify_ct_artifact_metered(
                 "CT enum schema is not an authenticated pure declaration",
             ));
         }
-        for variant in &schema.variants {
-            for ty in variant {
-                check_ty(ty, &raw, limits, meter)?;
-            }
-        }
     }
+    identity::check_instances(&raw, limits, meter)?;
     for (index, function) in raw.functions.iter().enumerate() {
         if function.id.0 as usize != index {
             return Err(reject(
@@ -502,29 +576,72 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
     Ok(())
 }
 
+fn push_type_children<'a>(
+    stack: &mut Vec<(&'a CtTy, usize)>,
+    children: &'a [CtTy],
+    depth: usize,
+    visited: usize,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    if !children.is_empty()
+        && (depth >= limits.max_call_depth
+            || children.len()
+                > limits
+                    .max_nodes
+                    .saturating_sub(visited.saturating_add(stack.len())))
+    {
+        return Err(limit(None, "CT type pending shape exceeds quota"));
+    }
+    // Each child prepays its original node charge before the pending vector grows.
+    meter.charge(children.len(), None)?;
+    stack.extend(children.iter().map(|ty| (ty, depth + 1)));
+    Ok(())
+}
+
 fn check_ty(
     ty: &CtTy,
     raw: &CtArtifactProgram,
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
+    meter.charge(1, None)?;
     let mut stack = vec![(ty, 0usize)];
     let mut visited = 0usize;
     while let Some((item, depth)) = stack.pop() {
-        meter.charge(1, None)?;
         visited = visited.saturating_add(1);
         if depth > limits.max_call_depth || visited > limits.max_nodes {
             return Err(limit(None, "CT type shape budget exceeded"));
         }
         match item {
-            CtTy::Tuple(items) => stack.extend(items.iter().map(|t| (t, depth + 1))),
+            CtTy::AnonymousSum(members) => {
+                identity::check_members(members, raw, limits, meter)?;
+                push_type_children(&mut stack, members, depth, visited, limits, meter)?;
+            }
+            CtTy::Tuple(items) => {
+                push_type_children(&mut stack, items, depth, visited, limits, meter)?
+            }
             CtTy::Array { element, length } => {
                 if *length as usize > limits.max_nodes {
                     return Err(limit(None, "CT array length exceeds node quota"));
                 }
-                stack.push((element, depth + 1));
+                push_type_children(
+                    &mut stack,
+                    std::slice::from_ref(element.as_ref()),
+                    depth,
+                    visited,
+                    limits,
+                    meter,
+                )?;
             }
-            CtTy::List(element) => stack.push((element, depth + 1)),
+            CtTy::List(element) => push_type_children(
+                &mut stack,
+                std::slice::from_ref(element.as_ref()),
+                depth,
+                visited,
+                limits,
+                meter,
+            )?,
             CtTy::Record(id) if id.0 as usize >= raw.record_schemas.len() => {
                 return Err(reject(None, "CT record type ID is out of range"));
             }
@@ -532,6 +649,223 @@ fn check_ty(
                 return Err(reject(None, "CT enum type ID is out of range"));
             }
             _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn check_ambient_metadata(
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    authority: &impl CtArtifactAuthority,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    let count = raw.ambient_life_scopes.len();
+    if count > limits.max_nodes || count as u64 > raw.budget.max_generated_nodes {
+        return Err(limit(None, "CT ambient scope inventory exceeds quota"));
+    }
+    meter.charge(count.saturating_mul(8).saturating_add(1), None)?;
+    if count as u64 > raw.budget.max_temporary_bytes {
+        return Err(limit(None, "CT ambient inventory scratch exceeds quota"));
+    }
+    let mut seen = vec![false; count];
+    for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
+        meter.charge(
+            scope
+                .binder_site
+                .len()
+                .saturating_add(count)
+                .saturating_add(32),
+            None,
+        )?;
+        if !matches!(scope.instance, CtScopeInstance::Definition) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT5 full specialization scope validation is not yet implemented",
+                None,
+            )]);
+        }
+        if scope.binder_site.len() > limits.max_call_depth {
+            return Err(limit(None, "CT binder-site depth exceeds quota"));
+        }
+        for prior in &raw.ambient_life_scopes[..index] {
+            meter.charge(
+                prior
+                    .binder_site
+                    .len()
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+                None,
+            )?;
+            if prior == scope {
+                return Err(reject(None, "CT ambient scope is duplicated"));
+            }
+        }
+        let parameters = authority.scope_parameter_count(scope).ok_or_else(|| {
+            reject(
+                None,
+                "CT ambient scope is not an actual active source binder",
+            )
+        })?;
+        if parameters > limits.max_nodes {
+            return Err(limit(None, "CT ambient parameter inventory exceeds quota"));
+        }
+        meter.charge(
+            parameters.saturating_mul(
+                count
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+            ),
+            None,
+        )?;
+        let mut lifetime = false;
+        for ordinal in 0..parameters {
+            let kind = authority
+                .scope_parameter_kind(scope, ordinal)
+                .ok_or_else(|| {
+                    reject(None, "CT ambient source parameter inventory is incomplete")
+                })?;
+            lifetime |= kind == CtScopeParameterKind::Lifetime;
+        }
+        if !lifetime {
+            return Err(reject(None, "CT ambient scope has no lifetime parameter"));
+        }
+    }
+    fn graph(
+        graph: &CtTypeRef,
+        raw: &CtArtifactProgram,
+        authority: &impl CtArtifactAuthority,
+        meter: &mut CtVerificationMeter,
+        seen: &mut [bool],
+        next: &mut usize,
+    ) -> Check<()> {
+        meter.charge(graph.ambient_classes.len().saturating_mul(32), None)?;
+        let mut previous = None;
+        for row in &graph.ambient_classes {
+            let key = (row.owner, row.class);
+            if previous.is_some_and(|old| old >= key) {
+                return Err(reject(
+                    None,
+                    "CT ambient class mappings repeat or are not ordered",
+                ));
+            }
+            previous = Some(key);
+            let index = row.source.scope.0 as usize;
+            let scope = raw
+                .ambient_life_scopes
+                .get(index)
+                .ok_or_else(|| reject(None, "CT ambient scope reference is outside inventory"))?;
+            meter.charge(
+                raw.ambient_life_scopes
+                    .len()
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+                None,
+            )?;
+            if authority.scope_parameter_kind(scope, row.source.parameter as usize)
+                != Some(CtScopeParameterKind::Lifetime)
+            {
+                return Err(reject(
+                    None,
+                    "CT ambient reference does not name an actual lifetime ordinal",
+                ));
+            }
+            if !seen[index] {
+                if index != *next {
+                    return Err(reject(
+                        None,
+                        "CT ambient scope table is not in first actual use order",
+                    ));
+                }
+                seen[index] = true;
+                *next += 1;
+            }
+        }
+        Ok(())
+    }
+    let mut next = 0;
+    for (arguments, context) in raw
+        .record_schemas
+        .iter()
+        .map(|s| (&s.arguments, &s.life_context))
+        .chain(
+            raw.enum_schemas
+                .iter()
+                .map(|s| (&s.arguments, &s.life_context)),
+        )
+    {
+        meter.charge(arguments.len().saturating_add(1), None)?;
+        if let Some(context) = context {
+            graph(context, raw, authority, meter, &mut seen, &mut next)?;
+        }
+        for argument in arguments {
+            if let CtSchemaArgument::Type(value) = argument {
+                graph(value, raw, authority, meter, &mut seen, &mut next)?;
+            }
+        }
+    }
+    for template in &raw.templates {
+        meter.charge(template.syntax.nodes.len(), None)?;
+        for node in &template.syntax.nodes {
+            if let CtSyntaxNode::Token(CtToken {
+                name:
+                    Some(CtIdent {
+                        member_owner_type: Some(value),
+                        ..
+                    }),
+                ..
+            }) = node
+            {
+                graph(value, raw, authority, meter, &mut seen, &mut next)?;
+            }
+        }
+    }
+    if next != count {
+        return Err(reject(
+            None,
+            "CT ambient scope inventory contains unused rows",
+        ));
+    }
+    Ok(())
+}
+
+fn check_type_metadata(
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    for schema in &raw.record_schemas {
+        for ty in &schema.fields {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
+    }
+    for schema in &raw.enum_schemas {
+        for ty in schema.variants.iter().flatten() {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
+    }
+    identity::check_argument_graphs(raw, limits, meter)?;
+    for function in &raw.functions {
+        check_ty(&function.result_type, raw, limits, meter)?;
+        for ty in function
+            .parameter_types
+            .iter()
+            .chain(&function.locals)
+            .chain(&function.values)
+        {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::MakeAnonymousSum { members, .. } = &instruction.kind {
+                identity::check_members(members, raw, limits, meter)?;
+                for member in members {
+                    check_ty(member, raw, limits, meter)?;
+                }
+            }
         }
     }
     Ok(())
@@ -603,7 +937,7 @@ fn predecessors(function: &CtFunction) -> Check<Vec<Vec<usize>>> {
 fn check_function(
     raw: &CtArtifactProgram,
     function: &CtFunction,
-    limits: &Limits,
+    _limits: &Limits,
     authority: &impl CtArtifactAuthority,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
@@ -621,15 +955,6 @@ fn check_function(
                 "CT parameter local is missing or has wrong type",
             ));
         }
-    }
-    check_ty(&function.result_type, raw, limits, meter)?;
-    for ty in function
-        .parameter_types
-        .iter()
-        .chain(&function.locals)
-        .chain(&function.values)
-    {
-        check_ty(ty, raw, limits, meter)?;
     }
     let preds = predecessors(function)?;
     let blocks = function.blocks.len();
@@ -874,6 +1199,7 @@ fn check_locals(
 fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
     match kind {
         CtInstructionKind::Store { value, .. }
+        | CtInstructionKind::MakeAnonymousSum { payload: value, .. }
         | CtInstructionKind::ConvertInteger { value, .. }
         | CtInstructionKind::ConvertNumber { value, .. }
         | CtInstructionKind::Length(value)
@@ -1131,6 +1457,20 @@ fn check_instruction(
             }
             CtTy::Enum(*schema)
         }
+        K::MakeAnonymousSum {
+            members,
+            active,
+            payload,
+        } => {
+            let member = members
+                .get(*active as usize)
+                .ok_or_else(|| reject(span, "CT anonymous active member is out of range"))?;
+            expect(
+                member == value(*payload)?,
+                "CT anonymous payload type differs from active member",
+            )?;
+            CtTy::AnonymousSum(members.clone())
+        }
         K::Length(id) => {
             expect(
                 matches!(
@@ -1143,7 +1483,7 @@ fn check_instruction(
         }
         K::VariantTag(id) => {
             expect(
-                matches!(value(*id)?, CtTy::Enum(_)),
+                matches!(value(*id)?, CtTy::Enum(_) | CtTy::AnonymousSum(_)),
                 "CT variant tag needs enum",
             )?;
             CtTy::Scalar(CtScalarTy::I32)
@@ -1153,15 +1493,25 @@ fn check_instruction(
             variant,
             field,
         } => {
-            let CtTy::Enum(schema) = value(*input)? else {
-                return Err(reject(span, "CT variant projection needs enum"));
-            };
-            raw.enum_schemas
-                .get(schema.0 as usize)
-                .and_then(|s| s.variants.get(*variant as usize))
-                .and_then(|v| v.get(*field as usize))
-                .cloned()
-                .ok_or_else(|| reject(span, "CT variant field is out of range"))?
+            match value(*input)? {
+                CtTy::Enum(schema) => raw
+                    .enum_schemas
+                    .get(schema.0 as usize)
+                    .and_then(|s| s.variants.get(*variant as usize))
+                    .and_then(|v| v.get(*field as usize))
+                    .cloned()
+                    .ok_or_else(|| reject(span, "CT variant field is out of range"))?,
+                CtTy::AnonymousSum(members) if *field == 0 => members
+                    .get(*variant as usize)
+                    .cloned()
+                    .ok_or_else(|| reject(span, "CT anonymous member is out of range"))?,
+                _ => {
+                    return Err(reject(
+                        span,
+                        "CT variant projection needs a valid enum or sum field",
+                    ));
+                }
+            }
         }
         K::Extract { aggregate, index } => {
             expect(
@@ -1313,6 +1663,11 @@ fn check_instruction(
                             .all(|id| value(*id).ok() == Some(&CtTy::Type))
                 }
                 T::BorrowedFunctionPointer { life } => {
+                    let life =
+                        life.to_flat(arguments.len().saturating_sub(1))
+                            .ok_or_else(|| {
+                                reject(span, "rich borrowed constructor was not admitted")
+                            })?;
                     let mut dense = 0;
                     let canonical = life.parameter_lives.iter().flatten().all(|tag| {
                         if *tag > dense || *tag >= life.binder_count {
@@ -1599,6 +1954,7 @@ mod tests {
     fn raw() -> CtArtifactProgram {
         let span = Span::default();
         CtArtifactProgram {
+            ambient_life_scopes: Vec::new(),
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
@@ -1820,7 +2176,9 @@ mod tests {
     fn rejects_query_descriptor_forgery_through_record() {
         let mut p = raw();
         p.record_schemas.push(CtRecordSchema {
+            life_context: None,
             name: symbol(),
+            arguments: Vec::new(),
             fields: vec![CtTy::Type],
             origin: CtSchemaOrigin::BuiltinQuery,
         });

@@ -41,9 +41,12 @@ fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
         return Ok(vec![]);
     }
     let mut slots = Vec::new();
+    // Nominal applications retain lifetime actuals at their full ordinals.
+    // Ordinary function instantiation currently elides its life-only formals.
+    let function = matches!(item.kind, ItemKind::Function(_) | ItemKind::Extern { .. });
     for parameter in parameters {
         budget.node(parameter.span, 0)?;
-        if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+        if !function || !matches!(parameter.kind, GenericParamKind::Lifetime) {
             slots.push(matches!(parameter.kind, GenericParamKind::Const(_)));
         }
     }
@@ -250,6 +253,7 @@ fn declaration(item: &Item) -> Option<(&str, bool, bool)> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn specialize(
     sources: &[SourceUnit],
     modules: &[&Module],
@@ -257,7 +261,17 @@ pub(super) fn specialize(
     limits: &Limits,
     products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits, products).map_err(|e| vec![e])
+    specialize_with_context(sources, modules, imports, limits, products, None)
+}
+pub(super) fn specialize_with_context(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(sources, modules, imports, limits, products, context).map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
@@ -265,6 +279,7 @@ fn normalize(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
     products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
@@ -292,9 +307,35 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
-    let mut origins = budget
-        .has_generic_methods()
+    let mut origins = (budget.has_generic_methods() || budget.needs_source_identity())
         .then(generics::origins::Origins::default);
+    if budget.needs_source_identity()
+        && let Some(context) = context
+    {
+        let resolved = context.resolve(sources, &mut budget)?;
+        for module in modules {
+            let mut snapshot = generics::origins::Origins::single(module, false, &mut budget)?;
+            snapshot.capture_identities(module, false, &resolved, &mut budget)?;
+            let output = origins.as_mut().expect("dyn provenance ledger");
+            for (key, identity) in snapshot.identities {
+                for _ in 0..output
+                    .identities
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                {
+                    budget.node(module.span, 0)?;
+                }
+                if output.identities.insert(key, identity).is_some() {
+                    return Err(error(
+                        "E-SOURCE-IDENTITY",
+                        module.span,
+                        "duplicate source declaration context",
+                    ));
+                }
+            }
+        }
+    }
     let mut index = Index {
         symbols: BTreeMap::new(),
         imports: BTreeMap::new(),
@@ -404,7 +445,9 @@ fn normalize(
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
                 || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())));
     }
-    has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
+    has_trait_instances |= budget.has_enum_profiles()
+        || budget.has_primitive_binders()
+        || budget.needs_source_identity();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
@@ -496,6 +539,25 @@ fn normalize(
         } else {
             files[&item.span.file]
         };
+        if let Some(origins) = &mut products.origins
+            && !origins.identities.is_empty()
+        {
+            let origin = origins.get(ordinal, item.span)?;
+            for _ in 0..origins
+                .modules
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+            {
+                budget.node(item.span, 0)?;
+            }
+            budget.node(item.span, 0)?;
+            origins
+                .modules
+                .entry(output[position].0.id)
+                .or_default()
+                .push(origin);
+        }
         output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
@@ -534,6 +596,9 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
+    products
+        .storage
+        .restore_functions(&functions, &mut budget)?;
     if has_trait_instances {
         products.allowance = Some(budget.remaining_limits());
     }
@@ -689,8 +754,17 @@ impl Visitor<'_, '_, '_> {
     }
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
+        if let TypeKind::Dyn { bindings, .. } = &ty.kind
+            && !bindings.is_empty()
+        {
+            return Err(Diagnostic::unsupported(
+                Phase::Expand,
+                "dyn binding module consumer is not yet implemented",
+                Some(ty.span),
+            ));
+        }
         match &mut ty.kind {
-            TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+            TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
                     if matches!(self.mode, Mode::Binders { .. }) {
                         path[0] = name;
@@ -744,6 +818,7 @@ impl Visitor<'_, '_, '_> {
     }
     fn arg(&mut self, arg: &mut GenericArg, types: &Names, values: &Names, depth: usize) -> R<()> {
         match arg {
+            GenericArg::Lifetime(name) => self.budget.text(name, Span::default()),
             GenericArg::Type(t) => self.ty(t, types, depth),
             GenericArg::Const(e) => self.expr(e, types, values, depth),
         }
@@ -762,6 +837,7 @@ impl Visitor<'_, '_, '_> {
                 false
             } else {
                 let span = match argument {
+                    GenericArg::Lifetime(_) => Span::default(),
                     GenericArg::Type(t) => t.span,
                     GenericArg::Const(e) => e.span,
                 };
@@ -1013,7 +1089,7 @@ impl Visitor<'_, '_, '_> {
                     self.pattern(p, types, values, depth + 1)?;
                 }
             }
-            PatternKind::Reference { pattern, .. } => {
+            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(pattern, types, values, depth + 1)?
             }
             PatternKind::Constructor { path, arguments } => {
@@ -1159,6 +1235,16 @@ impl Visitor<'_, '_, '_> {
     }
     fn expr(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
         self.budget.node(e.span, depth)?;
+        if self.expr_name(e, types, values, depth)? {
+            return Ok(());
+        }
+        self.expr_children(e, types, values, depth)
+    }
+
+    // Syntax reconstruction has no recursive expression edge. Keep its owned
+    // temporary storage out of every recursive child's native stack frame.
+    #[inline(never)]
+    fn expr_name(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<bool> {
         // Self in a default denotes its defining nominal, unless a lexical
         // value binder shadows that expression name. Reuse this visitor's
         // existing scoped name sets; do not rewrite arbitrary Self.x values.
@@ -1168,7 +1254,7 @@ impl Visitor<'_, '_, '_> {
         {
             self.budget.text(nominal, e.span)?;
             e.kind = ExprKind::Name(nominal.clone());
-            return Ok(());
+            return Ok(true);
         }
         // Lookup paths are transient borrowed names, not new syntax. Restore
         // cannot normalize a symbol; its separate canonical-name lookup below
@@ -1198,7 +1284,7 @@ impl Visitor<'_, '_, '_> {
         };
         if let Some(name) = normalized {
             e.kind = ExprKind::Name(name);
-            return Ok(());
+            return Ok(true);
         }
         if let (Mode::Restore { functions, edges }, ExprKind::Name(name)) =
             (&mut self.mode, &e.kind)
@@ -1229,111 +1315,217 @@ impl Visitor<'_, '_, '_> {
                     member: MemberName::Name(local.clone()),
                 }
             };
-            return Ok(());
+            return Ok(true);
         }
+        Ok(false)
+    }
+
+    #[inline(never)]
+    fn expr_children(
+        &mut self,
+        e: &mut Expr,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
         match &mut e.kind {
+            ExprKind::Ascribed { .. } => self.expr_ascribed(e, types, values, depth),
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)
-            | ExprKind::Unary { operand: x, .. } => self.expr(x, types, values, depth + 1)?,
+            | ExprKind::Unary { operand: x, .. } => self.expr(x, types, values, depth + 1),
             ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
-                for x in xs {
-                    self.expr(x, types, values, depth + 1)?;
-                }
+                self.expr_list(xs, types, values, depth + 1)
             }
             ExprKind::Binary { left, right, .. } => {
-                self.expr(left, types, values, depth + 1)?;
-                self.expr(right, types, values, depth + 1)?;
+                self.expr_pair(left, right, types, values, depth + 1)
             }
             ExprKind::Pipeline { input, target } => {
-                self.expr(input, types, values, depth + 1)?;
-                self.expr(target, types, values, depth + 1)?;
+                self.expr_pair(input, target, types, values, depth + 1)
             }
-            ExprKind::Member { object, member } => {
-                if let MemberName::Constrained { owner, .. } = member {
-                    self.ty(owner, types, depth + 1)?;
-                }
-                self.binder_namespace(object, types, values, depth + 1)?;
-                self.expr(object, types, values, depth + 1)?;
-            }
-            ExprKind::TypeApply { callee, arguments } => {
-                self.expr(callee, types, values, depth + 1)?;
-                for (position, arg) in arguments.iter_mut().enumerate() {
-                    let target = if let ExprKind::Name(name) = &callee.kind {
-                        Some(name.as_str())
-                    } else {
-                        None
-                    };
-                    self.const_arg(arg, target, position, types, values, depth + 1)?;
-                }
-            }
-            ExprKind::Call { callee, arguments } => {
-                self.expr(callee, types, values, depth + 1)?;
-                for arg in arguments {
-                    self.expr(&mut arg.value, types, values, depth + 1)?;
-                }
-            }
+            ExprKind::Member { .. } => self.expr_member(e, types, values, depth),
+            ExprKind::TypeApply { .. } => self.expr_type_apply(e, types, values, depth),
+            ExprKind::Call { .. } => self.expr_call(e, types, values, depth),
             ExprKind::Index { object, index } => {
-                self.expr(object, types, values, depth + 1)?;
-                self.expr(index, types, values, depth + 1)?;
+                self.expr_pair(object, index, types, values, depth + 1)
             }
-            ExprKind::Slice { object, start, end } => {
-                self.expr(object, types, values, depth + 1)?;
-                for x in [start, end].into_iter().flatten() {
-                    self.expr(x, types, values, depth + 1)?;
-                }
-            }
-            ExprKind::Record { ty, base, fields } => {
-                if let Some(t) = ty {
-                    self.binder_namespace(t, types, values, depth + 1)?;
-                    self.expr(t, types, values, depth + 1)?;
-                }
-                if let Some(b) = base {
-                    self.expr(b, types, values, depth + 1)?;
-                }
-                for f in fields {
-                    if let Some(x) = &mut f.value {
-                        self.expr(x, types, values, depth + 1)?;
-                    } else if let Some(name) =
-                        self.symbol(std::slice::from_ref(&f.name), types, values, f.span, false)?
-                    {
-                        f.value = Some(Expr {
-                            kind: ExprKind::Name(name),
-                            span: f.span,
-                        });
-                    }
-                }
-            }
-            ExprKind::Closure {
-                params,
-                return_type,
-                body,
-                ..
-            } => {
-                let mut scope = self.names(values, e.span)?;
-                for p in params {
-                    if let Some(t) = &mut p.ty {
-                        self.ty(t, types, depth + 1)?;
-                    }
-                    scope.insert(p.name.clone());
-                }
-                if let Some(t) = return_type {
-                    self.ty(t, types, depth + 1)?;
-                }
-                self.arrow(body, types, &scope, depth + 1)?;
-            }
-            ExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                self.expr(condition, types, values, depth + 1)?;
-                self.expr(then_value, types, values, depth + 1)?;
-                self.expr(else_value, types, values, depth + 1)?;
-            }
-            ExprKind::MetaBlock(b) => self.block(b, types, values, depth + 1)?,
-            _ => {}
+            ExprKind::Slice { .. } => self.expr_slice(e, types, values, depth),
+            ExprKind::Record { .. } => self.expr_record(e, types, values, depth),
+            ExprKind::Closure { .. } => self.expr_closure(e, types, values, depth),
+            ExprKind::If { .. } => self.expr_if(e, types, values, depth),
+            ExprKind::MetaBlock(b) => self.block(b, types, values, depth + 1),
+            _ => Ok(()),
         }
+    }
+
+    #[inline(never)]
+    fn expr_pair(
+        &mut self,
+        first: &mut Expr,
+        second: &mut Expr,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        self.expr(first, types, values, depth)?;
+        self.expr(second, types, values, depth)
+    }
+
+    #[inline(never)]
+    fn expr_list(
+        &mut self,
+        expressions: &mut [Expr],
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        for expression in expressions {
+            self.expr(expression, types, values, depth)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_ascribed(
+        &mut self,
+        e: &mut Expr,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        let ExprKind::Ascribed { ty, value } = &mut e.kind else {
+            unreachable!("Ascribed dispatcher")
+        };
+        self.ty(ty, types, depth + 1)?;
+        self.expr(value, types, values, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_member(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::Member { object, member } = &mut e.kind else {
+            unreachable!("Member dispatcher")
+        };
+        if let MemberName::Constrained { owner, .. } = member {
+            self.ty(owner, types, depth + 1)?;
+        }
+        self.binder_namespace(object, types, values, depth + 1)?;
+        self.expr(object, types, values, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_call(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::Call { callee, arguments } = &mut e.kind else {
+            unreachable!("Call dispatcher")
+        };
+        self.expr(callee, types, values, depth + 1)?;
+        for arg in arguments {
+            self.expr(&mut arg.value, types, values, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_slice(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::Slice { object, start, end } = &mut e.kind else {
+            unreachable!("Slice dispatcher")
+        };
+        self.expr(object, types, values, depth + 1)?;
+        for x in [start, end].into_iter().flatten() {
+            self.expr(x, types, values, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_if(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &mut e.kind
+        else {
+            unreachable!("If dispatcher")
+        };
+        self.expr(condition, types, values, depth + 1)?;
+        self.expr(then_value, types, values, depth + 1)?;
+        self.expr(else_value, types, values, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_type_apply(
+        &mut self,
+        e: &mut Expr,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        let ExprKind::TypeApply { callee, arguments } = &mut e.kind else {
+            unreachable!("TypeApply dispatcher")
+        };
+
+        self.expr(callee, types, values, depth + 1)?;
+        for (position, arg) in arguments.iter_mut().enumerate() {
+            let target = if let ExprKind::Name(name) = &callee.kind {
+                Some(name.as_str())
+            } else {
+                None
+            };
+            self.const_arg(arg, target, position, types, values, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_record(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::Record { ty, base, fields } = &mut e.kind else {
+            unreachable!("Record dispatcher")
+        };
+
+        if let Some(t) = ty {
+            self.binder_namespace(t, types, values, depth + 1)?;
+            self.expr(t, types, values, depth + 1)?;
+        }
+        if let Some(b) = base {
+            self.expr(b, types, values, depth + 1)?;
+        }
+        for f in fields {
+            if let Some(x) = &mut f.value {
+                self.expr(x, types, values, depth + 1)?;
+            } else if let Some(name) =
+                self.symbol(std::slice::from_ref(&f.name), types, values, f.span, false)?
+            {
+                f.value = Some(Expr {
+                    kind: ExprKind::Name(name),
+                    span: f.span,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_closure(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
+        let ExprKind::Closure {
+            params,
+            return_type,
+            body,
+            ..
+        } = &mut e.kind
+        else {
+            unreachable!("Closure dispatcher")
+        };
+
+        let mut scope = self.names(values, e.span)?;
+        for p in params {
+            if let Some(t) = &mut p.ty {
+                self.ty(t, types, depth + 1)?;
+            }
+            scope.insert(p.name.clone());
+        }
+        if let Some(t) = return_type {
+            self.ty(t, types, depth + 1)?;
+        }
+        self.arrow(body, types, &scope, depth + 1)?;
         Ok(())
     }
 }

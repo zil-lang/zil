@@ -24,6 +24,7 @@ fn ins(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
@@ -92,6 +93,7 @@ fn fixture(element: Type, environments: usize) -> TypedModule {
         let mut body = function(index as u32 + 1);
         body.environment = Some(id);
         closures.push(ClosureDefinition {
+            storage_life: None,
             id,
             function: body.id,
             captures: vec![],
@@ -103,6 +105,11 @@ fn fixture(element: Type, environments: usize) -> TypedModule {
         functions.push(body);
     }
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw callback Store boundary"),

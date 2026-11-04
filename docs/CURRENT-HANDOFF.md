@@ -1,6 +1,6 @@
 # 当前接续：2026-11-04 root37共同基线与后继终态施工
 
-权威主树/worktree为Git实时定位的main（当前/workspace/zil）。已验证生产88589bca7及受测e47c4b688：默认4372/0、参考4261/0、各422组零忽略/过滤，双Clippy、text68，发布版消费者16构建/128执行/56真实分配失败。原大数组O0和默认2MiB栈崩溃已修并独立重放；方法替换错派发原exit4现exit0。精确范围见[当前共同验收](validation/terminal-root37-integration-20261104.json)，PR33/远端main实时核查，不以旧段覆盖。
+权威主树/worktree为Git实时定位的main（当前/workspace/zil）。已验证生产88589bca7及受测e47c4b688：默认4372/0、参考4261/0、各422组零忽略/过滤，双Clippy、text68，发布版消费者16构建/128执行/56真实分配失败。原大数组O0和默认2MiB栈崩溃已修并独立重放；方法替换错派发原exit4现exit0。精确范围见[当前共同验收](validation/terminal-root37-integration-20261104.json)，PR33已合入远端main 4bc1d77b5并逐完整Git树核对，不以旧段覆盖。
 
 六代理继续340–345主任务，源码与WIP在task/language-terminal-20261104、task/340–345及backup/wip-20261104-*逐SHA备份。未完成项见[当前缺口](LANGUAGE-REMAINING.md)。新CI仍因支付/额度未启动；原生Windows、完整语言/B0/ZUI及Rust产品门未完成。旧301–312缺失源码未恢复，legacy Fail不追认为Pass；current handoff只证明当前元数据一致。
 

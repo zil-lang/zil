@@ -97,6 +97,7 @@ fn closed(
             budget.spend(1)?;
             match t {
                 Type::Address { .. }
+                | Type::Dyn { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)
@@ -107,11 +108,18 @@ fn closed(
                         "ClosedEnvironment contains an external loan or unresolved position",
                     ));
                 }
+                Type::Task { .. } => {
+                    return Err(error(
+                        span,
+                        "a task result type does not prove its hidden frame ClosedEnvironment",
+                    ));
+                }
                 Type::Closure(id) => {
                     budget.spend(1)?;
                     closure_queue.push(*id)
                 }
-                Type::Managed(p)
+                Type::BorrowedStorage { storage: p, .. }
+                | Type::Managed(p)
                 | Type::Opaque { hidden: p, .. }
                 | Type::OwnedStore { element: p }
                 | Type::Registration { environment: p }

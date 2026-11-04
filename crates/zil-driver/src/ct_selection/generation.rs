@@ -79,12 +79,18 @@ impl materialize::Materializer<'_, '_> {
             )]
         })?;
         let query = CoreModule {
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 id: next,

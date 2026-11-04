@@ -1,6 +1,7 @@
 //! Exclusive authority is reconstructed from executable CFG operations. The
 //! public Hold candidate describes origins only and cannot manufacture a loan.
 use super::buffer_effects::Apart;
+mod replacement_pins;
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -31,6 +32,7 @@ struct Flow {
     parents: Vec<Loans>,
     mutable: Vec<bool>,
     environment: Vec<bool>,
+    narrowed_lending: Vec<bool>,
     heads: Vec<bool>,
     roots: Vec<Roots>,
 }
@@ -109,6 +111,12 @@ fn reconstruct(
         parents: vec![Loans::new(); count],
         mutable: vec![false; count],
         environment: vec![false; count],
+        narrowed_lending: if budget.owning_address_captures {
+            budget.spend(count)?;
+            vec![false; count]
+        } else {
+            vec![]
+        },
         heads: if budget.head_descriptions {
             budget.spend(count)?;
             vec![false; count]
@@ -231,7 +239,8 @@ fn reconstruct(
                             {
                                 row.insert(id);
                             }
-                            InstructionKind::BorrowVariantAddress { address, .. } => {
+                            InstructionKind::BorrowVariantAddress { address, .. }
+                            | InstructionKind::BorrowPlaceAddress { address, .. } => {
                                 row.insert(id);
                                 join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
@@ -303,11 +312,44 @@ fn reconstruct(
                                     }
                                 }
                             }
-                            InstructionKind::CallClosureShared { .. }
-                            | InstructionKind::CallClosureMut { .. }
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
                             {
                                 row.insert(id);
+                                let Type::Closure(closure) = f.locals[callee.0 as usize].ty else {
+                                    return Err(reject(
+                                        "E-VERIFY-LENDING",
+                                        Some(instruction.span),
+                                        "lending local is not a closure",
+                                    ));
+                                };
+                                let definition =
+                                    closures::definition(module, closure, Some(instruction.span))?;
+                                budget.spend(definition.lending_captures.len())?;
+                                if definition.lending_captures.iter().any(|index| {
+                                    matches!(
+                                        definition.captures.get(*index as usize),
+                                        Some(Type::Address { .. })
+                                    )
+                                }) {
+                                    if !flow.narrowed_lending.is_empty() {
+                                        flow.narrowed_lending[id] = true;
+                                    }
+                                    lookup(budget, state.len())?;
+                                    if let Some(held) = state.get(callee) {
+                                        budget.spend(held.len())?;
+                                        for loan in held {
+                                            if overlaps(
+                                                &flow.roots[*loan],
+                                                &facts.values[id],
+                                                budget,
+                                            )? {
+                                                parents.insert(*loan);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             InstructionKind::CallClosureBorrowed { callee, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
@@ -386,7 +428,20 @@ fn active(
     budget.spend(active.len())?;
     let descendants = active.clone();
     for loan in descendants {
-        join(&mut active, &flow.parents[loan], budget)?;
+        let narrowed = if flow.narrowed_lending.is_empty() {
+            false
+        } else {
+            budget.spend(flow.parents[loan].len().saturating_add(1))?;
+            flow.narrowed_lending[loan]
+                || flow.parents[loan]
+                    .iter()
+                    .any(|parent| flow.narrowed_lending[*parent])
+        };
+        // Actual child roots retain lifetime; dead intermediate external
+        // capture windows are provenance, not separately live access views.
+        if !narrowed {
+            join(&mut active, &flow.parents[loan], budget)?;
+        }
     }
     Ok(active)
 }
@@ -781,6 +836,8 @@ pub(super) fn check(
     {
         return Ok(Apart::new());
     }
+    let replacements = replacement_schedule(module, f, graph, budget)?;
+    let schedule = replacements.as_ref().map(|(_, s)| s);
     let apart = RefCell::new(Apart::new());
     let apart_ref = capture.is_some().then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
@@ -806,9 +863,10 @@ pub(super) fn check(
             }
             live_out[b].clone_from(&live);
             term_use(&mut live, &f.blocks[b].terminator);
-            for instruction in f.blocks[b].instructions.iter().rev() {
+            for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
                 reverse(&mut live, instruction, v);
+                retain_replacement_values(&mut live, schedule, b, position, budget)?;
             }
             if live != live_in[b] {
                 live_in[b] = live;
@@ -830,12 +888,22 @@ pub(super) fn check(
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
             reverse(&mut live, instruction, v);
+            retain_replacement_values(&mut live, schedule, b, i, budget)?;
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
         let mut capture_locals = if let Some(capture) = capture {
             captures::input_state(capture.facts, b, budget)?
         } else {
             captures::State::new()
+        };
+        let mut pins = if let Some(schedule) = schedule {
+            let row = schedule.entries[b]
+                .as_ref()
+                .ok_or_else(|| limit("replacement pin entry absent"))?;
+            budget.spend(row.len())?;
+            row.clone()
+        } else {
+            BTreeSet::new()
         };
         for (i, instruction) in block.instructions.iter().enumerate() {
             let mut active = active(&flow, &locals, &after[i], v, budget)?;
@@ -889,6 +957,32 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
+            if let Some((inventory, _)) = &replacements {
+                replacement_pins::check(
+                    f,
+                    instruction,
+                    facts,
+                    &flow,
+                    &locals,
+                    &pins,
+                    inventory,
+                    &access,
+                    budget,
+                )?;
+                match instruction.kind {
+                    InstructionKind::ReservePlaceLocal { reservation, .. }
+                    | InstructionKind::ReservePlaceAddress { reservation, .. } => {
+                        budget.spend(pins.len().saturating_add(1))?;
+                        pins.insert(reservation);
+                    }
+                    InstructionKind::CommitPlaceReplace { reservation, .. }
+                    | InstructionKind::AbortPlaceReservation { reservation } => {
+                        budget.spend(pins.len().saturating_add(1))?;
+                        pins.remove(&reservation);
+                    }
+                    _ => {}
+                }
+            }
             if matches!(
                 instruction.kind,
                 InstructionKind::CallClosure { .. }
@@ -1076,6 +1170,24 @@ pub(super) fn check(
                 } => {
                     let root = super::roots::inline_field_root(f, *local, path, budget)?;
                     access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::PlaceTagAddress { address, path }
+                | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                    let header =
+                        matches!(instruction.kind, InstructionKind::PlaceTagAddress { .. });
+                    let write = matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowPlaceAddress { mutable: true, .. }
+                    );
+                    let roots = super::roots::mixed_address_roots(
+                        f,
+                        *address,
+                        path,
+                        header,
+                        &facts.values[address.0 as usize],
+                        budget,
+                    )?;
+                    access.check(&flow.values[address.0 as usize], &roots, write, budget)?;
                 }
                 InstructionKind::VariantTagAddress { address, path }
                 | InstructionKind::BorrowVariantAddress { address, path, .. } => {

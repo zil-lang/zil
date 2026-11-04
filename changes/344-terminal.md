@@ -167,6 +167,55 @@ it is not a transferable credit for a later key construction. Retain real
 long-common-prefix members nested inside generic/tuple/sum types and exact
 warm/fresh N/N-1 controls, alongside inherited float/UInt budget neighbors.
 
+### CT artifact value sums and nominal arguments (schema 3)
+
+Root publishes the schema3 contract separately from the reviewed Type-stage
+candidate. Add structural CtTy/CtValue AnonymousSum forms and exact injection
+with the existing CT tag/field consumers. Descriptors preserve every inactive
+member and select active payload by complete identity, never a schema-table ID
+or runtime-layout coincidence. Source inference defaults uncontextual literals
+normally; no numeric trial injection is introduced.
+
+Both nominal schema tables retain ordered Type and Scalar instance arguments,
+including phantom arguments. Source production binds the actual declaration and
+all arguments; independent CT admission checks well-formed pure arguments,
+acyclic identity graphs, canonical sums and unique full nominal instance keys.
+The execution/value validator checks the active descriptor and payload; each
+AST/runtime bridge reconstructs the full sum and maps by complete active member
+Type. Raw type/value metadata supplies no nominal, syntax or runtime authority.
+
+Schema/domain3 explicitly invalidates previous v2 artifacts and values. Preserve
+v2 frozen bytes as rejection controls rather than changing their contents or
+calling a header edit an authenticated migration. Charge constructor/schema
+argument walks, complete-key comparisons, every generated descriptor/copy and
+materialization on the passed request ledgers before allocation; generated AST
+still goes through ordinary Types/Analyze/Verify. Keep the completed Type-stage
+receipts separate from these initially incomplete value consumers.
+
+CT3 raw admission bounds all nested value-type metadata before calling frozen
+artifact authentication, whose equality comparison must not recurse through an
+unbounded candidate. Move the existing shape checks before authentication
+without duplicating their old node charges; newly represented schema arguments
+and anonymous descriptors add paid identity work. Full nominal keys include the
+symbol and every ordered Type/Scalar argument. Repeated full instances and
+identity cycles reject independently; lexicographic comparisons and key buffers
+are paid before copying or comparing. Ordinary zero-argument, non-sum shapes
+retain their existing shape-walk charges.
+
+The root corrected CT3 Type schema arguments to CtTypeRef, since a phantom
+ordinary fn pointer is legal metadata while its pointer value cannot execute in
+CT. Normalize every argument graph through the bounded constructor graph model;
+admission independently requires canonical postorder structure and full keys,
+including all signature and eventual BFP lifetime relations. New metadata-only
+bindings must remain separate from serializable CtTy data bindings. No pointer
+CT value, fake nominal schema, or free lifetime spelling becomes authority.
+
+A retained actual CT-source negative exposes another pending producer defect:
+Left.V matched by Right.V currently selects the variant by its final name. The
+source matcher must resolve the complete owner instance before selecting a tag;
+nearest Left.V and mismatched Right.V sources stay separate. This checkpoint
+contains raw VM/metadata consumers; the source Sum/value/reification bridge and
+phantom callable source positives are still unfinished.
 ## Integrated scalar, associated and borrowed-code identity
 
 The combined341/342/344 tree prepays complete anonymous-member keys for typed
@@ -229,3 +278,228 @@ These bounded shapes establish this regression fix, not a theorem for all input.
 ### CT3完整名义实参的公共元数据修正
 
 普通phantom函数指针参数可形成合法类型，但CtSchemaArgument::Type(CtTy)不能表达其完整身份。根集成方将尚未验收的CT3合同修正为Type(CtTypeRef)，复用同一规范有界TypeDAG；Scalar编码不变。实际CT字段和值继续只接受CtTy纯值，不生成运行时指针。两种元数据表示不并存，声明实例的全部有序参数、关系、图规范及来源须由独立核验证；当前生产CT2与历史v2字节不改写为新v3。344随后实现元数据绑定和可序列化值绑定的区分并保留phantom FP正反例。
+
+### CT3 source-value WIP checkpoint after root37 composition
+
+The retained `artifact-values.zil` now executes the verified CT artifact lane,
+reifies both active nominal members with the complete anonymous Sum type, and
+passes ordinary Verify plus Clang/LLVM API O0/O2 native execution with result42.
+Generated-only AST Ascribed nodes carry both the whole sum and each active
+payload's full type; they enter the ordinary Expand/Types/Analyze/Verify path.
+The source enum matcher independently resolves the complete owner instance:
+nearest Left.V passes and the retained wrong-owner Right.V candidate rejects
+E-CT-SOURCE. The exact two-test command and output are recorded in
+`/tmp/344-ct3-source-bridge-second.log`; this is a construction checkpoint, not
+acceptance of all CT3 source metadata. Phantom fn/BFP argument binding, complete
+visitor/accounting controls, and final composition replay remain unfinished.
+
+CT3 closed nominal production now stores complete canonical Type graphs in its
+instance cache and separates them from pure field-value types. Actual source
+controls retain phantom fn and higher-rank borrowed-fn arguments through CT
+execution and ordinary native compilation; the latter exposed and corrects a
+missing complete higher-rank generic key and Copy-code-pointer case. The key
+records the canonical joint invocation relation, preserving alpha equivalence
+and different input/result relationships. Its planner prepays binder-name
+lookup, remap storage and full output before allocation; old requests without
+higher-rank keys or anonymous sums retain their key fees. Signature addresses
+remain metadata, and physical CT pointer fields still reject.
+
+The next source checkpoint adds generic enum tuple/unit reification with full
+owner arguments and active payload mapping. Four CT3 aggregate tests pass with
+native controls (Sum42, phantom fn7, phantom borrowed-fn42, generic enum42),
+while the existing generic CT compiler target passes16 focused regressions.
+Source reification pays complete generated type and clone traversal, including
+const expressions; intermediate Type graphs release their own temporary charge.
+Generic CT function specialization of metadata-only arguments, scalar nominal
+arguments, and the final independent raw/budget/source review remain pending.
+
+### CT3 full metadata specialization checkpoint before common39
+
+Concrete generic CT functions now specialize/cache/queue complete canonical Type
+graphs, while their definition checks keep separate private symbolic Copy models.
+Explicit and inferred phantom fn/BFP arguments, returned Type values and an actual
+ordinary borrowed-pointer call retain the joint relation. Copy qualification of
+metadata visits genuine nominal definitions without constructing pointer fields
+or inventing schema IDs. Vacuous higher-rank metadata normalizes to plain code.
+Closed nominal arguments retain ordered Type/Scalar arguments and const array
+lengths. Closed alias targets normalize scalars in their declared domain before
+aliases disappear; record constructors transport the same typed const carriers.
+The newly paid scalar and graph normalization work is on the existing ledgers.
+
+Before frozen artifact cloning, a borrowed planner accounts recursive field/value
+types, complete schema arguments, function/instruction vectors, BFP arrays,
+template tokens/owner types, input tokens and their actual bytes. This replaces
+coarse clone estimates; its additional traversal and clone storage are new work,
+with no default quota increase. Reified intermediate graphs release their own
+charge, and generated AST/type copies remain paid through ordinary checking.
+
+The exact current targeted run is source9/0, including40 actual Clang/API O0/O2
+native executions across10 positive programs. A new distinct-nominal control
+forces CT declaration order versus runtime member order to differ, scores the
+branches differently, and also passes after source declaration reordering.
+Alpha/reordered life names pass; wrong result relation, free life, physical CT
+pointer data, wrong scalar domain/member and wrong enum owner reject. Existing
+CT generic16/0 retains exact fresh work/node/byte/instance/depth and cold/warm
+controls. This remains WIP: common39/CT4 scoped metadata identity and all consumers,
+owned Sum cleanup, final source budget/cache/default-stack composition and
+independent acceptance are not inferred from this checkpoint.
+
+### CT4 occurrence-scoped metadata construction
+
+The next private consumer resolves each lifetime owner against the actual
+enclosing binder occurrences, separately from physical postorder edges. A shared
+DAG child is checked on every occurrence; equal relative keys never authorize
+reusing a raw owner reference in a sibling scope. Normalization expands reachable
+occurrences, sorts complete anonymous members and jointly relocates every owner.
+Joint schema contexts must select the exact ordered nominal arguments and cannot
+be replaced by independent closed Type graphs. Fixed storage is not a fresh
+quantifier. The independent verifier reconstructs the same scoped identity without
+calling the producer's proof code. Compiler declaration rows without authentic
+origin inventory remain explicit Unsupported. All new traversal, paths, clones
+and comparisons consume the existing request balance before allocation.
+
+### CT4 authentic source lifetime handle checkpoint
+
+An expression query binds each used lifetime to its actual frozen definition and
+original full generic parameter ordinal. The private handle follows the verified
+schema/value context into AST reification; a string is only the final candidate
+spelling checked by the ordinary kernels. Nominal contexts retain all ordered
+TypeInContext/Lifetime actuals and their joint canonical class partition. A reused
+local context with a different authentic owner or source ordinal explicitly
+rejects: private handles do not bypass serialized duplicate identity checks.
+
+Direct materialization controls execute CT and preserve42 for original and alpha
+renamed source, including a Type binder before the lifetime; the full ordinal is
+retained. The real whole-source fixture currently reaches the explicit transformed
+declaration lineage boundary, to be composed with341's aligned original ledger.
+The rich borrowed-function fixture stays Unsupported until a shared successor
+contract represents its nested Fixed/Invocation relation. These are WIP source
+bindings, not acceptance of all CT4 scopes, physical borrowed CT values or native
+execution of the new fixture. Existing CT3 source9/40 native controls remain green.
+
+Registered scoped data can now pass through an actual generic CT Copy identity
+function without stripping the joint context or rebuilding individual lifetime
+arguments. Copy qualification resolves the already registered genuine schema,
+checks every physical data field recursively, rejects CT-only fields and finite
+layout cycles, and retains its authentic source binding. Mixed ordered
+Type/Const/Lifetime and two-class contexts have direct materialization controls.
+Fresh request-work neighbors cover the base5467, long-name15302 and generic6542
+paths, with no default increase. Whole-source/native claims await the separately
+owned phantom-only stored-target correction; the retained local-field escape
+negative must still reject after the valid zero-slot source passes.
+
+### CT4 bounded source milestone before40
+
+The exact source checkpoint now verifies three real scoped programs and executes
+Clang/LLVM API O0/O2 for each (12 actual results42): one phantom class, a joint
+two-class context and generic CT Copy forwarding. Source free-life, wrong joint
+relation and actual local-field address escape reject. The original phantom
+source's CT, lineage, Types, empty-physical-slot and transparent lowering failures
+remain recorded; the executable helper now selects its actual main entry.
+
+Default2MiB API subprocesses and whole-source warm/fresh N22056/29217 neighbors
+pass; direct materializer N5467/15302/6542 neighbors and the original large-copy
+N2520/raw-Wire/native4 and five-mode nested-depth stack regressions also pass.
+Complete source/toolchain/production/retained-executable bindings are recorded in
+344-ct4-source-milestone.json. The mixed const ordinary producer and rich BFP
+source remain explicitly pending; this milestone grants no general CT5 context,
+physical CT borrow, ownership cleanup, performance or product acceptance.
+
+
+### CT5 compile adapter checkpoint (not semantic acceptance)
+
+The frozen40/CT5 public graph and artifact representation now compile through
+Verify and CT after the rich runtime-kernel adapter is composed. Closed direct
+address signatures use a paid lossless projection and retain the existing local
+arity, canonical-label, mutable-result and grounding checks. Rich signatures and
+nonempty ambient mappings remain explicit Unsupported at evaluation boundaries;
+ordinary runtime hints pay and preserve all rich binding/class paths. Genuine
+new closed Type graphs initialize an empty ambient table; incoming nonempty
+maps are rejected before legacy transformations rather than erased.
+
+This checkpoint only unblocks composed builds. Full authenticated invocation
+context, rich CT graph validation, source capture/reification and actual VM
+backing-byte accounting remain work in progress. It does not replace the CT4
+source/native receipt or its later per-use owner-lookup accounting correction.
+
+The Driver CT compile adapter now also builds on the composed40 baseline.
+Compiler metadata, runtime source visitors, checked-type conversions, read-view
+comparison and program/value-context copies pay all rich binding/class paths.
+Returned value contexts retain the complete ambient inventory with its dynamic
+bytes. Closed new graphs initialize empty mappings; legacy assembly/compaction
+and reification explicitly reject contextual inputs until joint authenticated
+relocation is implemented. This is a compile checkpoint only. The retained
+CT4 source fixtures have not been attributed to this40 build, and no rich CT5
+signature/ambient/cache/native acceptance is claimed.
+### Mixed full nominal ordinal source completion
+
+341's ordinary source producer correction e90572dff (39 integration c4c4b44f1)
+now preserves the full life/type/const parameter positions. The retained mixed
+Phantom source reaches Verify and real Clang/API O0/O2 execution with stdout42;
+its const7-declaration/const8-construction neighbor rejects. The same actual
+source runs in the default worker and has whole-source analysis N26283,
+N−1 ResourceLimit, warm reuse and fresh exact-N controls. The existing base,
+joint and generic CT4 controls remain included: four source positives now give
+16 native profiles, and the invocation-scoped rich BFP fixture stays explicitly
+pending its different producer/consumer obligation. Historical e65 rejection
+and629 three-source accounting receipts remain tied to their original sources.
+No full CT5 semantic or language-terminal conclusion follows from this fix.
+
+### CT5 authentic Definition scope transport WIP
+
+Build the immutable invocation source witness before compiler attribution from
+341's actual captured original declaration rows. Top-level materialization and
+lexical scope lookup select the actual original ordinal, with spans used only to
+reject a diagnostic mismatch. Complete full-kind generic ordinals are retained.
+The producer serializes genuine Definition scope rows and per-Fixed-class ambient
+maps. Occurrence normalization relocates those maps with the complete owner
+subtree; the independent kernel checks authenticated Lifetime ordinals, mapping
+order/uniqueness, free-class coverage and first actual scope use. Value contexts
+retain this same witness and ambient table through ordinary source reification.
+
+The existing three phantom/joint/generic originals reached actual12 native
+profiles in the first WIP replay. This remains an unfinished checkpoint: its
+construction occurred during development and is not an exact frozen acceptance
+receipt. Rich callable, specialization/member/generated-scope admission,
+contextual key normalization, repeated/shared-span adversarial controls and
+actual VM frame/vector/deep-descriptor byte accounting remain under construction.
+
+### CT5 VM backing-byte correction WIP
+
+Reserve actual Option<CtValue>/u64 frame arrays, argument/operand/value vectors
+and call-stack capacity before allocation. Inline cells are charged once by their
+backing vector; owned dynamic buffers are counted recursively, including all
+three reflected-field owner/type graphs, names, rich relation paths, ambient
+maps, Syntax/token children and anonymous payload/type storage. Replacement
+clones prepay the new payload while the old clone is still live. Metadata
+projection and Type construction use the same complete dynamic sizes. Returned
+query receipts have their own reservation/release; request query backing remains
+live independently of frame values. Error paths release invocation-owned scratch.
+
+The historical scalar64-byte fixture is retained as an insufficient physical
+budget rather than presented as the new bound. Its existing N/N-1/fresh test now
+measures the actual frame peak. The raw fixture's private test allowance is16384;
+production defaults are unchanged. A new complete FieldInfo input has exact
+byte boundary57680, N-1 ResourceLimit and fresh N, with no residual frame or
+descriptor bytes after success/failure. A step-failure control also frees the
+actual frame arrays. The CT library passes56/0 and the three unchanged phantom
+sources again run12 native profiles. Full contextual keys, authenticated rich/
+specialization scopes and exact final source bindings remain subsequent work.
+
+### Resumed Definition-context candidate
+
+The interrupted source changes now retain contextual data keys through genuine
+Definition scopes, full mixed-kind parameter ordinals and original declaration
+identity. Source relocation and repeated function spans do not collapse owners;
+contextual field descriptors retain the nested owner graph. Frozen-source,
+symbol-key and later invocation failures release their owned temporary bytes.
+Ambient Type export, rich/member/instantiated scopes and complete actual-vector
+identity remain explicitly unsupported pending their producers and consumers.
+
+After the worker stopped on its service usage limit, root resumed the actual
+working tree. Six CT5 controls pass on the resumed tree, including actual-source
+raw/Wire mutations, independent Verify N3906/N−1/fresh, contextual descriptor
+N12688/N−1/fresh, shared-span source reification and scratch rollback. The new
+actual phantom-context meta.field/field_type query passes ordinary kernels and
+four Clang/LLVM API O0/O2 runs with output42. This is resumed author evidence,
+not independent acceptance or completion of all CT5 contracts.

@@ -23,11 +23,14 @@ pub(super) struct Budget {
     pub(super) helper_depth: usize,
     pub(super) shared_product_capture: bool,
     pub(super) address_capture: bool,
+    pub(super) owning_address_captures: bool,
+    pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
     pub(super) addressed_sums: bool,
+    pub(super) mixed_address_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -41,6 +44,7 @@ pub(super) struct Budget {
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
+    pub(super) stored_borrows: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -58,10 +62,13 @@ impl Budget {
             helper_depth: limits.max_call_depth,
             shared_product_capture: false,
             address_capture: false,
+            owning_address_captures: false,
+            replacement_functions: BTreeSet::new(),
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
             addressed_sums: false,
+            mixed_address_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -75,6 +82,7 @@ impl Budget {
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,
+            stored_borrows: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -141,7 +149,35 @@ impl Budget {
         // A mismatch can stop the comparison early; an equal declaration is
         // the upper bound. Arrays compare their length once, not per element.
         self.spend(2 + usize::from(copy_check), context)?;
+        super::tasks::require_closed_context(ty)?;
         match ty {
+            Type::Dyn { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "dyn type consumer is not yet implemented",
+                    None,
+                )]);
+            }
+            Type::BorrowedStorage { storage, life } => {
+                self.spend(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_add(1),
+                    context,
+                )?;
+                for row in &life.slots {
+                    self.spend(row.path.len(), context)?;
+                }
+                for row in &life.retained {
+                    self.spend(row.path.len(), context)?;
+                }
+                for row in &life.nominal_arguments {
+                    self.spend(row.path.len(), context)?;
+                }
+                self.type_work(storage, copy_check, context)?;
+            }
             Type::Tuple(fields) => {
                 for field in fields {
                     self.type_work(field, copy_check, context)?;
@@ -182,7 +218,7 @@ impl Budget {
                 parameters,
                 result,
             } => {
-                self.spend(super::borrowed_fp::work(life), context)?;
+                crate::signature_life::charge(life, self)?;
                 for parameter in parameters {
                     self.type_work(parameter, copy_check, context)?;
                 }
@@ -201,6 +237,10 @@ impl Budget {
             Type::Registration { environment } => {
                 self.registrations = true;
                 self.type_work(environment, copy_check, context)?;
+            }
+            Type::Task { result, .. } => {
+                self.tasks = true;
+                self.type_work(result, copy_check, context)?;
             }
             Type::TaskI32 => {
                 self.tasks = true;
@@ -276,6 +316,13 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
 }
 
 pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+    // Complete qualified shapes and exact inventory were checked during the
+    // bounded raw preflight. Actual stored permissions use their own CFG pass.
+    if matches!(ty, Type::BorrowedStorage { .. })
+        || matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))
+    {
+        return Ok(());
+    }
     if matches!(ty, Type::Address { inner, .. }
         if super::resources::product::nested(inner))
     {
@@ -332,7 +379,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
+            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -471,6 +518,22 @@ pub(super) fn preflight(
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
+    if !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "dyn table consumer is not yet implemented",
+            None,
+        )]);
+    }
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        super::stored_flow::inventory(module, limits, budget)?;
+        // The second walk pays identity encoding from this same ledger.
+        super::stored_flow::inventory(module, limits, budget)?;
+        budget.stored_borrows = true;
+    }
     count(0, module.functions.len(), limits.max_functions, "function")?;
     budget.input(1, "module preflight")?;
     if let Some(feature) = module.unsupported.first() {
@@ -556,7 +619,6 @@ pub(super) fn preflight(
         // no Store/Sum child; retain that exact profile and fee path.
         let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
             && store_element.is_none()
-            && capture_owner.is_none()
             && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
@@ -575,6 +637,7 @@ pub(super) fn preflight(
             first.take().or_else(|| pending.pop())
         {
             budget.input(1, "type shape")?;
+            super::tasks::require_closed_context(ty)?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
             }
@@ -645,6 +708,25 @@ pub(super) fn preflight(
                 _ => {}
             }
             match ty {
+                Type::BorrowedStorage { storage, .. } => {
+                    super::stored_flow::qualification(module, ty, limits, budget)?;
+                    budget.stored_borrows = true;
+                    pending.push((
+                        storage,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                        child,
+                    ));
+                }
+                Type::Dyn { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "dyn type consumer is not yet implemented",
+                        None,
+                    )]);
+                }
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
                     pending.push((
@@ -654,6 +736,19 @@ pub(super) fn preflight(
                         capture_owner,
                         resource_head,
                         child,
+                    ));
+                }
+                Type::Task {
+                    result: element, ..
+                } => {
+                    budget.input(1, "actual Task result metadata")?;
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element,
+                        None,
+                        false,
+                        SumContext::default(),
                     ));
                 }
                 Type::Slice { element } => {
@@ -771,10 +866,12 @@ pub(super) fn preflight(
                     life,
                 } => {
                     budget.borrowed_function_pointers = true;
-                    budget.input(
-                        super::borrowed_fp::work(life),
-                        "borrowed function pointer relation",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
+                    // Bound the complete raw signature before recursive eligibility.
+                    for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                        super::stored_flow::shape_work(ty, limits, budget)?;
+                    }
+                    super::borrowed_fp::signature_work(parameters, result, budget)?;
                     super::borrowed_fp::relation(parameters, result, life)?;
                     pending.push((result, depth + 1, store_element, None, false, child));
                     for parameter in parameters {
@@ -831,6 +928,13 @@ pub(super) fn preflight(
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
+        if closure.storage_life.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "stored-borrow closure contract consumer is not yet implemented",
+                None,
+            )]);
+        }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
             0,
@@ -839,6 +943,16 @@ pub(super) fn preflight(
             "closure lending capture",
         )?;
         budget.input(closure.lending_captures.len(), "closure lending metadata")?;
+        if closure
+            .lending_captures
+            .iter()
+            .any(|i| *i as usize >= closure.captures.len())
+            || closure.lending_captures.windows(2).any(|w| w[0] >= w[1])
+        {
+            return Err(bad(
+                "closure lending capture indices must be ordered, unique actual slots",
+            ));
+        }
         count(
             0,
             closure.parameters.len(),
@@ -894,6 +1008,23 @@ pub(super) fn preflight(
                 }
                 continue;
             }
+            if let Type::Address { inner, .. } = ty
+                && matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                )
+            {
+                super::resources::sums::admit(module, inner, budget)?;
+                if closure.kind == zil_ir::CallableKind::Fn
+                    && matches!(ty, Type::Address { mutable: true, .. })
+                {
+                    return Err(bad(
+                        "exclusive owning-base capture requires an exclusive environment entry",
+                    ));
+                }
+                budget.owning_address_captures = true;
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -930,6 +1061,17 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if budget.stored_borrows && super::stored_callables::finite(module, closure.id) {
+                let actual = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if matches!(actual, Type::BorrowedStorage { .. }) {
+                    super::stored_flow::qualification(module, actual, limits, budget)?;
+                    continue;
+                }
+            }
             if ty.is_shared_sync_cell_address() {
                 continue;
             }
@@ -976,6 +1118,10 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
+        if function.storage_life.is_some() {
+            super::stored_flow::header(function, budget)?;
+            budget.stored_borrows = true;
+        }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));
         }
@@ -1018,10 +1164,7 @@ pub(super) fn preflight(
             )?;
             for role in &contract.roles {
                 if let Some(life) = &role.life {
-                    budget.input(
-                        crate::borrowed_fp::work(life),
-                        "higher-rank callable metadata",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
                     budget.borrowed_function_pointers = true;
                     budget.invocation_callbacks = true;
                 }
@@ -1154,6 +1297,17 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "dyn instruction consumer is not yet implemented",
+                            Some(instruction.span),
+                        )]);
+                    }
+                    InstructionKind::LoadStoredBorrow { .. }
+                    | InstructionKind::StoreStoredBorrow { .. } => {
+                        super::stored_borrows::instruction(function, instruction, budget)?;
+                    }
                     InstructionKind::RegistrationStart {
                         register,
                         close,
@@ -1206,7 +1360,8 @@ pub(super) fn preflight(
                             return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
-                    InstructionKind::TaskStart { .. }
+                    InstructionKind::TaskCreate { .. }
+                    | InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskPoll { .. }
@@ -1214,7 +1369,12 @@ pub(super) fn preflight(
                     | InstructionKind::TaskPollClose { .. }
                     | InstructionKind::TaskFinishDestroy { .. } => {
                         budget.tasks = true;
-                        budget.input(3, "task ABI operands")?;
+                        budget.input(
+                            crate::resources::uses(&instruction.kind)
+                                .count()
+                                .saturating_add(3),
+                            "task ABI operands",
+                        )?;
                         for v in crate::resources::uses(&instruction.kind) {
                             if v.0 as usize >= function.values.len() {
                                 return Err(bad("task operand is outside actual table"));
@@ -1227,6 +1387,21 @@ pub(super) fn preflight(
                             || body.0 as usize >= function.values.len()
                         {
                             return Err(bad("sealed cell scope operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::SyncI32CompareExchange {
+                        address,
+                        expected,
+                        desired,
+                        ..
+                    } => {
+                        budget.input(6, "strong compare exchange operands and order pair")?;
+                        if [address, expected, desired]
+                            .iter()
+                            .any(|v| v.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("compare exchange operand outside actual value table"));
                         }
                         budget.scoped_threads = true;
                     }
@@ -1280,6 +1455,29 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::ReservePlaceLocal { .. }
+                    | InstructionKind::ReservePlaceAddress { .. }
+                    | InstructionKind::CommitPlaceReplace { .. }
+                    | InstructionKind::AbortPlaceReservation { .. } => {
+                        if let InstructionKind::ReservePlaceLocal { path, .. }
+                        | InstructionKind::ReservePlaceAddress { path, .. } = &instruction.kind
+                        {
+                            count(0, path.len(), limits.max_call_depth, "replacement path")?;
+                            budget.input(
+                                path.len().saturating_mul(12).saturating_add(1),
+                                "replacement preflight/hash path",
+                            )?;
+                        }
+                        budget.lookup(
+                            budget.replacement_functions.len(),
+                            "replacement function profile insertion",
+                        )?;
+                        budget.replacement_functions.insert(function.id);
+                        // Actual endpoint/activation, resource and pin passes
+                        // independently reconstruct these private consumers.
+                        // No producer ticket or claimed pointee grants access.
+                        budget.addressed_sums = true;
+                    }
                     InstructionKind::TakeTupleField { local, path }
                     | InstructionKind::TakeVariantField { local, path }
                     | InstructionKind::BorrowPlaceLocal { local, path, .. }
@@ -1298,6 +1496,28 @@ pub(super) fn preflight(
                             && !matches!(instruction.kind, InstructionKind::PlaceTagLocal { .. })
                         {
                             return Err(bad("mixed local path must be nonempty"));
+                        }
+                    }
+                    InstructionKind::BorrowPlaceAddress { address, path, .. }
+                    | InstructionKind::PlaceTagAddress { address, path } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        budget.mixed_address_sums = true;
+                        if address.0 as usize >= function.values.len() {
+                            return Err(bad("mixed actual address outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "mixed address path")?;
+                        budget.input(
+                            path.len().saturating_mul(3).saturating_add(1),
+                            "mixed address preflight",
+                        )?;
+                        if path.is_empty()
+                            && matches!(
+                                instruction.kind,
+                                InstructionKind::BorrowPlaceAddress { .. }
+                            )
+                        {
+                            return Err(bad("mixed address borrow path must be nonempty"));
                         }
                     }
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {

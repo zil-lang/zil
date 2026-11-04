@@ -12,6 +12,7 @@ mod address_sums;
 mod borrowed_fp;
 mod budget;
 mod callable_fields;
+mod class_flow;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -24,7 +25,9 @@ mod helpers;
 mod holds;
 mod incremental;
 mod lifetimes;
+mod mixed_address_sums;
 mod owned_callbacks;
+mod place_replacements;
 mod registration;
 #[cfg(test)]
 mod resource_tests;
@@ -32,6 +35,10 @@ mod resources;
 mod retained;
 mod scoped_thread;
 mod scopes;
+mod signature_life;
+mod stored_borrows;
+mod stored_callables;
+mod stored_flow;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
@@ -104,12 +111,30 @@ fn analyze_budgeted(
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
         address_sums::check(module, f, &reachable, limits, budget)?;
+        mixed_address_sums::check(module, f, &reachable, limits, budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,
             blocks,
             holds: Vec::new(),
         });
+    }
+    if budget.stored_borrows {
+        if !module.closures.is_empty() {
+            stored_callables::definitions(module, budget)?;
+            helpers::check(module, budget)?;
+        }
+        for f in &module.functions {
+            stored_flow::header(f, budget)?;
+        }
+        for (f, package) in module.functions.iter().zip(&package_functions) {
+            scopes::check(module, f, *package, budget)?;
+        }
+        let actual = stored_flow::infer(module, &hold_graphs, budget)?;
+        for (function, holds) in plan.functions.iter_mut().zip(actual) {
+            function.holds = holds;
+        }
+        return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
@@ -419,6 +444,11 @@ mod tests {
             span: s(),
         });
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             closures: vec![],
             schema_version: zil_base::SCHEMA_VERSION,
@@ -426,6 +456,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,

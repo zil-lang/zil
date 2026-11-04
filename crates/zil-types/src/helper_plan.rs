@@ -309,6 +309,22 @@ impl Walk<'_, '_> {
     fn pattern(&mut self, pattern: &CorePattern, shape: &Shape, depth: usize) -> R<()> {
         self.node(depth, pattern.span)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. } => {
+                self.pattern(pattern, &Shape::Unknown, depth + 1)?
+            }
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let shape = match shape {
+                    Shape::ErrorUnion { error, result } => {
+                        if *is_error {
+                            error.as_ref()
+                        } else {
+                            result.as_ref()
+                        }
+                    }
+                    _ => &Shape::Unknown,
+                };
+                self.pattern(pattern, shape, depth + 1)?;
+            }
             CorePatternKind::Name(name) => {
                 let copy = self.clone_shape(shape, pattern.span)?;
                 self.bind(name, copy, pattern.span)?;

@@ -287,4 +287,75 @@ checks. Full llvm-api targeted suites pass23+59; Clippy and Expand test build
 pass. Current request work/node boundaries: method69941/10121,
 no-outer9204/2667, type-growth15862/4038, const-growth16238/4034, with N-1,
 cold/warm/fresh/persisted controls and unchanged limits. This corrective
-checkpoint remains bounded and awaits independent exact review.
+checkpoint remains bounded. Independent exact review d556e0ece passes20/0,
+matches production/test/harness hashes and closes the earlier wrong-dispatch
+finding for e5b3e9ae6; combined root replay remains separate.
+
+The next dyn source catalog is explicitly WIP. See
+changes/341-dyn-interface-contract.md for the actual external public39 patch,
+raw transport checks and remaining ordinary/downstream consumers. Data-model
+or Unsupported results do not promote the pending dyn source to acceptance.
+
+The schema40 source successor will produce closed higher-rank code signatures
+from the actual stored-nominal catalogue. Original forall syntax and full
+lifetime actuals remain intact; a private scoped structural lookup selects a
+prepared complete signature during ordinary lowering. Direct address rows and
+qualified boundary class rows share one invocation binder traversal. The first
+profile admits life-only nominal actuals in closed forall signatures, with
+unknown/free enclosing classes and richer constructors explicitly rejected.
+Every repeated key, registry lookup, actual type copy and class comparison uses
+the request remainder. This does not add closure-definition relation authority;
+rich callable roles and nested free-Fixed signatures remain separate work.
+
+The closed rich Code source checkpoint now passes the complete targeted Expand
+unit suite (42/0). Explicit alias headers retain actual BorrowedStorage nominal
+types and common rich contracts: shared outer/Tag labels map to Invocation0,
+split labels map the Tag class to Invocation1, and alpha-renaming preserves the
+complete type. Two actual modules with same-spelled Tag/Code declarations emit
+distinct nominal identities and pointer types. Unused aliases are prepared and
+checked before removal; unknown/undeclared/wrong-kind/arity and nested unsupported
+signatures reject. A phantom Holder<Code> ordinary source also expands.
+
+Exact complete-source work boundaries are rich Code9703 and grouped const-domain
+5396, including N-1 ResourceLimit and repeated/fresh expansion. The latter
+retains twenty grouped domain nodes and covers the pre-normalization payment
+correction in9ca8164a5; the earlier mixed CT4/native receipt is not rewritten.
+Expand Clippy passes with dead_code allowed only for the already documented WIP
+provider/legacy wrapper warnings. The retained harness and exact component-sorted
+source hashes are recorded in docs/validation/terminal341-rich-code-source40.json.
+This is Source→Core evidence only. Composed Types, independent kernels, raw/Wire,
+CT invocation metadata and native Code execution remain separate validation; no
+closure/role authority, retained-root proof, performance or task completion claim
+is inferred. Safety/data identity and source usability have the limited evidence
+above; runtime/maintenance/compile-cost comparisons remain unmeasured.
+
+The grouped successor closes the reviewed composition seam: grouped Code aliases
+and ordinary record fields use the prepared complete signature, including its
+actual nominal/class rows. Containers without an adapter reject explicitly
+before a contextless flat fallback, including unused tuple/array aliases.
+An actual registered qualified nominal in a legacy forall header also rejects
+until its genuine Fixed context exists; this uses the actual catalogue, never
+a generated-name prefix. Cross-edit alpha controls now explicitly use the stable
+naming API and compare the nominal declaration inventories as well as raw types.
+Full Expand44/0 and targeted Clippy pass. Rich work is9712 (9703 belongs to38ca);
+grouped const5396 and stored common-prefix1636919 are unchanged. Exact executable/
+source binding is in terminal341-rich-code-grouped-source40.json. This remains
+Source→Core and raw-helper evidence; downstream execution and rich roles stay open.
+
+### Mixed life/callable Source checkpoint recovered after worker interruption
+
+Root preserved and resumed the actual uncommitted role producer after the
+worker's usage-limit stop. Declaration-local symbolic comparison retains full
+formal ordinals; each role invocation receives fresh role binders while actual
+declared input classes remain rigid. Unused split-class and same-class helper
+definitions are checked before specialization; the nearest wrong equality
+rejects. Actual invoke/apply source retains the separate helper outer &F row,
+input-grounded Fixed class, and role Invocation class relation in Core.
+Explicit enclosing stored closure annotations remain closed without a retained
+context. This does not install a role as a global closure-definition contract.
+
+Root replay: Expand46/0; Clippy with warnings denied passes with only the
+existing dead_code allowance. The initial interrupted candidate's single
+collapsible-if lint was corrected. Native composition and independent review
+are separate; the current sub-agent usage limit prevented new independent
+review of this checkpoint. All source remains in the backup/integration trees.

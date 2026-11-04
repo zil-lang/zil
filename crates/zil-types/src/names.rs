@@ -40,6 +40,10 @@ fn primitive_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u64"
+            | "usize"
+            | "f32"
+            | "f64"
             | "i32"
             | "i64"
             | "c_null"
@@ -215,6 +219,8 @@ impl Names<'_> {
     fn pattern(&mut self, p: &CorePattern, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
         match &p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) if primitive_name(name) => {
                 return Err(primitive_reserved(name, p.span));
             }
@@ -231,90 +237,147 @@ impl Names<'_> {
     fn expr(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
         match &e.kind {
-            CoreExprKind::ReceiverMember(_) if !receiver => {
-                return Err(error(
-                    "E-RECEIVER-NONE",
-                    e.span,
-                    "leading-dot member requires a lexical method receiver",
-                ));
-            }
+            CoreExprKind::ReceiverMember(_) if !receiver => Err(error(
+                "E-RECEIVER-NONE",
+                e.span,
+                "leading-dot member requires a lexical method receiver",
+            )),
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand)
             | CoreExprKind::IntegerConvert { value: operand, .. }
             | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. } => {
-                self.expr(operand, receiver, depth + 1)?
+                self.expr(operand, receiver, depth + 1)
             }
             CoreExprKind::Binary { left, right, .. } => {
-                self.expr(left, receiver, depth + 1)?;
-                self.expr(right, receiver, depth + 1)?;
+                self.expr_pair(left, right, receiver, depth + 1)
             }
-            CoreExprKind::Call { callee, arguments } => {
-                self.expr(callee, receiver, depth + 1)?;
-                for a in arguments {
-                    self.expr(a, receiver, depth + 1)?;
-                }
-            }
+            CoreExprKind::Call { .. } => self.expr_call(e, receiver, depth),
             CoreExprKind::Index { object, index } => {
-                self.expr(object, receiver, depth + 1)?;
-                self.expr(index, receiver, depth + 1)?;
+                self.expr_pair(object, index, receiver, depth + 1)
             }
-            CoreExprKind::Slice { object, start, end } => {
-                self.expr(object, receiver, depth + 1)?;
-                for endpoint in [start, end].into_iter().flatten() {
-                    self.expr(endpoint, receiver, depth + 1)?;
-                }
-            }
+            CoreExprKind::Slice { .. } => self.expr_slice(e, receiver, depth),
             CoreExprKind::Tuple(items) | CoreExprKind::Array(items) => {
-                for a in items {
-                    self.expr(a, receiver, depth + 1)?;
-                }
+                self.expr_list(items, receiver, depth + 1)
             }
-            CoreExprKind::Member { object, .. } => self.expr(object, receiver, depth + 1)?,
-            CoreExprKind::Record { fields, .. } => {
-                for (_, e) in fields {
-                    self.expr(e, receiver, depth + 1)?;
-                }
-            }
-            CoreExprKind::RecordUpdate { base, fields, .. } => {
-                self.expr(base, receiver, depth + 1)?;
-                for (_, e) in fields {
-                    self.expr(e, receiver, depth + 1)?;
-                }
-            }
-            CoreExprKind::Sequence { bindings, value } => {
-                for (name, e) in bindings {
-                    if primitive_name(name) {
-                        return Err(primitive_reserved(name, e.span));
-                    }
-                    self.expr(e, receiver, depth + 1)?;
-                }
-                self.expr(value, receiver, depth + 1)?;
-            }
-            CoreExprKind::Closure {
-                parameters, body, ..
-            } => {
-                if let Some(p) = parameters.iter().find(|p| primitive_name(&p.name)) {
-                    return Err(primitive_reserved(&p.name, p.span));
-                }
-                if let Some(p) = parameters.iter().find(|p| p.name == "self") {
-                    return Err(reserved(p.span));
-                }
-                self.block(body, receiver, depth + 1)?;
-            }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                self.expr(condition, receiver, depth + 1)?;
-                self.expr(then_value, receiver, depth + 1)?;
-                self.expr(else_value, receiver, depth + 1)?;
-            }
-            _ => {}
+            CoreExprKind::Member { object, .. } => self.expr(object, receiver, depth + 1),
+            CoreExprKind::Record { fields, .. } => self.expr_fields(fields, receiver, depth + 1),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(e, receiver, depth),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(e, receiver, depth),
+            CoreExprKind::Closure { .. } => self.expr_closure(e, receiver, depth),
+            CoreExprKind::If { .. } => self.expr_if(e, receiver, depth),
+            _ => Ok(()),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_pair(
+        &mut self,
+        first: &CoreExpr,
+        second: &CoreExpr,
+        receiver: bool,
+        depth: usize,
+    ) -> R<()> {
+        self.expr(first, receiver, depth)?;
+        self.expr(second, receiver, depth)
+    }
+
+    #[inline(never)]
+    fn expr_list(&mut self, items: &[CoreExpr], receiver: bool, depth: usize) -> R<()> {
+        for item in items {
+            self.expr(item, receiver, depth)?;
         }
         Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_fields(
+        &mut self,
+        fields: &[(String, CoreExpr)],
+        receiver: bool,
+        depth: usize,
+    ) -> R<()> {
+        for (_, value) in fields {
+            self.expr(value, receiver, depth)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_call(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("name call dispatcher")
+        };
+        self.expr(callee, receiver, depth + 1)?;
+        self.expr_list(arguments, receiver, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_slice(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::Slice { object, start, end } = &e.kind else {
+            unreachable!("name slice dispatcher")
+        };
+        self.expr(object, receiver, depth + 1)?;
+        for endpoint in [start, end].into_iter().flatten() {
+            self.expr(endpoint, receiver, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_record_update(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::RecordUpdate { base, fields, .. } = &e.kind else {
+            unreachable!("name record dispatcher")
+        };
+        self.expr(base, receiver, depth + 1)?;
+        self.expr_fields(fields, receiver, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_sequence(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::Sequence { bindings, value } = &e.kind else {
+            unreachable!("name sequence dispatcher")
+        };
+        for (name, e) in bindings {
+            if primitive_name(name) {
+                return Err(primitive_reserved(name, e.span));
+            }
+            self.expr(e, receiver, depth + 1)?;
+        }
+        self.expr(value, receiver, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_closure(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::Closure {
+            parameters, body, ..
+        } = &e.kind
+        else {
+            unreachable!("name closure dispatcher")
+        };
+        if let Some(p) = parameters.iter().find(|p| primitive_name(&p.name)) {
+            return Err(primitive_reserved(&p.name, p.span));
+        }
+        if let Some(p) = parameters.iter().find(|p| p.name == "self") {
+            return Err(reserved(p.span));
+        }
+        self.block(body, receiver, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_if(&mut self, e: &CoreExpr, receiver: bool, depth: usize) -> R<()> {
+        let CoreExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &e.kind
+        else {
+            unreachable!("name if dispatcher")
+        };
+        self.expr(condition, receiver, depth + 1)?;
+        self.expr(then_value, receiver, depth + 1)?;
+        self.expr(else_value, receiver, depth + 1)
     }
 }
 
@@ -327,6 +390,11 @@ mod tests {
     }
     fn module(kind: CoreStatementKind) -> CoreModule {
         CoreModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
@@ -336,6 +404,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 callable_return: None,

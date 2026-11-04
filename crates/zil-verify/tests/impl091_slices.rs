@@ -83,6 +83,7 @@ impl Body {
     fn new(id: u32, result: Type) -> Self {
         Self {
             f: TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(id),
@@ -237,6 +238,11 @@ impl Body {
 fn case(parts: Vec<(TypedFunction, FunctionPlan)>) -> Case {
     let (functions, plans) = parts.into_iter().unzip();
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"091 independent raw fixtures"),
@@ -888,6 +894,7 @@ fn explicit_slice_parameters_preserve_closed_captures_and_lending_sources() {
         let mut body = Body::new(0, Type::Unit);
         body.f.environment = Some(ClosureId(0));
         let mut closure = ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(0),
@@ -949,6 +956,7 @@ fn closure_body_local_slice_does_not_cross_its_callable_boundary() {
     body.emit(InstructionKind::StorageDead(local));
     let mut test = case(vec![body.finish(Some(n))]);
     test.module.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),

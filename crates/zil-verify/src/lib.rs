@@ -64,28 +64,38 @@ mod head_access;
 #[cfg(test)]
 mod helper_tests;
 mod helpers;
+mod mixed_address_sums;
 mod native_values;
 mod owned_callbacks;
 #[cfg(test)]
 mod package_tests;
 mod packages;
+mod place_replacements;
 mod registration;
 #[cfg(test)]
 mod resource_closure_tests;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
+pub use resources::task_frames::{
+    TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
+};
+mod class_flow;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
 mod scoped_callback;
 mod scoped_thread;
+mod signature_life;
 mod slices;
+mod stored_borrows;
+mod stored_callables;
+mod stored_flow;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
-    CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
-    verify_ct_artifact, verify_ct_artifact_metered,
+    CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage, CtVerificationMeter,
+    VerifiedCTArtifactProgram, verify_ct_artifact, verify_ct_artifact_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 
@@ -101,8 +111,10 @@ pub struct VerifiedModule {
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
+    task_ownership: Arc<std::collections::BTreeMap<FunctionId, TaskOwnership>>,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -174,6 +186,11 @@ impl VerifiedModule {
     pub fn task_worker_ids(&self) -> &BTreeSet<FunctionId> {
         &self.task_workers
     }
+    /// Canonical frame obligations derived from this snapshot's actual checked
+    /// resource transfer. Raw IR and candidate plans cannot supply these rows.
+    pub fn task_ownership(&self, id: FunctionId) -> Option<&TaskOwnership> {
+        self.task_ownership.get(&id)
+    }
     pub fn is_suspend(&self, id: FunctionId) -> bool {
         self.suspend_functions.contains(&id)
     }
@@ -190,6 +207,11 @@ impl VerifiedModule {
     /// program and its actual closed Suspend workers on the current request.
     pub fn uses_retained_registration(&self) -> bool {
         self.uses_retained_registration
+    }
+    /// Enables downstream work reservation for the actual checked profile.
+    /// Layout and instructions must still bind to this immutable module.
+    pub fn uses_stored_borrows(&self) -> bool {
+        self.uses_stored_borrows
     }
     pub fn task_interfaces(&self) -> &[TaskInterface] {
         self.inputs
@@ -277,9 +299,11 @@ struct Budget {
     sums: bool,
     tasks: bool,
     registrations: bool,
+    replacements: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
+    task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -289,7 +313,10 @@ struct Budget {
     shared_thread_functions: Option<Vec<bool>>,
     borrowed_function_pointers: bool,
     invocation_callbacks: bool,
+    owning_address_captures: bool,
     head_descriptions: bool,
+    stored_borrows: bool,
+    stored_context: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -298,9 +325,11 @@ impl Budget {
             sums: false,
             tasks: false,
             registrations: false,
+            replacements: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
+            task_ownership: std::collections::BTreeMap::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -310,7 +339,10 @@ impl Budget {
             shared_thread_functions: None,
             borrowed_function_pointers: false,
             invocation_callbacks: false,
+            owning_address_captures: false,
             head_descriptions: false,
+            stored_borrows: false,
+            stored_context: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -412,10 +444,12 @@ fn verify_inputs(
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
             uses_scalar_tasks: checked.uses_scalar_tasks,
             uses_retained_registration: checked.uses_retained_registration,
+            uses_stored_borrows: checked.uses_stored_borrows,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
             task_exports: checked.task_exports,
             task_input_fingerprint: checked.task_input_fingerprint,
+            task_ownership: Arc::new(checked.task_ownership),
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -468,10 +502,12 @@ struct CheckedModule {
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
+    task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
 }
 fn check_module(
     module: &TypedModule,
@@ -488,6 +524,15 @@ fn check_module(
         ));
     }
     check_target(&module.target, expected_target)?;
+    if !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Err(unsupported(
+            "dyn table consumer is not yet implemented",
+            None,
+        ));
+    }
     if let Some(feature) = module
         .unsupported
         .first()
@@ -523,6 +568,12 @@ fn check_module(
     }
 
     let mut budget = Budget::new(limits);
+    budget.stored_context = true;
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        stored_flow::inventory(module, limits, &mut budget)?;
+        stored_flow::inventory(module, limits, &mut budget)?;
+        budget.stored_borrows = true;
+    }
     budget.function_count = module.functions.len();
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
@@ -536,6 +587,10 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
+        if function.storage_life.is_some() {
+            stored_flow::header(function, &mut budget)?;
+            budget.stored_borrows = true;
+        }
         budget.current_function = Some(index);
         for ty in std::iter::once(&function.return_type)
             .chain(function.locals.iter().map(|l| &l.ty))
@@ -645,6 +700,67 @@ fn check_module(
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 match &instruction.kind {
+                    InstructionKind::ReservePlaceLocal { path, .. }
+                    | InstructionKind::ReservePlaceAddress { path, .. }
+                    | InstructionKind::TakeTupleField { path, .. }
+                    | InstructionKind::TakeVariantField { path, .. }
+                    | InstructionKind::BorrowPlaceLocal { path, .. }
+                    | InstructionKind::PlaceTagLocal { path, .. }
+                    | InstructionKind::BorrowPlaceAddress { path, .. }
+                    | InstructionKind::PlaceTagAddress { path, .. } => {
+                        if path.len() > limits.max_call_depth {
+                            return Err(limit(
+                                "mixed/replacement path exceeds depth limit before fingerprint",
+                            ));
+                        }
+                        budget.spend(
+                            path.len()
+                                .checked_mul(24)
+                                .and_then(|n| n.checked_add(1))
+                                .ok_or_else(|| {
+                                    limit("mixed/replacement preflight path work overflow")
+                                })?,
+                        )?;
+                        if matches!(
+                            instruction.kind,
+                            InstructionKind::ReservePlaceLocal { .. }
+                                | InstructionKind::ReservePlaceAddress { .. }
+                        ) {
+                            budget.replacements = true;
+                        }
+                    }
+                    InstructionKind::BorrowVariantLocal { path, .. }
+                    | InstructionKind::BorrowVariantAddress { path, .. }
+                    | InstructionKind::VariantTagLocal { path, .. }
+                    | InstructionKind::VariantTagAddress { path, .. }
+                    | InstructionKind::ReadVariantLocal { path, .. } => {
+                        if path.len() > limits.max_call_depth {
+                            return Err(limit(
+                                "variant path exceeds depth limit before fingerprint",
+                            ));
+                        }
+                        budget.spend(
+                            path.len()
+                                .checked_mul(24)
+                                .and_then(|n| n.checked_add(1))
+                                .ok_or_else(|| limit("variant preflight path work overflow"))?,
+                        )?;
+                    }
+                    InstructionKind::BorrowFieldLocal { path, .. } => {
+                        if path.len() > limits.max_call_depth {
+                            return Err(limit("field path exceeds depth limit before fingerprint"));
+                        }
+                        budget.spend(
+                            path.len()
+                                .checked_mul(12)
+                                .and_then(|n| n.checked_add(1))
+                                .ok_or_else(|| limit("field preflight path work overflow"))?,
+                        )?;
+                    }
+                    InstructionKind::CommitPlaceReplace { .. }
+                    | InstructionKind::AbortPlaceReservation { .. } => {
+                        budget.replacements = true;
+                    }
                     InstructionKind::Constant(constant) => native_values::constant(
                         constant,
                         &module.target,
@@ -704,6 +820,9 @@ fn check_module(
     }
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
+    if budget.stored_borrows {
+        stored_flow::qualifications(module, limits, &mut budget)?;
+    }
     let fingerprint = module.fingerprint();
     if plan.module_fingerprint != fingerprint
         || plan.target_fingerprint != module.target.fingerprint()
@@ -741,7 +860,14 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    borrows::check_module(module, plan, &graphs, &mut budget)?;
+    if budget.stored_borrows {
+        for f in &module.functions {
+            stored_flow::header(f, &mut budget)?;
+        }
+        stored_flow::check(module, &graphs, plan, &mut budget)?;
+    } else {
+        borrows::check_module(module, plan, &graphs, &mut budget)?;
+    }
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok(CheckedModule {
@@ -749,10 +875,12 @@ fn check_module(
         uses_owned_sum_extension: budget.sums,
         uses_scalar_tasks: budget.tasks,
         uses_retained_registration: budget.registrations,
+        uses_stored_borrows: budget.stored_borrows,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
         task_exports: budget.task_exports,
         task_input_fingerprint,
+        task_ownership: budget.task_ownership,
     })
 }
 
@@ -794,6 +922,7 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
         pending.push((&fields[0], 0usize));
     }
     while let Some((ty, depth)) = pending.pop() {
+        tasks::require_closed_context(ty, None)?;
         budget.spend(1)?;
         identity_work = identity_work.saturating_add(1);
         if depth > limits.max_call_depth {
@@ -822,7 +951,10 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
                 pending.extend(fields.iter().map(|field| (field, depth + 1)));
                 0
             }
-            Type::Array { element, .. }
+            Type::Task {
+                result: element, ..
+            }
+            | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
@@ -877,6 +1009,7 @@ fn check_type_shape(
     let mut anonymous = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        tasks::require_closed_context(ty, None)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
         if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
@@ -906,6 +1039,23 @@ fn check_type_shape(
             native_values::target(target, None)?;
         }
         match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                if !budget.stored_context {
+                    return Err(unsupported(
+                        "stored type requires an actual runtime nominal inventory context",
+                        None,
+                    ));
+                }
+                stored_flow::physical(ty, limits, budget)?;
+                budget.stored_borrows = true;
+                pending.push((storage, depth + 1, context));
+            }
+            Type::Dyn { .. } => {
+                return Err(unsupported(
+                    "dyn type consumer is not yet implemented",
+                    None,
+                ));
+            }
             Type::Registration {
                 environment: element,
             }
@@ -960,7 +1110,10 @@ fn check_type_shape(
                     }
                 }
             }
-            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            Type::Task { result: inner, .. }
+            | Type::Address { inner, .. }
+            | Type::Managed(inner)
+            | Type::Desc(inner) => {
                 pending.push((inner, depth + 1, context));
             }
             Type::ErrorUnion { error, result } => {
@@ -984,11 +1137,11 @@ fn check_type_shape(
                 life,
             } => {
                 budget.borrowed_function_pointers = true;
-                budget.spend(
-                    (life.binder_count as usize)
-                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                        .saturating_add(2),
-                )?;
+                crate::signature_life::charge(life, budget)?;
+                for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                    stored_flow::type_work(ty, limits, budget)?;
+                }
+                borrowed_fp::signature_work(parameters, result, budget)?;
                 borrowed_fp::relation(parameters, result, life, None)?;
                 pending.push((result, depth + 1, context));
                 for parameter in parameters {
@@ -1052,6 +1205,9 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
     let mut pending = Vec::new();
     while let Some(ty) = first.take().or_else(|| pending.pop()) {
         match ty {
+            // Qualification and every physical leaf have already passed the
+            // bounded module preflight and exact instance correspondence.
+            Type::BorrowedStorage { .. } => {}
             Type::Unit
             | Type::Bool
             | Type::I32
@@ -1144,6 +1300,9 @@ fn check_signature_type(ty: &Type, span: Option<Span>) -> Check<()> {
         return Ok(());
     }
     match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
+            Ok(())
+        }
         Type::Address { inner, .. } => slices::check_pointee(inner, span),
         _ => check_type(ty, span),
     }
@@ -1200,6 +1359,9 @@ fn check_local_type(
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
     let checked = match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
+            Ok(())
+        }
         ty if ty.is_shared_sync_cell_address() => Ok(()),
         Type::Closure(id) if (id.0 as usize) < module.closures.len() => Ok(()),
         Type::Closure(_) => Err(reject(
@@ -1373,6 +1535,7 @@ fn check_function(
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
     let mut addressed_sums = false;
+    let mut mixed_address_sums = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -1404,6 +1567,11 @@ fn check_function(
                     ));
                 }
             }
+            mixed_address_sums |= matches!(
+                instruction.kind,
+                InstructionKind::BorrowPlaceAddress { .. }
+                    | InstructionKind::PlaceTagAddress { .. }
+            );
             addressed_sums |= matches!(
                 instruction.kind,
                 InstructionKind::VariantTagAddress { .. }
@@ -1518,6 +1686,9 @@ fn check_function(
     let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
     if addressed_sums {
         address_sums::check(function, &successors, &reachable, budget)?;
+    }
+    if mixed_address_sums {
+        mixed_address_sums::check(function, &successors, &reachable, budget)?;
     }
     let (initialized_in, initialized_out) =
         initialization(function, &predecessors, &reachable, &parameters, budget)?;
@@ -1686,13 +1857,35 @@ fn check_instruction(
     budget: &mut Budget,
 ) -> Check<()> {
     let span = Some(instruction.span);
+    if budget.stored_borrows {
+        stored_flow::instruction_work(function, instruction, budget)?;
+    }
     let expected = match &instruction.kind {
+        InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+            return Err(unsupported(
+                "dyn instruction consumer is not yet implemented",
+                span,
+            ));
+        }
+        InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+            stored_borrows::instruction(function, instruction, budget)?
+        }
+        // Publication precedes the independent pin/ownership consumers. Keep
+        // raw reservations closed until those consumers are complete.
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => {
+            budget.replacements = true;
+            None
+        }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
         | InstructionKind::RegistrationClose { .. } => {
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::TaskStart { .. }
+        | InstructionKind::TaskCreate { .. }
         | InstructionKind::TaskYield
         | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
@@ -1735,6 +1928,9 @@ fn check_instruction(
         }
         InstructionKind::BorrowPlaceLocal { .. } | InstructionKind::PlaceTagLocal { .. } => {
             sums::place_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::BorrowPlaceAddress { .. } | InstructionKind::PlaceTagAddress { .. } => {
+            mixed_address_sums::instruction(module, function, instruction, budget)?
         }
         InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::VariantTagAddress { .. }
@@ -1846,7 +2042,9 @@ fn check_instruction(
         InstructionKind::WithScopedThread { .. } => {
             scoped_thread::instruction(module, function, instruction, budget)?
         }
-        InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. } => {
+        InstructionKind::WithSyncCell { .. }
+        | InstructionKind::SyncI32 { .. }
+        | InstructionKind::SyncI32CompareExchange { .. } => {
             scoped_thread::sync_instruction(module, function, instruction, budget)?
         }
         InstructionKind::WithForeignCallback { .. } => {
@@ -1945,7 +2143,8 @@ fn check_instruction(
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
-            } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
+            } else if matches!(inner, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
+            {
                 tasks::carrier(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
@@ -2017,7 +2216,10 @@ fn check_instruction(
                 ));
             };
             let projected = match inner.as_ref() {
-                Type::Managed(payload) if !*mutable => {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                Type::Managed(payload)
+                    if resources::head_address(value_type(function, *address, span)?) =>
+                {
                     resources::check_type_for(module, inner, span, budget)?;
                     payload.as_ref()
                 }
@@ -2425,7 +2627,11 @@ fn check_instruction(
                 ));
             }
             check_type(ty, span)?;
-            let expected = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let expected = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,
@@ -3016,10 +3222,23 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),
+        InstructionKind::CallDynSlot {
+            callee, arguments, ..
+        } => ([Some(*callee), None], arguments),
+        InstructionKind::LoadStoredBorrow { storage, .. } => ([Some(*storage), None], &[]),
+        InstructionKind::StoreStoredBorrow { storage, value, .. } => {
+            ([Some(*storage), Some(*value)], &[])
+        }
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => ([None, None], &[]),
+        InstructionKind::ReservePlaceAddress { address, .. } => ([Some(*address), None], &[]),
+        InstructionKind::CommitPlaceReplace { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
+        InstructionKind::TaskCreate { arguments, .. } => ([None, None], arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }
@@ -3034,7 +3253,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
 
-        InstructionKind::VariantTagAddress { address, .. }
+        InstructionKind::PlaceTagAddress { address, .. }
+        | InstructionKind::BorrowPlaceAddress { address, .. }
+        | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
@@ -3085,6 +3306,15 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         }
         InstructionKind::WithSyncCell { initial, body, .. } => ([Some(*initial), Some(*body)], &[]),
         InstructionKind::SyncI32 { address, value, .. } => ([Some(*address), *value], &[]),
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            ..
+        } => (
+            [Some(*address), Some(*expected)],
+            std::slice::from_ref(desired),
+        ),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             ([Some(*callback), Some(*body)], &[])
         }

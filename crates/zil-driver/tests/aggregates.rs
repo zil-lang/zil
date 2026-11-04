@@ -11,6 +11,1176 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_owner_replacement_types_uses_real_tickets() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let temp = Temp::new();
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                emit_dir: Some(temp.0.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+        assert!(typed.contains("ReservePlaceAddress"), "{typed}");
+        assert!(typed.contains("CommitPlaceReplace"), "{typed}");
+        assert!(!typed.contains("WriteAddress"), "{typed}");
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_analyze_tracks_fresh_and_incoming() {
+    for (text, expected) in [
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"
+            ),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+            ResultCategory::SafeReject,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+            ),
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_preparation_abort_and_pin_neighbors() {
+    let failed_rhs =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil");
+    let temp = Temp::new();
+    let report = compile_source(
+        &source(failed_rhs),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            emit_dir: Some(temp.0.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+    assert!(typed.contains("AbortPlaceReservation"), "{typed}");
+    let report = compile_source(
+        &source(failed_rhs),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let prefix = "resource R{code:i32}package P{manages owner:R;n:i32}";
+    for (helper, rhs, expected) in [
+        (
+            "fn read(n:&i32)->i32{return *n}",
+            "read(&target.n)",
+            ResultCategory::Success,
+        ),
+        (
+            "fn write(n:&mut i32)->i32{*n=66;return *n}",
+            "write(&mut target.n)",
+            ResultCategory::Success,
+        ),
+        (
+            "fn write(p:&mut P)->i32{p.n=66;return p.n}",
+            "write(target)",
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let text = format!(
+            "{prefix}{helper}fn replace(target:&mut P){{target.owner=R{{code:{rhs}}}}}fn result()->i32{{var packet=P{{owner:R{{code:65}},n:0}};replace(&mut packet);return 42}}"
+        );
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_wide_long_names_budget() {
+    let prefix = "common_replacement_prefix_".repeat(8);
+    let parameter = format!("{prefix}target");
+    let mut fields = String::new();
+    let mut locals = String::new();
+    for i in 0..64 {
+        fields.push_str(&format!("{prefix}field{i:04}:i32;"));
+        locals.push_str(&format!("let {prefix}local{i:04}={i};"));
+    }
+    let text = format!(
+        "resource R{{code:i32}}package P{{manages owner:R;{fields}}}fn replace({parameter}:&mut P){{{locals}{parameter}.owner=R{{code:66}}}}fn result()->i32{{return 42}}"
+    );
+    let input = source(&text);
+    let options = |work| CompileOptions {
+        stop_after: Stage::Types,
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let report = compile_source(&input, &options(mid));
+        match report.status {
+            ResultCategory::Success => hi = mid,
+            ResultCategory::ResourceLimit => lo = mid + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = zil_driver::CompilationSession::default();
+    for (work, expected) in [
+        (lo, ResultCategory::Success),
+        (lo - 1, ResultCategory::ResourceLimit),
+        (lo, ResultCategory::Success),
+    ] {
+        for report in [
+            compile_source(&input, &options(work)),
+            warm.compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!(
+        "340 replacement wide/long names source Types N={lo}; N-1 rejects; fresh/warm retry agrees"
+    );
+}
+
+#[test]
+fn terminal340_owner_replacement_independent_verify_source() {
+    for (text, expected) in [
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"
+            ),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+            ResultCategory::SafeReject,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+            ),
+            ResultCategory::SafeReject,
+        ),
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"),
+            ResultCategory::Success,
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+    ] {
+        review329_native_output(&[("main", text)], b"AB42\n");
+    }
+    review329_native_output(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"),
+        )],
+        b"A42\n",
+    );
+    review329_native_output(
+        &[(
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-prepared-failure.zil"
+            ),
+        )],
+        b"BA42\n",
+    );
+    let read_old = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+        .replace("R{code:66}", "R{code:target.owner.code+1}");
+    review329_native_output(&[("main", &read_old)], b"AB42\n");
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_error_arm_content_and_raw_neighbors() {
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arms.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_output(&[("main", text)], b"ABCD42\n");
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    // Make the two raw owning arms identical so a wrong arm cannot be
+    // dismissed only because its pointee has a different nominal type.
+    fn same_payload(ty: &mut Type) {
+        match ty {
+            Type::Package { name, fields } => {
+                if name.ends_with(":Failure") {
+                    *name = name.replace(":Failure", ":P");
+                }
+                for (_, field) in fields {
+                    same_payload(field);
+                }
+            }
+            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                same_payload(inner)
+            }
+            Type::ErrorUnion { error, result } => {
+                same_payload(error);
+                same_payload(result);
+            }
+            _ => {}
+        }
+    }
+    for f in &mut typed.functions {
+        same_payload(&mut f.return_type);
+        for local in &mut f.locals {
+            same_payload(&mut local.ty);
+        }
+        for ty in &mut f.values {
+            same_payload(ty);
+        }
+    }
+    for f in typed
+        .functions
+        .iter()
+        .filter(|f| matches!(f.name.as_str(), "make_ok" | "make_err"))
+    {
+        let Type::ErrorUnion { error, result } = &f.return_type else {
+            panic!("owning ErrorUnion")
+        };
+        assert_eq!(error, result, "raw counterexample requires equal arm Types");
+    }
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for name in ["work_ok", "work_err"] {
+        let mut raw = typed.clone();
+        let f = raw.functions.iter_mut().find(|f| f.name == name).unwrap();
+        let path = f
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find_map(|i| match &mut i.kind {
+                InstructionKind::BorrowPlaceLocal { path, .. }
+                    if matches!(path.first(), Some(zil_ir::PlaceProjection::ErrorArm(_))) =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let zil_ir::PlaceProjection::ErrorArm(arm) = &mut path[0] else {
+            unreachable!()
+        };
+        *arm = !*arm;
+        assert!(zil_analyze::analyze(&raw, &limits).is_err(), "{name}");
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let errors =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
+    let input = source(
+        "resource R{code:i32}package P{manages owner:R;n:i32}fn read(n:&i32)->i32{return *n}fn touch(p:&mut P)->i32{p.n=66;return p.n}fn replace(target:&mut P){target.owner=R{code:read(&target.n)}}fn result()->i32{var p=P{owner:R{code:65},n:66};replace(&mut p);return 42}",
+    );
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let touch = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "touch")
+        .unwrap()
+        .id;
+    for mode in 0..5 {
+        let mut raw = typed.clone();
+        let f = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "replace")
+            .unwrap();
+        let parent = f
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::ReservePlaceAddress { address, .. } => Some(address),
+                _ => None,
+            })
+            .unwrap();
+        if mode == 4 {
+            let argument = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| match &i.kind {
+                    InstructionKind::Call { arguments, .. } => Some(arguments[0]),
+                    _ => None,
+                })
+                .unwrap();
+            f.values[argument.0 as usize] = f.values[parent.0 as usize].clone();
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if i.result == Some(argument) {
+                    i.kind = InstructionKind::ReborrowAddress {
+                        address: parent,
+                        mutable: true,
+                    };
+                } else if matches!(i.kind, InstructionKind::Call { .. }) {
+                    i.kind = InstructionKind::Call {
+                        function: touch,
+                        arguments: vec![argument],
+                    };
+                }
+            }
+        } else if mode == 3 {
+            let Type::Address { mutable, .. } = &mut f.locals[f.parameters[0].0 as usize].ty else {
+                panic!("actual parent")
+            };
+            *mutable = false;
+        } else {
+            let b = f
+                .blocks
+                .iter_mut()
+                .find(|b| {
+                    b.instructions
+                        .iter()
+                        .any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+                })
+                .unwrap();
+            let commit = b
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+                .unwrap();
+            if mode == 0 {
+                b.instructions
+                    .retain(|i| !matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }));
+            } else if mode == 1 {
+                let duplicate = b.instructions[commit].clone();
+                b.instructions.insert(commit + 1, duplicate);
+            } else {
+                let InstructionKind::CommitPlaceReplace { reservation, .. } =
+                    b.instructions[commit].kind
+                else {
+                    unreachable!()
+                };
+                b.instructions[commit].kind =
+                    InstructionKind::AbortPlaceReservation { reservation };
+                // An aborted preparation does not consume the staged new debt.
+            }
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let errors =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject),
+            "mode {mode}: {errors:?}"
+        );
+        if mode == 4 {
+            assert!(
+                errors.iter().any(|e| e.code == "E-BORROW-REPLACEMENT-PIN"),
+                "{errors:?}"
+            );
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "mode {mode}"
+        );
+    }
+    // Preserve all producer claims while changing the actual staged debt from
+    // Created to Incoming. Verify must derive the transfer through both calls.
+    let text = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+        .replace("fn make()", "fn make(give incoming:R)")
+        .replace(
+            "relay(&mut packet)",
+            "replace_value(&mut packet,R{code:66})",
+        )
+        .replace("let owner=make()", "let owner=make(R{code:67})");
+    let text =
+        format!("{text}fn replace_value(target:&mut P,give next:R){{target.owner=give next}}");
+    let input = source(&text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut raw = typed;
+    let f = raw.functions.iter_mut().find(|f| f.name == "make").unwrap();
+    let incoming = f.parameters[0];
+    let new = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+        .last()
+        .unwrap();
+    new.kind = InstructionKind::TakeLocal { local: incoming };
+    let mut claim = plan;
+    claim.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("fresh")),
+        "{errors:?}"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("fresh")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn terminal340_captured_owning_base_native() {
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"
+    );
+    let report = compile_source(&source(original), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.diagnostics[0].code,
+        "E-CLOSURE-MUTABILITY",
+        "{}",
+        report.to_json()
+    );
+    let legal =
+        include_str!("../../../tests/language-readiness/terminal/340/captured-owning-base.zil");
+    assert_eq!(legal, original.replace("let f=", "var f="));
+    review329_native_output(&[("main", legal)], b"A42\n");
+}
+
+#[test]
+fn terminal340_captured_owning_base_compositions() {
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum S{Data((P,i32))}enum F{Bad}"#;
+    for (index,body) in [
+        "fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let input=&value;let f=()->i32=>{match *input{S.Data((ref p,n))=>{return p.n+n}}};return f()}",
+        "fn result()->i32{var value=(P{r:R{code:65},n:20},22);let input=&mut value;var f=()->i32=>{let(ref p,ref mut n)=*input;*n+=p.n;return *n};return f()}",
+        "fn make()->F!P{return P{r:R{code:65},n:20}}fn result()->i32{var value=make();let input=&mut value;var f=()->i32=>{match *input{.ok(ref mut p)=>{p.n+=22;return p.n},.err(_)=>{return 0}}};return f()}",
+        "fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let input=&mut value;var f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};let n=f();let moved=value;return n}",
+        "fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let input=&value;let f=()->&i32=>{match *input{S.Data((ref p,_))=>{return &p.n}}};let n=f();return *n+22}",
+        "fn select(input:&S)->&i32{let f=()->&i32=>{match *input{S.Data((ref p,_))=>{return &p.n}}};return f()}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let n=select(&value);return *n+22}",
+        "fn inspect(input:&mut S)->i32{var f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};return f()}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));return inspect(&mut value)}",
+    ].iter().enumerate(){
+        eprintln!("340 owning-base capture composition {index}");
+        review329_native_output(&[("main",&format!("{prefix}{body}"))],b"A42\n");
+    }
+}
+
+#[test]
+fn terminal340_captured_owning_base_authority_neighbors() {
+    let prefix = "resource R{n:i32}package P{manages r:R;n:i32}enum S{Data((P,i32))}";
+    for body in [
+        "fn result()->i32{var value=S.Data((P{r:R{n:1},n:20},22));let input=&mut value;var f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};let moved=value;return f()}",
+        "fn result()->i32{var value=S.Data((P{r:R{n:1},n:20},22));let input=&value;var f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};return f()}",
+        "fn result()->i32{var value=S.Data((P{r:R{n:1},n:20},22));let input=&mut value;var f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};var g=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};return f()+g()}",
+    ] {
+        let text = format!("{prefix}{body}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal340_captured_owning_result_lifetime_neighbors() {
+    let prefix = "resource R{n:i32}package P{manages r:R;n:i32}";
+    let body = "fn result()->i32{var value=(P{r:R{n:1},n:20},22);let input=&mut value;let f=()->&i32=>{let(_,ref n)=*input;return n};let n=f();BODY}";
+    for (tail, expected) in [
+        (
+            "let observed=*n;let moved=value;return observed+20",
+            ResultCategory::Success,
+        ),
+        ("let moved=value;return *n+20", ResultCategory::SafeReject),
+        (
+            "let(_,ref mut k)=*input;*k=1;return *n+20",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "let observed=*n;let(_,ref mut k)=*input;*k=1;return observed+20",
+            ResultCategory::Success,
+        ),
+        (
+            "let(ref mut p,_)=*input;p.n=20;return *n+p.n",
+            ResultCategory::Success,
+        ),
+        (
+            "let another=f();let(_,ref mut k)=*input;*k=1;return *n+*another-2",
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let text = format!("{prefix}{}", body.replace("BODY", tail));
+        eprintln!("340 derived capture tail {tail}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, expected, "{}", report.to_json());
+        if expected == ResultCategory::Success {
+            review329_native(&[("main", &text)], 42);
+        }
+    }
+}
+
+#[test]
+fn terminal340_captured_owning_result_later_mutating_call_rejects() {
+    let prefix = "resource R{n:i32}package P{manages r:R;n:i32}";
+    for (tail, expected) in [
+        (
+            "let n=f();let observed=*n;let another=f();return observed+*another-1",
+            ResultCategory::Success,
+        ),
+        (
+            "let n=f();let another=f();return *n+*another-1",
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let text = format!(
+            "{prefix}fn result()->i32{{var value=(P{{r:R{{n:1}},n:20}},20);let input=&mut value;var f=()->&i32=>{{let(_,ref mut n)=*input;*n+=1;return &*n}};{tail}}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, expected, "{}", report.to_json());
+        if expected == ResultCategory::Success {
+            review329_native(&[("main", &text)], 42);
+        }
+    }
+}
+
+#[test]
+fn terminal340_captured_owning_result_through_helper() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn relay(p:&i32)->&i32{return p}fn result()->i32{var value=(P{r:R{n:1},n:20},22);let input=&mut value;let f=()->&i32=>{let(_,ref n)=*input;return n};let n=relay(f());let(ref mut p,_)=*input;p.n=20;return *n+p.n}";
+    review329_native(&[("main", text)], 42);
+    let stale = text.replace(
+        "let(ref mut p,_)=*input;p.n=20;return *n+p.n",
+        "let(_,ref mut k)=*input;*k=20;return *n+*k",
+    );
+    let report = compile_source(&source(&stale), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn terminal340_captured_owning_callable_parameter_boundary() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn peek<F:Fn()->&i32>(f:&F)->&i32{return f()}fn result()->i32{var value=(P{r:R{n:1},n:20},22);let input=&value;let f=()->&i32=>{let(_,ref n)=*input;return n};let n=peek(&f);return *n+20}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    eprintln!(
+        "340 captured callable-parameter boundary {}",
+        report.to_json()
+    );
+}
+
+fn terminal340_captured_slots_source() -> &'static str {
+    include_str!("../../../tests/language-readiness/terminal/340/captured-owning-result.zil")
+}
+
+#[test]
+fn terminal340_captured_owning_result_slots_raw_and_wire() {
+    let text = terminal340_captured_slots_source();
+    review329_native(&[("main", text)], 42);
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for forged_mode in 0..3 {
+        let mut raw = typed.clone();
+        let d = raw
+            .closures
+            .iter_mut()
+            .find(|d| !d.lending_captures.is_empty())
+            .unwrap();
+        assert_eq!(d.captures.len(), 2);
+        assert_eq!(d.lending_captures.len(), 1);
+        let id = d.id;
+        let selected = d.lending_captures[0] as usize;
+        if forged_mode == 2 {
+            d.lending_captures[0] = u32::MAX;
+        } else if forged_mode == 1 {
+            let Type::Address { mutable, .. } = &mut d.captures[selected] else {
+                panic!()
+            };
+            *mutable = true;
+        } else {
+            let captures = raw
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+                .find_map(|i| match &mut i.kind {
+                    InstructionKind::MakeClosure { closure, captures } if *closure == id => {
+                        Some(captures)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            captures[selected] = captures[1 - selected];
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "forged capture {forged_mode} Analyze"
+        );
+        assert!(
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err(),
+            "forged capture {forged_mode} Verify"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "forged capture {forged_mode} Wire"
+        );
+    }
+}
+
+#[test]
+fn terminal340_captured_owning_result_raw_parent_move() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn result()->i32{var value=(P{r:R{n:1},n:20},22);let input=&mut value;let f=()->&i32=>{let(_,ref n)=*input;return n};let n=f();let observed=*n;let moved=value;return observed+20}";
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut raw = typed.clone();
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "result")
+        .unwrap();
+    let local = zil_ir::LocalId(f.locals.iter().position(|l| l.name == "value").unwrap() as u32);
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind,InstructionKind::TakeLocal{local:l} if l==local))
+        })
+        .unwrap();
+    let take = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind,InstructionKind::TakeLocal{local:l} if l==local))
+        .unwrap();
+    let read = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ReadAddress { .. }))
+        .unwrap();
+    assert!(read < take);
+    let take = block.instructions.remove(take);
+    block.instructions.insert(read, take);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    assert!(zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+}
+
+#[test]
+fn terminal340_captured_owning_budget_boundaries() {
+    use zil_driver::CompilationSession;
+    let input = source(terminal340_captured_slots_source());
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let mut low = 1;
+    let mut high = Limits::default().max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected capture boundary {status:?}"),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!(
+        "340 owning-base capture full-request analysis N={low}, N-1 rejects, fresh/warm agree"
+    );
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for gate in 0..3 {
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            let result = match gate {
+                0 => zil_analyze::analyze(&typed, &limits).map(|_| ()),
+                1 => zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                    .map(|_| ()),
+                _ => zil_verify::verify_module_bytes(&bytes, &target, &limits).map(|_| ()),
+            };
+            match result {
+                Ok(()) => true,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    false
+                }
+            }
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if run(middle) {
+                high = middle
+            } else {
+                low = middle + 1
+            }
+        }
+        assert!(run(low));
+        assert!(!run(low - 1));
+        assert!(run(low));
+        println!("340 owning-base capture raw gate{gate} N={low}, N-1 rejects");
+    }
+}
+
+#[test]
+fn terminal340_error_arm_patterns_native() {
+    let text = r#"enum F{Bad}fn number(x:F!i32)->i32{match x{.ok(n)=>{return n},.err(F.Bad())=>{return 0}}}fn make(b:bool)->F!i32{if b{return 42}else{return F.Bad()}}fn result()->i32{return number(make(true))+number(make(false))}"#;
+    review329_native(&[("main", text)], 42);
+    let generic = r#"enum F{Bad}fn get<T:Copy>(x:F!T,fallback:T)->T{match x{.ok(n)=>{return n},.err(_)=>{return fallback}}}fn make()->F!i32{return 42}fn result()->i32{return get(make(),0)}"#;
+    review329_native(&[("main", generic)], 42);
+    for body in [
+        "if let .ok(n)=x{return n}return fallback",
+        "while let .ok(n)=x{return n}return fallback",
+    ] {
+        let generic = format!(
+            "enum F{{Bad}}fn get<T:Copy>(x:F!T,fallback:T)->T{{{body}}}fn make(b:bool)->F!i32{{if b{{return 42}}return F.Bad()}}fn result()->i32{{return get(make(true),0)+get(make(false),0)}}"
+        );
+        review329_native(&[("main", &generic)], 42);
+    }
+    let unit = r#"enum F{Bad}fn make()->F!(){return ()}fn result()->i32{match make(){.ok(())=>{return 42},.err(_)=>{return 0}}}"#;
+    review329_native(&[("main", unit)], 42);
+    let named = r#"enum F{Bad}type Number=i32;fn make()->F!Number{return 42}fn result()->i32{match make(){Number(n)=>{return n},F(F.Bad())=>{return 0}}}"#;
+    review329_native(&[("main", named)], 42);
+    let tuple = r#"enum F{Bad}type Pair=(i32,i32);fn make()->F!Pair{return (20,22)}fn result()->i32{match make(){Pair((a,b))=>{return a+b},F(_)=>{return 0}}}"#;
+    review329_native(&[("main", tuple)], 42);
+    review329_native(
+        &[
+            (
+                "main",
+                "import lib as m;fn make(b:bool)->m.Left!m.Right{if b{return m.Left{value:20}}return m.Right{value:22}}fn score(x:m.Left!m.Right)->i32{match x{m.L(n)=>{return n.value},m.R(n)=>{return n.value}}}fn result()->i32{return score(make(true))+score(make(false))}",
+            ),
+            (
+                "lib",
+                "pub struct Left{pub value:i32}pub struct Right{pub value:i32}pub type L=Left;pub type R=Right;",
+            ),
+        ],
+        42,
+    );
+    let same = "fn inspect<T:Copy>(x:T!T)->i32{match x{.ok(_)=>{return 42},.err(_)=>{return 0}}}fn concrete(x:i32!i32)->i32{match x{.ok(_)=>{return 42},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+    review329_native(&[("main", same)], 42);
+}
+
+#[test]
+fn terminal340_error_arm_owned_and_borrowed_native() {
+    review329_native_output(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/340/error-arms.zil"),
+        )],
+        b"AXBX42\n",
+    );
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}package Failure{manages r:R;n:i32}"#;
+    for (body, expected) in [
+        (
+            "enum E{Left(P),Right(P)}fn make(b:bool)->E{if b{return E.Left(P{r:R{code:65},n:20})}return E.Right(P{r:R{code:66},n:22})}fn work(b:bool)->i32{match make(b){E.Left(p)=>{let n=p.n;return n},E.Right(p)=>{let n=p.n;return n}}}fn result()->i32{return work(true)+work(false)}",
+            "AB42\n",
+        ),
+        (
+            "fn make(b:bool)->Failure!P{if b{return P{r:R{code:65},n:20}}return Failure{r:R{code:66},n:22}}fn work(b:bool)->i32{match make(b){.ok(p)=>{let n=p.n;return n},.err(p)=>{return p.n}}}fn result()->i32{return work(true)+work(false)}",
+            "AB42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:42}}fn result()->i32{var value=make();match value{.ok(ref p)=>{let n=p.n;return n},.err(_)=>{return 0}}}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:20}}fn work(value:&mut(F!P))->i32{match *value{.ok(ref mut p)=>{p.n+=22;return p.n},.err(_)=>{return 0}}}fn result()->i32{var value=make();return work(&mut value)}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:42}}fn result()->i32{var value=make();if let .ok(ref p)=value{return p.n}return 0}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!i32{return 20}fn work(value:&mut(F!i32))->i32{match *value{.ok(ref mut p)=>{*p+=22;return *p},.err(_)=>{return 0}}}fn result()->i32{var value=make();return work(&mut value)}",
+            "42\n",
+        ),
+    ] {
+        eprintln!("340 ErrorUnion owning case {body}");
+        let text = format!("{prefix}{body}");
+        review329_native_output(&[("main", &text)], expected.as_bytes());
+    }
+}
+
+#[test]
+fn terminal340_error_arm_equal_type_raw_wire_and_native() {
+    use zil_ir::{Constant, PlaceProjection};
+    let text = "fn make()->i32!bool{return true}fn inspect(value:&(i32!bool))->i32{match *value{.ok(ref n)=>{return 42},.err(_)=>{return 0}}}fn result()->i32{let value=make();return inspect(&value)}";
+    let input = source(text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    fn substitute(ty: &mut Type) {
+        match ty {
+            Type::ErrorUnion { result, .. } => **result = Type::I32,
+            Type::Address { inner, .. } => {
+                if **inner == Type::Bool {
+                    **inner = Type::I32
+                } else {
+                    substitute(inner)
+                }
+            }
+            _ => {}
+        }
+    }
+    for f in &mut raw.functions {
+        substitute(&mut f.return_type);
+        for local in &mut f.locals {
+            substitute(&mut local.ty)
+        }
+        for ty in &mut f.values {
+            substitute(ty)
+        }
+        for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if matches!(i.kind, InstructionKind::Constant(Constant::Bool(true))) {
+                i.kind = InstructionKind::Constant(Constant::I32(7));
+                f.values[i.result.unwrap().0 as usize] = Type::I32;
+            }
+        }
+    }
+    let entry = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "result")
+        .unwrap()
+        .id;
+    for is_error in [false, true] {
+        let mut candidate = raw.clone();
+        for i in candidate
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::MakeErrorUnion { is_error: e, .. } = &mut i.kind {
+                *e = is_error
+            }
+        }
+        let plan = zil_analyze::analyze(&candidate, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&candidate, &plan, &limits).unwrap();
+        let verified = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        assert_eq!(verified.module(), &candidate);
+        let lir = zil_lower::lower(&verified).unwrap();
+        for backend in [
+            zil_backend_llvm::NativeBackend::Clang,
+            zil_backend_llvm::NativeBackend::LlvmApi,
+        ] {
+            if backend == zil_backend_llvm::NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [
+                zil_backend_llvm::Optimization::O0,
+                zil_backend_llvm::Optimization::O2,
+            ] {
+                let out = Temp::new();
+                let mut options = zil_backend_llvm::BuildOptions::new(out.0.join("program"));
+                options.backend = backend;
+                options.optimization = optimization;
+                options.emit.entry = zil_backend_llvm::EntryPoint::ReturnValue(entry);
+                let built = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+                let ran = Command::new(built.executable).output().unwrap();
+                assert!(ran.status.success(), "{ran:?}");
+                assert_eq!(
+                    ran.stdout,
+                    if is_error {
+                        b"0\n".as_slice()
+                    } else {
+                        b"42\n".as_slice()
+                    }
+                );
+            }
+        }
+    }
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let mut wrong = raw.clone();
+    let projection = wrong
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| match &mut i.kind {
+            InstructionKind::BorrowPlaceAddress { path, .. }
+                if path == &[PlaceProjection::ErrorArm(false)] =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .unwrap();
+    projection[0] = PlaceProjection::ErrorArm(true);
+    assert!(zil_analyze::analyze(&wrong, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = wrong.fingerprint();
+    assert!(zil_verify::verify_module(wrong.clone(), claim.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&wrong, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+#[test]
+fn terminal340_error_arm_budget_fresh_and_warm() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/error-arms.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let r = compile_source(&input, &options(mid));
+        match r.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", r.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (n, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 direct ErrorUnion patterns N={low}, N-1 rejects, fresh/warm agree");
+}
+
+#[test]
+fn terminal340_unused_generic_error_ref_origins() {
+    let bad = "enum F{Bad}fn unused<T:Copy>(x:F!T)->i32{var value=x;match value{.ok(ref n)=>{value=x;let observed=*n;return 0},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+    let good = bad.replace("value=x;let observed=*n;", "let observed=*n;value=x;");
+    let rejected = compile_source(&source(bad), &CompileOptions::default());
+    let admitted = compile_source(&source(&good), &CompileOptions::default());
+    eprintln!(
+        "340 unused pattern alias bad={:?}, nearest={:?}",
+        rejected.status, admitted.status
+    );
+    assert_eq!(
+        admitted.status,
+        ResultCategory::Success,
+        "{}",
+        admitted.to_json()
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    let invoked = good.replace(
+        "fn result()->i32{return 42}",
+        "fn make()->F!i32{return 42}fn result()->i32{return unused(make())+42}",
+    );
+    review329_native(&[("main", &invoked)], 42);
+}
+
+#[test]
+fn terminal340_error_arm_patterns_definition_neighbors() {
+    for text in [
+        "enum F{Bad}fn make()->F!i32{return 42}fn result()->i32{let .ok(n)=make();return n}",
+        "fn bad<T:Copy>(x:i32!T)->T{let .ok(n)=x;return n}fn result()->i32{return 0}",
+        "enum F{Bad}fn bad(value:F!i32)->i32{match value{.ok(ref self)=>{return 0},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "enum F{Bad}fn bad(value:F!i32)->i32{match value{.ok(ref u64)=>{return 0},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "enum F{Bad}fn bad(value:F!i32)->i32{match value{.ok(ref f32)=>{return 0},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T,fallback:T)->T{if let .err(n)=x{return n}return fallback}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T,fallback:T)->T{while let .err(n)=x{return n}return fallback}fn result()->i32{return 0}",
+        "enum F{Bad}fn make()->F!i32{return 42}fn result()->i32{var value=make();match value{.ok(ref n)=>{value=F.Bad();return *n},.err(_)=>{return 0}}}",
+        "enum Failure{Bad}fn bad<T:Copy>(x:Failure!T)->i32{match x{Failure(_)=>{return 0},T(_)=>{return 1}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T)->T{match x{.ok(n)=>{return n}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T)->T{match x{.ok(n)=>{return n},.err(n)=>{return n}}}fn result()->i32{return 0}",
+        "fn bad(x:i32)->i32{match x{.ok(n)=>{return n},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "fn bad(x:i32!bool)->i32{match x{.ok(_)=>{return 0},.ok(_)=>{return 1},.err(n)=>{return n}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}\n{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal340_fnptr_record_enum_result_inference() {
     let text = "enum E{Data{n:i32},Empty}fn keep(x:E)->E{return x}fn result()->i32{let pass:fn(E)->E=keep;let value=pass(E.Data{n:42});match value{E.Data{n:x}=>{return x},E.Empty()=>{return 0}}}";
     review329_native(&[("main", text)], 42);
@@ -1434,6 +2604,464 @@ fn terminal340_selective_mutation_epoch_neighbors() {
 }
 
 #[test]
+fn terminal340_actual_mixed_address_observation_budget() {
+    for (lane, text) in [
+        (
+            "mixed",
+            include_str!("../../../tests/language-readiness/terminal/340/mixed-address.zil"),
+        ),
+        (
+            "legacy",
+            "enum E{Data(i32),None}fn inspect(value:&E)->i32{match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+        ),
+    ] {
+        let input = source(text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+        let f = typed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "inspect")
+            .unwrap();
+        let (b, p) = f
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(b, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|i| match &i.kind {
+                        InstructionKind::PlaceTagAddress { path, .. } => path.is_empty(),
+                        InstructionKind::VariantTagAddress { path, .. } => path.is_empty(),
+                        _ => false,
+                    })
+                    .map(|p| (b, p))
+            })
+            .unwrap();
+        let tag = f.blocks[b].instructions[p].clone();
+        for _ in 0..64 {
+            let mut read = tag.clone();
+            read.result = Some(zil_ir::ValueId(f.values.len() as u32));
+            f.values.push(Type::I32);
+            f.blocks[b].instructions.insert(p, read);
+        }
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        for channel in 0..3 {
+            let run = |work| {
+                let bounded = Limits {
+                    max_analysis_steps: work,
+                    ..Limits::default()
+                };
+                match channel {
+                    0 => zil_analyze::analyze(&typed, &bounded).map(|_| ()),
+                    1 => zil_verify::verify_module(typed.clone(), plan.clone(), &target, &bounded)
+                        .map(|_| ()),
+                    _ => zil_verify::verify_module_bytes(&bytes, &target, &bounded).map(|_| ()),
+                }
+            };
+            let (mut low, mut high) = (1, limits.max_analysis_steps);
+            run(high).unwrap();
+            while low < high {
+                let mid = low + (high - low) / 2;
+                match run(mid) {
+                    Ok(()) => high = mid,
+                    Err(errors) => {
+                        assert_eq!(
+                            errors[0].category,
+                            ResultCategory::ResourceLimit,
+                            "{errors:?}"
+                        );
+                        low = mid + 1;
+                    }
+                }
+            }
+            for (work, success) in [(low, true), (low - 1, false), (low, true)] {
+                let result = run(work);
+                assert_eq!(result.is_ok(), success, "channel {channel}: {result:?}");
+                if let Err(errors) = result {
+                    assert_eq!(
+                        errors[0].category,
+                        ResultCategory::ResourceLimit,
+                        "{errors:?}"
+                    );
+                }
+            }
+            println!(
+                "340 actual mixed address observation64 {lane} channel{channel} N={low},N-1 ResourceLimit,repeated fresh agree"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal340_actual_mixed_address_returns_and_captures() {
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum S{Data((P,i32))}"#;
+    for (body, expected) in [
+        (
+            "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{let value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);return *n}",
+            "A42\n",
+        ),
+        (
+            "fn select(v:&mut S)->&mut i32{match *v{S.Data((_,ref mut n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},30));let n=select(&mut value);*n+=12;return *n}",
+            "A42\n",
+        ),
+        (
+            "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);let f=()->i32=>*n;return f()}",
+            "A42\n",
+        ),
+        (
+            "enum Pair{Data(P,P)}fn inspect(v:&mut Pair)->i32{match *v{Pair.Data(ref mut a,ref mut b)=>{a.n+=b.n;return a.n}}}fn result()->i32{var value=Pair.Data(P{r:R{code:65},n:20},P{r:R{code:66},n:22});return inspect(&mut value)}",
+            "AB42\n",
+        ),
+        (
+            "fn index(n:&mut i32)->i64{*n+=1;return 0}fn result()->i32{var n=0;var value=[20];value[index(&mut n)]+=22;return value[0]+n-1}",
+            "42\n",
+        ),
+    ] {
+        review329_native_output(&[("main", &format!("{prefix}{body}"))], expected.as_bytes());
+    }
+    let body = "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);let moved=value;return *n}";
+    let r = compile_source(
+        &source(&format!("{prefix}{body}")),
+        &CompileOptions::default(),
+    );
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+}
+
+#[test]
+fn terminal340_actual_mixed_address_native_and_raw() {
+    use zil_ir::PlaceProjection;
+    let text = include_str!("../../../tests/language-readiness/terminal/340/mixed-address.zil");
+    review329_native_output(&[("main", text)], b"A42\n");
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for case in 0..7 {
+        let mut raw = typed.clone();
+        let mut claim = plan.clone();
+        let name = if case == 1 { "peek" } else { "inspect" };
+        let f = raw.functions.iter_mut().find(|f| f.name == name).unwrap();
+        if case == 5 || case == 6 {
+            let sibling = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| match &i.kind {
+                    InstructionKind::BorrowPlaceAddress {
+                        path,
+                        mutable: true,
+                        ..
+                    } if path.len() == 2 => Some(path.clone()),
+                    _ => None,
+                })
+                .unwrap();
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(&i.kind,InstructionKind::BorrowPlaceAddress{path,mutable:true,..}if path.len()==if case==5{1}else{2})).unwrap();
+            let InstructionKind::BorrowPlaceAddress { path, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            *path = if case == 5 {
+                sibling
+            } else {
+                vec![
+                    PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 0,
+                        index: 0,
+                    }),
+                    PlaceProjection::Field(0),
+                    PlaceProjection::Field(1),
+                ]
+            };
+        } else if case == 3 {
+            let (b, p) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::Call { .. }))
+                        .map(|p| (b, p))
+                })
+                .unwrap();
+            let call = f.blocks[b].instructions.remove(p);
+            let (b, p) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::BorrowPlaceAddress { .. }))
+                        .map(|p| (b, p))
+                })
+                .unwrap();
+            f.blocks[b].instructions.insert(p, call);
+        } else if case == 4 {
+            let branch = f
+                .blocks
+                .iter_mut()
+                .find(|b| matches!(b.terminator, zil_ir::Terminator::Branch { .. }))
+                .unwrap();
+            let zil_ir::Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } = &mut branch.terminator
+            else {
+                unreachable!()
+            };
+            *else_block = *then_block;
+        } else {
+            let i = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::BorrowPlaceAddress { .. }))
+                .unwrap();
+            let InstructionKind::BorrowPlaceAddress { path, mutable, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    path[0] = PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 1,
+                        index: 0,
+                    })
+                }
+                1 => {
+                    *mutable = true;
+                    let Type::Address { mutable, .. } = &mut f.values[i.result.unwrap().0 as usize]
+                    else {
+                        unreachable!()
+                    };
+                    *mutable = true;
+                }
+                2 => path[0] = PlaceProjection::ErrorArm(false),
+                _ => unreachable!(),
+            }
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted mixed actual address forgery {case}"
+        );
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify accepted mixed actual address forgery {case}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire accepted mixed actual address forgery {case}"
+        );
+    }
+}
+
+#[test]
+fn terminal340_actual_mixed_address_error_union_epoch() {
+    use zil_ir::{BinaryOp, Instruction, PlaceProjection, ValueId};
+    let text = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum F{Bad}fn make()->F!i32{return 20}fn set_error(p:&mut(F!i32)){*p=F.Bad()}fn work(initial:F!i32)->F!i32{var value=(initial,P{r:R{code:65},n:0},P{r:R{code:66},n:0});let(ref mut p,moved,ref retained)=value;let first=(*p)?;set_error(p);let second=(*p)?;return second+retained.n+moved.n}fn result()->i32{let outcome=work(make());return 42}"#;
+    review329_native_output(&[("main", text)], b"AB42\n");
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let f = raw.functions.iter_mut().find(|f| f.name == "work").unwrap();
+    let _local = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            InstructionKind::BorrowPlaceLocal {
+                local,
+                path,
+                mutable: true,
+            } if path == &[PlaceProjection::Field(0)] => Some(*local),
+            _ => None,
+        })
+        .unwrap();
+    let base = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            InstructionKind::ReadAddress { address }
+                if i.result
+                    .is_some_and(|v| matches!(f.values[v.0 as usize], Type::ErrorUnion { .. })) =>
+            {
+                Some(*address)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let mut tags = Vec::new();
+    let old_blocks = f.blocks.len();
+    for block in 0..old_blocks {
+        let Some(pos) = f.blocks[block]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::ReadErrorUnion { .. }))
+        else {
+            continue;
+        };
+        let mut tail = f.blocks[block].instructions.split_off(pos);
+        let projection = tail.remove(0);
+        let InstructionKind::ReadErrorUnion { is_error, .. } = projection.kind else {
+            unreachable!()
+        };
+        let tag = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        tags.push(tag);
+        let expected = ValueId(f.values.len() as u32);
+        f.values.push(Type::I32);
+        let condition = ValueId(f.values.len() as u32);
+        f.values.push(Type::Bool);
+        let span = projection.span;
+        f.blocks[block].instructions.extend([
+            Instruction {
+                result: Some(tag),
+                kind: InstructionKind::PlaceTagAddress {
+                    address: base,
+                    path: vec![],
+                },
+                span,
+            },
+            Instruction {
+                result: Some(expected),
+                kind: InstructionKind::Constant(zil_ir::Constant::I32(i32::from(is_error))),
+                span,
+            },
+            Instruction {
+                result: Some(condition),
+                kind: InstructionKind::Binary {
+                    op: BinaryOp::Equal,
+                    left: tag,
+                    right: expected,
+                },
+                span,
+            },
+        ]);
+        let address = ValueId(f.values.len() as u32);
+        f.values.push(Type::Address {
+            mutable: false,
+            inner: Box::new(f.values[projection.result.unwrap().0 as usize].clone()),
+        });
+        let mut instructions = vec![
+            Instruction {
+                result: Some(address),
+                kind: InstructionKind::BorrowPlaceAddress {
+                    address: base,
+                    path: vec![PlaceProjection::ErrorArm(is_error)],
+                    mutable: false,
+                },
+                span,
+            },
+            Instruction {
+                result: projection.result,
+                kind: InstructionKind::ReadAddress { address },
+                span,
+            },
+        ];
+        instructions.extend(tail);
+        let trap = zil_ir::BlockId(f.blocks.len() as u32);
+        f.blocks.push(zil_ir::BasicBlock {
+            id: trap,
+            instructions: vec![],
+            terminator: zil_ir::Terminator::Trap,
+        });
+        let next = zil_ir::BlockId(f.blocks.len() as u32);
+        let terminator = std::mem::replace(
+            &mut f.blocks[block].terminator,
+            zil_ir::Terminator::Branch {
+                condition,
+                then_block: next,
+                else_block: trap,
+            },
+        );
+        f.blocks.push(zil_ir::BasicBlock {
+            id: next,
+            instructions,
+            terminator,
+        });
+    }
+    assert_eq!(tags.len(), 4);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for stale in [true, false] {
+        let mut bad = raw.clone();
+        let mut claim = plan.clone();
+        let f = bad.functions.iter_mut().find(|f| f.name == "work").unwrap();
+        if stale {
+            for block in &mut f.blocks {
+                for i in &mut block.instructions {
+                    if let InstructionKind::Binary { left, .. } = &mut i.kind
+                        && (*left == tags[2] || *left == tags[3])
+                    {
+                        *left = tags[1];
+                    }
+                }
+            }
+        } else {
+            let mut take = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::TakeTupleField { .. }))
+                .unwrap()
+                .clone();
+            let id = ValueId(f.values.len() as u32);
+            f.values
+                .push(f.values[take.result.unwrap().0 as usize].clone());
+            take.result = Some(id);
+            let block = f
+                .blocks
+                .iter_mut()
+                .find(|b| b.instructions.iter().any(|i| i.result == Some(tags[3])))
+                .unwrap();
+            block.instructions.push(take);
+            claim.functions[f.id.0 as usize]
+                .holds
+                .push(zil_ir::ValueHold {
+                    value: id,
+                    roots: vec![],
+                });
+        }
+        claim.module_fingerprint = bad.fingerprint();
+        assert!(
+            zil_analyze::analyze(&bad, &limits).is_err(),
+            "Analyze accepted stale ErrorArm or repeated moved sibling"
+        );
+        let errors =
+            zil_verify::verify_module(bad.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code.starts_with("E-VERIFY-SUM")),
+            "{errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+}
+
+#[test]
 fn terminal340_copy_error_union_mutation_epoch() {
     use zil_ir::{BinaryOp, Instruction, PlaceProjection, ValueId};
     let text = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum F{Bad}fn make()->F!i32{return 20}fn set_error(p:&mut(F!i32)){*p=F.Bad()}fn work(initial:F!i32)->F!i32{var value=(initial,P{r:R{code:65},n:0},P{r:R{code:66},n:0});let first=initial?;let(ref mut p,moved,ref retained)=value;set_error(p);let second=(*p)?;return second+retained.n+moved.n}fn result()->i32{let outcome=work(make());return 42}"#;
@@ -1612,6 +3240,52 @@ fn terminal340_copy_error_union_mutation_epoch() {
 }
 
 #[test]
+fn terminal340_actual_mixed_address_budget() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/mixed-address.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    let report = compile_source(&input, &options(high));
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let report = compile_source(&input, &options(mid));
+        match report.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 actual mixed address full-request N={low}, N-1 rejects, fresh/warm agree");
+}
+#[test]
 fn terminal340_selective_long_prefix_budget() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
@@ -1686,6 +3360,9 @@ fn review329_native(files: &[(&str, &str)], expected: i64) {
     review329_native_output(files, format!("{expected}\n").as_bytes())
 }
 fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
+    review329_native_entry_output(files, "result", expected)
+}
+fn review329_native_entry_output(files: &[(&str, &str)], entry: &str, expected: &[u8]) {
     use zil_driver::{NativeBackend, Optimization};
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -1700,7 +3377,7 @@ fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
                     backend,
                     optimization,
                     stop_after: Stage::Build,
-                    entry: Some("result".into()),
+                    entry: Some(entry.into()),
                     output: Some(directory.0.join("program")),
                     ..CompileOptions::default()
                 },
@@ -5271,6 +6948,40 @@ fn anonymous_sum_const_associated_and_borrowed_code_compositions() {
 }
 
 #[test]
+fn nested_conversions_with_unrelated_generic_methods_keep_default_stack() {
+    if std::env::var_os("ZIL_340_METHOD_STACK_CHILD").is_some() {
+        std::thread::spawn(|| {
+            let prefix="struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T{return x}}impl Echo for P{}";
+            for (callee, depth) in [("i32",32),("i32",96),("i32",124),("((i32))",32)] {
+                let expression=format!("{}0{}",format!("{callee}(").repeat(depth),")".repeat(depth));
+                let text=format!("{prefix}fn result()->i32{{return {expression}}}");
+                let report=compile_source(&source(&text),&CompileOptions::default());
+                assert_eq!(report.status,ResultCategory::Success,"{callee}/{depth}: {}",report.to_json());
+                assert_eq!(report.verification_runs,1);
+            }
+        }).join().unwrap();
+        return;
+    }
+    let child = Command::new("timeout")
+        .args(["-s", "KILL", "90s"])
+        .arg(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "nested_conversions_with_unrelated_generic_methods_keep_default_stack",
+            "--nocapture",
+        ])
+        .env("ZIL_340_METHOD_STACK_CHILD", "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+#[test]
 fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
     if let Ok(mode) = std::env::var("ZIL_344_NESTED_CHILD") {
         std::thread::spawn(move || {
@@ -5332,5 +7043,694 @@ fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
             String::from_utf8_lossy(&child.stdout),
             String::from_utf8_lossy(&child.stderr)
         );
+    }
+}
+
+#[test]
+fn ct3_anonymous_artifact_value_source_bridge() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/artifact-values.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    eprintln!("{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+}
+#[test]
+fn ct3_enum_match_checks_actual_owner_source() {
+    let legal = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-enum-owner-legal.zil"
+    );
+    let report = compile_source(&source(legal), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let wrong =
+        include_str!("../../../tests/language-readiness/codegen-pending/ct3-wrong-enum-owner.zil");
+    let report = compile_source(&source(wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-CT-SOURCE" && d.message.contains("owner")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct4_fixed_phantom_context_source_bridge() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    for extra in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+    ] {
+        let report = compile_source(&source(extra), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native_entry_output(&[("main", extra)], "main", b"42\n");
+    }
+    let joint = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+    );
+    let wrong = joint.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let free = text.replace("Phantom::<'s>", "Phantom::<'free>");
+    let report = compile_source(&source(&free), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let escape = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context-escape.zil"
+    );
+    let report = compile_source(&source(escape), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct4_mixed_nominal_context_preserves_full_source_ordinals() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    let wrong = text.replace("Phantom::<'s,i32,7>", "Phantom::<'s,i32,8>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct4_phantom_source_work_neighbors_remain_checked_after_cache_reuse() {
+    use zil_driver::CompilationSession;
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+        ),
+    ] {
+        let input = source(text);
+        let options = |n| CompileOptions {
+            limits: Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        assert_eq!(
+            compile_source(&input, &options(high)).status,
+            ResultCategory::Success
+        );
+        while low < high {
+            let middle = (low + high) / 2;
+            let report = compile_source(&input, &options(middle));
+            match report.status {
+                ResultCategory::Success => high = middle,
+                ResultCategory::ResourceLimit => low = middle + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        assert_eq!(
+            warm.compile_source(&input, &options(low)).status,
+            ResultCategory::Success
+        );
+        for (n, status) in [
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(n)),
+                CompilationSession::default().compile_source(&input, &options(n)),
+            ] {
+                assert_eq!(report.status, status, "{}", report.to_json());
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("344 CT4 whole-source analysis N={low}/N-1/warm/fresh");
+    }
+}
+
+#[test]
+fn ct4_phantom_source_default_worker_subprocess() {
+    const CHILD: &str = "ZIL_CT4_PHANTOM_DEFAULT_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        for text in [
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+            ),
+        ] {
+            let report = compile_source(&source(text), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+        }
+        return;
+    }
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "ct4_phantom_source_default_worker_subprocess",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env_remove("RUST_MIN_STACK")
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "default worker subprocess: {:?}\n{}\n{}",
+        child.status,
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+#[test]
+fn ct5_invocation_scoped_nominal_metadata_reaches_native() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil"
+    );
+    let outcome = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        outcome.status,
+        ResultCategory::Success,
+        "{}",
+        outcome.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+
+    // The same ordinary runtime projection, without CT evaluation, supplies
+    // raw candidates for independent index/result checks in both kernels.
+    let unit = source(&text.replace("#(make())", "make()"));
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    for wrong_result in [false, true] {
+        let mut raw = typed.clone();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))
+            })
+            .unwrap();
+        let instruction = function
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))
+            .unwrap();
+        if wrong_result {
+            function.values[instruction.result.unwrap().0 as usize] = Type::I64;
+        } else if let InstructionKind::ExtractField { index, .. } = &mut instruction.kind {
+            *index = u32::MAX;
+        }
+        assert!(zil_analyze::analyze(&raw, &limits).is_err());
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err());
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn ct3_phantom_callable_metadata_stays_separate_from_data() {
+    let function = include_str!(
+        "../../../tests/language-readiness/codegen-pending/ct3-phantom-fn-metadata.zil"
+    );
+    let borrowed = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-metadata.zil"
+    );
+    for (text, expected) in [(function, 7), (borrowed, 42)] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native(&[("main", text)], expected);
+    }
+    let wrong = function.replace(
+        "let value=#(choose(i32))",
+        "let value:Phantom<fn(bool)->i32>=#(choose(i32))",
+    );
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_generic_enum_values_retain_complete_owner_and_active_payload() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-enum-values.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+}
+
+#[test]
+fn ct3_generic_callable_arguments_infer_and_reify_full_type_metadata() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-callable-arguments.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    let wrong = text.replace("=first;", "=second;");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_nominal_arguments_keep_ordered_type_and_scalar_identity() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-scalar-nominal-arguments.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    for bad in [
+        text.replace("fn(i32)->i32,7,true", "fn(i32)->i32,7u64,true"),
+        text.replace(
+            "Stamp::<fn(i32)->i32,7,true>",
+            "Stamp::<fn(i32)->i32,9,true>",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn ct3_composite_callable_metadata_does_not_construct_pointer_data() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-composite-callable-metadata.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    let physical = "struct Code{call:fn(i32)->i32}fn identity(n:i32)->i32{return n}fn make(t:Type)->Code{return Code{call:identity}}fn result()->i32{let value=#(make(i32));return value.call(42)}";
+    let report = compile_source(&source(physical), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_callable_metadata_alpha_order_and_free_life_boundaries() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-alpha.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    for bad in [
+        text.replace("value:Phantom<Alpha>", "value:Phantom<Second>"),
+        text.replace(
+            "fn(&'x i32,&'y i32)->&'x i32",
+            "fn(&'free i32,&'y i32)->&'x i32",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-member-order-permutation.zil"
+    );
+    let reordered = text.replace(
+        "struct Z{value:i32}\nstruct A{value:i32}",
+        "struct A{value:i32}\nstruct Z{value:i32}",
+    );
+    for text in [text, reordered.as_str()] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native(&[("main", text)], 42);
+    }
+}
+
+#[test]
+fn ct5_phantom_context_query_reaches_native() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn ct5_member_own_life_context_reaches_native() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    use zil_driver::CompilationSession;
+    let input = source(text);
+    let options = |n| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    while low < high {
+        let middle = (low + high) / 2;
+        let report = compile_source(&input, &options(middle));
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    assert_eq!(
+        warm.compile_source(&input, &options(low)).status,
+        ResultCategory::Success
+    );
+    for (n, expected) in [
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    eprintln!("G4.4 member source whole analysis N={low}/N-1/warm/fresh");
+    let generated = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+    );
+    let report = compile_source(&source(generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.diagnostics.iter().any(|d| {
+        d.message
+            .contains("transformed declarations require explicit source lineage")
+    }));
+    let scalar_generated = generated
+        .replace("struct Phantom<life s>{n:i32}\n", "")
+        .replace("<life s>", "")
+        .replace("&'s i32", "&i32");
+    let report = compile_source(&source(&scalar_generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", &scalar_generated)], "main", b"42\n");
+    let host = text
+        .replace("struct Reader {", "struct Reader<X:Copy> {")
+        .replace("Reader{}", "Reader::<i32>{}");
+    let report = compile_source(&source(&host), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual enclosing generic context"))
+    );
+    let mixed = text
+        .replace(
+            "result<life s>(self:Self,p:",
+            "result<T:Copy,life s>(self:Self,marker:T,p:",
+        )
+        .replace("reader.result(&n)", "reader.result(7,&n)");
+    let report = compile_source(&source(&mixed), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "generic function specialization")
+    );
+    let wrong = text.replace("Phantom::<'s>", "Phantom::<'other>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    let wrong = text.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let repeated = text.replace("(Pair::<'a,'b>{n:scalar(i32,20)},Pair::<'b,'a>{n:scalar(i32,0)}).0", "(Pair::<'a,'b>{n:scalar(i32,0)},(Pair::<'b,'a>{n:scalar(i32,0)},Pair::<'a,'b>{n:scalar(i32,20)})).1.1");
+    let report = compile_source(&source(&repeated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", &repeated)], "main", b"42\n");
+    use zil_driver::CompilationSession;
+    for current in [text, repeated.as_str()] {
+        let input = source(current);
+        let options = |work| CompileOptions {
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let middle = (low + high) / 2;
+            let report = compile_source(&input, &options(middle));
+            match report.status {
+                ResultCategory::Success => high = middle,
+                ResultCategory::ResourceLimit => low = middle + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        assert_eq!(
+            warm.compile_source(&input, &options(low)).status,
+            ResultCategory::Success
+        );
+        for (work, expected) in [
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(work)),
+                CompilationSession::default().compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("G4.4.1 joint CT schema whole Source N={low}/N-1/warm/fresh");
     }
 }

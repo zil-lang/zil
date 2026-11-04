@@ -16,6 +16,11 @@ fn raw() -> TypedModule {
         }),
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(17),
         source_fingerprint: Fingerprint::of(b"independent 092 raw transport"),
@@ -24,6 +29,7 @@ fn raw() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),

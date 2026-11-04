@@ -14,6 +14,8 @@ mod generics;
 mod quote;
 #[path = "compiler_selection.rs"]
 mod selection;
+#[path = "compiler_source_scope.rs"]
+pub(super) mod source_scope;
 #[path = "compiler_types.rs"]
 mod types;
 use std::collections::{BTreeMap, VecDeque};
@@ -123,6 +125,9 @@ pub(crate) enum Entry<'a> {
         module: ModuleId,
         expression: &'a s::Expr,
         definition: CtSymbolId,
+        /// Actual original lexical function. Generated declarations retain
+        /// their naming owner above but have no authentic binder ledger yet.
+        lexical_owner: Option<CtSymbolId>,
         expected: Option<CtTy>,
         parameters: &'a [(String, CtTy)],
     },
@@ -208,7 +213,7 @@ impl<'a> Budget<'a> {
     fn ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
         self.depth(depth, span)?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.ty(field, depth + 1, span)?;
                 }
@@ -230,7 +235,7 @@ impl<'a> Budget<'a> {
             "CT source temporary type bytes exhausted",
         )?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.copy_ty(field, depth + 1, span)?;
                 }
@@ -260,13 +265,37 @@ struct Declaration<'a> {
     item: &'a s::Item,
     function: &'a s::Function,
 }
+enum PendingTypes {
+    Data(Vec<CtTy>),
+    Metadata(Vec<CtTypeRef>),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SourceLifeBinding {
+    pub enumeration: bool,
+    pub schema: u32,
+    pub definition: CtSymbolId,
+    /// Class -> original generic parameter ordinal, including intervening kinds.
+    pub parameters: Vec<u32>,
+}
+struct SourceLifeScope {
+    definition: CtSymbolId,
+    span: Span,
+    binders: Vec<(String, u32)>,
+}
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
-    pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
+    generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
+    pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
+    metadata_bindings: Vec<(String, CtTypeRef)>,
+    scalar_bindings: Vec<(String, Constant)>,
+    source_life_scope: Option<SourceLifeScope>,
+    ambient_life_scopes: Vec<CtAmbientLifeScope>,
+    source_life_bindings: Vec<SourceLifeBinding>,
+    active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
@@ -308,8 +337,15 @@ impl<'a> Compiler<'a> {
             declarations: Vec::new(),
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
+            generic_metadata_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
+            metadata_bindings: Vec::new(),
+            scalar_bindings: Vec::new(),
+            source_life_scope: None,
+            ambient_life_scopes: Vec::new(),
+            source_life_bindings: Vec::new(),
+            active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
             checking_generics: false,
             checked_generics: Vec::new(),
@@ -418,23 +454,40 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn symbol(&mut self, module: usize, span: Span) -> R<CtSymbolId> {
-        for (actual, symbol) in self.modules[module].symbols {
-            self.budget.work(1, span)?;
-            if *actual == span {
-                if symbol.module != self.modules[module].syntax.id {
-                    return Err(error(
-                        span,
-                        "declaration identity belongs to a different source module",
-                    ));
-                }
-                return Ok(symbol.clone());
-            }
+    fn item_symbol(&mut self, module: usize, item: &s::Item) -> R<CtSymbolId> {
+        self.budget.work(
+            self.modules[module]
+                .syntax
+                .items
+                .len()
+                .saturating_add(self.modules[module].symbols.len()),
+            item.span,
+        )?;
+        let ordinal = self.modules[module]
+            .syntax
+            .items
+            .iter()
+            .position(|actual| std::ptr::eq(actual, item))
+            .ok_or_else(|| error(item.span, "CT declaration is not an actual original item"))?;
+        let symbol = CtSymbolId {
+            module: self.modules[module].source.module_id,
+            declaration: zil_base::NodeId(
+                u32::try_from(ordinal)
+                    .map_err(|_| error(item.span, "CT original declaration ordinal overflow"))?,
+            ),
+            generation_path: None,
+        };
+        if !self.modules[module]
+            .symbols
+            .iter()
+            .any(|(_, actual)| actual == &symbol)
+        {
+            return Err(error(
+                item.span,
+                "CT declaration is absent from frozen inventory",
+            ));
         }
-        Err(error(
-            span,
-            "source declaration has no frozen symbol identity",
-        ))
+        Ok(symbol)
     }
     fn module_index(&mut self, id: ModuleId, span: Span) -> R<usize> {
         for (index, module) in self.modules.iter().enumerate() {
@@ -522,7 +575,8 @@ impl<'a> Compiler<'a> {
         )?;
         self.selected.insert(declaration, id);
         self.budget.node(span)?;
-        self.pending.push_back((declaration, Vec::new(), id));
+        self.pending
+            .push_back((declaration, PendingTypes::Data(Vec::new()), id));
         Ok(id)
     }
     fn header(&mut self, declaration: usize) -> R<(Vec<CtTy>, CtTy)> {
@@ -556,6 +610,11 @@ impl<'a> Compiler<'a> {
 }
 
 pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
+    compile_scoped(request).map(|(program, _)| program)
+}
+pub(crate) fn compile_scoped(
+    request: CompileRequest<'_>,
+) -> R<(CtArtifactProgram, Vec<SourceLifeBinding>)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
@@ -571,7 +630,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             let mut found = None;
             for index in 0..compiler.declarations.len() {
                 let d = compiler.declarations[index];
-                if compiler.symbol(d.module, d.item.span)? == symbol {
+                if compiler.item_symbol(d.module, d.item)? == symbol {
                     found = Some(index);
                     break;
                 }
@@ -587,10 +646,15 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             module,
             expression,
             definition,
+            lexical_owner,
             expected,
             parameters,
         } => {
             let module = compiler.module_index(module, expression.span)?;
+            compiler.source_life_scope = match lexical_owner {
+                Some(owner) => compiler.source_life_scope(module, &owner, expression.span)?,
+                None => None,
+            };
             compiler.budget.node(expression.span)?;
             Budget::take(
                 &mut compiler.budget.functions,
@@ -622,9 +686,19 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
                 .map_or(1, |n| n as usize + 2),
             compiler.declarations[declaration].item.span,
         )?;
-        compiler.bindings = compiler.instance_bindings(declaration, &arguments)?;
+        match arguments {
+            PendingTypes::Data(arguments) => {
+                compiler.bindings = compiler.instance_bindings(declaration, &arguments)?
+            }
+            PendingTypes::Metadata(arguments) => {
+                compiler.metadata_bindings =
+                    compiler.metadata_instance_bindings(declaration, &arguments)?
+            }
+        }
         let body = cfg::function(&mut compiler, id, declaration)?;
         compiler.bindings.clear();
+        compiler.metadata_bindings.clear();
+        compiler.scalar_bindings.clear();
         compiler.functions[id.0 as usize] = Some(body);
     }
     // Account for the actual bounded source-view copies before allocating them.
@@ -639,24 +713,29 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             .first()
             .map_or(Span::new(zil_base::FileId(0), 0, 0), |m| m.syntax.span),
     )?;
-    Ok(CtArtifactProgram {
-        schema_version: CT_ARTIFACT_SCHEMA_VERSION,
-        target_pointer_width: request.target_pointer_width,
-        source_fingerprint: request.source_fingerprint,
-        functions: compiler
-            .functions
-            .into_iter()
-            .map(|f| f.expect("queued CT source body completed"))
-            .collect(),
-        entry,
-        constants: compiler.constants,
-        record_schemas: compiler.records,
-        enum_schemas: compiler.enums,
-        templates: compiler.templates,
-        input_tokens: request.input_tokens.clone(),
-        snapshot: request.snapshot.clone(),
-        budget: compiler.budget.declared(),
-    })
+    let source_bindings = std::mem::take(&mut compiler.source_life_bindings);
+    Ok((
+        CtArtifactProgram {
+            schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            ambient_life_scopes: compiler.ambient_life_scopes,
+            target_pointer_width: request.target_pointer_width,
+            source_fingerprint: request.source_fingerprint,
+            functions: compiler
+                .functions
+                .into_iter()
+                .map(|f| f.expect("queued CT source body completed"))
+                .collect(),
+            entry,
+            constants: compiler.constants,
+            record_schemas: compiler.records,
+            enum_schemas: compiler.enums,
+            templates: compiler.templates,
+            input_tokens: request.input_tokens.clone(),
+            snapshot: request.snapshot.clone(),
+            budget: compiler.budget.declared(),
+        },
+        source_bindings,
+    ))
 }
 
 /// The raw program retains the shared remaining ledger across classification.
@@ -695,7 +774,7 @@ pub(crate) fn definitions_entry(
         if declaration.function.generics.is_empty()
             && compiler.ct_only_function(declaration.module, declaration.function)?
         {
-            entry = Some(compiler.symbol(declaration.module, declaration.item.span)?);
+            entry = Some(compiler.item_symbol(declaration.module, declaration.item)?);
             break;
         }
     }
@@ -720,3 +799,24 @@ pub(crate) fn uses_ct_domain(
 ) -> R<bool> {
     selection::uses(modules, module, expression, parameters, limits)
 }
+
+#[path = "compiler_metadata.rs"]
+pub(super) mod metadata;
+
+#[path = "compiler_data.rs"]
+mod data;
+
+#[path = "compiler_type_value.rs"]
+mod type_value;
+
+#[path = "compiler_generic_metadata.rs"]
+mod generic_metadata;
+
+#[path = "compiler_scalar_arguments.rs"]
+mod scalar_arguments;
+
+#[path = "compiler_metadata_copy.rs"]
+mod metadata_copy;
+
+#[path = "compiler_scoped_metadata.rs"]
+mod scoped_metadata;

@@ -642,11 +642,22 @@ impl CompilationSession {
                 let syntax = selected
                     .as_ref()
                     .map_or(&parsed.module, |selected| &selected.modules[0]);
-                let expanded = zil_expand::expand_with_map_limits_target(
+                let aliases = BTreeMap::new();
+                let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: source.module_id,
+                    aliases: &aliases,
+                    declarations: if selected.is_some() {
+                        zil_expand::source_context::DeclarationPlacement::Unavailable
+                    } else {
+                        zil_expand::source_context::DeclarationPlacement::Original
+                    },
+                };
+                let expanded = zil_expand::expand_with_map_limits_target_context(
                     source,
                     syntax,
                     &options.limits,
                     &options.target,
+                    context,
                 )?;
                 expanded
                     .source_map

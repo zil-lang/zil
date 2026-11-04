@@ -3,6 +3,8 @@
 //! states and roots are introduced only by executable borrow/capture operations.
 use super::*;
 use std::collections::BTreeMap;
+mod captured_lending;
+mod replacement_pins;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
@@ -298,6 +300,7 @@ fn delegated(
                 match instruction.kind {
                     InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::BorrowVariantAddress { address, .. }
+                    | InstructionKind::BorrowPlaceAddress { address, .. }
                     | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => pending.push(address),
@@ -677,15 +680,20 @@ fn capture_transition(
 
 // Actual pattern projections carry their own fresh window. The parent address
 // delegates authority; sibling windows still require real disjoint intervals.
-fn pattern_window_transition(
-    module: &TypedModule,
+struct PatternFacts<'a> {
+    values: &'a [Roots],
+    state: &'a State,
+    captures: Option<&'a captured_lending::Facts>,
+    replacements: Option<&'a crate::place_replacements::Definitions>,
+}
+type PatternAccess = (Roots, bool, Option<ValueId>);
+fn pattern_access(
     f: &TypedFunction,
     i: &Instruction,
     values: &[Roots],
-    state: &State,
-    live: &resources::Live,
+    replacements: Option<&crate::place_replacements::Definitions>,
     b: &mut Budget,
-) -> CompileResult<()> {
+) -> CompileResult<Option<PatternAccess>> {
     let projected =
         |address: ValueId, path: &[VariantProjection], b: &mut Budget| -> CompileResult<Roots> {
             b.spend(values[address.0 as usize].len(), "pattern projected roots")?;
@@ -694,7 +702,20 @@ fn pattern_window_transition(
                 .map(|root| address_root(f, address, path, *root, b))
                 .collect()
         };
-    let (roots, exclusive, parent) = match &i.kind {
+    let access = match &i.kind {
+        InstructionKind::CommitPlaceReplace { reservation, .. } => {
+            let definitions =
+                replacements.ok_or_else(|| bad("replacement access has no static definition"))?;
+            let definition = definitions.definition(*reservation, b)?;
+            (
+                replacement_roots(f, definition, values, b)?,
+                true,
+                match definition.base {
+                    crate::place_replacements::Base::Address(v) => Some(v),
+                    _ => None,
+                },
+            )
+        }
         InstructionKind::BorrowPlaceLocal {
             local,
             path,
@@ -786,6 +807,23 @@ fn pattern_window_transition(
                 Some(*address),
             )
         }
+        InstructionKind::PlaceTagAddress { address, path }
+        | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+            let header = matches!(i.kind, InstructionKind::PlaceTagAddress { .. });
+            b.spend(values[address.0 as usize].len(), "mixed actual roots")?;
+            let row = values[address.0 as usize]
+                .iter()
+                .map(|root| mixed_address_root(f, *address, path, header, *root, b))
+                .collect::<CompileResult<Roots>>()?;
+            (
+                row,
+                matches!(
+                    i.kind,
+                    InstructionKind::BorrowPlaceAddress { mutable: true, .. }
+                ),
+                Some(*address),
+            )
+        }
         InstructionKind::VariantTagAddress { address, path } => {
             (projected(*address, path, b)?, false, Some(*address))
         }
@@ -794,7 +832,52 @@ fn pattern_window_transition(
             path,
             mutable,
         } => (projected(*address, path, b)?, *mutable, Some(*address)),
-        _ => return Ok(()),
+        _ => return Ok(None),
+    };
+    Ok(Some(access))
+}
+fn replacement_roots(
+    f: &TypedFunction,
+    definition: &crate::place_replacements::Definition,
+    values: &[Roots],
+    b: &mut Budget,
+) -> CompileResult<Roots> {
+    match definition.base {
+        crate::place_replacements::Base::Local(local) => Ok(Roots::from([mixed_root(
+            f,
+            local,
+            &definition.path,
+            false,
+            b,
+        )?])),
+        crate::place_replacements::Base::Address(address) => {
+            b.spend(
+                values[address.0 as usize].len(),
+                "replacement actual addressed roots",
+            )?;
+            values[address.0 as usize]
+                .iter()
+                .map(|root| mixed_address_root(f, address, &definition.path, false, *root, b))
+                .collect()
+        }
+    }
+}
+fn pattern_window_transition(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    facts: PatternFacts<'_>,
+    live: &resources::Live,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let PatternFacts {
+        values,
+        state,
+        captures,
+        replacements,
+    } = facts;
+    let Some((roots, exclusive, parent)) = pattern_access(f, i, values, replacements, b)? else {
+        return Ok(());
     };
     let empty = Roots::new();
     for active in live {
@@ -822,7 +905,11 @@ fn pattern_window_transition(
         }
         if overlaps(&roots, held, b)? {
             if let Some(parent) = parent
-                && delegated(f, parent, *active, b)?
+                && if let Some(captures) = captures {
+                    captured_lending::delegated(f, parent, *active, captures, b)?
+                } else {
+                    delegated(f, parent, *active, b)?
+                }
             {
                 continue;
             }
@@ -1104,7 +1191,7 @@ fn scoped_transition(
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
 fn tracked_desc(ty: &Type) -> bool {
-    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
+    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
@@ -1476,7 +1563,26 @@ fn infer_with_private(
             budget.spend(1, "owned callback window function lookup")?;
             budget.owned_callback_window_functions[f.id.0 as usize]
         };
-    let mut pattern_windows = false;
+    let replacement_definitions = if budget.replacement_functions.is_empty() {
+        None
+    } else {
+        budget.lookup(
+            budget.replacement_functions.len(),
+            "replacement Hold function lookup",
+        )?;
+        if budget.replacement_functions.contains(&f.id) {
+            Some(crate::place_replacements::Definitions::new(
+                module, f, budget,
+            )?)
+        } else {
+            None
+        }
+    };
+    let replacement_schedule = replacement_definitions
+        .as_ref()
+        .map(|definitions| definitions.schedule(f, reachable, budget))
+        .transpose()?;
+    let mut pattern_windows = budget.owning_address_captures || replacement_schedule.is_some();
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
@@ -1492,17 +1598,23 @@ fn infer_with_private(
                         | InstructionKind::BorrowVariantLocal { .. }
                         | InstructionKind::VariantTagAddress { .. }
                         | InstructionKind::BorrowVariantAddress { .. }
+                        | InstructionKind::BorrowPlaceAddress { .. }
+                        | InstructionKind::PlaceTagAddress { .. }
                 )
             });
         }
     }
 
-    let address_afters = if store_windows || callback_windows || scoped || pattern_windows {
+    let address_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, false, &schedule.uses, budget)?
+    } else if store_windows || callback_windows || scoped || pattern_windows {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
     };
-    let capture_afters = if budget.address_capture {
+    let capture_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, true, &schedule.uses, budget)?
+    } else if budget.address_capture {
         resources::capture_afters(f, reachable, budget)?
     } else {
         Vec::new()
@@ -1535,6 +1647,19 @@ fn infer_with_private(
     };
     loop {
         let mut changed = false;
+        let capture_facts = if budget.owning_address_captures {
+            Some(captured_lending::reconstruct(
+                module,
+                f,
+                predecessors,
+                reachable,
+                &values,
+                summaries,
+                budget,
+            )?)
+        } else {
+            None
+        };
         for (b, block) in f.blocks.iter().enumerate() {
             budget.spend(1, "Hold fixed point")?;
             if !reachable[b] {
@@ -1581,8 +1706,47 @@ fn infer_with_private(
                     }
                 }
             }
+            let mut capture_state = if let Some(facts) = &capture_facts {
+                captured_lending::input(facts, b, budget)?
+            } else {
+                captured_lending::Locals::new()
+            };
+            let mut prepared = if let Some(schedule) = &replacement_schedule {
+                let incoming = schedule.incoming[b]
+                    .as_ref()
+                    .ok_or_else(|| bad("replacement pin entry missing"))?;
+                budget.spend(incoming.len(), "replacement pin active snapshot")?;
+                incoming.clone()
+            } else {
+                BTreeSet::new()
+            };
             for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
+                if let Some(definitions) = &replacement_definitions {
+                    replacement_pins::transition(
+                        module,
+                        f,
+                        instruction,
+                        &values,
+                        &state,
+                        &prepared,
+                        definitions,
+                        budget,
+                    )?;
+                    match instruction.kind {
+                        InstructionKind::ReservePlaceLocal { reservation, .. }
+                        | InstructionKind::ReservePlaceAddress { reservation, .. } => {
+                            budget.lookup(prepared.len(), "replacement pin insert")?;
+                            prepared.insert(reservation);
+                        }
+                        InstructionKind::CommitPlaceReplace { reservation, .. }
+                        | InstructionKind::AbortPlaceReservation { reservation } => {
+                            budget.lookup(prepared.len(), "replacement pin settlement")?;
+                            prepared.remove(&reservation);
+                        }
+                        _ => {}
+                    }
+                }
                 if !capture_afters.is_empty() {
                     capture_transition(
                         f,
@@ -1609,8 +1773,12 @@ fn infer_with_private(
                         module,
                         f,
                         instruction,
-                        &values,
-                        &state,
+                        PatternFacts {
+                            values: &values,
+                            state: &state,
+                            captures: capture_facts.as_ref(),
+                            replacements: replacement_definitions.as_ref(),
+                        },
                         &address_afters[b][position],
                         budget,
                     )?;
@@ -1644,7 +1812,7 @@ fn infer_with_private(
                     }
                 } else {
                     match &instruction.kind {
-                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
                         {
                             found.insert(Root::Local(*local));
                         }
@@ -1693,6 +1861,17 @@ fn infer_with_private(
                         }
                         InstructionKind::BorrowFieldLocal { local, path, .. } => {
                             found.insert(inline_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                            budget.spend(
+                                values[address.0 as usize].len(),
+                                "mixed actual result roots",
+                            )?;
+                            for root in &values[address.0 as usize] {
+                                found.insert(mixed_address_root(
+                                    f, *address, path, false, *root, budget,
+                                )?);
+                            }
                         }
                         InstructionKind::BorrowVariantAddress { address, path, .. } => {
                             for root in &values[address.0 as usize] {
@@ -1804,7 +1983,22 @@ fn infer_with_private(
                                 matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
                             }) =>
                         {
-                            found.insert(Root::Local(*callee));
+                            if capture_facts.is_some() {
+                                let d = captured_lending::entry(module, f, &instruction.kind)
+                                    .ok_or_else(|| bad("lending closure missing"))?;
+                                budget
+                                    .lookup(capture_state.len(), "external lending actual local")?;
+                                let environment = Roots::from([Root::Local(*callee)]);
+                                found = captured_lending::result(
+                                    d,
+                                    &summaries[d.function.0 as usize],
+                                    capture_state.get(callee),
+                                    &environment,
+                                    budget,
+                                )?;
+                            } else {
+                                found.insert(Root::Local(*callee));
+                            }
                         }
                         InstructionKind::CallClosureBorrowed { callee, .. }
                             if instruction.result.is_some_and(|value| {
@@ -1814,7 +2008,19 @@ fn infer_with_private(
                             let actual = values
                                 .get(callee.0 as usize)
                                 .ok_or_else(|| bad("lending callee outside value table"))?;
-                            extend(&mut found, actual, budget)?;
+                            if let Some(captures) = &capture_facts {
+                                let d = captured_lending::entry(module, f, &instruction.kind)
+                                    .ok_or_else(|| bad("borrowed lending closure missing"))?;
+                                found = captured_lending::result(
+                                    d,
+                                    &summaries[d.function.0 as usize],
+                                    Some(&captures.values[callee.0 as usize]),
+                                    actual,
+                                    budget,
+                                )?;
+                            } else {
+                                extend(&mut found, actual, budget)?;
+                            }
                         }
                         InstructionKind::CallIndirect { callee, arguments } => {
                             let ty = f
@@ -1880,6 +2086,14 @@ fn infer_with_private(
                         .get_mut(result.0 as usize)
                         .ok_or_else(|| bad("Hold result outside table"))?;
                     changed |= extend(value, &found, budget)?;
+                }
+                if let Some(captures) = &capture_facts {
+                    captured_lending::local_step(
+                        &mut capture_state,
+                        instruction,
+                        &captures.values,
+                        budget,
+                    )?;
                 }
                 if thread_windows {
                     changed |= thread_access_step(
@@ -3102,7 +3316,16 @@ fn infer_module_inner(
                 let callee = match instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
                     _ => super::borrowed_fp::invocation_call(module, function, &instruction.kind)
-                        .map(|(d, _)| d.function),
+                        .map(|(d, _)| d.function)
+                        .or_else(|| {
+                            budget
+                                .owning_address_captures
+                                .then(|| {
+                                    captured_lending::entry(module, function, &instruction.kind)
+                                })
+                                .flatten()
+                                .map(|d| d.function)
+                        }),
                 };
                 if let Some(callee) = callee
                     && instruction.result.is_some_and(|value| {
@@ -3136,7 +3359,9 @@ fn infer_module_inner(
         TEST_SOLVES.with(|n| n.set(n.get() + 1));
         let function = &module.functions[index];
         let (predecessors, reachable) = &graphs[index];
-        let values = infer(
+        let mut actual = Vec::new();
+        let capture_returns = budget.owning_address_captures;
+        let values = infer_with_private(
             module,
             &summaries,
             function,
@@ -3147,6 +3372,7 @@ fn infer_module_inner(
                 .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
                 || ordinary_store_function(index, budget)?,
             budget,
+            capture_returns.then_some(&mut actual),
         )?;
         let mut changed = false;
         if matches!(function.return_type, Type::Address { .. }) {
@@ -3161,6 +3387,19 @@ fn infer_module_inner(
                         budget.spend(1, "return parameter origin")?;
                         if let HoldRoot::Parameter(index) = root {
                             result.insert(Root::Parameter(*index));
+                        }
+                    }
+                    if capture_returns {
+                        let row = &actual[value.0 as usize];
+                        budget.spend(row.len(), "external lending concrete return roots")?;
+                        for root in row {
+                            if matches!(
+                                root.position(),
+                                Root::Capture(_) | Root::Window(HoldRoot::Capture(_), ..)
+                            ) {
+                                budget.lookup(result.len(), "external lending return summary")?;
+                                result.insert(*root);
+                            }
                         }
                     }
                 }
@@ -3256,6 +3495,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
@@ -3286,6 +3526,11 @@ mod frontier_tests {
             })
             .collect();
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),
@@ -3513,6 +3758,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(id),
@@ -3540,6 +3786,11 @@ mod product_parameter_dependency_tests {
             callable_return_contract: None,
         };
         let mut module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
@@ -3863,13 +4114,12 @@ fn inline_address_field_root(
     })
 }
 
-fn mixed_root(
-    f: &TypedFunction,
-    local: LocalId,
+fn mixed_interval(
+    mut ty: &Type,
     path: &[zil_ir::PlaceProjection],
     header: bool,
     b: &mut Budget,
-) -> CompileResult<Root> {
+) -> CompileResult<(u32, u32)> {
     use zil_ir::PlaceProjection;
     fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
         b.spend(1, "mixed inline root interval")?;
@@ -3910,11 +4160,6 @@ fn mixed_root(
         }
         Ok(n)
     }
-    let mut ty = &f
-        .locals
-        .get(local.0 as usize)
-        .ok_or_else(|| bad("mixed root local absent"))?
-        .ty;
     let mut start = 0u32;
     for step in path {
         b.spend(1, "mixed inline root interval")?;
@@ -3938,7 +4183,10 @@ fn mixed_root(
                 }
                 fs.get(*i as usize)
             }
-            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+            (
+                PlaceProjection::Field(i),
+                Type::Package { fields, .. } | Type::Record { fields, .. },
+            ) => {
                 for (_, t) in fields.iter().take(*i as usize) {
                     start = start.checked_add(width(t, b)?).ok_or_else(|| {
                         vec![Diagnostic::limit(
@@ -4008,5 +4256,65 @@ fn mixed_root(
             None,
         )]
     })?;
+    Ok((start, end))
+}
+
+fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("mixed root local absent"))?
+        .ty;
+    let (start, end) = mixed_interval(ty, path, header, b)?;
     Ok(Root::Projection(local, start, end))
+}
+
+fn mixed_address_root(
+    f: &TypedFunction,
+    address: ValueId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    root: Root,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+        return Err(bad("mixed base is not actual address"));
+    };
+    let (start, end) = mixed_interval(inner, path, header, b)?;
+    Ok(match root {
+        Root::Local(l) => Root::Projection(l, start, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+        Root::Capture(c) => Root::Window(HoldRoot::Capture(c), start, end),
+        Root::Projection(l, offset, limit) => {
+            let a = offset
+                .checked_add(start)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Projection(l, a, z)
+        }
+        Root::Window(origin, offset, limit) => {
+            let a = offset
+                .checked_add(start)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Window(origin, a, z)
+        }
+        root => root,
+    })
 }

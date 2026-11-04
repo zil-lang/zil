@@ -1,0 +1,37 @@
+{
+  "task": 343,
+  "source_commit": "1cd364dec855a3bd5d844e4190187ecce886e88f",
+  "scope": "Task38 borrowed type-hint compatibility supplement before public39 author tree update",
+  "production_ancestor": "3a97ab7bbf2cf4a9699a8eea83291c57b4d3242a",
+  "spec_authority_commit": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+  "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api general_task343 -- --nocapture",
+      "result": "7 passed; 0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task38-hint-tests.log"
+    },
+    {
+      "command": "cargo clippy -p zil-driver --test generic_regressions --features llvm-api -- -D warnings",
+      "result": "passed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task38-hint-clippy.log"
+    }
+  ],
+  "control": "Generated actual Core Ascribed/Sequence mutable Task heads pass Types→Analyze→Verify; wrong complete T rejects E-TYPE-MISMATCH. Original Holder.task source rejects at the earlier unchanged Types aggregate-field requirement, before hint selection.",
+  "retained_harness": {
+    "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+    "sha256": "ecbc4e5f0ef33214f847f00b6896f9fe6c6c0cab2bd61d93139f827e3c939fe2"
+  },
+  "files_sha256": {
+    "crates/zil-types/src/tasks/hint.rs": "46f551e247075a8aa7d090802395a41bcf907fc8345308eee33988df852ce71a",
+    "tests/language-readiness/terminal/343/task_general.rs": "fd137b139f9100e578b7bfe94eeae715ffc9ee0fc1d57447f20f41923cd72dd1",
+    "tests/language-readiness/terminal/343/task-general-projected-head.zil": "dcc001fca1460a29485f100d1d5922c229e7f41913e6a105fb1abbd99bd21370",
+    "tests/language-readiness/terminal/343/task-general-observer.c": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac"
+  },
+  "limits": [
+    "No Task39/shared-retained consumer claim from this38 harness.",
+    "Owning Task values/SSA/responsibility order/wakers continue separately.",
+    "No Rust product/performance superiority claim."
+  ]
+}

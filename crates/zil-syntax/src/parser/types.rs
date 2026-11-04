@@ -145,7 +145,11 @@ impl Parser<'_> {
         } else if self.eat_word("dyn") {
             let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
-            TypeKind::Dyn { path, args }
+            TypeKind::Dyn {
+                path,
+                args,
+                bindings: Vec::new(),
+            }
         } else if self.eat_word("for") {
             self.expect(Symbol::Lt)?;
             let lifetime = self.scoped(true, |p| {
@@ -251,7 +255,10 @@ impl Parser<'_> {
             let mut args = Vec::new();
             loop {
                 let start = p.peek().span;
-                if matches!(p.peek().kind, TokenKind::Integer | TokenKind::Float)
+                if p.peek().kind == TokenKind::Lifetime {
+                    let token = p.bump();
+                    args.push(GenericArg::Lifetime(p.text(&token)[1..].to_owned()));
+                } else if matches!(p.peek().kind, TokenKind::Integer | TokenKind::Float)
                     || p.at_word("true")
                     || p.at_word("false")
                 {

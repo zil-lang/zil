@@ -4,7 +4,7 @@
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress; finite HRTB callback invocation relations",
   "tests": {
-    "cross_function_borrows": 70,
+    "cross_function_borrows": 71,
     "generic_regressions": 35,
     "impl033": 10,
     "impl099_owned_bytes": 9,
@@ -115,7 +115,8 @@
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
     "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
     "resource_heads": "PassLimited 4365536a4 exact ec1d9e904; root SyncCell followup separately reviewed58ab47a4d",
-    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate"
+    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate",
+    "higher_rank_corrected": "PassLimited254de49db exactebcc159b5"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -525,7 +526,50 @@
       "342-hrtb-signature-analyze-scoped.log": "cf9afc6c0d1787266a4bafb6b41908c466b284278b5dd04a31a2502b526e4c5e",
       "342-hrtb-signature-exact.log": "682428150348c4092c876da4cf3b3ca3373d5f9fd231def3097caffd085d37ee"
     },
-    "independent_review": "Pending exact corrected candidate; original13677 PassLimited d5b3b25e6 retained open signature-fee finding",
+    "independent_review": "PassLimited254de49db exactebcc159b5",
+    "formal_full_suite": "NotRunByImplementationAuthor"
+  },
+  "higher_rank_export_identity_fee": {
+    "status": "AuthorScopedPass",
+    "base_commit": "7e13f41bb",
+    "scope": "same remaining Types ledger prepays added export/role scan and numeric relation bytes growth/hash; serialized bytes unchanged",
+    "production_files": 351,
+    "production_sha256": "01a575aafbeddb7e5dedc9d69b7aaceea7cc13285e23671c84c583d8849524a7",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "test_file": "tests/language-readiness/terminal/342/higher_rank.rs",
+    "test_sha256": "8f776bfc7b96274951176a136ae26b9abdfb36a24a45e7eab7294ea8bed5c085",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "9e1cfd987c073a95358b9026adadc88e021f5ff9252c1dcc91ba89580480b7ba",
+    "exact_ten_driver_targets": [
+      71,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "project_types_n": [
+      662,
+      784
+    ],
+    "n_minus_one_resource_limit": true,
+    "fresh_n_identical": true,
+    "default_limits_changed": false,
+    "prior_recorded_single_module_ns_unchanged": true,
+    "raw_and_wire": true,
+    "existing_live_restored_and_alpha_interface_tests": "Pass",
+    "clippy": "same ten driver targets llvm-api -D warnings Pass",
+    "logs": {
+      "342-hrtb-identity-before.log": "804de3fefee7dce7e902daf0409ce16d56419fdaef40355fea251c50f0ceea3c",
+      "342-hrtb-identity-after.log": "11049e45289e87b3959316dc69c062b790fddcf5dcd5e1acc041437090b04562",
+      "342-hrtb-identity-final.log": "c803f016f9de95157fa9c41561d19a1c66ae44eba578ce6161c6868a644786db",
+      "342-hrtb-identity-clippy.log": "d33db4b590db62b342ffd79c986ad8de930da9c829c09b243eed04ba8eb19719"
+    },
+    "independent_review": "Pending exact small identity-fee followup; ebcc recursive fee correction separately PassLimited254de49db",
     "formal_full_suite": "NotRunByImplementationAuthor"
   },
   "root_wire37_combination": {
@@ -567,5 +611,507 @@
     },
     "full_workspace": "NotRun",
     "next": "Author interface-fee exact project controls, merge-specific Window/ClosedEnvironment controls and independent review remain separate"
+  },
+  "store_resource_head_continuation": {
+    "status": "AuthorScopedPass",
+    "base_commit": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+    "scope": "Actual Store descriptor origins through exclusive Package resource-head Copy-field projection; strict compilation adapters for staged Wire38 only, no general stored-borrow consumer claim",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 409,
+      "sha256": "81599ecfc26a15c9bbd6aa7448e7994a76cb9ce132641a2c2a44898ba9d52e12"
+    },
+    "source_fixture": {
+      "path": "tests/language-readiness/terminal/342/store_resource_head.zil",
+      "sha256": "93a6664e79746b0e803f9df58e654c09f61c9de2546224ea1569dd0b30b077d7",
+      "byte_equal_to_original_b377_runtime_source": true,
+      "old": "Analyze/SafeReject: instruction cannot produce the claimed resource kind",
+      "new": "Verify/Success; Clang/API O0/O2 actual exit0 stdout ZB"
+    },
+    "source_tests": {
+      "tests/language-readiness/terminal/342/resource_head.rs": "5df3a41510e2c942b252d77f4d3c5a751cc9f88cee674838d51284322e504f45",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "9b03b8e7179d013e7ca3be1864720d0386288381fcc75647914155c561c3e677",
+      "crates/zil-driver/tests/impl180_store_mut.rs": "aeba5176da36f9cf57f48db19c0385124ca09b8c08bbc2cebd424f52efa707b6"
+    },
+    "existing_targets": {
+      "cross_function_borrows": 77,
+      "impl180_store_mut": 19,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_focused": {
+      "tests": 4,
+      "native_profiles": 8,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "actual_cleanup_stdout": "ZB",
+      "last_use_then_reserve_positive": true,
+      "dynamic_unknown_indexes_no_apart": true,
+      "raw_and_decoded_wire_both_kernels": [
+        "shared downgrade",
+        "early actual Store owner drop",
+        "structural reserve during view",
+        "same actual Store passed through two nominally distinct arguments"
+      ],
+      "live_and_restored_cache_body_mode_mutations": "SafeReject"
+    },
+    "budget": {
+      "analyze": 22441,
+      "verify": 38508,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true,
+      "defaults_unchanged": true
+    },
+    "clippy": "same two existing driver targets llvm-api -D warnings Pass",
+    "harnesses": {
+      "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299": "01f3b4c2150d4ff1d0036f26a39abc61485cb5bd40035b530b9e666b0f7b4fc3",
+      "/workspace/.zil-env/target342/debug/deps/impl180_store_mut-4ebd16ce64ec1cb7": "d9b0e21520c23664e88c189a76d00639edef47d920e6d8573b8073cf1a1b40b6"
+    },
+    "logs": {
+      "342-storage38-adapters-check.log": "0832b2456bdda7bdac628eb238186c5af598e277e6975a61acba436c6ce0ca9c",
+      "342-storehead-final.log": "c67e76a11f08c4886514bb4028a86638362ee84eab8ec8123abbd48f1361a485",
+      "342-storehead-final-clippy.log": "03a3db57d6102696e957bdfd99ad2fd0f1b7b08e9cdd41ff90eff06f97592781"
+    },
+    "independent_review": "Pending exact checkpoint; previous ec1/HRTB independent receipts remain separate",
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "remaining": [
+      "General stored-borrow CopyShared/Reborrow/Take/refill source+kernel consumers",
+      "CT nominal scoped lifetime and phantom fullargs",
+      "Canonical generic ForLifetime identity",
+      "general State/lending/dyn and borrowed Task ports"
+    ]
+  },
+  "stored_source_and_instruction_typing_wip": {
+    "status": "WIP_NotAStoredBorrowConsumerPass",
+    "base": "0c07a7806",
+    "scope": "Nominal lifetime syntax transport and independent physical instruction typing only",
+    "actual_slice_iter_fixture": "tests/language-readiness/terminal/342/slice_iter.zil",
+    "actual_slice_iter_parse": "Pass; ordinary struct/factory/impl/Option with three held element results",
+    "source_kind_order_test": "Lifetime/Type/Const exact argument ordinal retained",
+    "actual_slice_iter_semantics_and_native": "NotImplemented; BorrowedStorage type and contract admission remain Unsupported",
+    "cfg_target_init_epoch_proof": "NotImplemented; instruction typing does not grant it",
+    "check_driver_llvm_api": "Pass",
+    "terminal342_scope": {
+      "passed": 41,
+      "failed": 0,
+      "filtered": 37
+    },
+    "clippy_cross_target": "Pass -D warnings after collapsing one nested if",
+    "logs": {
+      "342-storage-source-syntax.log": "303758366c20935186fa1ef605b65181f8961916da207faca893f84220fbe817",
+      "342-storage-typing-check.log": "1fed7de6a76b67502317ef839b81a90f02b71670092f384b6711e2b7aa2a014b",
+      "342-storage-typing-regressions.log": "4b823b99b2cba6c3afac5a63bf394445565f3ebcee5be81d1df33e45e75a3dbf",
+      "342-storage-typing-clippy2.log": "5042eb8bc3ff37d7ec41b8c0668dab4d829fe6ea51ffdcf7caf68dbf694c654c"
+    }
+  },
+  "physical_shared_storage_kernel_wip": {
+    "status": "WIP_ActualRawPhysicalKernelPass_SourceNativePending",
+    "base_commit": "598100c441",
+    "scope": "Independent actual shared physical Record/Tuple target/loan CFG consumers; one retained input class/carrier; no stored mutation/epoch transition accepted",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 415,
+      "sha256": "547535e2fa4c0f9c291a80ba484111aa8cc11e4d9693c59bf1caea1977b93f42"
+    },
+    "test_binding": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": "66de0890cee9d22178e1852a6ac799bf77b0ffc26435d78d28c56428f68ff02e",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "1ba794a94919207038a8f02041254c086a01d559b32d7ab90e00ad07c47f56ac",
+      "tests/language-readiness/terminal/342/stored_physical.rs": "a6444d328cc5cbacd5ac454f15ebdb4b8826ca1f5e6ddd8fd8e271779252d440",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "2e143449f11555266a04827efd418f9741aa2c9a0e649ee1cad3a71fd6ee2a6d"
+    },
+    "logs": {
+      "342-stored-flow-kernel-libs-final.log": "939a87d86e56c94752e3f548b2e5fc72538473814be42ea92c4768099f7e2c87",
+      "342-stored-flow-kernel-clippy-final.log": "e35908e1f91d3f07d1702e71cda18de37465b4b1d05bbcfe164c8927f43154a2",
+      "342-stored-physical-cross.log": "866cc9d54eea8163f6bfa1f40ca44cf668e677b59c0e29b12b2bbe40e3bbbe66",
+      "342-stored-flow-cross-full.log": "ebf6c4e923cc8fc6423be9f07e1ac8edbf662ab8a34b1ddaa710f4d1cb5cc8b3",
+      "342-stored-flow-cross-full-corrected.log": "87a20506762c3ddab588ff15c12582d46bad0d493cf7eab380c3595e004342ad"
+    },
+    "kernel_libs": {
+      "analyze": 128,
+      "verify": 348,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "cross_target": {
+      "passed": 81,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_focused_raw": {
+      "tests": 3,
+      "full_analyze_verify_wire": true,
+      "new_native_profiles": 0,
+      "exact_actual_source_producer": "NotYetComposedWithThisCheckpoint"
+    },
+    "budget": {
+      "analyze": 8728,
+      "verify": 11365,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true,
+      "defaults_unchanged": true
+    },
+    "clippy": "zil-analyze/zil-verify --lib --tests -D warnings Pass",
+    "historical_failure": "cross80/1 stale WIRE_VERSION38 assertion; corrected current Schema/Wire39 and reran81/0; original log retained",
+    "remaining": [
+      "ordinary View source->Typed->Lower/native composition",
+      "symbolic Type-generic stored definitions",
+      "actual invariant multi-class call substitution",
+      "enum/Option active leaf state",
+      "Reborrow slot/epoch dependence",
+      "Take/init/refill/replacement",
+      "stored descriptions and owned/captured/opaque carrier integration",
+      "SliceIter three simultaneously held results",
+      "general State/lending/dyn and borrowed Task ports"
+    ],
+    "independent_review": "Pending exact source checkpoint",
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-716965bc41ea50a8",
+      "sha256": "d308ee34b1376ae74e4dec2c066a286c6a3e20b9aab5b092bd22721a369975e0"
+    }
+  },
+  "ordinary_view_native_continuation": {
+    "status": "AuthorScopedOrdinaryViewNativePass_GeneralStorageStillWIP",
+    "base_commit": "573080f77",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 423,
+      "sha256": "237cbc37ce7b3b3500dd18904473753d405be36b79d6655da478c7d433b2f76f"
+    },
+    "source_fixture": {
+      "path": "tests/language-readiness/terminal/342/stored_view.zil",
+      "sha256": "1cf229d0e77e4164d8218fd8ab13667fadf4f8e2dd4ab226e65a9dbb78c5b313",
+      "unchanged_root_original": true
+    },
+    "focused_existing_cross": {
+      "passed": 4,
+      "failed": 0,
+      "filtered": 78,
+      "ignored": 0
+    },
+    "actual_source_native": {
+      "profiles": 4,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "exit": 0,
+      "stdout": "42\n",
+      "llvm": "inline {ptr} record; real typed GEP and load ptr"
+    },
+    "lower_lir_forgery_controls": [
+      "erased storage_life",
+      "changed stored physical path"
+    ],
+    "meter": "Verified profile only gates payment; Lower shared Sum ledger, Codegen copy/task remaining ledger before binding/type clones/emission",
+    "clippy": "zil-verify/zil-lower/zil-backend-llvm --lib --features zil-backend-llvm/llvm-api -D warnings Pass",
+    "broader_library_command": {
+      "status": "BlockedBeforeTests",
+      "error": "preexisting machine_cgu_clone_controls.rs TypedFunction literal omitted storage_life",
+      "root_fix": "f078d4333; not part of this tested573 base"
+    },
+    "retained_native": {
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.bin": "96d45e2dd5b8201b79be3bae656e3fbe08eedd2a2ed87d86054e80d0b3064d6e",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.json": "ff41018f847f754aa2ec25925f17b0a3a8e0e0838872a9de88944094d62ad8b6",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.bin": "12e34894c933fa760c018b2b4d148f19ae4b2e91a126742231d2a7f60e03f316",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.json": "88c656a21dee6f851975b4a87e66e5c224df6c1994c1939ca90aeefa06b7f870",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.bin": "8c49117e44916314af6af280f1f5d670da491b77ea4c0a3f88045d67fd56e3ad",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.json": "b1bfff0a9eef3f53cccf8cb99e4bcbcb17d759d817ecdc34a02d786c086500af",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.bin": "7e1714a65a7a1ae92acc51f78610b9fd3f1d8c1ea446a70ab86d72dacc044c15",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.json": "0d59139b261a047e56addcedb7ce7c553aff917bef6d95223b1e02bed0976cdd",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31"
+    },
+    "logs": {
+      "342-stored-view-native-first.log": "721c08876ce19fa446aedb12c0415b1948b868e72c4aa8cdc0cecfe245760280",
+      "342-stored-native-focused.log": "a8338feb3ce79dc105ba21036e22caee47cedb90a858d4e1f934311b8a46d7bc",
+      "342-stored-native-retained.log": "a2db1457480e51e9619b2e39a64a75a7978b88e180dbf9a4ca7eceb84bd80d32",
+      "342-stored-native-clippy.log": "45e9bdf8e33f74becbc818ed895925c407a9555089d3249abdd05fdab8815a9c",
+      "342-stored-native-libs.log": "7aa16cf77c80c30da6a3f756318ff8ab61795afc84ee3609e3b4d2d0ccb81a30",
+      "342-stored-native-mtime.json": "782b9a96fd3ae65f5ba2dba2c2f82a3e342fc31fdfe42c280940e86b08545d42"
+    },
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_physical.rs": "a7364dc033d299d376a70c368e15e3c73cddfede7c5f9f200f34ca22078965e2",
+      "tests/language-readiness/terminal/342/stored_view.zil": "1cf229d0e77e4164d8218fd8ab13667fadf4f8e2dd4ab226e65a9dbb78c5b313"
+    },
+    "independent_review": "Pending exact native checkpoint",
+    "general_scope_remaining": [
+      "phantom-only nominal carrier no-root consumer correction",
+      "multiple invariant classes/inputs and actual class unification",
+      "mutable slot actions/init/refill/epoch",
+      "enum/Option/SliceIter",
+      "owned/captured/opaque carrier and State/lending/dyn integration"
+    ],
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299",
+      "sha256": "ea643a1ee59739115569c0da519f8d0c15f08c044e6d6d89b1018d3ceb77e805"
+    }
+  },
+  "stored_native_phantom_accounting_correction": {
+    "scope": "39 native binding reservation/all-block profile and rootless phantom correction; general storage unfinished",
+    "production_base": "123ec37f41fe75afea7cca2f7653fe93ebe0cdfe",
+    "production_files": 816,
+    "production_manifest_sha256": "5e66f4009735d398cf47dc4693f29f81f07d1c3843cb6470f000824de9f01cd2",
+    "tests": {
+      "cross_function_borrows": 84,
+      "analyze_lib": 128,
+      "verify_lib": 348,
+      "lower_lib": 5,
+      "backend_lib": 148,
+      "four_crate_clippy_lib_tests": "Pass -D warnings llvm-api"
+    },
+    "native": "Original View four Clang/API O0/O2 profiles rerun in full cross84; prior7326 LLVM/executables remain retained",
+    "budget": {
+      "analyze": 8728,
+      "verify": 11382,
+      "native_binding_reservation_component": 11374,
+      "neighbors": "N-1 ResourceLimit and fresh N",
+      "public_codegen_threshold": "Not isolated; earlier Verify dominates both retained failed attempts; component N is not a public pipeline threshold",
+      "default_changed": false
+    },
+    "phantom": "zero physical slots with meaningful nominal class accepted; ghost Hold and activation-local escape reject independently and decoded Wire",
+    "unreachable": "both kernels reject unsupported profile instructions even in unreachable blocks before native structural binding",
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_physical.rs": "0d03463db7c70007cd1f239c79f0546c161c23a73fc3fcf0242bc1c786a9147c",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "f2d28b7ede8babbe3701222e2ea0d87340370387f9fada91ac9f80acded13a7c",
+      "tests/language-readiness/terminal/342/phantom_stored_metadata.zil": "26ef76055b1eb580b0542e588aa661d5f17943490a8c5172ad427bb4a7355394",
+      "tests/language-readiness/terminal/342/phantom_stored_metadata_escape.zil": "d0d01f878c2130fe3546ff61dd6d9f5a7a6f7497ed43b1067b1e70c8a99e6862"
+    },
+    "logs": {
+      "342-stored-corrections-libs-final.log": "0a8281fe4c6250e2fe444fac89daa939abe09d154b4b90b33e578217f5db2d21",
+      "342-stored-corrections-clippy-final.log": "e77bc21141091671b75a70f46807796aa09eaf2a535a5c7e69444dc6040818dc",
+      "342-stored-corrections-clippy-corrected.log": "3f1832e2ab2630bee12ea22189e2ad69277fa603044bc0c0f95ccd3f96b58337",
+      "342-stored-corrections-cross-final.log": "c0d7837f39d551215607fb12aaec8e4c1d53335d558f1b3062c5e93672716529",
+      "342-stored-binding-component.log": "c1519dc2ad5e115a4f68c9855002aa7703b0cc3b5b7ffb203c4b1c899e743b50",
+      "342-stored-codegen-boundary.log": "fd94a5571913505db96abcc6ab7f8e92ed7fe191e4d93fa9ebd51fd7bea12a96",
+      "342-stored-codegen-boundary-raw.log": "efe65898191198f55f8cdbaee77a2a549b2bcd9708e7884700095083cc144cc6",
+      "342-phantom-stored-first.log": "998663aec6d2d25dc6fe492c3f05f5533f73b5bccf5e765bb14be742e5f979ff",
+      "342-phantom-stored-main.log": "c2d2b5016d7a7f7be1bb48f76ba61bd06e4706df671f23f33b31c7f53e8b93bc",
+      "342-corrections-final-mtime.json": "1c892ec27f6aeef2d4808eb97924163c58d48e120857f6b49666ad7c40c09d1b"
+    },
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299",
+      "sha256": "8ea3dbf07d75a4035c86fd1f3812131dd4882fb979950197838d526168cd0d7b"
+    },
+    "independent_review": "Pending exact correction replay; prior7326 four-test native replay remains separate",
+    "remaining": [
+      "rich qualified classes/invariant substitution",
+      "mutable slot/init/epoch/Take/refill",
+      "Option/SliceIter and generic definition obligations",
+      "owned/captured/opaque State/lending/dyn/Task retained roots"
+    ]
+  },
+  "rich40_scalar_runtime_checkpoint": {
+    "scope": "Published40 raw scalar-result rich BFP and persistent class equations; source/native and roles pending",
+    "public_format": "7ffbfc856, applied as5da384a24; private CT compile dependencies d0f246c94/5e7485f8d applied asb90ba2254/bd27fc7e1",
+    "worktree": "/workspace/zil-342-rich40",
+    "target": "/workspace/.zil-env/target342-40; fresh isolated target, no shared39 metadata",
+    "production_base_before_final_edits": "bd27fc7e1",
+    "crate_source_manifest": {
+      "selector": "git ls-files order, path starts crates/ and ends .rs or Cargo.toml; includes crate tests",
+      "encoding": "lowercase SHA256(bytes) + two spaces + relative path + newline; SHA256 of UTF-8 concatenation",
+      "files": 821,
+      "sha256": "32295d5ea8a31c295ca740610592aa48b37470c492028a94249ed22b07189e85"
+    },
+    "tests": {
+      "analyze_stored_flow": 8,
+      "verify_stored_flow": 7,
+      "analyze_signature_life": 1,
+      "both_kernel_lib_test_clippy": "Pass -D warnings",
+      "full_analyze_prior": "128 pass/2 fail solely historical schema39 helper assertions; no all-library pass claimed",
+      "full_driver": "NotRun; actual source producer/root integration pending"
+    },
+    "budget": {
+      "analyze": 3377,
+      "verify": 4053,
+      "neighbors": "N-1 ResourceLimit, repeat/fresh N identical",
+      "defaults_changed": false
+    },
+    "controls": [
+      "exact qualified []/[Pointee] boundary; no duplicate physical class rows",
+      "actual target relation implication, full parameter/result equality and ordinary Direct target",
+      "fresh formal variables each invocation; actual retained variables rigid",
+      "one phantom constructor persists across direct/indirect uses; second constructor nearest positive",
+      "wrong actual outer/class equation and wrong target implication reject both kernels/raw/Wire",
+      "same exclusive actual argument rejects independently of matching class equations; distinct inputs pass",
+      "actual target/parent loans remain separate from semantic class equations",
+      "live row/count reservation precedes every relation row/path walk"
+    ],
+    "scope_closed": [
+      "rich Address-result indirect substitution",
+      "qualified callback/closure roles and captured Fixed context",
+      "mutable stored actions/initialization/epochs/Take/refill",
+      "owning/nested/opaque class paths and general State/lending",
+      "source generic stored definition obligations and actual Option/SliceIter",
+      "rich CT5 context execution owned344"
+    ],
+    "native": "No40 native or source claim; accepted39 View/phantom evidence remains separate",
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "b8e4127d58c5101cc185007da18d9a96351ba80456f8c9a1729e3719e4281acc",
+      "tests/language-readiness/terminal/342/borrowed_fp.rs": "97f2ba8795f2bf1f95ad2581ae8e08f8b55bc9088672dac1b22c385696f4f693",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "b3c2fa233eea7e83e6332f6f02329391bfacd434bf0248b3d50085b0bf1c389a"
+    },
+    "logs": {
+      "342-rich40-kernel-rich-checkpoint.log": "6497a538ef38a3006dee3035bb9249e07818dea766b95293b261bd61e86780e1",
+      "342-rich40-signature-checkpoint.log": "e81242bb5d376edebfc320560ba087b45af6421762377c49ddf5e062a2bcafda",
+      "342-rich40-kernel-clippy-checkpoint.log": "5affe5bd49cac71e04c622ddd7abad642ba1f2fa06c44999fbced03549f6097f",
+      "342-rich40-analyze-all-first.log": "05ce98a2b92f2877ee1f315d32585f3007888172b7f98ee1fb9617e1856d6ff0",
+      "342-rich40-kernel-first-check.log": "f5ad8db34d314a2bf31d7403ee7fb40c3e8781703b7b640b04405b7e8f00a4fb",
+      "342-rich40-kernel-second-check.log": "bc05bd8c1e8edf107f994e32e083ae822e545f35f94351ffd183ff9e3fbafd56",
+      "342-rich40-kernel-composed-first.log": "ba28de22031ab5d256b12849fbbf11ee296dcba452182a6e55cfb6478b253508",
+      "342-rich40-verify-rich-first.log": "e7a14bf00f8a7c39821be6d79299408b116b98deddc46aa88d332fdfee26f31b",
+      "342-rich40-runtime-probe-build.log": "1adaf59d083990305528a85dae5914ea45a4801bee2edecabbc103d3198e177b",
+      "342-rich40-runtime-probe-build-corrected.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "342-rich40-runtime-probe-corrected.log": "438d4176463c8c18c368b3e72a60e3514042b9b6e39ba593fde343a502693316"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7": "9d8268538c51219848b718fbd02d724effd8410523ff457fbae249c10143c3c7",
+      "/workspace/.zil-env/target342-40/debug/deps/zil_verify-e5c00ec0866c83e5": "65033d3166825cf797544cd8a30e526c189437d600acdcf9971cf80e328fb5c7"
+    },
+    "independent_review": "Pending exact raw checkpoint",
+    "formal_full_workspace": "NotRunByImplementationAuthor"
+  },
+  "rich40_domain_hardening": {
+    "pre_hardening_full_libraries": {
+      "source_base": "4ada5186d after root0e/072 fixture migrations",
+      "analyze": 133,
+      "verify": 351,
+      "log_sha256": "16b984f34b0c3fa47b555d7689b682f6036d88d1e0cdb0491383ad168b50bb04"
+    },
+    "signature_tests": {
+      "analyze": 2,
+      "verify": 1,
+      "log_sha256": "a58046bff57b7567cfc105c383c09f6c8b2cd492c6cc7eaec0349e6f22c4ec6a"
+    },
+    "clippy": {
+      "scope": "both kernel libraries/tests -D warnings",
+      "status": "Pass",
+      "log_sha256": "c6e2e2fb6a066a200201fedafd4c818707d5229cd1140074b2c07269ea7e12b4"
+    },
+    "source": {
+      "crates/zil-analyze/src/signature_life.rs": "58dcbc5309f4334e4a2594b3de340e51a15ed4284635e18848f78d954be11d1d",
+      "crates/zil-verify/src/signature_life.rs": "610f5dd899921cdc7029429d3d7d06c4183d545f23527ed111f1dacda37c8bc3"
+    },
+    "authority": "necessary structural bounds only; no target, roots, permissions or domain freshening"
+  },
+  "unbound_fixed_pointer_correction": {
+    "base": "3438bdb24",
+    "scope": "Reject raw thin pointer/role Fixed domain without genuine enclosing semantic context; direct function Fixed formals preserved",
+    "independent_reproduction": "reviewer-retained/fixed-pointer-probe: only BFP Invocation0→Fixed0 mutation passed Analyze/Verify/Wire before correction",
+    "tests": {
+      "analyze_stored": 9,
+      "verify_stored": 8,
+      "both_kernel_lib_test_clippy": "Pass -D warnings"
+    },
+    "native": "NotRun; no unsafe native outcome claimed",
+    "budget": {
+      "analyze": 3377,
+      "verify": 4053,
+      "N-1_fresh": "Pass, unchanged",
+      "default_changed": false
+    },
+    "source_manifest": {
+      "files": 822,
+      "selector": "git ls-files order; crates/**/*.rs and crates/**/Cargo.toml including tests",
+      "encoding": "SHA256(bytes) + two spaces + path + newline",
+      "sha256": "795c24a07725c292f578478d4fb2f3ad8f0e881942bc2cccea292f4703862301"
+    },
+    "logs": {
+      "342-unbound-fixed-kernels.log": "152c871901558f254f1a34761ba0dfa797213b5db4508ead41017358a6f4c2b9",
+      "342-unbound-fixed-clippy.log": "c5897db79ddff0cbaa16f5fd99d9c6cfb1fe2dd7780176fcf50ca710377128e2"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_analyze-8dde3b1c204420d7": "3be6a857c0fae6d36d837845f219a409059cf9823d316c8f224a4a003fe0b4ba",
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_verify-e5c00ec0866c83e5": "ae573ae019f321482aa2f9efb0a007bba5db773ccb0e374949dc1124e9fd54e5"
+    },
+    "source": {
+      "crates/zil-analyze/src/borrowed_fp.rs": "b5dc88a755f5d23871fb604a35aca1b1fb49a2db03170cb5de2e7fe1448b0c53",
+      "crates/zil-verify/src/borrowed_fp.rs": "79feec21209320da2d349bbc475c8745c8f821048713cde9c5955c7b22367d14",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "3f1261f194433d4f9a5a0c57e5031e79f2a6dfb76bde398438de97d696230c80"
+    },
+    "independent_review": "Pending exact correction replay"
+  },
+  "qualified_capture_free_fn_raw_checkpoint": {
+    "scope": "Actual capture-free Fn scalar roles, independent definitions and per-parameter contracts; raw/decoded Wire only",
+    "base_before_final_controls": "a9e454444, includes root1cf3741f8 composition; staged76f/b26 private helpers",
+    "tests": {
+      "final_analyze_stored": 13,
+      "final_verify_stored": 12,
+      "full_libraries_before_two_budget_only_tests": {
+        "analyze": 138,
+        "verify": 356
+      },
+      "both_kernel_lib_test_clippy": "Pass -D warnings"
+    },
+    "budget": {
+      "qualified_two_roles_analyze": 5842,
+      "qualified_two_roles_verify": 6530,
+      "scalar_pointer_analyze": 3377,
+      "scalar_pointer_verify": 4053,
+      "neighbors": "N-1 ResourceLimit and repeat/fresh N identical; no default increase"
+    },
+    "semantics": [
+      "actual capture-free Fn entry/signature checked",
+      "definition None uses independent rigid inputs, no role installed globally",
+      "each full role rechecks actual body; no ClosureId dedup",
+      "same ClosureId under distinct valid contracts passes; wrong second parameter role rejects",
+      "helper receiver follows exact actual parameter ordinal",
+      "simultaneous actual environment and argument/stored-leaf windows retained",
+      "exclusive argument alias rejects even when class equations match",
+      "free Fixed pointer/role guard retained"
+    ],
+    "closed": [
+      "captured Fixed or other captures",
+      "FnMut/FnOnce in qualified module profile",
+      "lending or Address/carrier results",
+      "arbitrary receiver forwarding without exact parameter origin",
+      "owned/opaque/State storage and mutable slot transitions"
+    ],
+    "source_native": "NotRun in this checkpoint; root/341 producer and annotation-context guard required before actual source acceptance",
+    "new_operations": [
+      "actual zero-capture MakeClosure",
+      "CallClosureBorrowed kindFn",
+      "CallClosureShared on finite capture-free Fn"
+    ],
+    "source_manifest": {
+      "selector": "git ls-files order, crates/ prefix and .rs or Cargo.toml suffix, includes crate tests",
+      "encoding": "lowercase SHA256 + two spaces + relative path + newline",
+      "files": 827,
+      "sha256": "de84d2f18784a3250d1edddc9873e4437569bdff8d3583de9a03769fbb080aa7"
+    },
+    "logs": {
+      "342-qualified-role-raw-first.log": "87b0a3ca49a5dbf522dbfdfb0acdb5438513bb56a4f69acc1c1df0cc14c45533",
+      "342-qualified-two-roles-corrected.log": "cba35ea96fc177ca9f8f4fc5136fe262d3e00022f170446d4dba02ef529948b5",
+      "342-qualified-roles-exclusive.log": "32c642eb53c5d5ccf3355794860d060130b55a5df66e6a5f69c8a280fc76d661",
+      "342-qualified-roles-exclusive-clippy.log": "e63440e2d89ac16dba98c208c6c489922495691d2e1b35bb1e4e94e7636983a3",
+      "342-qualified-roles-libraries.log": "1dff06ba38e56b52ed917ded0aad161c32994a5a5aa3c724585c4c16712eed7f",
+      "342-qualified-roles-clippy-final.log": "1ea70f17d42bed26c7cd24bc847f586d7acfea91bcbbe613546c10c0a8a20169",
+      "342-qualified-roles-budget-final.log": "86deecd86b1b8938de13d8cd12a8c4c43770acd4213399a49e79e142e1b39f03",
+      "342-qualified-roles-clippy-checkpoint.log": "f265bdc53f863a2ff5cc353a0de7bc110ca8b269a2c56149819e07e2ffc7315c"
+    },
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "c3936b05fbf693ce46e788d0ea7997241d4910254b471d79602dd5d377d90e35"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7": "ed28f6d6671fd8bba745074aee641b9797a29b6ccde4a00740dd9b01e856436d",
+      "/workspace/.zil-env/target342-40/debug/deps/zil_verify-e5c00ec0866c83e5": "8397f71ec65bdc5e8dcd688e1139985aebc74900e578611791d0a49e22b7b7bf"
+    },
+    "independent_review": "Pending exact raw callback checkpoint"
   }
 }
