@@ -644,3 +644,126 @@ fn main()->i32 {
         }
     }
 }
+
+#[test]
+fn ordinary_ui_layout_validates_before_mutation_and_executes_native() {
+    let source = include_str!("ui_layout.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let path = directory(&format!("ui-layout-{backend:?}-{optimization:?}"));
+            fs::write(path.join("main.zil"), source).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &path.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(path.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(output.stdout.is_empty() && output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn ordinary_ui_raster_clips_blends_and_preserves_failed_destinations() {
+    let source = include_str!("ui_raster.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let path = directory(&format!("ui-raster-{backend:?}-{optimization:?}"));
+            fs::write(path.join("main.zil"), source).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &path.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(path.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(output.stdout.is_empty() && output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn ordinary_ui_input_preedit_commit_cancel_and_stale_revision() {
+    let source = include_str!("ui_input.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let path = directory(&format!("ui-input-{backend:?}-{optimization:?}"));
+            fs::write(path.join("main.zil"), source).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &path.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(path.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let output = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {output:?}"
+            );
+            assert!(output.stdout.is_empty() && output.stderr.is_empty());
+        }
+    }
+}
