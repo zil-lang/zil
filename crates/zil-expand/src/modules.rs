@@ -385,9 +385,9 @@ fn normalize(
     let mut has_trait_instances = false;
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            has_trait_instances |= generics::trait_defaults::present(t, &mut budget)?
-                || !t.generics.is_empty()
-                || !t.bounds.is_empty();
+            let (defaults, associated) = generics::trait_defaults::features(t, &mut budget)?;
+            has_trait_instances |=
+                defaults || associated || !t.generics.is_empty() || !t.bounds.is_empty();
         }
         has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
@@ -536,7 +536,9 @@ impl Visitor<'_, '_, '_> {
         type_position: bool,
     ) -> R<Option<String>> {
         if let Mode::Binders { bindings, .. } = &self.mode {
-            let [name] = path else { return Ok(None) };
+            let Some(name) = path.first() else {
+                return Ok(None);
+            };
             let name = name.as_ref();
             if type_position
                 && types.contains(name)
@@ -649,7 +651,11 @@ impl Visitor<'_, '_, '_> {
         match &mut ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
-                    *path = vec![name];
+                    if matches!(self.mode, Mode::Binders { .. }) {
+                        path[0] = name;
+                    } else {
+                        *path = vec![name];
+                    }
                 }
                 for (position, arg) in args.iter_mut().enumerate() {
                     self.const_arg(

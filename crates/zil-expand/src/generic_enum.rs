@@ -627,19 +627,54 @@ impl Engine<'_> {
             && callable::opaque_signature(result).is_none()
             && callable::opaque_signature(expected).is_none()
         {
-            unify(
-                result,
-                expected,
-                &variables,
-                &mut found,
-                callee.span,
-                &mut self.budget,
-            )?;
+            if self.traits.has_associated
+                && trait_bounds::associated::contains(result, &mut self.budget)?
+            {
+                let result = substituted(result, &found, &mut self.budget)?;
+                if !check::dependent(&result, &variables) {
+                    let result = self.traits.normalize_associated(
+                        &result,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?;
+                    unify(
+                        &result,
+                        expected,
+                        &variables,
+                        &mut found,
+                        callee.span,
+                        &mut self.budget,
+                    )?;
+                }
+            } else {
+                unify(
+                    result,
+                    expected,
+                    &variables,
+                    &mut found,
+                    callee.span,
+                    &mut self.budget,
+                )?;
+            }
         }
         let parameters = f
             .params
             .iter()
             .map(|p| {
+                if self.traits.has_associated
+                    && trait_bounds::associated::contains(&p.ty, &mut self.budget)?
+                {
+                    let substituted = substituted(&p.ty, &found, &mut self.budget)?;
+                    if !check::dependent(&substituted, &variables) {
+                        return self.traits.normalize_associated(
+                            &substituted,
+                            &trait_bounds::Bounds::new(),
+                            &BTreeSet::new(),
+                            &mut self.budget,
+                        );
+                    }
+                }
                 self.budget.ty(&p.ty)?;
                 Ok(p.ty.clone())
             })

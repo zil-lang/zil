@@ -154,7 +154,7 @@ impl<'a> Index<'a> {
             }
             selected = Some((recipe, *item, found));
         }
-        let Some((recipe, item, substitutions)) = selected else {
+        let Some((recipe, item, mut substitutions)) = selected else {
             return Err(error(
                 actual.span,
                 format!(
@@ -166,6 +166,11 @@ impl<'a> Index<'a> {
         let ItemKind::Impl(implementation) = &item.kind else {
             unreachable!()
         };
+        if self.has_associated {
+            budget.text("Self", actual.span)?;
+            budget.ty(actual)?;
+            substitutions.insert("Self".into(), actual.clone());
+        }
         let mut dependencies = Vec::new();
         // Do not add the selected head or its equations to available evidence.
         for parameter in &implementation.generics {
@@ -265,6 +270,17 @@ impl<'a> Index<'a> {
         depth: usize,
     ) -> R<Option<Witness<'a>>> {
         budget.node(bound.span, depth)?;
+        let normalized_subject;
+        let normalized_bound;
+        let (subject, bound) = if self.has_associated {
+            normalized_subject =
+                self.normalize_active(subject, available, variables, budget, active, depth + 1)?;
+            normalized_bound =
+                self.normalize_active(bound, available, variables, budget, active, depth + 1)?;
+            (&normalized_subject, &normalized_bound)
+        } else {
+            (subject, bound)
+        };
         if copy::is_bound(bound) {
             return copy::require(subject, &self.nominals, available, variables, budget)
                 .map(|_| None);
@@ -911,7 +927,183 @@ impl Index<'_> {
             }
         }
         let bounds = self.super_bounds_type(&bounds, budget, subject)?;
+        if self.has_associated {
+            for bound in &bounds {
+                budget.node(subject.span, 0)?;
+                if let Bound::Nominal(reference) = bound {
+                    self.associated_subject(subject, reference, available, budget)?;
+                }
+            }
+        }
         available.entry(key).or_default().extend(bounds);
         Ok(())
+    }
+}
+
+impl Index<'_> {
+    pub(crate) fn normalize_associated(
+        &self,
+        ty: &TypeRef,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<TypeRef> {
+        self.normalize_active(ty, available, variables, budget, &mut BTreeSet::new(), 0)
+    }
+    fn normalize_active(
+        &self,
+        ty: &TypeRef,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+        active: &mut BTreeSet<(trait_instances::Key, String)>,
+        depth: usize,
+    ) -> R<TypeRef> {
+        budget.node(ty.span, depth)?;
+        budget.ty(ty)?;
+        let mut result = ty.clone();
+        match &mut result.kind {
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for argument in args {
+                    budget.node(ty.span, depth)?;
+                    if let GenericArg::Type(t) = argument {
+                        *t = self.normalize_active(
+                            t,
+                            available,
+                            variables,
+                            budget,
+                            active,
+                            depth + 1,
+                        )?;
+                    }
+                }
+            }
+            TypeKind::Reference { inner, .. }
+            | TypeKind::Optional(inner)
+            | TypeKind::Group(inner)
+            | TypeKind::ForLifetime { inner, .. } => {
+                **inner =
+                    self.normalize_active(inner, available, variables, budget, active, depth + 1)?
+            }
+            TypeKind::Tuple(ts) | TypeKind::Union(ts) | TypeKind::Impl(ts) => {
+                for t in ts {
+                    *t =
+                        self.normalize_active(t, available, variables, budget, active, depth + 1)?;
+                }
+            }
+            TypeKind::Array { element, .. } => {
+                **element =
+                    self.normalize_active(element, available, variables, budget, active, depth + 1)?
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for t in params {
+                    *t =
+                        self.normalize_active(t, available, variables, budget, active, depth + 1)?;
+                }
+                **result =
+                    self.normalize_active(result, available, variables, budget, active, depth + 1)?;
+            }
+            TypeKind::Error { error, result } => {
+                **error =
+                    self.normalize_active(error, available, variables, budget, active, depth + 1)?;
+                **result =
+                    self.normalize_active(result, available, variables, budget, active, depth + 1)?;
+            }
+            _ => {}
+        }
+        let Some((member, host, application)) = associated::parts(&result) else {
+            return Ok(result);
+        };
+        let reference = self.pattern_reference(application, budget)?;
+        let (_, declaration) = self.declaration_item(&reference);
+        let mut declared = None;
+        for candidate in &declaration.members {
+            budget.node(candidate.span, depth)?;
+            if let ItemKind::TypeAlias(alias) = &candidate.kind {
+                budget.text(&alias.name, candidate.span)?;
+                budget.text(member, ty.span)?;
+                if alias.name == member {
+                    declared = Some(alias);
+                    break;
+                }
+            }
+        }
+        let declared = declared.ok_or_else(|| {
+            error(
+                ty.span,
+                "projection member is not declared by its actual trait",
+            )
+        })?;
+        budget.text("\0projection::", ty.span)?;
+        budget.text(member, ty.span)?;
+        let key = (
+            trait_instances::copy_key(&reference.key, budget, ty.span)?,
+            format!("\0projection:{}:{member}", type_key(host, budget)?),
+        );
+        budget.text(&key.1, ty.span)?;
+        if !active.insert(key.clone()) {
+            return Err(error(ty.span, "active associated type expansion cycle"));
+        }
+        let witness = self.solve_active(
+            &reference,
+            host,
+            available,
+            variables,
+            budget,
+            active,
+            depth + 1,
+        )?;
+        if check::dependent(host, variables) {
+            // Available declared evidence permits the atom, never an impl's
+            // eventual equation in a generic definition.
+            active.remove(&key);
+            return Ok(result);
+        }
+        let witness = witness.ok_or_else(|| {
+            error(
+                ty.span,
+                "concrete projection has no committed impl equation",
+            )
+        })?;
+        let ItemKind::Impl(implementation) = &witness.item.kind else {
+            unreachable!()
+        };
+        let mut equation = None;
+        for candidate in &implementation.members {
+            budget.node(candidate.span, depth)?;
+            if let ItemKind::TypeAlias(alias) = &candidate.kind {
+                budget.text(&alias.name, candidate.span)?;
+                budget.text(member, ty.span)?;
+                if alias.name == member {
+                    equation = alias.value.as_ref();
+                    break;
+                }
+            }
+        }
+        let from_impl = equation.is_some();
+        let equation = equation
+            .or(declared.value.as_ref())
+            .ok_or_else(|| error(ty.span, "impl is missing its associated type equation"))?;
+        let mut substitutions = if from_impl {
+            witness.substitutions
+        } else {
+            BTreeMap::new()
+        };
+        budget.text("Self", ty.span)?;
+        budget.ty(host)?;
+        substitutions.insert("Self".into(), host.clone());
+        if !from_impl {
+            for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
+                budget.text(&parameter.name, parameter.span)?;
+                budget.ty(actual)?;
+                substitutions.insert(parameter.name.clone(), actual.clone());
+            }
+        }
+        let equation = substituted(equation, &substitutions, budget)?;
+        let normalized =
+            self.normalize_active(&equation, available, variables, budget, active, depth + 1)?;
+        active.remove(&key);
+        Ok(normalized)
     }
 }
