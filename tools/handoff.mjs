@@ -339,13 +339,35 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       if (id !== filename.slice(0, -3)) complain(relative, 'Task ID does not match filename.');
       if (!(isSlice ? sliceStates : formalStates).has(task.status)) complain(id, 'Unknown task state.');
       const historical = isSlice && task.status === '已合入';
-      const snapshot = historical ? historicalSnapshot(task.implementation_commit) : {spec_hash: specHash, normative_hash: frozen?.normative_hash};
-      if (historical) for (const reason of snapshot.errors) complain(id, reason);
-      if (task.spec_hash !== snapshot.spec_hash || task.normative_hash !== snapshot.normative_hash) complain(id, historical ? 'Task specification snapshot differs from its implementation commit.' : 'Task specification snapshot is stale.');
+      const committed = tracked(relative, bytes);
+      let specificationSource = historical ? 'implementation_commit' : 'current';
+      let specificationRevision = historical ? task.implementation_commit : null;
+      if (Object.hasOwn(task, 'specification_revision')) {
+        if (!isSlice || historical || task.status_authority !== 'goal:goal.md') {
+          complain(id, 'specification_revision requires an unmerged historical slice with status_authority goal:goal.md.');
+        } else if (typeof task.specification_revision !== 'string') {
+          complain(id, 'specification_revision must identify an existing complete commit.');
+        } else if (checkCommit(id, 'specification_revision', task.specification_revision)) {
+          if (!cachedGit('merge-base', '--is-ancestor', task.specification_revision, mainHead).ok) {
+            complain(id, 'specification_revision is not in main history.');
+          } else if (!committed) {
+            complain(id, 'Historical specification_revision record must be committed.');
+          } else {
+            specificationSource = 'specification_revision';
+            specificationRevision = task.specification_revision;
+          }
+        }
+      }
+      const historicalSpecification = specificationSource !== 'current';
+      const snapshot = historicalSpecification ? historicalSnapshot(specificationRevision) : {spec_hash: specHash, normative_hash: frozen?.normative_hash};
+      if (historicalSpecification) for (const reason of snapshot.errors) complain(id, reason);
+      if (task.spec_hash !== snapshot.spec_hash || task.normative_hash !== snapshot.normative_hash) complain(id,
+        specificationSource === 'implementation_commit' ? 'Task specification snapshot differs from its implementation commit.' :
+        specificationSource === 'specification_revision' ? 'Task specification snapshot differs from its specification_revision.' : 'Task specification snapshot is stale.');
       const baseline = isSlice ? task.baseline : task.base_revision;
       if (isSlice || activeStates.has(task.status)) checkCommit(id, 'baseline', baseline);
-      const record = {id, path: relative, status: task.status, baseline: baseline ?? null, record_sha256: digest(bytes), committed: tracked(relative, bytes), evidence: []};
-      record.specification = {source: historical ? 'implementation_commit' : 'current', revision: historical ? task.implementation_commit : null, spec_hash: snapshot.spec_hash, normative_hash: snapshot.normative_hash};
+      const record = {id, path: relative, status: task.status, baseline: baseline ?? null, record_sha256: digest(bytes), committed, evidence: []};
+      record.specification = {source: specificationSource, revision: specificationRevision, spec_hash: snapshot.spec_hash, normative_hash: snapshot.normative_hash};
       if (isSlice) {
         record.parent_task = task.parent_task;
         record.write_set = task.write_set;

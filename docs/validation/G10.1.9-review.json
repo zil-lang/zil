@@ -1,0 +1,206 @@
+{
+  "task": "G10.1.9",
+  "reviewer": "g8_3",
+  "verdict": "LimitedPass",
+  "reviewed_final": "be8e36f20b04d2d8fc41bd38a524e87a53f1e4e9",
+  "reviewed_production": "ebb8331f88abc7c30c755a008830f4b55b2c2b05",
+  "main_baseline": "b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3",
+  "scope": "Non-author tool/metadata integrity review only; not language, live Goal, historical revalidation or main integration acceptance. No Cargo or unrelated tests run.",
+  "source_binding": {
+    "docs_only_after_production": [
+      ".task/G10.1.9.md",
+      "docs/validation/G10.1.9-historical-specification.json"
+    ],
+    "sha256": {
+      "tools/handoff.mjs": "de5ca5d9ad7add2e6aa7c77583943ca112a6edc27b230c7a269075b5d8ca68a7",
+      "tests/handoff.test.mjs": "2a2ad64f80b62dfab7236c4e1a771d40634608a460c9eefd07d3c5b22f5ae1c5",
+      "tools/check-plan.py": "aeda9dda4291c3426506b230cde1dba3c1395006d567ee0c9963ff88344e6d1d",
+      "tools/check-docs.py": "740e795029b7456c558f3a94f66f00f1170f64cd1166777401a1c8f94bdcf54c"
+    }
+  },
+  "static_assessment": [
+    "specification_revision is permitted only for an unmerged implementation slice with explicit status_authority goal:goal.md and byte-matching committed current record. Formal or merged use is an error.",
+    "The selected full Git revision must resolve to an existing commit and be an ancestor of the authoritative actual main head. Side branch, missing, short, noncommit and uncommitted-record controls cannot substitute history.",
+    "Historical snapshot validation reads the exact revision normative registry, required set, input file bytes and digests. No old declared spec/norm hash is rewritten.",
+    "Merged records still bind implementation_commit and retain independent review/evidence/integration gates. The original fourteen formal contracts and current normative validation remain unchanged.",
+    "Output explicitly reports the specification source/revision. Goal documents remain implementation notes, not accepted/reviewed contracts; no live Goal board is read."
+  ],
+  "independent_checks": {
+    "existing_handoff_scenarios": {
+      "passed": 35,
+      "failed": 0,
+      "assertions": 292,
+      "node": "v24.19.0",
+      "scenario_ids": [
+        "handoff-001",
+        "handoff-002",
+        "handoff-003",
+        "handoff-004",
+        "handoff-005",
+        "handoff-006",
+        "handoff-007",
+        "handoff-008",
+        "handoff-009",
+        "handoff-010",
+        "handoff-011",
+        "handoff-012",
+        "handoff-013",
+        "handoff-014",
+        "handoff-015",
+        "handoff-016",
+        "handoff-017",
+        "handoff-018",
+        "handoff-019",
+        "handoff-020",
+        "handoff-021",
+        "handoff-022",
+        "handoff-023",
+        "handoff-024",
+        "handoff-025",
+        "handoff-026",
+        "handoff-027",
+        "handoff-028",
+        "handoff-029",
+        "handoff-030",
+        "handoff-031",
+        "handoff-032",
+        "handoff-033",
+        "handoff-034",
+        "handoff-035"
+      ]
+    },
+    "seven_metadata_records": [
+      {
+        "id": "181",
+        "status": "施工",
+        "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "340",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "341",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "342",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "343",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "344",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      },
+      {
+        "id": "345",
+        "status": "施工",
+        "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+        "non_migration_fields_unchanged": true
+      }
+    ],
+    "real_candidate_main_clone": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/candidate-main",
+      "checkout": "be8e36f20b04d2d8fc41bd38a524e87a53f1e4e9",
+      "branch": "main",
+      "clone": "git clone --shared --no-checkout --single-branch --branch task/G10.1.9 /workspace/zil <fresh-dir>; rename private branch main; checkout main; fast-forward docs-only final",
+      "current_gate": {
+        "status": "CurrentPass",
+        "error_count": 0
+      },
+      "exit_code": 0,
+      "current_is_main": true,
+      "record_specification_source": "specification_revision",
+      "record_revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "records": 7
+    },
+    "development_authority_control": {
+      "current_tree_source": "ebb8331f88abc7c30c755a008830f4b55b2c2b05",
+      "actual_main": "b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3",
+      "current_gate": {
+        "status": "CurrentFail",
+        "error_count": 7
+      },
+      "exit_code": 1,
+      "current_is_main": false,
+      "interpretation": "Correctly reads authoritative unchanged main b568, not the development candidate; expected CurrentFail7 is retained, not relabeled candidate failure/pass."
+    },
+    "historical_status_unchanged": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "object_availability_changes": 0,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "claims_revalidated": false,
+    "diff_check": "Pass",
+    "author_tree": "Clean; reviewer changed no tracked file"
+  },
+  "logs": {
+    "node_tests": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/handoff-tests.log",
+      "sha256": "85e1883ee7360f8348111db1c9ebed8cca19b7e7485a8ed232c9318d616afb0a"
+    },
+    "node_report": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/handoff-tests.json",
+      "sha256": "d72dcc64324523f3e7e184080a9a916593a340823d910a4a562e2cc33a0a28ee"
+    },
+    "development_main_control": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/authoritative-main-check.json",
+      "sha256": "d9aa1c3361f3b8c861a5940ab4fbb76c86db117e9965c001db7bd80e93facac4"
+    },
+    "candidate_source": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/candidate-handoff.json",
+      "sha256": "265d2e0ccd45fa394ebf19da1d80bcd11443c88d596df9a65ec2977976654cd7"
+    },
+    "candidate_final": {
+      "path": "/workspace/.zil-env/G10.1.9-review-tmp/final-candidate-handoff.json",
+      "sha256": "cb869ee53aee91215f22b67ba435cea16013ec7f2f1110a4ba1835feb792911a"
+    }
+  },
+  "unchanged_record_fields": [
+    "first-line status",
+    "status",
+    "baseline",
+    "spec_hash",
+    "normative_hash",
+    "all JSON fields other than optional specification_revision and already applicable status_authority"
+  ],
+  "findings": [],
+  "limits": [
+    "The candidate-main clone is isolated; actual main still b568. This receipt does not claim a remote merge or updated live Goal state.",
+    "Historical 274 archives remain unavailable/unreviewed as recorded; no language tests or old task Done claims are revalidated.",
+    "No Cargo/schema/norm/compiler/root gate edits or unrelated language testing."
+  ],
+  "review_scope": "Engineering record and historical specification integrity"
+}

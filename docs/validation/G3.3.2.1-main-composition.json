@@ -1,0 +1,91 @@
+{
+  "source": "d8b3f10ba96c459a0bba578054411ea7df5eec56",
+  "checks": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "contexts",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "closure_context",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "1180fcacc120e6d909b44667eab4214fadc0a6c6b793b7ec99ba298f68a13e67"
+    },
+    {
+      "name": "driver-scoped",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "ct_artifact::materialize::scoped_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "8357054c2d94801aa62a5c90a0764ecc2762b939d325a2589be2b3f28f3823e5"
+    },
+    {
+      "name": "strict",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log_sha256": "71fd19f4de3326546804f4fb871502fdf6d0a805371a6613f9bd4601ba09406e"
+    }
+  ],
+  "scope": "Limited Source closure context + accepted main39 composition; not Typed/native/full acceptance",
+  "parents": [
+    "ab1ed5b45b18143f02e3ca83ec3b5ae79d8f79ea",
+    "6d4d3e1182001290f87cc0105f9c5a64d769b153"
+  ],
+  "resolution": [
+    "Keep both module declarations in generic expansion",
+    "Keep closure lineage and Self constant fields, initialization and test groups; initialize newly merged test constructor fields"
+  ],
+  "context_tests": {
+    "passed": 12,
+    "failed": 0,
+    "producer_N": 5866,
+    "Source_to_Core_N": 6155
+  },
+  "driver_scoped_tests": {
+    "passed": 9,
+    "failed": 0,
+    "closure_materialize_N": 1595,
+    "CT4_materialize_N": [
+      6737,
+      16572,
+      8026
+    ]
+  },
+  "budget_note": "Previous source had materialize N1589 / CT4 N6729,16564,8016. The accepted main Self-constant inventory adds real current-request work; retain prior source-bound results without relabeling unchanged thresholds."
+}

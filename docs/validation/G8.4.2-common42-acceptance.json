@@ -362,8 +362,16 @@
     "Original schema40 fixture bytes retained and SHA-pinned; production decoder still rejects old envelopes"
   ],
   "github_ci": {
-    "status": "NotYetObservedForThisPR",
-    "prior_common41": "Not started because GitHub billing/spending limit; not counted Pass",
+    "status": "NotStartedBillingOrSpendingLimitFailure",
+    "observed_pr": 37,
+    "observed_head": "290480fe6d30e0f006bba8214e0f9fb7ea627a20",
+    "runs": [
+      41921492306,
+      41921492505
+    ],
+    "steps_executed": 0,
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased.",
+    "is_pass": false,
     "bypass": false
   },
   "not_completed": [
