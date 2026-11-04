@@ -257,12 +257,7 @@ impl<'a> Environment<'a> {
             expected_functions: &expected.functions,
             expected_artifact: &expected,
         };
-        let clone_charge = expected
-            .functions
-            .len()
-            .saturating_mul(128)
-            .saturating_add(expected.templates.len().saturating_mul(128))
-            as u64;
+        let clone_charge = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(clone_charge)?;
         let mut meter =
             zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
@@ -336,34 +331,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
-        let copied_bytes = expected
-            .constants
-            .iter()
-            .map(|constant| match constant {
-                CtConstant::Text(value) => value.len() as u64,
-                _ => 16,
-            })
-            .sum::<u64>()
-            .saturating_add(
-                expected
-                    .templates
-                    .iter()
-                    .map(|template| template.syntax.nodes.len() as u64 * 96)
-                    .sum::<u64>(),
-            )
-            .saturating_add(
-                expected
-                    .functions
-                    .iter()
-                    .map(|function| function.blocks.len() as u64 * 96)
-                    .sum::<u64>(),
-            );
-        let schema_bytes = value_context::schema_copy_cost(
-            &expected.record_schemas,
-            &expected.enum_schemas,
-            &mut self.budget,
-        )?;
-        let copied_bytes = copied_bytes.saturating_add(schema_bytes);
+        let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(copied_bytes)?;
         let raw = expected.clone();
         let authority = FrozenAuthority {

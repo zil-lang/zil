@@ -96,11 +96,13 @@ impl<'c, 'a> Builder<'c, 'a> {
         let previous_module = self.module;
         let bindings = std::mem::take(&mut self.compiler.bindings);
         let metadata = std::mem::take(&mut self.compiler.metadata_bindings);
+        let scalars = std::mem::take(&mut self.compiler.scalar_bindings);
         self.module = module;
         let result = self.type_ref(module, actual, depth);
         self.module = previous_module;
         self.compiler.bindings = bindings;
         self.compiler.metadata_bindings = metadata;
+        self.compiler.scalar_bindings = scalars;
         self.scopes = scopes;
         self.loops = loops;
         self.yields = yields;
@@ -1005,13 +1007,9 @@ impl Builder<'_, '_> {
                             for (index, candidate) in members.iter().enumerate() {
                                 self.compiler.budget.ty(candidate, 0, arm.span)?;
                                 self.compiler.budget.ty(&member, 0, arm.span)?;
-                                if candidate == &member {
-                                    if selected.replace(index as u32).is_some() {
-                                        return Err(error(
-                                            arm.span,
-                                            "ambiguous CT sum pattern type",
-                                        ));
-                                    }
+                                if candidate == &member && selected.replace(index as u32).is_some()
+                                {
+                                    return Err(error(arm.span, "ambiguous CT sum pattern type"));
                                 }
                             }
                             (

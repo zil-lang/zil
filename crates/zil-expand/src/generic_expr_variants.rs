@@ -376,12 +376,22 @@ impl Engine<'_> {
                 )
             {
                 let mut types = Vec::new();
-                for arg in arguments {
-                    let GenericArg::Type(value) = arg else {
-                        return Err(unsupported(e.span, "const generic argument"));
-                    };
-                    self.ty(value, depth + 1)?;
-                    types.push(value.clone());
+                let declaration = self.templates.get(template).copied();
+                for (index, arg) in arguments.iter_mut().enumerate() {
+                    let parameter = declaration.and_then(|item| {
+                        params(item)
+                            .iter()
+                            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                            .nth(index)
+                    });
+                    if let GenericArg::Type(value) = arg
+                        && !parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                    {
+                        self.ty(value, depth + 1)?;
+                        types.push(value.clone());
+                    } else {
+                        types.push(consts::argument(arg, parameter, &mut self.budget)?);
+                    }
                 }
                 t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
             }

@@ -116,10 +116,8 @@ impl Builder<'_, '_> {
             for (index, member) in members.iter().enumerate() {
                 self.compiler.budget.ty(member, 0, e.span)?;
                 self.compiler.budget.ty(&value.ty, 0, e.span)?;
-                if member == &value.ty {
-                    if active.replace(index as u32).is_some() {
-                        return Err(error(e.span, "ambiguous CT sum injection"));
-                    }
+                if member == &value.ty && active.replace(index as u32).is_some() {
+                    return Err(error(e.span, "ambiguous CT sum injection"));
                 }
             }
             let active = active
@@ -189,6 +187,8 @@ impl Builder<'_, '_> {
             s::ExprKind::Name(name) => {
                 if let Some(value) = self.lookup(name, span)? {
                     value
+                } else if let Some(graph) = self.compiler.metadata_binding(name, span)? {
+                    self.metadata_type_value(&graph, graph.root, depth + 1, span)?
                 } else if let Some(ty) = self.compiler.binding(name, span)? {
                     self.bound_type_value(&ty, span, depth + 1)?
                 } else if let Some(t) = types::scalar(name) {
@@ -463,13 +463,14 @@ impl Builder<'_, '_> {
                     let (nominal, arguments) = match &t.kind {
                         s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
-                                let s::GenericArg::Type(actual) = arg else {
-                                    return Err(error(
-                                        t.span,
-                                        "CT record value parameters are unsupported",
-                                    ));
-                                };
-                                self.compiler.source_type_cost(actual, depth + 1)?;
+                                match arg {
+                                    s::GenericArg::Type(actual) => {
+                                        self.compiler.source_type_cost(actual, depth + 1)?
+                                    }
+                                    s::GenericArg::Const(value) => {
+                                        self.compiler.source_expression_copy(value, depth + 1)?
+                                    }
+                                }
                             }
                             (callee.as_ref(), arguments.clone())
                         }
@@ -1139,6 +1140,16 @@ impl Builder<'_, '_> {
         depth: usize,
         span: Span,
     ) -> R<Value> {
+        if !self.compiler.checking_generics {
+            return self.metadata_generic_call(
+                declaration,
+                explicit,
+                arguments,
+                expected,
+                depth,
+                span,
+            );
+        }
         let d = self.compiler.declarations[declaration];
         let names =
             self.compiler

@@ -18,10 +18,12 @@ impl<'a> Compiler<'a> {
                     self.budget.text(name, ty.span)?;
                 }
                 for argument in args {
-                    let s::GenericArg::Type(inner) = argument else {
-                        return Err(error(ty.span, "CT generic value argument is unsupported"));
-                    };
-                    self.source_type_cost(inner, depth + 1)?;
+                    match argument {
+                        s::GenericArg::Type(inner) => self.source_type_cost(inner, depth + 1)?,
+                        s::GenericArg::Const(value) => {
+                            self.source_expression_copy(value, depth + 1)?
+                        }
+                    }
                 }
             }
             s::TypeKind::Group(inner)
@@ -273,7 +275,7 @@ impl<'a> Compiler<'a> {
             .push((declaration, arguments.to_vec(), id));
         self.budget.node(span)?;
         self.pending
-            .push_back((declaration, arguments.to_vec(), id));
+            .push_back((declaration, PendingTypes::Data(arguments.to_vec()), id));
         Ok(id)
     }
     pub(super) fn instance_header(
@@ -287,11 +289,11 @@ impl<'a> Compiler<'a> {
         self.bindings = old;
         result
     }
-    fn has_unbound(
+    pub(super) fn has_unbound<T>(
         &mut self,
         ty: &s::TypeRef,
         names: &[String],
-        slots: &[Option<CtTy>],
+        slots: &[Option<T>],
         depth: usize,
     ) -> R<bool> {
         self.budget.depth(depth, ty.span)?;
@@ -311,15 +313,29 @@ impl<'a> Compiler<'a> {
                 }
                 found
             }
-            s::TypeKind::Tuple(fields) => {
+            s::TypeKind::Tuple(fields) | s::TypeKind::Union(fields) => {
                 let mut found = false;
                 for field in fields {
                     found |= self.has_unbound(field, names, slots, depth + 1)?;
                 }
                 found
             }
-            s::TypeKind::Group(inner) | s::TypeKind::Array { element: inner, .. } => {
+            s::TypeKind::Group(inner)
+            | s::TypeKind::Array { element: inner, .. }
+            | s::TypeKind::ForLifetime { inner, .. }
+            | s::TypeKind::Reference { inner, .. } => {
                 self.has_unbound(inner, names, slots, depth + 1)?
+            }
+            s::TypeKind::Function { params, result } => {
+                let mut found = self.has_unbound(result, names, slots, depth + 1)?;
+                for parameter in params {
+                    found |= self.has_unbound(parameter, names, slots, depth + 1)?;
+                }
+                found
+            }
+            s::TypeKind::Error { error, result } => {
+                self.has_unbound(error, names, slots, depth + 1)?
+                    || self.has_unbound(result, names, slots, depth + 1)?
             }
             _ => false,
         })
@@ -455,6 +471,7 @@ impl<'a> Compiler<'a> {
         // remains spent, including instance slots and discarded temporary data.
         self.selected.clear();
         self.generic_selected.clear();
+        self.generic_metadata_selected.clear();
         self.functions.clear();
         self.constants.clear();
         self.records.clear();
@@ -468,13 +485,19 @@ impl<'a> Compiler<'a> {
     }
     fn drain_symbolic(&mut self) -> R<()> {
         while let Some((declaration, arguments, id)) = self.pending.pop_front() {
+            let PendingTypes::Data(arguments) = arguments else {
+                return Err(error(
+                    self.declarations[declaration].item.span,
+                    "closed metadata entered symbolic definition queue",
+                ));
+            };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
             cfg::function(self, id, declaration)?;
             self.bindings.clear();
         }
         Ok(())
     }
-    fn ensure_generic_definition(&mut self, declaration: usize) -> R<()> {
+    pub(super) fn ensure_generic_definition(&mut self, declaration: usize) -> R<()> {
         let d = self.declarations[declaration];
         self.budget
             .work(self.checked_generics.len() + 1, d.item.span)?;

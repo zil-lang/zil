@@ -312,3 +312,34 @@ Source reification pays complete generated type and clone traversal, including
 const expressions; intermediate Type graphs release their own temporary charge.
 Generic CT function specialization of metadata-only arguments, scalar nominal
 arguments, and the final independent raw/budget/source review remain pending.
+
+### CT3 full metadata specialization checkpoint before common39
+
+Concrete generic CT functions now specialize/cache/queue complete canonical Type
+graphs, while their definition checks keep separate private symbolic Copy models.
+Explicit and inferred phantom fn/BFP arguments, returned Type values and an actual
+ordinary borrowed-pointer call retain the joint relation. Copy qualification of
+metadata visits genuine nominal definitions without constructing pointer fields
+or inventing schema IDs. Vacuous higher-rank metadata normalizes to plain code.
+Closed nominal arguments retain ordered Type/Scalar arguments and const array
+lengths. Closed alias targets normalize scalars in their declared domain before
+aliases disappear; record constructors transport the same typed const carriers.
+The newly paid scalar and graph normalization work is on the existing ledgers.
+
+Before frozen artifact cloning, a borrowed planner accounts recursive field/value
+types, complete schema arguments, function/instruction vectors, BFP arrays,
+template tokens/owner types, input tokens and their actual bytes. This replaces
+coarse clone estimates; its additional traversal and clone storage are new work,
+with no default quota increase. Reified intermediate graphs release their own
+charge, and generated AST/type copies remain paid through ordinary checking.
+
+The exact current targeted run is source9/0, including40 actual Clang/API O0/O2
+native executions across10 positive programs. A new distinct-nominal control
+forces CT declaration order versus runtime member order to differ, scores the
+branches differently, and also passes after source declaration reordering.
+Alpha/reordered life names pass; wrong result relation, free life, physical CT
+pointer data, wrong scalar domain/member and wrong enum owner reject. Existing
+CT generic16/0 retains exact fresh work/node/byte/instance/depth and cold/warm
+controls. This remains WIP: common39/CT4 scoped metadata identity and all consumers,
+owned Sum cleanup, final source budget/cache/default-stack composition and
+independent acceptance are not inferred from this checkpoint.
