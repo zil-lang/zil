@@ -70,7 +70,11 @@ pub(crate) fn require(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<()> {
-    let ty = local_type(f, local, span)?;
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| fail(span.unwrap_or(f.span), "Task Drop local absent"))?
+        .ty;
     if !contains_task(module, ty, budget)? {
         return Ok(());
     }
@@ -94,7 +98,7 @@ pub(crate) fn require(
     }
     loop {
         let mut changed = false;
-        budget.spend(f.blocks.len(),"Task Drop actual graph")?;
+        budget.spend(f.blocks.len(), "Task Drop actual graph")?;
         for block in &f.blocks {
             for i in &block.instructions {
                 budget.spend(1, "Task automatic Drop actual origins")?;
@@ -106,7 +110,10 @@ pub(crate) fn require(
                 }
                 if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
                     for field in fields {
-                        budget.spend(locals[local.0 as usize].workers.len().saturating_add(1),"Task Drop actual graph")?;
+                        budget.spend(
+                            locals[local.0 as usize].workers.len().saturating_add(1),
+                            "Task Drop actual graph",
+                        )?;
                         let origin = locals[local.0 as usize].clone();
                         changed |= locals[field.0 as usize].add(&origin, budget)?;
                     }
@@ -202,7 +209,7 @@ pub(crate) fn require(
                 "Task automatic Drop worker absent",
             ));
         };
-        budget.spend(target.blocks.len(),"Task Drop actual graph")?;
+        budget.spend(target.blocks.len(), "Task Drop actual graph")?;
         for block in &target.blocks {
             for i in &block.instructions {
                 budget.spend(1, "Task automatic Drop actual origins")?;
