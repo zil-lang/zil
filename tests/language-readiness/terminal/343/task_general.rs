@@ -319,18 +319,43 @@ fn general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result() {
         report.to_json()
     );
     assert!(report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"));
-    // Build an actual benign plan on the same source-derived CFG/SSA inventory:
-    // only the TaskCreate target and input are changed to a closed scalar
-    // neighbor. Rebind that untrusted plan to the original borrowed candidate.
+    // The original bytes retain their old negative role. For a benign plan,
+    // explicitly close the ordinary Call result rather than promising default
+    // synchronous cleanup of an unknown Task frame. Both raw candidates use
+    // this same source-derived CFG/SSA inventory; only TaskCreate is retargeted.
+    let explicit = original.replace(
+        "fn main() { let task=escape(); }",
+        "fn main()->TaskCreateError!i32 {var task=escape()?;loop {match task_poll_close(&mut task) {std.task.Poll.Pending()=>{},std.task.Poll.Ready(_)=>{task_finish_destroy(give task);return 0}}}}",
+    );
+    assert_ne!(
+        explicit, original,
+        "the original fixture main must be retained"
+    );
+    let report = compile_source(&source(&explicit), &CompileOptions::default());
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Analyze,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"
+            && d.message
+                .contains("initial frame cannot retain borrowed input storage")),
+        "{}",
+        report.to_json()
+    );
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
-    let core = expand(original, &limits).unwrap().core;
+    let core = expand(&explicit, &limits).unwrap().core;
     let raw = zil_types::check(&core, &target, &limits).unwrap();
     assert!(
         zil_analyze::analyze(&raw, &limits)
             .unwrap_err()
             .iter()
-            .any(|d| d.code == "E-TASK-ABI")
+            .any(|d| d.code == "E-TASK-ABI"
+                && d.message
+                    .contains("initial frame cannot retain borrowed input storage"))
     );
     let mut benign = raw.clone();
     let safe = benign
@@ -991,11 +1016,35 @@ fn owned_task343_managed_generic_fields_do_not_grant_copy_or_description_ownersh
 
 #[test]
 fn owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind() {
-    let text = "package Element{manages bytes:ByteBuffer}fn take_bytes(give value:Managed<ByteBuffer>){}fn take_task(give value:Managed<Task<i32>>){}fn take_store(give value:Managed<Store<Element>>){}fn main(){}";
+    let text = "package Element{manages bytes:ByteBuffer}fn take_bytes(give value:Managed<ByteBuffer>){}fn take_task(give value:Managed<Task<i32>>){task_finish_destroy(give value);}fn take_store(give value:Managed<Store<Element>>){}fn main(){}";
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    // The canonical wrapper does not prove synchronous cleanup of an arbitrary
+    // incoming frame. Preserve the original empty-body spelling as a nearest
+    // safety rejection rather than weakening the new unknown-origin consumer.
+    let unknown = text.replace("{task_finish_destroy(give value);}", "{}");
+    let report = compile_source(&source(&unknown), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.phase,
+        zil_base::Phase::Analyze,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"
+            && d.message
+                .contains("Task automatic Drop has no complete synchronous worker origin")),
         "{}",
         report.to_json()
     );
