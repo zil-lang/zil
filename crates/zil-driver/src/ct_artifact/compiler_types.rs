@@ -392,9 +392,11 @@ impl<'a> Compiler<'a> {
                         self.enter_alias(owner, item.span, ty.span)?;
                         let old = std::mem::take(&mut self.bindings);
                         let old_metadata = std::mem::take(&mut self.metadata_bindings);
+                        let old_scalars = std::mem::take(&mut self.scalar_bindings);
                         let result = self.ty(owner, actual, depth + 1);
                         self.bindings = old;
                         self.metadata_bindings = old_metadata;
+                        self.scalar_bindings = old_scalars;
                         self.active_aliases.pop();
                         result?
                     }
@@ -560,6 +562,21 @@ impl<'a> Compiler<'a> {
     }
     pub(super) fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
         self.budget.work(1, expression.span)?;
+        if let s::ExprKind::Name(name) = &expression.kind
+            && let Some(value) = self.scalar_binding(name, expression.span)?
+        {
+            let length = match value {
+                Constant::U8(n) => Some(u64::from(n)),
+                Constant::U16(n) => Some(u64::from(n)),
+                Constant::I32(n) => u64::try_from(n).ok(),
+                Constant::I64(n) => u64::try_from(n).ok(),
+                Constant::U64(n) | Constant::Usize(n) => Some(n),
+                _ => None,
+            };
+            return length
+                .and_then(|n| u32::try_from(n).ok())
+                .ok_or_else(|| error(expression.span, "CT array const length is outside u32"));
+        }
         if let s::ExprKind::Literal(s::Literal::Integer(text)) = &expression.kind {
             self.budget.text(text, expression.span)?;
             let value = zil_types::parse_integer_literal(

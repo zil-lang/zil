@@ -143,6 +143,10 @@ impl<'a> Budget<'a> {
     pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
         self.expr(expression, 0, None)
     }
+    pub(crate) fn const_expression_depth(&mut self, expression: &Expr, depth: usize) -> R<()> {
+        self.expr(expression, depth, None)
+    }
+
     pub(crate) fn const_function(&mut self, function: &Function) -> R<()> {
         self.function(function, 0, None)
     }

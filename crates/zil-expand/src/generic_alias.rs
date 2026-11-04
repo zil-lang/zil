@@ -118,10 +118,14 @@ pub(super) fn normalize_with_budget<'a>(
                 resolver.definitions.insert(a.name.clone(), a);
             }
             ItemKind::Aggregate(a) => {
-                resolver.nominals.insert(a.name.clone(), a.generics.len());
+                resolver
+                    .nominals
+                    .insert(a.name.clone(), a.generics.as_slice());
             }
             ItemKind::Enum(e) => {
-                resolver.nominals.insert(e.name.clone(), e.generics.len());
+                resolver
+                    .nominals
+                    .insert(e.name.clone(), e.generics.as_slice());
             }
             _ => {}
         }
@@ -188,7 +192,7 @@ struct Alias {
 struct Resolver<'s, 'l> {
     life_scope: Vec<String>,
     definitions: BTreeMap<String, &'s TypeAlias>,
-    nominals: BTreeMap<String, usize>,
+    nominals: BTreeMap<String, &'s [GenericParam]>,
     resolved: BTreeMap<String, Alias>,
     active: BTreeSet<String>,
     budget: Budget<'l>,
@@ -299,19 +303,48 @@ impl Resolver<'_, '_> {
                 {
                     0
                 } else {
-                    *self
-                        .nominals
+                    self.nominals
                         .get(&path[0])
                         .ok_or_else(|| error(ty.span, "unknown type in alias target"))?
+                        .len()
                 };
                 if args.len() != arity {
                     return Err(error(ty.span, "alias target type argument arity mismatch"));
                 }
-                for arg in args {
-                    let GenericArg::Type(t) = arg else {
-                        return Err(unsupported(ty.span, "const alias type argument"));
-                    };
-                    self.target(t, variables, depth + 1)?;
+                let parameters = self.nominals.get(&path[0]).copied();
+                for (index, arg) in args.iter_mut().enumerate() {
+                    if let Some(parameter) = parameters.and_then(|parameters| parameters.get(index))
+                        && let GenericParamKind::Const(domain) = &parameter.kind
+                    {
+                        self.budget.ty_depth(domain, depth + 1)?;
+                        let mut domain = domain.clone();
+                        self.target(&mut domain, variables, depth + 1)?;
+                        self.budget.text(&parameter.name, parameter.span)?;
+                        let parameter = GenericParam {
+                            name: parameter.name.clone(),
+                            kind: GenericParamKind::Const(domain),
+                            span: parameter.span,
+                        };
+                        match arg {
+                            GenericArg::Type(ty) => self.budget.ty_depth(ty, depth + 1)?,
+                            GenericArg::Const(value) => {
+                                self.budget.const_expression_depth(value, depth + 1)?
+                            }
+                        }
+                        let value = consts::argument(arg, Some(&parameter), &mut self.budget)?;
+                        let normalized = consts::normalize(&parameter, &value, &mut self.budget)?;
+                        let expression =
+                            consts::expression(&normalized).expect("normalized scalar carrier");
+                        self.budget.const_expression_depth(expression, depth + 1)?;
+                        *arg = GenericArg::Const(expression.clone());
+                    } else {
+                        match arg {
+                            GenericArg::Type(t) => self.target(t, variables, depth + 1)?,
+                            GenericArg::Const(value) => {
+                                self.budget.const_expression_depth(value, depth + 1)?
+                            }
+                        }
+                    }
                 }
             }
             TypeKind::Group(t) => self.target(t, variables, depth + 1)?,
