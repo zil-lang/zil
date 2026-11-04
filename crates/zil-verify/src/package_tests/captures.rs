@@ -83,6 +83,7 @@ fn with_entry(kind: CallableKind, function: TypedFunction) -> TypedModule {
     let mut m = module(main.finish(Some(value), CleanupExitKind::Return));
     m.functions.push(function);
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
@@ -394,6 +395,7 @@ fn indirect_write(nested: bool) -> TypedModule {
         .push(helper.finish(Some(n), CleanupExitKind::Return));
     if nested {
         m.closures.push(ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(1),
             function: FunctionId(2),
@@ -986,6 +988,7 @@ fn mixed_capture_indices_keep_distinct_package_roots_and_managed_debts() {
     let mut m = module(main.finish(Some(result), CleanupExitKind::Return));
     m.functions.push(body.0);
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),

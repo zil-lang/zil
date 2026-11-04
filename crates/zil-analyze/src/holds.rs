@@ -3287,6 +3287,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
@@ -3317,6 +3318,11 @@ mod frontier_tests {
             })
             .collect();
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),
@@ -3544,6 +3550,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(id),
@@ -3571,6 +3578,11 @@ mod product_parameter_dependency_tests {
             callable_return_contract: None,
         };
         let mut module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,

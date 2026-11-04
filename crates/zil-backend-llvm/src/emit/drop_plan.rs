@@ -773,6 +773,7 @@ mod impl243_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(0),
@@ -881,6 +882,7 @@ mod impl243_plan_tests {
         let old_n = threshold(&original);
         let mut copy = original.clone();
         copy.closures.push(ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],

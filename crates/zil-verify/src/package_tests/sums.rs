@@ -391,6 +391,7 @@ fn owned_sum_capture_is_closed_even_when_the_environment_never_reads_it() {
     m.functions
         .push(entry.finish(None, CleanupExitKind::Return));
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(0),
         function: FunctionId(1),
         captures: vec![sum()],

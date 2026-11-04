@@ -483,6 +483,8 @@ fn pattern(kind: zil_ir::CorePatternKind) -> zil_ir::CorePattern {
 fn expression_variant(kind: &CoreExprKind) -> &'static str {
     use CoreExprKind::*;
     match kind {
+        MakeDynBorrow { .. } => "MakeDynBorrow",
+        CallDynSlot { .. } => "CallDynSlot",
         Literal(_) => "Literal",
         Ascribed { .. } => "Ascribed",
         Integer(_) => "Integer",
@@ -537,7 +539,7 @@ fn statement_variant(kind: &CoreStatementKind) -> &'static str {
 }
 
 #[test]
-fn every_current_core_variant_preserves_origin_support_and_transfer() {
+fn retained_core_variants_preserve_origin_support_and_transfer() {
     use zil_ir::{CoreClosureParameter, CoreMatchArm, CorePatternKind as P};
     let expressions = vec![
         CoreExprKind::Literal(Constant::I32(0)),

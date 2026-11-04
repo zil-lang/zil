@@ -509,12 +509,18 @@ mod tests {
 
     fn checked(target: TargetProfile) -> VerifiedModule {
         let module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(1),
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
@@ -624,6 +630,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -650,6 +657,7 @@ mod tests {
             span: Span::default(),
         });
         module.closures.push(ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),

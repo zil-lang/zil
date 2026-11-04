@@ -83,6 +83,7 @@ fn fixture(mode: u8) -> (TypedModule, CandidatePlan) {
         .functions
         .push(body.finish(Some(result), CleanupExitKind::Return));
     module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(0),
         function: FunctionId(1),
         kind: CallableKind::Fn,
@@ -409,6 +410,7 @@ fn shared_product_parameter_does_not_open_outer_capture_or_direct_store_capture(
         .insert(1, ins(None, InstructionKind::StorageLive(LocalId(0))));
     plan.functions[0].blocks[0].initialized_in.clear();
     module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(0),
         kind: CallableKind::Fn,
