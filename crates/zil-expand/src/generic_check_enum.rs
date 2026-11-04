@@ -869,6 +869,12 @@ fn integer_value(text: &str, ty: &TypeRef, span: Span, budget: &mut Budget<'_>) 
 
 // Substitution may identify a bare binder with any type. Rigid different
 // constructors/nominal families are disjoint independently of their fields.
+fn a_span(argument: &GenericArg) -> Span {
+    match argument {
+        GenericArg::Type(ty) => ty.span,
+        GenericArg::Const(expression) => expression.span,
+    }
+}
 fn error_members_may_equal(
     a: &TypeRef,
     b: &TypeRef,
@@ -876,9 +882,25 @@ fn error_members_may_equal(
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<bool> {
+    // Reserve this entire borrowed traversal before stripping wrappers or
+    // scanning associated-name/argument structure. Non-Type arguments count.
+    budget.ty(a)?;
+    budget.ty(b)?;
     budget.node(a.span, depth)?;
     let (a, b) = (group(a), group(b));
-    let unknown = |t: &TypeRef| matches!(&t.kind, TypeKind::Named { path, .. } if path.first().is_some_and(|n| vars.contains(n)));
+    fn unknown(t: &TypeRef, vars: &BTreeSet<String>, budget: &mut Budget<'_>) -> R<bool> {
+        let TypeKind::Named { path, .. } = &t.kind else {
+            return Ok(false);
+        };
+        let Some(name) = path.first() else {
+            return Ok(false);
+        };
+        let factor = (vars.len().checked_ilog2().unwrap_or(0) as usize + 2) * 8;
+        for _ in 0..factor {
+            budget.text(name, t.span)?;
+        }
+        Ok(vars.contains(name))
+    }
     let unit = |t: &TypeRef| {
         matches!(&t.kind, TypeKind::Tuple(fields) if fields.is_empty())
             || matches!(&t.kind, TypeKind::Named { path, args } if path.as_slice()==["void"] && args.is_empty())
@@ -886,8 +908,8 @@ fn error_members_may_equal(
     if unit(a) && unit(b) {
         return Ok(true);
     }
-    if unknown(a)
-        || unknown(b)
+    if unknown(a, vars, budget)?
+        || unknown(b, vars, budget)?
         || trait_bounds::associated::parts(a).is_some()
         || trait_bounds::associated::parts(b).is_some()
     {
@@ -902,6 +924,7 @@ fn error_members_may_equal(
                 return Ok(false);
             }
             for (a, b) in aa.iter().zip(ba) {
+                budget.node(a_span(a), depth + 1)?;
                 if let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b)
                     && !error_members_may_equal(a, b, vars, budget, depth + 1)?
                 {
@@ -969,5 +992,61 @@ fn error_members_may_equal(
             | TypeKind::Union(_),
         ) => Ok(true),
         (a, b) => Ok(std::mem::discriminant(a) == std::mem::discriminant(b)),
+    }
+}
+
+#[cfg(test)]
+mod terminal340_error_member_budget {
+    use super::*;
+    #[test]
+    fn wide_const_arguments_long_binder_prefix_and_groups_are_prepaid() {
+        let span = Span::default();
+        let prefix = format!("binding_{}", "x".repeat(256));
+        let vars = (0..64)
+            .map(|i| format!("{prefix}_{i:03}"))
+            .collect::<BTreeSet<_>>();
+        let args = (0..96)
+            .map(|_| {
+                GenericArg::Const(Expr {
+                    kind: ExprKind::Literal(Literal::Integer("123456789".into())),
+                    span,
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut member = TypeRef {
+            kind: TypeKind::Named {
+                path: vec![format!("{prefix}_family")],
+                args,
+            },
+            span,
+        };
+        for _ in 0..24 {
+            member = TypeRef {
+                kind: TypeKind::Group(Box::new(member)),
+                span,
+            };
+        }
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            let mut budget = Budget::new(&limits);
+            let result = error_members_may_equal(&member, &member, &vars, &mut budget, 0);
+            (result, budget.remaining_limits().max_analysis_steps)
+        };
+        let (result, left) = run(Limits::default().max_analysis_steps);
+        assert!(result.unwrap());
+        let n = Limits::default().max_analysis_steps - left;
+        assert!(run(n).0.unwrap());
+        assert!(run(n - 1).0.unwrap_err().category == zil_base::ResultCategory::ResourceLimit);
+        assert!(run(n).0.unwrap());
+        let (short, left) = run(3);
+        assert_eq!(
+            short.unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(left, 0);
+        println!("340 ErrorUnion member-disjointness wide/grouped/prefix N={n}");
     }
 }
