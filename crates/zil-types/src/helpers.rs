@@ -112,6 +112,20 @@ pub(super) fn validate_template(
     {
         return Err(reject());
     }
+    for bound in bounds {
+        if let Some(life) = &bound.life {
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                prepay(ty, function.span)?;
+            }
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
+        }
+    }
+    let invocation_result = bounds.iter().any(|b| b.life.is_some())
+        && matches!(function.return_type,Type::Address{inner:ref p,..} if p.is_address_pointee());
     let owned_state = callable_fields::template(function);
     // Only a new non-Copy data signature enters this branch; legacy helper
     // accounting and every existing State/lending profile stay unchanged.
@@ -121,6 +135,7 @@ pub(super) fn validate_template(
             .any(|bound| !closures::supported_signature(&bound.parameters, &bound.result))
         || (!owned_state
             && !function.return_type.is_copy_value()
+            && !invocation_result
             && !lending::supported_result(&function.return_type));
     if owned_data {
         if bounds.len() != 1
@@ -169,6 +184,7 @@ pub(super) fn validate_template(
     }
     if !(function.return_type.is_copy_value()
         || owned_data
+        || invocation_result
         || (bounds.len() == 1 && lending::supported_result(&function.return_type))
         || (owned_state
             && callable_fields::placeholder_package(
@@ -185,7 +201,10 @@ pub(super) fn validate_template(
             || bound.kind == CallableKind::FunctionPointer
             || !(closures::supported_signature(&bound.parameters, &bound.result)
                 || (owned_data && closures::value_signature(&bound.parameters, &bound.result)))
-            || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
+            || (bounds.len() > 1
+                && !owned_state
+                && bound.life.is_none()
+                && !bound.result.is_copy_value())
         {
             return Err(reject());
         }
@@ -208,6 +227,7 @@ pub(super) fn validate_template(
                     && (prior.kind != bound.kind
                         || prior.parameters != bound.parameters
                         || prior.result != bound.result
+                        || prior.life != bound.life
                         || parameter_mode(
                             &function.parameters[prior.index as usize].ty,
                             &prior.generic_name,
@@ -255,7 +275,7 @@ pub(super) fn validate_template(
         }
         let old = p.ty.is_copy_value()
             || matches!(&p.ty,Type::Address{inner,..} if inner.is_copy_value()
-                || (function.return_type.is_copy_value() && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
+                || ((function.return_type.is_copy_value() || invocation_result) && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
             || packages::supported(&p.ty)
             || matches!(&p.ty,Type::Desc(inner) if inner.as_ref()==&Type::ByteBuffer)
             || matches!(p.ty, Type::Managed(_));
@@ -656,6 +676,11 @@ impl Builder<'_, '_> {
         owned_state: bool,
         span: Span,
     ) -> R<()> {
+        if let Some(life) = &bound.life {
+            self.closures
+                .snapshot(borrowed_fp::metadata_work(life), span)?;
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        }
         if owned_state {
             let mut work = self.limits.max_analysis_steps;
             retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
@@ -903,7 +928,12 @@ impl Builder<'_, '_> {
                         writes.push(index as u32);
                     }
                 }
+                if let Some(life) = &bound.life {
+                    self.closures
+                        .snapshot(borrowed_fp::metadata_work(life), span)?;
+                }
                 roles.push(CallableRole {
+                    life: bound.life.clone(),
                     parameter: bound.index,
                     closure,
                     kind: bound.kind,

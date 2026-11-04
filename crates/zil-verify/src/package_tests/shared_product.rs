@@ -528,7 +528,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 18453 } else { 15662 }),
+            Some(if indirect { 18455 } else { 15663 }),
         ));
     }
     for (label, module, plan, expected) in fixtures {
@@ -575,8 +575,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // The two owning/local controls were independently measured against
-        // d3b7b29b's unchanged Verify using these exact public candidates.
+        // Original controls were measured against d3b7b29b. HRTB's actual
+        // closure capture-root preservation charges Store false/true +1/+2;
+        // these exact public candidates and N-1/fresh checks remain unchanged.
         if let Some(expected) = expected {
             assert_eq!(minima[0], expected, "{label}");
         }

@@ -600,133 +600,167 @@ fn reconstruct(
                 budget.spend(1)?;
                 if let Some(result) = instruction.result {
                     let mut row = Roots::new();
-                    match &instruction.kind {
-                        InstructionKind::DescribeLocal { local }
-                            if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
+                    if let Some((definition, arguments)) =
+                        borrowed_fp::invocation_call(module, f, &instruction.kind)
+                    {
+                        for root in &summaries[definition.function.0 as usize] {
+                            budget.spend(1)?;
+                            let Root::Parameter(index) = root else {
+                                return Err(reject(
+                                    "E-VERIFY-HOLD",
+                                    Some(instruction.span),
+                                    "invocation callback summary has non-input source",
+                                ));
+                            };
+                            let actual = *arguments.get(*index as usize).ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-HOLD",
+                                    Some(instruction.span),
+                                    "invocation callback input absent",
+                                )
+                            })?;
+                            roots_join(&mut row, &values[actual.0 as usize], budget)?;
+                        }
+                    } else {
+                        match &instruction.kind {
+                            InstructionKind::DescribeLocal { local }
+                                if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
                                 if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
-                        {
-                            row.push(Root::Local(*local));
-                        }
-                        InstructionKind::DescribePackageField { local, index }
-                            if tracked_desc(&f.values[result.0 as usize], descriptor_origins) =>
-                        {
-                            // Only checked independent owning byte fields receive
-                            // a projection; unknown resources keep the whole root.
-                            row.push(field_root(f, *local, *index, budget)?);
-                        }
-                        InstructionKind::ProjectOwnedArrayField { local, .. }
-                            if tracked_desc(&f.values[result.0 as usize], descriptor_origins) =>
-                        {
-                            // Reconstruct from the actual local, independently
-                            // of the candidate Hold rows. This deliberately
-                            // does not assert distinct element loans.
-                            row.push(Root::Local(*local));
-                        }
-                        InstructionKind::DescribeCapture { index }
-                            if tracked_desc(&f.values[result.0 as usize], descriptor_origins) =>
-                        {
-                            row.push(Root::Capture(*index));
-                        }
-                        InstructionKind::ByteBufferBorrow { buffer, .. }
-                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
-                            roots_join(&mut row, &values[buffer.0 as usize], budget)?;
-                        }
-                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
-                            row.push(Root::Local(*local));
-                        }
-                        InstructionKind::BorrowPackageField { local, index, .. } => {
-                            row.push(field_root(f, *local, *index, budget)?);
-                        }
-                        InstructionKind::BorrowLocal { local }
-                        | InstructionKind::BorrowLocalMut { local } => {
-                            row.push(Root::Local(*local));
-                            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
-                                && let Some(captures) = state.get(local)
                             {
-                                roots_join(&mut row, captures, budget)?;
+                                row.push(Root::Local(*local));
                             }
-                        }
-                        InstructionKind::DescribeAddress { address }
-                        | InstructionKind::ReborrowAddress { address, .. }
-                        | InstructionKind::AddressField { address, .. }
-                        | InstructionKind::AddressSlice { address, .. }
-                        | InstructionKind::AddressIndex { address, .. } => {
-                            roots_join(&mut row, &values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::BorrowCapture { index, .. }
-                        | InstructionKind::ReadCapture { index }
-                            if matches!(f.values[result.0 as usize], Type::Address { .. })
-                                || tracked_desc(
+                            InstructionKind::DescribePackageField { local, index }
+                                if tracked_desc(
                                     &f.values[result.0 as usize],
                                     descriptor_origins,
                                 ) =>
-                        {
-                            row.push(Root::Capture(*index))
-                        }
-                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            lookup(budget, state.len())?;
-                            if let Some(source) = state.get(local) {
-                                budget.spend(source.len())?;
-                                row.clone_from(source);
-                            }
-                        }
-                        InstructionKind::CallClosureShared { callee, .. }
-                        | InstructionKind::CallClosureMut { callee, .. }
-                            if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
-                        {
-                            row.push(Root::Local(*callee));
-                        }
-                        InstructionKind::CallClosureBorrowed { callee, .. }
-                            if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
-                        {
-                            roots_join(&mut row, &values[callee.0 as usize], budget)?;
-                        }
-                        InstructionKind::CallIndirect { callee, arguments } => {
-                            for index in borrowed_fp::inputs(&f.values[callee.0 as usize], budget)?
                             {
-                                let argument = arguments[index];
-                                roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                                // Only checked independent owning byte fields receive
+                                // a projection; unknown resources keep the whole root.
+                                row.push(field_root(f, *local, *index, budget)?);
                             }
-                        }
-                        InstructionKind::Call {
-                            function,
-                            arguments,
-                        } => {
-                            for root in &summaries[function.0 as usize] {
-                                budget.spend(1)?;
-                                let Root::Parameter(index) = root else {
-                                    return Err(reject(
-                                        "E-VERIFY-HOLD",
-                                        Some(instruction.span),
-                                        "non-parameter call result origin",
-                                    ));
-                                };
-                                let argument = arguments[*index as usize];
-                                roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                            InstructionKind::ProjectOwnedArrayField { local, .. }
+                                if tracked_desc(
+                                    &f.values[result.0 as usize],
+                                    descriptor_origins,
+                                ) =>
+                            {
+                                // Reconstruct from the actual local, independently
+                                // of the candidate Hold rows. This deliberately
+                                // does not assert distinct element loans.
+                                row.push(Root::Local(*local));
                             }
-                        }
-                        InstructionKind::MakeClosure { captures, .. } => {
-                            for capture in captures {
-                                budget.spend(1)?;
-                                product_captures |=
-                                    f.values[capture.0 as usize].is_package_address();
-                                if !descriptor_origins
-                                    && let Type::Closure(id) = f.values[capture.0 as usize]
+                            InstructionKind::DescribeCapture { index }
+                                if tracked_desc(
+                                    &f.values[result.0 as usize],
+                                    descriptor_origins,
+                                ) =>
+                            {
+                                row.push(Root::Capture(*index));
+                            }
+                            InstructionKind::ByteBufferBorrow { buffer, .. }
+                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                                roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                            }
+                            InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                                row.push(Root::Local(*local));
+                            }
+                            InstructionKind::BorrowPackageField { local, index, .. } => {
+                                row.push(field_root(f, *local, *index, budget)?);
+                            }
+                            InstructionKind::BorrowLocal { local }
+                            | InstructionKind::BorrowLocalMut { local } => {
+                                row.push(Root::Local(*local));
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                                    && let Some(captures) = state.get(local)
                                 {
-                                    budget.spend(module.closures[id.0 as usize].captures.len())?;
-                                }
-                                if descriptor_origins
-                                    || closures::holds_addresses(
-                                        module,
-                                        &f.values[capture.0 as usize],
-                                    )
-                                {
-                                    roots_join(&mut row, &values[capture.0 as usize], budget)?;
+                                    roots_join(&mut row, captures, budget)?;
                                 }
                             }
+                            InstructionKind::DescribeAddress { address }
+                            | InstructionKind::ReborrowAddress { address, .. }
+                            | InstructionKind::AddressField { address, .. }
+                            | InstructionKind::AddressSlice { address, .. }
+                            | InstructionKind::AddressIndex { address, .. } => {
+                                roots_join(&mut row, &values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::BorrowCapture { index, .. }
+                            | InstructionKind::ReadCapture { index }
+                                if matches!(f.values[result.0 as usize], Type::Address { .. })
+                                    || tracked_desc(
+                                        &f.values[result.0 as usize],
+                                        descriptor_origins,
+                                    ) =>
+                            {
+                                row.push(Root::Capture(*index))
+                            }
+                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                                lookup(budget, state.len())?;
+                                if let Some(source) = state.get(local) {
+                                    budget.spend(source.len())?;
+                                    row.clone_from(source);
+                                }
+                            }
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. }
+                                if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
+                            {
+                                row.push(Root::Local(*callee));
+                            }
+                            InstructionKind::CallClosureBorrowed { callee, .. }
+                                if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
+                            {
+                                roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                            }
+                            InstructionKind::CallIndirect { callee, arguments } => {
+                                for index in
+                                    borrowed_fp::inputs(&f.values[callee.0 as usize], budget)?
+                                {
+                                    let argument = arguments[index];
+                                    roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                                }
+                            }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } => {
+                                for root in &summaries[function.0 as usize] {
+                                    budget.spend(1)?;
+                                    let Root::Parameter(index) = root else {
+                                        return Err(reject(
+                                            "E-VERIFY-HOLD",
+                                            Some(instruction.span),
+                                            "non-parameter call result origin",
+                                        ));
+                                    };
+                                    let argument = arguments[*index as usize];
+                                    roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                                }
+                            }
+                            InstructionKind::MakeClosure { captures, .. } => {
+                                for capture in captures {
+                                    budget.spend(1)?;
+                                    product_captures |=
+                                        f.values[capture.0 as usize].is_package_address();
+                                    if !descriptor_origins
+                                        && let Type::Closure(id) = f.values[capture.0 as usize]
+                                    {
+                                        budget
+                                            .spend(module.closures[id.0 as usize].captures.len())?;
+                                    }
+                                    if descriptor_origins
+                                        || closures::holds_addresses(
+                                            module,
+                                            &f.values[capture.0 as usize],
+                                        )
+                                    {
+                                        roots_join(&mut row, &values[capture.0 as usize], budget)?;
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                     changed |= roots_join(&mut values[result.0 as usize], &row, budget)?;
                 }
@@ -783,10 +817,12 @@ fn reconstruct_module(
             }
             for instruction in &block.instructions {
                 budget.spend(1)?;
-                let InstructionKind::Call {
-                    function: callee, ..
-                } = instruction.kind
-                else {
+                let callee = match instruction.kind {
+                    InstructionKind::Call { function, .. } => Some(function),
+                    _ => borrowed_fp::invocation_call(module, f, &instruction.kind)
+                        .map(|(d, _)| d.function),
+                };
+                let Some(callee) = callee else {
                     continue;
                 };
                 if !instruction.result.is_some_and(|v| {
@@ -883,6 +919,10 @@ pub(super) fn check_module(
 ) -> Check<()> {
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, budget)?;
+    if budget.invocation_callbacks {
+        check_callback_returns(module, graphs, &facts, budget)?;
+    }
+
     if budget.borrowed_function_pointers {
         budget.spend(module.functions.len())?;
         for function in &module.functions {
@@ -1063,7 +1103,12 @@ pub(super) fn check_module(
                         return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
                     }
                 }
-                if function.environment.is_some() {
+                let invocation = function.environment.is_some_and(|id| {
+                    let d = &module.closures[id.0 as usize];
+                    d.lending_captures.is_empty()
+                        && borrowed_fp::invocation(&d.parameters, &d.result)
+                });
+                if function.environment.is_some() && !invocation {
                     budget.spend(roots.len().saturating_add(1))?;
                     for root in roots {
                         let Root::Capture(index) = root else {
@@ -1087,9 +1132,11 @@ pub(super) fn check_module(
                 if matches!(
                     instruction.kind,
                     InstructionKind::CallClosure { .. } | InstructionKind::CallClosureOnce { .. }
-                ) && instruction.result.is_some_and(|value| {
-                    matches!(function.values[value.0 as usize], Type::Address { .. })
-                }) {
+                ) && borrowed_fp::invocation_call(module, function, &instruction.kind).is_none()
+                    && instruction.result.is_some_and(|value| {
+                        matches!(function.values[value.0 as usize], Type::Address { .. })
+                    })
+                {
                     return Err(reject(
                         "E-VERIFY-LENDING",
                         Some(instruction.span),
@@ -1456,4 +1503,84 @@ mod frontier_tests {
             .unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
+}
+
+fn check_callback_return(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    d: &ClosureDefinition,
+    life: Option<&FunctionLifeContract>,
+    budget: &mut Budget,
+) -> Check<()> {
+    if let Some(life) = life {
+        budget.spend(
+            (life.binder_count as usize)
+                .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                .saturating_add(2),
+        )?;
+        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
+    }
+    if !matches!(d.result, Type::Address { .. }) {
+        return Ok(());
+    }
+    let f = &module.functions[d.function.0 as usize];
+    budget.spend(f.blocks.len())?;
+    for (block, live) in f
+        .blocks
+        .iter()
+        .zip(&graphs[d.function.0 as usize].reachable)
+    {
+        if *live && let Terminator::Return(Some(v)) = block.terminator {
+            let origins = &facts[d.function.0 as usize].values[v.0 as usize];
+            budget.spend(origins.len())?;
+            let mutable = matches!(d.result, Type::Address { mutable: true, .. });
+            if origins.is_empty()
+                || origins.iter().any(|root| {
+                    let Root::Parameter(index) = root else {
+                        return true;
+                    };
+                    !d.parameters
+                        .get(*index as usize)
+                        .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
+                        || life.is_some_and(|life| {
+                            life.parameter_lives[*index as usize] != life.result_life
+                        })
+                })
+            {
+                return Err(reject(
+                    "E-VERIFY-CALLABLE-LIFE",
+                    Some(f.span),
+                    "actual callback return is outside the current invocation input relation",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+fn check_callback_returns(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(module.closures.len().saturating_add(module.functions.len()))?;
+    for d in &module.closures {
+        budget.spend(d.parameters.len())?;
+        if d.lending_captures.is_empty() && borrowed_fp::invocation(&d.parameters, &d.result) {
+            check_callback_return(module, graphs, facts, d, None, budget)?;
+        }
+    }
+    for f in &module.functions {
+        if let Some(c) = &f.callable_contract {
+            budget.spend(c.roles.len())?;
+            for role in &c.roles {
+                if let Some(life) = &role.life {
+                    let d = closures::definition(module, role.closure, Some(f.span))?;
+                    check_callback_return(module, graphs, facts, d, Some(life), budget)?;
+                }
+            }
+        }
+    }
+    Ok(())
 }

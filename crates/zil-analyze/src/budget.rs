@@ -35,6 +35,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
+    pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -64,6 +65,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             borrowed_function_pointers: false,
+            invocation_callbacks: false,
             head_descriptions: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -705,6 +707,13 @@ pub(super) fn preflight(
             closure.parameters.len().saturating_add(1),
             "closure signature preflight",
         )?;
+        let invocation = closure.lending_captures.is_empty()
+            && crate::borrowed_fp::invocation(&closure.parameters, &closure.result);
+        if invocation {
+            budget.borrowed_function_pointers = true;
+            budget.invocation_callbacks = true;
+        }
+
         for ty in &closure.captures {
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
@@ -772,7 +781,7 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
+                && (closure.result.is_copy_value() || invocation)
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
@@ -787,13 +796,14 @@ pub(super) fn preflight(
         }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
-        } else if matches!(&closure.result, Type::Address { inner, mutable: false }
+        } else if invocation
+            || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
-            && matches!(
-                closure.kind,
-                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-            )
-            && !closure.lending_captures.is_empty()
+                && matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+                )
+                && !closure.lending_captures.is_empty())
         {
             legacy_value(&closure.result, Span::default(), module)?;
         } else {
@@ -847,6 +857,14 @@ pub(super) fn preflight(
                 "callable role table",
             )?;
             for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    budget.input(
+                        crate::borrowed_fp::work(life),
+                        "higher-rank callable metadata",
+                    )?;
+                    budget.borrowed_function_pointers = true;
+                    budget.invocation_callbacks = true;
+                }
                 budget.input(
                     role.hold
                         .len()

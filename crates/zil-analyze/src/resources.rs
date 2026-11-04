@@ -724,7 +724,8 @@ fn address_afters_inner(
         has_capture |= captured;
         if captured
             || matches!(ty, Type::Address { .. })
-            || (budget.head_descriptions && matches!(ty, Type::Desc(_) | Type::Closure(_)))
+            || ((budget.head_descriptions || budget.invocation_callbacks)
+                && matches!(ty, Type::Desc(_) | Type::Closure(_)))
         {
             budget.lookup(shapes.len(), "captured Store address shape insertion")?;
             shapes.insert(

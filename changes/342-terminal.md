@@ -91,3 +91,35 @@ Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安�
 
 
 独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。
+
+## 下一阶段提案：HRTB Fn 的普遍定义与每次调用关系
+
+普通 `F:for<life a> Fn(&'a T)->&'a T` bound保留canonical FunctionLifeContract；CoreCallableParameter及实际CallableRole的Option关系由root独占发布，CoreStateBinding不加空字段。定义期从声明bound推导可调用参数/结果与真实贷款，不依据某个实际Closure更强能力；显式返回集合只由本次实参位置代换，环境Hold固定依赖独立。具体现核actual Closure完整签名及每条可达返回来源，捕获根不得洗成调用局部根。声明binder的名字按词法作用域独立，canonical关系按实际输入首次出现，调用每次用当前根/父链准备全部窗口。新增关系构造/复制/固定点按本次请求预费，旧无HRTB的路径不增加费用；真实源/未用定义/raw/Wire/native/cache/边界逐项核验后再提交候选。
+
+HRTB 实现复核还发现既有 Types::lending::populate 在 closure_state.finish 之后以 limits.max_analysis_steps 新建工作量台账。新调用结果来源证明不能取得新额度；本轮把 finish 的实际剩余额度随完成的Closure元数据返回，并在同一剩余台账中扣除后续完整来源固定点。finish的最终签名查询及捕获类型复制先从同一台账付费。真实旧Types边界若因此变化按原源记录迁移，不改默认上限，不以新profile开关重置额度。
+
+## 第五里程碑：HRTB Fn 实际调用关系与独立固定环境
+
+公共 `92b8fc2e8` 的 CoreCallableParameter/CallableRole 保存 canonical `FunctionLifeContract`，Typed/Wire36、CallableContract5。普通 Fn/FnMut/FnOnce 高阶 bound 的每次调用用当前参数位置代换实际根和父贷款；闭包固定捕获 Hold 独立保留，不能作为 invocation-local 返回来源。闭包完整参数/结果与实际环境入口必须一致，Analyze 与 Verify 各自核每条可达返回的实际 Parameter 根及 mutable 来源；同一 ClosureId 用在两个不同 role 位置时逐份证明，不按 ClosureId 去重。允许一个实际返回 arg0 的闭包同时满足上界{0}和{0,1}，拒绝第二份上界{1}。
+
+未用 generic body 从声明 bound 校验参数、结果与贷款，不借用某一具体闭包的强能力。固定环境不能洗成 fresh 调用 life；FnOnce 不能再次调用，活跃 mutable 结果不能被后续相交调用覆盖。实际 FnMut 两次调用不同输入的结果可以共存，调用结果依赖实际参数而非固定环境。普通 slice/fat-slice、CopyT、共享/独占地址与 owning FnOnce 环境沿既有ABI到达机器；没有隐式Box/RC或新分配。
+
+Analyze 旧 head_loans 的粗 Parameter 根不足以表达借入闭包参数的嵌套捕获，独审诊断为合法 distinct-buffer HRTB helper 在 Analyze 拒绝 `head separation has no actual grounded source`。本轮加入私有 Parameter/Capture + 实际 capture path，按真实类型布局建立种子并逐层代换来源，保留 borrowed Desc 与实际 owning capture 的区别。两个核仍分别核实际同时窗口、返回子贷款及父链。所有新路径树容器的 clone/search/insert 预费长度与比较次数乘积，prefix 比较不能以 path 长度和 entry 数之和代替；checked overflow 返回 ResourceLimit。
+
+Types 的 finish→lending 后处理使用实际剩余台账，最终签名与捕获复制先收费，不重新取得 max_analysis_steps。原 322/337/mixed/BFP Types N98/129/258/133 保持；新 STORAGE 源 Expand/Types/Analyze/Verify N=1514/526/11700/12306，N−1 全部 ResourceLimit、fresh N 同值。原 resource-head READ 的 Analyze N15016→15018 是实际 carrier lookup 新增收费，其余296/391/19227保持；默认限额不升。
+
+13份 HRTB 源在 Clang/API × O0/O2 共52次执行均返回42；原 `tests/language-readiness/recovery/pending/life-higher-rank.zil` 字节不变，原 Expand/Unsupported 迁为 Success/Verify，四次机器执行 exit0。实际 owning FnOnce + 末位 error 参数准备在 fault allocator 的失败/成功两组×四配置共8次：失败2次分配尝试/1次释放/0存活/0 body调用，成功2次尝试/2次释放/0存活/1 body调用。该阶段新增机器执行64次。
+
+raw 和 decoded runtime Wire 分别检查同 ClosureId 的不同 role、错误/gap/巨大 binder、固定 capture 返回伪造、两 mutable 实参指向相同实际 local、返回 exclusive child 仍活跃时写 parent；两个独立核均拒绝。nearest distinct-input 与 child-last-use 恢复正例通过。借入Desc/owned捕获与显式view的嵌套helper分离组合通过，真实同源反例拒绝。live/restored cache重核当前callback body与声明relation；JSON输出数值/null关系，alpha改名、binder声明重排和未用binder不改变签名/合同身份，改变实际关系会改变两种语义身份。
+
+完整既有十目标限定回放67/35/10/9/7/18/14/10/37/4全部通过；同十目标 Clippy llvm-api -D warnings通过。日志342-hrtb-complete-tests.log及342-hrtb-clippy-final.log。跨tree共享target的mtime风险按root指令处理：触碰当前tracked生产source/manifests但不改内容，生产聚合SHA前后相同，完整39秒schema36依赖重编日志342-hrtb-schema36-paths.log与342-hrtb-mtime-refresh.json保留；测试显式核schema/Wire36。不是正式全仓。
+
+首轮真实失败保留：原fixture在旧Unsupported列表引起预期迁移断言，源不改；新测试最初误用多binder列表和整数suffix，改为当前chained forall与数组类型标注；owned准备失败源需move环境及give字段初始化，否则原Types正确拒绝Managed/Desc混用。首次Clippy指出重复分支和检查后unwrap，改为等价合并/模式匹配后通过。实际path-aware正例误拒与预算reset已修生产路径，没有改负例来迁就接受。
+
+Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及prepared-call/parent反例的有限安全实证，未证明完整语言安全。沿既有闭包/地址ABI，未测同语义Rust性能或RSS；真实失败释放计数如上。原HRTB源与借用helper/owning环境直接组合是表达力有限增量，未测框架维护收益。累计实际工作、不升默认限额，没有Rust编译成本优势结论。产品四目标合取、B0及既有product-gates不晋升。
+
+后续继续一般存储位置/lending/State，再显式dyn。ForLifetime类型实参在本基线仍明确Unsupported，尚未宣称一般generic BFP/借入字段身份完成；固定存储life需按统一实际位置上界合同接入。当前作者树未包含root后续WithSyncCell实际body修正或343实际Suspend排除，集成时须保留并重放对应正反例；本切片不代替它们的独立证据。
+
+补充限定unit回放保留初次失败：Analyze122通过、两项impl253旧v34冻结Wire在当前36解码按预期E-WIRE-VERSION，历史字节不改，统一codec迁移归root。Types32通过。Verify343通过、shared Product Store精确预算控制失败：新的BorrowLocal closure来源保留真实captured根，原Store控制无间接N15662→15663、间接N18453→18455；本轮保留原module/plan并仅迁移精确已测阈值，仍检查raw/Wire N−1/fresh。不以放松判断处理该失败。
+
+最终unit回放 Types32/0、Verify344/0；两核原shared Product其余N4238/4652/6505保持，Store+1/+2在raw/Wire与N−1/fresh均通过。lint等价修正后完整cross67/0再次通过，最终绑定harness SHA256 59225b1025574c67449b13762b997b33427088e03302009f7202df8f65f3538b，详细精简receipt在docs/validation/terminal-342.json的higher_rank_callbacks。两项Analyze历史Wire版本不匹配继续单列，不记为通过。

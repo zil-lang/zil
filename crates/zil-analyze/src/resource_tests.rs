@@ -546,6 +546,7 @@ fn scoped_helper(body_kind: CallableKind) -> TypedModule {
     f.0.callable_contract = Some(CallableParameterContract {
         roles: vec![
             CallableRole {
+                life: None,
                 parameter: 0,
                 closure: ClosureId(0),
                 kind: CallableKind::FnMut,
@@ -555,6 +556,7 @@ fn scoped_helper(body_kind: CallableKind) -> TypedModule {
                 cleanup: CallableCleanup::Borrowed,
             },
             CallableRole {
+                life: None,
                 parameter: 1,
                 closure: ClosureId(1),
                 kind: CallableKind::FnOnce,
@@ -2170,6 +2172,7 @@ fn local_composition_282(child: bool, captured: bool) -> TypedModule {
         );
         entry.0.callable_contract = Some(CallableParameterContract {
             roles: vec![CallableRole {
+                life: None,
                 parameter: 0,
                 closure: ClosureId(1),
                 kind: CallableKind::FnOnce,
@@ -2661,6 +2664,7 @@ fn same_closure_distinct_roots_282() -> TypedModule {
     );
     f.0.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(1),
             kind: CallableKind::FnOnce,
@@ -2950,6 +2954,7 @@ fn parameter_forwarded_local_282() -> TypedModule {
     });
     keep.0.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(1),
             kind: CallableKind::FnOnce,
