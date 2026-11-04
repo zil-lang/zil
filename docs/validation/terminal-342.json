@@ -1009,5 +1009,42 @@
       "crates/zil-verify/src/signature_life.rs": "610f5dd899921cdc7029429d3d7d06c4183d545f23527ed111f1dacda37c8bc3"
     },
     "authority": "necessary structural bounds only; no target, roots, permissions or domain freshening"
+  },
+  "unbound_fixed_pointer_correction": {
+    "base": "3438bdb24",
+    "scope": "Reject raw thin pointer/role Fixed domain without genuine enclosing semantic context; direct function Fixed formals preserved",
+    "independent_reproduction": "reviewer-retained/fixed-pointer-probe: only BFP Invocation0→Fixed0 mutation passed Analyze/Verify/Wire before correction",
+    "tests": {
+      "analyze_stored": 9,
+      "verify_stored": 8,
+      "both_kernel_lib_test_clippy": "Pass -D warnings"
+    },
+    "native": "NotRun; no unsafe native outcome claimed",
+    "budget": {
+      "analyze": 3377,
+      "verify": 4053,
+      "N-1_fresh": "Pass, unchanged",
+      "default_changed": false
+    },
+    "source_manifest": {
+      "files": 822,
+      "selector": "git ls-files order; crates/**/*.rs and crates/**/Cargo.toml including tests",
+      "encoding": "SHA256(bytes) + two spaces + path + newline",
+      "sha256": "795c24a07725c292f578478d4fb2f3ad8f0e881942bc2cccea292f4703862301"
+    },
+    "logs": {
+      "342-unbound-fixed-kernels.log": "152c871901558f254f1a34761ba0dfa797213b5db4508ead41017358a6f4c2b9",
+      "342-unbound-fixed-clippy.log": "c5897db79ddff0cbaa16f5fd99d9c6cfb1fe2dd7780176fcf50ca710377128e2"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_analyze-8dde3b1c204420d7": "3be6a857c0fae6d36d837845f219a409059cf9823d316c8f224a4a003fe0b4ba",
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_verify-e5c00ec0866c83e5": "ae573ae019f321482aa2f9efb0a007bba5db773ccb0e374949dc1124e9fd54e5"
+    },
+    "source": {
+      "crates/zil-analyze/src/borrowed_fp.rs": "b5dc88a755f5d23871fb604a35aca1b1fb49a2db03170cb5de2e7fe1448b0c53",
+      "crates/zil-verify/src/borrowed_fp.rs": "79feec21209320da2d349bbc475c8745c8f821048713cde9c5955c7b22367d14",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "3f1261f194433d4f9a5a0c57e5031e79f2a6dfb76bde398438de97d696230c80"
+    },
+    "independent_review": "Pending exact correction replay"
   }
 }

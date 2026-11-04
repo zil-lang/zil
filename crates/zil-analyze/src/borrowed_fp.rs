@@ -7,6 +7,13 @@ pub(super) fn relation(
     result: &Type,
     life: &StorageLifeContract,
 ) -> CompileResult<()> {
+    if life.fixed_binder_count != 0 {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "borrowed pointer or role Fixed classes require genuine enclosing semantic context",
+            None,
+        )]);
+    }
     super::signature_life::relation(parameters, result, life)
 }
 pub(super) fn allowed(ty: &Type, budget: &mut Budget) -> CompileResult<Vec<usize>> {

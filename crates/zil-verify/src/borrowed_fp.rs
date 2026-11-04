@@ -7,6 +7,12 @@ pub(super) fn relation(
     life: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
+    if life.fixed_binder_count != 0 {
+        return Err(unsupported(
+            "borrowed pointer or role Fixed classes require genuine enclosing semantic context",
+            span,
+        ));
+    }
     super::signature_life::relation(parameters, result, life, span)
 }
 pub(super) fn inputs(ty: &Type, budget: &mut Budget) -> Check<Vec<usize>> {

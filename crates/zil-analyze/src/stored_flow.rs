@@ -2458,6 +2458,22 @@ mod tests {
         )
     }
     #[test]
+    fn a_pointer_fixed_class_without_enclosing_context_is_not_fresh_per_call() {
+        super::super::analyze(
+            &fixture::phantom_class_calls(true, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(&fixture::unbound_fixed_pointer(), &Limits::default())
+            .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
+    }
+    #[test]
     fn rich_indirect_actual_exclusive_windows_are_simultaneous() {
         super::super::analyze(
             &fixture::rich_marker_exclusive_call(false),
