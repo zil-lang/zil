@@ -253,7 +253,14 @@ impl<'a> Compiler<'a> {
                 nominal_arguments: rows,
             },
         });
-        let context = self.meta_normalize(CtTypeRef { nodes, root: fixed }, span)?;
+        let context = self.meta_normalize(
+            CtTypeRef {
+                nodes,
+                root: fixed,
+                ambient_classes: Vec::new(),
+            },
+            span,
+        )?;
         self.budget.metadata(&context, span)?;
         let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
         else {

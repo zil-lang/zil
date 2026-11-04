@@ -865,7 +865,10 @@ impl Builder<'_, '_> {
                 let constructor = if life.binder_count == 0 {
                     CtTypeConstructor::FunctionPointer
                 } else {
-                    CtTypeConstructor::BorrowedFunctionPointer { life }
+                    CtTypeConstructor::BorrowedFunctionPointer {
+                        life: zil_ir::StorageLifeContract::from_flat(life)
+                            .expect("bounded source signature"),
+                    }
                 };
                 self.emit(
                     CtInstructionKind::TypeConstruct {

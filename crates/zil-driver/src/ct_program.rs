@@ -766,20 +766,27 @@ impl Collector<'_> {
         for contract in &function.callable_parameters {
             self.charge(0)?;
             if let Some(life) = &contract.life {
-                if life.binder_count as usize > self.limits.max_locals
-                    || life.parameter_lives.len() > self.limits.max_locals
+                if life.bindings.len() > self.limits.max_locals
+                    || life.classes.len() > self.limits.max_nodes
                 {
                     return Err(vec![Diagnostic::limit(
                         Phase::Ct,
-                        "higher-rank source relation exceeds binder/parameter bounds",
+                        "rich source relation exceeds bounds",
                         Some(function.span),
                     )]);
                 }
                 self.text_len(
-                    (life.binder_count as usize)
-                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                    life.bindings
+                        .len()
+                        .saturating_add(life.classes.len())
                         .saturating_add(2),
                 )?;
+                for row in &life.bindings {
+                    self.text_len(row.position.path.len())?;
+                }
+                for row in &life.classes {
+                    self.text_len(row.position.path.len())?;
+                }
             }
             self.text(&contract.generic_name)?;
             self.parameters(&contract.parameters, &contract.result)?;

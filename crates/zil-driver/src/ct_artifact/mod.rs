@@ -12,6 +12,7 @@ mod read_view;
 mod render;
 mod snapshot;
 mod source_index;
+mod scope_metadata;
 mod type_ref;
 
 pub use lock::SyntaxLock;
