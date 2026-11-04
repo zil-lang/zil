@@ -34,9 +34,6 @@ mod retained;
 mod scoped_thread;
 mod scopes;
 mod stored_borrows;
-// Staged while the complete admission dispatcher is being connected. The
-// public BorrowedStorage/signature guards remain closed in this checkpoint.
-#[allow(dead_code)]
 mod stored_flow;
 #[cfg(test)]
 mod sum_tests;
@@ -117,6 +114,19 @@ fn analyze_budgeted(
             blocks,
             holds: Vec::new(),
         });
+    }
+    if budget.stored_borrows {
+        for f in &module.functions {
+            stored_flow::header(f, budget)?;
+        }
+        for (f, package) in module.functions.iter().zip(&package_functions) {
+            scopes::check(module, f, *package, budget)?;
+        }
+        let actual = stored_flow::infer(module, &hold_graphs, budget)?;
+        for (function, holds) in plan.functions.iter_mut().zip(actual) {
+            function.holds = holds;
+        }
+        return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;

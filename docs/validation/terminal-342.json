@@ -710,5 +710,73 @@
       "342-storage-typing-regressions.log": "4b823b99b2cba6c3afac5a63bf394445565f3ebcee5be81d1df33e45e75a3dbf",
       "342-storage-typing-clippy2.log": "5042eb8bc3ff37d7ec41b8c0668dab4d829fe6ea51ffdcf7caf68dbf694c654c"
     }
+  },
+  "physical_shared_storage_kernel_wip": {
+    "status": "WIP_ActualRawPhysicalKernelPass_SourceNativePending",
+    "base_commit": "598100c441",
+    "scope": "Independent actual shared physical Record/Tuple target/loan CFG consumers; one retained input class/carrier; no stored mutation/epoch transition accepted",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 415,
+      "sha256": "547535e2fa4c0f9c291a80ba484111aa8cc11e4d9693c59bf1caea1977b93f42"
+    },
+    "test_binding": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": "66de0890cee9d22178e1852a6ac799bf77b0ffc26435d78d28c56428f68ff02e",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "1ba794a94919207038a8f02041254c086a01d559b32d7ab90e00ad07c47f56ac",
+      "tests/language-readiness/terminal/342/stored_physical.rs": "a6444d328cc5cbacd5ac454f15ebdb4b8826ca1f5e6ddd8fd8e271779252d440",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "2e143449f11555266a04827efd418f9741aa2c9a0e649ee1cad3a71fd6ee2a6d"
+    },
+    "logs": {
+      "342-stored-flow-kernel-libs-final.log": "939a87d86e56c94752e3f548b2e5fc72538473814be42ea92c4768099f7e2c87",
+      "342-stored-flow-kernel-clippy-final.log": "e35908e1f91d3f07d1702e71cda18de37465b4b1d05bbcfe164c8927f43154a2",
+      "342-stored-physical-cross.log": "866cc9d54eea8163f6bfa1f40ca44cf668e677b59c0e29b12b2bbe40e3bbbe66",
+      "342-stored-flow-cross-full.log": "ebf6c4e923cc8fc6423be9f07e1ac8edbf662ab8a34b1ddaa710f4d1cb5cc8b3",
+      "342-stored-flow-cross-full-corrected.log": "87a20506762c3ddab588ff15c12582d46bad0d493cf7eab380c3595e004342ad"
+    },
+    "kernel_libs": {
+      "analyze": 128,
+      "verify": 348,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "cross_target": {
+      "passed": 81,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_focused_raw": {
+      "tests": 3,
+      "full_analyze_verify_wire": true,
+      "new_native_profiles": 0,
+      "exact_actual_source_producer": "NotYetComposedWithThisCheckpoint"
+    },
+    "budget": {
+      "analyze": 8728,
+      "verify": 11365,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true,
+      "defaults_unchanged": true
+    },
+    "clippy": "zil-analyze/zil-verify --lib --tests -D warnings Pass",
+    "historical_failure": "cross80/1 stale WIRE_VERSION38 assertion; corrected current Schema/Wire39 and reran81/0; original log retained",
+    "remaining": [
+      "ordinary View source->Typed->Lower/native composition",
+      "symbolic Type-generic stored definitions",
+      "actual invariant multi-class call substitution",
+      "enum/Option active leaf state",
+      "Reborrow slot/epoch dependence",
+      "Take/init/refill/replacement",
+      "stored descriptions and owned/captured/opaque carrier integration",
+      "SliceIter three simultaneously held results",
+      "general State/lending/dyn and borrowed Task ports"
+    ],
+    "independent_review": "Pending exact source checkpoint",
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-716965bc41ea50a8",
+      "sha256": "d308ee34b1376ae74e4dec2c066a286c6a3e20b9aab5b092bd22721a369975e0"
+    }
   }
 }
