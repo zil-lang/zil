@@ -8522,7 +8522,9 @@ fn terminal340_package_terminal_actual_tickets_complete_shell_and_rhs_once() {
                     index: 0,
                 };
                 instructions.insert(commits[0], drop);
-                "E-VERIFY-SUM"
+                // The real alias is retained through Commit: the ordinary
+                // loan check rejects this field cleanup before Content/debt.
+                "E-BORROW-CONFLICT"
             }
             4 => {
                 let InstructionKind::ReservePlaceAddress { path, .. } =
