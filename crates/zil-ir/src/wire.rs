@@ -431,10 +431,6 @@ impl<'a> Writer<'a> {
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
-                Type::Registration { environment } => {
-                    self.u8(32)?;
-                    pending.push(Task::Type(environment, depth + 1));
-                }
                 Type::TaskI32 => self.u8(33)?,
                 Type::ForeignHandle => self.u8(20)?,
                 Type::SyncCell(kind) => {
@@ -1116,26 +1112,6 @@ impl<'a> Writer<'a> {
             InstructionKind::TaskFinishDestroy { task } => {
                 self.u8(105)?;
                 self.u32(task.0)?;
-            }
-            InstructionKind::RegistrationStart {
-                register,
-                close,
-                callback,
-                region,
-            } => {
-                self.u8(111)?;
-                self.u32(register.0)?;
-                self.u32(close.0)?;
-                self.u32(callback.0)?;
-                self.u32(*region)?;
-            }
-            InstructionKind::RegistrationValid { registration } => {
-                self.u8(112)?;
-                self.u32(registration.0)?;
-            }
-            InstructionKind::RegistrationClose { registration } => {
-                self.u8(113)?;
-                self.u32(registration.0)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
@@ -1844,7 +1820,6 @@ impl<'a> Reader<'a> {
                         8 => Type::Desc(inner),
                         23 => Type::Slice { element: inner },
                         25 => Type::OwnedStore { element: inner },
-                        32 => Type::Registration { environment: inner },
                         _ => unreachable!("scheduled unary type tag"),
                     });
                     continue;
@@ -1942,7 +1917,7 @@ impl<'a> Reader<'a> {
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
-                7 | 8 | 23 | 25 | 32 => {
+                7 | 8 | 23 | 25 => {
                     pending.push(Task::Unary(tag));
                     pending.push(Task::Type(depth + 1));
                     continue;
@@ -2871,18 +2846,6 @@ impl<'a> Reader<'a> {
             },
             105 => InstructionKind::TaskFinishDestroy {
                 task: ValueId(self.u32()?),
-            },
-            111 => InstructionKind::RegistrationStart {
-                register: FunctionId(self.u32()?),
-                close: FunctionId(self.u32()?),
-                callback: ValueId(self.u32()?),
-                region: self.u32()?,
-            },
-            112 => InstructionKind::RegistrationValid {
-                registration: ValueId(self.u32()?),
-            },
-            113 => InstructionKind::RegistrationClose {
-                registration: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),

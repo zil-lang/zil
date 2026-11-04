@@ -71,11 +71,6 @@ pub enum Type {
     ForeignHandle,
     /// Opaque native payload, only available behind a checked shared address.
     SyncCell(SyncCellKind),
-    /// Stable retained callback payload; only an exact Managed/Desc wrapper is legal.
-    /// The actual environment must independently resolve to a self-contained Closure.
-    Registration {
-        environment: Box<Type>,
-    },
     /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
     TaskI32,
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
@@ -241,7 +236,6 @@ impl Type {
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
-            Self::Registration { environment } => format!("Registration<{}>", environment.name()),
             Self::TaskI32 => "TaskI32".into(),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
@@ -379,10 +373,6 @@ pub enum CoreAggregateTypeRecipe {
     Store {
         element: Box<CoreAggregateTypeRecipe>,
     },
-    /// Sealed owning registration application; the environment recipe remains actual.
-    Registration {
-        environment: Box<CoreAggregateTypeRecipe>,
-    },
     Apply {
         module: ModuleId,
         template: NodeId,
@@ -456,8 +446,6 @@ pub struct CoreCallableParameter {
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
     pub generic_name: String,
-    /// Explicit sealed requirement; never a producer proof of actual captures.
-    pub closed_environment: bool,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -1401,22 +1389,6 @@ pub enum InstructionKind {
     TaskFinishDestroy {
         task: ValueId,
     },
-    /// Consumes the actual closure into fallible stable owning storage.
-    /// Region denotes the explicit unsafe call promise, never a retained lifetime.
-    RegistrationStart {
-        register: FunctionId,
-        close: FunctionId,
-        callback: ValueId,
-        region: u32,
-    },
-    /// Readonly observation of the explicit nullable owning carrier.
-    RegistrationValid {
-        registration: ValueId,
-    },
-    /// Consumes the owner; strong backend close drains all raw entries before free.
-    RegistrationClose {
-        registration: ValueId,
-    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1924,10 +1896,6 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::OwnedStore { element } => {
             b.push(25);
             encode_type(b, element);
-        }
-        Type::Registration { environment } => {
-            b.push(32);
-            encode_type(b, environment);
         }
         Type::TaskI32 => b.push(33),
         Type::ForeignHandle => b.push(20),
@@ -2512,26 +2480,6 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
         InstructionKind::TaskFinishDestroy { task } => {
             b.push(105);
             encode_u32(b, task.0);
-        }
-        InstructionKind::RegistrationStart {
-            register,
-            close,
-            callback,
-            region,
-        } => {
-            b.push(111);
-            encode_u32(b, register.0);
-            encode_u32(b, close.0);
-            encode_u32(b, callback.0);
-            encode_u32(b, *region);
-        }
-        InstructionKind::RegistrationValid { registration } => {
-            b.push(112);
-            encode_u32(b, registration.0);
-        }
-        InstructionKind::RegistrationClose { registration } => {
-            b.push(113);
-            encode_u32(b, registration.0);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
