@@ -303,7 +303,8 @@ fn normalize(
         }
         let mut aliases = BTreeMap::new();
         for edge in edges {
-            if symbols.contains_key(&edge.alias)
+            if edge.alias == "Option"
+                || symbols.contains_key(&edge.alias)
                 || aliases.insert(edge.alias.clone(), edge.module).is_some()
             {
                 return Err(error(

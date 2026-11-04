@@ -2,13 +2,34 @@
   "task": "340",
   "status": "InProgress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
-  "milestones": [{
-    "name": "function-pointer-result-inference",
-    "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_fnptr_record_enum_result_inference -- --exact",
-    "result": "Pass",
-    "evidence": "Original unannotated batch336/component.zil Verify succeeds; full result type is retained. Small record-enum consumer native Clang/API O0/O2 returns42; different pattern namespace rejects; Typed/Plan Wire reverify equals typed source."
-  }],
-  "remaining": ["Option", "u64/usize", "general ref/nonCopy patterns", "independent review", "whole-language acceptance"],
+  "milestones": [
+    {
+      "name": "function-pointer-result-inference",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_fnptr_record_enum_result_inference -- --exact",
+      "result": "Pass",
+      "evidence": "Original unannotated batch336/component.zil Verify succeeds; full result type is retained. Small record-enum consumer native Clang/API O0/O2 returns42; different pattern namespace rejects; Typed/Plan Wire reverify equals typed source."
+    },
+    {
+      "name": "distinct-unsigned-scalars",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_ -- --nocapture; cargo test -p zil-ct --lib",
+      "result": "Pass",
+      "evidence": "4 terminal tests pass. u64 full range, unsigned arithmetic/order/shifts, usize64 and checked conversions execute Clang/API O0/O2; CT Type selection differs correctly between explicit32/64-bit targets. Raw/Wire signatures cannot change u64 into usize. Analysis budget N=9050 passes,N-1 ResourceLimit,warm/fresh retries agree. CT lib36/0. Initial source-suffix rejection and API i128-machine-width failure corrected by real lexer admission and same-width range checks. Independent architecture replay4/0 N9050; unsigned trap controls ClangO0/O2, positive controls Clang/API O0/O2. Existing IR target exposed stale schema fixtures corrected in next Option stage.",
+      "source_commit": "dac5e6966",
+      "retained_test_executable_sha256": "aaeedd28c0f58e59f9c7dd817989abc60acffc25bd9266d8b1f28c80230f5ac4"
+    },
+    {
+      "name": "hygienic-option-enums",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_ -- --nocapture; cargo test -p zil-ir --lib",
+      "result": "Pass",
+      "evidence": "7 terminal tests pass; Option native Clang/API O0/O2 Copy/owned payload, Some/None, explicit Option<T>/T?, cross-module function signatures, inference and namespace negatives; owning payload move-use rejects. Raw/Wire malformed Option shape and payload-identity key reject independently. Option full-request N38035 succeeds,N-1 ResourceLimit,fresh/warm repeat agree. Original unsigned source keeps N9050. IR schema fixture migration preserves frozen schema1 payload bytes without rewriting binary goldens; old versions reject. Ref/general patterns remain unfinished."
+    }
+  ],
+  "remaining": [
+    "Option",
+    "general ref/nonCopy patterns",
+    "independent review",
+    "whole-language acceptance"
+  ],
   "rust_goals": {
     "safety": "Typed and independent Wire verifier accept real inferred source; nearest nominal mismatch rejects. General safety is unfinished.",
     "runtime_memory": "No new runtime representation or allocation. Native behavior checked; Rust runtime/RSS comparison NotRun.",

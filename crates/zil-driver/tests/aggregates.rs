@@ -60,7 +60,12 @@ fn terminal340_unsigned_native_and_ct() {
         "fn result()->i32{let x:u64=#(18446744073709551615u64+1u64);return 0}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
-        assert_ne!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     for text in [
         "fn result()->i32{let x=18446744073709551615u64;let y=x+1u64;return 0}",
@@ -80,10 +85,26 @@ fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
     target.id = "terminal340-32".into();
     target.triple = "i686-unknown-linux-gnu".into();
     target.pointer_width = 32;
-    let report = compile_source(&source(text), &CompileOptions { target: target.clone(), ..CompileOptions::default() });
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            target: target.clone(),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     let wide = compile_source(&source(text), &CompileOptions::default());
-    assert_eq!(wide.status, ResultCategory::SafeReject, "{}", wide.to_json());
+    assert_eq!(
+        wide.status,
+        ResultCategory::SafeReject,
+        "{}",
+        wide.to_json()
+    );
 
     let limits = Limits::default();
     let input = source("fn result()->u64{return 18446744073709551615u64}");
@@ -92,12 +113,19 @@ fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
     let typed = zil_types::check(&core, &TargetProfile::default(), &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
-    assert_eq!(zil_verify::verify_module_bytes(&bytes, &typed.target, &limits).unwrap().module(), &typed);
+    assert_eq!(
+        zil_verify::verify_module_bytes(&bytes, &typed.target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
     let mut broken = typed.clone();
     broken.functions[0].return_type = Type::Usize;
     let mut claim = plan.clone();
     claim.module_fingerprint = broken.fingerprint();
-    assert!(zil_verify::verify_module(broken.clone(), claim.clone(), &typed.target, &limits).is_err());
+    assert!(
+        zil_verify::verify_module(broken.clone(), claim.clone(), &typed.target, &limits).is_err()
+    );
     let bytes = zil_ir::wire::encode_module_candidate(&broken, &claim, &limits).unwrap();
     assert!(zil_verify::verify_module_bytes(&bytes, &typed.target, &limits).is_err());
 }
@@ -105,13 +133,21 @@ fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
 #[test]
 fn terminal340_unsigned_budget_boundaries() {
     use zil_driver::CompilationSession;
-    let input = source(include_str!("../../../tests/language-readiness/terminal/340/unsigned.zil"));
-    let options = |work| CompileOptions { limits: Limits { max_analysis_steps: work, ..Limits::default() }, ..CompileOptions::default() };
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/unsigned.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
     let maximum = Limits::default().max_analysis_steps;
     let mut low = 1;
     let mut high = maximum;
     while low < high {
-        let middle = low + (high-low)/2;
+        let middle = low + (high - low) / 2;
         match compile_source(&input, &options(middle)).status {
             ResultCategory::Success => high = middle,
             ResultCategory::ResourceLimit => low = middle + 1,
@@ -119,13 +155,158 @@ fn terminal340_unsigned_budget_boundaries() {
         }
     }
     let mut warm = CompilationSession::default();
-    for (work, expected) in [(low, ResultCategory::Success), (low-1, ResultCategory::ResourceLimit), (low, ResultCategory::Success)] {
-        for report in [warm.compile_source(&input, &options(work)), CompilationSession::default().compile_source(&input, &options(work))] {
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
             assert_eq!(report.status, expected, "{}", report.to_json());
         }
         assert_eq!(warm.active_query_count(), 0);
     }
     println!("340 unsigned full-request analysis N={low}, N-1 rejects, fresh/warm agree");
+}
+
+#[test]
+fn terminal340_option_budget_boundaries() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/option.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let maximum = Limits::default().max_analysis_steps;
+    let mut low = 1;
+    let mut high = maximum;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected budget result {status:?}"),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 Option full-request analysis N={low}, N-1 rejects, fresh/warm agree");
+}
+
+#[test]
+fn terminal340_option_copy_and_owned_native() {
+    for text in [
+        "fn result()->i32{let value:i32?=Option.Some(42);match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "fn make()->Option<i32>{return Option.Some(42)}fn result()->i32{let value=make();match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "fn result()->i32{let value:i32?=Option.None;match value{Option.Some(_)=>{return 0},Option.None()=>{return 42}}}",
+        "package P{manages data:ByteBuffer;n:i32}fn result()->i32{let value:P?=Option.Some(P{data:bytes_new(),n:42});match value{Option.Some(p)=>{return p.n},Option.None()=>{return 0}}}",
+    ] {
+        review329_native(&[("main", text)], 42);
+    }
+}
+
+#[test]
+fn terminal340_option_source_identity_and_negative_neighbors() {
+    review329_native(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/340/option.zil"),
+        )],
+        42,
+    );
+    review329_native(
+        &[
+            (
+                "main",
+                "import model;fn result()->i32{let value:i32?=model.make();match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+            ),
+            (
+                "model",
+                "pub fn make()->Option<i32>{return Option.Some(42)}",
+            ),
+        ],
+        42,
+    );
+    for text in [
+        "enum Option{None,Some(i32)}fn result()->i32{return 0}",
+        "type Option=i32;fn result()->i32{return 0}",
+        "fn unused<Option>(x:Option)->Option{return x}fn result()->i32{return 0}",
+        "fn result()->i32{let Option=1;return 0}",
+        "fn result()->i32{let value:i32?=42;return 0}",
+        "fn result()->i32{let value=Option.None;return 0}",
+        "fn result()->i32{let value:i32?=Option.Some(true);return 0}",
+        "fn result()->i32{let value:i32?=Option.None;match value{Option.Some(n)=>{return n}}}",
+        "fn unused(value:i32?)->bool?{return value}fn result()->i32{return 0}",
+        "package P{manages data:ByteBuffer;n:i32}fn result()->i32{let value:P?=Option.Some(P{data:bytes_new(),n:42});match value{Option.Some(p)=>{let other=p;return p.n},Option.None()=>{return 0}}}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "unexpected accepted neighbor: {text}\n{}",
+            report.to_json()
+        );
+    }
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let input = source("fn unused(value:i32?)->i32{return 0}fn result()->i32{return 42}");
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    for malformed in [false, true] {
+        let mut raw = typed.clone();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "unused")
+            .unwrap();
+        let parameter = function.parameters[0];
+        let Type::Enum { name, variants } = &mut function.locals[parameter.0 as usize].ty else {
+            panic!("Option must be a hygienic Enum")
+        };
+        if malformed {
+            variants[1].1.clear()
+        } else {
+            name.push('0')
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let errors =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code == "E-VERIFY-OPTION"),
+            "{errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
 }
 
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {

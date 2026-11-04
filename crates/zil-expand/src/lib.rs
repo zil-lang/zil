@@ -66,14 +66,22 @@ fn owned_store_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    name == "Option"
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if name == "Option" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OPTION-NAME",
+            Some(span),
+            "Option is a reserved built-in type and constructor namespace",
+        )
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
@@ -936,7 +944,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" || name == "thread_scope" {
+        if name == "Option" || name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1324,8 +1332,8 @@ impl Expander<'_> {
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
-            "u64" => Type::U64,
-            "usize" => Type::Usize,
+                                "u64" => Type::U64,
+                                "usize" => Type::Usize,
                                 _ => unreachable!(),
                             },
                         }
