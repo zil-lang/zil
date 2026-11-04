@@ -4,7 +4,12 @@ use super::*;
 use zil_ir::VariantProjection;
 
 impl FunctionEmitter<'_> {
-    fn enum_tag_at(&mut self, ty: &Type, pointer: &str, output: String) -> CompileResult<()> {
+    pub(super) fn enum_tag_at(
+        &mut self,
+        ty: &Type,
+        pointer: &str,
+        output: String,
+    ) -> CompileResult<()> {
         let Type::Enum { variants, .. } = ty else {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -45,7 +50,12 @@ impl FunctionEmitter<'_> {
         self.trap_if(&invalid);
         Ok(())
     }
-    fn guard_enum_variant(&mut self, ty: &Type, pointer: &str, variant: u32) -> CompileResult<()> {
+    pub(super) fn guard_enum_variant(
+        &mut self,
+        ty: &Type,
+        pointer: &str,
+        variant: u32,
+    ) -> CompileResult<()> {
         let tag = self.temp();
         self.enum_tag_at(ty, pointer, tag.clone())?;
         let mismatch = self.temp();
@@ -61,7 +71,7 @@ impl FunctionEmitter<'_> {
         self.trap_if(&mismatch);
         Ok(())
     }
-    fn variant_field_pointer(
+    pub(super) fn variant_field_pointer(
         &mut self,
         ty: &Type,
         pointer: &str,
@@ -120,6 +130,96 @@ impl FunctionEmitter<'_> {
         }
         Ok((ty, pointer))
     }
+    pub(super) fn borrow_inline_field(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+        path: &[u32],
+    ) -> CompileResult<()> {
+        let mut ty = self.local_type(local)?.clone();
+        let mut pointer = format!("%local.{}", local.0);
+        for field in path {
+            let next = match &ty {
+                Type::Tuple(fs) => fs.get(*field as usize),
+                Type::Record { fields, .. } => fields.get(*field as usize).map(|(_, t)| t),
+                _ => None,
+            }
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    Phase::Codegen,
+                    "E-CODEGEN-CFG",
+                    Some(instruction.span),
+                    "invalid inline field path",
+                )]
+            })?
+            .clone();
+            let output = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(output.clone())),
+                m::Op::Gep {
+                    ty: llvm_type(&ty)?,
+                    ptr: m::val(pointer),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), 0),
+                        m::Arg::new(m::Ty::Int(32), *field),
+                    ],
+                },
+            )));
+            pointer = output;
+            ty = next;
+        }
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(value(result(instruction)?))),
+            m::Op::Gep {
+                ty: m::Ty::Int(8),
+                ptr: m::val(pointer),
+                indices: vec![m::Arg::new(m::Ty::Int(32), 0)],
+            },
+        )));
+        Ok(())
+    }
+    fn variant_address_pointer(
+        &mut self,
+        address: ValueId,
+        path: &[VariantProjection],
+    ) -> CompileResult<(Type, String)> {
+        let Type::Address { inner, .. } = self.value_type(address)? else {
+            return invalid("E-CODEGEN-CFG", "Sum address base must be a pointer", None);
+        };
+        let mut ty = *inner.clone();
+        let mut pointer = value(address);
+        for step in path {
+            self.guard_enum_variant(&ty, &pointer, step.variant)?;
+            (ty, pointer) = self.variant_field_pointer(&ty, &pointer, step.variant, step.index)?;
+        }
+        Ok((ty, pointer))
+    }
+    pub(super) fn variant_tag_address(
+        &mut self,
+        instruction: &Instruction,
+        address: ValueId,
+        path: &[VariantProjection],
+    ) -> CompileResult<()> {
+        let (ty, pointer) = self.variant_address_pointer(address, path)?;
+        self.enum_tag_at(&ty, &pointer, value(result(instruction)?))
+    }
+    pub(super) fn borrow_variant_address(
+        &mut self,
+        instruction: &Instruction,
+        address: ValueId,
+        path: &[VariantProjection],
+    ) -> CompileResult<()> {
+        let (_, pointer) = self.variant_address_pointer(address, path)?;
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(value(result(instruction)?))),
+            m::Op::Gep {
+                ty: m::Ty::Int(8),
+                ptr: m::val(pointer),
+                indices: vec![m::Arg::new(m::Ty::Int(32), 0)],
+            },
+        )));
+        Ok(())
+    }
     pub(super) fn variant_tag_local(
         &mut self,
         instruction: &Instruction,
@@ -128,6 +228,23 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let (ty, pointer) = self.variant_local_pointer(local, path)?;
         self.enum_tag_at(&ty, &pointer, value(result(instruction)?))
+    }
+    pub(super) fn borrow_variant_local(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+        path: &[VariantProjection],
+    ) -> CompileResult<()> {
+        let (_, pointer) = self.variant_local_pointer(local, path)?;
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(value(result(instruction)?))),
+            m::Op::Gep {
+                ty: m::Ty::Int(8),
+                ptr: m::val(pointer),
+                indices: vec![m::Arg::new(m::Ty::Int(32), 0)],
+            },
+        )));
+        Ok(())
     }
     pub(super) fn read_variant_local(
         &mut self,
@@ -233,6 +350,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
+        self.partial_flags(local, false, false)?;
         for (index, target) in targets.iter().enumerate().rev() {
             let field = &fields[index];
             if let Some(loaded) = &values[index] {
@@ -254,6 +372,104 @@ impl FunctionEmitter<'_> {
                         align: 1,
                     },
                 )));
+                self.partial_flags(*target, false, true)?;
+                self.package_flags(*target, false, true)?;
+                self.owned_array_flags(*target, false, true)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn unpack_tuple(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+        targets: &[LocalId],
+    ) -> CompileResult<()> {
+        let ty = self.local_type(local)?.clone();
+        let Type::Tuple(fields) = &ty else {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "UnpackTuple requires Tuple",
+                Some(instruction.span),
+            );
+        };
+        if fields.len() != targets.len()
+            || targets.contains(&local)
+            || targets.iter().collect::<BTreeSet<_>>().len() != targets.len()
+        {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "Tuple unpack requires exact distinct targets",
+                Some(instruction.span),
+            );
+        }
+        let mut loaded = Vec::new();
+        for (index, field) in fields.iter().enumerate() {
+            if self.local_type(targets[index])? != field {
+                return invalid(
+                    "E-CODEGEN-CFG",
+                    "Tuple unpack target differs",
+                    Some(instruction.span),
+                );
+            }
+            if *field == Type::Unit {
+                loaded.push(None);
+                continue;
+            }
+            let pointer = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(pointer.clone())),
+                m::Op::Gep {
+                    ty: llvm_type(&ty)?,
+                    ptr: m::local(format!("local.{}", local.0)),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), 0),
+                        m::Arg::new(m::Ty::Int(32), index as u32),
+                    ],
+                },
+            )));
+            let value = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(value.clone())),
+                m::Op::Load {
+                    ty: llvm_type(field)?,
+                    ptr: m::val(pointer),
+                    align: alignment(field, self.closures)?,
+                },
+            )));
+            loaded.push(Some(value));
+        }
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), false),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        self.partial_flags(local, false, false)?;
+        for (index, target) in targets.iter().enumerate().rev() {
+            let field = &fields[index];
+            if let Some(value) = &loaded[index] {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(llvm_type(field)?, m::val(value.clone())),
+                        ptr: m::local(format!("local.{}", target.0)),
+                        align: alignment(field, self.closures)?,
+                    },
+                )));
+            }
+            if self.owns_storage(field) {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), true),
+                        ptr: m::local(format!("resource.live.{}", target.0)),
+                        align: 1,
+                    },
+                )));
+                self.partial_flags(*target, false, true)?;
                 self.package_flags(*target, false, true)?;
                 self.owned_array_flags(*target, false, true)?;
             }
@@ -265,8 +481,11 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
+        if self.drop_partial_place(local)? {
+            return Ok(());
+        }
         let ty = self.local_type(local)?.clone();
-        if !matches!(ty, Type::Enum { .. }) || ty.is_copy_value() {
+        if !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) || ty.is_copy_value() {
             return invalid(
                 "E-CODEGEN-CFG",
                 "DropEnum requires an owning Enum local",

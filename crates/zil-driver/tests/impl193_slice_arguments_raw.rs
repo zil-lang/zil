@@ -403,7 +403,7 @@ fn raw_unsupported_shapes_and_capture_or_lending_claims_stay_closed() {
         module,
         plan,
         ResultCategory::SafeReject,
-        "E-VERIFY-LENDING",
+        "E-VERIFY-CLOSURE-ENTRY",
     );
     let (mut module, plan) = baseline(SHARED);
     module.closures[0].lending_captures.push(0);

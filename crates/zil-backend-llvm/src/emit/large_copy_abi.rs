@@ -17,6 +17,7 @@ impl Signature {
 }
 #[derive(Default)]
 pub(super) struct Plans {
+    pub(super) remaining_work: usize,
     pub(super) values: BTreeMap<FunctionId, copy_aggregates::Plan>,
     pub(super) functions: BTreeMap<FunctionId, Signature>,
     pub(super) indirect: BTreeMap<(FunctionId, ValueId), Signature>,
@@ -50,7 +51,10 @@ fn dependency(
     }
     let mut changed = false;
     match ty {
-        Type::FunctionPointer { parameters, result } => {
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } => {
             for parameter in parameters {
                 changed |= classify(parameter, remaining, limits)?.is_some();
                 changed |= dependency(parameter, remaining, limits, depth + 1)?;
@@ -201,7 +205,11 @@ pub(super) fn plan(
         }
         plans.functions.insert(function.id, abi);
         for (index, ty) in function.values.iter().enumerate() {
-            if let Type::FunctionPointer { parameters, result } = ty {
+            if let Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            } = ty
+            {
                 let abi = signature(parameters.iter(), result, remaining, limits)?;
                 if abi.large() {
                     plans
@@ -213,7 +221,8 @@ pub(super) fn plan(
     }
     for function in lir.functions {
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
-            if let InstructionKind::WithScopedThread { worker, .. } = instruction.kind
+            if let InstructionKind::TaskStart { worker, .. }
+            | InstructionKind::WithScopedThread { worker, .. } = instruction.kind
                 && plans
                     .functions
                     .get(&worker)

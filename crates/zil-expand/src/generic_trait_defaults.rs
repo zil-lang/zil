@@ -2,14 +2,21 @@
 //! selected. Concrete bodies remain ordinary functions in the trait's module.
 use super::*;
 
-pub(crate) fn present(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<bool> {
+pub(crate) fn features_with_methods(
+    declaration: &TraitDecl,
+    budget: &mut Budget<'_>,
+) -> R<(bool, bool, bool)> {
     let mut found = false;
+    let mut associated = false;
+    let mut methods = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
+        associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+        methods |= matches!(&member.kind, ItemKind::Function(f) if !f.generics.is_empty());
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok(found)
+    Ok((found, associated, methods))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
@@ -110,6 +117,7 @@ impl Engine<'_> {
             return Ok(());
         }
         for item in &module.items {
+            self.budget.context.origin = self.traits.origin(item, &mut self.budget)?;
             let ItemKind::Trait(declaration) = &item.kind else {
                 continue;
             };
@@ -155,26 +163,37 @@ impl Engine<'_> {
         Ok(())
     }
 
-    fn check_default(
+    pub(super) fn check_default(
         &mut self,
         declaration: &TraitDecl,
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<BTreeMap<Span, String>> {
+    ) -> R<trait_instances::CallTargets> {
+        let (owner, _) = self.traits.declaration_item(reference);
+        let origin = self.template_origin(owner)?;
+        self.with_origin(origin, |engine| {
+            engine.check_default_inner(declaration, member, reference, symbolic_arguments)
+        })
+    }
+    fn check_default_inner(
+        &mut self,
+        declaration: &TraitDecl,
+        member: &Item,
+        reference: &trait_instances::Reference,
+        symbolic_arguments: bool,
+    ) -> R<trait_instances::CallTargets> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
         };
-        if !function.generics.is_empty()
-            || !function.where_clause.is_empty()
-            || !function.contract.is_empty()
-        {
+        if !function.contract.is_empty() {
             return Err(unsupported(
                 member.span,
                 "generic or contract-bearing default method",
             ));
         }
+        let method_parameters = std::mem::take(&mut function.generics);
         if symbolic_arguments {
             for parameter in &declaration.generics {
                 self.budget.node(parameter.span, 0)?;
@@ -194,6 +213,7 @@ impl Engine<'_> {
             kind: GenericParamKind::Type(vec![]),
             span: member.span,
         });
+        function.generics.extend(method_parameters);
         let mut bounds = self
             .traits
             .parameter_bounds(&function.generics, &mut self.budget)?;
@@ -208,17 +228,45 @@ impl Engine<'_> {
         self.budget.text("Self", member.span)?;
         bounds.insert(
             "Self".into(),
-            vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
-                key,
-                arguments,
-            })],
+            self.traits.inherited_bounds(
+                vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
+                    key,
+                    arguments,
+                })],
+                "Self",
+                &mut self.budget,
+                member.span,
+            )?,
         );
+        if !function.where_clause.is_empty() {
+            let mut variables = BTreeSet::new();
+            for parameter in type_parameters(&function) {
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+            }
+            self.traits.where_assumptions(
+                &function.where_clause,
+                &mut bounds,
+                &variables,
+                &mut self.budget,
+            )?;
+        }
+        if self.traits.has_associated {
+            self.traits
+                .associated_bounds(&mut bounds, &mut self.budget)?;
+        }
         no_new_borrows(member, &mut self.budget)?;
         self.check_default_reference_result(&function, &bounds)?;
         let mut calls = trait_instances::Calls::new();
+        let checked =
+            consts::definition(&function, &mut self.budget, self.traits.has_instances, None)?;
         check::validate_parametric_with_bounds(
-            &function,
+            &checked,
             check::ParametricTables {
+                source_definition: Some(&function),
+                expression_origins: checked.source_ids.as_ref(),
+                definition_equations: None,
                 nominals: &self.nominals,
                 enums: &self.enums,
                 signatures: &self.signatures,
@@ -338,11 +386,14 @@ impl Engine<'_> {
         }
         let reference = self.traits.reference(application, &mut self.budget)?;
         let (trait_item, declaration) = self.traits.declaration_item(&reference);
-        for member in &declaration.members {
+        for (ordinal, member) in declaration.members.iter().enumerate() {
             self.budget.node(member.span, 0)?;
             let ItemKind::Function(method) = &member.kind else {
                 continue;
             };
+            if !method.generics.is_empty() {
+                continue;
+            }
             if matches!(method.body, FunctionBody::Declaration) {
                 continue;
             }
@@ -384,13 +435,33 @@ impl Engine<'_> {
             let mut body = member.clone();
             substitute_item(&mut body, &substitutions)?;
             let calls = self.check_default(declaration, &body, &reference, false)?;
-            trait_instances::rewrite_calls(&mut body, &calls, &mut self.budget)?;
+            trait_instances::rewrite_calls(&mut body, &calls, &BTreeMap::new(), &mut self.budget)?;
             self.budget.text("Self", span)?;
             self.budget.ty(&implementation.target)?;
             substitutions.clear();
             substitutions.insert("Self".into(), implementation.target.clone());
+            let anchors = if self.traits.has_generic_methods {
+                let resolved = trait_instances::resolve_generic_calls(
+                    &calls,
+                    &substitutions,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                Some(trait_instances::anchor_resolved_calls(
+                    &body,
+                    resolved,
+                    &mut self.budget,
+                )?)
+            } else {
+                None
+            };
             self.budget.substituted_item(&body, &substitutions)?;
             substitute_item(&mut body, &substitutions)?;
+            let remapped = anchors
+                .map(|anchors| {
+                    trait_instances::rekey_anchored_calls(&body, anchors, &mut self.budget)
+                })
+                .transpose()?;
             let helper =
                 self.default_body_name(&reference, &implementation.target, method, span)?;
             self.budget.item(&body)?;
@@ -425,6 +496,10 @@ impl Engine<'_> {
                 },
                 span: member.span,
             });
+            if let Some(resolved) = remapped {
+                self.budget.text(&helper, member.span)?;
+                self.resolved_method_calls.insert(helper.clone(), resolved);
+            }
             trait_instances::rename_default_receiver(&mut body, &mut self.budget)?;
             body.public = trait_item.public;
             self.budget.text(&helper, member.span)?;
@@ -442,7 +517,11 @@ impl Engine<'_> {
             self.budget.node(member.span, 0)?;
             implementation.members.push(wrapper);
             self.budget.node(member.span, 0)?;
-            self.pending.push_back(body);
+            let origin = self
+                .template_origin(trait_item)?
+                .map(|origin| origin.member(ordinal, member.span))
+                .transpose()?;
+            self.enqueue(body, origin)?;
             self.default_functions += 2;
         }
         Ok(())
@@ -459,10 +538,7 @@ impl Engine<'_> {
         trait_instances::copy_key(&reference.key, &mut self.budget, span)?;
         self.budget.text(&method.name, span)?;
         let mut hash = zil_base::FingerprintBuilder::new();
-        hash.update(b"zil/trait-default-body/v1\0");
-        hash.update(&reference.key.declaration.file.0.to_le_bytes());
-        hash.update(&(reference.key.declaration.start as u64).to_le_bytes());
-        hash.update(&(reference.key.declaration.end as u64).to_le_bytes());
+        hash.update(b"zil/trait-default-body/v2\0");
         for part in std::iter::once(&reference.key.name)
             .chain(reference.key.arguments.iter())
             .chain(std::iter::once(&host))
@@ -528,6 +604,8 @@ mod tests {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine,
+            false, // This retained source fixture has no associated declarations.
+            false, // No generic methods in this retained source fixture.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

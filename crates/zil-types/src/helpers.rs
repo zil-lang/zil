@@ -86,6 +86,9 @@ pub(super) fn validate_template(
     function: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
+    if registration::template(function) {
+        return registration::validate_template(function, prepay);
+    }
     if forwarding::bound(function).is_some() {
         return forwarding::validate(function, prepay);
     }
@@ -112,6 +115,20 @@ pub(super) fn validate_template(
     {
         return Err(reject());
     }
+    for bound in bounds {
+        if let Some(life) = &bound.life {
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                prepay(ty, function.span)?;
+            }
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
+        }
+    }
+    let invocation_result = bounds.iter().any(|b| b.life.is_some())
+        && matches!(function.return_type, Type::Address { .. });
     let owned_state = callable_fields::template(function);
     // Only a new non-Copy data signature enters this branch; legacy helper
     // accounting and every existing State/lending profile stay unchanged.
@@ -121,6 +138,7 @@ pub(super) fn validate_template(
             .any(|bound| !closures::supported_signature(&bound.parameters, &bound.result))
         || (!owned_state
             && !function.return_type.is_copy_value()
+            && !invocation_result
             && !lending::supported_result(&function.return_type));
     if owned_data {
         if bounds.len() != 1
@@ -169,6 +187,7 @@ pub(super) fn validate_template(
     }
     if !(function.return_type.is_copy_value()
         || owned_data
+        || invocation_result
         || (bounds.len() == 1 && lending::supported_result(&function.return_type))
         || (owned_state
             && callable_fields::placeholder_package(
@@ -185,7 +204,10 @@ pub(super) fn validate_template(
             || bound.kind == CallableKind::FunctionPointer
             || !(closures::supported_signature(&bound.parameters, &bound.result)
                 || (owned_data && closures::value_signature(&bound.parameters, &bound.result)))
-            || (bounds.len() > 1 && !owned_state && !bound.result.is_copy_value())
+            || (bounds.len() > 1
+                && !owned_state
+                && bound.life.is_none()
+                && !bound.result.is_copy_value())
         {
             return Err(reject());
         }
@@ -208,6 +230,7 @@ pub(super) fn validate_template(
                     && (prior.kind != bound.kind
                         || prior.parameters != bound.parameters
                         || prior.result != bound.result
+                        || prior.life != bound.life
                         || parameter_mode(
                             &function.parameters[prior.index as usize].ty,
                             &prior.generic_name,
@@ -255,7 +278,7 @@ pub(super) fn validate_template(
         }
         let old = p.ty.is_copy_value()
             || matches!(&p.ty,Type::Address{inner,..} if inner.is_copy_value()
-                || (function.return_type.is_copy_value() && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
+                || ((function.return_type.is_copy_value() || invocation_result) && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
             || packages::supported(&p.ty)
             || matches!(&p.ty,Type::Desc(inner) if inner.as_ref()==&Type::ByteBuffer)
             || matches!(p.ty, Type::Managed(_));
@@ -421,6 +444,7 @@ impl Builder<'_, '_> {
         }
         let owned_state = callable_fields::signature(signature);
         let owned_factory = owning_factory::signature(signature);
+        let retained_registration = registration::environment(&signature.result).is_some();
         let forward = forwarding::signature(signature).map(|bound| bound.index);
         if forward.is_some() {
             self.forward_modes(span)?;
@@ -428,6 +452,7 @@ impl Builder<'_, '_> {
         let mut returned_mode = None;
         if !owned_state
             && !owned_factory
+            && !retained_registration
             && forward.is_none()
             && let Some(expected) = expected
         {
@@ -576,7 +601,7 @@ impl Builder<'_, '_> {
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
-                if owned_factory || forward.is_some() {
+                if owned_factory || forward.is_some() || bound.closed_environment {
                     self.closures
                         .factory_self_contained(closure, argument.span)?;
                 }
@@ -613,7 +638,7 @@ impl Builder<'_, '_> {
             environments,
             span,
         )?;
-        let result = if owned_state || owned_factory || forward.is_some() {
+        let result = if owned_state || owned_factory || retained_registration || forward.is_some() {
             self.closures
                 .snapshot(self.closures.helper_functions.len(), span)?;
             self.closures
@@ -656,6 +681,19 @@ impl Builder<'_, '_> {
         owned_state: bool,
         span: Span,
     ) -> R<()> {
+        if let Some(life) = &bound.life {
+            self.closures
+                .snapshot(borrowed_fp::metadata_work(life), span)?;
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                let work = inference::type_snapshot_work(ty, span, self.limits)?;
+                self.closures.snapshot(work.saturating_mul(2), span)?;
+            }
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        }
         if owned_state {
             let mut work = self.limits.max_analysis_steps;
             retained::self_contained(&self.closures.pending, closure, &mut work, span)?;
@@ -686,6 +724,9 @@ impl Builder<'_, '_> {
         }
         pending.inference.expect_result(&bound.result, span)?;
         self.materialize_closure(closure)?;
+        if bound.closed_environment {
+            registration::closed_environment(self.closures, closure, span)?;
+        }
         Ok(())
     }
 
@@ -771,6 +812,15 @@ impl Builder<'_, '_> {
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
         let forward = forwarding::bound(&function).map(|bound| bound.index);
+        if registration::template(&function) {
+            for bound in bounds {
+                callable_fields::specialize_type(
+                    &mut function.return_type,
+                    &bound.generic_name,
+                    bindings.get(bound.generic_index, span)?,
+                );
+            }
+        }
         if forward.is_some() {
             function.return_type = Type::Closure(bindings.get(bounds[0].generic_index, span)?);
         }
@@ -903,7 +953,12 @@ impl Builder<'_, '_> {
                         writes.push(index as u32);
                     }
                 }
+                if let Some(life) = &bound.life {
+                    self.closures
+                        .snapshot(borrowed_fp::metadata_work(life), span)?;
+                }
                 roles.push(CallableRole {
+                    life: bound.life.clone(),
                     parameter: bound.index,
                     closure,
                     kind: bound.kind,
@@ -972,6 +1027,9 @@ impl Builder<'_, '_> {
                 lending_captures: Vec::new(),
             });
             self.closures.forward_results.insert(id, parameter);
+        }
+        if registration::template(&template.function) {
+            typed.callable_contract = None;
         }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
@@ -1213,7 +1271,14 @@ fn ordinary_aggregate_inputs<'a>(
         ([value], None)
             if matches!(
                 function.values[value.0 as usize],
-                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
             ) =>
         {
             None

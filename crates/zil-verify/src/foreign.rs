@@ -51,7 +51,14 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
             || function.parameters.len() != function.locals.len()
             || !matches!(
                 function.return_type,
-                Type::Unit | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::ForeignHandle
+                Type::Unit
+                    | Type::U8
+                    | Type::U16
+                    | Type::I32
+                    | Type::I64
+                    | Type::F32
+                    | Type::F64
+                    | Type::ForeignHandle
             )
         {
             return Err(bad(
@@ -77,6 +84,8 @@ pub(super) fn check_declarations(module: &TypedModule, budget: &mut Budget) -> C
                 | Type::U16
                 | Type::I32
                 | Type::I64
+                | Type::F32
+                | Type::F64
                 | Type::ForeignHandle
                 | Type::CWideString => {}
                 Type::ForeignCallback { parameters, result } => {
@@ -233,6 +242,8 @@ fn same_type(actual: &Type, expected: &Type, budget: &mut Budget) -> Check<bool>
             | (Type::U16, Type::U16)
             | (Type::I32, Type::I32)
             | (Type::I64, Type::I64)
+            | (Type::F32, Type::F32)
+            | (Type::F64, Type::F64)
             | (Type::ForeignHandle, Type::ForeignHandle)
             | (Type::CWideString, Type::CWideString) => {}
             _ => return Ok(false),
@@ -258,6 +269,7 @@ pub(super) fn check_regions(
                     InstructionKind::UnsafeEnter { .. }
                         | InstructionKind::UnsafeExit { .. }
                         | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::RegistrationStart { .. }
                         | InstructionKind::WithForeignCallback { .. }
                 )
             {
@@ -324,6 +336,7 @@ pub(super) fn check_regions(
                     }
                 }
                 InstructionKind::ForeignCall { region, .. }
+                | InstructionKind::RegistrationStart { region, .. }
                 | InstructionKind::WithForeignCallback { region, .. } => {
                     if stack.last() != Some(&region) {
                         return Err(bad(

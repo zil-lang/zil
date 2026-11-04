@@ -6,10 +6,10 @@
       "milestone": "M0",
       "title": "正式最小流水线、公共接口与验收入口",
       "status": "Doing",
-      "task_revision": 8,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
-      "base_revision": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
+      "task_revision": 10,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
+      "base_revision": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
       "blocked_by": [],
       "requirements": [
         "ZIL-TARGET",
@@ -69,11 +69,6 @@
         "Verified wrapper 构造权封装于 zil-verify；解析/反序列化只能产生候选，编译测试证明下游不能直接构造已核值。",
         "runner 支持两个已登记 manifest，零选择、缺 fixture、未执行和 Unsupported 均非 Pass；提交所有 PLAN-B0 用例的实际结果。",
         "公共 schema 与产物协议已供 T01/T02/T04/T05 复核，原始阶段产物和产物哈希进入证据。"
-      ],
-      "evidence": [
-        "evidence/B0/20261022T141438Z-245fbe4c/result.json",
-        "evidence/B0/20261022T162636Z-530fb128/result.json",
-        "evidence/round03-protocol-B0.json"
       ],
       "assigned_scope": "B0 internal parallel subtask execution authorized by user on 2026-10-22",
       "implementation_progress": {
@@ -148,6 +143,21 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": "c9ee2e81de661bb0789ac6a0c6a130d864c4d5a9",
+        "evidence": [
+          "evidence/B0/20261022T141438Z-245fbe4c/result.json",
+          "evidence/B0/20261022T162636Z-530fb128/result.json",
+          "evidence/round03-protocol-B0.json"
+        ]
+      },
+      "historical_evidence_before_322": [
+        "evidence/B0/20261022T141438Z-245fbe4c/result.json",
+        "evidence/B0/20261022T162636Z-530fb128/result.json",
+        "evidence/round03-protocol-B0.json"
       ]
     },
     {
@@ -155,9 +165,9 @@
       "milestone": "M1",
       "title": "完整固定语法、无损树与表面归一化",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -216,10 +226,6 @@
         "所有表面糖产生声明的 CoreModule 形状，临时节点保持源映射和求值顺序。",
         "实际闭包/记录/管道样本与期望树比较；不能把 EBNF 引用检查计为生产解析通过。"
       ],
-      "evidence": [
-        "evidence/T01/20261022T141443Z-6f935e0b/result.json",
-        "evidence/T01/20261022T141446Z-77a882c1/result.json"
-      ],
       "implementation_progress": {
         "scope": "FrontendAndNormalizationImplemented_FullGatePending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -266,6 +272,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -277,6 +295,19 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": [
+          "evidence/T01/20261022T141443Z-6f935e0b/result.json",
+          "evidence/T01/20261022T141446Z-77a882c1/result.json"
+        ]
+      },
+      "historical_evidence_before_322": [
+        "evidence/T01/20261022T141443Z-6f935e0b/result.json",
+        "evidence/T01/20261022T141446Z-77a882c1/result.json"
       ]
     },
     {
@@ -284,9 +315,9 @@
       "milestone": "M1",
       "title": "名字、类型、接收者、闭包形状与 trait",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -373,9 +404,6 @@
         "TypedCFG 显式包含求值、错误、清理与潜在调用边；analyze 无需回读 parser 关键字。",
         "fn 指针、捕获闭包、调用能力及 opaque 返回的正反例经生产类型器；候选关联等式不得自证。"
       ],
-      "evidence": [
-        "evidence/T02/20261022T141446Z-041bcee1/result.json"
-      ],
       "implementation_progress": {
         "scope": "ScalarTypesAndCFGImplemented_ResourceAndClosureTypingPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -422,6 +450,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -433,6 +473,17 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": [
+          "evidence/T02/20261022T141446Z-041bcee1/result.json"
+        ]
+      },
+      "historical_evidence_before_322": [
+        "evidence/T02/20261022T141446Z-041bcee1/result.json"
       ]
     },
     {
@@ -440,9 +491,9 @@
       "milestone": "M1",
       "title": "已核编译期执行、属性和生成调度",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -492,7 +543,6 @@
         "配置、重复/冲突属性、配额耗尽和依赖循环分别产生稳定结果。",
         "实际输入变更进入依赖记录，不声明访问的宿主输入不可读取。"
       ],
-      "evidence": [],
       "implementation_progress": {
         "scope": "ClosedScalarSourceCTImplemented_GenerationPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -538,6 +588,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -549,16 +611,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "T04",
       "milestone": "M1",
       "title": "数据库、模块驱动、CLI/IDE与native脚本",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -614,10 +683,6 @@
         "缓存损坏、版本不匹配与取消不产生伪已核值或半写成功记录。",
         "native run 与显式入口代码语义一致；CLI/IDE 对同一输入返回同一语义诊断。"
       ],
-      "evidence": [
-        "evidence/T04/20261022T141443Z-939f8dfe/result.json",
-        "evidence/T04/20261022T141446Z-620f6221/result.json"
-      ],
       "implementation_progress": {
         "scope": "SingleModuleSessionAndCacheImplemented_ModuleContractsPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -664,6 +729,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -675,6 +752,19 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": [
+          "evidence/T04/20261022T141443Z-939f8dfe/result.json",
+          "evidence/T04/20261022T141446Z-620f6221/result.json"
+        ]
+      },
+      "historical_evidence_before_322": [
+        "evidence/T04/20261022T141443Z-939f8dfe/result.json",
+        "evidence/T04/20261022T141446Z-620f6221/result.json"
       ]
     },
     {
@@ -682,9 +772,9 @@
       "milestone": "M1",
       "title": "独立核验器与已核访问能力",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -733,9 +823,6 @@
         "全部控制边、窗口/责任事实和 CT 允许操作有核验路径；变异夹具能触发具体拒绝。",
         "Verified 构造权、只读访问和缓存解码路线符合 interfaces.json。"
       ],
-      "evidence": [
-        "evidence/T05/20261022T141443Z-d55307c9/result.json"
-      ],
       "implementation_progress": {
         "scope": "ScalarAndCTVerifierImplemented_ResourceCertificatesPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -782,6 +869,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -793,6 +892,17 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": [
+          "evidence/T05/20261022T141443Z-d55307c9/result.json"
+        ]
+      },
+      "historical_evidence_before_322": [
+        "evidence/T05/20261022T141443Z-d55307c9/result.json"
       ]
     },
     {
@@ -800,9 +910,9 @@
       "milestone": "M2",
       "title": "来源、顺序别名、管理路由与准确责任",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "T02",
@@ -858,7 +968,6 @@
         "选择返回中 payload/route/authority 一致，跨模块可核验；未知候选使用弱更新。",
         "真实候选交给 T05 核验；失败清理与包移动没有重复或丢失责任。"
       ],
-      "evidence": [],
       "implementation_progress": {
         "scope": "InitializationAnalysisImplemented_ResourceAnalysisPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -904,6 +1013,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -915,16 +1036,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "T07",
       "milestone": "M2",
       "title": "LLVM主路径、布局和最小内存运行原语",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "T05"
@@ -975,7 +1103,6 @@
         "责任记录自身释放顺序安全，部分构造与错误边没有二次析构。",
         "未支持目标能力明确拒绝；属性/ABI变异在实际产物检查中被发现。"
       ],
-      "evidence": [],
       "implementation_progress": {
         "scope": "ScalarLLVMBackendImplemented_ResourceABIPending",
         "report": "docs/IMPLEMENTATION-STATUS.md",
@@ -1021,6 +1148,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1032,16 +1171,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "T08",
       "milestone": "M3",
       "title": "完整CFG、闭包、析构及图容器",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "W1"
@@ -1156,7 +1302,6 @@
         "未调用、调用成功、调用失败和移出捕获各条路径准确清理；残留借用/route依赖不能被move消掉。",
         "闭包保存/替换、图与动态容器在固定外借、存在包、Key各路线有实际样本；n/2n/4n记录工作量。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1197,6 +1342,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1208,16 +1365,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "T09",
       "milestone": "M4",
       "title": "挂起帧、取消、同步与真实完成根",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1279,7 +1443,6 @@
         "取消、失败、panic和drain均等待真实使用者归还及no-future保证；模型和实际平台证据分开。",
         "所有新增操作在 types/analyze/verify/lower/runtime 中具有对应消费者；不靠runtime补未经检查的资格。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1320,6 +1483,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1331,16 +1506,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "W1",
       "milestone": "M2",
       "title": "两模块资源管理源码贯通",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -1403,7 +1585,6 @@
         "选择返回的真实payload与route对应，包移动与失败路径只清理一次。",
         "最近反例在相应编译阶段拒绝且没有新可运行产物；完成后才能开放 T08。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1436,6 +1617,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1447,16 +1640,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "W2",
       "milestone": "M3",
       "title": "语法、闭包和图演进端到端",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1518,7 +1718,6 @@
         "匿名闭包以受限opaque结果真实返回；捕获环境和fn指针界线、dyn显式存储经跨模块验证。",
         "稳定图→共享环→可删身份的完整演进具有实际改动统计，其他语言基线未测不得宣称收益。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1551,6 +1750,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1562,16 +1773,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "W3",
       "milestone": "M4",
       "title": "真实系统I/O、取消与外部回调贯通",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "T09",
@@ -1621,7 +1839,6 @@
         "取消与晚通知重复运行无提前回收或重复转交；失败样本不删除。",
         "每个目标profile的实际覆盖和未支持能力单列，不以平台模型宣称硬件DMA完成。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1654,6 +1871,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1665,16 +1894,23 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     },
     {
       "id": "W4",
       "milestone": "M5",
       "title": "同语义产品对照与发布验收",
       "status": "Planned",
-      "task_revision": 7,
-      "spec_hash": "024b56ba9dfdeb82723884b471a2f3eedf6bdc2158f2a6a29136a4744d1ae57b",
-      "normative_hash": "e5b8f9ad845a74e2afa94c50c225d76c8e390f9858ce1a325bf33ef2639f8bdf",
+      "task_revision": 9,
+      "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+      "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
       "base_revision": null,
       "blocked_by": [
         "W2",
@@ -1723,7 +1959,6 @@
         "性能/维护场景在见到结果前冻结，报告中位数/P95/内存/保留与真实工作量；同语义基线可复现。",
         "V19–V22 按批准profile逐项裁决，真实缺陷/失败样本和可信边界完整保留。"
       ],
-      "evidence": [],
       "snapshot_migrations": [
         {
           "date": "2026-10-31",
@@ -1756,6 +1991,18 @@
             "spec_hash": "a7f77e9042b79f82368a13ae9712ed843ff2dead1edc31153d7c81c689b602e8",
             "normative_hash": "74d508ea769bbc8e8a83649011b7553bb2dcd7fcbe78422231921c004e58de5e"
           }
+        },
+        {
+          "date": "2026-11-04",
+          "reason": "Terminal consumer contract publication; preserves task state, product gates and historical acceptance",
+          "previous": {
+            "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+            "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+          },
+          "current": {
+            "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+            "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1"
+          }
         }
       ],
       "normative_migrations": [
@@ -1767,7 +2014,14 @@
             "normative_hash": "527d4dbeb29095a68147475f44570736454115dd844c081d8d766c8fde8d3d78"
           }
         }
-      ]
+      ],
+      "historical_snapshot_before_322": {
+        "spec_hash": "812539c281443ae795ea0c1915a9b423adb367cbee2f8b2ca507347464f3e068",
+        "normative_hash": "b322a437e33a3411d4476215ce90cad69e6215dfa47c272af6530df5b7cf0b93",
+        "base_revision": null,
+        "evidence": []
+      },
+      "historical_evidence_before_322": []
     }
   ]
 }

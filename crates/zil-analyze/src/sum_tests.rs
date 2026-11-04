@@ -29,6 +29,7 @@ fn sum() -> Type {
 fn module(parameter: bool, swap: bool) -> TypedModule {
     let ty = sum();
     let mut f = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -921,6 +922,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -963,7 +965,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
 }
 
 #[test]
-fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
+fn ordinary_sum_admission_qualifies_borrowed_locals_without_storage_profiles() {
     let mut m = module(true, false);
     let element = Type::Package {
         name: "ForbiddenElement".into(),
@@ -995,15 +997,38 @@ fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
                 .any(|d| d.message.contains("qualification"))
         );
     }
-    for ty in [
-        Type::Array {
-            element: Box::new(sum()),
-            length: 1,
-        },
-        Type::Address {
-            inner: Box::new(sum()),
-            mutable: false,
-        },
+    for (ty, admitted) in [
+        (
+            Type::Array {
+                element: Box::new(sum()),
+                length: 1,
+            },
+            false,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(sum()),
+                mutable: false,
+            },
+            true,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(sum()),
+                mutable: true,
+            },
+            true,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(Type::Address {
+                    inner: Box::new(sum()),
+                    mutable: false,
+                }),
+                mutable: false,
+            },
+            false,
+        ),
     ] {
         let mut m = module(true, false);
         m.functions[0].locals.push(LocalDecl {
@@ -1014,7 +1039,7 @@ fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
             span: Span::default(),
         });
         for result in both(&m) {
-            assert!(result.is_err());
+            assert_eq!(result.is_ok(), admitted, "{result:?}");
         }
     }
 }
@@ -1024,6 +1049,7 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
     for fresh in [false, true] {
         let mut m = module(true, false);
         let identity = TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
@@ -1395,6 +1421,7 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
     f.result_mode = PassingMode::Create;
     f.blocks[0].terminator = Terminator::Return(Some(out));
     m.functions.push(TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1478,6 +1505,7 @@ fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() 
 fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
     let mut m = module(true, false);
     m.functions.push(TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1634,6 +1662,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         _ => InstructionKind::DropErrorUnion { local: LocalId(1) },
     };
     m.functions.push(TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -1711,6 +1740,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

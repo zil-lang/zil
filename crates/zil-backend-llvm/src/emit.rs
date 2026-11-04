@@ -5,13 +5,17 @@ mod copy_aggregates;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
+mod floating;
 mod large_copy_abi;
 pub use enums::ct_layout_of_checked_type;
+pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
+mod partial_places;
+mod registration;
 mod resource_closures;
 mod resources;
 mod scalar_leaf;
@@ -24,6 +28,7 @@ mod scoped_thread;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
+mod tasks;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
 
@@ -92,6 +97,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         closed_scalar_collection,
         1,
     )
+    .map(|(machine, collected, _)| (machine, collected))
 }
 
 pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
@@ -101,9 +107,10 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     incremental_scalar_policy: bool,
     closed_scalar_collection: bool,
     jobs: usize,
-) -> CompileResult<(m::Module, bool)> {
+) -> CompileResult<(m::Module, bool, usize)> {
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
     let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
+    let task_meter = tasks::Meter::new(copy_plans.remaining_work);
     let functions = lir
         .functions
         .iter()
@@ -114,9 +121,16 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         .iter()
         .map(|closure| (closure.id, closure))
         .collect::<BTreeMap<_, _>>();
-    let wrapper = entry_wrapper(&functions, options.entry, lir.resources, &copy_plans)?;
+    let wrapper = entry_wrapper(
+        &functions,
+        options.entry,
+        lir.resources,
+        &copy_plans,
+        verified,
+    )?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
+        && verified.task_interfaces().is_empty()
         && options.entry == EntryPoint::Main
         && lir.target.triple == "x86_64-unknown-linux-gnu")
         .then(|| {
@@ -196,12 +210,15 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
                 .as_ref()
                 .map(|leaves| &leaves[start..start + batch.len()]),
             &copy_plans,
+            verified,
+            &task_meter,
         )
     })?;
     let mut batches = batches.into_iter();
     let FunctionBatch {
         mut body,
         mut intrinsics,
+        mut task_machines,
     } = batches.next().expect("lowering always returns a batch");
     body.reserve(
         collected
@@ -212,7 +229,15 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     for batch in batches {
         body.extend(batch.body);
         intrinsics.extend(batch.intrinsics);
+        task_machines.extend(batch.task_machines);
     }
+    // Child plans require actual machines from every ordered lowering batch.
+    body.extend(tasks::lower_workers(
+        task_machines,
+        &functions,
+        verified,
+        &task_meter,
+    )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
     if copy_plans.needs_helpers() {
@@ -281,6 +306,16 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     text.append(byte_buffer::runtime(lir)?);
     text.append(dynamic_store::runtime(lir, &closures)?);
     text.append(scoped_thread::runtime(lir)?);
+    text.append(tasks::runtime(
+        lir,
+        verified.uses_scalar_tasks(),
+        verified.limits(),
+        &task_meter,
+    )?);
+    if verified.uses_retained_registration() {
+        let runtime = registration::runtime(lir, &text, verified.limits(), &task_meter)?;
+        text.append(runtime);
+    }
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -311,7 +346,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             name: "zil.return.format".into(),
             linkage: m::Linkage::Private,
             ty: m::Ty::array(6, m::Ty::Int(8)),
-            initializer: Some(m::Val::Bytes(vec![37, 108, 108, 100, 10, 0])),
+            initializer: Some(m::Val::Bytes(vec![37, 108, 108, if matches!(options.entry, EntryPoint::ReturnValue(id) if functions.get(&id).is_some_and(|f| matches!(f.return_type, Type::U64 | Type::Usize))) {117} else {100}, 10, 0])),
             constant: true,
             unnamed_addr: true,
             alignment: 0,
@@ -418,12 +453,18 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             items,
         },
         collected.is_some(),
+        task_meter.remaining(),
     ))
 }
 
 struct FunctionBatch {
     body: Vec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
+    task_machines: Vec<(FunctionId, m::Function)>,
+}
+
+fn resource_head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -438,8 +479,11 @@ fn lower_function_batch(
     collected: Option<&BTreeSet<FunctionId>>,
     prepared_leaves: Option<&[Option<scalar_leaf::Prepared>]>,
     copy_plans: &large_copy_abi::Plans,
+    verified: &VerifiedModule,
+    task_meter: &tasks::Meter,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
+    let mut task_machines = Vec::new();
     let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
@@ -468,11 +512,24 @@ fn lower_function_batch(
         if collected.is_some_and(|needed| !needed.contains(&function.id)) {
             continue;
         }
-        if let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
+        let task_worker = verified.task_worker_ids().contains(&function.id);
+        let task_symbol = task_worker.then(|| {
+            let base = symbol(function.id);
+            if copy_plans
+                .functions
+                .get(&function.id)
+                .is_some_and(|abi| abi.versioned)
+            {
+                format!("{base}.lc1")
+            } else {
+                base
+            }
+        });
+        if !task_worker && let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
         }
-        if incremental_scalar_policy {
+        if incremental_scalar_policy && !task_worker {
             let leaf = if let Some(prepared) = prepared_leaves {
                 prepared[offset].map(|leaf| leaf.emit(&mut intrinsics))
             } else {
@@ -482,6 +539,9 @@ fn lower_function_batch(
                 body.push(m::Item::Function(machine));
                 continue;
             }
+        }
+        if verified.uses_retained_registration() {
+            registration::reserve_function(function, closures, functions, task_meter)?;
         }
         let emitted = FunctionEmitter {
             function,
@@ -495,6 +555,7 @@ fn lower_function_batch(
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
+            partial_sums: BTreeMap::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
             copy_values: copy_plans
                 .values
@@ -506,14 +567,29 @@ fn lower_function_batch(
         .emit()?
         .into_items()
         .map_err(machine_error)?;
-        for mut item in emitted {
+        for item in emitted {
+            let mut item = match item {
+                m::Item::Function(machine)
+                    if task_symbol
+                        .as_ref()
+                        .is_some_and(|symbol| machine.name == *symbol) =>
+                {
+                    task_machines.push((function.id, machine));
+                    continue;
+                }
+                item => item,
+            };
             if let m::Item::Function(machine) = &mut item {
                 scalar_locals::promote(function, machine);
             }
             body.push(item);
         }
     }
-    Ok(FunctionBatch { body, intrinsics })
+    Ok(FunctionBatch {
+        body,
+        intrinsics,
+        task_machines,
+    })
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {
@@ -555,6 +631,16 @@ fn bind_lir(
         },
         ScalarLayout {
             ty: Type::I64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: Type::F32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::F64,
             size: 8,
             alignment: 8,
         },
@@ -642,10 +728,16 @@ fn bind_lir(
                 ty.is_copy_value()
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
+        let invocation_signature = closure.lending_captures.is_empty()
+            && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
+            && closure
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Type::Address { .. }));
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -653,7 +745,8 @@ fn bind_lir(
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    || ty.is_shared_sync_cell_address()
+            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -665,8 +758,8 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value()
-                    || (closure.result.is_copy_value()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                    || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {
@@ -682,6 +775,7 @@ fn bind_lir(
         }
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
+            || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
             || errors::supported_type(&function.return_type, lir.resources)
@@ -692,6 +786,7 @@ fn bind_lir(
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
+                    || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
                     || packages::supported_value_type(ty, lir.resources)
                     || errors::supported_type(ty, lir.resources)
@@ -710,8 +805,11 @@ fn bind_lir(
             let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
+                && !ty.is_shared_sync_cell_address()
+                && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !ty.is_shared_resource_head_address()
+                && !resource_head_address(ty)
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
                 && !resources::supported_type(ty, lir.resources)
                 && !packages::supported_value_type(ty, lir.resources)
@@ -733,6 +831,7 @@ fn entry_wrapper(
     entry: EntryPoint,
     resources: &[ResourceDefinition],
     copy_plans: &large_copy_abi::Plans,
+    verified: &VerifiedModule,
 ) -> CompileResult<m::Code> {
     let function = match entry {
         EntryPoint::None => return Ok(m::Code::new()),
@@ -759,6 +858,13 @@ fn entry_wrapper(
             )]
         })?,
     };
+    if verified.is_suspend(function.id) {
+        return invalid(
+            "E-TASK-DIRECT-EXPORT",
+            "Suspend function requires its SABI execution root",
+            Some(function.span),
+        );
+    }
     if function.foreign.is_some() {
         return invalid(
             "E-CODEGEN-ENTRY",
@@ -916,16 +1022,18 @@ fn entry_wrapper(
         },
         EntryPoint::ReturnValue(_) => {
             match function.return_type {
-                Type::I64 => text.push(m::Event::Instruction(m::Inst::new(
-                    Some("entry.wide".into()),
-                    m::Op::Call {
-                        result: m::Ty::Int(64),
-                        result_attrs: vec![],
-                        callee: m::global(symbol.to_string()),
-                        args: vec![],
-                        vararg: None,
-                    },
-                ))),
+                Type::I64 | Type::U64 | Type::Usize => {
+                    text.push(m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(64),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )))
+                }
                 Type::U16 => text.append(m::Code::from(vec![
                     m::Event::Instruction(m::Inst::new(
                         Some("entry.result".into()),
@@ -1053,6 +1161,7 @@ struct FunctionEmitter<'a> {
     // Only locals with field ownership/update operations need field flags.
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
+    partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
     copy_values: &'a copy_aggregates::Plan,
     abi_plans: &'a large_copy_abi::Plans,
@@ -1134,6 +1243,16 @@ impl FunctionEmitter<'_> {
                     right,
                     ..
                 } => constant_divisors::record(&mut self.safe_divisors, right),
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    if !self.partial_sums.contains_key(&local) {
+                        let leaves = partial_places::leaves(
+                            &self.function.locals[local.0 as usize].ty,
+                            self.resources,
+                        )?;
+                        self.partial_sums.insert(local, leaves);
+                    }
+                }
                 InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. } => {
@@ -1195,6 +1314,7 @@ impl FunctionEmitter<'_> {
                 )));
             }
             self.package_flags(local.id, true, self.function.parameters.contains(&local.id))?;
+            self.partial_flags(local.id, true, self.function.parameters.contains(&local.id))?;
             self.owned_array_flags(local.id, true, self.function.parameters.contains(&local.id))?;
         }
         // Fixed entry-block scratch slots prevent dynamic indexing inside a
@@ -1285,8 +1405,20 @@ impl FunctionEmitter<'_> {
         )));
         self.event(m::Event::End);
         for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::RegistrationStart {
+                register,
+                close,
+                callback,
+                ..
+            } = instruction.kind
+            {
+                self.registration_functions(instruction, register, close, callback)?;
+            }
             if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
                 self.scoped_thread_functions(instruction, worker, body)?;
+            }
+            if let InstructionKind::WithSyncCell { kind, body, .. } = instruction.kind {
+                self.sync_cell_functions(instruction, kind, body)?;
             }
             if let InstructionKind::WithForeignCallback {
                 register,
@@ -1314,6 +1446,30 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::RegistrationStart { .. }
+            | InstructionKind::RegistrationValid { .. }
+            | InstructionKind::RegistrationClose { .. } => {
+                self.registration_instruction(instruction)?
+            }
+            InstructionKind::TaskStart { .. }
+            | InstructionKind::TaskYield
+            | InstructionKind::SuspendCall { .. }
+            | InstructionKind::TaskValid { .. }
+            | InstructionKind::TaskPoll { .. }
+            | InstructionKind::TaskRequestCancel { .. }
+            | InstructionKind::TaskPollClose { .. }
+            | InstructionKind::TaskFinishDestroy { .. } => self.task_instruction(instruction)?,
+            InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                self.borrow_actual_place(instruction, *local, path)?
+            }
+            InstructionKind::PlaceTagLocal { local, path } => {
+                self.tag_actual_place(instruction, *local, path)?
+            }
+            InstructionKind::TakeTupleField { local, path }
+            | InstructionKind::TakeVariantField { local, path } => {
+                self.take_actual_place(instruction, *local, path)?
+            }
+
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }
@@ -1365,6 +1521,16 @@ impl FunctionEmitter<'_> {
                 index,
                 value,
             } => self.store_package_field(instruction, *local, *index, *value)?,
+            InstructionKind::DescribeAddress { address } => {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result(instruction)?.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("v.{}", address.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), m::Val::Int(0))],
+                    },
+                )));
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
@@ -1435,10 +1601,27 @@ impl FunctionEmitter<'_> {
             InstructionKind::WithScopedThread { argument, body, .. } => {
                 self.call_scoped_thread_helper(instruction, *argument, *body)?
             }
+            InstructionKind::WithSyncCell { initial, body, .. } => {
+                self.call_sync_cell_helper(instruction, *initial, *body)?
+            }
+            InstructionKind::SyncI32 {
+                op,
+                address,
+                value,
+                ordering,
+            } => self.sync_i32(instruction, *op, *address, *value, *ordering)?,
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
                 match constant {
                     Constant::Unit => {}
+                    Constant::F32(bits) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Freeze(m::Arg::new(m::Ty::F32, m::Val::F32(*bits))),
+                    ))),
+                    Constant::F64(bits) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Freeze(m::Arg::new(m::Ty::F64, m::Val::F64(*bits))),
+                    ))),
                     Constant::Bool(value) => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
@@ -1466,6 +1649,17 @@ impl FunctionEmitter<'_> {
                             right: m::val(*(value)),
                         },
                     ))),
+                    Constant::U64(value) | Constant::Usize(value) => {
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "add".into(),
+                                ty: m::Ty::Int(64),
+                                left: m::Val::Int(0),
+                                right: m::val(i128::from(*value)),
+                            },
+                        )))
+                    }
                     Constant::U8(value) => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
@@ -1523,6 +1717,7 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, false)?;
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
@@ -1551,6 +1746,7 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, true)?;
                     self.package_flags(*local, false, true)?;
                     self.owned_array_flags(*local, false, true)?;
                 }
@@ -1722,11 +1918,15 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, false)?;
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
                 // S0 keeps the real stack allocation until return. Lexical
                 // validity was independently proved; no runtime table needed.
+            }
+            InstructionKind::ConvertNumber { value, target } => {
+                self.convert_number(*value, target, result(instruction)?)?
             }
             InstructionKind::ConvertInteger { value, target } => {
                 self.convert_integer(*value, target, result(instruction)?)?;
@@ -1735,6 +1935,21 @@ impl FunctionEmitter<'_> {
                 let result = result(instruction)?;
                 let ty = self.value_type(*operand)?.clone();
                 match op {
+                    UnaryOp::Negate if ty.is_float() => {
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "fsub".into(),
+                                ty: llvm_type(&ty)?,
+                                left: if ty == Type::F32 {
+                                    m::Val::F32(0x80000000)
+                                } else {
+                                    m::Val::F64(0x8000000000000000)
+                                },
+                                right: m::val(value(*operand)),
+                            },
+                        )))
+                    }
                     UnaryOp::Negate => {
                         self.checked_binary("ssub", &ty, "0", &value(*operand), result)?
                     }
@@ -1839,8 +2054,20 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
+            InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                self.borrow_inline_field(instruction, *local, path)?
+            }
+            InstructionKind::VariantTagAddress { address, path } => {
+                self.variant_tag_address(instruction, *address, path)?
+            }
+            InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                self.borrow_variant_address(instruction, *address, path)?
+            }
             InstructionKind::VariantTagLocal { local, path } => {
                 self.variant_tag_local(instruction, *local, path)?
+            }
+            InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                self.borrow_variant_local(instruction, *local, path)?
             }
             InstructionKind::ReadVariantLocal { local, path } => {
                 self.read_variant_local(instruction, *local, path)?
@@ -1850,7 +2077,12 @@ impl FunctionEmitter<'_> {
                 variant,
                 fields,
             } => self.unpack_variant(instruction, *local, *variant, fields)?,
-            InstructionKind::DropEnum { local } => self.drop_enum(instruction, *local)?,
+            InstructionKind::UnpackTuple { local, fields } => {
+                self.unpack_tuple(instruction, *local, fields)?
+            }
+            InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
+                self.drop_enum(instruction, *local)?
+            }
             InstructionKind::MakeVariant { variant, fields } => {
                 self.make_variant(instruction, *variant, fields)?
             }
@@ -1886,16 +2118,16 @@ impl FunctionEmitter<'_> {
                     )?;
                     return Ok(());
                 }
-                let Type::FunctionPointer {
-                    result: return_type,
-                    ..
-                } = self.value_type(*callee)?
-                else {
-                    return invalid(
-                        "E-CODEGEN-CFG",
-                        "indirect call requires a function pointer",
-                        Some(instruction.span),
-                    );
+                let return_type = match self.value_type(*callee)? {
+                    Type::FunctionPointer { result, .. }
+                    | Type::BorrowedFunctionPointer { result, .. } => result,
+                    _ => {
+                        return invalid(
+                            "E-CODEGEN-CFG",
+                            "indirect call requires a function pointer",
+                            Some(instruction.span),
+                        );
+                    }
                 };
                 let mut emitted_arguments = Vec::new();
                 for argument in arguments {
@@ -1931,7 +2163,8 @@ impl FunctionEmitter<'_> {
                 index,
                 value,
             } => self.indexed(instruction, *aggregate, *index, Some(*value))?,
-            InstructionKind::MakeAggregate { fields }
+            InstructionKind::MakeOwnedTuple { fields }
+            | InstructionKind::MakeAggregate { fields }
             | InstructionKind::MakeManaged { fields }
             | InstructionKind::MakeOwnedArray { elements: fields }
             | InstructionKind::MakePackage { fields } => {
@@ -2205,6 +2438,9 @@ impl FunctionEmitter<'_> {
         span: Span,
     ) -> CompileResult<()> {
         let ty = self.value_type(left)?.clone();
+        if ty.is_float() {
+            return self.floating_binary(operation, left, right, result);
+        }
         let operand_type = llvm_type(&ty)?;
         let (left_text, right_text) = (value(left), value(right));
         match operation {
@@ -2231,7 +2467,7 @@ impl FunctionEmitter<'_> {
                             right: m::Val::Int(0),
                         },
                     )));
-                    if matches!(ty, Type::U8 | Type::U16) {
+                    if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
                         self.trap_if(&is_zero);
                     } else {
                         let minimum = match ty {
@@ -2283,7 +2519,7 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 let op = match (
-                    matches!(ty, Type::U8 | Type::U16),
+                    matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize),
                     operation == BinaryOp::Divide,
                 ) {
                     (true, true) => "udiv",
@@ -2349,10 +2585,26 @@ impl FunctionEmitter<'_> {
                     let predicate = match operation {
                         BinaryOp::Equal => "eq",
                         BinaryOp::NotEqual => "ne",
-                        BinaryOp::Less if matches!(ty, Type::U8 | Type::U16) => "ult",
-                        BinaryOp::LessEqual if matches!(ty, Type::U8 | Type::U16) => "ule",
-                        BinaryOp::Greater if matches!(ty, Type::U8 | Type::U16) => "ugt",
-                        BinaryOp::GreaterEqual if matches!(ty, Type::U8 | Type::U16) => "uge",
+                        BinaryOp::Less
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ult"
+                        }
+                        BinaryOp::LessEqual
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ule"
+                        }
+                        BinaryOp::Greater
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ugt"
+                        }
+                        BinaryOp::GreaterEqual
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "uge"
+                        }
                         BinaryOp::Less => "slt",
                         BinaryOp::LessEqual => "sle",
                         BinaryOp::Greater => "sgt",
@@ -2394,7 +2646,7 @@ impl FunctionEmitter<'_> {
                     Type::U8 => 8,
                     Type::U16 => 16,
                     Type::I32 => 32,
-                    Type::I64 => 64,
+                    Type::I64 | Type::U64 | Type::Usize => 64,
                     _ => return unsupported("LLVM non-integer shift lowering", Some(span)),
                 };
                 let invalid = self.temp();
@@ -2458,7 +2710,7 @@ impl FunctionEmitter<'_> {
                 )));
                 Ok(extended)
             }
-            Type::I64 => Ok(value(index)),
+            Type::I64 | Type::U64 | Type::Usize => Ok(value(index)),
             _ => unsupported(
                 "array index must have a verified integer type",
                 Some(self.function.span),
@@ -2476,6 +2728,87 @@ impl FunctionEmitter<'_> {
         let from = llvm_type(&source)?;
         let to = llvm_type(target)?;
         let input = value(input);
+        if matches!(source, Type::U64 | Type::Usize) || matches!(target, Type::U64 | Type::Usize) {
+            let shape = |ty: &Type| match ty {
+                Type::U8 => Some((8, false)),
+                Type::U16 => Some((16, false)),
+                Type::I32 => Some((32, true)),
+                Type::I64 => Some((64, true)),
+                Type::U64 | Type::Usize => Some((64, false)),
+                _ => None,
+            };
+            let Some((source_bits, source_signed)) = shape(&source) else {
+                return unsupported(
+                    "verified integer conversion source",
+                    Some(self.function.span),
+                );
+            };
+            let Some((target_bits, target_signed)) = shape(target) else {
+                return unsupported(
+                    "verified integer conversion target",
+                    Some(self.function.span),
+                );
+            };
+            if source_signed && !target_signed {
+                let invalid = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name(invalid.clone())),
+                    m::Op::Compare {
+                        predicate: "slt".into(),
+                        ty: from.clone(),
+                        left: m::val(input.clone()),
+                        right: m::Val::Int(0),
+                    },
+                )));
+                self.trap_if(&invalid);
+            }
+            if (target_signed
+                && (!source_signed && source_bits >= target_bits
+                    || source_signed && source_bits > target_bits))
+                || (!target_signed && source_bits > target_bits)
+            {
+                let maximum = (1i128 << (target_bits - u32::from(target_signed))) - 1;
+                let invalid = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name(invalid.clone())),
+                    m::Op::Compare {
+                        predicate: if source_signed { "sgt" } else { "ugt" }.into(),
+                        ty: from.clone(),
+                        left: m::val(input.clone()),
+                        right: m::val(maximum),
+                    },
+                )));
+                self.trap_if(&invalid);
+            }
+            if source_bits == target_bits {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: "add".into(),
+                        ty: to,
+                        left: m::val(input),
+                        right: m::Val::Int(0),
+                    },
+                )));
+            } else {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Cast {
+                        opcode: if source_bits > target_bits {
+                            "trunc"
+                        } else if source_signed {
+                            "sext"
+                        } else {
+                            "zext"
+                        }
+                        .into(),
+                        arg: m::Arg::new(from, m::val(input)),
+                        to,
+                    },
+                )));
+            }
+            return Ok(());
+        }
         let operation = match (&source, target) {
             (a, b) if a == b && a.is_integer() => {
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -2564,7 +2897,7 @@ impl FunctionEmitter<'_> {
         right: &str,
         result: ValueId,
     ) -> CompileResult<()> {
-        let operation = if matches!(ty, Type::U8 | Type::U16) {
+        let operation = if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
             match operation {
                 "sadd" => "uadd",
                 "ssub" => "usub",
@@ -2578,7 +2911,7 @@ impl FunctionEmitter<'_> {
             Type::U8 => 8,
             Type::U16 => 16,
             Type::I32 => 32,
-            Type::I64 => 64,
+            Type::I64 | Type::U64 | Type::Usize => 64,
             _ => return unsupported("checked non-integer arithmetic", Some(self.function.span)),
         };
         self.intrinsics.insert((operation, bits));
@@ -2870,10 +3203,13 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
+        Type::Registration { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
-        Type::I64 => Ok("i64".into()),
+        Type::I64 | Type::U64 | Type::Usize => Ok("i64".into()),
+        Type::F32 => Ok(m::Ty::F32),
+        Type::F64 => Ok(m::Ty::F64),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
         Type::ByteBuffer | Type::OwnedStore { .. } => Ok(m::Ty::Struct(vec![
@@ -2905,21 +3241,29 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             aggregate_field_type(result)?,
         ])),
         Type::Closure(id) => Ok(environment_type(*id)),
-        Type::FunctionPointer { .. } => Ok("ptr".into()),
+        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }
         Type::Address { inner, .. }
             if inner.is_copy_value()
+                || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
-                || ty.is_package_address() =>
+                || resource_head_address(ty)
+                || ty.is_exclusive_task_head_address()
+                || ty.is_package_address()
+                || matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
         {
             Ok("ptr".into())
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
@@ -2927,6 +3271,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
@@ -2946,6 +3292,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
+            || ty.is_shared_sync_cell_address()
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
@@ -2963,22 +3310,32 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
+        Type::ByteBuffer | Type::TaskI32 | Type::Registration { .. } | Type::OwnedStore { .. } => {
+            Ok(8)
+        }
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
-        Type::I32 => Ok(4),
-        Type::I64 => Ok(8),
-        Type::FunctionPointer { .. } => Ok(8),
+        Type::I32 | Type::F32 => Ok(4),
+        Type::I64 | Type::U64 | Type::Usize | Type::F64 => Ok(8),
+        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()
+                || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
-                || ty.is_package_address() =>
+                || resource_head_address(ty)
+                || ty.is_exclusive_task_head_address()
+                || ty.is_package_address()
+                || matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
         {
             Ok(8)
         }
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
@@ -2986,6 +3343,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)
@@ -3015,6 +3374,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
+                    && !field.is_shared_sync_cell_address()
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())

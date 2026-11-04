@@ -406,9 +406,9 @@ fn flow_calls_do_not_release_a_lending_window_still_needed_later() {
     reject(
         "lending-across-loop",
         source,
-        Phase::Verify,
+        Phase::Expand,
         ResultCategory::SafeReject,
-        "E-BORROW-CONFLICT",
+        "E-GENERIC-ARGUMENT",
     );
 }
 

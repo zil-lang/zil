@@ -1,0 +1,77 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "e792969c1e2dd99699e39df3d86eeb1b5bd9b2aa",
+  "production_commit": "e30e1a182997f013b1bd35474b81feaa2f64d67a",
+  "author_receipt_commit": "038be3867",
+  "scope": "Ordinary library UTF-8 scalar encoding, String reserve/push_scalar/scalar-count truncation/owned substring/is_empty, plus the complete existing impl236 library target replay.",
+  "identity": {
+    "production_file_count": 354,
+    "production_manifest_sha256": "17d254b0718bd7dc53c0d2cedfbca22e6f41414a0b1c656e95da6984622dd340",
+    "algorithm": "SHA256 of sorted path + NUL + file SHA256 + LF",
+    "paths": "Cargo.lock, Cargo.toml, tracked lib/**, crates/**/src/**, crate Cargo.toml/build.rs",
+    "verification": "Independently recomputed from exact Git blobs; all five selected source/test hashes matched. Std library text and ZIL fixtures are embedded in the retained harness.",
+    "selected_source_sha256": {
+      "lib/std/utf8.zil": "124dcaa153476dffb294f90b09e19734ee1ab61e662054d8665ab35d7e1cd813",
+      "lib/std/string.zil": "8f40863f822038a8736db940596e67d9e0e466dade2b2c862dacd3ec927a2693",
+      "tests/language-readiness/terminal/345/string_unicode.zil": "c2ae92ea5beb321c8600f4364367e5140e073871919ae541861fba83e77dff99",
+      "tests/language-readiness/terminal/345/library.rs": "fe935282350348fb49780d05504cb8ef086832d10d0a90215e21191558d0b787",
+      "crates/zil-driver/tests/impl236_zui_core.rs": "b0e73d2685b3d1dea5d8ec6960f8661abe72bce5ad1a272f78c7bc2b33963c59"
+    }
+  },
+  "retained_harness": {
+    "path": "/tmp/zil-terminal-review/impl236-unicode345",
+    "sha256": "c5bd82725881a50b781d8932d4130fb81f09be9283b7eafe4f272b98e3cf76a0",
+    "binding": "Copied before author target reuse and independently SHA-verified against the committed exact source receipt."
+  },
+  "independent_execution": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/impl236-unicode345 --test-threads=1 --nocapture",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 5.06
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/impl236-unicode345 terminal345::ordinary_store --test-threads=1 --nocapture",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 8,
+      "seconds": 0.8,
+      "purpose": "Supplemental exact runtime C-input binding; allocator probe hash independently matched exact Git both before and after this fault-injection replay."
+    }
+  ],
+  "runtime_c_input": {
+    "path": "tools/language/173/allocator_probe.c",
+    "sha256": "4715590f92df43b68f7484efd82bd7052d81027b0a3427340bc8e93b90068b60"
+  },
+  "source_review": [
+    "encoded_len rejects negative, out-of-range and surrogate code points. encode validates scalar and output capacity before the first write, then emits standard shortest-form 1/2/3/4-byte UTF-8 using bounded arithmetic and checked u8 conversions.",
+    "Actual native loop visits every valid Unicode scalar from0 through0x10FFFF excluding surrogates and decodes the emitted bytes back to the same scalar and exact width. Invalid and too-short cases preserve sentinel output; the emoji byte sequence also has an independent exact-byte oracle.",
+    "push_scalar encodes into a local four-byte array then delegates to the existing ordinary append/replace implementation; invalid scalar returns before mutation. reserve validates requested bounds before the existing fallible ByteBuffer primitive.",
+    "truncate locates a scalar boundary before changing the buffer length. substring locates and bounds the source byte interval, then constructs a new owned validated String through from_utf8. The new String survives truncation and clear of its source.",
+    "No privileged String opcode or compiler capability is introduced. Private owning ByteBuffer and existing resource-head borrowing proofs remain the representation; all new operations are ordinary ZIL source.",
+    "Complete target replay retains actual import/source-identity and private-helper rejection, source-byte budget/cache controls, iterator order/alias negatives, Store owner transfers and allocation-failure state preservation, and the original three component lifecycle tests."
+  ],
+  "native_evidence": {
+    "unicode_configurations": 4,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "result": "exit0 with empty stdout/stderr and no fallback in all four; actual complete valid-scalar loop per executable",
+    "failure_controls": "Invalid scalar, zero byte limit and invalid scalar truncation propagate errors without executing the success continuation and preserve length/capacity. Sentinel output and owned-substring independence are actual runtime observations."
+  },
+  "limitations": [
+    "New Unicode operations do not provide Unicode normalization, grapheme segmentation or locale processing.",
+    "substring returns a new owner; arbitrary borrowed/lending substrings are not claimed.",
+    "The new Unicode fixture has invalid-input/capacity controls, not new allocator fault injection for each added String wrapper. Existing Store allocation failures were independently replayed; previous String allocator checks retain their prior exact-candidate identity.",
+    "Author Clippy not independently rerun; this is no full-workspace, native-Windows, Rust comparison, complete standard-library or full-language acceptance."
+  ]
+}

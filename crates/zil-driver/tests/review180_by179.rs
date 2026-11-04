@@ -150,16 +150,11 @@ fn direct_and_mixed_store_capture_remain_explicitly_unsupported() {
 
 #[test]
 fn escaping_mutable_window_or_child_address_remains_closed() {
-    for (label, helper) in [
-        (
+    {
+        let (label, helper) = (
             "return-element",
             "fn escape(s:Store<Entry>)->&mut Entry{return store_at_mut(s,0)}",
-        ),
-        (
-            "return-copy-child",
-            "fn escape(s:Store<Entry>)->&mut i32{let p=store_at_mut(s,0);return &mut p.count}",
-        ),
-    ] {
+        );
         rejected_source(
             label,
             &format!("{MODEL}{helper}fn main()->i32=>0;"),
@@ -168,6 +163,19 @@ fn escaping_mutable_window_or_child_address_remains_closed() {
             "E-UNSUPPORTED",
         );
     }
+    let source = format!(
+        "{MODEL}fn escape(s:Store<Entry>)->&mut i32{{let p=store_at_mut(s,0);return &mut p.count}}fn main()->i32{{{SETUP}let p=escape(s);*p=42;return *p}}"
+    );
+    let (module, plan) = candidate(&source);
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+    rejected_source(
+        "return-copy-child-parent-stays-live",
+        &source.replace("*p=42;", "store_reserve(s,8);*p=42;"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
 }
 
 #[test]

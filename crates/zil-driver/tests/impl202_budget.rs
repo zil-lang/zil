@@ -121,7 +121,7 @@ fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
     // accepted 204 baseline, whose test and input bytes were identical.
     assert_eq!(
         [original, pair, nested],
-        [(6326, 16), (29030, 39), (29566, 40)],
+        [(6667, 16), (30137, 39), (30706, 40)],
         "205 measured State definition checks; original 201 input bytes unchanged"
     );
 }

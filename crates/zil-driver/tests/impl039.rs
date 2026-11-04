@@ -85,7 +85,7 @@ fn execute(report: &CompileReport, out: &Temp, expected: Option<i64>) -> String 
 #[test]
 fn generic_enum_conditions_compose_with_inferred_closure_and_ct_values() {
     native(
-        "enum Option<T>{None,Some(T)} fn nth(n:i64)->Option<i64>{if n<3{return Option.Some(n)} return Option.None} fn result()->i64{var i:i64=0;var total:i64=0;let apply=(f,x)=>f(x);while let Option.Some(n)=nth(i){total+=apply(double,n);i+=1} let pair:(i64,i64)=#((2,3));if let (a,b)=pair {return total+a+b}} fn double(x:i64)->i64{return x*2}",
+        "enum LegacyOption<T>{None,Some(T)} fn nth(n:i64)->LegacyOption<i64>{if n<3{return LegacyOption.Some(n)} return LegacyOption.None} fn result()->i64{var i:i64=0;var total:i64=0;let apply=(f,x)=>f(x);while let LegacyOption.Some(n)=nth(i){total+=apply(double,n);i+=1} let pair:(i64,i64)=#((2,3));if let (a,b)=pair {return total+a+b}} fn double(x:i64)->i64{return x*2}",
         Some(11),
     );
 }
@@ -97,7 +97,7 @@ fn nested_generic_if_let_bindings_feed_calls_without_escaping_success_scope() {
     );
     let r = compile_source(
         &source(
-            "enum Option<T>{None,Some(T)} fn result()->i64{let x:Option<i64>=Option.None;if let Option.Some(n)=x{return n}else{return n}}",
+            "enum LegacyOption<T>{None,Some(T)} fn result()->i64{let x:LegacyOption<i64>=LegacyOption.None;if let LegacyOption.Some(n)=x{return n}else{return n}}",
         ),
         &CompileOptions::default(),
     );
@@ -117,7 +117,7 @@ fn aliases_are_transparent_in_signatures_aggregates_addresses_and_callbacks() {
 #[test]
 fn concrete_nominal_aliases_construct_and_pattern_match_without_new_identity() {
     native(
-        "type Row=Cell<i64>; type Maybe=(Option<Row>); enum Option<T>{None,Some(T)} struct Cell<T>{value:T;} fn make()->Maybe{return Maybe.Some(Row{value:42})} fn result()->i64{if let Maybe.Some(row)=make(){return row.value}return 0}",
+        "type Row=Cell<i64>; type Maybe=(LegacyOption<Row>); enum LegacyOption<T>{None,Some(T)} struct Cell<T>{value:T;} fn make()->Maybe{return Maybe.Some(Row{value:42})} fn result()->i64{if let Maybe.Some(row)=make(){return row.value}return 0}",
         Some(42),
     );
     native(
@@ -125,9 +125,9 @@ fn concrete_nominal_aliases_construct_and_pattern_match_without_new_identity() {
         Some(42),
     );
     for text in [
-        "enum Option<T>{None,Some(T)} type Small=Option<i32>; fn result()->i64{let x:Option<i64>=Option.Some(42);match x{Small.None()=>{return 0},Small.Some(n)=>{return n}}}",
-        "enum Option<T>{None,Some(T)} type Small=Option<i32>; fn unused<T>(x:Option<T>)->i64{match x{Small.None()=>{return 0},Small.Some(n)=>{return 1}}} fn result()->i64=>0",
-        "enum Option<T>{None,Some(T)} type Small=Option<i32>; fn result()->i64{let x:Option<i64>=Small.Some(42);return 0}",
+        "enum LegacyOption<T>{None,Some(T)} type Small=LegacyOption<i32>; fn result()->i64{let x:LegacyOption<i64>=LegacyOption.Some(42);match x{Small.None()=>{return 0},Small.Some(n)=>{return n}}}",
+        "enum LegacyOption<T>{None,Some(T)} type Small=LegacyOption<i32>; fn unused<T>(x:LegacyOption<T>)->i64{match x{Small.None()=>{return 0},Small.Some(n)=>{return 1}}} fn result()->i64=>0",
+        "enum LegacyOption<T>{None,Some(T)} type Small=LegacyOption<i32>; fn result()->i64{let x:LegacyOption<i64>=Small.Some(42);return 0}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -221,10 +221,8 @@ fn unused_aliases_are_checked_without_erasing_invalid_definitions() {
         );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
-    for text in [
-        "#[doc = \"help\"] type Alias=i64;fn result()->i64=>0",
-        "type Alias=i64?;fn result()->i64=>0",
-    ] {
+    {
+        let text = "#[doc = \"help\"] type Alias=i64;fn result()->i64=>0";
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -233,6 +231,11 @@ fn unused_aliases_are_checked_without_erasing_invalid_definitions() {
             report.to_json()
         );
     }
+    native("type Alias=i64?;fn result()->i64=>0", Some(0));
+    native(
+        "type Alias=i64?;fn result()->i64{let value:Alias=Option.Some(42);match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        Some(42),
+    );
 }
 
 #[test]

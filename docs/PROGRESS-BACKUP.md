@@ -21,3 +21,23 @@ GitHub `task/language-mainline-20261103` 保存本轮集成源码；`task/322`�
 阶段收据在`/workspace/backups/zil-batch336-20261104/<UTC批次>/receipt.json`。备份不改施工index或worktree，不运行reset/clean。当前合同/源码施工和最终接受分开；远端main只在独审及正式验证收口后更新。环境丢失时先从GitHub clone/fetch这些实际引用，读取源码与主树工单再执行检查。
 
 本批正式受测源码`874f071bb53e85727b5467a2769ada47b51edd98`及所有作者/独审源码已进入main历史，PR32合入后将再次核对main与最新进度枝。最终收据固定路径`/workspace/backups/zil-batch336-20261104/final/receipt.json`，包含实际GitHub恢复checkout、源码文件逐字节比较和live handoff结果。当前接受摘要指针更新到本批精确结果，历史inventory不改；备份成功不把未实现功能或历史材料追认为通过。
+
+## 2026-11-04 终态施工340–345
+
+当前集成源码持续保存到`task/language-terminal-20261104`，作者树为
+`task/340`至`task/345`，独审为`backup/review-terminal-20261104`。
+精确隔离修复另保留`task/342-capturefix`和`task/344-typefix`，不要仅取
+主施工树上相似补丁代替已审对象。20261104T042552Z批次实际核对15个引用，
+集成头20f5aa591、343登记候选984a01d51、345插入候选d6e70ea96均可恢复。
+
+主集成树本身的未提交修复现在也保存为`backup/wip-20261104-integration`；
+该批实际树75673a0d5含正在修复的深表达式栈问题，**未通过全量验收**。
+其余作者未提交源仍保存在`backup/wip-20261104-<号>`，每次使用独立临时
+index且保留上一快照父链，原index、工作树和未跟踪源均不受改写。
+所有引用在同一次atomic push后按完整SHA核对；精简收据位于
+`/workspace/backups/zil-terminal-20261104/<UTC批次>/receipt.json`。
+
+环境遗失时，先fetch上述真实分支，再检查对应Git树和各自验证收据。
+已验收main仍是PR32；终态进度枝、WIP快照和独审范围均不得冒充全语言完成。
+
+最新已核批次20261104T064435Z保存13个远端引用、3份在途源码快照：集成9700583e5、340公共替换票据27985ddf5、342共同storage公共b377f8e9f、341修正e5b3e9ae6及344公共AST beebfe7cd均有实际源码树。主树runtime37默认全量4372/0已通过，后继公共表示仍待完整消费者；远端接受main保持PR32，不把备份或单配置通过当终态。精确远端全SHA见该批receipt.json。

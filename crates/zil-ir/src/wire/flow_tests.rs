@@ -3,6 +3,7 @@ use zil_base::ResultCategory;
 fn claim() -> CallableParameterContract {
     CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(7),
             kind: CallableKind::FnMut,
@@ -105,6 +106,7 @@ fn unknown_flow_variants_and_untrusted_lengths_fail_before_allocation() {
     reader.u32().unwrap();
     reader.u32().unwrap();
     reader.callable_kind().unwrap();
+    assert!(!reader.boolean().unwrap()); // no invocation-local life in this claim
     for _ in 0..3 {
         reader.callable_indices().unwrap();
     }

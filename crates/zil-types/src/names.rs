@@ -242,6 +242,7 @@ impl Names<'_> {
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand)
             | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. } => {
                 self.expr(operand, receiver, depth + 1)?
             }
@@ -335,6 +336,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

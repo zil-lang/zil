@@ -11,6 +11,7 @@ fn function(
     environment: Option<ClosureId>,
 ) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
         name: format!("scoped_{id}"),
@@ -452,6 +453,7 @@ pub fn wrapper() -> (TypedModule, CandidatePlan) {
     f.callable_contract = Some(CallableParameterContract {
         roles: vec![
             CallableRole {
+                life: None,
                 parameter: 0,
                 closure: ClosureId(0),
                 kind: CallableKind::FnMut,
@@ -461,6 +463,7 @@ pub fn wrapper() -> (TypedModule, CandidatePlan) {
                 cleanup: CallableCleanup::Borrowed,
             },
             CallableRole {
+                life: None,
                 parameter: 1,
                 closure: ClosureId(1),
                 kind: CallableKind::FnOnce,
@@ -982,6 +985,7 @@ pub fn role_capturing_local_handler() -> (TypedModule, CandidatePlan) {
     f.return_type = Type::I32;
     f.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: CallableKind::FnOnce,
@@ -1101,6 +1105,7 @@ pub fn local_child_handler() -> (TypedModule, CandidatePlan) {
     }];
     child.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: CallableKind::FnOnce,

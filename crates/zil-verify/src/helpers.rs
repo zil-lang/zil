@@ -573,6 +573,15 @@ pub(super) fn check_claim_shape(
     budget.spend(claim.roles.len())?;
     let mut field_count = 0usize;
     for role in &claim.roles {
+        if let Some(life) = &role.life {
+            budget.spend(
+                (life.binder_count as usize)
+                    .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                    .saturating_add(2),
+            )?;
+            budget.borrowed_function_pointers = true;
+            budget.invocation_callbacks = true;
+        }
         let amount = role
             .hold
             .len()
@@ -907,6 +916,9 @@ pub(super) fn check_module(
         {
             continue;
         }
+        if registration::factory(module, f, budget)? {
+            continue;
+        }
         let claim = f.callable_contract.as_ref().ok_or_else(|| {
             bad(
                 f,
@@ -962,7 +974,7 @@ pub(super) fn check_module(
             let ty = &f.locals[local.0 as usize].ty;
             if !ty.is_copy_value()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
-                    || (f.return_type.is_copy_value() && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
+                    || ((f.return_type.is_copy_value() || claim.roles.iter().any(|r|r.life.is_some())) && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(ty, Type::Managed(_) | Type::Package { .. })
                 && !matches!(ty, Type::Desc(inner) if inner.as_ref() == &Type::ByteBuffer)
             {
@@ -990,6 +1002,7 @@ pub(super) fn check_module(
             if !owning_dispatch
                 && !forwarding
                 && !f.return_type.is_copy_value()
+                && !(proposed.life.is_some() && matches!(&f.return_type, Type::Address { .. }))
                 && !(parameters.len() == 1
                     && *borrowed
                     && closures::lending_result(&f.return_type)
@@ -1037,7 +1050,23 @@ pub(super) fn check_module(
                     writes.push(capture as u32);
                 }
             }
+            if let Some(life) = &proposed.life {
+                budget.spend(
+                    life.parameter_lives
+                        .len()
+                        .saturating_add(life.binder_count as usize)
+                        .saturating_add(2),
+                )?;
+                borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
+                borrowed_fp::relation(
+                    &definition.parameters,
+                    &definition.result,
+                    life,
+                    Some(f.span),
+                )?;
+            }
             roles.push(CallableRole {
+                life: proposed.life.clone(),
                 parameter: *parameter,
                 closure: *closure,
                 kind: proposed.kind,

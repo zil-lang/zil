@@ -183,6 +183,21 @@ fn unrelated_where_function_does_not_open_methods_impls_or_foreign_templates() {
             &format!("trigger-{label}"),
             &format!("{TRIGGER}{decl}fn main()->i32=>0"),
         );
+        if label == "trait-clause" {
+            // Ordinary generic trait method declarations are now checked by341;
+            // an unrelated where function must not affect their admission.
+            for report in [&plain, &combined] {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.phase, Phase::Verify);
+                assert_eq!(report.verification_runs, 1);
+            }
+            continue;
+        }
         assert_ne!(
             plain.status,
             ResultCategory::Success,

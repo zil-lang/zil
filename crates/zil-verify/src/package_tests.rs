@@ -45,6 +45,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(result: Type) -> Self {
         Self(TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
@@ -351,7 +352,10 @@ fn package_fields_reject_closed_profiles_and_mismatched_complete_owners() {
         let Type::Package { fields, .. } = &mut m.functions[0].locals[0].ty else {
             unreachable!()
         };
-        let nested = matches!(&extra, Type::Package { .. } | Type::ErrorUnion { .. });
+        let nested = matches!(
+            &extra,
+            Type::Package { .. } | Type::ErrorUnion { .. } | Type::Tuple(_)
+        );
         fields[2].1 = extra;
         if nested {
             // 206/242 admit these complete nested types, but the unchanged raw
@@ -396,7 +400,7 @@ fn package_cannot_hide_inside_copy_containers_or_indirect_signatures() {
         },
     ] {
         let mut m = plain();
-        let complete_enum = matches!(ty, Type::Enum { .. });
+        let complete_enum = matches!(ty, Type::Enum { .. } | Type::Tuple(_));
         m.functions[0].locals[0].ty = ty;
         rejected(
             m,

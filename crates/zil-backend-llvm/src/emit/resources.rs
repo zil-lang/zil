@@ -3,6 +3,17 @@
 use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
+        && resources
+            .iter()
+            .any(|r| r.payload == Type::TaskI32 && r.teardown.is_none())
+    {
+        return true;
+    }
+    if matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
+    {
+        return true;
+    }
     if dynamic_store::is_resource(ty, resources) || byte_buffer::is_resource(ty, resources) {
         return true;
     }
@@ -133,6 +144,8 @@ impl FunctionEmitter<'_> {
         };
         let teardown = definition.teardown;
         let byte_buffer = definition.payload == Type::ByteBuffer;
+        let task = definition.payload == Type::TaskI32;
+        let registration = matches!(definition.payload, Type::Registration { .. });
         let store_drop = if matches!(definition.payload, Type::OwnedStore { .. }) {
             Some(dynamic_store::helper(
                 &definition.payload,
@@ -179,6 +192,34 @@ impl FunctionEmitter<'_> {
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     callee: m::global(store_drop.to_string()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
+        } else if registration {
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("zil.registration.drop".into()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
+        } else if task {
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("zil.task.drop".into()),
                     args: vec![m::Arg::new(
                         m::Ty::Ptr,
                         m::local(format!("local.{}", local.0)),

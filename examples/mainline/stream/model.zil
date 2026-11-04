@@ -1,5 +1,5 @@
-// Ordinary exported user types; Option and Result have no compiler privileges.
-pub enum Option<T> { None, Some(T) }
+// Ordinary exported user types; LegacyOption and Result have no compiler privileges.
+pub enum LegacyOption<T> { None, Some(T) }
 pub enum Result<E, T> { Err(E), Ok(T) }
 
 pub struct Stats {

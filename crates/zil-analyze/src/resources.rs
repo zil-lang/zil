@@ -4,6 +4,9 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 pub(super) mod product;
 mod summary_graph;
 pub(crate) mod sums;
@@ -257,10 +260,18 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 description: false,
             }
         }
-        Type::Enum { .. } if budget.sum_type(ty)? => Shape {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sum_type(ty)? => Shape {
             owned: true,
             description: false,
         },
+        Type::Address { .. }
+            if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Desc(_) => Shape {
             owned: false,
             description: true,
@@ -412,9 +423,31 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::RegistrationStart { callback, .. } => (Some(*callback), None, &[]),
+        InstructionKind::RegistrationValid { registration }
+        | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),
+        InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
+        InstructionKind::TaskYield => (None, None, &[]),
+        InstructionKind::MakeOwnedTuple { fields } => (None, None, fields),
+        InstructionKind::BorrowPlaceLocal { .. }
+        | InstructionKind::PlaceTagLocal { .. }
+        | InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::TakeTupleField { .. }
+        | InstructionKind::TakeVariantField { .. } => (None, None, &[]),
+
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
+        InstructionKind::WithSyncCell { initial, body, .. } => (Some(*initial), Some(*body), &[]),
+        InstructionKind::SyncI32 { address, value, .. } => (Some(*address), *value, &[]),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             (Some(*callback), Some(*body), &[])
         }
@@ -429,12 +462,15 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
-        InstructionKind::Store { value, .. }
+        InstructionKind::DescribeAddress { address: value }
+        | InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosureMut { arguments, .. }
         | InstructionKind::CallClosureShared { arguments, .. } => (None, None, arguments),
@@ -495,6 +531,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -710,7 +748,11 @@ fn address_afters_inner(
     ) {
         let captured = captures && capture_carrier(ty, budget)?;
         has_capture |= captured;
-        if captured || matches!(ty, Type::Address { .. }) {
+        if captured
+            || matches!(ty, Type::Address { .. })
+            || ((budget.head_descriptions || budget.invocation_callbacks)
+                && matches!(ty, Type::Desc(_) | Type::Closure(_)))
+        {
             budget.lookup(shapes.len(), "captured Store address shape insertion")?;
             shapes.insert(
                 place,
@@ -1027,7 +1069,11 @@ impl Flow<'_> {
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. } => {
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(
@@ -1038,15 +1084,47 @@ impl Flow<'_> {
                         return Err(error("Sum observation needs a live local"));
                     }
                 }
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    if check {
+                        if !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        ) {
+                            return Err(error("selective source is not a live owning local"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                    }
+                    if out_shape.is_some_and(|s| s.owned) {
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            birth: BTreeSet::from([Birth::Incoming]),
+                            sources: BTreeSet::new(),
+                        });
+                    }
+                }
                 InstructionKind::UnpackVariant {
                     local,
-                    variant,
+                    variant: _,
                     fields,
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, fields } => {
+                    let variant = if let InstructionKind::UnpackVariant { variant, .. } = i.kind {
+                        variant
+                    } else {
+                        u32::MAX
+                    };
                     let plan = self
                         .sums
                         .ok_or_else(|| error("Unpack has no finite Sum plan"))?;
-                    plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    if matches!(i.kind, InstructionKind::UnpackVariant { .. }) {
+                        plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    }
                     let mut source = copied(state, Place::Local(*local), budget)?;
                     if check {
                         if !exact(&source, Life::Available) {
@@ -1083,7 +1161,7 @@ impl Flow<'_> {
                             .get(&Place::Local(*target))
                             .is_some_and(|s| s.owned)
                         {
-                            let birth = state.sums.unpack_birth(*local, *variant, index, budget)?;
+                            let birth = state.sums.unpack_birth(*local, variant, index, budget)?;
                             forget_order(state, *target, budget)?;
                             for (place, fact) in &state.cells {
                                 budget.spend(1, "Unpack actual initialization order")?;
@@ -1109,7 +1187,8 @@ impl Flow<'_> {
                         }
                     }
                 }
-                InstructionKind::MakeVariant { fields, .. }
+                InstructionKind::MakeOwnedTuple { fields }
+                | InstructionKind::MakeVariant { fields, .. }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
                     for value in fields {
@@ -1303,9 +1382,18 @@ impl Flow<'_> {
                     }
                     forget_order(state, *local, budget)?;
                 }
+                InstructionKind::RegistrationStart { callback, .. } => {
+                    self.consume(state, *callback, check, budget)?;
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Created]),
+                        sources: BTreeSet::new(),
+                    });
+                }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => {
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => {
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),
@@ -1829,6 +1917,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -1839,6 +1928,40 @@ impl Flow<'_> {
                     {
                         return Err(error("head address requires a live managed position"));
                     }
+                }
+                InstructionKind::DescribeAddress { address } => {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    produced = Some(Fact {
+                        sources: fact.sources,
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::AddressField { address, index }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    let mut sources = BTreeSet::new();
+                    budget.spend(fact.sources.len(), "actual resource head field sources")?;
+                    for source in fact.sources {
+                        sources.insert(match source {
+                            Source::Head(local)
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Package { .. }
+                                ) =>
+                            {
+                                Source::PackageField {
+                                    local,
+                                    index: *index,
+                                }
+                            }
+                            other => other,
+                        });
+                    }
+                    produced = Some(Fact {
+                        sources,
+                        ..Fact::default()
+                    });
                 }
                 InstructionKind::DescribeLocal { local } => {
                     if !self.views.is_empty() {
@@ -1933,7 +2056,10 @@ impl Flow<'_> {
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
                     }
-                    if matches!(ty, Type::Desc(_)) {
+                    if matches!(ty, Type::Desc(_))
+                        || (budget.head_descriptions
+                            && (head_address(ty) || ty.is_package_address()))
+                    {
                         produced = Some(Fact {
                             sources: BTreeSet::from([Source::BorrowedField(*index)]),
                             ..Fact::default()
@@ -2110,7 +2236,8 @@ impl Flow<'_> {
                         replace(state, Place::Local(*local), source, budget)?;
                     }
                 }
-                InstructionKind::DropEnum { local }
+                InstructionKind::DropTuple { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }
@@ -2250,6 +2377,10 @@ impl Flow<'_> {
                         fact.birth.insert(Birth::Incoming);
                     }
                     produced = Some(fact);
+                }
+                InstructionKind::RegistrationClose { registration: task }
+                | InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, check, budget)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -2401,14 +2532,14 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     let operands = match i.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             [Some((callback, false)), Some((body, true))]
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
-                            [None, Some((body, true))]
-                        }
+                        InstructionKind::WithScopedThread { body, .. }
+                        | InstructionKind::WithSyncCell { body, .. } => [None, Some((body, true))],
                         _ => unreachable!(),
                     };
                     for (value, consume) in operands.into_iter().flatten() {
@@ -2573,6 +2704,21 @@ impl Flow<'_> {
                     }
                 }
                 _ => {}
+            }
+            if produced.is_none()
+                && budget.head_descriptions
+                && out_shape.is_some_and(|s| s.description)
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = i.kind
+                && matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Package { .. } | Type::Managed(_)
+                )
+            {
+                produced = Some(Fact {
+                    sources: BTreeSet::from([Source::Head(local)]),
+                    ..Fact::default()
+                });
             }
             if let Some(plan) = self.sums
                 && let Some(birth) =
@@ -2838,6 +2984,7 @@ fn effect_consumers(
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values

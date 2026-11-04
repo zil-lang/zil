@@ -642,7 +642,12 @@ impl CompilationSession {
                 let syntax = selected
                     .as_ref()
                     .map_or(&parsed.module, |selected| &selected.modules[0]);
-                let expanded = zil_expand::expand_with_map_limits(source, syntax, &options.limits)?;
+                let expanded = zil_expand::expand_with_map_limits_target(
+                    source,
+                    syntax,
+                    &options.limits,
+                    &options.target,
+                )?;
                 expanded
                     .source_map
                     .validate(std::slice::from_ref(source), &options.limits)?;
@@ -796,9 +801,12 @@ impl CompilationSession {
                 report,
                 observer,
                 || {
-                    analysis
-                        .analyze(typed.module(), &options.limits)
-                        .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                    (if let Some(program) = typed.program() {
+                        analysis.analyze_program(program, &options.limits)
+                    } else {
+                        analysis.analyze(typed.module(), &options.limits)
+                    })
+                    .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
                 },
             );
             self.analysis = if queried.is_ok() {
@@ -839,6 +847,9 @@ impl CompilationSession {
         if project.is_some() {
             artifacts.dump_lazy(report, options, "verified-interfaces", |report| {
                 format!("{:#?}", report.scalar_interfaces)
+            })?;
+            artifacts.dump_lazy(report, options, "verified-task-interfaces", |_| {
+                format!("{:#?}", verified.task_interfaces())
             })?;
         }
         artifacts.dump_lazy(report, options, "verified", |_| {
@@ -957,6 +968,18 @@ impl CompilationSession {
             .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         report.phase = Phase::Link;
         artifacts.dump(report, options, "llvm", &llvm)?;
+        artifacts.dump_lazy(report, options, "task-abi", |_| {
+            format!(
+                "[{}]",
+                artifact
+                    .codegen
+                    .task_abis
+                    .iter()
+                    .map(zil_backend_llvm::TaskAbiArtifact::to_json)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        })?;
         artifacts.validate()?;
         let mut artifact = publication.commit(artifact, &options.cancellation)?;
         // Only complete successful requests populate the machine cache. The
@@ -1135,6 +1158,7 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
                     | Type::ForeignCallback { .. }
                     | Type::Tuple(_)
                     | Type::FunctionPointer { .. }
+                    | Type::BorrowedFunctionPointer { .. }
                     | Type::Address { .. }
                     | Type::Managed(_)
                     | Type::Desc(_)
@@ -1297,7 +1321,7 @@ mod bounded_history_tests {
                         FileId(i),
                         ModuleId(i),
                         format!("history-{i}.zil"),
-                        format!("fn f{i}()->i32 {{ return {i}; }}"),
+                        format!("fn history_case_{i}()->i32 {{ return {i}; }}"),
                     )
                 })
                 .collect(),
@@ -1373,7 +1397,7 @@ mod bounded_history_tests {
             old.upgrade().is_some(),
             "unchanged input retains the current epoch"
         );
-        project.modules[0].text = "fn f0()->i32 { return 123 + 0; }".into();
+        project.modules[0].text = "fn history_case_0()->i32 { return 123 + 0; }".into();
         let mut observed = false;
         let edited = session.compile_project_with_observer(&project, &options, &mut |event| {
             if event.phase == Phase::Parse {
@@ -1402,7 +1426,7 @@ mod bounded_history_tests {
         let options = CompileOptions::default();
         let mut session = CompilationSession::with_capacity(8);
         for edit in 0..48 {
-            p.modules[0].text = format!("fn f0()->i32 {{ return {edit} + 0; }}");
+            p.modules[0].text = format!("fn history_case_0()->i32 {{ return {edit} + 0; }}");
             let current = session.compile_project(&p, &options);
             success(&current);
             equivalent(
@@ -1414,7 +1438,7 @@ mod bounded_history_tests {
             // previous source epochs are not immortal dependency receipts.
             assert_eq!(session.database.len(), 44);
             let mut invalid = p.clone();
-            invalid.modules[1].text = "fn f1()->i32 { return true; }".into();
+            invalid.modules[1].text = "fn history_case_1()->i32 { return true; }".into();
             let rejected = session.compile_project(&invalid, &options);
             assert_ne!(rejected.status, ResultCategory::Success);
             equivalent(
@@ -1483,7 +1507,7 @@ mod bounded_history_tests {
         let options = CompileOptions::default();
         let mut session = CompilationSession::with_capacity(8);
         success(&session.compile_project(&p, &options));
-        p.modules[0].text = "fn f0()->i32 { return 123; }".into();
+        p.modules[0].text = "fn history_case_0()->i32 { return 123; }".into();
         let edited = session.compile_project(&p, &options);
         success(&edited);
         equivalent(
@@ -1495,7 +1519,8 @@ mod bounded_history_tests {
 
         // An inserted declaration shifts later whole-program IDs. Initialization
         // identity follows the actual local semantic input instead of that ID.
-        p.modules[0].text = "fn inserted()->i32 {return 9;} fn f0()->i32 {return 123;}".into();
+        p.modules[0].text =
+            "fn inserted()->i32 {return 9;} fn history_case_0()->i32 {return 123;}".into();
         let inserted = session.compile_project(&p, &options);
         success(&inserted);
         equivalent(
@@ -1505,7 +1530,7 @@ mod bounded_history_tests {
         assert_eq!(session.analysis.last_stats().reused_functions, 41);
         assert_eq!(session.analysis.last_stats().executed_functions, 0);
 
-        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        p.modules[0].text = "pub fn history_case_0(x:i32)->i32 {return x;}".into();
         let public = session.compile_project(&p, &options);
         success(&public);
         equivalent(
@@ -1514,7 +1539,7 @@ mod bounded_history_tests {
         );
         assert!(session.analysis.last_stats().reused_functions >= 39);
         assert!(session.analysis.last_stats().executed_functions > 0);
-        p.modules[0].text = "fn f0()->i32 {return true;}".into();
+        p.modules[0].text = "fn history_case_0()->i32 {return true;}".into();
         let rejected = session.compile_project(&p, &options);
         assert_ne!(rejected.status, ResultCategory::Success);
         equivalent(
@@ -1532,7 +1557,7 @@ mod bounded_history_tests {
         let mut session = CompilationSession::default();
         success(&session.compile_project(&p, &options));
         let prior = session.analysis.last_stats();
-        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        p.modules[0].text = "pub fn history_case_0(x:i32)->i32 {return x;}".into();
         let cancelled = CompileOptions::default();
         let stopped = session.compile_project_with_observer(&p, &cancelled, &mut |event| {
             if event.phase == Phase::Analyze {

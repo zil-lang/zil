@@ -216,6 +216,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
         source_fingerprint: Fingerprint::of(b"candidate"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,
@@ -750,6 +751,11 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
     let (mut module, _) = module_candidate();
     let contract = CallableParameterContract {
         roles: vec![CallableRole {
+            life: Some(FunctionLifeContract {
+                binder_count: 1,
+                parameter_lives: vec![Some(0)],
+                result_life: Some(0),
+            }),
             parameter: 0,
             closure: ClosureId(3),
             kind: CallableKind::Fn,
@@ -783,7 +789,11 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
         assert!(decode_module_candidate(&bytes[..length], &limits).is_err());
     }
     let fingerprint = module.fingerprint();
-    let mutate: [fn(&mut CallableParameterContract); 9] = [
+    let mutate: [fn(&mut CallableParameterContract); 13] = [
+        |c| c.roles[0].life = None,
+        |c| c.roles[0].life.as_mut().unwrap().binder_count += 1,
+        |c| c.roles[0].life.as_mut().unwrap().parameter_lives[0] = None,
+        |c| c.roles[0].life.as_mut().unwrap().result_life = None,
         |c| c.roles[0].parameter += 1,
         |c| c.roles[0].closure.0 += 1,
         |c| c.roles[0].kind = CallableKind::FnOnce,
@@ -1014,4 +1024,77 @@ fn defer227_registration_preserves_raw_ids_and_binds_both_fingerprint_fields() {
     );
     assert_ne!(identity(7, 11), identity(8, 11));
     assert_ne!(identity(7, 11), identity(7, 12));
+}
+
+#[test]
+fn suspend_call_and_function_kind_are_complete_raw_transport_identity() {
+    let limits = Limits::default();
+    let (mut module, _) = module_candidate();
+    let before = module.fingerprint();
+    module.functions[0].call_kind = CallKind::Suspend;
+    assert_ne!(module.fingerprint(), before);
+    let mut writer = Writer::new(&limits);
+    writer.function(&module.functions[0]).unwrap();
+    assert_eq!(writer.output[0], 1);
+    let mut reader = Reader::new(&writer.output, &limits).unwrap();
+    assert_eq!(reader.function().unwrap(), module.functions[0]);
+    let mut invalid = writer.output.clone();
+    invalid[0] = 2;
+    assert_eq!(
+        Reader::new(&invalid, &limits)
+            .unwrap()
+            .function()
+            .unwrap_err()
+            .code,
+        "E-WIRE-TAG"
+    );
+    let operation = Instruction {
+        result: Some(ValueId(9)),
+        kind: InstructionKind::SuspendCall {
+            function: FunctionId(7),
+            arguments: vec![ValueId(3), ValueId(5)],
+        },
+        span: Span::new(FileId(0), 1, 2),
+    };
+    let mut writer = Writer::new(&limits);
+    writer.instruction(&operation).unwrap();
+    assert_eq!(writer.output[5], 125);
+    assert_eq!(
+        Reader::new(&writer.output, &limits)
+            .unwrap()
+            .instruction()
+            .unwrap(),
+        operation
+    );
+    for end in 0..writer.output.len() {
+        assert!(
+            Reader::new(&writer.output[..end], &limits)
+                .unwrap()
+                .instruction()
+                .is_err()
+        );
+    }
+    module.functions[0].blocks[0].instructions[0].kind = operation.kind.clone();
+    let identity = module.fingerprint();
+    for kind in [
+        InstructionKind::SuspendCall {
+            function: FunctionId(8),
+            arguments: vec![ValueId(3), ValueId(5)],
+        },
+        InstructionKind::SuspendCall {
+            function: FunctionId(7),
+            arguments: vec![ValueId(5), ValueId(3)],
+        },
+        InstructionKind::SuspendCall {
+            function: FunctionId(7),
+            arguments: vec![ValueId(3)],
+        },
+    ] {
+        let mut changed = module.clone();
+        changed.functions[0].blocks[0].instructions[0].kind = kind;
+        assert_ne!(changed.fingerprint(), identity);
+    }
+    let mut huge = writer.output.clone();
+    huge[10..14].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert!(Reader::new(&huge, &limits).unwrap().instruction().is_err());
 }

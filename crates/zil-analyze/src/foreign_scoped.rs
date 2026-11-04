@@ -1,6 +1,6 @@
 //! Analyze's independent structured external-call envelope; no producer claims.
 use super::*;
-fn entry(
+pub(super) fn entry(
     module: &TypedModule,
     closure: &ClosureDefinition,
     budget: &mut Budget,
@@ -28,7 +28,7 @@ fn entry(
     }
     Ok(())
 }
-fn declaration(
+pub(super) fn declaration(
     function: &TypedFunction,
     role: ScopedCallbackRole,
     budget: &mut Budget,
@@ -266,6 +266,7 @@ pub(super) fn check(
                         }
                     }
                     InstructionKind::WithForeignCallback { region, .. }
+                    | InstructionKind::RegistrationStart { region, .. }
                         if stack.last() != Some(&region) =>
                     {
                         return Err(bad("scoped callback has no actual active unsafe region"));

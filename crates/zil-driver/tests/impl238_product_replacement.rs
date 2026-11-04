@@ -1,4 +1,7 @@
 //! Author source-to-machine coverage for stable ordinary Product replacement.
+#[path = "../../zil-ir/test-support/schema37_fixture.rs"]
+mod schema37_fixture;
+
 use std::{
     fs,
     path::PathBuf,
@@ -152,9 +155,10 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
 }
 #[test]
 fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
-    let bytes = include_bytes!("review223_fixtures/v34/mutable-product.wire");
+    let bytes = include_bytes!("review223_fixtures/v37/mutable-product.wire");
     let limits = Limits::default();
-    let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    let migrated = schema37_fixture::migrate(bytes, &limits);
+    let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, &limits).unwrap();
     let write = module.functions.iter().find(|f| f.name == "write").unwrap();
     let zil_ir::Type::Address {
         mutable: true,
@@ -191,7 +195,7 @@ fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
         "review318/frozen223: &mut Root, one top-level i32 projection/write; raw and Wire checked"
     );
     zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
-    zil_verify::verify_module_bytes(bytes, &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&migrated, &module.target, &limits).unwrap();
     let mut shared = module.clone();
     let f = shared
         .functions
@@ -415,7 +419,7 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
             "owned-write315",
             "replace(&mut panel);return 0",
             "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
-            ResultCategory::Unsupported,
+            ResultCategory::SafeReject,
         ),
     ] {
         reject(label, &product315(body, helpers), category);
@@ -787,6 +791,17 @@ fn reject(label: &str, source: &str, category: ResultCategory) {
     );
     fs::write(path.join("report.json"), report.to_json()).unwrap();
     assert_eq!(report.status, category, "{label}: {}", report.to_json());
+    if label == "owned-write315" {
+        assert_eq!(report.phase, Phase::Analyze);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("responsibility unpaid")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 #[test]
 fn original_relay_retains_shell_age_and_unchanged_cleanup_oracle() {

@@ -34,6 +34,23 @@ impl AnalysisSession {
         module: &TypedModule,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
+        self.analyze_input(module, None, limits)
+    }
+
+    pub fn analyze_program(
+        &mut self,
+        program: &TypedProgram,
+        limits: &Limits,
+    ) -> CompileResult<CandidatePlan> {
+        self.analyze_input(&program.module, Some(program), limits)
+    }
+
+    fn analyze_input(
+        &mut self,
+        module: &TypedModule,
+        program: Option<&TypedProgram>,
+        limits: &Limits,
+    ) -> CompileResult<CandidatePlan> {
         let mut next = BTreeMap::new();
         let mut stats = AnalysisStats::default();
         let mut reuse = Reuse {
@@ -41,7 +58,14 @@ impl AnalysisSession {
             next: &mut next,
             stats: &mut stats,
         };
-        let result = analyze_budgeted(module, limits, &mut Budget::new(limits), Some(&mut reuse));
+        let mut budget = Budget::new(limits);
+        let result =
+            analyze_budgeted(module, limits, &mut budget, Some(&mut reuse)).and_then(|plan| {
+                if let Some(program) = program {
+                    tasks::interfaces(program, &mut budget)?;
+                }
+                Ok(plan)
+            });
         // A later resource/effect error must not publish partially computed
         // initialization queries. The previous complete epoch remains intact.
         if result.is_ok() {
@@ -168,7 +192,8 @@ pub(super) enum Operation {
 impl Operation {
     pub(super) fn of(instruction: &InstructionKind) -> Self {
         match instruction {
-            InstructionKind::UnpackVariant { local, fields, .. } => Self::Unpack {
+            InstructionKind::UnpackVariant { local, fields, .. }
+            | InstructionKind::UnpackTuple { local, fields } => Self::Unpack {
                 source: *local,
                 fields: fields.clone(),
             },
@@ -177,8 +202,14 @@ impl Operation {
     }
     fn single(instruction: &InstructionKind) -> Self {
         match *instruction {
-            InstructionKind::VariantTagLocal { local, .. }
+            InstructionKind::BorrowPlaceLocal { local, .. }
+            | InstructionKind::PlaceTagLocal { local, .. }
+            | InstructionKind::TakeTupleField { local, .. }
+            | InstructionKind::TakeVariantField { local, .. }
+            | InstructionKind::VariantTagLocal { local, .. }
             | InstructionKind::ReadVariantLocal { local, .. }
+            | InstructionKind::BorrowVariantLocal { local, .. }
+            | InstructionKind::BorrowFieldLocal { local, .. }
             | InstructionKind::Load(local)
             | InstructionKind::RegisterDefer { local, .. }
             | InstructionKind::BorrowLocal { local }
@@ -204,6 +235,7 @@ impl Operation {
             | InstructionKind::StorageDead(local)
             | InstructionKind::DropManaged { local }
             | InstructionKind::DropErrorUnion { local }
+            | InstructionKind::DropTuple { local }
             | InstructionKind::DropEnum { local }
             | InstructionKind::DropPackage { local }
             | InstructionKind::DropOwnedArray { local }

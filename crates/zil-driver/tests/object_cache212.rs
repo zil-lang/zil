@@ -490,11 +490,11 @@ fn large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification() 
         };
         for i in 0..count {
             let n = (i % 3) as i32 + if i == 0 { delta } else { 0 };
-            s += &format!("fn f{i}(x:i32)->i32{{return x+{n};}}\n");
+            s += &format!("fn cache_case_{i}(x:i32)->i32{{return x+{n};}}\n");
         }
         s += "fn main()->i32{var total:i32=0;\n";
         for i in 0..count {
-            s += &format!("total=total+f{i}(0);\n");
+            s += &format!("total=total+cache_case_{i}(0);\n");
         }
         s += &format!(
             "return total-{};}}\n",
@@ -534,7 +534,10 @@ fn large_file_o0_chunks_reuse_unchanged_objects_and_keep_current_verification() 
         3
     );
     let executable = fs::read(o.output.as_ref().unwrap()).unwrap();
-    d.write("main.zil", &original.replace("f300(0)", "f300(0,1)"));
+    d.write(
+        "main.zil",
+        &original.replace("cache_case_300(0)", "cache_case_300(0,1)"),
+    );
     let bad = d.build(&o);
     assert_eq!(bad.status, ResultCategory::SafeReject);
     assert_eq!(bad.phase, Phase::Types);
@@ -562,7 +565,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         }
         for i in 0..count {
             text += &format!(
-                "fn f{i}(x:i32)->i32{{return x+{};}}\n",
+                "fn cache_case_{i}(x:i32)->i32{{return x+{};}}\n",
                 i32::from(i == edited)
             );
         }
@@ -574,7 +577,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         }
         let argument = if opaque { "seed" } else { "0" };
         for i in 0..count {
-            text += &format!("total=total+f{i}({argument});\n");
+            text += &format!("total=total+cache_case_{i}({argument});\n");
         }
         text += "return total;}\n";
         text
@@ -641,8 +644,8 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         // A real body edit preserves the known result. A removed helper has no
         // remaining owner; retained owners and opaque consumers still depend
         // on the actual body under their respective export contracts.
-        let old_body = "fn f0(x:i32)->i32{return x+0;}";
-        let new_body = "fn f0(x:i32)->i32{return x*1;}";
+        let old_body = "fn cache_case_0(x:i32)->i32{return x+0;}";
+        let new_body = "fn cache_case_0(x:i32)->i32{return x*1;}";
         assert_eq!(original.matches(old_body).count(), 1);
         let neutral_source = original.replacen(old_body, new_body, 1);
         assert_ne!(neutral_source, original);
@@ -680,7 +683,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
             .object_cache;
         assert_eq!(restored_cache.hits, units, "{}", neutral_restored.to_json());
         assert_eq!(restored_cache.misses, 0, "{}", neutral_restored.to_json());
-        // Retained f0/main owners both change under the ordinary contract.
+        // Retained cache_case_0/main owners both change under the ordinary contract.
         // Closed pruning keeps one actual entry unit whose result now changes.
         d.write("main.zil", &source(600, 0, false, opaque));
         let early = d.build(&options);
@@ -701,7 +704,7 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         success(&late, 1);
         // The joint summary replaces main with Return(1). After closed pruning,
         // both retained definitions therefore equal the preceding edit; their
-        // actual object is reusable. Ordinary owners still retain f599's body.
+        // actual object is reusable. Ordinary owners still retain cache_case_599's body.
         if pruned {
             let late_machine = fs::read_to_string(&late.artifacts["llvm"]).unwrap();
             assert_eq!(
@@ -745,7 +748,10 @@ fn o2_folded_results_and_imported_bodies_preserve_current_verification() {
         let argument = if opaque { "seed" } else { "0" };
         d.write(
             "main.zil",
-            &original.replace(&format!("f300({argument})"), &format!("f300({argument},1)")),
+            &original.replace(
+                &format!("cache_case_300({argument})"),
+                &format!("cache_case_300({argument},1)"),
+            ),
         );
         let bad = d.build(&options);
         assert_eq!(bad.status, ResultCategory::SafeReject);
@@ -764,12 +770,12 @@ fn object_patch_preserves_merged_exports_and_always_uses_a_full_base() {
         let mut source = String::new();
         for i in 0..600 {
             source += &format!(
-                "fn f{i}(x:i32)->i32{{return x+{};}}\n",
+                "fn cache_case_{i}(x:i32)->i32{{return x+{};}}\n",
                 if i == changed { delta } else { 1 }
             );
         }
         source += &format!(
-            "extern \"C\" fn getchar()->i32;fn main()->i32{{let p:fn(i32)->i32=f{called};let q:fn(i32)->i32=f{neighbor};var x:i32=0;unsafe{{x=getchar();}}if x==0{{return p(2147483647);}}return p(x)-q(x);}}\n"
+            "extern \"C\" fn getchar()->i32;fn main()->i32{{let p:fn(i32)->i32=cache_case_{called};let q:fn(i32)->i32=cache_case_{neighbor};var x:i32=0;unsafe{{x=getchar();}}if x==0{{return p(2147483647);}}return p(x)-q(x);}}\n"
         );
         source
     }
@@ -828,7 +834,7 @@ fn object_patch_preserves_merged_exports_and_always_uses_a_full_base() {
     let cold = d.build(&options);
     execute(&cold, 7, Some(0));
     // Inspect actual LLVM output, choosing a merged representative rather than
-    // assuming that f0 is the shared implementation. Calls stay opaque in ZIL.
+    // assuming that cache_case_0 is the shared implementation. Calls stay opaque in ZIL.
     let symbols = Command::new("nm")
         .args(["-S", "--defined-only"])
         .arg(&cold.artifacts["executable"])
@@ -887,8 +893,8 @@ fn object_patch_preserves_merged_exports_and_always_uses_a_full_base() {
     assert!(first_patch.contains("\"current_full_machine_preflight\":true"));
     assert_eq!(first.commands.len(), 3);
     let cumulative = source(leader, 2, leader, neighbor).replace(
-        &format!("fn f{neighbor}(x:i32)->i32{{return x+1;}}"),
-        &format!("fn f{neighbor}(x:i32)->i32{{return x+3;}}"),
+        &format!("fn cache_case_{neighbor}(x:i32)->i32{{return x+1;}}"),
+        &format!("fn cache_case_{neighbor}(x:i32)->i32{{return x+3;}}"),
     );
     d.write("main.zil", &cumulative);
     let second = d.build(&options);
@@ -952,11 +958,11 @@ fn propagated_results_do_not_invalidate_unmodified_leaf_units() {
         main += &format!("import m{module}\n");
         let mut source = String::new();
         for function in 0..256 {
-            source += &format!("fn f{function}(x:i32)->i32{{return x+0;}}\n");
+            source += &format!("fn cache_case_{function}(x:i32)->i32{{return x+0;}}\n");
         }
         source += "pub fn value()->i32{var total:i32=0;\n";
         for function in 0..256 {
-            source += &format!("total=total+f{function}(0);\n");
+            source += &format!("total=total+cache_case_{function}(0);\n");
         }
         source += "return total;}\n";
         d.write(&format!("m{module}.zil"), &source);

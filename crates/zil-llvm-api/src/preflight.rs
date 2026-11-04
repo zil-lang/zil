@@ -73,6 +73,16 @@ static COMPARISON_RESULT: Ty = Ty::Int(1);
 fn fail<T>(s: impl Into<String>) -> Result<T> {
     Err(s.into())
 }
+fn atomic_type_alignment(ty: &Ty, align: u32) -> Result<()> {
+    let Ty::Int(bits @ (8 | 16 | 32 | 64)) = ty else {
+        return fail("atomic operand requires an i8/i16/i32/i64 integer");
+    };
+    alignment(align)?;
+    if align < bits / 8 {
+        return fail("atomic operand requires explicit natural alignment");
+    }
+    Ok(())
+}
 fn identifier(s: &str) -> bool {
     let mut b = s.bytes();
     let Some(first) = b.next() else { return false };
@@ -121,7 +131,7 @@ impl<'a> World<'a> {
         let height = match t {
             Ty::Void if allow_void => 0,
             Ty::Void => return fail("void is not a stored/parameter machine type"),
-            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => 0,
+            Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::F32 | Ty::F64 | Ty::Ptr => 0,
             Ty::Int(_) => return fail("unsupported machine integer width"),
             Ty::Array(n, element) => {
                 if *n > u32::MAX as u64 {
@@ -279,6 +289,9 @@ impl<'a> World<'a> {
                     return fail("machine integer constant out of range");
                 }
             }
+            Val::F32(_) if *t == Ty::F32 => {}
+            Val::F64(_) if *t == Ty::F64 => {}
+            Val::F32(_) | Val::F64(_) => return fail("floating constant type mismatch"),
             Val::Bool(_) if *t == Ty::Int(1) => {}
             Val::Bool(_) => return fail("boolean constant is not i1"),
             Val::Null if *t == Ty::Ptr => {}
@@ -322,7 +335,11 @@ impl<'a> World<'a> {
     fn result<'b>(&'b self, op: &'b Op) -> Result<Option<&'b Ty>> {
         Ok(match op {
             Op::Alloca { .. } | Op::Gep { .. } => Some(&POINTER_RESULT),
-            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty),
+            Op::Load { ty, .. }
+            | Op::AtomicLoad { ty, .. }
+            | Op::Binary { ty, .. }
+            | Op::Phi { ty, .. } => Some(ty),
+            Op::AtomicRmw { arg, .. } => Some(&arg.ty),
             Op::Compare { .. } => Some(&COMPARISON_RESULT),
             Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
@@ -356,32 +373,68 @@ impl<'a> World<'a> {
                 value(ptr, &Ty::Ptr)?;
                 alignment(*align)?;
             }
+            Op::AtomicLoad {
+                ty,
+                ptr,
+                align,
+                ordering,
+            } => {
+                atomic_type_alignment(ty, *align)?;
+                if matches!(ordering, AtomicOrdering::Release | AtomicOrdering::AcqRel) {
+                    return fail("atomic load cannot have release ordering");
+                }
+                value(ptr, &Ty::Ptr)?;
+            }
+            Op::AtomicStore {
+                arg,
+                ptr,
+                align,
+                ordering,
+            } => {
+                atomic_type_alignment(&arg.ty, *align)?;
+                if matches!(ordering, AtomicOrdering::Acquire | AtomicOrdering::AcqRel) {
+                    return fail("atomic store cannot have acquire ordering");
+                }
+                self.arg(arg, defs, false)?;
+                value(ptr, &Ty::Ptr)?;
+            }
+            Op::AtomicRmw {
+                arg, ptr, align, ..
+            } => {
+                atomic_type_alignment(&arg.ty, *align)?;
+                self.arg(arg, defs, false)?;
+                value(ptr, &Ty::Ptr)?;
+            }
             Op::Binary {
                 opcode,
                 ty,
                 left,
                 right,
             } => {
-                if !matches!(
-                    opcode.as_str(),
-                    "add"
-                        | "sub"
-                        | "mul"
-                        | "sdiv"
-                        | "udiv"
-                        | "srem"
-                        | "urem"
-                        | "and"
-                        | "or"
-                        | "xor"
-                        | "shl"
-                        | "lshr"
-                        | "ashr"
-                ) {
-                    return fail(format!("unsupported binary opcode {opcode}"));
-                }
-                if !matches!(ty, Ty::Int(_)) {
-                    return fail("binary operands must be integers");
+                let valid = match ty {
+                    Ty::F32 | Ty::F64 => {
+                        matches!(opcode.as_str(), "fadd" | "fsub" | "fmul" | "fdiv")
+                    }
+                    Ty::Int(_) => matches!(
+                        opcode.as_str(),
+                        "add"
+                            | "sub"
+                            | "mul"
+                            | "sdiv"
+                            | "udiv"
+                            | "srem"
+                            | "urem"
+                            | "and"
+                            | "or"
+                            | "xor"
+                            | "shl"
+                            | "lshr"
+                            | "ashr"
+                    ),
+                    _ => false,
+                };
+                if !valid {
+                    return fail(format!("unsupported binary opcode/type {opcode}/{ty}"));
                 }
                 self.check_ty(ty, false)?;
                 value(left, ty)?;
@@ -393,14 +446,19 @@ impl<'a> World<'a> {
                 left,
                 right,
             } => {
-                if !matches!(
-                    predicate.as_str(),
-                    "eq" | "ne" | "ugt" | "uge" | "ult" | "ule" | "sgt" | "sge" | "slt" | "sle"
-                ) {
-                    return fail("unsupported integer comparison");
-                }
-                if !matches!(ty, Ty::Int(_) | Ty::Ptr) {
-                    return fail("comparison requires integer/pointer");
+                let valid = match ty {
+                    Ty::F32 | Ty::F64 => matches!(
+                        predicate.as_str(),
+                        "oeq" | "une" | "ogt" | "oge" | "olt" | "ole" | "ord" | "uno"
+                    ),
+                    Ty::Int(_) | Ty::Ptr => matches!(
+                        predicate.as_str(),
+                        "eq" | "ne" | "ugt" | "uge" | "ult" | "ule" | "sgt" | "sge" | "slt" | "sle"
+                    ),
+                    _ => false,
+                };
+                if !valid {
+                    return fail("unsupported comparison predicate/type");
                 }
                 self.check_ty(ty, false)?;
                 value(left, ty)?;
@@ -413,6 +471,9 @@ impl<'a> World<'a> {
                     ("zext" | "sext", Ty::Int(a), Ty::Int(b)) => a < b,
                     ("trunc", Ty::Int(a), Ty::Int(b)) => a > b,
                     ("ptrtoint", Ty::Ptr, Ty::Int(_)) => true,
+                    ("sitofp" | "uitofp", Ty::Int(8 | 16 | 32 | 64), Ty::F32 | Ty::F64) => true,
+                    ("fptosi" | "fptoui", Ty::F32 | Ty::F64, Ty::Int(8 | 16 | 32 | 64)) => true,
+                    ("fpext", Ty::F32, Ty::F64) | ("fptrunc", Ty::F64, Ty::F32) => true,
                     _ => false,
                 };
                 if !valid {
@@ -1067,7 +1128,7 @@ mod named_layout_tests {
             match t {
                 Ty::Void if allow_void => {}
                 Ty::Void => return fail("void is not a stored/parameter machine type"),
-                Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::Ptr => {}
+                Ty::Int(1 | 8 | 16 | 32 | 64) | Ty::F32 | Ty::F64 | Ty::Ptr => {}
                 Ty::Int(_) => return fail("unsupported machine integer width"),
                 Ty::Array(n, element) => {
                     if *n > u32::MAX as u64 {

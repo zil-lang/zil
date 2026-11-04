@@ -1,0 +1,35 @@
+{
+  "decoder_commit": "80bec5278219c00c003944021b59880826c446f4",
+  "status": "UntrustedStructuralTranscode",
+  "fields_added": [
+    "TypedFunction.call_kind=Direct",
+    "CallableRole.life=None"
+  ],
+  "inputs": {
+    "control_concrete_copy_byvalue_call.wire": "64d8c893c298e29712c55c70df6724430a777f24597e3d240eeb158c6c2575a8",
+    "control_shared_callback_i32_argument.wire": "dc2424a0450cb6c52a9dde26b95449326deb253d191fb7b26953a131aec26b26",
+    "escape_byvalue_symbolic_fn_call.wire": "0f1f8e4f98007f1babff6bd2d28ea89d2281543786f3aff90185a5f4661f47e2",
+    "escape_callback_argument.wire": "f1e52db82fe5ebce525e929571698f627048c3397cc8808e16d4ebc2601f7752",
+    "escape_shared_callback_f_argument.wire": "74891a0461b53d66e9587fd9696458fdd00a08fd3212a81c1ead94536f0fc810",
+    "escape_thin_store.wire": "769c7a3ec794779841fb1287247a82267c215e7a914063a4bc4022d3c638b30f",
+    "escape_two_element_array.wire": "adad8f8d8e76f8f49acba46b129d600f210ec1f82a6b709c6957af07dbf2f581",
+    "parent_stale_no_call_edge.wire": "51f4df364ca6640de50a54816749baacd97330439f0b164bd5e2baa658d01459",
+    "parent_stale_with_call_edge.wire": "8db877b7d92469fa131dcf986596bdaa698680a6037512971cdae26f4f82ad26",
+    "parent_valid_no_call_edge.wire": "f29d965cad34b82c148c25c8c12599e336b4878ba6463d97e4c161657b287ac0",
+    "parent_valid_with_call_edge.wire": "141a372abd997032bf94ba25d80b6aedef65211acd79be1c8780fc26bc5bf580"
+  },
+  "outputs": {
+    "control_concrete_copy_byvalue_call.wire": "fb32b4f32723edf9a5a67ec72eac27dd24b550a4049590a773d3210648cf3432",
+    "control_shared_callback_i32_argument.wire": "6cea20590a6aa990ec466622f94d88eec58e93c4d9238d296d71064d0f3c3a12",
+    "escape_byvalue_symbolic_fn_call.wire": "91473fabea269a3a8b66103a49ad0b0909940b42765429eb2d816f1cd36e7682",
+    "escape_callback_argument.wire": "cf9769b378fa50364ad66063c5e17789da7151a5a1a94a55c46329e71f6df688",
+    "escape_shared_callback_f_argument.wire": "8c4232ea45cae5e2f258371fdc6e5d6f0b8b1bb48f742d84f17470688385b8ea",
+    "escape_thin_store.wire": "d4575b19c0fa521c5195282f9f4213bae05ef4698f91bec4aa89542c3d0b5190",
+    "escape_two_element_array.wire": "a9be5c4e1d0a967628f87be09ea9152ccd725cd03181fd9505e5950a5b3bdcf6",
+    "parent_stale_no_call_edge.wire": "9fa3ed49db2064f49406705c93f4227c316f84199dd851c2dc43b98826c9d28f",
+    "parent_stale_with_call_edge.wire": "864294fe7b474f53027283e59942f116e18b089abd87fa6d05383a45af7f1813",
+    "parent_valid_no_call_edge.wire": "8538df210a5e1e7f24636598a158fe5094514850fdda7cdeab9258b1ecba343f",
+    "parent_valid_with_call_edge.wire": "6283433af48df0d3f3f7167d5006976bb9a5eaa2576e414f3f85eacac9a9b9d4"
+  },
+  "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"
+}

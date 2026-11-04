@@ -1,0 +1,5 @@
+# 每次调用局部life与固定环境分离
+
+CoreCallableParameter与CallableRole保留原始FunctionLifeContract。关系不是已核返回来源；两个核分别证明实际CFG，调用处以当次输入根实例化，同时保留固定环境Hold。旧无life角色编码也增加presence位，因此明确使用Typed/Wire36和CallableParameterContract域5；其它未改变字节的域不机械升级。原始旧Wire/缓存拒绝，历史golden不覆写，current测试夹具迁移单列。
+
+保留反例：捕获外借环境冒充fresh返回、不同调用的binder混合、伪造result参数上界、shared转mut、未用定义及Core cache的合同缺失。默认预算不提高。

@@ -8,6 +8,8 @@
 //! CFG visits, instruction visits, matrix cells, and set elements traversed or
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
+mod address_sums;
+mod borrowed_fp;
 mod budget;
 mod callable_fields;
 #[cfg(test)]
@@ -16,11 +18,14 @@ mod defers;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
+mod head_access;
+mod head_loans;
 mod helpers;
 mod holds;
 mod incremental;
 mod lifetimes;
 mod owned_callbacks;
+mod registration;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
@@ -29,6 +34,7 @@ mod scoped_thread;
 mod scopes;
 #[cfg(test)]
 mod sum_tests;
+mod tasks;
 
 use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
@@ -49,6 +55,13 @@ fn bad(message: impl Into<String>) -> Vec<Diagnostic> {
 pub fn analyze(module: &TypedModule, limits: &Limits) -> CompileResult<CandidatePlan> {
     let mut budget = Budget::new(limits);
     analyze_budgeted(module, limits, &mut budget, None)
+}
+
+pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult<CandidatePlan> {
+    let mut budget = Budget::new(limits);
+    let plan = analyze_budgeted(&program.module, limits, &mut budget, None)?;
+    tasks::interfaces(program, &mut budget)?;
+    Ok(plan)
 }
 
 fn analyze_budgeted(
@@ -90,6 +103,7 @@ fn analyze_budgeted(
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
+        address_sums::check(module, f, &reachable, limits, budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,
@@ -99,21 +113,22 @@ fn analyze_budgeted(
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
+    tasks::check(module, budget)?;
+    registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
+    let head_effects = head_access::check(module, &hold_graphs, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
-    for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
-        module,
-        &hold_graphs,
-        &store_profiles,
-        budget,
-    )?) {
+    let actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    head_loans::check(module, &hold_graphs, &actual_holds, &head_effects, budget)?;
+    for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;
     }
+    tasks::loans(module, &plan, &hold_graphs, budget)?;
     Ok(plan)
 }
 
@@ -252,7 +267,9 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
         let mut state = clone_set(&ins[bi], budget)?;
         for i in &b.instructions {
             budget.spend(1, "initialization instruction scan")?;
-            if let InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
+            if let InstructionKind::UnpackVariant { local, fields, .. }
+            | InstructionKind::UnpackTuple { local, fields } = &i.kind
+            {
                 budget.spend(fields.len().saturating_add(1), "Unpack initialization atom")?;
                 budget.lookup(state.len(), "Unpack initialized source")?;
                 if !state.contains(local) || fields.iter().any(|l| state.contains(l)) {
@@ -334,7 +351,9 @@ fn transfer(
     let mut state = clone_set(input, budget)?;
     for instruction in &block.instructions {
         budget.spend(1, "initialization transfer")?;
-        if let InstructionKind::UnpackVariant { local, fields, .. } = &instruction.kind {
+        if let InstructionKind::UnpackVariant { local, fields, .. }
+        | InstructionKind::UnpackTuple { local, fields } = &instruction.kind
+        {
             budget.spend(
                 fields.len().saturating_add(1),
                 "Unpack initialization transfer atom",
@@ -407,6 +426,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,

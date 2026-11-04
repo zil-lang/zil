@@ -16,6 +16,18 @@ mod independent331_cache;
 #[path = "../../../tests/language-readiness/mutable337/regressions.rs"]
 mod mutable337;
 
+#[path = "../../../tests/language-readiness/terminal/342/mutable_life.rs"]
+mod terminal342_mutable;
+
+#[path = "../../../tests/language-readiness/terminal/342/borrowed_fp.rs"]
+mod terminal342_borrowed_fp;
+
+#[path = "../../../tests/language-readiness/terminal/342/resource_head.rs"]
+mod terminal342_resource_head;
+
+#[path = "../../../tests/language-readiness/terminal/342/higher_rank.rs"]
+mod terminal342_higher_rank;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {
@@ -558,6 +570,15 @@ fn explicit_life_definitions_reject_wrong_binders_and_unsupported_positions() {
             "E-LIFE-RETURN",
         );
     }
+    // The original retained HRTB source now has a complete invocation consumer.
+    let hrtb = compile_source(
+        &source(include_str!(
+            "../../../tests/language-readiness/recovery/pending/life-higher-rank.zil"
+        )),
+        &CompileOptions::default(),
+    );
+    assert_eq!(hrtb.status, ResultCategory::Success, "{}", hrtb.to_json());
+    assert_eq!(hrtb.phase, Phase::Verify);
     // 337 admits the mutable life header. Returning its mutable value directly
     // into a shared result still requires an explicit shared reborrow.
     reject(
@@ -569,7 +590,6 @@ fn explicit_life_definitions_reject_wrong_binders_and_unsupported_positions() {
     for text in [
         "fn f<life a>(p:&'a i32)->&'a i32{let local:&'a i32=p;return local}fn main(){}",
         "fn f<life a>(p:fn(&'a i32)->i32){}fn main(){}",
-        include_str!("../../../tests/language-readiness/recovery/pending/life-higher-rank.zil"),
     ] {
         reject(
             text,

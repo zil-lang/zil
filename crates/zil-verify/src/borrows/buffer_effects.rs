@@ -22,7 +22,16 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
                 borrowed(&module.closures[id.0 as usize].captures[capture as usize])
             })
         }
-        Root::Local(_) | Root::Field(..) => false,
+        Root::Window(origin, ..) => external(
+            module,
+            function,
+            match origin {
+                HoldRoot::Local(l) => Root::Local(l),
+                HoldRoot::Parameter(p) => Root::Parameter(p),
+                HoldRoot::Capture(c) => Root::Capture(c),
+            },
+        ),
+        Root::Local(_) | Root::Field(..) | Root::Projection(..) => false,
     }
 }
 
@@ -47,7 +56,17 @@ pub(super) fn unknown_pairs(
     for a in left {
         for b in right {
             budget.spend(1)?;
-            if a != b && external(module, function, *a) && external(module, function, *b) {
+            // Only actual intervals within one known address establish
+            // separation here. Different symbolic environment captures still
+            // require caller substitution, even when they share a coarse root.
+            let disjoint_windows = matches!((*a, *b),
+                (Root::Window(origin, start, end), Root::Window(other, lo, hi))
+                    if origin == other && (end <= lo || hi <= start));
+            if a != b
+                && !disjoint_windows
+                && external(module, function, *a)
+                && external(module, function, *b)
+            {
                 budget.spend(apart.len().saturating_add(1))?;
                 apart.insert(((*a).min(*b), (*a).max(*b)));
             }

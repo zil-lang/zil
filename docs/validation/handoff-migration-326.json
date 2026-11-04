@@ -11227,7 +11227,7 @@
       }
     }
   ],
-  "current_acceptance": "docs/validation/language-batch336-integration-20261104.json",
+  "current_acceptance": "docs/validation/terminal-root37-integration-20261104.json",
   "policy": "Only explicit HistoricalRecord entries whose original bytes remain unchanged are excluded from current validation. Current and unlisted records remain strict. Availability does not revalidate historical Pass.",
   "task_directories": [
     ".task",

@@ -25,6 +25,7 @@ fn callback(count: usize) -> Type {
 }
 fn function() -> CoreFunction {
     CoreFunction {
+        call_kind: None,
         life: None,
         callable_return: None,
         state_parameters: Vec::new(),
@@ -96,6 +97,8 @@ fn public_headers_are_bounded_before_any_type_clone() {
             1 => core.functions[0].return_type = callback(32),
             _ => {
                 core.functions[0].callable_parameters = vec![CoreCallableParameter {
+                    life: None,
+                    closed_environment: false,
                     index: 0,
                     generic_index: 0,
                     generic_name: "F".into(),

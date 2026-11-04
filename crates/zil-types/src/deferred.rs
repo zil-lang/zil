@@ -183,6 +183,7 @@ impl Builder<'_, '_> {
             }
             CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::Try(value)
             | CoreExprKind::CompileTime(value)

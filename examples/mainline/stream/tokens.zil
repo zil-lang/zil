@@ -39,16 +39,16 @@ fn finish(state: &State) -> model.Result<i32, i32> {
     return model.Result.Ok(state.value)
 }
 
-pub fn next() -> model.Option<model.Result<i32, i32>> {
+pub fn next() -> model.LegacyOption<model.Result<i32, i32>> {
     var state = State { value: 0, negative: false, seen: false, has_digit: false, error: 0 }
     while true {
         let byte = io.read()
         if byte < 0 {
-            if state.seen { return model.Option.Some(finish(&state)) }
-            return model.Option.None
+            if state.seen { return model.LegacyOption.Some(finish(&state)) }
+            return model.LegacyOption.None
         }
         if blank(byte) {
-            if state.seen { return model.Option.Some(finish(&state)) }
+            if state.seen { return model.LegacyOption.Some(finish(&state)) }
             continue
         }
         push(&mut state, byte)

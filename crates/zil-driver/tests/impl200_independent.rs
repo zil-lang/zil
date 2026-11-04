@@ -797,6 +797,7 @@ fn raw_extra_descriptions_addresses_and_fake_empty_contracts_do_not_gain_authori
         roles: [0, 3]
             .into_iter()
             .map(|parameter| CallableRole {
+                life: None,
                 parameter,
                 closure,
                 kind: CallableKind::FnMut,
@@ -928,7 +929,7 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     // Pre322 N1938 now becomes2358 because the complete type-position life
     // validator is charged through the shared alias/generic budget remainder.
     assert_eq!(
-        expand, 2358,
+        expand, 2766,
         "205 State alias checks plus322 full-AST life validation; source/default unchanged"
     );
 }
