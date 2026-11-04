@@ -58,5 +58,51 @@
     "abstraction": "versioned ordinary source modules; String API exposes a concrete remaining compiler composition gap",
     "tooling": "actual sources keyed in project identity and bounded prior to loading/byte comparison",
     "advance": "ordinary module API exercises full compiler path rather than a compiler-only string primitive"
+  },
+  "store_stage": {
+    "status": "PassLimited_Author",
+    "source_commit": "2960203f39b2900b63d1dafc4cbfddcd36d0ae6b",
+    "production_commit": "5d8c96bd0e449168d11e40c134a17ce2f45c9ca6",
+    "scope": "Ordinary generic Store primitives and ordered remove; not complete collections/iterators",
+    "commands": [
+      {
+        "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "command": "cargo clippy --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core -- -D warnings",
+        "status": "Pass"
+      }
+    ],
+    "store_native_builds": 8,
+    "store_native_runs": 20,
+    "actual_injected_failures": 12,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "controls": [
+      "real generic owning Item with visible Drop",
+      "ordered removal returns exact owner and restores suffix order",
+      "initial reserve and suffix prepare failure cleanup each once, live allocations zero",
+      "failed suffix preparation leaves input values/order/length/capacity unchanged",
+      "invalid index performs no allocation or mutation",
+      "active Store view across remove rejected in independent safety kernel"
+    ],
+    "source_sha256": {
+      "crates/zil-driver/src/stdlib.rs": "7b5e16f818b9f2bafac27e2ef3818e37802c85ecf376cb0daabff6691900d2aa",
+      "lib/std/store.zil": "f232d5a620a2fc6409d2ac7806076c8823e325cb52ad8cee3fe99d41baf0e9b1",
+      "tests/language-readiness/terminal/345/library.rs": "b15616d23db2f36e6b4f8b626b8f30028b777208e3529768dc9ecb9020b69f82",
+      "tests/language-readiness/terminal/345/store.zil": "2c64964e297a5cd0d9df91c2420dfc16dccce50424e5db27b3ad1afa3dc841ff"
+    },
+    "test_binary_sha256": "e148b909cef9ddf73e0048a0289cec8521cd3ab5753ced7642d99eaa98a92d3d",
+    "independent_review": "Pending"
   }
 }
