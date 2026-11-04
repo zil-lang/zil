@@ -412,7 +412,7 @@
       "state": "ContractToImplement",
       "Type": "Registration {environment:Box<Type>} tag32; actual concrete closure, Managed owning root and read Desc",
       "instructions": {
-        "111": "RegistrationStart {actual register,close,callback}",
+        "111": "RegistrationStart {register:FunctionId,close:FunctionId,callback:ValueId,region:u32}; region denotes explicit unsafe invocation, not retained lifetime",
         "112": "RegistrationValid {registration}",
         "113": "RegistrationClose {registration}; consumes actual Managed root"
       },
@@ -432,6 +432,17 @@
         "118": "TakeVariantField {local,path:Vec<PlaceProjection>}"
       },
       "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness"
+    },
+    "terminal_higher_ranked_callable_342": {
+      "authority": "_zil_design.md §18.1",
+      "state": "ContractToImplement",
+      "Core": "CoreCallableParameter.life: Option<FunctionLifeContract>, invocation-local required bound",
+      "Typed": "CallableRole.life: Option<FunctionLifeContract>; fixed environment Hold remains separate",
+      "schema_version": 36,
+      "wire_version": 36,
+      "fingerprint": "Typed domainV36 and callable contract5; unchanged type identityV35/return contract3/CT2 retained",
+      "responsibility": "Unused definition and actual concrete CFG each checked; fresh actual roots per invocation, canonical full relation, simultaneous windows, no fixed capture masquerading as fresh input",
+      "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
     }
   },
   "schemas": [
