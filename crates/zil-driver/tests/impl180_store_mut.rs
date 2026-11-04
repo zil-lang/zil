@@ -1062,17 +1062,20 @@ fn owning_store_replacement_raw_and_wire_rebuild_description_liveness_and_parent
 }
 
 #[test]
-fn owning_store_nonlocal_invalidation_summary_remains_closed() {
+fn owning_store_parameter_and_product_helper_invalidation_summaries() {
     for helper in [
         "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn main()->i32{let s=empty();store_reserve(s,1);store_push(s,cell(65));replace(s);return 0}",
         "fn replace(v:&mut Cell){v.owner=R{code:90}}fn main()->i32{let s=empty();store_reserve(s,1);store_push(s,cell(65));replace(store_at_mut(s,0));return 0}",
     ] {
-        rejected(
-            &format!("{MODEL}{helper}"),
-            ResultCategory::Unsupported,
-            Phase::Analyze,
-            "summary",
+        let text = format!("{MODEL}{helper}");
+        let report = check(&text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
         );
+        replacement_native(&[("main", &text)], b"AZ", 0);
     }
 }
 
@@ -1142,5 +1145,244 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
         println!(
             "G1.3.1 {stage:?} full-request N={low}; N-1 ResourceLimit; fresh/warm/retry agree"
         );
+    }
+}
+
+#[test]
+fn owning_store_call_invalidation_reaches_relays_live_descriptions_and_failure_cleanup() {
+    let replace = "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn relay(s:Store<Cell>){replace(s)}";
+    let product = "fn replace(v:&mut Cell){v.owner=R{code:90}}fn relay(v:&mut Cell){replace(v)}";
+    for (helpers, body) in [
+        (
+            replace,
+            "let old=store_at(s,0).owner;replace(s);return old.code",
+        ),
+        (
+            replace,
+            "let old=store_at(s,1).owner;let alias=s;relay(alias);return old.code",
+        ),
+        (
+            product,
+            "let v=store_at_mut(s,0);let old=v.owner;replace(v);return old.code",
+        ),
+        (
+            product,
+            "let v=store_at_mut(s,0);let old=v.owner;relay(v);return old.code",
+        ),
+    ] {
+        rejected(
+            &format!("{MODEL}{helpers}fn main()->i32{{{SETUP}{body}}}"),
+            ResultCategory::SafeReject,
+            Phase::Analyze,
+            "live element resource description",
+        );
+    }
+    let relay = format!(
+        "{MODEL}{replace}fn main()->i32{{{SETUP}relay(s);return store_at(s,0).owner.code-90}}"
+    );
+    replacement_native(&[("main", &relay)], b"AZB", 0);
+    let other = format!(
+        "{MODEL}{replace}fn main()->i32{{{SETUP}let t=empty();store_reserve(t,1);store_push(t,cell(67));let old=store_at(t,0).owner;relay(s);return old.code-67}}"
+    );
+    replacement_native(&[("main", &other)], b"ACZB", 0);
+    for (prepared, expected) in [(false, b"XAB".as_slice()), (true, b"CXAB".as_slice())] {
+        let rhs = if prepared {
+            "make(R{code:67},fail()?)"
+        } else {
+            "R{code:fail()?}"
+        };
+        let source = format!(
+            "{MODEL}enum F{{Bad}}fn fail()->F!i32{{return F.Bad()}}fn make(give spare:R,n:i32)->R contract{{result(create)}}{{return R{{code:n}}}}fn replace(s:Store<Cell>)->F!i32{{let v=store_at_mut(s,0);v.owner={rhs};return 0}}fn relay(s:Store<Cell>)->F!i32{{return replace(s)}}fn main()->i32{{{SETUP}match relay(s){{.ok(_)=>{{return 1}},.err(_)=>{{unsafe{{putchar(88)}}return store_at(s,0).owner.code-65}}}}}}"
+        );
+        replacement_native(&[("main", &source)], expected, 0);
+    }
+}
+
+#[test]
+fn owning_store_capture_and_indirect_keep_their_actual_types_boundaries() {
+    for (label, helper, body) in [
+        (
+            "capture",
+            "",
+            "let callback=()=>{let v=store_at_mut(s,0);v.owner=R{code:90};return 0};callback();return 0",
+        ),
+        (
+            "capture-old",
+            "",
+            "let old=store_at(s,0).owner;let callback=()=>{let v=store_at_mut(s,0);v.owner=R{code:90};return 0};callback();return old.code",
+        ),
+        (
+            "indirect-store",
+            "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}",
+            "let callback=replace;callback(s);return 0",
+        ),
+        (
+            "indirect-product",
+            "fn replace(v:&mut Cell){v.owner=R{code:90}}",
+            "let v=store_at_mut(s,0);let callback=replace;callback(v);return 0",
+        ),
+    ] {
+        let text = format!("{MODEL}{helper}fn main()->i32{{{SETUP}{body}}}");
+        let report = check(&text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{label}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.message.contains(
+                if label.starts_with("capture") {
+                    "Store capture requires an owned carrier"
+                } else {
+                    "function pointer parameters and result require pure Copy values"
+                }
+            )),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn owning_store_call_raw_and_wire_recompute_instance_invalidation() {
+    use zil_ir::InstructionKind as I;
+    for (label, helpers, body, called, changed, code) in [
+        (
+            "store-param",
+            "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}",
+            "let old=store_at(s,0).owner;let n=old.code;replace(s);return n-65",
+            "replace",
+            "main",
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "store-relay",
+            "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn relay(s:Store<Cell>){replace(s)}",
+            "let old=store_at(s,0).owner;let n=old.code;relay(s);return n-65",
+            "relay",
+            "main",
+            "E-BORROW-CONFLICT",
+        ),
+        (
+            "product-param",
+            "fn replace(v:&mut Cell){v.owner=R{code:90}}",
+            "let v=store_at_mut(s,0);let old=v.owner;let n=old.code;replace(v);return n-65",
+            "replace",
+            "main",
+            "E-VERIFY-RESOURCE",
+        ),
+        (
+            "store-param-nonlocal-desc",
+            "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn caller(s:Store<Cell>,old:R)->i32{let n=old.code;replace(s);return n}",
+            "return 0",
+            "replace",
+            "caller",
+            "E-VERIFY-RESOURCE",
+        ),
+        (
+            "store-relay-nonlocal-desc",
+            "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn relay(s:Store<Cell>){replace(s)}fn caller(s:Store<Cell>,old:R)->i32{let n=old.code;relay(s);return n}",
+            "return 0",
+            "relay",
+            "caller",
+            "E-VERIFY-RESOURCE",
+        ),
+    ] {
+        let text = format!("{MODEL}{helpers}fn main()->i32{{{SETUP}{body}}}");
+        let (mut module, plan) = candidate(&text);
+        let callee = module
+            .functions
+            .iter()
+            .find(|f| f.name == called)
+            .unwrap()
+            .id;
+        let f = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == changed)
+            .unwrap();
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, I::Call { function, .. } if function == callee))
+            })
+            .unwrap();
+        let first = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, I::ReadDesc { .. }))
+            .unwrap();
+        let end = first
+            + block.instructions[first..]
+                .iter()
+                .position(|i| matches!(i.kind, I::Store { .. }))
+                .unwrap()
+            + 1;
+        let reads = block.instructions.drain(first..end).collect::<Vec<_>>();
+        let call = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, I::Call { function, .. } if function == callee))
+            .unwrap();
+        block.instructions.splice(call + 1..call + 1, reads);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live element resource description")),
+            "{label}: {errors:?}"
+        );
+        reject_candidate(
+            label,
+            module,
+            plan,
+            code,
+            if code == "E-VERIFY-RESOURCE" {
+                "live element resource description"
+            } else {
+                ""
+            },
+        );
+    }
+}
+
+#[test]
+fn owning_store_descriptor_arguments_preserve_actual_entry_apart_checks() {
+    for body in [
+        "let v=store_at_mut(s,0);let old=v.owner;return inspect(v,old)",
+        "return 0",
+    ] {
+        let source = format!(
+            "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn inspect(v:&mut Cell,old:R)->i32{{replace(v);return old.code}}fn main()->i32{{{SETUP}{body}}}"
+        );
+        let report = check(&source);
+        if body == "return 0" {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("simultaneous actual head arguments")),
+                "{}",
+                report.to_json()
+            );
+        }
     }
 }
