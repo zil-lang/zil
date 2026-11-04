@@ -2835,6 +2835,9 @@ fn review329_native(files: &[(&str, &str)], expected: i64) {
     review329_native_output(files, format!("{expected}\n").as_bytes())
 }
 fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
+    review329_native_entry_output(files, "result", expected)
+}
+fn review329_native_entry_output(files: &[(&str, &str)], entry: &str, expected: &[u8]) {
     use zil_driver::{NativeBackend, Optimization};
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -2849,7 +2852,7 @@ fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
                     backend,
                     optimization,
                     stop_after: Stage::Build,
-                    entry: Some("result".into()),
+                    entry: Some(entry.into()),
                     output: Some(directory.0.join("program")),
                     ..CompileOptions::default()
                 },
@@ -6576,7 +6579,38 @@ fn ct4_fixed_phantom_context_source_bridge() {
         "{}",
         report.to_json()
     );
-    review329_native(&[("main", text)], 42);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    for extra in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+    ] {
+        let report = compile_source(&source(extra), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native_entry_output(&[("main", extra)], "main", b"42\n");
+    }
+    let joint = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+    );
+    let wrong = joint.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
     let free = text.replace("Phantom::<'s>", "Phantom::<'free>");
     let report = compile_source(&source(&free), &CompileOptions::default());
     assert_eq!(
