@@ -1534,6 +1534,36 @@ impl<'a> Walker<'a> {
         depth: usize,
     ) -> CompileResult<CoreExpr> {
         self.charge(depth, e.span)?;
+        match &e.kind {
+            CoreExprKind::Literal(..) => self.expr_literal(e, expected, depth),
+            CoreExprKind::NumericConvert { .. } => self.expr_numeric_convert(e, expected, depth),
+            CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(e, expected, depth),
+            CoreExprKind::Ascribed { .. } => self.expr_ascribed(e, expected, depth),
+            CoreExprKind::TypeApply { .. } => self.expr_type_apply(e, expected, depth),
+            CoreExprKind::CompileTime(..) => self.expr_compile_time(e, expected, depth),
+            CoreExprKind::Try(..) => self.expr_try(e, expected, depth),
+            CoreExprKind::Unary { .. } => self.expr_unary(e, expected, depth),
+            CoreExprKind::Binary { .. } => self.expr_binary(e, expected, depth),
+            CoreExprKind::Call { .. } => self.expr_call(e, expected, depth),
+            CoreExprKind::Array(..) => self.expr_array(e, expected, depth),
+            CoreExprKind::Index { .. } => self.expr_index(e, expected, depth),
+            CoreExprKind::Slice { .. } => self.expr_slice(e, expected, depth),
+            CoreExprKind::Tuple(..) => self.expr_tuple(e, expected, depth),
+            CoreExprKind::Member { .. } => self.expr_member(e, expected, depth),
+            CoreExprKind::Record { .. } => self.expr_record(e, expected, depth),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(e, expected, depth),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(e, expected, depth),
+            CoreExprKind::Closure { .. } => self.expr_closure(e, expected, depth),
+            CoreExprKind::If { .. } => self.expr_if(e, expected, depth),
+            _ => self.expr_leaf(e, expected, depth),
+        }
+    }
+    fn expr_literal(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        _depth: usize,
+    ) -> CompileResult<CoreExpr> {
         let kind = match &e.kind {
             CoreExprKind::Literal(constant) => {
                 if let Constant::WideString(units) = constant {
@@ -1558,6 +1588,21 @@ impl<'a> Walker<'a> {
                 }
                 CoreExprKind::Literal(constant.clone())
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_numeric_convert(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::NumericConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_numeric() {
@@ -1568,6 +1613,21 @@ impl<'a> Walker<'a> {
                     target: target.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_integer_convert(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::IntegerConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_integer() {
@@ -1581,6 +1641,21 @@ impl<'a> Walker<'a> {
                     target: target.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_ascribed(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Ascribed { ty, value } => {
                 if !hint_type(
                     ty,
@@ -1599,6 +1674,21 @@ impl<'a> Walker<'a> {
                     value: Box::new(self.expr(value, Some(ty), depth + 1)?),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_type_apply(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
@@ -1617,6 +1707,21 @@ impl<'a> Walker<'a> {
                     type_arguments: type_arguments.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_compile_time(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        match &e.kind {
             CoreExprKind::CompileTime(inner) => {
                 let (value, ty) = self.query(inner, expected, e.span)?;
                 if let crate::CompileTimeValue::Scalar(c) = value {
@@ -1649,18 +1754,43 @@ impl<'a> Walker<'a> {
                     limits: self.limits,
                 }
                 .value(value, &ty, child, e.span, depth + 1)?;
-                return Ok(CoreExpr {
+                Ok(CoreExpr {
                     id: e.id,
                     span: e.span,
                     kind: CoreExprKind::Ascribed {
                         ty,
                         value: Box::new(value),
                     },
-                });
+                })
             }
+            _ => unreachable!("CT source expression dispatch"),
+        }
+    }
+    fn expr_try(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Try(inner) => {
                 CoreExprKind::Try(Box::new(self.expr(inner, None, depth + 1)?))
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_unary(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Unary { op, operand } => CoreExprKind::Unary {
                 op: *op,
                 operand: Box::new(self.expr(
@@ -1673,6 +1803,21 @@ impl<'a> Walker<'a> {
                     depth + 1,
                 )?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_binary(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Binary { op, left, right } => {
                 let left_hint = self.hint(left)?;
                 let hint = if comparison(*op) {
@@ -1688,6 +1833,21 @@ impl<'a> Walker<'a> {
                     right: Box::new(self.expr(right, hint.or(right_hint.as_ref()), depth + 1)?),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_call(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Call { callee, arguments } => {
                 // A new application carries raw type metadata. Bound it before
                 // using its static header or normalizing any argument query.
@@ -1710,6 +1870,21 @@ impl<'a> Walker<'a> {
                     arguments: args,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_array(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Array(items) => CoreExprKind::Array(
                 items
                     .iter()
@@ -1725,10 +1900,40 @@ impl<'a> Walker<'a> {
                     })
                     .collect::<CompileResult<_>>()?,
             ),
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_index(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Index { object, index } => CoreExprKind::Index {
                 object: Box::new(self.expr(object, None, depth + 1)?),
                 index: Box::new(self.expr(index, None, depth + 1)?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_slice(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Slice { object, start, end } => CoreExprKind::Slice {
                 object: Box::new(self.expr(object, None, depth + 1)?),
                 start: start
@@ -1740,12 +1945,42 @@ impl<'a> Walker<'a> {
                     .map(|value| self.expr(value, None, depth + 1).map(Box::new))
                     .transpose()?,
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_tuple(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Tuple(items) => CoreExprKind::Tuple(
                 items
                     .iter()
                     .map(|i| self.expr(i, None, depth + 1))
                     .collect::<CompileResult<_>>()?,
             ),
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_member(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Member {
                 object,
                 member,
@@ -1761,6 +1996,21 @@ impl<'a> Walker<'a> {
                     owner: owner.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_record(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Record { ty, fields } => {
                 self.pattern_type_shape(ty, depth + 1, e.span)?;
                 CoreExprKind::Record {
@@ -1768,6 +2018,21 @@ impl<'a> Walker<'a> {
                     fields: self.fields(fields, depth + 1)?,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_record_update(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 if let Some(ty) = ty {
                     self.pattern_type_shape(ty, depth + 1, e.span)?;
@@ -1778,10 +2043,40 @@ impl<'a> Walker<'a> {
                     fields: self.fields(fields, depth + 1)?,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_sequence(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Sequence { bindings, value } => CoreExprKind::Sequence {
                 bindings: self.fields(bindings, depth + 1)?,
                 value: Box::new(self.expr(value, expected, depth + 1)?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_closure(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Closure {
                 move_capture,
                 parameters,
@@ -1824,6 +2119,21 @@ impl<'a> Walker<'a> {
                     body,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_if(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::If {
                 condition,
                 then_value,
@@ -1833,19 +2143,31 @@ impl<'a> Walker<'a> {
                 then_value: Box::new(self.expr(then_value, expected, depth + 1)?),
                 else_value: Box::new(self.expr(else_value, expected, depth + 1)?),
             },
-            other => {
-                match other {
-                    CoreExprKind::Integer(text)
-                    | CoreExprKind::Float(text)
-                    | CoreExprKind::String(text)
-                    | CoreExprKind::Name(text)
-                    | CoreExprKind::ReceiverMember(text)
-                    | CoreExprKind::Unsupported(text) => self.text(text, Some(e.span))?,
-                    _ => {}
-                }
-                other.clone()
-            }
+            _ => unreachable!("CT source expression dispatch"),
         };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_leaf(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        _depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let original = &e.kind;
+        match original {
+            CoreExprKind::Integer(text)
+            | CoreExprKind::Float(text)
+            | CoreExprKind::String(text)
+            | CoreExprKind::Name(text)
+            | CoreExprKind::ReceiverMember(text)
+            | CoreExprKind::Unsupported(text) => self.text(text, Some(e.span))?,
+            _ => {}
+        }
+        let kind = original.clone();
         Ok(CoreExpr {
             id: e.id,
             kind,

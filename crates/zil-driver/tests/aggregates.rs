@@ -4763,3 +4763,68 @@ fn anonymous_sum_const_associated_and_borrowed_code_compositions() {
         review329_native(&[("main", text)], 42);
     }
 }
+
+#[test]
+fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
+    if let Ok(mode) = std::env::var("ZIL_344_NESTED_CHILD") {
+        std::thread::spawn(move || {
+            let call = match mode.as_str() {
+                "generic" => "same",
+                "conversion" => "i32",
+                "f32" => "f32",
+                "f64" => "f64",
+                _ => "plain",
+            };
+            let result = match mode.as_str() { "f32" => "f32", "f64" => "f64", _ => "i32" };
+            for depth in [32, 64, 96, 112, 124, 126] {
+                let expression = format!("{}0{}", format!("{call}(").repeat(depth), ")".repeat(depth));
+                let text = format!("fn same<T:Copy>(x:T)->T{{return x}}fn plain(x:i32)->i32{{return x}}fn result()->{result}{{return {expression}}}");
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                let expected = if depth == 126 { ResultCategory::ResourceLimit } else { ResultCategory::Success };
+                assert_eq!(report.status, expected, "{mode}/{depth}: {}", report.to_json());
+                assert_eq!(report.verification_runs, usize::from(depth != 126));
+                if depth == 126 { assert_eq!(report.phase, Phase::Parse); }
+                if mode == "plain" && depth == 96 {
+                    for (nodes, n) in [(true, 2348), (false, 197)] {
+                        let mut session = zil_driver::CompilationSession::default();
+                        for cap in [n, n - 1, n] {
+                            let mut options = CompileOptions::default();
+                            if nodes { options.limits.max_nodes = cap; }
+                            else { options.limits.max_call_depth = cap; }
+                            let bounded = session.compile_source(&source(&text), &options);
+                            let expected = if cap == n { ResultCategory::Success } else { ResultCategory::ResourceLimit };
+                            assert_eq!(bounded.status, expected, "nodes={nodes},N={n},cap={cap}: {}", bounded.to_json());
+                        }
+                        let mut options = CompileOptions::default();
+                        if nodes { options.limits.max_nodes = n; }
+                        else { options.limits.max_call_depth = n; }
+                        let fresh = compile_source(&source(&text), &options);
+                        assert_eq!(fresh.status, ResultCategory::Success, "{}", fresh.to_json());
+                    }
+                }
+            }
+        }).join().unwrap();
+        return;
+    }
+    for mode in ["plain", "generic", "conversion", "f32", "f64"] {
+        let child = Command::new("timeout")
+            .args(["-s", "KILL", "90s"])
+            .arg(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "nested_calls_reach_verify_or_resource_limit_on_default_worker_stack",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env("ZIL_344_NESTED_CHILD", mode)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{mode}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+    }
+}

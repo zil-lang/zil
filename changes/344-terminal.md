@@ -214,3 +214,13 @@ The first reference replay failed because those additions had changed that input
 after restoring the original case set and testing additions separately,12/0 pass.
 All-target llvm-api Clippy passed before this reference-fixture-only adjustment;
 Expand lint-equivalent extraction replay passes the complete package.
+
+Final integrated stack repair: unchanged original aggregates106/0; the retained
+nested-call test additionally runs five source families at32/64/96/112/124 on a
+default Rust worker stack and gets Parse ResourceLimit at126. The plain96 source
+also checks exact max_nodes2348/2347 and max_call_depth197/196 on fresh and warm
+sessions. No stack override, source truncation or default quota increase is used.
+All-target llvm-api Clippy passes, with the final added test separately linted.
+The author independently relinked30 child probes and replayed the copied original
+2MiB/raw/Wire/N2520/native4 control; compact source-bound receipt is retained.
+These bounded shapes establish this regression fix, not a theorem for all input.
