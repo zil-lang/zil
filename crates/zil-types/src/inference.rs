@@ -199,6 +199,9 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
         // raw mixed State/callable headers. Its complete cost also bounds the
         // ensuing eligibility traversal; reserve that second use explicitly.
         budget.work(before - budget.work, span)?;
+        borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
+            budget.work(work, span)
+        })?;
         borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
     }
     Ok(())
@@ -909,6 +912,9 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(parameter, depth + 1, span, budget)?;
             }
             validate_type(result, depth + 1, span, budget)?;
+            borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                budget.work(work, span)
+            })?;
             borrowed_fp::relation(parameters, result, life, span)?;
         }
         Type::Named(name) => {

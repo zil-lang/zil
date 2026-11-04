@@ -123,6 +123,11 @@ pub(super) fn validate_template(
                 .chain(std::iter::once(&bound.result))
             {
                 prepay(ty, function.span)?;
+                if !life.classes.is_empty() {
+                    // The full actual qualified signature is consumed again
+                    // by boundary/slot and recursive pointee eligibility.
+                    prepay(ty, function.span)?;
+                }
             }
             borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
         }
@@ -692,6 +697,9 @@ impl Builder<'_, '_> {
                 let work = inference::type_snapshot_work(ty, span, self.limits)?;
                 self.closures.snapshot(work.saturating_mul(2), span)?;
             }
+            borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
+                self.closures.snapshot(work, span)
+            })?;
             borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
         }
         if owned_state {

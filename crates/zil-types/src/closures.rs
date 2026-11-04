@@ -1026,6 +1026,9 @@ impl Graph {
                     self.reserve_type(parameter, depth + 1, span)?;
                 }
                 self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.spend_count(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
@@ -1805,6 +1808,9 @@ impl Inference {
             for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
                 self.graph.reserve_type(ty, 0, span)?;
             }
+            borrowed_fp::qualified_inputs(life, &signature.0, &signature.1, |work| {
+                self.graph.spend_count(work, span)
+            })?;
             borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
             return Ok(signature);
         }

@@ -18,6 +18,8 @@ pub(super) fn relation(
         input_fixed: u32,
         input_invocation: u32,
         grounded: Vec<bool>,
+        mutable_fixed: Vec<bool>,
+        mutable_invocation: Vec<bool>,
         span: Span,
     }
     impl Check<'_> {
@@ -50,7 +52,7 @@ pub(super) fn relation(
             }
             Ok(())
         }
-        fn address(&mut self, base: StorageBase, result: bool) -> R<()> {
+        fn address(&mut self, base: StorageBase, result: bool, mutable: bool) -> R<()> {
             let row = self
                 .life
                 .bindings
@@ -60,7 +62,21 @@ pub(super) fn relation(
                 return Err(self.invalid("wrong or flattened qualified callable borrow position"));
             }
             self.binding += 1;
-            self.binder(row.binder, result, false)
+            let binder = row.binder;
+            self.binder(binder, result, false)?;
+            let allowed = match binder {
+                StorageBinder::Fixed(index) => &mut self.mutable_fixed[index as usize],
+                StorageBinder::Invocation(index) => &mut self.mutable_invocation[index as usize],
+            };
+            if mutable && result && !*allowed {
+                return Err(
+                    self.invalid("exclusive callable result needs a matching mutable direct input")
+                );
+            }
+            if mutable && !result {
+                *allowed = true;
+            }
+            Ok(())
         }
         fn classes(
             &mut self,
@@ -112,8 +128,8 @@ pub(super) fn relation(
         }
         fn ty(&mut self, ty: &Type, base: StorageBase, result: bool) -> R<()> {
             match ty {
-                Type::Address { inner, .. } => {
-                    self.address(base, result)?;
+                Type::Address { inner, mutable } => {
+                    self.address(base, result, *mutable)?;
                     if !self.classes(inner, base, true, result)? && !inner.is_address_pointee() {
                         return Err(unsupported(
                             self.span,
@@ -146,6 +162,8 @@ pub(super) fn relation(
         input_fixed: 0,
         input_invocation: 0,
         grounded: vec![false; life.fixed_binder_count as usize],
+        mutable_fixed: vec![false; life.fixed_binder_count as usize],
+        mutable_invocation: vec![false; life.invocation_binder_count as usize],
         span,
     };
     for (index, parameter) in parameters.iter().enumerate() {
@@ -229,6 +247,38 @@ mod tests {
         assert!(super::relation(&parameters, &Type::I32, &same, Span::default()).is_ok());
         assert!(super::relation(&parameters, &Type::I32, &different, Span::default()).is_ok());
         assert_ne!(same.fingerprint(), different.fingerprint());
+        let mut returns_second = same.clone();
+        returns_second.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Invocation(1),
+        });
+        let mutable_result = Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I64),
+        };
+        assert!(
+            super::relation(
+                &parameters,
+                &mutable_result,
+                &returns_second,
+                Span::default()
+            )
+            .is_err()
+        );
+        let mut mutable_parameters = parameters.clone();
+        mutable_parameters[1] = mutable_result.clone();
+        assert!(
+            super::relation(
+                &mutable_parameters,
+                &mutable_result,
+                &returns_second,
+                Span::default()
+            )
+            .is_ok()
+        );
         for n in 0..5 {
             let mut bad = same.clone();
             match n {

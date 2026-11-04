@@ -1413,6 +1413,9 @@ impl Resolver<'_> {
                     borrowed_fp::metadata_work(life),
                     span,
                 )?;
+                borrowed_fp::qualified_inputs(life, &parameters, &result, |work| {
+                    aggregate_templates::spend(&mut self.remaining, work, span)
+                })?;
                 borrowed_fp::relation(&parameters, &result, life, span)?;
                 Type::BorrowedFunctionPointer {
                     parameters,
