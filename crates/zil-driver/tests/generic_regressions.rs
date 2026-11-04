@@ -3372,14 +3372,14 @@ fn registration343_returned_stable_owner_native_and_failures() {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
-            for two in [false, true] {
+            for (two, composed) in [(false, false), (true, false), (false, true)] {
                 let fixture = if two {
                     fixture.with_file_name("registration-two-observer.c")
                 } else {
                     fixture.clone()
                 };
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-registration-{}-{backend:?}-{optimization:?}-{two}",
+                    "zil343-registration-{}-{backend:?}-{optimization:?}-{two}-{composed}",
                     std::process::id()
                 ));
                 fs::create_dir_all(&dir).unwrap();
@@ -3396,7 +3396,11 @@ fn registration343_returned_stable_owner_native_and_failures() {
                 fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
                 fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
                 for default_drop in [false, true] {
-                    let text = if two {
+                    let text = if composed {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-composed.zil"
+                        )
+                    } else if two {
                         include_str!(
                             "../../../tests/language-readiness/terminal/343/registration-two.zil"
                         )
@@ -3842,4 +3846,64 @@ fn registration343_source_library_preserves_actual_returned_environment() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries() {
+    let positive =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-composed.zil");
+    let report = compile_source(&source(positive), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    for (name, text) in [
+        (
+            "address",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-address-capture.zil"
+            ),
+        ),
+        (
+            "desc",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-desc-capture.zil"
+            ),
+        ),
+        (
+            "slice",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-slice-capture.zil"
+            ),
+        ),
+        (
+            "wrong-root",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-bfp-wrong-result-root.zil"
+            ),
+        ),
+        (
+            "suspend",
+            include_str!(
+                "../../../tests/language-readiness/terminal/343/registration-transitive-suspend.zil"
+            ),
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        eprintln!(
+            "registration composition negative {name}: {}",
+            report.to_json()
+        );
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
 }

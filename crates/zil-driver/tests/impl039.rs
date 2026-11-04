@@ -221,7 +221,8 @@ fn unused_aliases_are_checked_without_erasing_invalid_definitions() {
         );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
-    for text in ["#[doc = \"help\"] type Alias=i64;fn result()->i64=>0"] {
+    {
+        let text = "#[doc = \"help\"] type Alias=i64;fn result()->i64=>0";
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,

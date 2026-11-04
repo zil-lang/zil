@@ -1796,19 +1796,19 @@ impl<'a> Engine<'a> {
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr_expected(inner, env, expected.or(error_context), depth + 1)?
             }
-            ExprKind::Unary { .. } => self.expr_variant_unary(e, env, context, depth)?,
-            ExprKind::Binary { .. } => self.expr_variant_binary(e, env, context, depth)?,
-            ExprKind::Call { .. } => self.expr_variant_call(e, env, context, depth)?,
-            ExprKind::Tuple(..) => self.expr_variant_tuple(e, env, context, depth)?,
-            ExprKind::Array(..) => self.expr_variant_array(e, env, context, depth)?,
-            ExprKind::Member { .. } => self.expr_variant_member(e, env, context, depth)?,
-            ExprKind::Index { .. } => self.expr_variant_index(e, env, context, depth)?,
-            ExprKind::Slice { .. } => self.expr_variant_slice(e, env, context, depth)?,
-            ExprKind::If { .. } => self.expr_variant_if(e, env, context, depth)?,
-            ExprKind::Record { .. } => self.expr_variant_record(e, env, context, depth)?,
+            ExprKind::Unary { .. } => return self.expr_variant_unary(e, env, context, depth),
+            ExprKind::Binary { .. } => return self.expr_variant_binary(e, env, context, depth),
+            ExprKind::Call { .. } => return self.expr_call_normal(e, env, context, depth),
+            ExprKind::Tuple(..) => return self.expr_variant_tuple(e, env, context, depth),
+            ExprKind::Array(..) => return self.expr_variant_array(e, env, context, depth),
+            ExprKind::Member { .. } => return self.expr_variant_member(e, env, context, depth),
+            ExprKind::Index { .. } => return self.expr_variant_index(e, env, context, depth),
+            ExprKind::Slice { .. } => return self.expr_variant_slice(e, env, context, depth),
+            ExprKind::If { .. } => return self.expr_variant_if(e, env, context, depth),
+            ExprKind::Record { .. } => return self.expr_variant_record(e, env, context, depth),
 
-            ExprKind::Closure { .. } => self.expr_variant_closure(e, env, context, depth)?,
-            ExprKind::MetaBlock(..) => self.expr_variant_meta_block(e, env, context, depth)?,
+            ExprKind::Closure { .. } => return self.expr_variant_closure(e, env, context, depth),
+            ExprKind::MetaBlock(..) => return self.expr_variant_meta_block(e, env, context, depth),
             ExprKind::Try(inner) => match self.expr(inner, env, depth + 1)? {
                 Some(TypeRef {
                     kind: TypeKind::Error { result, .. },
@@ -1816,7 +1816,7 @@ impl<'a> Engine<'a> {
                 }) => Some(*result),
                 _ => None,
             },
-            ExprKind::Pipeline { .. } => self.expr_variant_pipeline(e, env, context, depth)?,
+            ExprKind::Pipeline { .. } => return self.expr_variant_pipeline(e, env, context, depth),
             _ => None,
         };
         Ok(result)
@@ -2881,3 +2881,6 @@ mod type_keys;
 #[path = "generic_expr_variants.rs"]
 mod expr_variants;
 use expr_variants::ExprExpectedContext;
+
+#[path = "generic_expr_call.rs"]
+mod expr_call;

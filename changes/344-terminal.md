@@ -194,3 +194,11 @@ native backend/optimization runs; original budget checks remain unchanged.
 A wider ordinary/generic nested-call probe still finds an additional32-call
 stack failure in the call-planning helper. It is preserved and under repair;
 this checkpoint does not claim all bounded source shapes are stack-safe.
+
+Integrated recursive-call follow-up: preserve evaluation/constraint/charging
+order while moving pre/post-call work out of the recursive argument frame, and
+split Budget expression variant handling. The original aggregate target passes
+106/0 on the default test-thread stack, and composed Registration passes7/0.
+The author Expand-only probes accept bounded nested ordinary/generic/conversion
+calls through124, with parser ResourceLimit at126/128; the full-driver replay is
+still required and is not inferred from those Expand-only probes.

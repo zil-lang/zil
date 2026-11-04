@@ -68,8 +68,10 @@ fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
 #[test]
 fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
     for width in [32, 64] {
-        let mut target = zil_base::TargetProfile::default();
-        target.pointer_width = width;
+        let target = zil_base::TargetProfile {
+            pointer_width: width,
+            ..Default::default()
+        };
         for text in [
             "trait C{const N:usize=4294967296usize;}fn main(){}",
             "trait C{const N:(((usize)))=(((4294967295usize+1usize)));}fn main(){}",
@@ -578,8 +580,10 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
     for width in [32, 64] {
-        let mut target = zil_base::TargetProfile::default();
-        target.pointer_width = width;
+        let target = zil_base::TargetProfile {
+            pointer_width: width,
+            ..Default::default()
+        };
         let report = compile_project(
             &project(&[
                 (
