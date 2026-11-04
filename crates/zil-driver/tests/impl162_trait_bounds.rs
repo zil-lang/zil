@@ -15,6 +15,186 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_code() {
+    use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
+    let unit = source(include_str!(
+        "../../../tests/language-readiness/terminal/341/trait-call-shared-spans.zil"
+    ));
+    let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let function = ast
+        .items
+        .iter_mut()
+        .find_map(|item| match &mut item.kind {
+            ItemKind::Function(f) if f.name == "choose" => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    let FunctionBody::Block(block) = &mut function.body else {
+        unreachable!()
+    };
+    let StmtKind::Return(Some(expression)) = &mut block.statements[0].kind else {
+        unreachable!()
+    };
+    let ExprKind::Binary { left, right, .. } = &mut expression.kind else {
+        unreachable!()
+    };
+    fn receiver(expression: &mut zil_syntax::ast::Expr) -> &mut zil_syntax::ast::Expr {
+        let ExprKind::Call { callee, .. } = &mut expression.kind else {
+            unreachable!()
+        };
+        let ExprKind::Member { object, .. } = &mut callee.kind else {
+            unreachable!()
+        };
+        object
+    }
+    receiver(right).span = receiver(left).span;
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    let verified = zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "341-shared-span-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+            options.backend = backend;
+            options.optimization = optimization;
+            let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+            assert_eq!(artifact.codegen.backend, backend);
+            assert!(artifact.codegen.fallback.is_none());
+            let output = Command::new(&artifact.executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(output.stdout.is_empty());
+            assert!(output.stderr.is_empty());
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/generic-impls.zil"),
+        "fn id(x:i32)->i32{return x}trait Read{fn read(self:&Self)->i32;}struct Box<F:Copy>{value:F}impl<T:Copy> Read for Box<fn(T)->i32>{fn read()->i32{return 7}}fn main()->i32{let p=Box::<fn(i32)->i32>{value:id};return p.read()-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<(T,T)>{fn read()->i32{return 7}}impl Read for Box<(i32,bool)>{fn read()->i32{return 8}}fn main(){}",
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-impl-trait-instances.zil"
+        ),
+        "trait Left<Tag>{fn left(self:&Self)->i32;}trait Right<Tag>{fn right(self:&Self)->i32;}trait Run{fn run(self:&Self)->i32;}struct P{}impl Left<i32> for P{fn left()->i32{return 7}}impl Right<i32> for P{fn right()->i32{return 11}}struct Box<T:Copy>{value:T}impl<T:Copy> Run for Box<T> where T:Left<i32>+Right<i32>{fn run()->i32{return .value.left()+.value.right()}}fn main()->i32{let p=Box::<P>{value:P{}};return p.run()-18}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn main()->i32{let p=Box::<i32>{value:3,n:7};return p.read()-7}",
+        "trait Base{fn base(self:&Self)->i32;}trait Read:Base{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Base for Box<T>{fn base()->i32{return .n}}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()+p.base()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-14}",
+        "trait Base{fn base(self:&Self)->i32;}trait Read{fn read(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T> where T:Base{fn read(self:&Self)->i32{return self.value.base()}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<P>{value:P{n:7}};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return self.n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<bool>{value:true,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T> Read for Box<T> where T:Copy{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-impl-unused-invalid.zil"
+        ),
+        "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<fn(T)->i32>{}impl<U:Copy> Read for Box<fn(i32)->U>{}fn main(){}",
+        include_str!("../../../tests/language-readiness/terminal/341/generic-impl-cycle.zil"),
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return 1}}impl Read for Box<i32>{fn read(self:&Self)->i32{return 2}}fn main(){}",
+        "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy,U> Read for Box<T>{}fn main(){}",
+        "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{}impl<U:Copy> Read for Box<U>{}fn main(){}",
+        "trait Base{}trait Read:Base{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{}fn consume<T:Read>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        "trait Base{}trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T> where T:Base{}fn consume<T:Read>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        "trait Grow{}struct Box<T:Copy>{value:T}impl<T:Copy> Grow for Box<T> where Box<T>:Grow{}fn consume<T:Grow>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        "trait Base<T>{}trait Child:Base<Missing>{}fn main(){}",
+        "resource R{n:i32}trait Base<T:Copy>{}trait Child:Base<R>{}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_impl_growth_is_bounded_and_declared_applied_premises_are_symbolic() {
+    let report = compile_source(
+        &source(
+            "trait Grow{}struct Box<T:Copy>{value:T}impl<T:Copy> Grow for Box<T> where Box<Box<T>>:Grow{}fn consume<T:Grow>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        ),
+        &CompileOptions {
+            limits: Limits {
+                max_analysis_steps: 12000,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::ResourceLimit,
+        "{}",
+        report.to_json()
+    );
+    for text in [
+        "trait Base{fn base(self:&Self)->i32;}trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl Base for Box<i32>{fn base()->i32{return 7}}impl<T:Copy> Read for Box<T> where Box<T>:Base{fn read(self:&Self)->i32{return self.base()}}fn main()->i32{let p=Box::<i32>{value:3};return p.read()-7}",
+        "trait Grow{}struct Box<T:Copy>{value:T}impl<T:Copy> Grow for Box<T> where Box<T>:Grow{}fn main(){}",
+        "struct R{n:i32}trait Base<T:Copy>{}trait Child:Base<R>{}fn main(){}",
+        "trait Base<T:Copy>{}trait Child:Copy+Base<Self>{}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait Base<T>{}trait Child:Base<Missing>{}fn main(){}",
+        "resource R{n:i32}trait Base<T:Copy>{}trait Child:Base<R>{}fn main(){}",
+        "resource R{n:i32}struct Box<T:Copy>{value:T}trait Base<T>{}trait Child:Base<Box<R>>{}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    }
+}
+
+#[test]
 fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
     for text in [
         "trait Base{fn base(self:&Self)->i32;}trait Child:Base{fn child(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}impl Child for P{fn child()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.base()+p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-14}",
@@ -109,6 +289,8 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         include_str!("../../../tests/language-readiness/terminal/341/supertraits.zil");
     let const_source =
         include_str!("../../../tests/language-readiness/terminal/341/const-match-shadow.zil");
+    let impl_source =
+        include_str!("../../../tests/language-readiness/terminal/341/generic-impls.zil");
     let unit = source(super_source);
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -129,6 +311,101 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
     native_both(&[("main", super_source)]);
+    native_both(&[("main", impl_source)]);
+    native_both(&[(
+        "main",
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-impl-trait-instances.zil"
+        ),
+    )]);
+    native_both(&[
+        (
+            "main",
+            "import model;import rules;fn main()->i32{let p=model.make();return rules.consume(&p)-7}",
+        ),
+        (
+            "rules",
+            "pub trait Read{fn read(self:&Self)->i32;}pub fn consume<T:Read>(p:&T)->i32{return p.read()}",
+        ),
+        (
+            "model",
+            "import rules;pub struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> rules.Read for Box<T>{fn read()->i32{return .n}}pub fn make()->Box<i32>{return Box::<i32>{value:3,n:7}}",
+        ),
+    ]);
+    let orphan = compile_project(
+        &project(&[
+            (
+                "main",
+                "import model;import rules;struct Local{}impl<T:Copy> rules.Read for model.Box<T>{}fn main(){}",
+            ),
+            ("rules", "pub trait Read{}"),
+            ("model", "pub struct Box<T:Copy>{value:T}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        orphan.status,
+        ResultCategory::SafeReject,
+        "{}",
+        orphan.to_json()
+    );
+    assert!(
+        orphan.diagnostics[0].message.contains("outer Self"),
+        "{}",
+        orphan.to_json()
+    );
+    let impl_unit = source(impl_source);
+    let impl_ast = zil_syntax::parse(&impl_unit).into_result().unwrap();
+    let expand_at = |work| {
+        zil_expand::expand_with_map_limits(
+            &impl_unit,
+            &impl_ast,
+            &Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match expand_at(middle) {
+            Ok(_) => high = middle,
+            Err(errors) => {
+                assert_eq!(
+                    errors[0].category,
+                    ResultCategory::ResourceLimit,
+                    "{errors:?}"
+                );
+                low = middle + 1;
+            }
+        }
+    }
+    assert!(expand_at(low).is_ok());
+    assert!(expand_at(low).is_ok());
+    assert_eq!(
+        expand_at(low - 1).unwrap_err()[0].category,
+        ResultCategory::ResourceLimit
+    );
+    eprintln!("341 generic-impl Expand work N={low}; N-1 ResourceLimit; fresh N identical");
+    let impl_core = zil_expand::expand(&impl_unit, &impl_ast).unwrap();
+    let impl_typed = zil_types::check(
+        &impl_core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let impl_plan = zil_analyze::analyze(&impl_typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        impl_typed.clone(),
+        impl_plan.clone(),
+        &impl_typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let impl_wire =
+        zil_ir::wire::encode_module_candidate(&impl_typed, &impl_plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&impl_wire, &impl_typed.target, &Limits::default()).unwrap();
     native_both(&[
         (
             "main",
@@ -146,6 +423,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     for (label, text) in [
         ("supertrait", super_source),
         ("const-match-shadow", const_source),
+        ("generic-impl", impl_source),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {

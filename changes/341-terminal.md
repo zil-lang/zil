@@ -62,3 +62,33 @@ impl witnesses, inherited ordinary methods/defaults, structural Copy premises,
 diamonds, cross-module identity, actual cycles, and bounded nonrepeating growth.
 Generic/conditional impl heads, symbolic associated projections, general const
 CT expressions, and generic methods remain active implementation work.
+
+The next source milestone adds first-order applied nominal impl recipes and
+conditional inline/where premises. Matching, overlap unification and occurs
+checks agree on the admitted type constructors, including function, error,
+optional, tuple, reference and fixed-array terms. Coherence compares heads
+independently of premises. A selected recipe proves its complete premise tree
+before publishing a witness; exact active goal cycles reject, while growing
+where subjects exhaust the ordinary deterministic budget. Unused impl methods
+are checked symbolically under their declared premises, including shorthand
+receiver bodies. Materialization emits existing ordinary concrete impls/calls.
+Foreign trait plus foreign outer Self cannot gain ownership through a local
+argument. Blanket/primitive/enum impls and broader ownership composition remain
+explicit gaps.
+
+Trait-call rewrite identity is now an ordinal from one declaration's structural
+expression traversal. A temporary address lookup maps a borrowed expression to
+that ordinal; neither persisted dispatch identity nor clone replay uses source
+coordinates. A retained generated-AST control gives two receivers the same Span
+and checks their different method results through Wire and both native backends
+at O0/O2. Required signature products use trait instance, actual Self and member
+name, allowing multiple concrete instances of one generic impl without span
+collisions. Independent review also prompted charged binder/member scans,
+inherited argument formation checks and structural Self-premise admission.
+
+This milestone does not complete associated types/constants, symbolic trait
+argument composition, generic methods, general const expressions or unsigned
+const domains. The limited existing targets pass 19 + 52 tests with LLVM API;
+exact Expand/request and cold/warm/fresh/persisted-cache boundaries are recorded
+in the receipt. Rust runtime/RSS, maintenance comparison, compile-cost comparison
+and the product-gates conjunction remain unmeasured.

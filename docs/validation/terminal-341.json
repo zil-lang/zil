@@ -1,7 +1,7 @@
 {
   "task": "341",
   "status": "MilestoneInProgress",
-  "scope": "Typed scalar const function parameters, fixed arrays, scoped const/module identity and concrete supertrait proof-before-commit; general impl/projection/method work remains in progress",
+  "scope": "Typed scalar const functions and scoped identities; concrete supertraits plus first-order nominal impl recipes, conditional premises, coherence and declaration-local dispatch identities; associated projections and generic methods remain active work",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "commands": [
     "cargo check -p zil-expand --quiet",
@@ -10,10 +10,10 @@
     "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture"
   ],
   "observed": {
-    "targeted_feature_tests_passed": 6,
+    "targeted_feature_tests_passed": 9,
     "existing_test_targets_with_llvm_api": {
       "generics": 19,
-      "impl162_trait_bounds": 49,
+      "impl162_trait_bounds": 52,
       "failed": 0,
       "ignored": 0,
       "filtered": 0
@@ -26,12 +26,12 @@
     "generated_ast_shared_span_control": "Pass, declaration-scoped const ordinals remain distinct",
     "typed_analyze_verify": "Pass",
     "wire_independent_verify": "Pass",
-    "clang_native_O0_O2": "Pass, local and project const/supertrait consumers",
-    "llvm_api_native_O0_O2": "Pass, local and project const/supertrait consumers; no fallback",
+    "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch",
+    "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback",
     "expand_const_exact_steps": 1256,
     "request_supertrait": {
-      "work": 3197,
-      "nodes": 826
+      "work": 3262,
+      "nodes": 853
     },
     "request_const_match_shadow": {
       "work": 2414,
@@ -39,28 +39,37 @@
     },
     "N_minus_1": "ResourceLimit for every listed ledger",
     "cold_warm_fresh_N": "Pass",
-    "persisted_cache": "Hit with verification_runs=1 for both supertrait and const-shadow source",
+    "persisted_cache": "Hit with verification_runs=1 for supertrait, const-shadow and generic-impl retained sources",
     "active_repeated_supertrait_cycles": "SafeReject",
     "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
     "old_controls": {
       "copy_record_work": 863,
       "old_unbound_work": 319,
       "primitive_binder_work": 1850
-    }
+    },
+    "expand_generic_impl_exact_steps": 5282,
+    "request_generic_impl": {
+      "work": 6271,
+      "nodes": 1784
+    },
+    "generic_impls": "Pass: nominal applied heads, inline and direct/applied where premises, concrete/generic superclass proof, unused method definitions, overlap and unconstrained binders, ordered fixed trait instances, function constructor matching/coherence, project foreign-trait/local-Self and foreign-trait/foreign-outer-Self rejection",
+    "impl_cycles": "Repeated active goal SafeReject; nonrepeating growing where subject ResourceLimit at work12000; unused generic conditional definitions checked under their declared bounds",
+    "trait_dispatch_shared_span": "Pass: two distinct generic trait method targets whose receiver expressions share source Span; raw AST -> Types/Analyze/Verify/Wire and actual Clang/LLVM API O0/O2",
+    "supertrait_argument_formation": "Pass: unknown actual, non-Copy actual with Copy premise and nested Box<R> failure; nearest ordinary struct and Self from declared Copy premise success"
   },
   "remaining": [
     "Target usize/u64 const domains await shared type consumer integration",
     "General verified CT expression arguments and const inference",
     "Aggregate/enum/trait const parameter consumers and mixed lifetime/const support",
     "Associated types/constants and bound-supported symbolic projections",
-    "First-order generic/conditional impl selection and general coherence",
-    "Generic methods and generic supertrait argument obligations",
+    "Symbolic trait argument obligations, blanket/primitive/enum impls and broader local-trait/foreign-Self ownership cases",
+    "Generic methods and generic supertrait argument composition",
     "Independent review of the latest exact source milestone"
   ],
   "rust_goals": {
-    "safety": "Unused const definitions use symbolic immutable scalar parameters; downstream Types/Analyze/Verify and Wire verification were executed",
+    "safety": "Unused generic impl methods are checked under declared inline/where bounds; candidates prove their premise trees before materialization, dispatch uses declaration-local expression ordinals; actual downstream Types/Analyze/Verify/Wire replayed",
     "runtime_memory": "Existing static calls and fixed arrays reach native code; no runtime dictionary introduced; Rust runtime/RSS comparison NotRun",
-    "expression_maintenance": "Explicit typed const forwarding and fixed-array function reuse now compose; full framework maintenance comparison NotRun",
+    "expression_maintenance": "Nominal generic impls and conditional bounds now compose with existing static methods; associated/generic-method framework use remains incomplete and full Rust maintenance comparison NotRun",
     "compile_cost": "Request limits unchanged; exact N/N-1/fresh boundary measured; Rust compile-cost comparison NotRun",
     "breakthrough": "Incremental source expressiveness only; product-gates conjunction and terminal completion remain unestablished"
   },
@@ -71,15 +80,15 @@
     "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
   },
   "identity": {
-    "production_rust_path_nul_bytes_nul_sha256": "77466b65416d58cac7ca92b18cefbda6954d49aebe7e55d9b254035c04486ac0",
-    "test_rust_path_nul_bytes_nul_sha256": "d9302126eecf558fb86b5362d2042cff070c69ddca771de1242ecc8fc76390ce",
+    "production_rust_path_nul_bytes_nul_sha256": "da0e7958457bc06780c2843dfaaa3c15418ca989e24157050c61578ec9f12f09",
+    "test_rust_path_nul_bytes_nul_sha256": "654d9a3449041119dfd7191338d44689a58b84d06d1b8b2ae55cfad3cd492655",
     "executables": {
-      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "e784b1cb9e400b22aadbac750e74915758a214db1b57120307a504f74f636cc7",
-      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "dc5e58f22981bd5674e849ccd4f5d6afc35b52a1ad1b20ca0cfbb8f96229bbb1"
+      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "e51b6cc60ccb32c7f8fff8e26e2651ac034eba55520509019125595d1129da07",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "06825b864b52e0dcc5b268e8cc1fd18561d6b3f25f6a14833e0293d656cd67ad"
     },
-    "algorithm": "SHA-256 of sorted repository-relative UTF-8 path, NUL, exact file bytes, NUL for each selected path",
+    "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
     "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
-    "production_file_count": 305,
+    "production_file_count": 307,
     "test_selection": [
       "crates/zil-driver/tests/generics.rs",
       "crates/zil-driver/tests/impl162_trait_bounds.rs"

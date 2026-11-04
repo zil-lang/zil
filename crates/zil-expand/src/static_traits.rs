@@ -459,13 +459,34 @@ impl<'a> Expander<'a> {
                                 }
                             }
                         }
-                        let result = if let Some(actual) = actual
-                            && let Some(frozen) = signatures.get(&(item.span, actual.span))
+                        let identity_key = match trait_instances::copy_key(
+                            &reference.key,
+                            &mut meter,
+                            member.span,
+                        ) {
+                            Ok(key) => key,
+                            Err(error) => {
+                                self.diagnostics.push(error);
+                                return;
+                            }
+                        };
+                        if let Err(error) = meter.text(host_name, item.span) {
+                            self.diagnostics.push(error);
+                            return;
+                        }
+                        if let Some(actual) = actual
+                            && let Err(error) = meter.text(&actual.name, actual.span)
                         {
-                            if frozen.key != reference.key
-                                || frozen.host != host_name
-                                || frozen.declaration != member.span
-                            {
+                            self.diagnostics.push(error);
+                            return;
+                        }
+                        let result = if let Some(actual) = actual
+                            && let Some(frozen) = signatures.get(&(
+                                identity_key,
+                                host_name.to_owned(),
+                                actual.name.clone(),
+                            )) {
+                            if frozen.key != reference.key || frozen.host != host_name {
                                 Err(Diagnostic::error(
                                     Phase::Expand,
                                     "E-TRAIT-SIGNATURE",

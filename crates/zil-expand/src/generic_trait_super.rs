@@ -2,11 +2,17 @@
 //! implementation evidence set until every inherited premise has been proved.
 use super::*;
 
+#[derive(Clone, Copy)]
+enum Host<'a> {
+    Name(&'a str),
+    Type(&'a TypeRef),
+}
+
 impl<'a> Index<'a> {
     fn inherited(
         &self,
         reference: &trait_instances::Reference,
-        host: Option<&str>,
+        host: Option<Host<'_>>,
         budget: &mut Budget<'_>,
     ) -> R<Vec<Bound>> {
         let (_, declaration) = self.declarations[reference.key.name.as_str()];
@@ -16,8 +22,17 @@ impl<'a> Index<'a> {
         let mut substitutions = BTreeMap::new();
         if let Some(host) = host {
             budget.text("Self", reference.key.declaration)?;
-            budget.text(host, reference.key.declaration)?;
-            substitutions.insert("Self".to_owned(), named(host, reference.key.declaration));
+            let actual = match host {
+                Host::Name(name) => {
+                    budget.text(name, reference.key.declaration)?;
+                    named(name, reference.key.declaration)
+                }
+                Host::Type(ty) => {
+                    budget.ty(ty)?;
+                    ty.clone()
+                }
+            };
+            substitutions.insert("Self".to_owned(), actual);
         }
         for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
             budget.text(&parameter.name, actual.span)?;
@@ -54,6 +69,23 @@ impl<'a> Index<'a> {
         span: Span,
         host: Option<&str>,
     ) -> R<Vec<Bound>> {
+        self.super_bounds_host(roots, budget, span, host.map(Host::Name))
+    }
+    pub(super) fn super_bounds_type(
+        &self,
+        roots: &[Bound],
+        budget: &mut Budget<'_>,
+        subject: &TypeRef,
+    ) -> R<Vec<Bound>> {
+        self.super_bounds_host(roots, budget, subject.span, Some(Host::Type(subject)))
+    }
+    fn super_bounds_host(
+        &self,
+        roots: &[Bound],
+        budget: &mut Budget<'_>,
+        span: Span,
+        host: Option<Host<'_>>,
+    ) -> R<Vec<Bound>> {
         fn visit(
             index: &Index<'_>,
             bound: &Bound,
@@ -62,7 +94,7 @@ impl<'a> Index<'a> {
             budget: &mut Budget<'_>,
             span: Span,
             depth: usize,
-            host: Option<&str>,
+            host: Option<Host<'_>>,
         ) -> R<()> {
             budget.node(span, depth)?;
             if let Bound::Nominal(reference) = bound {
@@ -150,7 +182,52 @@ impl<'a> Index<'a> {
             };
             budget.ty(&application)?;
             let root = trait_instances::arguments(item.span, declaration, &application, budget)?;
+            // A declared inherited application must be valid under its own
+            // binders, including when no implementation is ever requested.
+            let mut available = Bounds::new();
+            let mut variables = BTreeSet::from(["Self".to_owned()]);
+            for parameter in &declaration.generics {
+                budget.node(parameter.span, 0)?;
+                budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+                let mut structural = Vec::new();
+                if let GenericParamKind::Type(bounds) = &parameter.kind {
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                        if copy::is_bound(bound) {
+                            structural.push(Bound::Copy);
+                        }
+                        if stores::is_bound(bound) {
+                            structural.push(Bound::StoreElement);
+                        }
+                    }
+                }
+                available.insert(parameter.name.clone(), structural);
+            }
+            let mut self_structural = Vec::new();
+            for bound in &declaration.bounds {
+                if copy::is_bound(bound) {
+                    self_structural.push(Bound::Copy);
+                }
+                if stores::is_bound(bound) {
+                    self_structural.push(Bound::StoreElement);
+                }
+            }
+            if !self_structural.is_empty() {
+                budget.text("Self", item.span)?;
+                available.insert("Self".into(), self_structural);
+            }
+            for bound in &declaration.bounds {
+                if copy::is_bound(bound) || stores::is_bound(bound) {
+                    continue;
+                }
+                let inherited = self.pattern_reference(bound, budget)?;
+                self.reference_arguments(&inherited, &available, &variables, budget)?;
+            }
             self.super_bounds(&[Bound::Nominal(root)], budget, item.span, Some("Self"))?;
+        }
+        if !self.recipes.is_empty() {
+            return Ok(());
         }
         let candidates = std::mem::take(&mut self.implementations);
         let mut active = BTreeSet::new();
@@ -188,7 +265,7 @@ impl<'a> Index<'a> {
             return Err(error(span, "active supertrait implementation cycle"));
         }
         let reference = self.actual_reference(key, budget, span)?;
-        for bound in self.inherited(&reference, Some(host), budget)? {
+        for bound in self.inherited(&reference, Some(Host::Name(host)), budget)? {
             match bound {
                 Bound::Copy => copy::require(
                     &named(host, span),
