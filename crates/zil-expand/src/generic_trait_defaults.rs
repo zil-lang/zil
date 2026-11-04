@@ -161,7 +161,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<BTreeMap<usize, String>> {
+    ) -> R<trait_instances::CallTargets> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
@@ -389,7 +389,7 @@ impl Engine<'_> {
             let mut body = member.clone();
             substitute_item(&mut body, &substitutions)?;
             let calls = self.check_default(declaration, &body, &reference, false)?;
-            trait_instances::rewrite_calls(&mut body, &calls, &mut self.budget)?;
+            trait_instances::rewrite_calls(&mut body, &calls, &BTreeMap::new(), &mut self.budget)?;
             self.budget.text("Self", span)?;
             self.budget.ty(&implementation.target)?;
             substitutions.clear();

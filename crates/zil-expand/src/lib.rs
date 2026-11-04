@@ -155,7 +155,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -260,7 +260,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
-    trait_method_names: &BTreeMap<(Span, Span), String>,
+    trait_method_names: &BTreeMap<(usize, usize), String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -291,19 +291,20 @@ fn source_exports(
     let functions: std::collections::BTreeMap<_, _> = core
         .functions
         .iter()
-        .map(|f| ((f.name.clone(), f.span), f.id))
+        .map(|f| (f.name.clone(), f.id))
         .collect();
     let mut result = Vec::new();
-    let mut add = |f: &s::Function, prefix: Option<&str>, implementation: Option<Span>| {
-        let target = implementation
-            .and_then(|owner| trait_method_names.get(&(owner, f.span)))
-            .unwrap_or(&f.name);
-        let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
-        if let Some(id) = functions.get(&(name, f.span)) {
-            result.push(*id);
-        }
-    };
-    for item in &module.items {
+    let mut add =
+        |f: &s::Function, prefix: Option<&str>, implementation: Option<(usize, usize)>| {
+            let target = implementation
+                .and_then(|identity| trait_method_names.get(&identity))
+                .unwrap_or(&f.name);
+            let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
+            if let Some(id) = functions.get(&name) {
+                result.push(*id);
+            }
+        };
+    for (item_ordinal, item) in module.items.iter().enumerate() {
         match &item.kind {
             s::ItemKind::Function(f) if item.public => add(f, None, None),
             s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
@@ -330,14 +331,14 @@ fn source_exports(
                         public_traits.contains(name.as_str())
                             || imported_public_traits.contains(&name)
                     });
-                for member in &i.members {
+                for (member_ordinal, member) in i.members.iter().enumerate() {
                     if (if i.trait_type.is_some() {
                         public_trait
                     } else {
                         member.public
                     }) && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&owner), Some(item.span));
+                        add(f, Some(&owner), Some((item_ordinal, member_ordinal)));
                     }
                 }
             }
@@ -659,7 +660,8 @@ fn expand_inner_project(
             }
         }
     }
-    for item in &module.items {
+    for (ordinal, item) in module.items.iter().enumerate() {
+        e.source_item_ordinal = ordinal;
         e.item(item, None, None, None);
     }
     if !e.diagnostics.is_empty() {
@@ -716,11 +718,12 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
-    static_trait_impls: BTreeSet<Span>,
+    static_trait_impls: BTreeSet<usize>,
+    source_item_ordinal: usize,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -769,6 +772,7 @@ impl<'a> Expander<'a> {
             project_trait_nodes: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
+            source_item_ordinal: 0,
             source_map: SourceMap::new(module_id),
             node_maps: BTreeMap::new(),
             markers: BTreeMap::new(),
@@ -872,12 +876,14 @@ impl Expander<'_> {
                 if self.resource_drop(i) {
                     return;
                 }
-                if i.trait_type.is_some() && !self.static_trait_impls.contains(&item.span) {
+                if i.trait_type.is_some()
+                    && !self.static_trait_impls.contains(&self.source_item_ordinal)
+                {
                     self.unsupported("trait implementation resolution", item.span)
                 }
                 let name = type_path(&i.target).unwrap_or_else(|| "$unsupported".into());
                 let host = type_ref(&i.target);
-                for m in &i.members {
+                for (member_ordinal, m) in i.members.iter().enumerate() {
                     let inherited = if let Some(trait_type) = &i.trait_type {
                         self.trait_receiver(trait_type, m)
                     } else {
@@ -885,13 +891,17 @@ impl Expander<'_> {
                     };
                     let first = self.functions.len();
                     self.item(m, Some(&name), Some(&host), inherited.as_ref());
-                    if let s::ItemKind::Function(f) = &m.kind
-                        && let Some(target) = self.trait_method_names.get(&(item.span, f.span))
+                    if matches!(m.kind, s::ItemKind::Function(_))
+                        && let Some(target) = self
+                            .trait_method_names
+                            .get(&(self.source_item_ordinal, member_ordinal))
                     {
-                        for function in &mut self.functions[first..] {
-                            if function.span == f.span {
-                                function.name = format!("{name}.{target}");
-                            }
+                        // function() appends its own function after any
+                        // helpers emitted while lowering the body. The result
+                        // of this invocation is independent of source spans.
+                        if self.functions.len() > first {
+                            self.functions.last_mut().expect("emitted method").name =
+                                format!("{name}.{target}");
                         }
                     }
                 }

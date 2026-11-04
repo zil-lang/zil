@@ -168,6 +168,7 @@ impl<'a> Index<'a> {
                     || plain(&i.target).is_none())
             {
                 budget.item(item)?;
+                index.declaration(i.trait_type.as_ref().expect("nominal recipe"), budget)?;
                 index.has_instances = true;
                 index.recipes.push(item);
             }
@@ -412,15 +413,33 @@ impl<'a> Index<'a> {
                         "trait bound resolves to a shadowing type parameter",
                     ));
                 }
-                for parameter in parameters {
-                    if callable::refers(bound, &parameter.name) {
-                        return Err(unsupported(
-                            bound.span,
-                            "trait arguments require concrete types, not lexical type binders",
-                        ));
+                let reference = if parameters.iter().any(|p| callable::refers(bound, &p.name)) {
+                    let mut structural = Bounds::new();
+                    let mut variables = BTreeSet::new();
+                    for parameter in parameters {
+                        budget.node(parameter.span, 0)?;
+                        budget.text(&parameter.name, parameter.span)?;
+                        if let GenericParamKind::Type(bounds) = &parameter.kind {
+                            variables.insert(parameter.name.clone());
+                            let mut supplied = Vec::new();
+                            for bound in bounds {
+                                budget.ty(bound)?;
+                                if copy::is_bound(bound) {
+                                    supplied.push(Bound::Copy);
+                                }
+                                if stores::is_bound(bound) {
+                                    supplied.push(Bound::StoreElement);
+                                }
+                            }
+                            structural.insert(parameter.name.clone(), supplied);
+                        }
                     }
-                }
-                let reference = self.reference(bound, budget)?;
+                    let reference = self.pattern_reference(bound, budget)?;
+                    self.reference_arguments(&reference, &structural, &variables, budget)?;
+                    reference
+                } else {
+                    self.reference(bound, budget)?
+                };
                 if names
                     .iter()
                     .any(|b| matches!(b,Bound::Nominal(r) if r.key==reference.key))
@@ -477,8 +496,24 @@ impl<'a> Index<'a> {
                     self.store_element(actual, available, variables, budget, callback)?;
                     continue;
                 }
+                let mut instantiated;
+                let bound = if found
+                    .keys()
+                    .any(|variable| callable::refers(bound, variable))
+                {
+                    budget.substituted_type(bound, found)?;
+                    instantiated = bound.clone();
+                    Substitution {
+                        substitutions: found,
+                    }
+                    .ty(&mut instantiated);
+                    &instantiated
+                } else {
+                    bound
+                };
                 let declaration = self.declaration(bound, budget)?;
-                let reference = self.reference(bound, budget)?;
+                let reference = self.pattern_reference(bound, budget)?;
+                self.reference_arguments(&reference, available, variables, budget)?;
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
                 })?;
@@ -569,6 +604,47 @@ impl<'a> Index<'a> {
                 format!("method {name} is not provided by the declared trait bounds of {variable}"),
             )
         })
+    }
+
+    pub(super) fn method_reference(
+        &self,
+        bounds: &Bounds,
+        variable: &str,
+        member: &str,
+        target: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<trait_instances::Reference> {
+        let mut selected = None;
+        let expanded;
+        let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
+        let supplied = if self.has_supertraits && !variable.starts_with("\0subject:") {
+            expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
+            expanded.as_slice()
+        } else {
+            supplied
+        };
+        for bound in supplied {
+            budget.node(span, 0)?;
+            let Bound::Nominal(reference) = bound else {
+                continue;
+            };
+            if trait_instances::method_name(reference, member, budget, span)? != target {
+                continue;
+            }
+            trait_instances::copy_key(&reference.key, budget, span)?;
+            for argument in &reference.arguments {
+                budget.ty(argument)?;
+            }
+            if selected.is_some() {
+                return Err(error(
+                    span,
+                    "method target has ambiguous declared trait identity",
+                ));
+            }
+            selected = Some(reference.clone());
+        }
+        selected.ok_or_else(|| error(span, "method target lost its declared trait identity"))
     }
 
     pub(super) fn declaration_item(

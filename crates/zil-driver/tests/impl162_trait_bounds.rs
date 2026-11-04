@@ -15,6 +15,39 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil"),
+        "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=P{};return get::<i32,P>(&p)-7}",
+        "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn relay<U:Copy,V:Read<U>>(p:&V)->U{return get::<U,V>(p)}fn main()->i32{let p=P{};return relay::<i32,P>(&p)-7}",
+        "trait Read<R:Copy>{fn read(self:&Self)->R;}struct Box<T:Copy>{value:T}impl<T:Copy> Read<T> for Box<T>{fn read()->T{return .value}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<i32,Box<i32>>(&p)-7}",
+        "trait Read<R:Copy>{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy,R:Copy> Read<R> for Box<T>{fn read()->i32{return 7}}fn identity<T:Copy>(x:T)->T{return x}fn get<R:Copy,T:Read<R>>(p:&T)->i32{return identity(p.read())}fn main()->i32{let p=Box::<bool>{value:true};return get::<i32,Box<bool>>(&p)-7}",
+        "trait Flag<R>{}struct U{}fn unused<U,T:Flag<U>>(x:&T){}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait Read<R:Copy>{fn read(self:&Self)->R;}fn bad<R:Copy,T:Read<R>>(p:&T)->R{return p.read()+1}fn main(){}",
+        "trait Read<R:Copy>{fn read(self:&Self)->R;}fn bad<R,T:Read<R>>(p:&T)->R{return p.read()}fn main(){}",
+        "trait Read<R>{}struct U{}fn unused<U:Copy,T:Read<U>>(x:&T)->U{return 0}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_code() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
@@ -48,6 +81,30 @@ fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_c
         object
     }
     receiver(right).span = receiver(left).span;
+    let positions = ast
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(position, item)| matches!(item.kind, ItemKind::Impl(_)).then_some(position))
+        .collect::<Vec<_>>();
+    let first_impl_span = ast.items[positions[0]].span;
+    let ItemKind::Impl(first_impl) = &ast.items[positions[0]].kind else {
+        unreachable!()
+    };
+    let first_member_span = first_impl.members[0].span;
+    let ItemKind::Function(first_method) = &first_impl.members[0].kind else {
+        unreachable!()
+    };
+    let first_function_span = first_method.span;
+    ast.items[positions[1]].span = first_impl_span;
+    let ItemKind::Impl(second_impl) = &mut ast.items[positions[1]].kind else {
+        unreachable!()
+    };
+    second_impl.members[0].span = first_member_span;
+    let ItemKind::Function(second_method) = &mut second_impl.members[0].kind else {
+        unreachable!()
+    };
+    second_method.span = first_function_span;
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let typed = zil_types::check(
         &core,
@@ -125,6 +182,13 @@ fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
         ),
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<fn(T)->i32>{}impl<U:Copy> Read for Box<fn(i32)->U>{}fn main(){}",
         include_str!("../../../tests/language-readiness/terminal/341/generic-impl-cycle.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-impl-unknown-trait.zil"
+        ),
+        "struct Box<T>{}impl Missing for Box<i32>{}fn main(){}",
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-impl-builtin-drop.zil"
+        ),
         "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return 1}}impl Read for Box<i32>{fn read(self:&Self)->i32{return 2}}fn main(){}",
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy,U> Read for Box<T>{}fn main(){}",
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{}impl<U:Copy> Read for Box<U>{}fn main(){}",
@@ -291,6 +355,8 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         include_str!("../../../tests/language-readiness/terminal/341/const-match-shadow.zil");
     let impl_source =
         include_str!("../../../tests/language-readiness/terminal/341/generic-impls.zil");
+    let symbolic_source =
+        include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil");
     let unit = source(super_source);
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -312,6 +378,43 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
     native_both(&[("main", super_source)]);
     native_both(&[("main", impl_source)]);
+    native_both(&[("main", symbolic_source)]);
+    native_both(&[
+        (
+            "main",
+            "import model;import rules;fn main()->i32{let p=model.make();if rules.send::<bool,model.Box<bool>>(&p,true){return rules.send::<i32,model.Box<bool>>(&p,7)-7}return 1}",
+        ),
+        (
+            "rules",
+            "pub trait Echo<R:Copy>{fn echo(self:&Self,value:R)->R;}pub fn send<R:Copy,T:Echo<R>>(p:&T,value:R)->R{return p.echo(value)}",
+        ),
+        (
+            "model",
+            "import rules;pub struct Box<T:Copy>{value:T}impl<T:Copy,R:Copy> rules.Echo<R> for Box<T>{fn echo(value:R)->R{return value}}pub fn make()->Box<bool>{return Box::<bool>{value:true}}",
+        ),
+    ]);
+    let symbolic_unit = source(symbolic_source);
+    let symbolic_ast = zil_syntax::parse(&symbolic_unit).into_result().unwrap();
+    let symbolic_core = zil_expand::expand(&symbolic_unit, &symbolic_ast).unwrap();
+    let symbolic_typed = zil_types::check(
+        &symbolic_core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let symbolic_plan = zil_analyze::analyze(&symbolic_typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        symbolic_typed.clone(),
+        symbolic_plan.clone(),
+        &symbolic_typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let symbolic_wire =
+        zil_ir::wire::encode_module_candidate(&symbolic_typed, &symbolic_plan, &Limits::default())
+            .unwrap();
+    zil_verify::verify_module_bytes(&symbolic_wire, &symbolic_typed.target, &Limits::default())
+        .unwrap();
     native_both(&[(
         "main",
         include_str!(
@@ -424,6 +527,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("supertrait", super_source),
         ("const-match-shadow", const_source),
         ("generic-impl", impl_source),
+        ("symbolic-trait-arguments", symbolic_source),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {
@@ -1597,7 +1701,7 @@ fn generic_trait_unused_signatures_and_instantiated_conformance_reject() {
 #[test]
 fn trait_argument_lexical_binders_and_structural_capabilities_are_separate() {
     for source in [
-        "trait Flag<R>{}struct U{}fn unused<U,T:Flag<U>>(x:&T){}fn main(){}",
+        "trait Flag<R>{}struct U{}fn unused<U:Copy,T:Flag<U>>(x:&T)->U{return 0}fn main(){}",
         "trait Flag<R>{}struct P{}impl Flag<&i32> for P{}fn main(){}",
         "trait Flag<R>{}resource R{n:i32}struct P{}impl Flag<R> for P{}fn main(){}",
         "trait Transfer<R>{}struct P{}impl Transfer<i32> for P{}fn main(){}",

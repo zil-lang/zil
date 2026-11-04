@@ -351,6 +351,13 @@ impl<'a> Engine<'a> {
                 Some(witness.item.span),
             ));
         }
+        trait_instances::copy_key(&witness.reference.key, &mut self.budget, witness.item.span)?;
+        for argument in &witness.reference.arguments {
+            self.budget.ty(argument)?;
+        }
+        self.budget.ty(&witness.actual)?;
+        self.realized_references
+            .push((witness.reference.clone(), witness.actual.clone()));
         if matches!(&witness.item.kind, ItemKind::Impl(i) if i.generics.is_empty() && i.where_clause.is_empty() && trait_bounds::plain(&i.target).is_some())
         {
             self.realized_impls.insert(key);
@@ -407,7 +414,12 @@ impl<'a> Engine<'a> {
             if let Some(definition) = self.impl_definitions.get(&(witness.recipe, ordinal))
                 && let Some(calls) = self.trait_calls.get(definition)
             {
-                trait_instances::rewrite_calls(member, calls, &mut self.budget)?;
+                trait_instances::rewrite_calls(
+                    member,
+                    calls,
+                    &witness.substitutions,
+                    &mut self.budget,
+                )?;
             }
             substitute_item(member, &witness.substitutions)?;
         }
@@ -416,6 +428,66 @@ impl<'a> Engine<'a> {
         self.realized_impls.insert(key);
         self.pending.push_back(instance);
         Ok(())
+    }
+
+    pub(super) fn realized_method(
+        &mut self,
+        actual: &TypeRef,
+        target: &str,
+        span: Span,
+    ) -> R<Option<Function>> {
+        let key = type_key(actual, &mut self.budget)?;
+        let mut selected = None;
+        for (reference, host) in &self.realized_references {
+            self.budget.node(span, 0)?;
+            if type_key(host, &mut self.budget)? != key {
+                continue;
+            }
+            let (_, declaration) = self.traits.declaration_item(reference);
+            for member in &declaration.members {
+                self.budget.node(member.span, 0)?;
+                let ItemKind::Function(function) = &member.kind else {
+                    continue;
+                };
+                if trait_instances::method_name(reference, &function.name, &mut self.budget, span)?
+                    != target
+                {
+                    continue;
+                }
+                if selected.is_some() {
+                    return Err(error(
+                        span,
+                        "committed method target has ambiguous trait identity",
+                    ));
+                }
+                if declaration.generics.is_empty() {
+                    self.budget.item(member)?;
+                }
+                let mut signature =
+                    trait_instances::signature(declaration, member, reference, &mut self.budget)?
+                        .into_owned();
+                self.budget.text("Self", span)?;
+                self.budget.ty(actual)?;
+                let substitutions = BTreeMap::from([("Self".into(), actual.clone())]);
+                for parameter in &mut signature.params {
+                    self.budget
+                        .substituted_type(&parameter.ty, &substitutions)?;
+                    Substitution {
+                        substitutions: &substitutions,
+                    }
+                    .ty(&mut parameter.ty);
+                }
+                if let Some(result) = &mut signature.return_type {
+                    self.budget.substituted_type(result, &substitutions)?;
+                    Substitution {
+                        substitutions: &substitutions,
+                    }
+                    .ty(result);
+                }
+                selected = Some(signature);
+            }
+        }
+        Ok(selected)
     }
 
     pub(super) fn realize_bounds(
