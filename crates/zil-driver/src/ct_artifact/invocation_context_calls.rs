@@ -86,6 +86,7 @@ impl FrozenInvocationContext {
             }
             let row = self.call_scope(call, budget)?;
             budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+            self.charge_instance_lookup(&row.raw, budget)?;
             if !self.active.iter().any(|active| active.raw == row.raw) {
                 self.active.reserve_exact(1);
                 self.active.push(row);

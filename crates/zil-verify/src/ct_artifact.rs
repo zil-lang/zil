@@ -32,6 +32,14 @@ pub enum CtScopeParameterKind {
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    /// Request-local inventory bound for the source authority's scope lookup.
+    /// This only prices comparisons; it cannot admit a scope or an actual.
+    /// Authorities without a count use the verifier's conservative artifact
+    /// function/scope inventory bound. The count must include private instances
+    /// that have no row in the emitted ambient scope table.
+    fn active_scope_count(&self) -> Option<usize> {
+        None
+    }
     fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
         None
     }
