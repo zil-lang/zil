@@ -132,6 +132,7 @@ mod tests {
             dyn_vtables: Vec::new(),
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
+            closure_life_contexts: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(7),
             source_fingerprint: Fingerprint::ZERO,

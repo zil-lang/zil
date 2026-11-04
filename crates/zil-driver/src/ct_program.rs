@@ -90,6 +90,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 core: CoreModule {
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
+                    closure_life_contexts: module.core.closure_life_contexts.clone(),
                     dyn_declarations: module.core.dyn_declarations.clone(),
                     dyn_interfaces: module.core.dyn_interfaces.clone(),
                     dyn_vtables: module.core.dyn_vtables.clone(),

@@ -114,6 +114,13 @@ fn signatures(
             "unknown Core schema",
         )]);
     }
+    if !core.closure_life_contexts.is_empty() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Types,
+            "source closure context requires its actual capture formation consumer",
+            None,
+        )]);
+    }
     if !core.unsupported.is_empty() {
         return Err(core
             .unsupported
@@ -3264,6 +3271,7 @@ mod tests {
             dyn_vtables: Vec::new(),
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
+            closure_life_contexts: Vec::new(),
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,

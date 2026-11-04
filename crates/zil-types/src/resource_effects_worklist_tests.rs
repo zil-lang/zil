@@ -45,6 +45,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
         dyn_vtables: Vec::new(),
         life_declarations: Vec::new(),
         life_instances: Vec::new(),
+        closure_life_contexts: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
