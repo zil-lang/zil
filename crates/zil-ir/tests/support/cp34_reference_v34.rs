@@ -1,4 +1,4 @@
-// Independent Vec-based TypedV40 reference for the retained legacy cases.
+// Independent Vec-based TypedV41 reference for the retained legacy cases.
 // New nonempty life/dyn inventories and storage instructions are tested separately.
 // Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
@@ -34,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V40\0"
+        b"ZIL-TYPED-MODULE-V41\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -489,6 +489,20 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             for argument in arguments {
                 encode_u32(b, argument.0);
             }
+        }
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            b.push(133);
+            encode_u32(b, address.0);
+            encode_u32(b, expected.0);
+            encode_u32(b, desired.0);
+            b.push(*success as u8);
+            b.push(*failure as u8);
         }
         InstructionKind::TaskStart { worker, argument } => {
             assert!(v32, "schema31 cannot represent tasks");

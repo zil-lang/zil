@@ -385,7 +385,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V40\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V41\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -514,7 +514,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V40\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V41\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -1908,6 +1908,16 @@ pub enum InstructionKind {
         value: Option<ValueId>,
         ordering: AtomicOrdering,
     },
+    /// Strong conditional RMW on an actual live sealed AtomicI32 cell.
+    /// Result is ordinary Tuple[I32, Bool]: observed value, then exchanged.
+    /// Raw fields carry no root, order compatibility or synchronization proof.
+    SyncI32CompareExchange {
+        address: ValueId,
+        expected: ValueId,
+        desired: ValueId,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    },
     /// Explicit allocation/execution root for a verified scalar Suspend worker.
     TaskStart {
         worker: FunctionId,
@@ -2509,7 +2519,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V40\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V41\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -3532,6 +3542,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, value.0);
             }
             b.push(*ordering as u8);
+        }
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            b.push(133);
+            encode_u32(b, address.0);
+            encode_u32(b, expected.0);
+            encode_u32(b, desired.0);
+            b.push(*success as u8);
+            b.push(*failure as u8);
         }
         InstructionKind::TaskStart { worker, argument } => {
             b.push(99);

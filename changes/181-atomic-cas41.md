@@ -11,3 +11,14 @@ The LLVM model/API/text milestone16ed316d0 is actual machine-level support only.
 Source3-argument SeqCst/SeqCst, independent kernels, decoded Wire, native
 contention and nearest invalid cells/orders remain required before admission.
 No old acceptance receipt, main39 or pending40 result is upgraded by publication.
+
+The isolated public41 transport now passes all87 zil-ir tests (64 library,
+13 independent Vec identity,3 slice Wire,5 byte/scoped Wire,2 value-transfer;
+zero doctests) and lib/tests Clippy with warnings denied. The new raw control
+round-trips all25 enumerated order pairs, preserves three distinct operands and
+both order tags in identity, rejects unknown order bytes and every truncated
+prefix. Raw transport deliberately does not endorse the16 incompatible order
+pairs: actual independent semantic consumers must reject those before execution.
+No runtime producer/kernel/native admission is established by these tests.
+The initial test-only Diagnostic indexing and stale current-envelope assertions
+were corrected; their failed build/test logs remain outside the source tree.
