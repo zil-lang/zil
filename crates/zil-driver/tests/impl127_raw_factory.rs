@@ -23,6 +23,7 @@ fn op(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32, result: Type, locals: &[Type], parameters: &[u32]) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
         name: format!("raw127_{id}"),
@@ -112,6 +113,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     helper.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
     helper.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: CallableKind::Fn,

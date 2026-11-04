@@ -221,6 +221,7 @@ impl materialize::Materializer<'_, '_> {
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 id: NodeId(u32::MAX - 8),
                 name: "$selection219".into(),

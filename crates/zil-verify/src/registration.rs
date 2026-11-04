@@ -163,12 +163,15 @@ fn closed(
             .functions
             .get(id.0 as usize)
             .ok_or_else(|| error(span, "registration Direct dependency is absent"))?;
+        if f.call_kind != CallKind::Direct {
+            return Err(error(span, "retained callback target selects Suspend ABI"));
+        }
         for b in &f.blocks {
             budget.spend(1)?;
             for i in &b.instructions {
                 budget.spend(1)?;
                 match i.kind {
-                    InstructionKind::TaskYield => {
+                    InstructionKind::TaskYield | InstructionKind::SuspendCall { .. } => {
                         return Err(error(
                             Some(i.span),
                             "registration callback may only execute through Direct ABI",

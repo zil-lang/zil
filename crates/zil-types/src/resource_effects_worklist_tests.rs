@@ -64,6 +64,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    call_kind: None,
                     life: None,
                     id: NodeId(index as u32),
                     name: format!("f{index}"),

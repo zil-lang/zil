@@ -50,6 +50,19 @@ pub(super) fn instruction(
             carrier(module, &ty, span, budget)?;
             ty
         }
+        InstructionKind::SuspendCall {
+            function,
+            ref arguments,
+        } => {
+            budget.spend(arguments.len().saturating_add(1))?;
+            if arguments.len() != 1 || value_type(f, arguments[0], span)? != &Type::I32 {
+                return Err(bad());
+            }
+            profile(module, function, budget, span)?;
+            budget.spend(budget.task_workers.len().saturating_add(1))?;
+            budget.task_workers.insert(function);
+            Type::I32
+        }
         InstructionKind::TaskYield => {
             profile(module, f.id, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
@@ -92,12 +105,12 @@ pub(super) fn instruction(
         _ => unreachable!(),
     }))
 }
-fn profile(
+fn profile_one(
     module: &TypedModule,
     id: FunctionId,
     budget: &mut Budget,
     span: Option<Span>,
-) -> Check<()> {
+) -> Check<Vec<FunctionId>> {
     let f = module
         .functions
         .get(id.0 as usize)
@@ -134,12 +147,14 @@ fn profile(
             "task worker must prove the closed scalar profile independently",
         ));
     }
+    let mut children = Vec::new();
     for b in &f.blocks {
         budget.spend(1)?;
         for i in &b.instructions {
             budget.spend(1)?;
             match i.kind {
                 InstructionKind::TaskYield
+                | InstructionKind::SuspendCall { .. }
                 | InstructionKind::StorageLive(_)
                 | InstructionKind::StorageDead(_)
                 | InstructionKind::ScopeEnter { .. }
@@ -168,9 +183,72 @@ fn profile(
                     ));
                 }
             }
+            if let InstructionKind::SuspendCall {
+                function,
+                arguments,
+            } = &i.kind
+            {
+                budget.spend(arguments.len().saturating_add(1))?;
+                if arguments.len() != 1 || value_type(f, arguments[0], Some(i.span))? != &Type::I32
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        Some(i.span),
+                        "child input is outside actual scalar lane",
+                    ));
+                }
+                children.push(*function);
+            }
         }
     }
-    Ok(())
+    Ok(children)
+}
+fn profile(
+    module: &TypedModule,
+    root: FunctionId,
+    budget: &mut Budget,
+    span: Option<Span>,
+) -> Check<()> {
+    // Independently build the actual finite child graph, then remove its leaves.
+    // A surviving edge is a recursive frame shape and needs explicit storage.
+    let mut pending = vec![root];
+    let mut edges = std::collections::BTreeMap::new();
+    while let Some(id) = pending.pop() {
+        budget.spend(edges.len().saturating_add(1))?;
+        if edges.contains_key(&id) {
+            continue;
+        }
+        let children = profile_one(module, id, budget, span)?;
+        budget.spend(children.len())?;
+        pending.extend(children.iter().copied());
+        edges.insert(id, children);
+    }
+    let mut removed = BTreeSet::new();
+    loop {
+        let mut changed = false;
+        for (&id, children) in &edges {
+            budget.spend(
+                children
+                    .len()
+                    .saturating_add(removed.len())
+                    .saturating_add(1),
+            )?;
+            if !removed.contains(&id) && children.iter().all(|child| removed.contains(child)) {
+                removed.insert(id);
+                changed = true;
+            }
+        }
+        if removed.len() == edges.len() {
+            return Ok(());
+        }
+        if !changed {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "recursive static child frames require explicit storage",
+            ));
+        }
+    }
 }
 pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if !budget.tasks {
@@ -180,11 +258,19 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     let mut modes = vec![false; module.functions.len()];
     let mut edges = Vec::new();
     for f in &module.functions {
+        if f.call_kind == CallKind::Suspend {
+            modes[f.id.0 as usize] = true;
+            profile(module, f.id, budget, Some(f.span))?;
+            budget.spend(budget.task_workers.len().saturating_add(1))?;
+            budget.task_workers.insert(f.id);
+        }
         for b in &f.blocks {
             for i in &b.instructions {
                 budget.spend(1)?;
                 match i.kind {
-                    InstructionKind::TaskYield => modes[f.id.0 as usize] = true,
+                    InstructionKind::TaskYield | InstructionKind::SuspendCall { .. } => {
+                        modes[f.id.0 as usize] = true
+                    }
                     InstructionKind::Call { function, .. } => {
                         budget.spend(1)?;
                         edges.push((f.id, function));
@@ -212,6 +298,13 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     }
     budget.spend(modes.len())?;
     for (index, mode) in modes.iter().enumerate() {
+        if *mode && module.functions[index].call_kind != CallKind::Suspend {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(module.functions[index].span),
+                "Direct selection excludes actual reachable suspension",
+            ));
+        }
         if *mode {
             budget.spend(budget.suspend_functions.len().saturating_add(1))?;
             budget.suspend_functions.insert(FunctionId(index as u32));

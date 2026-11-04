@@ -47,6 +47,7 @@ fn exit() -> Vec<Instruction> {
 fn base(kind: CallableKind) -> TypedModule {
     let closure = Type::Closure(ClosureId(0));
     let callback = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -79,6 +80,7 @@ fn base(kind: CallableKind) -> TypedModule {
     ];
     instructions.extend(exit());
     let keep = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
             source: CallableReturnSource::Parameter(1),
@@ -92,6 +94,7 @@ fn base(kind: CallableKind) -> TypedModule {
         }),
         callable_contract: Some(CallableParameterContract {
             roles: vec![CallableRole {
+                life: None,
                 parameter: 1,
                 closure: ClosureId(0),
                 kind,

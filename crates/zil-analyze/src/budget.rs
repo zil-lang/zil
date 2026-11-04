@@ -829,6 +829,9 @@ pub(super) fn preflight(
                 "callable return contract metadata",
             )?;
         }
+        if function.call_kind == zil_ir::CallKind::Suspend {
+            budget.tasks = true;
+        }
         if let Some(contract) = &function.callable_contract {
             count(0, contract.roles.len(), limits.max_locals, "callable role")?;
             budget.input(
@@ -844,6 +847,11 @@ pub(super) fn preflight(
                         .saturating_add(5),
                     "callable role metadata",
                 )?;
+                if role.life.is_some() {
+                    return Err(bad(
+                        "higher-rank callable role life requires the complete life consumer",
+                    ));
+                }
             }
             match &contract.traces {
                 CallableTraces::Finite(traces) => {
@@ -992,6 +1000,29 @@ pub(super) fn preflight(
                         budget.input(1, "registration actual operand")?;
                         if registration.0 as usize >= function.values.len() {
                             return Err(bad("registration operand outside actual values"));
+                        }
+                    }
+                    InstructionKind::SuspendCall {
+                        function: child,
+                        arguments,
+                    } => {
+                        count(
+                            0,
+                            arguments.len(),
+                            limits.max_values,
+                            "Suspend child arguments",
+                        )?;
+                        budget.tasks = true;
+                        budget.input(
+                            arguments.len().saturating_add(2),
+                            "Suspend child actual operands",
+                        )?;
+                        if child.0 as usize >= module.functions.len()
+                            || arguments
+                                .iter()
+                                .any(|v| v.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
                     InstructionKind::TaskStart { .. }

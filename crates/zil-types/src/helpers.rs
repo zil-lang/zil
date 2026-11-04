@@ -921,6 +921,7 @@ impl Builder<'_, '_> {
                     }
                 }
                 roles.push(CallableRole {
+                    life: None,
                     parameter: bound.index,
                     closure,
                     kind: bound.kind,

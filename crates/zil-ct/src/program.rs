@@ -293,6 +293,7 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                 }
                 InstructionKind::TaskStart { .. }
                 | InstructionKind::TaskYield
+                | InstructionKind::SuspendCall { .. }
                 | InstructionKind::TaskValid { .. }
                 | InstructionKind::TaskPoll { .. }
                 | InstructionKind::TaskRequestCancel { .. }
