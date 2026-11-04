@@ -1195,7 +1195,8 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
-            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1209,7 +1210,9 @@ impl Expander<'_> {
             } => {
                 if matches!(
                     pattern.kind,
-                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                    s::PatternKind::Tuple(_)
+                        | s::PatternKind::Reference { .. }
+                        | s::PatternKind::ErrorArm { .. }
                 ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(

@@ -533,7 +533,7 @@ impl Visitor<'_, '_, '_> {
                     self.pattern(p, types, values, depth + 1)?;
                 }
             }
-            PatternKind::Reference { pattern, .. } => {
+            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(pattern, types, values, depth + 1)?
             }
             PatternKind::Constructor { path, arguments } => {

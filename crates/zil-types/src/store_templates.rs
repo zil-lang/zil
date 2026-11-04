@@ -794,6 +794,8 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
     fn pattern(&mut self, pattern: &mut CorePattern, depth: usize) -> R<()> {
         self.node(depth)?;
         match &mut pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Variant { ty, fields, .. } => {
                 self.ty(ty, depth + 1)?;
                 for field in fields {

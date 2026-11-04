@@ -61,6 +61,37 @@ impl Graph {
                 self.address(address, value, Some(*mutable), pattern.span)?;
                 self.pattern_constraints(inner, address, names, bindings, depth + 1)?;
             }
+            CorePatternKind::ErrorArm {
+                is_error,
+                pattern: inner,
+            } => {
+                let expected = self.ty(value)?.ok_or_else(|| {
+                    error(
+                        "E-MATCH-TYPE",
+                        pattern.span,
+                        "error arm needs a known ErrorUnion type",
+                    )
+                })?;
+                self.reserve_type(&expected, 0, pattern.span)?;
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = &expected
+                else {
+                    return Err(error(
+                        "E-MATCH-TYPE",
+                        pattern.span,
+                        "error arm requires an ErrorUnion",
+                    ));
+                };
+                let variable = self.pattern_variable(inner.span)?;
+                self.bind(
+                    variable,
+                    if *is_error { error_ty } else { result },
+                    inner.span,
+                )?;
+                self.pattern_constraints(inner, variable, names, bindings, depth + 1)?;
+            }
             CorePatternKind::Bool(_) => self.bind(value, &Type::Bool, pattern.span)?,
             CorePatternKind::Integer(text) => {
                 self.spend_count(text.len(), pattern.span)?;
