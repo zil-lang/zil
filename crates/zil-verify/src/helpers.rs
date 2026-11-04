@@ -574,11 +574,7 @@ pub(super) fn check_claim_shape(
     let mut field_count = 0usize;
     for role in &claim.roles {
         if let Some(life) = &role.life {
-            budget.spend(
-                (life.binder_count as usize)
-                    .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                    .saturating_add(2),
-            )?;
+            budget.spend(crate::signature_life::work(life))?;
             budget.borrowed_function_pointers = true;
             budget.invocation_callbacks = true;
         }
@@ -1051,12 +1047,7 @@ pub(super) fn check_module(
                 }
             }
             if let Some(life) = &proposed.life {
-                budget.spend(
-                    life.parameter_lives
-                        .len()
-                        .saturating_add(life.binder_count as usize)
-                        .saturating_add(2),
-                )?;
+                budget.spend(crate::signature_life::work(life))?;
                 borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
                 borrowed_fp::relation(
                     &definition.parameters,

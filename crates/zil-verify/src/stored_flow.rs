@@ -260,10 +260,17 @@ fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
                 stack.push((error, depth + 1));
                 stack.push((result, depth + 1));
             }
-            Type::FunctionPointer { parameters, result }
-            | Type::BorrowedFunctionPointer {
-                parameters, result, ..
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
             } => {
+                b.spend(super::signature_life::work(life))?;
+                b.spend(parameters.len().saturating_add(1))?;
+                stack.extend(parameters.iter().map(|ty| (ty, depth + 1)));
+                stack.push((result, depth + 1));
+            }
+            Type::FunctionPointer { parameters, result } => {
                 b.spend(parameters.len().saturating_add(1))?;
                 for t in parameters {
                     stack.push((t, depth + 1));
@@ -656,52 +663,79 @@ fn relation(
         .storage_life
         .as_ref()
         .ok_or_else(|| err("stored signature lacks complete relation"))?;
-    let mut found = None;
-    b.spend(c.bindings.len())?;
-    for row in &c.bindings {
-        b.spend(
-            row.position
-                .path
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(1),
-        )?;
-        if row.position.base == base
-            && row.position.path.len() == path.len()
-            && row
-                .position
-                .path
-                .iter()
-                .zip(path)
-                .all(|(x, z)| *x == ContractProjection::Place(*z))
-            && found.replace(row.binder).is_some()
-        {
-            return Err(err("duplicate stored signature position"));
+    if path.is_empty() {
+        b.spend(c.bindings.len())?;
+        return super::signature_life::outer(c, base)
+            .ok_or_else(|| err("signature omits actual outer borrow"));
+    }
+    let ty = match base {
+        StorageBase::Parameter(i) => f
+            .parameters
+            .get(i as usize)
+            .and_then(|l| f.locals.get(l.0 as usize))
+            .map(|l| &l.ty),
+        StorageBase::Result => Some(&f.return_type),
+        StorageBase::Capture(_) => None,
+    }
+    .ok_or_else(|| err("stored relation base is absent"))?;
+    let ((_, shape), pointee) = if let Some(q) = qualified(ty) {
+        (q, false)
+    } else {
+        (
+            addressed(ty).ok_or_else(|| err("physical leaf has no actual qualified boundary"))?,
+            true,
+        )
+    };
+    b.spend(shape.slots.len())?;
+    let mut local = None;
+    for slot in &shape.slots {
+        b.spend(slot.path.len().saturating_add(path.len()).saturating_add(1))?;
+        if slot.path == path {
+            if local.replace(slot.binder).is_some() {
+                return Err(err("duplicate actual stored leaf"));
+            }
         }
     }
-    found.ok_or_else(|| err("stored signature omits actual borrowed position"))
+    let local = local.ok_or_else(|| err("relation selected an absent physical stored leaf"))?;
+    b.spend(c.classes.len())?;
+    for row in &c.classes {
+        b.spend(row.position.path.len().saturating_add(1))?;
+        if row.position.base == base
+            && row.position.class == local
+            && if pointee {
+                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            } else {
+                row.position.path.is_empty()
+            }
+        {
+            return Ok(row.binder);
+        }
+    }
+    Err(err("signature omits actual qualified local class"))
 }
+
 pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
-    for local in &f.parameters {
+    for p in &f.parameters {
         b.spend(1)?;
-        if f.locals.get(local.0 as usize).is_none() {
+        if f.locals.get(p.0 as usize).is_none() {
             return Err(err("signature parameter outside actual local table"));
         }
     }
     let Some(c) = &f.storage_life else {
-        for t in f
+        for ty in f
             .parameters
             .iter()
-            .map(|l| &f.locals[l.0 as usize].ty)
+            .map(|p| &f.locals[p.0 as usize].ty)
             .chain(std::iter::once(&f.return_type))
         {
             b.spend(1)?;
-            if qualified(t).is_some() || addressed(t).is_some() {
-                return Err(err("stored signature needs explicit complete relation"));
+            if qualified(ty).is_some() || addressed(ty).is_some() {
+                return Err(err("stored signature requires complete class relation"));
             }
         }
         return Ok(());
     };
+    b.spend(super::signature_life::work(c))?;
     b.spend(f.parameters.len())?;
     if c.fixed_binder_count > 1
         || f.parameters
@@ -714,129 +748,48 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
             .count()
             > 1
     {
-        return Err(unsupported(
-            "multiple retained input classes need invariant actual class substitution",
-            Some(f.span),
+        return Err(err(
+            "multiple retained classes/inputs need invariant actual class substitution",
         ));
     }
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
-        return Err(err(
-            "stored signature contradicts another active relation profile",
-        ));
+        return Err(err("stored signature contradicts another active profile"));
     }
-    let mut expected = Vec::new();
-    let mut retained = Vec::new();
-    let mut fixed = Vec::new();
-    let mut invocation = Vec::new();
-    for (position, ty) in f
-        .parameters
-        .iter()
-        .map(|l| &f.locals[l.0 as usize].ty)
-        .chain(std::iter::once(&f.return_type))
-        .enumerate()
-    {
-        let input = position < f.parameters.len();
-        let base = if input {
-            StorageBase::Parameter(position as u32)
-        } else {
-            StorageBase::Result
-        };
-        if matches!(ty, Type::Address { .. }) {
-            b.spend(1)?;
-            expected.push((base, Vec::new()));
-        }
-        if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
-            let mut mapping = Vec::new();
-            for row in &shape.slots {
-                let binder = relation(f, base, &row.path, b)?;
-                b.spend(mapping.len().saturating_add(1))?;
-                if let Some((_, old)) = mapping.iter().find(|(class, _)| *class == row.binder) {
-                    if *old != binder {
-                        return Err(err("one retained input class was inconsistently rebound"));
-                    }
-                } else {
-                    mapping.push((row.binder, binder));
-                }
-                if input {
-                    let StorageBinder::Fixed(id) = binder else {
-                        return Err(err(
-                            "retained input class was narrowed/freshened into invocation scope",
-                        ));
-                    };
-                    b.spend(retained.len().saturating_add(1))?;
-                    if !retained.contains(&id) {
-                        retained.push(id);
-                    }
-                }
-                b.spend(row.path.len().saturating_add(1))?;
-                expected.push((base, row.path.clone()));
-            }
-        }
+    let mut parameters = Vec::with_capacity(f.parameters.len());
+    for p in &f.parameters {
+        let ty = &f.locals[p.0 as usize].ty;
+        type_work(ty, &b.limits.clone(), b)?;
+        type_work(ty, &b.limits.clone(), b)?;
+        parameters.push(ty.clone());
     }
-    if expected.len() != c.bindings.len() {
-        return Err(err("stored signature has missing/extra actual positions"));
-    }
-    for (ordinal, (base, path)) in expected.into_iter().enumerate() {
-        let row = &c.bindings[ordinal];
-        b.spend(
-            row.position
-                .path
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(1),
-        )?;
-        if row.position.base != base
-            || row.position.path.len() != path.len()
-            || !row
-                .position
-                .path
-                .iter()
-                .zip(&path)
-                .all(|(x, z)| *x == ContractProjection::Place(*z))
+    type_work(&f.return_type, &b.limits.clone(), b)?;
+    type_work(&f.return_type, &b.limits.clone(), b)?;
+    super::signature_life::relation(&parameters, &f.return_type, c, Some(f.span))?;
+    for (i, ty) in parameters.iter().enumerate() {
+        b.spend(c.bindings.len())?;
+        if matches!(ty, Type::Address { .. })
+            && matches!(
+                super::signature_life::outer(c, StorageBase::Parameter(i as u32)),
+                Some(StorageBinder::Fixed(_))
+            )
         {
             return Err(err(
-                "stored signature rows are not in actual canonical position order",
+                "new outer borrow meeting retained Fixed needs actual invariant substitution",
             ));
         }
-        let binder = relation(f, base, &path, b)?;
-        if matches!(base, StorageBase::Parameter(_))
-            && path.is_empty()
-            && matches!(binder, StorageBinder::Fixed(_))
-        {
-            return Err(unsupported(
-                "meeting a new input borrow with a fixed class needs actual upper substitution",
-                Some(f.span),
-            ));
-        }
-        let (seen, id, bound) = match binder {
-            StorageBinder::Fixed(id) => (&mut fixed, id, c.fixed_binder_count),
-            StorageBinder::Invocation(id) => (&mut invocation, id, c.invocation_binder_count),
-        };
-        b.spend(seen.len().saturating_add(1))?;
-        if id >= bound {
-            return Err(err("stored signature class exceeds its declared domain"));
-        }
-        if !seen.contains(&id) {
-            if id as usize != seen.len() {
-                return Err(err(
-                    "stored signature classes are not canonical dense by first occurrence",
-                ));
+        if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
+            for row in &c.classes {
+                b.spend(row.position.path.len().saturating_add(1))?;
+                if row.position.base == StorageBase::Parameter(i as u32)
+                    && !matches!(row.binder, StorageBinder::Fixed(_))
+                {
+                    return Err(err(
+                        "incoming retained class needs invariant actual substitution",
+                    ));
+                }
             }
-            seen.push(id);
+            b.spend(shape.slots.len())?;
         }
-    }
-    b.spend(amount(
-        fixed.len().saturating_add(1),
-        retained.len().saturating_add(1),
-    )?)?;
-    if fixed.len() != c.fixed_binder_count as usize
-        || invocation.len() != c.invocation_binder_count as usize
-        || fixed.len() != retained.len()
-        || fixed.iter().any(|x| !retained.contains(x))
-    {
-        return Err(err(
-            "stored signature has unused labels or ungrounded fixed classes",
-        ));
     }
     Ok(())
 }
