@@ -1637,25 +1637,33 @@ impl Builder<'_, '_> {
                     Some(Type::Tuple(fs)) if fs.len() == items.len() => Some(fs),
                     _ => None,
                 };
-                let mut fields = Vec::new();
+                let mut staged = Vec::new();
                 let mut types = Vec::new();
                 for (i, v) in items.iter().enumerate() {
-                    let (id, t) = self.expr(v, expected_fields.map(|fs| &fs[i]))?;
-                    fields.push(id);
+                    let (id, t) = if let Some(fs) = expected_fields {
+                        self.argument_expr(v, &fs[i])?
+                    } else {
+                        self.transfer_expr(v, None)?
+                    };
+                    staged.push(self.stage_argument(id, &t, v.span)?);
                     types.push(t);
                 }
                 let ty = Type::Tuple(types);
                 if !ty.is_copy_value() {
-                    return Err(unsupported(e.span, "tuple with non-Copy fields"));
-                }
-                Ok((
-                    self.value(
-                        InstructionKind::MakeAggregate { fields },
-                        ty.clone(),
+                    owned_shapes::validate(
+                        &ty,
+                        &mut self.match_work_left,
+                        self.limits.max_call_depth,
                         e.span,
-                    )?,
-                    ty,
-                ))
+                    )?;
+                }
+                let fields = self.commit_arguments(staged, e.span)?;
+                let kind = if ty.is_copy_value() {
+                    InstructionKind::MakeAggregate { fields }
+                } else {
+                    InstructionKind::MakeOwnedTuple { fields }
+                };
+                Ok((self.value(kind, ty.clone(), e.span)?, ty))
             }
             CoreExprKind::Record { ty, fields } => {
                 let payload = if let Type::Managed(payload) = ty {

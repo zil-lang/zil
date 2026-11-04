@@ -9,6 +9,15 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
         _ => false,
     }
 }
+fn needs_mutable(p: &CorePattern) -> bool {
+    match &p.kind {
+        CorePatternKind::Reference { mutable, pattern } => *mutable || needs_mutable(pattern),
+        CorePatternKind::Tuple(fs) | CorePatternKind::Variant { fields: fs, .. } => {
+            fs.iter().any(needs_mutable)
+        }
+        _ => false,
+    }
+}
 impl Builder<'_, '_> {
     fn inline_pattern_place(&mut self, e: &CoreExpr, mutable: bool) -> R<Option<(ValueId, Type)>> {
         let mut members = Vec::new();
@@ -216,6 +225,90 @@ impl Builder<'_, '_> {
             )),
         }
     }
+    pub(super) fn condition_uses_place(&self, p: &CorePattern, e: &CoreExpr) -> bool {
+        has_reference(p)
+            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t))
+            || matches!(
+                &e.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    ..
+                }
+            ) && matches!(self.known_type(e), Some(Type::Enum { .. } | Type::Tuple(_)))
+    }
+    pub(super) fn reference_condition(
+        &mut self,
+        p: &CorePattern,
+        e: &CoreExpr,
+        fail: BlockId,
+    ) -> R<(bool, Vec<(String, ValueId, Type, Span)>)> {
+        let mut bindings = Vec::new();
+        if let CoreExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } = &e.kind
+        {
+            let (address, t) = self.expr(operand, None)?;
+            let Type::Address { mutable, inner } = t else {
+                return Err(error(
+                    "E-PATTERN-TYPE",
+                    e.span,
+                    "borrowed condition requires an address",
+                ));
+            };
+            let irrefutable = self.irrefutable_pattern(p, &inner)?;
+            self.reference_address_test(
+                p,
+                address,
+                &mut Vec::new(),
+                &inner,
+                mutable,
+                fail,
+                &mut bindings,
+            )?;
+            return Ok((irrefutable, bindings));
+        }
+        if matches!(
+            &e.kind,
+            CoreExprKind::Member { .. } | CoreExprKind::Index { .. }
+        ) {
+            let mutable = needs_mutable(p);
+            let (address, t) = if let Some(place) = self.inline_pattern_place(e, mutable)? {
+                place
+            } else {
+                self.borrow_place_mode(e, mutable)?
+            };
+            let Type::Address { inner, .. } = t else {
+                unreachable!()
+            };
+            let irrefutable = self.irrefutable_pattern(p, &inner)?;
+            self.reference_address_test(
+                p,
+                address,
+                &mut Vec::new(),
+                &inner,
+                mutable,
+                fail,
+                &mut bindings,
+            )?;
+            return Ok((irrefutable, bindings));
+        }
+        let (root, ty) = if let CoreExprKind::Name(name) = &e.kind {
+            let local = self
+                .lookup(name)
+                .ok_or_else(|| error("E-UNKNOWN-NAME", e.span, "unknown condition place"))?;
+            (local, self.function.locals[local.0 as usize].ty.clone())
+        } else {
+            let (v, t) = self.transfer_expr(e, None)?;
+            let name = format!("$condition340${}", self.function.locals.len());
+            let local = self.local(&name, t.clone(), true, e.span)?;
+            self.store(local, v, e.span)?;
+            (local, t)
+        };
+        let irrefutable = self.irrefutable_pattern(p, &ty)?;
+        self.reference_local_test(p, root, &mut Vec::new(), &ty, fail, &mut bindings)?;
+        Ok((irrefutable, bindings))
+    }
     pub(super) fn reference_match(
         &mut self,
         e: &CoreExpr,
@@ -229,6 +322,18 @@ impl Builder<'_, '_> {
         {
             return self.reference_address_match(operand, arms, span);
         }
+        if matches!(
+            e.kind,
+            CoreExprKind::Member { .. } | CoreExprKind::Index { .. }
+        ) {
+            let mutable = arms.iter().any(|a| needs_mutable(&a.pattern));
+            let (address, ty) = if let Some(place) = self.inline_pattern_place(e, mutable)? {
+                place
+            } else {
+                self.borrow_place_mode(e, mutable)?
+            };
+            return self.finish_reference_address_match(address, ty, arms, span);
+        }
         let (root, ty) = if let CoreExprKind::Name(name) = &e.kind {
             let local = self
                 .lookup(name)
@@ -236,7 +341,8 @@ impl Builder<'_, '_> {
             (local, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (v, t) = self.transfer_expr(e, None)?;
-            let local = self.temp(t.clone(), e.span)?;
+            let name = format!("$match340${}", self.function.locals.len());
+            let local = self.local(&name, t.clone(), true, e.span)?;
             self.store(local, v, e.span)?;
             (local, t)
         };
@@ -290,6 +396,48 @@ impl Builder<'_, '_> {
         self.closures
             .snapshot(path.len().saturating_add(1), p.span)?;
         match &p.kind {
+            CorePatternKind::Tuple(_) if matches!(ty, Type::Tuple(_)) => {
+                if path.is_empty() {
+                    return self.reference_inline_local_test(
+                        p,
+                        root,
+                        &mut Vec::new(),
+                        ty,
+                        fail,
+                        bindings,
+                    );
+                }
+                let mutable = needs_mutable(p);
+                if mutable && !self.function.locals[root.0 as usize].mutable {
+                    return Err(error(
+                        "E-IMMUTABLE-ASSIGNMENT",
+                        p.span,
+                        "exclusive tuple pattern requires mutable storage",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let address = self.value(
+                    InstructionKind::BorrowVariantLocal {
+                        local: root,
+                        path: path.clone(),
+                        mutable,
+                    },
+                    t,
+                    p.span,
+                )?;
+                self.reference_address_test(
+                    p,
+                    address,
+                    &mut Vec::new(),
+                    ty,
+                    mutable,
+                    fail,
+                    bindings,
+                )
+            }
             CorePatternKind::Reference { mutable, pattern } => {
                 if !matches!(
                     pattern.kind,
@@ -391,6 +539,15 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<()> {
         let (address, t) = self.expr(operand, None)?;
+        self.finish_reference_address_match(address, t, arms, span)
+    }
+    fn finish_reference_address_match(
+        &mut self,
+        address: ValueId,
+        t: Type,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
         let Type::Address { mutable, inner } = t else {
             return Err(error(
                 "E-MATCH-TYPE",
@@ -450,6 +607,65 @@ impl Builder<'_, '_> {
         self.closures.snapshot(path.len() + 1, p.span)?;
         match &p.kind {
             CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Tuple(fields) if matches!(ty, Type::Tuple(_)) => {
+                let Type::Tuple(types) = ty else {
+                    unreachable!()
+                };
+                let base = if path.is_empty() {
+                    address
+                } else {
+                    let mutable = needs_mutable(p);
+                    if mutable && !available {
+                        return Err(error(
+                            "E-ADDRESS-PERMISSION",
+                            p.span,
+                            "exclusive tuple pattern requires mutable input",
+                        ));
+                    }
+                    let t = Type::Address {
+                        mutable,
+                        inner: Box::new(ty.clone()),
+                    };
+                    self.value(
+                        InstructionKind::BorrowVariantAddress {
+                            address,
+                            path: path.clone(),
+                            mutable,
+                        },
+                        t,
+                        p.span,
+                    )?
+                };
+                let writable = if path.is_empty() {
+                    available
+                } else {
+                    needs_mutable(p)
+                };
+                for (index, (field, ty)) in fields.iter().zip(types).enumerate() {
+                    let t = Type::Address {
+                        mutable: writable,
+                        inner: Box::new(ty.clone()),
+                    };
+                    let pointer = self.value(
+                        InstructionKind::AddressField {
+                            address: base,
+                            index: index as u32,
+                        },
+                        t,
+                        field.span,
+                    )?;
+                    self.reference_address_test(
+                        field,
+                        pointer,
+                        &mut Vec::new(),
+                        ty,
+                        writable,
+                        fail,
+                        bindings,
+                    )?;
+                }
+                Ok(())
+            }
             CorePatternKind::Variant {
                 variant, fields, ..
             } => {
@@ -536,6 +752,119 @@ impl Builder<'_, '_> {
                 "E-PATTERN-MOVE-BORROW",
                 p.span,
                 "borrowed payload cannot transfer its owner's responsibility",
+            )),
+        }
+    }
+}
+
+impl Builder<'_, '_> {
+    fn reference_inline_local_test(
+        &mut self,
+        p: &CorePattern,
+        root: LocalId,
+        path: &mut Vec<u32>,
+        ty: &Type,
+        fail: BlockId,
+        bindings: &mut Vec<(String, ValueId, Type, Span)>,
+    ) -> R<()> {
+        self.closures
+            .snapshot(path.len().saturating_add(1), p.span)?;
+        match &p.kind {
+            CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Tuple(fields) => {
+                let Type::Tuple(types) = ty else {
+                    unreachable!("covered tuple")
+                };
+                for (index, (field, t)) in fields.iter().zip(types).enumerate() {
+                    path.push(index as u32);
+                    self.reference_inline_local_test(field, root, path, t, fail, bindings)?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            CorePatternKind::Reference { mutable, pattern } => {
+                if *mutable && !self.function.locals[root.0 as usize].mutable {
+                    return Err(error(
+                        "E-IMMUTABLE-ASSIGNMENT",
+                        p.span,
+                        "exclusive field pattern requires mutable storage",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let kind = if path.is_empty() {
+                    if *mutable {
+                        InstructionKind::BorrowLocalMut { local: root }
+                    } else {
+                        InstructionKind::BorrowLocal { local: root }
+                    }
+                } else {
+                    InstructionKind::BorrowFieldLocal {
+                        local: root,
+                        path: path.clone(),
+                        mutable: *mutable,
+                    }
+                };
+                let value = self.value(kind, t.clone(), p.span)?;
+                self.pattern_test(pattern, value, &t, fail, bindings)
+            }
+            CorePatternKind::Variant { .. } => {
+                let mutable = needs_mutable(p);
+                if mutable && !self.function.locals[root.0 as usize].mutable {
+                    return Err(error(
+                        "E-IMMUTABLE-ASSIGNMENT",
+                        p.span,
+                        "exclusive nested pattern requires mutable storage",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let kind = if path.is_empty() {
+                    if mutable {
+                        InstructionKind::BorrowLocalMut { local: root }
+                    } else {
+                        InstructionKind::BorrowLocal { local: root }
+                    }
+                } else {
+                    InstructionKind::BorrowFieldLocal {
+                        local: root,
+                        path: path.clone(),
+                        mutable,
+                    }
+                };
+                let value = self.value(kind, t, p.span)?;
+                self.reference_address_test(p, value, &mut Vec::new(), ty, mutable, fail, bindings)
+            }
+            _ if ty.is_copy_value() => {
+                let kind = if path.is_empty() {
+                    InstructionKind::Load(root)
+                } else {
+                    let t = Type::Address {
+                        mutable: false,
+                        inner: Box::new(ty.clone()),
+                    };
+                    let address = self.value(
+                        InstructionKind::BorrowFieldLocal {
+                            local: root,
+                            path: path.clone(),
+                            mutable: false,
+                        },
+                        t,
+                        p.span,
+                    )?;
+                    InstructionKind::ReadAddress { address }
+                };
+                let value = self.value(kind, ty.clone(), p.span)?;
+                self.pattern_test(p, value, ty, fail, bindings)
+            }
+            _ => Err(error(
+                "E-PATTERN-MOVE-BORROW",
+                p.span,
+                "nonCopy field needs a selective transfer",
             )),
         }
     }

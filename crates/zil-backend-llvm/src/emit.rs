@@ -1319,6 +1319,13 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
+                return unsupported(
+                    "partial inline ownership consumer is under implementation",
+                    Some(instruction.span),
+                );
+            }
+
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }
@@ -1878,7 +1885,12 @@ impl FunctionEmitter<'_> {
                 variant,
                 fields,
             } => self.unpack_variant(instruction, *local, *variant, fields)?,
-            InstructionKind::DropEnum { local } => self.drop_enum(instruction, *local)?,
+            InstructionKind::UnpackTuple { local, fields } => {
+                self.unpack_tuple(instruction, *local, fields)?
+            }
+            InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local } => {
+                self.drop_enum(instruction, *local)?
+            }
             InstructionKind::MakeVariant { variant, fields } => {
                 self.make_variant(instruction, *variant, fields)?
             }
@@ -1959,7 +1971,8 @@ impl FunctionEmitter<'_> {
                 index,
                 value,
             } => self.indexed(instruction, *aggregate, *index, Some(*value))?,
-            InstructionKind::MakeAggregate { fields }
+            InstructionKind::MakeOwnedTuple { fields }
+            | InstructionKind::MakeAggregate { fields }
             | InstructionKind::MakeManaged { fields }
             | InstructionKind::MakeOwnedArray { elements: fields }
             | InstructionKind::MakePackage { fields } => {

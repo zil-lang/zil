@@ -574,6 +574,7 @@ fn check_module(
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedArray { elements: fields }
                     | InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakeOwnedTuple { fields }
                     | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::ForeignCall { arguments, .. } => {
@@ -674,11 +675,12 @@ fn check_type_shape(
         budget.spend(1)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
-        if (context & 1 != 0
-            && matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ))
+        if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+            || (context & 1 != 0
+                && matches!(
+                    ty,
+                    Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                ))
             || (context & 8 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
             || (context & 32 != 0 && context & 4 != 0 && matches!(ty, Type::Package { .. }))
             || (context & 2 != 0
@@ -714,7 +716,7 @@ fn check_type_shape(
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 for ty in fields {
-                    pending.push((ty, depth + 1, context));
+                    pending.push((ty, depth + 1, context | 64));
                 }
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -924,7 +926,7 @@ fn check_function_signature_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sums && sums::owned(ty) => {
             sums::check_type_for(module, ty, span, budget)
         }
         ty if resources::arrays::is_owned_type(ty) => {
@@ -971,7 +973,7 @@ fn check_local_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sums && sums::owned(ty) => {
             sums::check_type_for(module, ty, span, budget)
         }
         _ => check_type(ty, span),
@@ -1161,7 +1163,9 @@ fn check_function(
                     }
                 }
             }
-            if let InstructionKind::UnpackVariant { ref fields, .. } = instruction.kind {
+            if let InstructionKind::UnpackVariant { ref fields, .. }
+            | InstructionKind::UnpackTuple { ref fields, .. } = instruction.kind
+            {
                 budget.spend(fields.len())?;
                 for target in fields {
                     let index = target.0 as usize;
@@ -1329,7 +1333,8 @@ fn check_function(
                 }
                 InstructionKind::UnpackVariant {
                     local, ref fields, ..
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, ref fields } => {
                     if !initialized[local.0 as usize] {
                         return Err(reject(
                             "E-VERIFY-INITIALIZATION",
@@ -1348,6 +1353,7 @@ fn check_function(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropEnum { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -1415,6 +1421,13 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
+            return Err(unsupported(
+                "partial inline ownership consumer is under implementation",
+                span,
+            ));
+        }
+
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -1473,7 +1486,10 @@ fn check_instruction(
             local_type(function, *local, span)?;
             None
         }
-        InstructionKind::VariantTagLocal { .. }
+        InstructionKind::MakeOwnedTuple { .. }
+        | InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
         | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
@@ -1567,7 +1583,7 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
-            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned_enum(ty)) {
+            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned(ty)) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
@@ -1597,7 +1613,7 @@ fn check_instruction(
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
                 && !errors::owned(ty, budget.sums)
-                && !(budget.sums && sums::owned_enum(ty))
+                && !(budget.sums && sums::owned(ty))
                 && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
@@ -2126,7 +2142,7 @@ fn check_instruction(
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
-            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned_enum(ty)) {
+            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -2609,6 +2625,12 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::MakeOwnedTuple { fields } => ([None, None], fields),
+        InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::TakeTupleField { .. }
+        | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
+
         InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
@@ -2829,7 +2851,8 @@ fn initialization(
                 }
                 InstructionKind::UnpackVariant {
                     local, ref fields, ..
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, ref fields } => {
                     outputs[b][local.0 as usize] = false;
                     for target in fields {
                         outputs[b][target.0 as usize] = true;
@@ -2840,6 +2863,7 @@ fn initialization(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropEnum { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -2880,7 +2904,8 @@ fn initialization(
                     }
                     InstructionKind::UnpackVariant {
                         local, ref fields, ..
-                    } => {
+                    }
+                    | InstructionKind::UnpackTuple { local, ref fields } => {
                         out[local.0 as usize] = false;
                         budget.spend(fields.len())?;
                         for target in fields {
@@ -2892,6 +2917,7 @@ fn initialization(
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropEnum { local }
+                    | InstructionKind::DropTuple { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }

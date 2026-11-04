@@ -367,13 +367,108 @@ impl FunctionEmitter<'_> {
         }
         Ok(())
     }
+    pub(super) fn unpack_tuple(
+        &mut self,
+        instruction: &Instruction,
+        local: LocalId,
+        targets: &[LocalId],
+    ) -> CompileResult<()> {
+        let ty = self.local_type(local)?.clone();
+        let Type::Tuple(fields) = &ty else {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "UnpackTuple requires Tuple",
+                Some(instruction.span),
+            );
+        };
+        if fields.len() != targets.len()
+            || targets.contains(&local)
+            || targets.iter().collect::<BTreeSet<_>>().len() != targets.len()
+        {
+            return invalid(
+                "E-CODEGEN-CFG",
+                "Tuple unpack requires exact distinct targets",
+                Some(instruction.span),
+            );
+        }
+        let mut loaded = Vec::new();
+        for (index, field) in fields.iter().enumerate() {
+            if self.local_type(targets[index])? != field {
+                return invalid(
+                    "E-CODEGEN-CFG",
+                    "Tuple unpack target differs",
+                    Some(instruction.span),
+                );
+            }
+            if *field == Type::Unit {
+                loaded.push(None);
+                continue;
+            }
+            let pointer = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(pointer.clone())),
+                m::Op::Gep {
+                    ty: llvm_type(&ty)?,
+                    ptr: m::local(format!("local.{}", local.0)),
+                    indices: vec![
+                        m::Arg::new(m::Ty::Int(32), 0),
+                        m::Arg::new(m::Ty::Int(32), index as u32),
+                    ],
+                },
+            )));
+            let value = self.temp();
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(value.clone())),
+                m::Op::Load {
+                    ty: llvm_type(field)?,
+                    ptr: m::val(pointer),
+                    align: alignment(field, self.closures)?,
+                },
+            )));
+            loaded.push(Some(value));
+        }
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), false),
+                ptr: m::local(format!("resource.live.{}", local.0)),
+                align: 1,
+            },
+        )));
+        for (index, target) in targets.iter().enumerate().rev() {
+            let field = &fields[index];
+            if let Some(value) = &loaded[index] {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(llvm_type(field)?, m::val(value.clone())),
+                        ptr: m::local(format!("local.{}", target.0)),
+                        align: alignment(field, self.closures)?,
+                    },
+                )));
+            }
+            if self.owns_storage(field) {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(m::Ty::Int(1), true),
+                        ptr: m::local(format!("resource.live.{}", target.0)),
+                        align: 1,
+                    },
+                )));
+                self.package_flags(*target, false, true)?;
+                self.owned_array_flags(*target, false, true)?;
+            }
+        }
+        Ok(())
+    }
     pub(super) fn drop_enum(
         &mut self,
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
         let ty = self.local_type(local)?.clone();
-        if !matches!(ty, Type::Enum { .. }) || ty.is_copy_value() {
+        if !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) || ty.is_copy_value() {
             return invalid(
                 "E-CODEGEN-CFG",
                 "DropEnum requires an owning Enum local",

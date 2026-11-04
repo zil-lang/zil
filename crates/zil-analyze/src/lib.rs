@@ -254,7 +254,9 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
         let mut state = clone_set(&ins[bi], budget)?;
         for i in &b.instructions {
             budget.spend(1, "initialization instruction scan")?;
-            if let InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
+            if let InstructionKind::UnpackVariant { local, fields, .. }
+            | InstructionKind::UnpackTuple { local, fields } = &i.kind
+            {
                 budget.spend(fields.len().saturating_add(1), "Unpack initialization atom")?;
                 budget.lookup(state.len(), "Unpack initialized source")?;
                 if !state.contains(local) || fields.iter().any(|l| state.contains(l)) {
@@ -336,7 +338,9 @@ fn transfer(
     let mut state = clone_set(input, budget)?;
     for instruction in &block.instructions {
         budget.spend(1, "initialization transfer")?;
-        if let InstructionKind::UnpackVariant { local, fields, .. } = &instruction.kind {
+        if let InstructionKind::UnpackVariant { local, fields, .. }
+        | InstructionKind::UnpackTuple { local, fields } = &instruction.kind
+        {
             budget.spend(
                 fields.len().saturating_add(1),
                 "Unpack initialization transfer atom",

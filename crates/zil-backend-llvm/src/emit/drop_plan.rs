@@ -4,7 +4,10 @@ use super::*;
 use std::hash::Hash;
 
 pub(super) fn owned_sum(ty: &Type) -> bool {
-    matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && !ty.is_copy_value()
+    matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) && !ty.is_copy_value()
 }
 pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     if ty.is_copy_value() {
@@ -12,6 +15,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     }
     match ty {
         Type::Managed(_) => resources::supported_type(ty, resources),
+        Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
         Type::Package { fields, .. } => fields.iter().all(|(_, t)| value_type(t, resources)),
         Type::Enum { variants, .. } => variants
             .iter()
@@ -38,7 +42,7 @@ fn legacy_flat(ty: &Type) -> bool {
 /// Old Copy and already implemented flat error protocols retain their old path.
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
-        Type::Enum { .. } => !ty.is_copy_value(),
+        Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned_sum(t) || new_shape(t)),
         Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().any(|t| {
             owned_sum(t)
@@ -238,7 +242,7 @@ fn link(
     }
     if matches!(
         ty,
-        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
     ) {
         return Ok(DropPlan::Leaf(symbol(ty)));
     }
@@ -524,12 +528,17 @@ pub(super) fn functions(
         if !ty.is_copy_value()
             && matches!(
                 ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             )
         {
             found.insert(hash, ty);
         }
         match ty {
+            Type::Tuple(fields) => {
+                for t in fields {
+                    visit(t, found, seen, budget, true, depth + 1)?;
+                }
+            }
             Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     visit(t, found, seen, budget, true, depth + 1)?;
@@ -566,7 +575,7 @@ pub(super) fn functions(
         for ty in std::iter::once(&closure.result).chain(closure.parameters.iter()) {
             if matches!(
                 ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             ) && !ty.is_copy_value()
             {
                 visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
@@ -617,7 +626,8 @@ pub(super) fn functions(
                         }
                         budget.pay(path.len(), path.len().saturating_mul(64))?;
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         for _ in 0..=fields.len() {
                             budget.tree(&f.locals[local.0 as usize].ty, 0)?;
                         }
@@ -626,7 +636,8 @@ pub(super) fn functions(
                         }
                         budget.pay(0, fields.len().saturating_mul(64))?;
                     }
-                    InstructionKind::DropEnum { local }
+                    InstructionKind::DropTuple { local }
+                    | InstructionKind::DropEnum { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropErrorUnion { local } => {
                         // Existing cleanup opcodes also hash Sum helper keys and
@@ -649,7 +660,8 @@ pub(super) fn functions(
                             }
                         }
                     }
-                    InstructionKind::MakeVariant { fields, .. }
+                    InstructionKind::MakeOwnedTuple { fields }
+                    | InstructionKind::MakeVariant { fields, .. }
                         if !f.values
                             [instruction.result.expect("verified variant result").0 as usize]
                             .is_copy_value() =>

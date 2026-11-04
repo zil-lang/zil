@@ -107,6 +107,14 @@ impl<'a> Budget<'a> {
                 }
                 Ok(resource_type(ty, resources))
             }
+            Type::Tuple(fields) => {
+                for t in fields {
+                    if !self.admits(t, resources, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
             Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     if !self.admits(t, resources, depth + 1)? {

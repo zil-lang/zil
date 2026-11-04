@@ -24,3 +24,35 @@
 返回引用保留实际参数根，闭包传递保留父依赖。新 CFG/路径/窗口处理
 计入现有请求额度，复制和路径分配前扣费；新增组合源码单独记录边界。
 该阶段不改变 FFI、线程 worker、捕获或普通 Copy 的资格。
+
+选择性拥有转移提案（root已分配114–118）：保留结构 Type::Tuple，
+MakeOwnedTuple 保留各实际字段的拥有责任，UnpackTuple 原子转交完整元组，
+DropTuple 只清理真实剩余初始化字段；不把元组伪装为名义 Package。
+TakeTupleField/TakeVariantField 分别从实际 Tuple/Enum 局部选择性转交一个
+初始化子树，非空有界路径使用 PlaceProjection::Field(index) 与
+PlaceProjection::Variant{variant,index} 保持混合层级。每次访问逐步核验完整
+Type、当前活动 tag、字段初始化与真实可变/父借用资格；不跨 Managed、
+Address 或外部稳定存储界。跨 Package 字段复用普通拥有字段的实际初始化
+与清理规则，不绕过需完整 teardown 的合法前缀限制。
+
+部分转交后，父存储及未转交字段继续存在；父值 Take/完整传参要求所有
+字段初始化。重复路径、前缀重叠及相交借入禁止再次转交，真正同级字段
+保留分离证明。DropEnum/DropTuple 按当前活动 variant 和剩余初始化状态
+各清理一次，退出/早返/循环与反方向分支不能漏清理或重复清理。两核各自
+从实际 CFG 重建逐子树初始化，不读取 producer 权限声明；后端从实际
+Store/Take/Drop 重建有界局部部分标记并使用真实基址。路径深度、每步
+Type/tag 核验、状态复制/汇合、字段表、清理标记和 Wire 步骤在分配前
+计入现有额度；不以候选 Plan 字段制造初始化事实。
+
+Copy Tuple 的嵌套模式及条件接续：AddressField 只缩小真实 inline 字段区间，
+保留父权限链，显式 ReborrowAddress 才建立子借入。if let/while let 的 ref
+条件复用实际 tag/字段检查，条件临时值置于独立词法清理作用域；失败分支、
+早返、break/continue 都清理仍拥有的临时父值，借入本身不复制拥有载荷。
+
+本阶段实际完整请求额度：拥有 Tuple fixture N23399；已有 addressed.zil
+从90036迁移至90248，反映新元组构造/字段位置处理，N-1及fresh/warm均核验。
+unsigned/Option/local-reference 的9050/38035/18127保持。该迁移不修改正式性能门。
+组合独审发现旧粗根判定会丢失 ParameterCapture 的 Apart 义务；只允许同一
+实际 Address 的明确不相交 Window 区间免除该义务，符号捕获保留调用者代入核验。
+impl187原有源码/原始Wire最近反例24/0重放通过。117/118仍为施工拒绝分支，
+不将该完整Tuple阶段解释为部分移动或完整模式终态。
