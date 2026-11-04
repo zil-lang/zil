@@ -702,6 +702,7 @@ pub(super) fn signature_parameter(ty: &Type) -> bool {
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
     parameters.iter().all(signature_parameter)
         && (result.is_copy_value()
+            || borrowed_fp::invocation(parameters,result)
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained

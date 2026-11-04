@@ -49,7 +49,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     // separately checked against actual parameter origins below.
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
-    let callable = callable::template(function)?;
+    let callable = callable::template(function, budget)?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
@@ -706,6 +706,26 @@ impl Check<'_, '_, '_> {
                     },
                     _ => None,
                 };
+                if let Some(bound) = target.and_then(|name| state.locals.get(name)).and_then(|local|
+                    self.callable.as_ref().and_then(|scope| scope.bindings().find(|bound|
+                        callable::parameter_mode(&local.ty, &bound.generic_name).is_some())))
+                    && let Some(life) = &bound.life {
+                    self.budget.node(expression.span, 0)?;
+                    let mut allowed=Vec::new();
+                    for (index, parameter) in bound.parameters.iter().enumerate() {
+                        self.budget.node(parameter.span,0)?;
+                        if life.result_life.is_some() && life.parameter_lives[index]==life.result_life
+                            && matches!(group(parameter).kind,TypeKind::Reference{mutable,..}
+                                if !matches!(group(&bound.result).kind,TypeKind::Reference{mutable:true,..}) || mutable) {
+                            allowed.push(index);
+                        }
+                    }
+                    let mut roots=BTreeSet::new();
+                    for index in allowed { for root in self.life_expression(&arguments[index].value,state)? {
+                        self.budget.node(expression.span,0)?; roots.insert(root);
+                    } }
+                    return Ok(roots);
+                }
                 let function = target.and_then(|name| self.signatures.get(name)).ok_or_else(||
                     unsupported(expression.span, "generic borrowed return requires a static helper with an explicit life relation"))?;
                 self.budget.node(callee.span, 0)?;
@@ -3126,7 +3146,7 @@ impl Check<'_, '_, '_> {
                     .signatures
                     .get(target)
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if self.callable.is_some() && callable::template(function)?.is_some() {
+                if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
                     self.dependencies.edge(
                         self.definition,
                         &function.name,
@@ -3266,7 +3286,7 @@ impl Check<'_, '_, '_> {
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
-                let callable = callable::template(function)?;
+                let callable = callable::template(function, self.budget)?;
                 if let Some(callees) = &callable {
                     for callee in callees.bindings() {
                         self.budget.node(e.span, 0)?;

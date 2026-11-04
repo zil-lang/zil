@@ -112,6 +112,7 @@ fn fixture(parameter_alias: bool) -> TypedModule {
     helper.blocks[0].terminator = Terminator::Return(Some(ValueId(6)));
     helper.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: CallableKind::Fn,

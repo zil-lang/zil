@@ -65,6 +65,7 @@ fn fixture(
         .into_iter()
         .enumerate()
         .map(|(index, kind)| CoreCallableParameter {
+            life: None,
             index: index as u32,
             generic_index: index as u32,
             generic_name: format!("Role{index}"),

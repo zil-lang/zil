@@ -35,6 +35,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
+    pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -64,6 +65,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             borrowed_function_pointers: false,
+            invocation_callbacks: false,
             head_descriptions: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -705,6 +707,8 @@ pub(super) fn preflight(
             closure.parameters.len().saturating_add(1),
             "closure signature preflight",
         )?;
+        if closure.lending_captures.is_empty() && crate::borrowed_fp::invocation(&closure.parameters,&closure.result) { budget.borrowed_function_pointers=true; budget.invocation_callbacks=true; }
+
         for ty in &closure.captures {
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
@@ -847,6 +851,10 @@ pub(super) fn preflight(
                 "callable role table",
             )?;
             for role in &contract.roles {
+                if let Some(life)=&role.life {
+                    budget.input(crate::borrowed_fp::work(life),"higher-rank callable metadata")?;
+                    budget.borrowed_function_pointers=true; budget.invocation_callbacks=true;
+                }
                 budget.input(
                     role.hold
                         .len()

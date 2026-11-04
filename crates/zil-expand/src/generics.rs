@@ -415,7 +415,7 @@ impl<'a> Engine<'a> {
                 ));
             }
             let callable = if let ItemKind::Function(function) = &item.kind {
-                callable::template(function)?
+                callable::template(function, &mut engine.budget)?
             } else {
                 None
             };
@@ -566,7 +566,7 @@ impl<'a> Engine<'a> {
         for item in &module.items {
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
-                    if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
+                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.pending.push_back(item.clone());
@@ -640,7 +640,7 @@ impl<'a> Engine<'a> {
             })
             .collect::<R<Vec<_>>>()?;
         let retained = match &item.kind {
-            ItemKind::Function(function) => callable::template(function)?,
+            ItemKind::Function(function) => callable::template(function, &mut self.budget)?,
             _ => None,
         };
         let parameters: Vec<_> = params(item)
@@ -868,7 +868,7 @@ impl<'a> Engine<'a> {
                     &mut self.store_parameter,
                     store_parameter.map(|parameter| parameter.name.clone()),
                 );
-                let callable = callable::template(f)?;
+                let callable = callable::template(f, &mut self.budget)?;
                 let pair = callable::dual_scope(callable.as_ref(), &mut self.budget, f.span)?;
                 let saved_pair = std::mem::replace(&mut self.callable_pair, pair);
                 let saved_callable = std::mem::replace(
@@ -904,6 +904,7 @@ impl<'a> Engine<'a> {
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
+                            let bound = callable::bound_inner_mut(bound);
                             if let TypeKind::Named { path, args } = &mut bound.kind
                                 && path.len() == 1
                                 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce")
@@ -1888,7 +1889,7 @@ impl<'a> Engine<'a> {
                         let ItemKind::Function(function) = &template.kind else {
                             return Err(error(e.span, "aggregate template is not a callable"));
                         };
-                        if let Some(callable) = callable::template(function)? {
+                        if let Some(callable) = callable::template(function, &mut self.budget)? {
                             if explicit.is_some() {
                                 return Err(unsupported(
                                     e.span,
@@ -2306,7 +2307,7 @@ impl<'a> Engine<'a> {
         let callable = self
             .signatures
             .get(name)
-            .map(|f| callable::template(f))
+            .map(|f| callable::template(f, &mut self.budget))
             .transpose()?
             .flatten();
         let callable_name = callable

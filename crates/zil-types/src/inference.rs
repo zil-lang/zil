@@ -148,6 +148,7 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if let Some(life)=&bound.life { budget.work(borrowed_fp::metadata_work(life),span)?; borrowed_fp::relation(&bound.parameters,&bound.result,life,span)?; }
     budget.work(
         bound
             .generic_name

@@ -54,6 +54,7 @@ impl Expander<'_> {
                     .roles
                     .into_iter()
                     .map(|role| CoreCallableParameter {
+                        life: role.life,
                         index: role.index as u32,
                         generic_index: role.generic_index,
                         generic_name: role.generic_name,

@@ -91,3 +91,7 @@ Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安�
 
 
 独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。
+
+## 下一阶段提案：HRTB Fn 的普遍定义与每次调用关系
+
+普通 `F:for<life a> Fn(&'a T)->&'a T` bound保留canonical FunctionLifeContract；CoreCallableParameter及实际CallableRole的Option关系由root独占发布，CoreStateBinding不加空字段。定义期从声明bound推导可调用参数/结果与真实贷款，不依据某个实际Closure更强能力；显式返回集合只由本次实参位置代换，环境Hold固定依赖独立。具体现核actual Closure完整签名及每条可达返回来源，捕获根不得洗成调用局部根。声明binder的名字按词法作用域独立，canonical关系按实际输入首次出现，调用每次用当前根/父链准备全部窗口。新增关系构造/复制/固定点按本次请求预费，旧无HRTB的路径不增加费用；真实源/未用定义/raw/Wire/native/cache/边界逐项核验后再提交候选。
