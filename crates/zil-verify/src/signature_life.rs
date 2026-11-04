@@ -31,6 +31,24 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
+    relation_inner(parameters, result, c, span, false)
+}
+pub(super) fn function_relation(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+) -> Check<()> {
+    relation_inner(parameters, result, c, span, allow_callback)
+}
+fn relation_inner(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+    allow_callback: bool,
+) -> Check<()> {
     let invalid = || {
         reject(
             "E-VERIFY-SIGNATURE-CLASS",
@@ -133,7 +151,7 @@ pub(super) fn relation(
                 }
             }
             t if pointee => {
-                if !t.is_address_pointee() {
+                if !(t.is_address_pointee() || allow_callback && matches!(t, Type::Closure(_))) {
                     return Err(invalid());
                 }
             }

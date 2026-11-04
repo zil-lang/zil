@@ -732,7 +732,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
             .chain(std::iter::once(&f.return_type))
         {
             b.spend(1)?;
-            if qualified(ty).is_some() || addressed(ty).is_some() {
+            if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
                 return Err(err("stored signature requires complete class relation"));
             }
         }
@@ -752,7 +752,13 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
-    super::signature_life::relation(&parameters, &f.return_type, c, Some(f.span))?;
+    super::signature_life::function_relation(
+        &parameters,
+        &f.return_type,
+        c,
+        Some(f.span),
+        f.callable_contract.is_some(),
+    )?;
     Ok(())
 }
 
