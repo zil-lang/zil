@@ -1884,6 +1884,33 @@ mod tests {
         ));
     }
     #[test]
+    fn unbound_pointer_fixed_is_rejected_in_raw_and_decoded_wire() {
+        let m = fixture::phantom_class_calls(true, false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::unbound_fixed_pointer();
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
+    }
+    #[test]
     fn rich_indirect_alias_is_rejected_in_raw_and_wire_even_with_matching_classes() {
         let m = fixture::rich_marker_exclusive_call(true);
         let c = fixture::class_candidate(&m);

@@ -881,3 +881,17 @@ pub(super) fn rich_marker_exclusive_call(alias: bool) -> TypedModule {
     arguments.push(ValueId(if alias { 1 } else { 4 }));
     m
 }
+
+#[allow(dead_code)]
+pub(super) fn unbound_fixed_pointer() -> TypedModule {
+    let mut m = phantom_class_calls(true, false);
+    let Type::BorrowedFunctionPointer { life, .. } = &mut m.functions[1].values[7] else {
+        unreachable!()
+    };
+    life.invocation_binder_count = 0;
+    life.fixed_binder_count = 1;
+    for row in &mut life.classes {
+        row.binder = StorageBinder::Fixed(0);
+    }
+    m
+}
