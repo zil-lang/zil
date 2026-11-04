@@ -208,7 +208,7 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
             let expected = [
                 "E-VERIFY-TASK",
                 "E-VERIFY-TASK",
-                "E-UNSUPPORTED",
+                "E-VERIFY-TASK",
                 "E-VERIFY-TASK",
                 "E-VERIFY-TYPE",
                 "E-VERIFY-TASK",
@@ -221,7 +221,7 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
                 assert!(
                     errors[0]
                         .message
-                        .contains("general owning task result lowering")
+                        .contains("exact canonical sealed native definition")
                 );
             }
         }
@@ -385,7 +385,7 @@ fn general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result() {
         assert!(
             errors[0]
                 .message
-                .contains("closed scalar profile independently"),
+                .contains("initial frame cannot retain borrowed input storage"),
             "{errors:?}"
         );
     }
@@ -1317,6 +1317,7 @@ fn owned_child343_actual_frame_result_width_and_kernel_work_boundaries() {
     for (width, text) in [
         (8, include_str!("task-owned-child-wide-8.zil")),
         (16, include_str!("task-owned-child-wide-16.zil")),
+        (0, include_str!("task-copy-error-result.zil")),
     ] {
         let typed =
             zil_types::check(&expand(text, &defaults).unwrap().core, &target, &defaults).unwrap();
@@ -1383,6 +1384,21 @@ fn owned_child343_unit_completion_and_recoverable_argument_error() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let unit = include_str!("task-unit-child.zil");
             let mut cases = vec![
+                (
+                    "tuple-result".to_owned(),
+                    include_str!("task-tuple-result.zil").to_owned(),
+                    b"PR".as_slice(),
+                ),
+                (
+                    "bool-result".to_owned(),
+                    include_str!("task-bool-result.zil").to_owned(),
+                    b"PT".as_slice(),
+                ),
+                (
+                    "unit-ready".to_owned(),
+                    include_str!("task-unit-ready.zil").to_owned(),
+                    b"PR".as_slice(),
+                ),
                 (
                     "argument-error".to_owned(),
                     include_str!("task-child-argument-error.zil").to_owned(),
