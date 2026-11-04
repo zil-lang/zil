@@ -343,7 +343,7 @@ impl Index {
                     self.check_links(a, span, left)?;
                 }
             }
-            CoreAggregateTypeRecipe::Store { element } => self.check_links(element, span, left)?,
+            CoreAggregateTypeRecipe::Registration { environment: element } | CoreAggregateTypeRecipe::Store { element } => self.check_links(element, span, left)?,
             _ => {}
         }
         Ok(())
@@ -377,7 +377,7 @@ fn validate_recipe(
             ));
         }
         CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
-        CoreAggregateTypeRecipe::Store { element } => {
+        CoreAggregateTypeRecipe::Registration { environment: element } | CoreAggregateTypeRecipe::Store { element } => {
             validate_recipe(element, depth + 1, limits, left, span)?
         }
         CoreAggregateTypeRecipe::Apply { arguments, .. } => {
@@ -612,7 +612,8 @@ fn contextual_free(
             Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
-            | Type::OwnedStore { element: t }
+            | Type::Registration { environment: t }
+        | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => found |= visit(t, b, owner, entries, charge)?,
@@ -713,7 +714,8 @@ pub(super) fn rebind_type(
             Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
-            | Type::OwnedStore { element: t }
+            | Type::Registration { environment: t }
+        | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => {

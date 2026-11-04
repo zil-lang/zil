@@ -1,6 +1,36 @@
 //! Symbolic checking for the structured foreign callback primitive.
 use super::*;
 impl Check<'_, '_, '_> {
+    pub(super) fn registration_call(&mut self,name:&str,arguments:&[Argument],state:&mut State,span:Span)->R<TypeRef>{
+        if name=="c_register" {
+            let [register,close,callback]=arguments else{return Err(error(span,"c_register requires register, close and actual F"))};
+            if !self.unsafe_scope||arguments.iter().any(|a|a.spread){return Err(error(span,"c_register requires explicit unsafe and ordered arguments"))}
+            for (argument,role) in [(register,zil_ir::ScopedCallbackRole::Register),(close,zil_ir::ScopedCallbackRole::Close)] {
+                self.tick(argument.span)?;
+                let name=super::super::super::foreign::bare_name(&argument.value).filter(|n|!state.locals.contains_key(*n)).ok_or_else(||error(argument.span,"registration roles require actual static foreign symbols"))?;
+                self.budget.text(name,argument.span)?;
+                let (_,function)=self.foreign_signatures.get(name).ok_or_else(||error(argument.span,"registration foreign role absent"))?;
+                for clause in &function.contract {self.budget.node(clause.span,0)?;for term in &clause.terms{for part in &term.path{self.budget.text(part,clause.span)?;}}}
+                let (_,static_callbacks,actual)=super::super::super::foreign::noescape_contract(function)?;
+                if actual!=Some(role)||!static_callbacks{return Err(error(argument.span,"registration role differs from actual foreign declaration"))}
+            }
+            let ty=self.expr(&callback.value,state,None,false)?;
+            let bound=self.callable.as_ref().and_then(|b|b.bindings().find(|b|callable::parameter_mode(&ty,&b.generic_name)==Some(None))).ok_or_else(||error(callback.span,"generic registration requires its actual declared concrete callable input"))?;
+            if !bound.closed_environment||bound.kind!=zil_ir::CallableKind::FnMut||bound.parameters.len()!=1{return Err(error(callback.span,"registration requires explicit FnMut(i32)->i32 + ClosedEnvironment"))}
+            same(&bound.parameters[0],&named("i32",span),span,self.budget)?;
+            same(&bound.result,&named("i32",span),span,self.budget)?;
+            self.budget.ty(&ty)?;
+            Ok(TypeRef{span,kind:TypeKind::Named{path:vec!["Registration".into()],args:vec![GenericArg::Type(ty)]}})
+        }else{
+            let [argument]=arguments else{return Err(error(span,"registration operation requires one actual carrier"))};
+            if argument.spread{return Err(error(span,"registration operation does not accept spread"))}
+            let owns=self.owned_resource_expression(&argument.value,state)?;
+            let ty=self.expr(&argument.value,state,None,name=="registration_valid")?;
+            if callable::registration_environment(&ty).is_none()||(name=="registration_close"&&!owns){return Err(error(span,"registration validity reads descriptor; close requires actual give owner"))}
+            Ok(if name=="registration_valid"{named("bool",span)}else{unit(span)})
+        }
+    }
+
     pub(super) fn scoped_copy_local(&mut self, id: usize, span: Span) -> R<bool> {
         if self.scoped_copy_closures.is_empty() {
             return Ok(false);
@@ -116,7 +146,7 @@ impl Check<'_, '_, '_> {
                 StmtKind::Return(Some(e))
                 | StmtKind::Expression(e)
                 | StmtKind::Binding { value: e, .. }
-                    if matches!(&e.kind,ExprKind::Call{callee,..} if super::super::super::foreign::bare_name(callee)==Some("c_with_callback")) =>
+                    if matches!(&e.kind,ExprKind::Call{callee,..} if matches!(super::super::super::foreign::bare_name(callee),Some("c_with_callback"|"c_register"))) =>
                 {
                     return Ok(true);
                 }

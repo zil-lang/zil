@@ -412,6 +412,8 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::RegistrationStart { callback, .. } => (Some(*callback), None, &[]),
+        InstructionKind::RegistrationValid { registration } | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),
         InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
@@ -1311,6 +1313,10 @@ impl Flow<'_> {
                         )?;
                     }
                     forget_order(state, *local, budget)?;
+                }
+                InstructionKind::RegistrationStart { callback, .. } => {
+                    self.consume(state, *callback, check, budget)?;
+                    produced = Some(Fact { life: BTreeSet::from([Life::Available]), birth: BTreeSet::from([Birth::Created]), sources: BTreeSet::new() });
                 }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
@@ -2262,7 +2268,7 @@ impl Flow<'_> {
                     }
                     produced = Some(fact);
                 }
-                InstructionKind::TaskFinishDestroy { task } => {
+                InstructionKind::RegistrationClose { registration: task } | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, check, budget)?;
                 }
                 InstructionKind::Call {

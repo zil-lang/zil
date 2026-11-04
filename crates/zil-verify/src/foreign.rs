@@ -258,6 +258,7 @@ pub(super) fn check_regions(
                     InstructionKind::UnsafeEnter { .. }
                         | InstructionKind::UnsafeExit { .. }
                         | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::RegistrationStart { .. }
                         | InstructionKind::WithForeignCallback { .. }
                 )
             {
@@ -324,6 +325,7 @@ pub(super) fn check_regions(
                     }
                 }
                 InstructionKind::ForeignCall { region, .. }
+                | InstructionKind::RegistrationStart { region, .. }
                 | InstructionKind::WithForeignCallback { region, .. } => {
                     if stack.last() != Some(&region) {
                         return Err(bad(

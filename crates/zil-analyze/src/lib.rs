@@ -30,6 +30,7 @@ mod scopes;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
+mod registration;
 
 use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
@@ -108,6 +109,7 @@ fn analyze_budgeted(
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
     tasks::check(module, budget)?;
+    registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }

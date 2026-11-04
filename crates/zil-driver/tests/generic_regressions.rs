@@ -3335,3 +3335,10 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
         }
     }
 }
+
+#[test]
+fn registration343_returned_generic_owner_reaches_both_kernels() {
+    let text=include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let report=compile_source(&source(text),&CompileOptions::default());
+    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+}

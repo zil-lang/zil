@@ -337,7 +337,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     if let Some((error, _)) = stores::success(&check.result) {
         stores::copy_error(error, check.nominals, check.budget)?;
     }
-    if stores::carrier(&check.result).is_some() && check.result_mode == zil_ir::PassingMode::Infer {
+    if (stores::carrier(&check.result).is_some() || callable::registration_environment(&check.result).is_some()) && check.result_mode == zil_ir::PassingMode::Infer {
         return Err(unsupported(
             function.span,
             "generic Store result requires result(create/give)",
@@ -943,7 +943,7 @@ impl Check<'_, '_, '_> {
                 }
             }
             ExprKind::Call { callee, .. } => stores::call_name(callee).is_some_and(|name| {
-                name == "bytes_new"
+                name == "bytes_new" || name == "c_register"
                     || self.signatures.get(name).is_some_and(|function| {
                         stores::result_mode(function).is_ok_and(|mode| {
                             matches!(
@@ -1218,7 +1218,7 @@ impl Check<'_, '_, '_> {
                 let Some(name) = stores::call_name(callee) else {
                     return false;
                 };
-                if name == "store_new" {
+                if name == "store_new" || name == "c_register" {
                     return true;
                 }
                 self.signatures.get(name).is_some_and(|function| {
@@ -1266,7 +1266,7 @@ impl Check<'_, '_, '_> {
                 let Some(name) = stores::call_name(callee) else {
                     return Ok(false);
                 };
-                Ok(name == "store_new"
+                Ok(name == "store_new" || name == "c_register"
                     || self.signatures.get(name).is_some_and(|function| {
                         stores::result_mode(function)
                             .is_ok_and(|mode| mode == zil_ir::PassingMode::Create)
@@ -1300,6 +1300,7 @@ impl Check<'_, '_, '_> {
         // Capture the ownership facts before expression evaluation consumes
         // its source. Looking only at the returned syntax type erases the
         // distinction between a Store carrier and its Copy description.
+        let registration_owner = if callable::registration_environment(&self.result).is_some() { Some(self.owned_resource_expression(expression,state)?) } else { None };
         let owns = self.owning_store_expression(expression, state);
         let fresh = owns && self.fresh_store_expression(expression, state)?;
         let expected = self.result.clone();
@@ -1323,6 +1324,7 @@ impl Check<'_, '_, '_> {
         {
             self.factory_result_identity(expression, state)?;
         }
+        if registration_owner == Some(false) { return Err(error(expression.span,"Registration return requires an actual create/give owner, not its descriptor")); }
         if let Some((error_type, _)) = stores::success(&expected)
             && type_key(&actual, self.budget)? == type_key(error_type, self.budget)?
         {
@@ -2748,6 +2750,7 @@ impl Check<'_, '_, '_> {
                         "thread_scope in generic callable wrappers is not implemented",
                     ));
                 }
+                if let Some(name) = super::super::foreign::bare_name(callee).filter(|n|matches!(*n,"c_register"|"registration_valid"|"registration_close")) { return self.registration_call(name,arguments,state,e.span); }
                 if super::super::foreign::bare_name(callee) == Some("c_with_callback") {
                     return self.scoped_callback_call(arguments, state, e.span);
                 }
@@ -3627,7 +3630,7 @@ impl Check<'_, '_, '_> {
                         || self
                             .callable
                             .as_ref()
-                            .is_some_and(|bounds| bounds.owned_factory)
+                            .is_some_and(|bounds| bounds.owned_factory || bounds.retained_registration)
                     {
                         resource_flow.owns = self.owned_resource_expression(value, state)?;
                     }
@@ -3641,6 +3644,7 @@ impl Check<'_, '_, '_> {
                     }
                     let origins = self.store_origins(value, state)?;
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
+                    if callable::registration_environment(&actual).is_some() { resource_flow.declaration = true; }
                     let life_origins = if self.life_allowed.is_some()
                         && matches!(group(&actual).kind, TypeKind::Reference { .. })
                     {

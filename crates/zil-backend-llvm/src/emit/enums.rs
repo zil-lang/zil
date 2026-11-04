@@ -85,7 +85,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
-                || payload.as_ref() == &Type::TaskI32
+                || payload.as_ref() == &Type::TaskI32 || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Layout { size: 8, align: 8 }
@@ -95,7 +95,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             fields_layout(fields.iter().map(|(_, ty)| ty))?
         }
         Type::Managed(payload) => physical_layout(payload)?,
-        Type::TaskI32 => Layout { size: 8, align: 8 },
+        Type::Registration { .. } | Type::TaskI32 => Layout { size: 8, align: 8 },
         Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
@@ -243,7 +243,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                     None,
                 )]);
             }
-            Type::Closure(_) | Type::Opaque { .. } => {
+            Type::Registration { .. } | Type::Closure(_) | Type::Opaque { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,
                     "CT layout needs a resolved shape and closure environment",
@@ -625,7 +625,7 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
-            Type::TaskI32
+            Type::Registration { .. } | Type::TaskI32
             | Type::U8
             | Type::U16
             | Type::I32
