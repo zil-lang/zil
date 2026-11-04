@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 1;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v1";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v1";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v1";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 2;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v2";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v2";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v2";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -47,6 +47,8 @@ pub enum CtScalarTy {
     U16,
     I32,
     I64,
+    F32,
+    F64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -472,6 +474,10 @@ pub enum CtInstructionKind {
         value: CtValueId,
     },
     ConvertInteger {
+        value: CtValueId,
+        target: CtScalarTy,
+    },
+    ConvertNumber {
         value: CtValueId,
         target: CtScalarTy,
     },

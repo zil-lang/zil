@@ -34,6 +34,8 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    F32,
+    F64,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -108,7 +110,14 @@ impl Type {
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
-            Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
+            Self::Unit
+                | Self::Bool
+                | Self::I32
+                | Self::I64
+                | Self::F32
+                | Self::F64
+                | Self::U8
+                | Self::U16
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
@@ -162,6 +171,8 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::F32
+            | Self::F64
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -191,12 +202,20 @@ impl Type {
     pub fn is_integer(&self) -> bool {
         matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
     }
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
+    pub fn is_numeric(&self) -> bool {
+        self.is_integer() || self.is_float()
+    }
     pub fn name(&self) -> String {
         match self {
             Self::Unit => "()".into(),
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::F32 => "f32".into(),
+            Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
@@ -248,6 +267,9 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    /// Exact IEEE bits; identity preserves signed zero and every NaN spelling.
+    F32(u32),
+    F64(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -262,6 +284,8 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::F32(_) => Type::F32,
+            Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -614,6 +638,12 @@ pub enum CoreExprKind {
         value: Box<CoreExpr>,
     },
     Integer(String),
+    Float(String),
+    /// Numeric conversion with at least one floating endpoint.
+    NumericConvert {
+        value: Box<CoreExpr>,
+        target: Type,
+    },
     IntegerConvert {
         value: Box<CoreExpr>,
         target: Type,
@@ -1212,6 +1242,11 @@ pub enum InstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with at least one floating endpoint.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Load(LocalId),
     /// Transfer a non-Copy carrier and make its source uninitialized.
     TakeLocal {
@@ -1639,6 +1674,11 @@ pub enum CtInstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with at least one floating endpoint.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Unary {
         op: UnaryOp,
         operand: ValueId,
@@ -1733,7 +1773,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1808,6 +1848,8 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -2033,10 +2075,23 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(3);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::F32(bits) => {
+            b.push(11);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
+        Constant::F64(bits) => {
+            b.push(12);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
     }
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
         InstructionKind::ConvertInteger { value, target } => {
             b.push(59);
             encode_u32(b, value.0);
