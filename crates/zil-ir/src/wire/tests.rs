@@ -750,6 +750,11 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
     let (mut module, _) = module_candidate();
     let contract = CallableParameterContract {
         roles: vec![CallableRole {
+            life: Some(FunctionLifeContract {
+                binder_count: 1,
+                parameter_lives: vec![Some(0)],
+                result_life: Some(0),
+            }),
             parameter: 0,
             closure: ClosureId(3),
             kind: CallableKind::Fn,
@@ -783,7 +788,11 @@ fn concrete_helper_contract_roundtrips_and_binds_each_claim() {
         assert!(decode_module_candidate(&bytes[..length], &limits).is_err());
     }
     let fingerprint = module.fingerprint();
-    let mutate: [fn(&mut CallableParameterContract); 9] = [
+    let mutate: [fn(&mut CallableParameterContract); 13] = [
+        |c| c.roles[0].life = None,
+        |c| c.roles[0].life.as_mut().unwrap().binder_count += 1,
+        |c| c.roles[0].life.as_mut().unwrap().parameter_lives[0] = None,
+        |c| c.roles[0].life.as_mut().unwrap().result_life = None,
         |c| c.roles[0].parameter += 1,
         |c| c.roles[0].closure.0 += 1,
         |c| c.roles[0].kind = CallableKind::FnOnce,

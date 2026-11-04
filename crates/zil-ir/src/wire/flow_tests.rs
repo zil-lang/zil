@@ -3,6 +3,7 @@ use zil_base::ResultCategory;
 fn claim() -> CallableParameterContract {
     CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(7),
             kind: CallableKind::FnMut,

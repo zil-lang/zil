@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 35;
+pub const WIRE_VERSION: u32 = 36;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -661,6 +661,31 @@ impl<'a> Writer<'a> {
             self.u32(role.parameter)?;
             self.u32(role.closure.0)?;
             self.u8(callable_kind_tag(role.kind))?;
+            self.boolean(role.life.is_some())?;
+            if let Some(life) = &role.life {
+                metadata = flow_count(
+                    metadata,
+                    life.binder_count as usize,
+                    self.limits.max_analysis_steps,
+                )?;
+                metadata = flow_count(
+                    metadata,
+                    life.parameter_lives.len(),
+                    self.limits.max_analysis_steps,
+                )?;
+                self.count(life.binder_count as usize, self.limits.max_locals)?;
+                self.count(life.parameter_lives.len(), self.limits.max_locals)?;
+                for tag in &life.parameter_lives {
+                    self.boolean(tag.is_some())?;
+                    if let Some(tag) = tag {
+                        self.u32(*tag)?;
+                    }
+                }
+                self.boolean(life.result_life.is_some())?;
+                if let Some(tag) = life.result_life {
+                    self.u32(tag)?;
+                }
+            }
             for indices in [&role.hold, &role.call, &role.writes] {
                 metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
                 self.count(indices.len(), self.limits.max_locals)?;
@@ -2135,13 +2160,43 @@ impl<'a> Reader<'a> {
         Ok(calls)
     }
     fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
-        let count = self.count(self.limits.max_locals, 22)?;
+        let count = self.count(self.limits.max_locals, 23)?;
         let mut roles = Vec::with_capacity(count);
         let mut metadata = 0usize;
         for _ in 0..count {
             let parameter = self.u32()?;
             let closure = ClosureId(self.u32()?);
             let kind = self.callable_kind()?;
+            let life = if self.boolean()? {
+                let binder_count = self.count(self.limits.max_locals, 0)? as u32;
+                metadata = flow_count(
+                    metadata,
+                    binder_count as usize,
+                    self.limits.max_analysis_steps,
+                )?;
+                let count = self.count(self.limits.max_locals, 1)?;
+                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
+                let mut parameter_lives = Vec::with_capacity(count);
+                for _ in 0..count {
+                    parameter_lives.push(if self.boolean()? {
+                        Some(self.u32()?)
+                    } else {
+                        None
+                    });
+                }
+                let result_life = if self.boolean()? {
+                    Some(self.u32()?)
+                } else {
+                    None
+                };
+                Some(FunctionLifeContract {
+                    binder_count,
+                    parameter_lives,
+                    result_life,
+                })
+            } else {
+                None
+            };
             let mut fields = Vec::with_capacity(3);
             for _ in 0..3 {
                 let count = self.count(self.limits.max_locals, 4)?;
@@ -2161,6 +2216,7 @@ impl<'a> Reader<'a> {
                 _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
             };
             roles.push(CallableRole {
+                life,
                 parameter,
                 closure,
                 kind,

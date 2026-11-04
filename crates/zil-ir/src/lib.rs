@@ -419,6 +419,8 @@ pub struct CoreCallableReturn {
 /// Raw bound for one retained, nonescaping callable template parameter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
+    /// Invocation-local raw binder relation; fixed environment Hold is separate.
+    pub life: Option<FunctionLifeContract>,
     pub index: u32,
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
@@ -790,6 +792,8 @@ pub struct CallableParameterContract {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableRole {
+    /// Untrusted invocation-local relation; actual closure CFG roots are independently checked.
+    pub life: Option<FunctionLifeContract>,
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -1757,7 +1761,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V36\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2670,7 +2674,7 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -2711,6 +2715,21 @@ fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterC
         encode_u32(b, role.parameter);
         encode_u32(b, role.closure.0);
         b.push(callable_kind_tag(role.kind));
+        b.push(u8::from(role.life.is_some()));
+        if let Some(life) = &role.life {
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for tag in &life.parameter_lives {
+                b.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag {
+                    encode_u32(b, *tag);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life {
+                encode_u32(b, tag);
+            }
+        }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());
             for index in indices {

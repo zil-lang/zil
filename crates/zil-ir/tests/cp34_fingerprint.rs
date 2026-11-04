@@ -95,6 +95,7 @@ fn contract(flow: bool) -> CallableParameterContract {
             .into_iter()
             .enumerate()
             .map(|(i, kind)| CallableRole {
+                life: None,
                 parameter: i as u32,
                 closure: ClosureId(i as u32 + 2),
                 kind,
