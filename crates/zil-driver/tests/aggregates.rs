@@ -1838,9 +1838,27 @@ fn tuple_binding_shape_and_permission_neighbors() {
     ] {
         reject(text, code);
     }
+    // Terminal340 gives references to one real temporary for an rvalue RHS.
+    // The frozen source controls now succeed; named immutable places remain rejected.
     for text in [
         "fn result()->i32 { let (ref a,b)=(1,2); return b; }",
         "fn result()->i32 { let (ref mut a,b)=(1,2); return b; }",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "fn result()->i32{let(ref a,b)=(20,22);return *a+b}",
+        "fn result()->i32{let(ref mut a,b)=(20,22);*a+=b;return *a}",
+    ] {
+        review329_native(&[("main", text)], 42);
+    }
+    for text in [
         "fn result()->i32 { let (1,b)=(1,2); return b; }",
         "fn result()->i32 { var a=1; let (_,_) = (&mut a,2); return a; }",
     ] {
