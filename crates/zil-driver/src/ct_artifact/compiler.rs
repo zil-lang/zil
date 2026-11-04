@@ -22,6 +22,10 @@ use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 use zil_syntax::ast as s;
 
+pub(super) fn scalar_type(name: &str) -> Option<CtScalarTy> {
+    types::scalar(name)
+}
+
 /// Producer-only lexical lowering; a Type value carries no borrow permission.
 pub(super) fn source_relation(
     names: &[&str],

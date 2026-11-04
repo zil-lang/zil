@@ -423,19 +423,33 @@ pub(super) fn scoped_name<'a>(
         return Cow::Borrowed(substitutions);
     }
     let mut scoped = substitutions.clone();
-    scoped.remove(name);
+    hide_name(name, &mut scoped);
     Cow::Owned(scoped)
+}
+
+fn hide_name(name: &str, substitutions: &mut BTreeMap<String, TypeRef>) {
+    let associated = substitutions
+        .get(name)
+        .is_some_and(trait_bounds::constants::subject);
+    if substitutions
+        .get(name)
+        .is_some_and(|t| expression(t).is_some())
+    {
+        substitutions.remove(name);
+    }
+    if associated {
+        substitutions.retain(|key, _| {
+            !key.strip_prefix("\0constant:")
+                .and_then(|key| key.strip_prefix(name))
+                .is_some_and(|suffix| suffix.starts_with('.'))
+        });
+    }
 }
 
 pub(super) fn hide(pattern: &Pattern, substitutions: &mut BTreeMap<String, TypeRef>) {
     match &pattern.kind {
         PatternKind::Name(name) => {
-            if substitutions
-                .get(name)
-                .is_some_and(|t| expression(t).is_some())
-            {
-                substitutions.remove(name);
-            }
+            hide_name(name, substitutions);
         }
         PatternKind::Reference { pattern, .. } => hide(pattern, substitutions),
         PatternKind::Tuple(patterns)
@@ -490,13 +504,22 @@ pub(super) fn prepay_scopes(
     substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
-    if !substitutions.values().any(|t| expression(t).is_some()) {
+    let mut present = false;
+    let mut associated = false;
+    for (name, ty) in substitutions {
+        budget.node(item.span, 0)?;
+        budget.text(name, item.span)?;
+        present |= expression(ty).is_some();
+        associated |= trait_bounds::constants::subject(ty);
+    }
+    if !present {
         return Ok(());
     }
     use super::super::ct_selection::Visitor;
     struct Scopes<'a, 'b, 'l> {
         substitutions: &'a BTreeMap<String, TypeRef>,
         budget: &'b mut Budget<'l>,
+        associated: bool,
     }
     impl Scopes<'_, '_, '_> {
         fn map(&mut self, span: Span) -> CompileResult<()> {
@@ -506,6 +529,17 @@ pub(super) fn prepay_scopes(
                     .and_then(|_| self.budget.text(name, span))
                     .and_then(|_| self.budget.ty(ty))
                     .map_err(|e| vec![e])?;
+            }
+            // Associated namespaces additionally retain-filter their member
+            // entries when the root is shadowed. Pay that second full pass.
+            if self.associated {
+                for (name, ty) in self.substitutions {
+                    self.budget
+                        .node(span, 0)
+                        .and_then(|_| self.budget.text(name, span))
+                        .and_then(|_| self.budget.ty(ty))
+                        .map_err(|e| vec![e])?;
+                }
             }
             Ok(())
         }
@@ -546,6 +580,7 @@ pub(super) fn prepay_scopes(
     Scopes {
         substitutions,
         budget,
+        associated,
     }
     .item(item, 0)
     .map_err(|mut e| e.remove(0))

@@ -2419,6 +2419,35 @@ impl Check<'_, '_, '_> {
         borrowing: bool,
     ) -> R<TypeRef> {
         self.tick(e.span)?;
+        if self.traits.has_constants
+            && let ExprKind::Member {
+                object,
+                member: MemberName::Name(member),
+            } = &e.kind
+            && let Some(host) = trait_bounds::constants::host_expression(
+                object,
+                self.nominals,
+                |name| !state.locals.contains_key(name),
+                self.budget,
+            )?
+            && let Some(value) = self.traits.recipe_constant(
+                &host,
+                member,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+                e.span,
+            )?
+        {
+            return self
+                .traits
+                .constant_type(&value, &self.bounds, &self.variables, self.budget);
+        }
+        if trait_bounds::constants::parts(e).is_some() {
+            return self
+                .traits
+                .constant_type(e, &self.bounds, &self.variables, self.budget);
+        }
         let enum_context = expected.map(|ty| stores::success(ty).map_or(ty, |(error, _)| error));
         if let Some(ty) = self.enum_expression(e, state, enum_context)? {
             return Ok(ty);

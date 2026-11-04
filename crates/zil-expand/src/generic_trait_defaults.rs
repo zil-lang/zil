@@ -157,7 +157,7 @@ impl Engine<'_> {
         Ok(())
     }
 
-    fn check_default(
+    pub(super) fn check_default(
         &mut self,
         declaration: &TraitDecl,
         member: &Item,

@@ -80,6 +80,47 @@ impl Index<'_> {
                 let (_, declaration) = self.declaration_item(reference);
                 for member in &declaration.members {
                     budget.node(member.span, 0)?;
+                    if let ItemKind::Const(constant) = &member.kind {
+                        budget.text(subject, span)?;
+                        budget.text(&constant.name, member.span)?;
+                        let key = super::constants::key(subject, &constant.name);
+                        budget.text(&key, span)?;
+                        let value = super::constants::expression(
+                            &named(subject, span),
+                            reference,
+                            &constant.name,
+                            budget,
+                            member.span,
+                        )?;
+                        let value = if let Some(prior) = result.get(&key) {
+                            if consts::expression(prior)
+                                .map(|e| super::constants::identity(e, budget))
+                                .transpose()?
+                                .flatten()
+                                != super::constants::identity(&value, budget)?
+                            {
+                                Expr {
+                                    span: member.span,
+                                    kind: ExprKind::Name("$ambiguous_associated_constant".into()),
+                                }
+                            } else {
+                                value
+                            }
+                        } else {
+                            value
+                        };
+                        result.insert(key, consts::carrier(&value, budget)?);
+                        budget.text(subject, span)?;
+                        let marker = consts::carrier(
+                            &Expr {
+                                span,
+                                kind: ExprKind::Name(super::constants::SUBJECT.into()),
+                            },
+                            budget,
+                        )?;
+                        result.insert(subject.clone(), marker);
+                        continue;
+                    }
                     let ItemKind::TypeAlias(alias) = &member.kind else {
                         continue;
                     };
@@ -284,6 +325,9 @@ pub(crate) fn prepare(
             ItemKind::Trait(t) => {
                 for member in &mut t.members {
                     budget.substituted_item(member, &substitutions)?;
+                    if index.has_constants {
+                        consts::prepay_scopes(member, &substitutions, budget)?;
+                    }
                     substitute_item(member, &substitutions)?;
                 }
             }
@@ -323,11 +367,17 @@ pub(crate) fn prepare(
                 }
                 for member in &mut i.members {
                     budget.substituted_item(member, &substitutions)?;
+                    if index.has_constants {
+                        consts::prepay_scopes(member, &substitutions, budget)?;
+                    }
                     substitute_item(member, &substitutions)?;
                 }
             }
             _ => {
                 budget.substituted_item(item, &substitutions)?;
+                if index.has_constants {
+                    consts::prepay_scopes(item, &substitutions, budget)?;
+                }
                 substitute_item(item, &substitutions)?;
             }
         }

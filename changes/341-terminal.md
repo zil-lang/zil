@@ -180,3 +180,39 @@ records, whereas literal requires Scalar/Text. A concrete scalar field provides
 the nearest valid generic Syntax producer. This checkpoint adds evidence and
 unsigned const handling; it does not relax CT definition checking or change
 public IR, Wire or syntax.
+
+Associated constants will preserve the same host, actual trait application and
+member identity as associated types. Symbolic uses obtain only the declared
+type; concrete values may be read only after all selected impl premises pass.
+Declaration/default and impl equations must be checked even when unused or
+overridden. Scalar closed values form the first concrete checkpoint; general
+verified CT equations remain a separate obligation until they enter the existing
+CT executor. Value shadowing, missing/duplicate equations, ambiguous trait
+instances, bad unused defaults and active expansion cycles are retained controls.
+
+Closed scalar constant equations with an explicit scalar receiving type will
+also use the existing driver CT artifact compiler, independent verifier and VM
+before ordinary expansion. This includes unused and overridden equations.
+Equations depending on symbolic Self/type arguments remain subject to their
+separate definition and committed-instance lanes; they will not be evaluated
+with an invented i32 substitution. Expand itself will not execute CT code.
+
+The associated-constant checkpoint passes 21 generic + 56 trait target tests.
+Required/default constants compose with associated result types, inherited
+bounds, generic nominal impls and ordinary generic functions. Bound-selected
+and direct/applied reads retain the full actual trait instance. A generated AST
+shares trait/impl/member/function/value/type spans and still produces distinct
+values through independent raw/Wire verification and all four native profiles.
+Closed explicit-scalar equations use the verified CT artifact executor, with
+unused overflow, overridden divide-by-zero, forbidden foreign calls and failed
+Build publication controls. Cross-module defaults call their declaring module's
+private helper. Both 32/64-bit usize boundaries and grouped types/equations are
+retained. Actual new classifiers and namespace-map passes are prepaid; exact
+current ledgers and hashes are in the receipt, with limits unchanged.
+
+This remains a bounded checkpoint. Symbolic/dependent equations, active constant
+cycle normalization, constants in generic arguments/lengths, inherited/aliased
+CT receiving contexts, aggregate/Type/Syntax associated values and generic
+methods remain active work. Safety and static/native behavior have the evidence
+above; Rust runtime/RSS, maintenance and compile-cost comparisons and the joint
+product gates remain unmeasured. Latest exact checkpoint review is pending.

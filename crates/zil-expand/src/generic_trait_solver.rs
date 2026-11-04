@@ -1107,3 +1107,87 @@ impl Index<'_> {
         Ok(normalized)
     }
 }
+
+impl Index<'_> {
+    pub(crate) fn recipe_constant(
+        &self,
+        actual: &TypeRef,
+        name: &str,
+        available: &Bounds,
+        actual_variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<Expr>> {
+        let mut selected = None;
+        self.store_types(
+            actual,
+            available,
+            actual_variables,
+            budget,
+            callable::StoreCallbacks::None,
+        )?;
+        for item in &self.recipes {
+            budget.node(item.span, 0)?;
+            let ItemKind::Impl(implementation) = &item.kind else {
+                unreachable!()
+            };
+            let mut variables = BTreeSet::new();
+            for parameter in &implementation.generics {
+                budget.node(parameter.span, 0)?;
+                budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+            }
+            let mut found = BTreeMap::new();
+            if !matches_head(
+                &implementation.target,
+                actual,
+                &variables,
+                &mut found,
+                span,
+                budget,
+            )? {
+                continue;
+            }
+            let mut complete = true;
+            for parameter in &implementation.generics {
+                budget.node(parameter.span, 0)?;
+                budget.text(&parameter.name, parameter.span)?;
+                complete &= found.contains_key(&parameter.name);
+            }
+            if !complete {
+                continue;
+            }
+            let application = substituted(
+                implementation.trait_type.as_ref().expect("trait recipe"),
+                &found,
+                budget,
+            )?;
+            let reference = self.pattern_reference(&application, budget)?;
+            self.reference_arguments(&reference, available, actual_variables, budget)?;
+            let (_, declaration) = self.declaration_item(&reference);
+            let mut declared = false;
+            for member in &declaration.members {
+                budget.node(member.span, 0)?;
+                if let ItemKind::Const(constant) = &member.kind {
+                    budget.text(&constant.name, member.span)?;
+                    budget.text(name, span)?;
+                    declared |= constant.name == name;
+                }
+            }
+            if !declared {
+                continue;
+            }
+            self.solve(&reference, actual, available, actual_variables, budget)?;
+            if selected.is_some() {
+                return Err(error(
+                    span,
+                    "associated constant is ambiguous between nominal impl instances",
+                ));
+            }
+            selected = Some(super::constants::expression(
+                actual, &reference, name, budget, span,
+            )?);
+        }
+        Ok(selected)
+    }
+}
