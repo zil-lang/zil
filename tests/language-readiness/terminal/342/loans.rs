@@ -12,6 +12,8 @@ fn terminal342_unused_generic_aliases_are_checked_before_instantiation() {
         "fn bad<T:Copy>(p:T)->T{var x=[p,p];let a=&mut x[0];let v=x[1];return *a}fn main(){}",
         "fn pair<T:Copy>(a:&mut T,b:&mut T){}fn bad<T:Copy>(p:&mut T){pair(p,p)}fn main(){}",
         "fn bad<T:Copy>(p:&mut T,flag:bool)->T{let a=&*p;while flag{let b=&mut *p;}return *a}fn main(){}",
+        "fn bad<T:Copy>(x:T)->&T{return &x}fn main(){}",
+        "fn relay<T:Copy>(p:&mut T)->&mut T{return p}fn bad<T:Copy>(p:&mut T)->T{let a=&mut *relay(p);let b=&mut *p;return *a}fn main(){}",
     ];
     for text in negatives {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -40,6 +42,9 @@ fn terminal342_generic_windows_end_at_last_use_and_keep_disjoint_parameters() {
         "fn relay<T:Copy>(p:&mut T)->&mut T{let a=&mut *p;return a}fn result()->i32{var x=42;return *relay(&mut x)}",
         "fn read<T:Copy>(p:&mut T,flag:bool)->T{if flag{let a=&mut *p;return *a}let b=&mut *p;return *b}fn result()->i32{var x=42;return read(&mut x,false)}",
         "fn read<T:Copy>(p:&mut T,flag:bool)->T{while flag{let a=&mut *p;let value=*a;}return *p}fn result()->i32{var x=42;return read(&mut x,false)}",
+        "fn relay<T:Copy>(p:&mut T)->&mut T{return p}fn read<T:Copy>(p:&mut T)->T{let a=&mut *relay(p);return *a}fn result()->i32{var x=42;return read(&mut x)}",
+        "fn relay<T:Copy>(p:&mut [T])->&mut [T]{return p}fn read<T:Copy>(p:&mut [T])->T{let a=&mut relay(p)[0];return *a}fn result()->i32{var x=[42];return read(&mut x[..])}",
+        "fn view<T:StoreElement>(s:Store<T>)->&T{return store_at(s,0)}fn main(){}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -48,5 +53,22 @@ fn terminal342_generic_windows_end_at_last_use_and_keep_disjoint_parameters() {
             "{text}: {}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn terminal342_nested_address_headers_cannot_disappear_in_unused_definitions() {
+    for text in [
+        "fn bad<T:Copy>(p:&T)->& &T{return &p}fn main(){}",
+        "fn bad<T:Copy>(p:& &T)->& &T{return p}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, zil_base::Phase::Expand);
     }
 }

@@ -23,3 +23,17 @@ HRTB/借用 FP、借用存储/lending、显式 dyn 和一般 §5.2 状态后续�
 331原源Expand N757→779，来自新真实参数贷款建立；其它符号/别名源本轮 N1414/275/1391，各N−1 ResourceLimit/fresh N一致。322原源99/95/714/993、337具体源143/124/1178/4818保持。现有借用目标含真实两核、Wire、原生、缓存回归；本里程碑新增2测试覆盖8份未用近邻反例与6份合法最后使用/分支/循环/独立参数正例。
 
 Rust四目标：未用泛型别名责任增加可重放安全证据，完整语言证明仍待后续；沿既有地址ABI，没有新增隐式分配/RC/锁，未测同语义Rust运行/RSS；普通泛型无需实例化才能发现此类错误，尚无框架维护成本数据；新loan来源与复制实际累计收费，没有编译速度比较。实质增量为真实未使用普通mutable模板的既有漏洞闭合，不代表产品四目标合取或产品净突破；原product-gates/B0/完整语言状态不变。
+
+## 第二里程碑：CopyT+mutable life 与完整返回窗口
+
+规范扩展由集成方 `0feb9324c` 冻结，本分树按授权接为 `0954193ed`。实际 CopyT/life 定义先执行已扩展的普通贷款证明，再准入 mutable 来源；定义期显式返回上界按实际参数索引核对，mutable 结果还检查源形参真实模式。静态 helper 调用按该 callee 自己的 binder 和实际参数位置代换，返回窗口只取允许来源；参数位置是语义身份，未用 Span 或名称作为身份。
+
+架构复查还指出 no-life 局部逃逸和 call-as-place 空来源两个近邻。所有引用返回现核已建立的外部参数根，局部值根不能逃逸；嵌套地址签名和借用在未用定义中仍明确 Unsupported。实际 helper 调用产生的贷款经 place 投影、index/range 端点及赋值 RHS 保留，不能被后续标量表达式清空。Store/ByteBuffer Desc 形参和原语建立真实外部存储根/借用窗口，使旧合法 lending 消费者继续通过；新局部存储不因此变成外部根。
+
+新增9份真实 CopyT/mutable-life 源完成 Clang/API × O0/O2 共36次构建和执行，全部打印42/exit0，覆盖返回/重借/同拼写type-life/slice/记录字段/独立label/共享降权/分支/真实defer更新。6份未用反例、raw/Wire错误上界、跨模块CT及live/restored缓存的当前body/权限/调用方冲突检查通过。新增一般模板近邻包含call直接投影、局部逃逸、store来源、嵌套地址。两份337旧混合mutable源逐字节保留，从Unsupported迁为Success；原局部标注life仍Unsupported。
+
+实际 `cargo test -p zil-driver --test cross_function_borrows --test generic_regressions --test impl197_mixed_state --test review184_storage --test impl200_independent --features llvm-api --offline -- --nocapture` 的生产变更已完整通过42/35/14/4/10（后续两项budget/cache测试在各自既有目标限定重放通过；完整重放交给集成方）。Clippy含两个受影响目标、llvm-api、`-D warnings`通过。mixed select的Expand/Types/Analyze/Verify N=1669/248/2227/7927，每个N−1 ResourceLimit且fresh N一致；331原Expand在完整返回校验后N786（阶段前757），其它符号/别名N1413/282/1398，原322/337具体与legacyState2358保持。默认限额未升。
+
+首次测试的真实失败保留为记录：新raw测试按实例函数名查找失败，改用实际声明上界识别实例；nested `&&T` 被lexer当作&&，改为合法嵌套类型拼写 `& &T` 后准确触及Expand拒绝。它们是测试入口修正，不改语言行为。
+
+下一公开表示提案：`FunctionLifeContract { binder_count:u32, parameter_lives:Vec<Option<u32>>, result_life:Option<u32> }` 与 `Type::BorrowedFunctionPointer { parameters, result, life }`，canonical dense indices、Wire/fingerprint类型tag31；语法 `for<life a> fn(&'a T)->&'a T`。薄指针可复制，签名资格和实际目标/返回根需独立核；每次间接调用重新代换实际根并核全部窗口。共享patch由root统一发布，未完成消费者前不把表示登记算能力。

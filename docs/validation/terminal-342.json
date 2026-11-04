@@ -2,10 +2,10 @@
   "task": "342",
   "status": "MilestoneInProgress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
-  "scope": "Definition-time ordinary generic borrow windows; full terminal obligations remain in progress",
+  "scope": "Definition-time ordinary generic windows and CopyT+mutable life; full terminal obligations remain in progress",
   "tests": {
-    "generic_regressions": {"passed": 33, "failed": 0},
-    "cross_function_borrows": {"passed": 37, "failed": 0},
+    "generic_regressions": {"last_complete_before_two_new_tests": 34, "focused_terminal_tests": 3, "failed": 0},
+    "cross_function_borrows": {"last_complete_before_two_new_tests": 40, "focused_terminal_tests": 5, "failed": 0},
     "impl197_mixed_state": {"passed": 14, "failed": 0},
     "review184_storage": {"passed": 4, "failed": 0},
     "impl200_independent": {"passed": 10, "failed": 0}
@@ -19,12 +19,16 @@
   },
   "budget": {
     "default_limits_changed": false,
-    "331_original_expand": {"old": 757, "new": 779, "n_minus_one_resource_limit": true, "fresh_n_equal": true},
+    "331_original_expand": {"old": 757, "first_milestone": 779, "new": 786, "n_minus_one_resource_limit": true, "fresh_n_equal": true},
+    "342_mixed_select_phase_n": [1669, 248, 2227, 7927],
     "322_original_phase_n": [99, 95, 714, 993],
     "337_concrete_phase_n": [143, 124, 1178, 4818],
     "legacy_single_field_state_expand": 2358
   },
-  "known_incomplete": ["CopyT+mutable life admission pending next milestone", "HRTB and borrowed function pointers", "borrow storage and general lending", "explicit dyn", "general section 5.2 state"],
+  "native_342_mixed_mutable": {"sources": 9, "backends": ["Clang", "LlvmApi"], "optimizations": ["O0", "O2"], "successful_builds_and_runs": 36, "stdout": "42\n", "exit": 0},
+  "cache_342": {"module_ct": true, "live_and_restored": true, "current_body_mode_and_caller_conflicts_rechecked": true},
+  "clippy_affected_targets_llvm_api": "Pass",
+  "known_incomplete": ["HRTB and borrowed function pointers", "borrow storage and general lending", "explicit dyn", "general section 5.2 state"],
   "formal_full_suite": "NotRunByImplementationAuthor",
   "independent_review": "Pending"
 }
