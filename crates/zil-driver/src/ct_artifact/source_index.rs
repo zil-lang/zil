@@ -324,6 +324,10 @@ impl SourceIndex {
             .find_map(|(span, candidate)| (candidate == symbol).then_some(*span))
     }
 
+    pub(super) fn symbol_lookup_work(&self) -> u64 {
+        (self.module_ids.len() as u64).saturating_add(self.public.len() as u64)
+    }
+
     pub(super) fn symbol_at(&self, module: ModuleId, span: Span) -> Option<CtSymbolId> {
         self.symbols.iter().flatten().find_map(|(actual, symbol)| {
             (symbol.module == module && *actual == span).then(|| symbol.clone())

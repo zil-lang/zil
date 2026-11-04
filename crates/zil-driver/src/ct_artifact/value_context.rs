@@ -279,22 +279,106 @@ pub(in crate::ct_artifact) struct ValueContext {
     pub enums: Vec<CtEnumSchema>,
     pub ty: CtTy,
     pub bytes: u64,
+    pub source_bindings: Vec<compiler::SourceLifeBinding>,
+}
+#[derive(Clone)]
+pub(in crate::ct_artifact) struct ValueSourceScope {
+    pub owner: CtTypeNodeId,
+    pub definition: CtSymbolId,
+    pub parameters: Vec<u32>,
 }
 impl ValueContext {
     pub fn capture(
         program: &CtArtifactProgram,
+        source_bindings: &[compiler::SourceLifeBinding],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Self> {
         let ty = &program.functions[program.entry.0 as usize].result_type;
-        let bytes = schema_copy_cost(&program.record_schemas, &program.enum_schemas, budget)?
+        let mut bytes = schema_copy_cost(&program.record_schemas, &program.enum_schemas, budget)?
             .saturating_add(ty_cost(ty, budget)?);
+        budget.reserve_analysis_work(source_bindings.len() as u64)?;
+        for binding in source_bindings {
+            budget.reserve_analysis_work(binding.parameters.len() as u64)?;
+            bytes = bytes
+                .saturating_add(std::mem::size_of::<compiler::SourceLifeBinding>() as u64)
+                .saturating_add(binding.parameters.len() as u64 * 4);
+        }
         budget.reserve_temporary_bytes(bytes)?;
         Ok(Self {
             records: program.record_schemas.clone(),
             enums: program.enum_schemas.clone(),
             ty: ty.clone(),
             bytes,
+            source_bindings: source_bindings.to_vec(),
         })
+    }
+    pub(in crate::ct_artifact) fn type_with_scopes(
+        &self,
+        ty: &CtTy,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<(CtTypeRef, Vec<ValueSourceScope>)> {
+        let graph = self.type_ref(ty, budget)?;
+        let mut scopes = Vec::new();
+        if self.source_bindings.is_empty() {
+            return Ok((graph, scopes));
+        }
+        budget.reserve_temporary_bytes(64)?;
+        let mut pending = vec![(ty, graph.root, 0usize)];
+        while let Some((ty, id, depth)) = pending.pop() {
+            budget.reserve_analysis_work(1)?;
+            if depth > budget.remaining().max_call_depth as usize {
+                return Err(bad());
+            }
+            let node = graph.nodes.get(id.0 as usize).ok_or_else(bad)?;
+            match (ty, node) {
+                (CtTy::Record(_), CtTypeNode::BorrowedStorage { .. })
+                | (CtTy::Enum(_), CtTypeNode::BorrowedStorage { .. }) => {
+                    let schema = match ty {
+                        CtTy::Record(id) => id.0,
+                        CtTy::Enum(id) => id.0,
+                        _ => unreachable!(),
+                    };
+                    let enumeration = matches!(ty, CtTy::Enum(_));
+                    budget.reserve_analysis_work(self.source_bindings.len() as u64)?;
+                    let binding = self
+                        .source_bindings
+                        .iter()
+                        .find(|b| b.enumeration == enumeration && b.schema == schema)
+                        .ok_or_else(bad)?;
+                    budget.reserve_analysis_work(binding.parameters.len() as u64)?;
+                    budget.reserve_temporary_bytes(
+                        (std::mem::size_of::<ValueSourceScope>() as u64).saturating_mul(2)
+                            + binding.parameters.len() as u64 * 4,
+                    )?;
+                    scopes.push(ValueSourceScope {
+                        owner: id,
+                        definition: binding.definition.clone(),
+                        parameters: binding.parameters.clone(),
+                    });
+                }
+                (CtTy::Tuple(parts), CtTypeNode::Tuple(ids))
+                | (CtTy::AnonymousSum(parts), CtTypeNode::AnonymousSum(ids)) => {
+                    if parts.len() != ids.len() {
+                        return Err(bad());
+                    }
+                    budget.reserve_analysis_work(parts.len() as u64)?;
+                    budget.reserve_temporary_bytes(parts.len() as u64 * 64)?;
+                    pending.extend(
+                        parts
+                            .iter()
+                            .zip(ids)
+                            .map(|(part, id)| (part, *id, depth + 1)),
+                    );
+                }
+                (CtTy::Array { element, .. }, CtTypeNode::Array { element: id, .. })
+                | (CtTy::List(element), CtTypeNode::Slice(id)) => {
+                    budget.reserve_temporary_bytes(64)?;
+                    pending.push((element, *id, depth + 1));
+                }
+                _ => {}
+            }
+        }
+        Ok((graph, scopes))
     }
     pub fn type_ref(&self, ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         fn append(
@@ -349,23 +433,21 @@ impl ValueContext {
                 let (symbol, args) = match ty {
                     CtTy::Record(id) => {
                         let s = self.records.get(id.0 as usize).ok_or_else(bad)?;
-                        if s.life_context.is_some() {
-                            return Err(vec![Diagnostic::unsupported(
-                                Phase::Ct,
-                                "CT4 joint context extraction is not yet implemented",
-                                None,
-                            )]);
+                        if let Some(context) = &s.life_context {
+                            let bytes = graph_cost(context, budget)?;
+                            budget.reserve_generated_nodes(context.nodes.len() as u64)?;
+                            budget.reserve_temporary_bytes(bytes)?;
+                            return Ok(context.clone());
                         }
                         (&s.name, &s.arguments)
                     }
                     CtTy::Enum(id) => {
                         let s = self.enums.get(id.0 as usize).ok_or_else(bad)?;
-                        if s.life_context.is_some() {
-                            return Err(vec![Diagnostic::unsupported(
-                                Phase::Ct,
-                                "CT4 joint context extraction is not yet implemented",
-                                None,
-                            )]);
+                        if let Some(context) = &s.life_context {
+                            let bytes = graph_cost(context, budget)?;
+                            budget.reserve_generated_nodes(context.nodes.len() as u64)?;
+                            budget.reserve_temporary_bytes(bytes)?;
+                            return Ok(context.clone());
                         }
                         (&s.name, &s.arguments)
                     }
