@@ -265,7 +265,7 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        if name == "task_create" {
+        if matches!(name, "task_create" | "task_await") {
             let Some(worker_expr) = arguments.first() else {
                 return Err(error(
                     "E-CALL-ARITY",
@@ -321,21 +321,33 @@ impl Builder<'_, '_> {
                     "task_create input count differs from actual worker",
                 ));
             }
-            let mut inputs = Vec::new();
+            let mut prepared_inputs = Vec::new();
             for (argument, wanted) in arguments[1..].iter().zip(&parameters) {
                 let (v, t) = self.argument_expr(argument, wanted)?;
                 self.same(&t, wanted, argument.span)?;
-                inputs.push(v);
+                prepared_inputs.push(self.stage_argument(v, &t, argument.span)?);
             }
+            let inputs = self.commit_arguments(prepared_inputs, span)?;
             self.closures.snapshot_type(&worker_result, 3, 0, span)?;
-            let ty = create_type(&worker_result);
+            let ty = if name == "task_await" {
+                worker_result
+            } else {
+                create_type(&worker_result)
+            };
             if let Some(wanted) = expected {
                 self.same(&ty, wanted, span)?;
             }
             let v = self.value(
-                InstructionKind::TaskCreate {
-                    worker,
-                    arguments: inputs,
+                if name == "task_await" {
+                    InstructionKind::SuspendCall {
+                        function: worker,
+                        arguments: inputs,
+                    }
+                } else {
+                    InstructionKind::TaskCreate {
+                        worker,
+                        arguments: inputs,
+                    }
                 },
                 ty.clone(),
                 span,

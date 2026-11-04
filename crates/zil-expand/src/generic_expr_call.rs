@@ -99,6 +99,7 @@ impl Engine<'_> {
             matches!(
                 *name,
                 "task_create"
+                    | "task_await"
                     | "task_poll"
                     | "task_poll_close"
                     | "task_request_cancel"
@@ -107,7 +108,7 @@ impl Engine<'_> {
             )
         }) {
             let name = name.to_owned();
-            if name == "task_create" {
+            if matches!(name.as_str(), "task_create" | "task_await") {
                 let Some(first) = arguments.first() else {
                     return Err(error(e.span, "task_create requires a static worker"));
                 };
@@ -145,6 +146,10 @@ impl Engine<'_> {
                             args: vec![GenericArg::Type(result)],
                         },
                     };
+                }
+                if name == "task_await" {
+                    self.ty(&mut result, depth + 1)?;
+                    return Ok(Some(Some(result)));
                 }
                 let mut result = TypeRef {
                     span: e.span,

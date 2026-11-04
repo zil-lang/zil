@@ -201,7 +201,7 @@ pub(super) fn profile(
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer && f.return_type == Type::I32
-            || f.result_mode == PassingMode::Give
+            || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
                 && matches!(f.return_type, Type::Managed(_))
                 && result_type(&f.return_type, budget)?)
         || module.resources.iter().any(|r| r.teardown == Some(f.id))
@@ -273,15 +273,29 @@ pub(super) fn profile(
                     function,
                     arguments,
                 } => {
-                    budget.spend(arguments.len())?;
-                    if arguments.len() != 1
-                        || value_type(f, arguments[0], Some(i.span))? != &Type::I32
-                    {
+                    budget.spend(arguments.len().saturating_add(1))?;
+                    let target = module.functions.get(function.0 as usize).ok_or_else(|| {
+                        reject("E-VERIFY-TASK", Some(i.span), "child target absent")
+                    })?;
+                    if arguments.len() != target.parameters.len() {
                         return Err(reject(
                             "E-VERIFY-TASK",
                             Some(i.span),
-                            "owned parent currently requires scalar child inputs",
+                            "child actual arity differs",
                         ));
+                    }
+                    for (arg, param) in arguments.iter().zip(&target.parameters) {
+                        let actual = value_type(f, *arg, Some(i.span))?;
+                        let wanted = local_type(target, *param, Some(i.span))?;
+                        resources::charge_payload(actual, budget)?;
+                        resources::charge_payload(wanted, budget)?;
+                        if actual != wanted {
+                            return Err(reject(
+                                "E-VERIFY-TASK",
+                                Some(i.span),
+                                "child actual input type differs",
+                            ));
+                        }
                     }
                     children.push(*function);
                 }
