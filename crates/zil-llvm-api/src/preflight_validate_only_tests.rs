@@ -1031,3 +1031,259 @@ fn ieee_float_bits_and_operations_have_distinct_machine_types() {
         assert!(validate_impl::<false>(&damaged).is_err());
     }
 }
+
+fn compare_exchange_module(success: AtomicOrdering, failure: AtomicOrdering) -> Module {
+    let answer = Ty::Struct(vec![Ty::Int(32), Ty::Int(1)]);
+    module(vec![Item::Function(Function {
+        name: "atomic_compare_exchange".into(),
+        linkage: Linkage::External,
+        signature: Signature::new(
+            Ty::Int(64),
+            vec![
+                Param::new(Ty::Ptr, "cell"),
+                Param::new(Ty::Int(32), "expected"),
+                Param::new(Ty::Int(32), "desired"),
+            ],
+        ),
+        attrs: vec![],
+        blocks: Some(vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("answer"),
+                    Op::AtomicCompareExchange {
+                        result: answer.clone(),
+                        expected: Arg::new(Ty::Int(32), Val::Local("expected".into())),
+                        desired: Val::Local("desired".into()),
+                        ptr: Val::Local("cell".into()),
+                        align: 4,
+                        success,
+                        failure,
+                    },
+                ),
+                inst(
+                    Some("old"),
+                    Op::Extract {
+                        arg: Arg::new(answer.clone(), Val::Local("answer".into())),
+                        index: 0,
+                    },
+                ),
+                inst(
+                    Some("success"),
+                    Op::Extract {
+                        arg: Arg::new(answer, Val::Local("answer".into())),
+                        index: 1,
+                    },
+                ),
+                inst(
+                    Some("old.bits"),
+                    Op::Cast {
+                        opcode: "zext".into(),
+                        arg: Arg::new(Ty::Int(32), Val::Local("old".into())),
+                        to: Ty::Int(64),
+                    },
+                ),
+                inst(
+                    Some("success.wide"),
+                    Op::Cast {
+                        opcode: "zext".into(),
+                        arg: Arg::new(Ty::Int(1), Val::Local("success".into())),
+                        to: Ty::Int(64),
+                    },
+                ),
+                inst(
+                    Some("success.bits"),
+                    Op::Binary {
+                        opcode: "shl".into(),
+                        ty: Ty::Int(64),
+                        left: Val::Local("success.wide".into()),
+                        right: Val::Int(32),
+                    },
+                ),
+                inst(
+                    Some("packed"),
+                    Op::Binary {
+                        opcode: "or".into(),
+                        ty: Ty::Int(64),
+                        left: Val::Local("success.bits".into()),
+                        right: Val::Local("old.bits".into()),
+                    },
+                ),
+                inst(
+                    None,
+                    Op::Return(Some(Arg::new(Ty::Int(64), Val::Local("packed".into())))),
+                ),
+            ],
+        )]),
+    })])
+}
+
+#[test]
+fn strong_compare_exchange_has_exact_result_and_c11_order_matrix() {
+    use AtomicOrdering::{AcqRel, Acquire, Relaxed, Release, SeqCst};
+    let orders = [Relaxed, Acquire, Release, AcqRel, SeqCst];
+    let admitted = [
+        [true, false, false, false, false],
+        [true, true, false, false, false],
+        [true, false, false, false, false],
+        [true, true, false, false, false],
+        [true, true, false, false, true],
+    ];
+    for (i, &success) in orders.iter().enumerate() {
+        for (j, &failure) in orders.iter().enumerate() {
+            let source = compare_exchange_module(success, failure);
+            if admitted[i][j] {
+                accepted(&source);
+            } else {
+                rejected(
+                    &source,
+                    "@atomic_compare_exchange / entry / 0: compare exchange success/failure ordering pair is outside the C11 subset",
+                );
+            }
+        }
+    }
+    let source = compare_exchange_module(AcqRel, Acquire);
+    let text = source.to_text();
+    assert!(
+        text.contains("cmpxchg ptr %cell, i32 %expected, i32 %desired acq_rel acquire, align 4")
+    );
+    assert!(!text.contains("cmpxchg weak"));
+    for case in 0..5 {
+        let mut bad = source.clone();
+        let Op::AtomicCompareExchange {
+            result,
+            expected,
+            desired,
+            ptr,
+            align,
+            ..
+        } = &mut body_mut(&mut bad)[0].instructions[0].op
+        else {
+            unreachable!()
+        };
+        match case {
+            0 => *result = Ty::Int(32),
+            1 => *desired = Val::Bool(true),
+            2 => *ptr = Val::Int(1),
+            3 => *align = 2,
+            4 => expected.attrs.push(Attr::ZeroExt),
+            _ => unreachable!(),
+        }
+        assert!(validate_impl::<true>(&bad).is_err(), "case={case}");
+        assert!(validate_impl::<false>(&bad).is_err(), "case={case}");
+    }
+}
+
+#[cfg(feature = "native")]
+#[test]
+fn strong_compare_exchange_native_observes_failure_and_real_contention() {
+    use AtomicOrdering::{AcqRel, Acquire, Relaxed, Release, SeqCst};
+    use std::{fs, process::Command};
+    let pairs = [
+        (Relaxed, Relaxed),
+        (Acquire, Relaxed),
+        (Acquire, Acquire),
+        (Release, Relaxed),
+        (AcqRel, Relaxed),
+        (AcqRel, Acquire),
+        (SeqCst, Relaxed),
+        (SeqCst, Acquire),
+        (SeqCst, SeqCst),
+    ];
+    let mut source = module(vec![]);
+    let mut declarations = String::new();
+    let mut names = vec![];
+    for (i, (success, failure)) in pairs.into_iter().enumerate() {
+        let mut part = compare_exchange_module(success, failure);
+        let Item::Function(function) = &mut part.items[0] else {
+            unreachable!()
+        };
+        function.name = format!("cas_{i}");
+        declarations.push_str(&format!(
+            "extern uint64_t cas_{i}(int32_t*,int32_t,int32_t);\n"
+        ));
+        names.push(format!("cas_{i}"));
+        source.items.extend(part.items);
+    }
+    accepted(&source);
+    let scratch = std::env::temp_dir().join(format!("zil343-strong-cas-{}", std::process::id()));
+    fs::create_dir_all(&scratch).unwrap();
+    fs::write(scratch.join("cas.ll"), source.to_text()).unwrap();
+    let host = format!("#include <stdint.h>\n#include <pthread.h>\n{declarations}\n")
+        + r#"
+typedef uint64_t (*cas_fn)(int32_t*,int32_t,int32_t);
+static int32_t value;
+static cas_fn active;
+static void *worker(void *unused) {
+    (void)unused;
+    for(int i=0;i<5000;++i) {
+        int32_t expected=0;
+        for(;;) {
+            uint64_t answer=active(&value,expected,expected+1);
+            if((uint32_t)(answer>>32)==1) break;
+            expected=(int32_t)(uint32_t)answer;
+        }
+    }
+    return 0;
+}
+int main(void) {
+    cas_fn functions[]={"#
+        + &names.join(",")
+        + r#"};
+    for(unsigned i=0;i<sizeof(functions)/sizeof(functions[0]);++i) {
+        active=functions[i];int32_t local=-7;
+        uint64_t yes=active(&local,-7,9);
+        if((int32_t)(uint32_t)yes!=-7 || (uint32_t)(yes>>32)!=1 || local!=9) return 1;
+        uint64_t no=active(&local,-7,99);
+        if((int32_t)(uint32_t)no!=9 || (uint32_t)(no>>32)!=0 || local!=9) return 2;
+        value=0;pthread_t threads[4];
+        for(int j=0;j<4;++j) if(pthread_create(&threads[j],0,worker,0)) return 3;
+        for(int j=0;j<4;++j) if(pthread_join(threads[j],0)) return 4;
+        if(value!=20000) return 5;
+    }
+    return 0;
+}
+"#;
+    fs::write(scratch.join("host.c"), host).unwrap();
+    for (optimization, flag) in [
+        (crate::Optimization::O0, "-O0"),
+        (crate::Optimization::O2, "-O2"),
+    ] {
+        let object = crate::compile_module(
+            &source,
+            &crate::Config {
+                triple: "x86_64-unknown-linux-gnu",
+                optimization,
+            },
+            &|| false,
+        )
+        .unwrap();
+        assert_eq!(object.receipt.parse_ns, 0);
+        assert!(object.receipt.verify_before_after);
+        let object_path = scratch.join(format!("api{flag}.o"));
+        fs::write(&object_path, object.bytes).unwrap();
+        for (backend, input) in [("api", object_path), ("text", scratch.join("cas.ll"))] {
+            let executable = scratch.join(format!("{backend}{flag}"));
+            let linked = Command::new("clang")
+                .arg(flag)
+                .arg(input)
+                .arg(scratch.join("host.c"))
+                .args(["-pthread", "-o"])
+                .arg(&executable)
+                .output()
+                .unwrap();
+            assert!(
+                linked.status.success(),
+                "{}",
+                String::from_utf8_lossy(&linked.stderr)
+            );
+            let actual = Command::new(&executable).output().unwrap();
+            assert_eq!(
+                actual.status.code(),
+                Some(0),
+                "{backend}/{flag}: {actual:?}"
+            );
+        }
+    }
+    fs::remove_dir_all(scratch).unwrap();
+}

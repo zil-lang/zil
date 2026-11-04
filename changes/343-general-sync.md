@@ -161,3 +161,13 @@ owned field replacement and failed RHS cleanup, allocation/init/lock failure,
 real two-thread contention, unlock once, actual TLS/allocator negatives and weak
 memory ordering argument. Same-semantic Rust runtime/RSS/compile/maintenance
 comparisons and the product four-goal conjunction remain unmeasured.
+
+The independent native CAS adapter uses a strong cmpxchg instruction with typed
+expected/desired operands and an exact {old integer,i1 success} result. The chosen
+C11 order matrix is explicit: Relaxed permits Relaxed failure; Acquire permits
+Relaxed/Acquire; Release permits Relaxed; AcqRel permits Relaxed/Acquire; SeqCst
+permits Relaxed/Acquire/SeqCst. Every other pair rejects before LLVM building.
+This adapter is machine-boundary evidence until the integrator publishes the
+source/IR operation and independent kernel consumers. It grants no shared raw
+address permission. Native execution must observe both success and actual
+failure old values, plus contention through generated strong CAS on real threads.
