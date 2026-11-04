@@ -1,6 +1,8 @@
 //! Immutable source witnesses for one actual CT invocation. Raw table indices,
 //! source names and spans never select a lexical owner.
 use super::{compiler::Entry, source_index::SourceIndex};
+#[path = "invocation_context_calls.rs"]
+mod calls;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ct::CtExecutionBudget;

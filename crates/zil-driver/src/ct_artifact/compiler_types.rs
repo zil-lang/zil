@@ -401,6 +401,9 @@ impl<'a> Compiler<'a> {
                         result?
                     }
                     s::ItemKind::Aggregate(a) => {
+                        if self.checking_generics && a.generics.iter().any(|p| !matches!(p.kind, s::GenericParamKind::Type(_))) {
+                            return self.abstract_nominal(module, owner, item, args, depth + 1, ty.span);
+                        }
                         if !self.checking_generics {
                             if a.generics
                                 .iter()
