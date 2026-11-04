@@ -118,6 +118,10 @@ impl Check<'_, '_, '_> {
                         reference_depth: local.description_reference_depth,
                     }))
             }
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.transferred_resource_expression(value, state)
+            }
             ExprKind::Group(inner) => self.transferred_resource_expression(inner, state),
             ExprKind::Tuple(values) | ExprKind::Array(values) => {
                 for value in values {

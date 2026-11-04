@@ -1,6 +1,6 @@
 //! Source metadata stays separate from serializable execution data.
 use super::*;
-pub(in crate::ct_artifact) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
+pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
     match node {
         CtTypeNode::Nominal { arguments, .. } => {
             for arg in arguments {
@@ -131,7 +131,7 @@ impl Compiler<'_> {
                 .ok_or_else(|| error(span, "CT metadata root overflow"))?,
         ))
     }
-    fn meta_normalize(&mut self, graph: CtTypeRef, span: Span) -> R<CtTypeRef> {
+    pub(super) fn meta_normalize(&mut self, graph: CtTypeRef, span: Span) -> R<CtTypeRef> {
         let mut meter = zil_ct::CtExecutionBudget::new(self.budget.declared());
         let result = zil_ct::canonicalize_anonymous_type(&graph, &mut meter);
         let usage = meter.usage();
@@ -196,6 +196,8 @@ impl Compiler<'_> {
                         ));
                     }
                     self.enter_alias(owner, item.span, span)?;
+                    let old_metadata = std::mem::take(&mut self.metadata_bindings);
+                    let old_data = std::mem::take(&mut self.bindings);
                     let result = self.meta_source(
                         owner,
                         alias
@@ -206,6 +208,8 @@ impl Compiler<'_> {
                         nodes,
                     );
                     self.active_aliases.pop();
+                    self.metadata_bindings = old_metadata;
+                    self.bindings = old_data;
                     return result;
                 }
                 let parameters = match &item.kind {

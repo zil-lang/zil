@@ -95,10 +95,12 @@ impl<'c, 'a> Builder<'c, 'a> {
         let yields = std::mem::take(&mut self.yields);
         let previous_module = self.module;
         let bindings = std::mem::take(&mut self.compiler.bindings);
+        let metadata = std::mem::take(&mut self.compiler.metadata_bindings);
         self.module = module;
         let result = self.type_ref(module, actual, depth);
         self.module = previous_module;
         self.compiler.bindings = bindings;
+        self.compiler.metadata_bindings = metadata;
         self.scopes = scopes;
         self.loops = loops;
         self.yields = yields;
@@ -246,6 +248,9 @@ impl<'c, 'a> Builder<'c, 'a> {
                     }
                 }
                 Ok(None)
+            }
+            s::ExprKind::Ascribed { ty, .. } => {
+                self.compiler.ty(self.module, ty, depth + 1).map(Some)
             }
             s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
                 self.operand_hint(inner, depth + 1)

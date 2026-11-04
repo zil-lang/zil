@@ -610,6 +610,10 @@ impl Check<'_, '_, '_> {
                 .get(name)
                 .and_then(|local| self.factory_values.get(&local.id))
                 .copied(),
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.factory_origin(value, state)?
+            }
             ExprKind::Group(inner) => self.factory_origin(inner, state)?,
             ExprKind::Call { callee, .. } => stores::call_name(callee)
                 .and_then(|name| self.signatures.get(name))

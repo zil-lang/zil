@@ -292,3 +292,23 @@ E-CT-SOURCE. The exact two-test command and output are recorded in
 `/tmp/344-ct3-source-bridge-second.log`; this is a construction checkpoint, not
 acceptance of all CT3 source metadata. Phantom fn/BFP argument binding, complete
 visitor/accounting controls, and final composition replay remain unfinished.
+
+CT3 closed nominal production now stores complete canonical Type graphs in its
+instance cache and separates them from pure field-value types. Actual source
+controls retain phantom fn and higher-rank borrowed-fn arguments through CT
+execution and ordinary native compilation; the latter exposed and corrects a
+missing complete higher-rank generic key and Copy-code-pointer case. The key
+records the canonical joint invocation relation, preserving alpha equivalence
+and different input/result relationships. Its planner prepays binder-name
+lookup, remap storage and full output before allocation; old requests without
+higher-rank keys or anonymous sums retain their key fees. Signature addresses
+remain metadata, and physical CT pointer fields still reject.
+
+The next source checkpoint adds generic enum tuple/unit reification with full
+owner arguments and active payload mapping. Four CT3 aggregate tests pass with
+native controls (Sum42, phantom fn7, phantom borrowed-fn42, generic enum42),
+while the existing generic CT compiler target passes16 focused regressions.
+Source reification pays complete generated type and clone traversal, including
+const expressions; intermediate Type graphs release their own temporary charge.
+Generic CT function specialization of metadata-only arguments, scalar nominal
+arguments, and the final independent raw/budget/source review remain pending.

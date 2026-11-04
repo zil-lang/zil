@@ -316,6 +316,12 @@ impl<'a> Compiler<'a> {
             }
             s::TypeKind::Named { path, args } => {
                 if path.len() == 1 {
+                    if let Some(metadata) = self.metadata_binding(&path[0], ty.span)? {
+                        if !args.is_empty() {
+                            return Err(error(ty.span, "CT metadata binder takes no arguments"));
+                        }
+                        return self.metadata_data_type(&metadata, depth + 1, ty.span);
+                    }
                     if let Some(actual) = self.binding(&path[0], ty.span)? {
                         if !args.is_empty() {
                             return Err(error(ty.span, "CT type binder takes no type arguments"));
@@ -385,12 +391,24 @@ impl<'a> Compiler<'a> {
                         })?;
                         self.enter_alias(owner, item.span, ty.span)?;
                         let old = std::mem::take(&mut self.bindings);
+                        let old_metadata = std::mem::take(&mut self.metadata_bindings);
                         let result = self.ty(owner, actual, depth + 1);
                         self.bindings = old;
+                        self.metadata_bindings = old_metadata;
                         self.active_aliases.pop();
                         result?
                     }
                     s::ItemKind::Aggregate(a) => {
+                        if !self.checking_generics {
+                            let arguments = self.source_nominal_arguments(
+                                module,
+                                &a.generics,
+                                args,
+                                ty.span,
+                                depth + 1,
+                            )?;
+                            return self.closed_nominal(owner, item, arguments, depth + 1, ty.span);
+                        }
                         if a.kind != s::AggregateKind::Struct {
                             return Err(forbidden(
                                 ty.span,
@@ -464,6 +482,16 @@ impl<'a> Compiler<'a> {
                         CtTy::Record(id)
                     }
                     s::ItemKind::Enum(e) => {
+                        if !self.checking_generics {
+                            let arguments = self.source_nominal_arguments(
+                                module,
+                                &e.generics,
+                                args,
+                                ty.span,
+                                depth + 1,
+                            )?;
+                            return self.closed_nominal(owner, item, arguments, depth + 1, ty.span);
+                        }
                         if !e.generics.is_empty() || !args.is_empty() {
                             return Err(error(ty.span, "CT enum requires a concrete instance"));
                         }

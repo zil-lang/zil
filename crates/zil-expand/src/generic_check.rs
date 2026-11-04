@@ -668,9 +668,10 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
                     .iter()
                     .any(|a| matches!(a, GenericArg::Type(t) if dependent(t, vars)))
         }
-        TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {
-            dependent(inner, vars)
-        }
+        TypeKind::Reference { inner, .. }
+        | TypeKind::Group(inner)
+        | TypeKind::Optional(inner)
+        | TypeKind::ForLifetime { inner, .. } => dependent(inner, vars),
         TypeKind::Tuple(ts) | TypeKind::Union(ts) => ts.iter().any(|t| dependent(t, vars)),
         TypeKind::Array { element, .. } => dependent(element, vars),
         TypeKind::Error { error, result } => dependent(error, vars) || dependent(result, vars),
@@ -692,6 +693,7 @@ fn known_copy(
         TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
+        | TypeKind::ForLifetime { .. }
         | TypeKind::ForeignFunction { .. } => true,
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
@@ -828,6 +830,10 @@ impl Check<'_, '_, '_> {
                     Some(roots) => self.life_copy(roots, expression.span),
                     None => Ok(BTreeSet::new()),
                 }
+            }
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.life_expression(value, state)
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
             ExprKind::Unary {
@@ -1137,6 +1143,10 @@ impl Check<'_, '_, '_> {
     fn owned_resource_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
         Ok(match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.owned_resource_expression(value, state)?
+            }
             ExprKind::Group(inner) => self.owned_resource_expression(inner, state)?,
             // The expression's actual concrete resource type is checked after
             // evaluation; ordinary records and Package values cannot set it.
@@ -1410,7 +1420,9 @@ impl Check<'_, '_, '_> {
     }
     fn owning_store_expression(&self, expression: &Expr, state: &State) -> bool {
         match &expression.kind {
-            ExprKind::Group(inner) => self.owning_store_expression(inner, state),
+            ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } => {
+                self.owning_store_expression(inner, state)
+            }
             ExprKind::Name(name) => state
                 .locals
                 .get(name)
@@ -1467,6 +1479,10 @@ impl Check<'_, '_, '_> {
     fn fresh_store_expression(&mut self, expression: &Expr, state: &State) -> R<bool> {
         self.tick(expression.span)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.fresh_store_expression(value, state)
+            }
             ExprKind::Group(inner) => self.fresh_store_expression(inner, state),
             ExprKind::Name(name) => Ok(state.locals.get(name).is_some_and(|local| {
                 state.store_results.contains(&local.id) && state.fresh_stores.contains(&local.id)
@@ -1608,6 +1624,10 @@ impl Check<'_, '_, '_> {
                 .and_then(|local| state.store_origins.get(&local.id))
                 .cloned()
                 .unwrap_or_default()),
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.store_origins(value, state)
+            }
             ExprKind::Group(inner) => self.store_origins(inner, state),
             ExprKind::Member {
                 object,
@@ -2014,6 +2034,10 @@ impl Check<'_, '_, '_> {
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Ascribed { ty, .. } => {
+                self.budget.ty(ty)?;
+                Ok(Some(ty.clone()))
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, state, depth + 1, default_integer)
             }
@@ -2356,6 +2380,10 @@ impl Check<'_, '_, '_> {
     ) -> R<Option<TypeRef>> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, .. } => {
+                self.budget.ty(ty)?;
+                Ok(Some(ty.clone()))
+            }
             ExprKind::Group(inner) => self.method_argument_hint(inner, state, depth + 1),
             ExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
@@ -2714,6 +2742,7 @@ impl Check<'_, '_, '_> {
             ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
             | ExprKind::Group(_)
+            | ExprKind::Ascribed { .. }
             | ExprKind::MetaEval(_)
             | ExprKind::If { .. }
             | ExprKind::Unary {
@@ -2725,6 +2754,42 @@ impl Check<'_, '_, '_> {
         Ok(ty)
     }
 
+    fn expr_ascribed(
+        &mut self,
+        ty: &TypeRef,
+        value: &Expr,
+        state: &mut State,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        self.budget.ty(ty)?;
+        let actual = self.expr(value, state, Some(ty), borrowing)?;
+        let actual_key = type_key(&actual, self.budget)?;
+        if actual_key != type_key(ty, self.budget)? {
+            let TypeKind::Union(members) = &group(ty).kind else {
+                return Err(error(
+                    value.span,
+                    "ascribed value differs from its complete type",
+                ));
+            };
+            let mut found = false;
+            for member in members {
+                if actual_key == type_key(member, self.budget)? {
+                    if found {
+                        return Err(error(value.span, "ascribed sum member is ambiguous"));
+                    }
+                    found = true;
+                }
+            }
+            if !found {
+                return Err(error(
+                    value.span,
+                    "ascribed payload is not an exact sum member",
+                ));
+            }
+        }
+        self.budget.ty(ty)?;
+        Ok(ty.clone())
+    }
     fn expr_inner(
         &mut self,
         e: &Expr,
@@ -2879,6 +2944,7 @@ impl Check<'_, '_, '_> {
                 checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
+            ExprKind::Ascribed { ty, value } => self.expr_ascribed(ty, value, state, borrowing),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }

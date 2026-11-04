@@ -5380,3 +5380,49 @@ fn ct3_enum_match_checks_actual_owner_source() {
         report.to_json()
     );
 }
+
+#[test]
+fn ct3_phantom_callable_metadata_stays_separate_from_data() {
+    let function = include_str!(
+        "../../../tests/language-readiness/codegen-pending/ct3-phantom-fn-metadata.zil"
+    );
+    let borrowed = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-metadata.zil"
+    );
+    for (text, expected) in [(function, 7), (borrowed, 42)] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native(&[("main", text)], expected);
+    }
+    let wrong = function.replace(
+        "let value=#(choose(i32))",
+        "let value:Phantom<fn(bool)->i32>=#(choose(i32))",
+    );
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_generic_enum_values_retain_complete_owner_and_active_payload() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-enum-values.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+}

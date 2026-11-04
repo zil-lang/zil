@@ -10,7 +10,10 @@ fn bad() -> Vec<Diagnostic> {
         "returned CT data schema is absent",
     )]
 }
-fn ty_cost(ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
+pub(in crate::ct_artifact) fn ty_cost(
+    ty: &CtTy,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<u64> {
     budget.reserve_analysis_work(1)?;
     let mut bytes = std::mem::size_of::<CtTy>() as u64;
     match ty {

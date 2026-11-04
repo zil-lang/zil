@@ -2586,6 +2586,114 @@ mod tests {
         assert!(!key.is_empty());
     }
     #[test]
+    fn anonymous_value_phantom_borrowed_graphs_keep_joint_relations() {
+        fn graph(result_life: u32) -> CtTypeRef {
+            let mut nodes = Vec::new();
+            for _ in 0..3 {
+                let inner = CtTypeNodeId(nodes.len() as u32);
+                nodes.push(CtTypeNode::Primitive(CtScalarTy::I32));
+                nodes.push(CtTypeNode::Address {
+                    mutable: false,
+                    inner,
+                });
+            }
+            nodes.push(CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(1), CtTypeNodeId(3)],
+                result: CtTypeNodeId(5),
+                life: zil_ir::FunctionLifeContract {
+                    binder_count: 2,
+                    parameter_lives: vec![Some(0), Some(1)],
+                    result_life: Some(result_life),
+                },
+            });
+            CtTypeRef {
+                nodes,
+                root: CtTypeNodeId(6),
+            }
+        }
+        let mut p = anonymous_value_program();
+        for result in [0, 1] {
+            p.record_schemas.push(CtRecordSchema {
+                name: CtSymbolId {
+                    declaration: NodeId(41),
+                    ..symbol()
+                },
+                arguments: vec![CtSchemaArgument::Type(graph(result))],
+                fields: vec![CtTy::Scalar(CtScalarTy::I32)],
+                origin: CtSchemaOrigin::UserPure,
+            });
+        }
+        let limits = Limits::default();
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(p.clone(), &limits, &authority).unwrap();
+        let wire = zil_ir::ct_wire::encode_program(verified.program(), &limits).unwrap();
+        assert_eq!(zil_ir::ct_wire::decode_program(&wire, &limits).unwrap(), p);
+        let keys: Vec<_> = (0..2)
+            .map(|id| {
+                crate::artifact_type_key(
+                    &CtTy::Record(CtRecordSchemaId(id)),
+                    &p.record_schemas,
+                    &[],
+                    &mut CtExecutionBudget::new(p.budget),
+                )
+                .unwrap()
+            })
+            .collect();
+        assert_ne!(keys[0], keys[1]);
+        let canonical = |members| {
+            crate::canonical_artifact_sum(
+                members,
+                &p.record_schemas,
+                &[],
+                &mut CtExecutionBudget::new(p.budget),
+            )
+            .unwrap()
+        };
+        assert_eq!(
+            canonical(vec![
+                CtTy::Record(CtRecordSchemaId(0)),
+                CtTy::Record(CtRecordSchemaId(1))
+            ]),
+            canonical(vec![
+                CtTy::Record(CtRecordSchemaId(1)),
+                CtTy::Record(CtRecordSchemaId(0))
+            ])
+        );
+        let mut invalid = p.clone();
+        invalid.record_schemas[0].arguments[0] = CtSchemaArgument::Type(graph(2));
+        assert!(verify_ct_artifact(invalid, &limits, &authority).is_err());
+        let mut duplicate = p.clone();
+        duplicate.record_schemas[1].arguments = duplicate.record_schemas[0].arguments.clone();
+        assert!(
+            verify_ct_artifact(duplicate, &limits, &authority).unwrap_err()[0]
+                .message
+                .contains("duplicated")
+        );
+        let run = |n| {
+            let mut raw = p.clone();
+            raw.budget.max_analysis_work = n;
+            verify_ct_artifact(raw, &limits, &authority)
+        };
+        let (mut low, mut high) = (1, p.budget.max_analysis_work);
+        while low < high {
+            let middle = (low + high) / 2;
+            if run(middle).is_ok() {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        assert!(run(low).is_ok());
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert!(run(low).is_ok());
+        eprintln!("344 CT3 phantom BFP metadata verification N={low}/N-1/fresh");
+    }
+    #[test]
     fn anonymous_value_schema_three_rejects_preserved_v2_envelopes() {
         let limits = Limits::default();
         let program = include_bytes!(

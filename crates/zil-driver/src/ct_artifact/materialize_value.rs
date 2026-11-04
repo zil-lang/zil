@@ -38,9 +38,7 @@ impl Materializer<'_, '_> {
             )?;
         }
         if !args.is_empty() {
-            self.environment
-                .budget
-                .reserve_analysis_work(args.len() as u64)?;
+            self.data_type_copy(ty)?;
             value = self.data_node(
                 s::ExprKind::TypeApply {
                     callee: Box::new(value),
@@ -51,15 +49,101 @@ impl Materializer<'_, '_> {
         }
         Ok(value)
     }
+    fn data_type_copy(&mut self, ty: &s::TypeRef) -> CompileResult<()> {
+        struct Copy<'a> {
+            budget: &'a mut zil_ct::CtExecutionBudget,
+            max_depth: usize,
+        }
+        impl zil_expand::ct_selection::Visitor for Copy<'_> {
+            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                if depth > self.max_depth {
+                    return Err(vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "data type clone nesting exceeds budget",
+                        Some(span),
+                    )]);
+                }
+                self.budget.reserve_analysis_work(1)?;
+                self.budget.reserve_generated_nodes(1)?;
+                self.budget.reserve_temporary_bytes(256)
+            }
+            fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
+                self.budget.reserve_analysis_work(text.len() as u64)?;
+                self.budget.reserve_temporary_bytes(text.len() as u64)
+            }
+        }
+        zil_expand::ct_selection::walk_type(
+            &mut Copy {
+                budget: &mut self.environment.budget,
+                max_depth: self.max_depth,
+            },
+            ty,
+            0,
+        )
+    }
+    fn data_source_type(
+        &mut self,
+        context: &ValueContext,
+        ty: &CtTy,
+        module: ModuleId,
+        span: Span,
+        depth: usize,
+    ) -> CompileResult<s::TypeRef> {
+        let before = self.environment.budget.live_temporary_bytes();
+        let graph = context.type_ref(ty, &mut self.environment.budget);
+        let graph_bytes = self
+            .environment
+            .budget
+            .live_temporary_bytes()
+            .saturating_sub(before);
+        let result = (|| {
+            let graph = graph?;
+            // Pay the newly generated AST's complete storage independently of
+            // the intermediate graph, which is released immediately below.
+            let mut name_bytes = 0u64;
+            for node in &graph.nodes {
+                self.environment.budget.reserve_analysis_work(1)?;
+                if let CtTypeNode::Nominal { symbol, .. } = node {
+                    let (_, parsed) = self.parsed_source(symbol.module)?;
+                    let item = parsed
+                        .module
+                        .items
+                        .get(symbol.declaration.0 as usize)
+                        .ok_or_else(|| runtime("data type declaration is missing", span))?;
+                    let name = match &item.kind {
+                        s::ItemKind::Aggregate(a) => &a.name,
+                        s::ItemKind::Enum(e) => &e.name,
+                        _ => return Err(runtime("data type has no nominal declaration", span)),
+                    };
+                    name_bytes = name_bytes.saturating_add(name.len() as u64);
+                }
+            }
+            self.environment.budget.reserve_analysis_work(name_bytes)?;
+            self.environment.budget.reserve_temporary_bytes(
+                name_bytes.saturating_add((graph.nodes.len() as u64).saturating_mul(256)),
+            )?;
+            self.owner_node(&graph, graph.root, module, span, depth + 1)
+        })();
+        self.environment.budget.release_temporary_bytes(graph_bytes);
+        result
+    }
     fn data_record_names(
         &mut self,
         symbol: &CtSymbolId,
         count: usize,
         span: Span,
     ) -> CompileResult<Vec<String>> {
-        fn fields<'a>(this: &'a Materializer<'_, '_>, symbol: &CtSymbolId, count: usize, span: Span) -> CompileResult<&'a [s::Field]> {
+        fn fields<'a>(
+            this: &'a Materializer<'_, '_>,
+            symbol: &CtSymbolId,
+            count: usize,
+            span: Span,
+        ) -> CompileResult<&'a [s::Field]> {
             let (_, parsed) = this.parsed_source(symbol.module)?;
-            let item = parsed.module.items.get(symbol.declaration.0 as usize)
+            let item = parsed
+                .module
+                .items
+                .get(symbol.declaration.0 as usize)
                 .ok_or_else(|| runtime("returned record declaration is missing", span))?;
             let s::ItemKind::Aggregate(declaration) = &item.kind else {
                 return Err(runtime("returned record is not a source declaration", span));
@@ -69,13 +153,83 @@ impl Materializer<'_, '_> {
             }
             Ok(&declaration.fields)
         }
-        let bytes = fields(self, symbol, count, span)?.iter().try_fold(0u64, |bytes, field| {
-            bytes.checked_add(field.name.len() as u64)
-                .ok_or_else(|| runtime("returned record name storage overflow", span))
-        })?;
-        self.environment.budget.reserve_analysis_work(bytes.saturating_add(count as u64))?;
-        self.environment.budget.reserve_temporary_bytes(bytes.saturating_add((count as u64).saturating_mul(24)))?;
-        Ok(fields(self, symbol, count, span)?.iter().map(|field| field.name.clone()).collect())
+        let bytes = fields(self, symbol, count, span)?
+            .iter()
+            .try_fold(0u64, |bytes, field| {
+                bytes
+                    .checked_add(field.name.len() as u64)
+                    .ok_or_else(|| runtime("returned record name storage overflow", span))
+            })?;
+        self.environment
+            .budget
+            .reserve_analysis_work(bytes.saturating_add(count as u64))?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(bytes.saturating_add((count as u64).saturating_mul(24)))?;
+        Ok(fields(self, symbol, count, span)?
+            .iter()
+            .map(|field| field.name.clone())
+            .collect())
+    }
+    fn data_variant_names(
+        &mut self,
+        symbol: &CtSymbolId,
+        tag: u32,
+        count: usize,
+        span: Span,
+    ) -> CompileResult<(String, Option<Vec<String>>)> {
+        fn variant<'a>(
+            this: &'a Materializer<'_, '_>,
+            symbol: &CtSymbolId,
+            tag: u32,
+            span: Span,
+        ) -> CompileResult<&'a s::Variant> {
+            let (_, parsed) = this.parsed_source(symbol.module)?;
+            let item = parsed
+                .module
+                .items
+                .get(symbol.declaration.0 as usize)
+                .ok_or_else(|| runtime("returned enum declaration is missing", span))?;
+            let s::ItemKind::Enum(declaration) = &item.kind else {
+                return Err(runtime(
+                    "returned enum is not a source enum declaration",
+                    span,
+                ));
+            };
+            declaration
+                .variants
+                .get(tag as usize)
+                .ok_or_else(|| runtime("returned enum variant is missing", span))
+        }
+        let value = variant(self, symbol, tag, span)?;
+        let (arity, bytes) = match &value.fields {
+            s::VariantFields::Unit => (0, 0),
+            s::VariantFields::Tuple(fields) => (fields.len(), 0),
+            s::VariantFields::Record(fields) => (
+                fields.len(),
+                fields.iter().map(|f| f.name.len() as u64).sum::<u64>(),
+            ),
+        };
+        if arity != count {
+            return Err(runtime("returned enum field count differs", span));
+        }
+        let bytes = bytes.saturating_add(value.name.len() as u64);
+        self.environment
+            .budget
+            .reserve_analysis_work(bytes.saturating_add(count as u64))?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(bytes.saturating_add((count as u64).saturating_mul(24)))?;
+        let value = variant(self, symbol, tag, span)?;
+        Ok((
+            value.name.clone(),
+            match &value.fields {
+                s::VariantFields::Record(fields) => {
+                    Some(fields.iter().map(|f| f.name.clone()).collect())
+                }
+                _ => None,
+            },
+        ))
     }
     pub(super) fn data_expression(
         &mut self,
@@ -88,8 +242,7 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<s::Expr> {
         self.depth(depth, span)?;
         self.environment.budget.reserve_analysis_work(1)?;
-        let graph = context.type_ref(ty, &mut self.environment.budget)?;
-        let source_ty = self.owner_node(&graph, graph.root, module, span, depth + 1)?;
+        let source_ty = self.data_source_type(context, ty, module, span, depth + 1)?;
         let kind = match (value, ty) {
             (CtValue::Scalar(c), CtTy::Scalar(_)) => {
                 self.environment.budget.reserve_analysis_work(32)?;
@@ -170,6 +323,70 @@ impl Materializer<'_, '_> {
                 }
             }
             (
+                CtValue::Variant {
+                    schema,
+                    tag,
+                    fields,
+                },
+                CtTy::Enum(id),
+            ) if schema == id => {
+                let shape = context
+                    .enums
+                    .get(id.0 as usize)
+                    .ok_or_else(|| runtime("returned enum schema is missing", span))?;
+                let types = shape
+                    .variants
+                    .get(*tag as usize)
+                    .ok_or_else(|| runtime("returned enum tag is missing", span))?;
+                if fields.len() != types.len() {
+                    return Err(runtime("returned enum payload count differs", span));
+                }
+                let (name, names) =
+                    self.data_variant_names(&shape.name, *tag, fields.len(), span)?;
+                let owner = self.data_type_expr(&source_ty, span)?;
+                let callee = self.data_node(
+                    s::ExprKind::Member {
+                        object: Box::new(owner),
+                        member: s::MemberName::Name(name),
+                    },
+                    span,
+                )?;
+                if let Some(names) = names {
+                    let mut output = Vec::new();
+                    for ((field, ty), name) in fields.iter().zip(types).zip(names) {
+                        let value =
+                            self.data_expression(module, field, ty, context, span, depth + 1)?;
+                        output.push(s::RecordField {
+                            name,
+                            value: Some(value),
+                            span,
+                        });
+                    }
+                    s::ExprKind::Record {
+                        ty: Some(Box::new(callee)),
+                        base: None,
+                        fields: output,
+                    }
+                } else if fields.is_empty() {
+                    callee.kind
+                } else {
+                    let mut arguments = Vec::new();
+                    for (field, ty) in fields.iter().zip(types) {
+                        let value =
+                            self.data_expression(module, field, ty, context, span, depth + 1)?;
+                        arguments.push(s::Argument {
+                            value,
+                            spread: false,
+                            span,
+                        });
+                    }
+                    s::ExprKind::Call {
+                        callee: Box::new(callee),
+                        arguments,
+                    }
+                }
+            }
+            (
                 CtValue::AnonymousSum {
                     members,
                     active,
@@ -177,6 +394,12 @@ impl Materializer<'_, '_> {
                 },
                 CtTy::AnonymousSum(expected),
             ) => {
+                for member in members.iter().chain(expected) {
+                    crate::ct_artifact::execute::value_context::ty_cost(
+                        member,
+                        &mut self.environment.budget,
+                    )?;
+                }
                 if members != expected {
                     return Err(runtime("returned sum descriptor differs", span));
                 }
