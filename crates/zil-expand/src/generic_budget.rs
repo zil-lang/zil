@@ -90,6 +90,12 @@ impl<'a> Budget<'a> {
     pub(crate) fn ty(&mut self, ty: &TypeRef) -> R<()> {
         self.ty_at(ty, 0, None)
     }
+    pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
+        self.expr(expression, 0, None)
+    }
+    pub(crate) fn const_function(&mut self, function: &Function) -> R<()> {
+        self.function(function, 0, None)
+    }
     pub(crate) fn ty_depth(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.ty_at(ty, depth, None)
     }
@@ -654,6 +660,19 @@ impl<'a> Budget<'a> {
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
         self.node(e.span, depth)?;
+        if let ExprKind::Name(name) = &e.kind
+            && let Some(value) = subs
+                .and_then(|substitutions| substitutions.get(name))
+                .and_then(consts::expression)
+        {
+            return self.expr(value, depth, None);
+        }
+        if matches!(e.kind, ExprKind::ReceiverMember(_))
+            && subs.is_some_and(|s| s.contains_key("Self"))
+        {
+            self.node(e.span, depth + 1)?;
+            self.text("self", e.span)?;
+        }
         match &e.kind {
             ExprKind::Literal(l) => self.literal(l, e.span)?,
             ExprKind::Name(s) | ExprKind::ReceiverMember(s) => self.text(s, e.span)?,

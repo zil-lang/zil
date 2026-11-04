@@ -95,6 +95,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
+    let expression_ids = if traits.has_instances {
+        trait_instances::expression_ids(&function.body, budget)?
+    } else {
+        BTreeMap::new()
+    };
     let mut check = Check {
         variables,
         definition_bound_context,
@@ -107,6 +112,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             None => traits.bounds(function, budget)?,
         },
         trait_calls,
+        expression_ids,
         traits,
         next_local: function.params.len(),
         enum_resource_flow: false,
@@ -627,6 +633,7 @@ struct Check<'s, 'b, 'l> {
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
     trait_calls: &'b mut trait_instances::Calls,
+    expression_ids: BTreeMap<usize, usize>,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
@@ -2142,14 +2149,21 @@ impl Check<'_, '_, '_> {
             TypeKind::Reference { inner, .. } => inner.as_ref(),
             _ => actual,
         };
-        let variable = trait_bounds::plain(host)
-            .filter(|name| self.variables.contains(*name))
-            .ok_or_else(|| {
-                unsupported(
+        let subject_key;
+        let variable = if let Some(variable) =
+            trait_bounds::plain(host).filter(|name| self.variables.contains(*name))
+        {
+            variable
+        } else {
+            subject_key = trait_bounds::subject_key(host, self.budget)?;
+            if !self.bounds.contains_key(&subject_key) {
+                return Err(error(
                     object.span,
-                    "parametric method receiver requires a declared type-parameter bound",
-                )
-            })?;
+                    "method receiver requires a declared nominal bound for this type",
+                ));
+            }
+            &subject_key
+        };
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
@@ -2160,7 +2174,18 @@ impl Check<'_, '_, '_> {
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
-                .insert(object.span, method.name.clone());
+                .insert(
+                    *self
+                        .expression_ids
+                        .get(&(object as *const Expr as usize))
+                        .ok_or_else(|| {
+                            error(
+                                object.span,
+                                "method receiver lost its declaration-local expression identity",
+                            )
+                        })?,
+                    method.name.clone(),
+                );
         }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
             return Err(error(
@@ -3141,14 +3166,46 @@ impl Check<'_, '_, '_> {
                     type_parameters(function).map(|p| p.name.clone()).collect();
                 let mut found = BTreeMap::new();
                 if let Some(args) = explicit {
-                    if args.len() != type_parameters(function).count() {
+                    if args.len() != consts::parameters(function).count() {
                         return Err(error(e.span, "parametric type argument arity mismatch"));
                     }
-                    for (param, arg) in type_parameters(function).zip(args) {
-                        let GenericArg::Type(ty) = arg else {
-                            return Err(unsupported(e.span, "const generic argument"));
+                    for (param, arg) in consts::parameters(function).zip(args) {
+                        let actual = consts::argument(arg, Some(param), self.budget)?;
+                        let actual = if let GenericParamKind::Const(wanted) = &param.kind
+                            && let Some(Expr {
+                                kind: ExprKind::Name(name),
+                                ..
+                            }) = consts::expression(&actual)
+                        {
+                            // Only this declaration's original immutable const
+                            // binder is compile-time evidence. A same-spelled
+                            // runtime parameter or shadowing local is not.
+                            let source = self.signatures.get(self.definition).ok_or_else(|| {
+                                error(e.span, "symbolic const call has no declaration context")
+                            })?;
+                            let (ordinal, binder) = consts::symbolic_parameter(source, name)
+                                .ok_or_else(|| {
+                                    error(e.span, "const argument names a runtime value")
+                                })?;
+                            let GenericParamKind::Const(domain) = &binder.kind else {
+                                unreachable!()
+                            };
+                            same(domain, wanted, e.span, self.budget)?;
+                            if state
+                                .locals
+                                .get(name)
+                                .is_none_or(|local| local.id != source.params.len() + ordinal)
+                            {
+                                return Err(error(
+                                    e.span,
+                                    "const argument is shadowed by a runtime value",
+                                ));
+                            }
+                            actual
+                        } else {
+                            consts::normalize(param, &actual, self.budget)?
                         };
-                        found.insert(param.name.clone(), ty.clone());
+                        found.insert(param.name.clone(), actual);
                     }
                 }
                 if self.callable.as_ref().is_some_and(|bounds| {

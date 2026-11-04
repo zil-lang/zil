@@ -161,7 +161,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<BTreeMap<Span, String>> {
+    ) -> R<BTreeMap<usize, String>> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
@@ -208,10 +208,15 @@ impl Engine<'_> {
         self.budget.text("Self", member.span)?;
         bounds.insert(
             "Self".into(),
-            vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
-                key,
-                arguments,
-            })],
+            self.traits.inherited_bounds(
+                vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
+                    key,
+                    arguments,
+                })],
+                "Self",
+                &mut self.budget,
+                member.span,
+            )?,
         );
         no_new_borrows(member, &mut self.budget)?;
         self.check_default_reference_result(&function, &bounds)?;

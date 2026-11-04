@@ -644,15 +644,13 @@ impl Engine<'_> {
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != type_parameters(f).count() {
+            if args.len() != consts::parameters(f).count() {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
-            for (p, a) in type_parameters(f).zip(args) {
-                let GenericArg::Type(t) = a else {
-                    return Err(unsupported(callee.span, "const generic argument"));
-                };
-                self.budget.ty(t)?;
-                found.insert(p.name.clone(), t.clone());
+            for (p, a) in consts::parameters(f).zip(args) {
+                let actual = consts::argument(a, Some(p), &mut self.budget)?;
+                let actual = consts::normalize(p, &actual, &mut self.budget)?;
+                found.insert(p.name.clone(), actual);
             }
         }
         if let (Some(result), Some(expected)) = (&f.return_type, expected.as_ref())
