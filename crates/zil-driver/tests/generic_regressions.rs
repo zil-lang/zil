@@ -5750,3 +5750,187 @@ fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
     let plan = zil_analyze::analyze(&control, &limits).unwrap();
     zil_verify::verify_module(control, plan, &target, &limits).unwrap();
 }
+
+fn g3326_captured_sources() -> Vec<(&'static str, String)> {
+    let shared = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+    );
+    let once = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+    );
+    let exclusive = shared
+        .replace("let f=(p:", "var count=0;var f=move(p:")
+        .replace("=>i32(*p.p+*left.p);return f(left)", "=>{count+=1;return i32(*p.p+*left.p)+count-1};let first=f(left);return first+f(left)-43");
+    vec![
+        ("fn", shared.into()),
+        ("fnmut-two-calls", exclusive),
+        ("fnonce", once.into()),
+    ]
+}
+
+#[test]
+fn g3326_captured_source_wire_and_exact_lir_binding() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for (case, text) in g3326_captured_sources() {
+        let input = source(&text);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let aliases = Default::default();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        assert_eq!(core.closure_life_contexts.len(), 1, "{case}");
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        assert_eq!(raw.closures.len(), 1);
+        assert_eq!(
+            raw.closures[0].kind,
+            match case {
+                "fn" => zil_ir::CallableKind::Fn,
+                "fnmut-two-calls" => zil_ir::CallableKind::FnMut,
+                _ => zil_ir::CallableKind::FnOnce,
+            }
+        );
+        assert!(
+            raw.closures[0]
+                .storage_life
+                .as_ref()
+                .unwrap()
+                .fixed_binder_count
+                > 0
+        );
+        if case == "fnonce" {
+            assert!(
+                raw.closures[0]
+                    .captures
+                    .iter()
+                    .any(|t| matches!(t, zil_ir::Type::Managed(_)))
+            );
+        }
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let verified = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        let lir = zil_lower::lower(&verified).unwrap();
+        zil_backend_llvm::emit(&verified, &lir).unwrap();
+        for relation in [false, true] {
+            let mut forged = lir.clone();
+            if relation {
+                forged.closures[0]
+                    .storage_life
+                    .as_mut()
+                    .unwrap()
+                    .fixed_binder_count += 1;
+            } else {
+                forged.closures[0].captures[0] = zil_ir::Type::I64;
+            }
+            let errors = zil_backend_llvm::emit(&verified, &forged).unwrap_err();
+            assert_eq!(
+                errors[0].code, "E-CODEGEN-UNBOUND-LIR",
+                "{case}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g3326_captured_source_native_full_results_and_budget() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for (case, text) in g3326_captured_sources() {
+        let input = source(&text);
+        // This is the actual complete Source-to-Lower threshold. The tight
+        // phase is reported, never relabeled as an isolated Lower threshold.
+        let check = |work| {
+            compile_source(
+                &input,
+                &CompileOptions {
+                    stop_after: Stage::Lower,
+                    limits: Limits {
+                        max_analysis_steps: work,
+                        ..Limits::default()
+                    },
+                    ..CompileOptions::default()
+                },
+            )
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        assert_eq!(check(high).status, ResultCategory::Success);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = check(mid);
+            if report.status == ResultCategory::Success {
+                high = mid;
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::ResourceLimit,
+                    "{case}: {}",
+                    report.to_json()
+                );
+                low = mid + 1;
+            }
+        }
+        assert_eq!(check(low).status, ResultCategory::Success);
+        let short = check(low - 1);
+        assert_eq!(short.status, ResultCategory::ResourceLimit);
+        assert_eq!(check(low).status, ResultCategory::Success);
+        eprintln!(
+            "G3.3.2.6 {case} whole Source-to-Lower N={low}/N-1/fresh; tight phase={:?}",
+            short.phase
+        );
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-g3326-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &input,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{case}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let result = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{case} {backend:?} {optimization:?}: {result:?}"
+                );
+                assert_eq!(result.stdout, b"42\n");
+                assert!(result.stderr.is_empty());
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
