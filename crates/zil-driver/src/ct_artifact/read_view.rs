@@ -923,7 +923,7 @@ impl FrozenReadView<'_> {
             &refs,
             &imports,
             &limits,
-            &self.target,
+            self.target,
         )?;
         let modules = expanded
             .into_iter()
