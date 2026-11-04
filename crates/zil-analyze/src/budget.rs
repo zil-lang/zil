@@ -143,6 +143,7 @@ impl Budget {
         // A mismatch can stop the comparison early; an equal declaration is
         // the upper bound. Arrays compare their length once, not per element.
         self.spend(2 + usize::from(copy_check), context)?;
+        super::tasks::require_closed_context(ty)?;
         match ty {
             Type::Dyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
@@ -218,7 +219,7 @@ impl Budget {
                 self.registrations = true;
                 self.type_work(environment, copy_check, context)?;
             }
-            Type::Task { result } => {
+            Type::Task { result, .. } => {
                 self.tasks = true;
                 self.type_work(result, copy_check, context)?;
             }
@@ -707,7 +708,9 @@ pub(super) fn preflight(
                         child,
                     ));
                 }
-                Type::Task { result: element } => {
+                Type::Task {
+                    result: element, ..
+                } => {
                     budget.input(1, "actual Task result metadata")?;
                     pending.push((
                         element,
