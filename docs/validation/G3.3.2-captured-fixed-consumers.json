@@ -1,0 +1,143 @@
+{
+  "task": "G3.3.2",
+  "status": "AuthorLimitedTypedConsumer",
+  "source_commit": "a11b5c2c1a7c1419bb18dafe200121e2febf2873",
+  "baseline": "318875a451c5eb53b5392d869f975ec96e2963b4",
+  "schema_version": 41,
+  "scope": "Existing Typed fields only; Analyze and Types private consumers. Verify implementation is independent on task/G3.3.2.2. No Source gate, public schema, Wire or registry change.",
+  "evidence_level": {
+    "actual_source_preconditions": "G3.3.2-source-preconditions.json: fifteen preserved source probes bound to318/438; not rerun as new admission",
+    "current_consumer_models": "Hand-filled untrusted TypedModule with actual MakeClosure operands, SSA entry/captures and complete relations",
+    "source_acceptance": false,
+    "native_runs": 0,
+    "author_wire_runs": 0,
+    "full_workspace_gate": false
+  },
+  "profile": {
+    "definition_modes": [
+      "Fn",
+      "FnMut",
+      "FnOnce"
+    ],
+    "result": "inline scalar",
+    "captures": "inline scalar or shared ordinary/qualified Address; shared finite Record/Tuple, no owning/lending/nested environment",
+    "parameters": "shared; mutable closure helper receiver allowed, scalar WriteCapture only",
+    "canonical": "joint Parameter/Capture/Result with each Fixed anchored in Capture",
+    "runtime_context": "actual MakeClosure origins plus persistent receiver Fixed; only Invocation is fresh",
+    "grounding": "real header or BorrowLocal outer Address, propagated through structural and physical field equations; local phantom unknown is Unsupported",
+    "helper": "independently validate complete role and actual entry; first profile requires role.life == definition.storage_life; Source P/R bound mapping is not implemented"
+  },
+  "results": {
+    "Analyze_stored_flow": {
+      "passed": 24,
+      "failed": 0,
+      "new_tests": 11
+    },
+    "Analyze_signature_life": {
+      "passed": 2,
+      "failed": 0
+    },
+    "Types_full_library": {
+      "passed": 47,
+      "failed": 0
+    },
+    "strict_clippy": "zil-analyze + zil-types --lib --tests -D warnings Pass",
+    "fmt": "Pass",
+    "diff_check": "Pass"
+  },
+  "nearest_controls": [
+    "Fn/FnMut/FnOnce direct and helper: real captured View Address, good actual class and distinct-input bad class",
+    "two independent actual environments sharing ClosureId, matching and crossed calls",
+    "same actual env across calls: Fixed persists, independent outer Invocation borrows remain fresh",
+    "actual FnMut inline scalar WriteCapture vs Fn metadata rejection",
+    "concrete FnOnce duplicate same callee and non-Copy Load rejected by responsibility ledger",
+    "actual parent Tag StorageDead while captured environment remains live rejected by loan proof",
+    "ordinary Address-only capture Fixed: no nominal trigger required",
+    "actual TakeLocal receiver then wrong third qualified-input class rejected in helper body",
+    "local phantom class without source anchor Unsupported, genuine nominal header class accepted",
+    "missing/malformed Capture rows, contradictory entry relation, complete but different helper role, missing helper header and unused SSA slot rejected",
+    "Fixed env return and Fn/FnMut-to-Once adaptation explicitly Unsupported"
+  ],
+  "budgets": {
+    "whole_Typed_helper_Analyze_N": {
+      "Fn": 13810,
+      "FnMut": 14062,
+      "FnOnce": 12781
+    },
+    "N_minus_1": "ResourceLimit",
+    "exact_N": "two independent fresh requests, identical plan",
+    "old_controls": {
+      "rich_class_Analyze": 3377,
+      "qualified_role_Analyze": 5843,
+      "prior_record": "docs/validation/G3.3-review.json"
+    },
+    "default_allowances_changed": false,
+    "old_no_capture_arena": "No grounded allocation or new retained scan"
+  },
+  "open_boundaries": [
+    "Source ScopedClosureLife/owner/full-ordinal/full-actual-vector production and public43 identity table are root G3.3.2.1 work",
+    "Source F bound P/R must be mapped through actual source identity and receiver captures before forming complete role; equality of local Fixed indices is insufficient",
+    "user-resource/Mark owning captures mixed with qualified storage remain at existing stored_flow::infer resources fence; not a completed true owning FnOnce Source consumer",
+    "lending/owning/nested captures, mutable explicit arguments needing capture-target summary substitution, retained environment result transfer",
+    "actual Once adaptation from concrete Fn/FnMut needs its separate consumption ledger"
+  ],
+  "build": {
+    "target_dir": "/workspace/.zil-env/target342-40",
+    "tmpdir": "/workspace/.zil-env/G3.3.2-tmp/build",
+    "jobs": 2,
+    "debug": 0,
+    "incremental": false,
+    "RUST_MIN_STACK": "unset final runs",
+    "state": "stopped",
+    "no_Driver_or_LLVM_build": true
+  },
+  "commands": [
+    "source /workspace/.zil-env/env.sh; unset RUST_MIN_STACK; CARGO_TARGET_DIR=/workspace/.zil-env/target342-40 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0 TMPDIR=/workspace/.zil-env/G3.3.2-tmp/build cargo test -p zil-analyze --lib stored_flow -- --nocapture",
+    "same environment: cargo test -p zil-analyze --lib signature_life -- --nocapture",
+    "same environment: cargo test -p zil-types --lib -- --nocapture",
+    "same environment: cargo clippy -p zil-analyze -p zil-types --lib --tests -- -D warnings",
+    "cargo fmt --all --check",
+    "git diff --check"
+  ],
+  "logs": {
+    "Analyze_stored_flow_24": {
+      "path": "/workspace/.zil-env/G3.3.2-tmp/analyze-grounded2.log",
+      "sha256": "897c4ee42d804ffc1599e38e3a203aea7f7ce79705d3d352d1873513644f7018"
+    },
+    "Analyze_signature_2": {
+      "path": "/workspace/.zil-env/G3.3.2-tmp/signature-frozen.log",
+      "sha256": "c13e3d87f2b3e386d3489ed8c4ca2a274ea8ec8be6d0fdd774e86d4ce3d436dc"
+    },
+    "Types_library_47": {
+      "path": "/workspace/.zil-env/G3.3.2-tmp/types-grounded.log",
+      "sha256": "7e4bc5d87406d572111191bfd7d2dd3216da145c950a1063c161cbdc22dd470b"
+    },
+    "strict_clippy": {
+      "path": "/workspace/.zil-env/G3.3.2-tmp/clippy-grounded2.log",
+      "sha256": "6cc7aa2c57a19598dc361579acb8071a04b3eed03732bb24ced99e319387dfcf"
+    }
+  },
+  "source_sha256": {
+    "crates/zil-analyze/src/budget.rs": "26e6995b2d29b185de8fbda14750eb0be44304bb7e2aed7bd6e4177b92942f3f",
+    "crates/zil-analyze/src/class_flow.rs": "865ed69747761ee2e03e76c99fd51d7dcc5f99c3c605e36df00eaad5c197e15c",
+    "crates/zil-analyze/src/helpers.rs": "8feb92bf4b58e011e2ec8756da909bb07272026ad3f0cbf28ae797f842443fcf",
+    "crates/zil-analyze/src/lib.rs": "5a446c3ac735fd36313df396ecc529b8bb58811519cf710f945cb1c2218866e3",
+    "crates/zil-analyze/src/signature_life.rs": "24e809e1f575957b4082524e3c5dc2839377f1dd1554409b9b2c3e580a9bff23",
+    "crates/zil-analyze/src/stored_callables.rs": "b0f83c10dbaf3b35199f379455c89a6fab41954c4f2798bc9f0f876b7b38e558",
+    "crates/zil-analyze/src/stored_flow.rs": "918ca47e8988e8ac877d08751236696a51c9687fe905247978164345fc6a89b4",
+    "crates/zil-types/src/borrowed_fp_qualified.rs": "c639fa1928576a164fefa371d8cb86f0eaa30bf459e7e458a9a9524373a0d049",
+    "crates/zil-types/src/closures.rs": "18d43a56be0e43d1d6a77fd62b925316706cb1547fd9f060c7ac8979c9a97b37",
+    "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "f0b8d6b2a044c51b0043c9f56fa216e33b191bdb017a14db0b2f203e1f0ea632"
+  },
+  "executables": {
+    "Analyze": {
+      "path": "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7",
+      "sha256": "60161d5897849ee451ec43ffa05eff05caf370b7e72db031a8ed7aad977fb23d"
+    },
+    "Types": {
+      "path": "/workspace/.zil-env/target342-40/debug/deps/zil_types-d5152f4b31c0c65a",
+      "sha256": "bd2bbaa3c9ae64252a387493f9736ab3a6341f05df2d6f086cabc011a672d424"
+    }
+  },
+  "history": "a653/ec305 are superseded checkpoints. The initial unused Once SSA slot was corrected by fixture commitf22e25762; original phantom freeze lacked grounding and is corrected by the source commit above. Earlier checkpoint results do not replace final bindings."
+}
