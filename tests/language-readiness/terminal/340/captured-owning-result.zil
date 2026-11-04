@@ -1,0 +1,1 @@
+resource R{n:i32}package P{manages r:R;n:i32}fn result()->i32{var left=(P{r:R{n:1},n:20},20);var right=(P{r:R{n:2},n:22},22);let a=&left;let b=&mut right;let f=()->&i32=>{let(_,ref n)=*a;let(ref p,_)=*b;let observed=p.n;return n};let n=f();let(_,ref mut k)=*b;*k=22;return *n+*k}

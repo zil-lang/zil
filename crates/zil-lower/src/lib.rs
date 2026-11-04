@@ -59,6 +59,17 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     let use_sum_extension = verified.uses_owned_sum_extension();
     let mut sum_budget = owned_sums::Budget::new(verified.limits());
     for closure in &module.closures {
+        for ty in &closure.captures {
+            if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+                && !sum_budget.admits(ty, &module.resources, 0)?
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Lower,
+                    "captured owning-base address needs a complete admitted pointee",
+                    None,
+                )]);
+            }
+        }
         // An owning callback signature is an ordinary complete data boundary.
         // Charge its actual type trees to the same request budget used by
         // ordinary function signatures. Capture admission remains separate.
@@ -110,7 +121,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
