@@ -132,9 +132,36 @@ pub(super) fn relation(
 pub(super) fn metadata_work(life: &StorageLifeContract) -> usize {
     (life.invocation_binder_count as usize)
         .saturating_add(life.fixed_binder_count as usize)
+        .saturating_mul(4)
         .saturating_add(life.bindings.len().saturating_mul(8))
         .saturating_add(life.classes.len().saturating_mul(8))
         .saturating_add(2)
+}
+
+/// Pay the additional qualified-storage slot inspection from the live caller
+/// ledger. The ordinary recursive type eligibility walk is reserved by each
+/// existing full-signature caller; this new scan is a separate occurrence.
+pub(super) fn qualified_inputs(
+    life: &StorageLifeContract,
+    parameters: &[Type],
+    result: &Type,
+    mut charge: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    if life.classes.is_empty() {
+        return Ok(());
+    }
+    charge(parameters.len().saturating_add(1))?;
+    for ty in parameters.iter().chain(std::iter::once(result)) {
+        let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if let Type::BorrowedStorage { life, .. } = ty {
+            charge(life.slots.len().saturating_add(1))?;
+        }
+    }
+    Ok(())
 }
 
 /// Prepay a complete relation before traversal, clone or identity encoding.

@@ -2376,8 +2376,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         ) = expected
         {
             if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                if !life.classes.is_empty() {
+                    self.closures.snapshot_type(
+                        expected.expect("matched borrowed pointer"),
+                        2,
+                        0,
+                        span,
+                    )?;
+                }
                 self.closures
                     .snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.closures.snapshot(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(
