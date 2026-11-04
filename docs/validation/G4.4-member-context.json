@@ -1,0 +1,23 @@
+{
+  "task": "G4.4",
+  "baseline": "54e618a07c99126203d44d28b6f03a302e65c266",
+  "scope": "Author limited checkpoint: authentic original member own-binder Definition context; not complete G4.4 or independent acceptance",
+  "commands": [
+    {"command": "cargo test -p zil-driver --lib ct5_ -j2 -- --nocapture", "result": "7 passed, 0 failed, 84 filtered; member and top-level raw/Wire verification N3906/N-1/fresh, VM; member contextual sibling/full-ordinal/module-relocation/shared-Span checks"},
+    {"command": "cargo test -p zil-driver --test aggregates ct5_member_own_life_context_reaches_native -j2 -- --exact --nocapture", "result": "1 passed, 0 failed, 149 filtered; actual Source through ordinary kernels; Clang and LLVM API O0/O2 stdout42, no fallback; whole analysis N37370/N-1/warm/fresh; undeclared life rejects"}
+  ],
+  "actual_source": "tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil",
+  "prior_failures": [
+    "Initial check found helper visibility and depth-width compile errors; corrected before passing source check.",
+    "Driver library build temporarily failed creating rmeta because shared workspace disk was full; no tests executed in that attempt; replay after root reclaimed disposable caches passed.",
+    "Mixed own Type/life member source reaches CT then Types Unsupported: generic function specialization. The existing aggregates test retains this exact minimal derivative as a checked unfinished consumer."
+  ],
+  "unfinished": ["Actual complete specialization vector producer", "Generic enclosing member context", "Generated declaration/binder lineage", "General ambient Type export"],
+  "rust_goals": {
+    "safety": "Existing CT independent kernel and ordinary Analyze/Verify still check actual source; metadata grants no access.",
+    "runtime_memory": "Copy phantom source has no new runtime allocation or ownership path; no paired Rust timing/RSS measured.",
+    "expression_maintenance": "Actual member-own-life CT value now materializes and runs; general generic member specialization remains unsupported.",
+    "compile": "All new source/member traversals debit caller ledger, default budgets unchanged; N37370 full request is not isolated marginal cost.",
+    "breakthrough": "Finite source consumer closure only; no product-level net-breakthrough claim."
+  }
+}

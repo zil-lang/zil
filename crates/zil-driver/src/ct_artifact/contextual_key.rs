@@ -811,6 +811,9 @@ mod tests {
         } else {
             "struct Phantom<life a>{n:i32} fn first<T:Copy,life a,life b>() ->i32{return 0} fn second<T:Copy,life a,life b>()->i32{return 0}"
         };
+        fixture_text(module, shared_span, text)
+    }
+    fn fixture_text(module: u32, shared_span: bool, text: &str) -> Fixture {
         let module = ModuleId(module);
         let sources = vec![SourceUnit::new(
             FileId(module.0 + 17),
@@ -824,6 +827,11 @@ mod tests {
             let span = parsed.module.span;
             parsed.module.items[1].span = span;
             parsed.module.items[2].span = span;
+            if let zil_syntax::ast::ItemKind::Aggregate(a) = &mut parsed.module.items[2].kind {
+                for member in &mut a.methods {
+                    member.span = span;
+                }
+            }
         }
         let parsed = vec![Arc::new(parsed)];
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
@@ -970,6 +978,55 @@ mod tests {
         assert!(
             key(&CtValue::Type(graph(&original, 0)), &original, 1).is_err(),
             "a Type parameter is not a Lifetime full ordinal"
+        );
+    }
+    #[test]
+    fn ct5_member_context_keeps_full_ordinal_siblings_relocation_and_shared_spans() {
+        let text = "struct Phantom<life a>{n:i32} fn padding(){} struct Reader{n:i32;fn first<T:Copy,life a,life b>()->i32{return 0}fn second<T:Copy,life a,life b>()->i32{return 0}}";
+        let original = fixture_text(7, false, text);
+        let shared = fixture_text(7, true, text);
+        let relocated = fixture_text(91, false, text);
+        // Top rows 0..3; Phantom.n=3, Reader.n=4, methods=5,6.
+        let value = CtValue::Type(graph(&original, 1));
+        let first = key(&value, &original, 5).unwrap();
+        assert_ne!(first, key(&value, &original, 6).unwrap());
+        assert_ne!(
+            first,
+            key(&CtValue::Type(graph(&original, 2)), &original, 5).unwrap()
+        );
+        assert_eq!(first, key(&value, &shared, 5).unwrap());
+        assert_eq!(
+            first,
+            key(&CtValue::Type(graph(&relocated, 1)), &relocated, 5).unwrap()
+        );
+        assert!(key(&CtValue::Type(graph(&original, 0)), &original, 5).is_err());
+        for fixture in [&original, &shared] {
+            for (ordinal, expected) in [(0, 5), (1, 6)] {
+                assert_eq!(
+                    super::super::compiler::source_scope::original_member(
+                        &fixture.parsed[0].module,
+                        NodeId(2),
+                        ordinal,
+                        Limits::default().max_call_depth,
+                        |_| Ok(()),
+                    )
+                    .unwrap(),
+                    Some(NodeId(expected))
+                );
+            }
+        }
+        let context = context(&original, 5);
+        assert!(
+            contextual_value_key(
+                &value,
+                &[],
+                &[],
+                &scopes(&original, 6),
+                &context,
+                &Limits::default(),
+                &mut budget()
+            )
+            .is_err()
         );
     }
     #[test]

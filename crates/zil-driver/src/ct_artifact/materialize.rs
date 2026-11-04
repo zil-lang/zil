@@ -601,65 +601,69 @@ impl Materializer<'_, '_> {
                                         runtime("fixed lifetime source ordinal is absent", span)
                                     })?;
                                 let definition = scope.definition.clone();
-                                fn name<'a>(
-                                    this: &'a Materializer<'_, '_>,
-                                    definition: &CtSymbolId,
-                                    ordinal: u32,
-                                    span: Span,
-                                ) -> CompileResult<&'a str> {
-                                    let (_, parsed) = this.parsed_source(definition.module)?;
-                                    let item = parsed
-                                        .module
-                                        .items
-                                        .get(definition.declaration.0 as usize)
-                                        .ok_or_else(|| {
-                                            runtime("source lifetime definition is absent", span)
-                                        })?;
-                                    if definition.generation_path.is_some()
-                                        || !this.environment.index.contains(definition)
-                                    {
-                                        return Err(runtime(
-                                            "source lifetime owner is not an actual original declaration",
-                                            span,
-                                        ));
-                                    }
-                                    let s::ItemKind::Function(function) = &item.kind else {
-                                        return Err(category(
-                                            "source lifetime owner is not an original function",
-                                            span,
-                                        ));
-                                    };
-                                    let parameter = function
-                                        .generics
-                                        .get(ordinal as usize)
-                                        .ok_or_else(|| {
-                                            runtime("source lifetime full ordinal is absent", span)
-                                        })?;
-                                    if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
-                                        return Err(runtime(
-                                            "source lifetime full ordinal selects a different parameter kind",
-                                            span,
-                                        ));
-                                    }
-                                    Ok(&parameter.name)
-                                }
                                 self.environment.budget.reserve_analysis_work(
                                     self.environment
                                         .index
                                         .symbol_lookup_work()
-                                        .saturating_add(self.sources.len() as u64)
-                                        .saturating_mul(2),
+                                        .saturating_add(self.parsed.len() as u64),
                                 )?;
-                                let length = name(self, &definition, ordinal, span)?.len();
+                                if definition.generation_path.is_some()
+                                    || !self.environment.index.contains(&definition)
+                                {
+                                    return Err(runtime(
+                                        "source lifetime owner is not an actual original declaration",
+                                        span,
+                                    ));
+                                }
+                                let parsed = self
+                                    .parsed
+                                    .iter()
+                                    .find(|parsed| parsed.module.id == definition.module)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime module is absent", span)
+                                    })?;
+                                let max_depth =
+                                    self.environment.budget.remaining().max_call_depth as usize;
+                                let original = super::compiler::source_scope::original_function(
+                                    &parsed.module,
+                                    definition.declaration,
+                                    max_depth,
+                                    |work| {
+                                        self.environment.budget.reserve_analysis_work(work as u64)
+                                    },
+                                )?
+                                .ok_or_else(|| {
+                                    runtime(
+                                        "source lifetime owner is not an original function",
+                                        span,
+                                    )
+                                })?;
+                                if original.generic_host {
+                                    return Err(category(
+                                        "source member lifetime lacks enclosing generic context",
+                                        span,
+                                    ));
+                                }
+                                let parameter = original
+                                    .function
+                                    .generics
+                                    .get(ordinal as usize)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime full ordinal is absent", span)
+                                    })?;
+                                if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                                    return Err(runtime(
+                                        "source lifetime full ordinal selects a different parameter kind",
+                                        span,
+                                    ));
+                                }
                                 self.environment
                                     .budget
-                                    .reserve_analysis_work(length as u64 + 1)?;
+                                    .reserve_analysis_work(parameter.name.len() as u64 + 1)?;
                                 self.environment
                                     .budget
-                                    .reserve_temporary_bytes(length as u64)?;
-                                args.push(s::GenericArg::Lifetime(
-                                    name(self, &definition, ordinal, span)?.to_owned(),
-                                ));
+                                    .reserve_temporary_bytes(parameter.name.len() as u64)?;
+                                args.push(s::GenericArg::Lifetime(parameter.name.clone()));
                                 continue;
                             }
                             let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
@@ -1304,6 +1308,32 @@ impl Materializer<'_, '_> {
                     ));
                 }
                 symbol
+            } else if self.track_declarations && !generated && inherited.is_some() {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.parsed.len() as u64)?;
+                let parsed = self
+                    .parsed
+                    .iter()
+                    .find(|p| p.module.id == module)
+                    .ok_or_else(|| category("original member module is absent", item.span))?;
+                let parent = inherited.expect("checked inherited declaration");
+                let max_depth = self.environment.budget.remaining().max_call_depth as usize;
+                if let Some(declaration) = compiler::source_scope::original_member(
+                    &parsed.module,
+                    parent.declaration,
+                    ordinal,
+                    max_depth,
+                    |work| self.environment.budget.reserve_analysis_work(work as u64),
+                )? {
+                    CtSymbolId {
+                        module,
+                        declaration,
+                        generation_path: None,
+                    }
+                } else {
+                    self.owner(module, item.span, inherited)?
+                }
             } else {
                 self.owner(module, item.span, inherited)?
             };

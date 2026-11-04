@@ -109,18 +109,22 @@ impl FrozenInvocationContext {
                 "generated CT invocation lacks authentic scope lineage",
             ));
         }
-        // SourceIndex reserves the original top-level item ordinals before all
-        // member rows. A member is not reinterpreted as a top-level declaration.
-        let item = module.module.items.get(definition.declaration.0 as usize);
-        let function = item.and_then(|item| match &item.kind {
-            s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => {
-                Some(function)
-            }
-            _ => None,
-        });
-        let Some(function) = function else {
+        let max_depth = budget.remaining().max_call_depth as usize;
+        let Some(original) = super::compiler::source_scope::original_function(
+            &module.module,
+            definition.declaration,
+            max_depth,
+            |work| budget.reserve_analysis_work(work as u64),
+        )?
+        else {
             return Ok(None);
         };
+        if original.generic_host {
+            return Err(unsupported(
+                "CT member scope requires its actual enclosing generic context",
+            ));
+        }
+        let function = original.function;
         budget.reserve_analysis_work(function.generics.len() as u64)?;
         if !function
             .generics
@@ -135,9 +139,9 @@ impl FrozenInvocationContext {
         let origin = origins
             .iter()
             .find(|row| row.module == definition.module)
-            .and_then(|row| row.items.get(definition.declaration.0 as usize))
+            .and_then(|row| row.items.get(original.top))
             .ok_or_else(|| unsupported("CT ambient owner is absent from original lineage"))?;
-        if origin.declaration != definition.declaration {
+        if origin.declaration.0 as usize != original.top {
             return Err(unsupported(
                 "CT ambient original declaration ordinal differs",
             ));

@@ -14,6 +14,8 @@ mod generics;
 mod quote;
 #[path = "compiler_selection.rs"]
 mod selection;
+#[path = "compiler_source_scope.rs"]
+pub(super) mod source_scope;
 #[path = "compiler_types.rs"]
 mod types;
 use std::collections::{BTreeMap, VecDeque};
