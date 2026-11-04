@@ -1,6 +1,8 @@
 //! Source-owned dyn interface and static implementation recipes. These are
 //! untrusted inputs for the public Types/CFG consumers, never permissions.
 use super::*;
+#[path = "generic_trait_dyn_source.rs"]
+pub(crate) mod source;
 
 pub(crate) struct Slot {
     pub(crate) declaration: origins::MemberId,
@@ -16,6 +18,7 @@ pub(crate) struct Interface {
     pub(crate) slots: Vec<Slot>,
 }
 pub(crate) struct Provider {
+    pub(crate) implementation: origins::DeclId,
     pub(crate) declaration: origins::MemberId,
     pub(crate) substitutions: BTreeMap<String, TypeRef>,
     pub(crate) signature: Function,
@@ -28,6 +31,8 @@ pub(crate) struct Vtable {
 }
 #[derive(Default)]
 pub(crate) struct Catalog {
+    declarations: Vec<source::Declaration>,
+    targets: Vec<source::Target>,
     pub(crate) interfaces: Vec<Interface>,
     pub(crate) vtables: Vec<Vtable>,
 }
@@ -340,6 +345,10 @@ impl Index<'_> {
                 unreachable!()
             };
             providers.push(Provider {
+                implementation: self
+                    .origin(selected_witness.item, budget)?
+                    .ok_or_else(|| error(member.span, "dyn slot implementation origin absent"))?
+                    .declaration,
                 declaration: origin,
                 substitutions,
                 signature,
@@ -446,6 +455,7 @@ pub(in crate::generics) fn collect<'a>(
             catalog.vtables.push(vtable);
         }
     }
+    catalog.declarations = source::declarations(module, origins, budget)?;
     Ok(catalog)
 }
 
@@ -454,6 +464,249 @@ mod tests {
     use super::*;
     use zil_base::{FileId, ModuleId, SourceUnit};
 
+    #[test]
+    fn dyn_source_core_publishes_actual_declarations_and_emitted_provider_ids() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(17),
+            "not-a-logical-module.zil",
+            include_str!(
+                "../../../tests/language-readiness/terminal/341/dyn-source/generic-instances.zil"
+            ),
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let expanded = crate::expand_with_map_limits_target_context(
+            &source,
+            &parsed,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        let core = expanded.core;
+        assert_eq!(core.dyn_interfaces.len(), 2);
+        assert_eq!(core.dyn_vtables.len(), 2);
+        assert_eq!(core.dyn_declarations.len(), 3);
+        assert_ne!(
+            core.dyn_interfaces[0].application.actuals,
+            core.dyn_interfaces[1].application.actuals
+        );
+        for table in &core.dyn_vtables {
+            let interface = core
+                .dyn_interfaces
+                .iter()
+                .find(|interface| interface.id == table.interface)
+                .unwrap();
+            assert_eq!(table.entries.len(), interface.slots.len());
+            for entry in &table.entries {
+                let function = core
+                    .functions
+                    .iter()
+                    .find(|function| function.id == entry.function)
+                    .unwrap();
+                assert_eq!(entry.module, core.module_id);
+                assert_eq!(
+                    function.return_type,
+                    interface.slots[entry.slot as usize].result
+                );
+                assert!(
+                    function
+                        .parameters
+                        .first()
+                        .is_some_and(|parameter| matches!(
+                            parameter.ty,
+                            zil_ir::Type::Address { .. }
+                        ))
+                );
+            }
+        }
+        for function in &core.functions {
+            if matches!(function.name.as_str(), "peek" | "flag") {
+                assert!(
+                    matches!(&function.parameters[0].ty, zil_ir::Type::Address { inner, .. } if matches!(inner.as_ref(), zil_ir::Type::Dyn { .. }))
+                );
+            }
+        }
+        // Until the executable consumer reconstructs the actual CFG claims,
+        // missing contracts remain Unknown, never a finite empty permission.
+        assert!(
+            core.dyn_interfaces
+                .iter()
+                .flat_map(|interface| &interface.slots)
+                .all(|slot| slot.contract.effects.is_none() && slot.contract.call.is_none())
+        );
+    }
+
+    #[test]
+    fn dyn_source_core_keeps_inherited_default_targets_with_shared_spans() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(17),
+            "dyn-default.zil",
+            include_str!(
+                "../../../tests/language-readiness/terminal/341/dyn-source/inherited-default.zil"
+            ),
+        );
+        let mut parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let shared = parsed.items[0].span;
+        for item in &mut parsed.items {
+            item.span = shared;
+            let members = match &mut item.kind {
+                ItemKind::Trait(declaration) => &mut declaration.members,
+                ItemKind::Impl(implementation) => &mut implementation.members,
+                _ => continue,
+            };
+            for member in members {
+                member.span = shared;
+                if let ItemKind::Function(function) = &mut member.kind {
+                    function.span = shared;
+                    for parameter in &mut function.params {
+                        parameter.span = shared;
+                    }
+                }
+            }
+        }
+        let aliases = BTreeMap::new();
+        let expanded = crate::expand_with_map_limits_target_context(
+            &source,
+            &parsed,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        let core = expanded.core;
+        assert_eq!(core.dyn_interfaces.len(), 1);
+        assert_eq!(core.dyn_interfaces[0].inherited.len(), 1);
+        assert_eq!(core.dyn_vtables.len(), 1);
+        let entries = &core.dyn_vtables[0].entries;
+        assert_eq!(entries.len(), 2);
+        assert_ne!(entries[0].function, entries[1].function);
+        for entry in entries {
+            assert!(
+                core.functions
+                    .iter()
+                    .any(|function| function.id == entry.function)
+            );
+        }
+        let declaration_ids = core
+            .dyn_declarations
+            .iter()
+            .map(|declaration| declaration.id.declaration.0)
+            .collect::<Vec<_>>();
+        assert_eq!(declaration_ids, [0, 1, 3, 4]);
+    }
+
+    #[test]
+    fn dyn_source_core_prepays_complete_request_and_requires_context() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(17),
+            "dyn-budget.zil",
+            "trait Read{fn read(self:&Self)->i32;}struct Meter{n:i32}\
+                 impl Read for Meter{fn read(self:&Self)->i32{return self.n}}\
+                 fn peek(x:&dyn Read)->i32{return x.read()}fn main(){}",
+        );
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        assert_eq!(
+            crate::expand_with_map(&source, &parsed).unwrap_err()[0].category,
+            zil_base::ResultCategory::Unsupported
+        );
+        let retained = SourceUnit::new(
+            FileId(0),
+            ModuleId(17),
+            "dyn-retained.zil",
+            "trait Marker<T:Copy>{fn read(self:&Self)->i32;}struct Tag{n:i32}struct Meter{n:i32}\
+             impl Marker<Tag> for Meter{fn read(self:&Self)->i32{return self.n}}\
+             fn peek(x:&dyn Marker<Tag>)->i32{return x.read()}fn main(){}",
+        );
+        let retained_ast = zil_syntax::parse(&retained).into_result().unwrap();
+        let retained_aliases = BTreeMap::new();
+        let rejected = crate::expand_with_map_limits_target_context(
+            &retained,
+            &retained_ast,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: retained.module_id,
+                aliases: &retained_aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(rejected[0].category, zil_base::ResultCategory::Unsupported);
+        assert!(
+            rejected[0].message.contains("retained type-class"),
+            "{rejected:?}"
+        );
+        let aliases = BTreeMap::new();
+        let run = |limits: &Limits| {
+            crate::expand_with_map_limits_target_context(
+                &source,
+                &parsed,
+                limits,
+                &zil_base::TargetProfile::default(),
+                crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: source.module_id,
+                    aliases: &aliases,
+                    declarations: crate::source_context::DeclarationPlacement::Original,
+                },
+            )
+        };
+        for nodes in [false, true] {
+            let (mut low, mut high) = (
+                0,
+                if nodes {
+                    Limits::default().max_nodes
+                } else {
+                    Limits::default().max_analysis_steps
+                },
+            );
+            while low < high {
+                let middle = low + (high - low) / 2;
+                let mut limits = Limits::default();
+                if nodes {
+                    limits.max_nodes = middle;
+                } else {
+                    limits.max_analysis_steps = middle;
+                }
+                if run(&limits).is_ok() {
+                    high = middle;
+                } else {
+                    low = middle + 1;
+                }
+            }
+            let mut limits = Limits::default();
+            if nodes {
+                limits.max_nodes = low;
+            } else {
+                limits.max_analysis_steps = low;
+            }
+            assert!(run(&limits).is_ok());
+            if nodes {
+                limits.max_nodes -= 1;
+            } else {
+                limits.max_analysis_steps -= 1;
+            }
+            assert_eq!(
+                run(&limits).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            println!(
+                "dyn-source-core {}={low}",
+                if nodes { "nodes" } else { "work" }
+            );
+        }
+    }
     fn catalog(text: &str) -> Result<Catalog, Vec<Diagnostic>> {
         let source = SourceUnit::new(FileId(0), ModuleId(17), "dyn.zil", text);
         let parsed = zil_syntax::parse(&source).into_result()?;
