@@ -38,6 +38,43 @@ pub(super) fn sync_address(kind: SyncCellKind) -> Type {
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn compare_exchange_call(
+        &mut self,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let [address, old, new] = arguments else {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "atomic_compare_exchange requires cell, expected and desired",
+            ));
+        };
+        let address_ty = sync_address(SyncCellKind::AtomicI32);
+        let (address, actual) = self.expr(address, Some(&address_ty))?;
+        self.same(&actual, &address_ty, span)?;
+        let (expected_value, actual) = self.expr(old, Some(&Type::I32))?;
+        self.same(&actual, &Type::I32, old.span)?;
+        let (desired, actual) = self.expr(new, Some(&Type::I32))?;
+        self.same(&actual, &Type::I32, new.span)?;
+        let ty = Type::Tuple(vec![Type::I32, Type::Bool]);
+        if let Some(wanted) = expected {
+            self.same(&ty, wanted, span)?;
+        }
+        let value = self.value(
+            InstructionKind::SyncI32CompareExchange {
+                address,
+                expected: expected_value,
+                desired,
+                success: AtomicOrdering::SeqCst,
+                failure: AtomicOrdering::SeqCst,
+            },
+            ty.clone(),
+            span,
+        )?;
+        Ok((value, ty))
+    }
     pub(super) fn sync_call(
         &mut self,
         kind: SyncCellKind,
