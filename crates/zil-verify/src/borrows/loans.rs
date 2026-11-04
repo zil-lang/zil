@@ -196,7 +196,8 @@ fn reconstruct(
                         {
                             row.insert(id);
                         }
-                        InstructionKind::BorrowVariantAddress { address, .. } => {
+                        InstructionKind::BorrowVariantAddress { address, .. }
+                        | InstructionKind::BorrowPlaceAddress { address, .. } => {
                             row.insert(id);
                             join(&mut parents, &flow.values[address.0 as usize], budget)?;
                         }
@@ -1001,6 +1002,24 @@ pub(super) fn check(
                 } => {
                     let root = super::roots::inline_field_root(f, *local, path, budget)?;
                     access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::PlaceTagAddress { address, path }
+                | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                    let header =
+                        matches!(instruction.kind, InstructionKind::PlaceTagAddress { .. });
+                    let write = matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowPlaceAddress { mutable: true, .. }
+                    );
+                    let roots = super::roots::mixed_address_roots(
+                        f,
+                        *address,
+                        path,
+                        header,
+                        &facts.values[address.0 as usize],
+                        budget,
+                    )?;
+                    access.check(&flow.values[address.0 as usize], &roots, write, budget)?;
                 }
                 InstructionKind::VariantTagAddress { address, path }
                 | InstructionKind::BorrowVariantAddress { address, path, .. } => {

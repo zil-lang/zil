@@ -1432,6 +1432,145 @@ fn terminal340_selective_mutation_epoch_neighbors() {
 }
 
 #[test]
+fn terminal340_actual_mixed_address_returns_and_captures() {
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum S{Data((P,i32))}"#;
+    for (body, expected) in [
+        (
+            "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{let value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);return *n}",
+            "A42\n",
+        ),
+        (
+            "fn select(v:&mut S)->&mut i32{match *v{S.Data((_,ref mut n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},30));let n=select(&mut value);*n+=12;return *n}",
+            "A42\n",
+        ),
+        (
+            "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);let f=()->i32=>*n;return f()}",
+            "A42\n",
+        ),
+        (
+            "fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},22));let input=&mut value;let f=()->i32=>{match *input{S.Data((ref p,ref mut n))=>{*n+=p.n;return *n}}};return f()}",
+            "A42\n",
+        ),
+    ] {
+        review329_native_output(&[("main", &format!("{prefix}{body}"))], expected.as_bytes());
+    }
+    let body = "fn select(v:&S)->&i32{match *v{S.Data((_,ref n))=>{return n}}}fn result()->i32{var value=S.Data((P{r:R{code:65},n:20},42));let n=select(&value);value=S.Data((P{r:R{code:66},n:0},0));return *n}";
+    let r = compile_source(
+        &source(&format!("{prefix}{body}")),
+        &CompileOptions::default(),
+    );
+    assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
+}
+
+#[test]
+fn terminal340_actual_mixed_address_native_and_raw() {
+    use zil_ir::PlaceProjection;
+    let text = include_str!("../../../tests/language-readiness/terminal/340/mixed-address.zil");
+    review329_native_output(&[("main", text)], b"A42\n");
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for case in 0..5 {
+        let mut raw = typed.clone();
+        let mut claim = plan.clone();
+        let name = if case == 1 { "peek" } else { "inspect" };
+        let f = raw.functions.iter_mut().find(|f| f.name == name).unwrap();
+        if case == 3 {
+            let (b, p) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::Call { .. }))
+                        .map(|p| (b, p))
+                })
+                .unwrap();
+            let call = f.blocks[b].instructions.remove(p);
+            let (b, p) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::BorrowPlaceAddress { .. }))
+                        .map(|p| (b, p))
+                })
+                .unwrap();
+            f.blocks[b].instructions.insert(p, call);
+        } else if case == 4 {
+            let branch = f
+                .blocks
+                .iter_mut()
+                .find(|b| matches!(b.terminator, zil_ir::Terminator::Branch { .. }))
+                .unwrap();
+            let zil_ir::Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } = &mut branch.terminator
+            else {
+                unreachable!()
+            };
+            *else_block = *then_block;
+        } else {
+            let i = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::BorrowPlaceAddress { .. }))
+                .unwrap();
+            let InstructionKind::BorrowPlaceAddress { path, mutable, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            match case {
+                0 => {
+                    path[0] = PlaceProjection::Variant(zil_ir::VariantProjection {
+                        variant: 1,
+                        index: 0,
+                    })
+                }
+                1 => {
+                    *mutable = true;
+                    let Type::Address { mutable, .. } = &mut f.values[i.result.unwrap().0 as usize]
+                    else {
+                        unreachable!()
+                    };
+                    *mutable = true;
+                }
+                2 => path[0] = PlaceProjection::ErrorArm(false),
+                _ => unreachable!(),
+            }
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted mixed actual address forgery {case}"
+        );
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify accepted mixed actual address forgery {case}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire accepted mixed actual address forgery {case}"
+        );
+    }
+}
+
+#[test]
 fn terminal340_copy_error_union_mutation_epoch() {
     use zil_ir::{BinaryOp, Instruction, PlaceProjection, ValueId};
     let text = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}enum F{Bad}fn make()->F!i32{return 20}fn set_error(p:&mut(F!i32)){*p=F.Bad()}fn work(initial:F!i32)->F!i32{var value=(initial,P{r:R{code:65},n:0},P{r:R{code:66},n:0});let first=initial?;let(ref mut p,moved,ref retained)=value;set_error(p);let second=(*p)?;return second+retained.n+moved.n}fn result()->i32{let outcome=work(make());return 42}"#;
