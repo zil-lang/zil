@@ -56,8 +56,14 @@ pub(super) fn unknown_pairs(
     for a in left {
         for b in right {
             budget.spend(1)?;
+            // Only actual intervals within one known address establish
+            // separation here. Different symbolic environment captures still
+            // require caller substitution, even when they share a coarse root.
+            let disjoint_windows = matches!((*a, *b),
+                (Root::Window(origin, start, end), Root::Window(other, lo, hi))
+                    if origin == other && (end <= lo || hi <= start));
             if a != b
-                && (a.coarse() != b.coarse() || a.intersects(*b))
+                && !disjoint_windows
                 && external(module, function, *a)
                 && external(module, function, *b)
             {
