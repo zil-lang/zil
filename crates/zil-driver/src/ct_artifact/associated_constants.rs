@@ -3,7 +3,7 @@
 use super::*;
 use zil_expand::ct_selection::Visitor;
 
-fn scalar(
+pub(super) fn scalar(
     mut ty: &s::TypeRef,
     budget: &mut zil_ct::CtExecutionBudget,
     maximum_depth: usize,
@@ -54,16 +54,18 @@ fn literal(
     }
     unreachable!()
 }
-struct Dependencies<'a, 'b> {
-    parameters: &'a [s::GenericParam],
-    budget: &'b mut zil_ct::CtExecutionBudget,
-    symbolic: bool,
+pub(super) struct Dependencies<'a, 'b> {
+    pub(super) parameters: &'a [s::GenericParam],
+    pub(super) budget: &'b mut zil_ct::CtExecutionBudget,
+    pub(super) symbolic: bool,
+    pub(super) self_dependent: bool,
 }
 impl Dependencies<'_, '_> {
     fn name(&mut self, name: &str) -> CompileResult<()> {
         self.budget
             .reserve_analysis_work(name.len().min(4) as u64 + 1)?;
         self.symbolic |= name == "Self";
+        self.self_dependent |= name == "Self";
         for parameter in self.parameters {
             self.budget
                 .reserve_analysis_work(name.len().min(parameter.name.len()) as u64 + 1)?;
@@ -101,8 +103,9 @@ impl Materializer<'_, '_> {
         members: &mut [s::Item],
         parameters: &[s::GenericParam],
         inherited: &CtSymbolId,
+        defer_self: bool,
     ) -> CompileResult<()> {
-        for item in members {
+        for (ordinal, item) in members.iter_mut().enumerate() {
             self.environment.budget.reserve_analysis_work(1)?;
             let s::ItemKind::Const(constant) = &mut item.kind else {
                 continue;
@@ -128,9 +131,28 @@ impl Materializer<'_, '_> {
                 parameters,
                 budget: &mut self.environment.budget,
                 symbolic: false,
+                self_dependent: false,
             };
             dependencies.expression(expression, 0)?;
             if dependencies.symbolic {
+                if dependencies.self_dependent && !defer_self {
+                    self.environment
+                        .budget
+                        .reserve_analysis_work(self.self_constant_sources.len() as u64 + 1)?;
+                    if self.generated_context
+                        || inherited.generation_path.is_some()
+                        || !self.self_constant_sources.contains(&(
+                            module,
+                            inherited.declaration.0 as usize,
+                            ordinal,
+                        ))
+                    {
+                        return Err(runtime(
+                            "Self-dependent associated equation has no original-source CT plan",
+                            expression.span,
+                        ));
+                    }
+                }
                 continue;
             }
             let owner = self.owner(module, item.span, Some(inherited))?;

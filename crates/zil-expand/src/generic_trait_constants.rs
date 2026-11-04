@@ -303,10 +303,30 @@ impl Engine<'_> {
                 };
                 self.budget.const_expression(value)?;
                 if !closed(value, &mut self.budget)? {
-                    return Err(unsupported(
-                        value.span,
-                        "associated constant default needs verified CT evaluation",
-                    ));
+                    let dependencies = super::super::constant_plan::dependencies(
+                        value,
+                        declaration,
+                        &mut self.budget,
+                    )?;
+                    if dependencies.is_empty()
+                        || !declaration.generics.is_empty()
+                        || !declaration.bounds.is_empty()
+                    {
+                        return Err(unsupported(
+                            value.span,
+                            "associated constant default needs verified CT evaluation",
+                        ));
+                    }
+                    if constant
+                        .ty
+                        .as_ref()
+                        .is_none_or(|ty| !super::super::constant_plan::scalar(ty))
+                    {
+                        return Err(unsupported(
+                            value.span,
+                            "Self-dependent constants require an explicit scalar receiving type",
+                        ));
+                    }
                 }
                 let ty = constant.ty.as_ref().ok_or_else(|| {
                     error(member.span, "associated constant requires a declared type")
@@ -369,11 +389,34 @@ impl Engine<'_> {
                 .as_ref()
                 .ok_or_else(|| error(member.span, "impl associated constant requires a value"))?;
             self.budget.const_expression(value)?;
-            if !closed(value, &mut self.budget)? {
-                return Err(unsupported(
-                    value.span,
-                    "associated constant equation needs verified CT evaluation",
-                ));
+            let self_dependent = !closed(value, &mut self.budget)?;
+            if self_dependent {
+                let dependencies = super::super::constant_plan::dependencies(
+                    value,
+                    declaration,
+                    &mut self.budget,
+                )?;
+                if dependencies.is_empty()
+                    || !parameters.is_empty()
+                    || !implementation.where_clause.is_empty()
+                    || !declaration.generics.is_empty()
+                    || !declaration.bounds.is_empty()
+                {
+                    return Err(unsupported(
+                        value.span,
+                        "associated constant equation needs verified CT evaluation",
+                    ));
+                }
+                if required
+                    .ty
+                    .as_ref()
+                    .is_none_or(|ty| !super::super::constant_plan::scalar(ty))
+                {
+                    return Err(unsupported(
+                        value.span,
+                        "Self-dependent constants require an explicit scalar receiving type",
+                    ));
+                }
             }
             let mut substitutions = BTreeMap::new();
             for (parameter, argument) in declaration.generics.iter().zip(&reference.arguments) {
@@ -451,6 +494,20 @@ impl Engine<'_> {
                 parameters.to_vec(),
                 member.span,
             );
+            if self_dependent {
+                self.check_default(
+                    declaration,
+                    &Item {
+                        span: member.span,
+                        public: false,
+                        attributes: vec![],
+                        kind: ItemKind::Function(checked),
+                    },
+                    reference,
+                    true,
+                )?;
+                continue;
+            }
             // Reuse the complete definition checker; no selected i32 instance can
             // add operations or Copy to an unused generic equation.
             check::validate_parametric_with_bounds(

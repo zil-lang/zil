@@ -17,6 +17,8 @@ use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{GeneratedSyntax, ParseResult, ast as s};
 #[path = "associated_constants.rs"]
 mod associated_constants;
+#[path = "self_constants.rs"]
+mod self_constants;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -202,6 +204,7 @@ struct Materializer<'a, 'b> {
     track_declarations: bool,
     declaration_lineage_preserved: bool,
     generated_context: bool,
+    self_constant_sources: BTreeSet<(ModuleId, usize, usize)>,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -1492,11 +1495,11 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ItemKind::Trait(t) => {
-                self.associated_constants(module, &mut t.members, &t.generics, owner)?;
+                self.associated_constants(module, &mut t.members, &t.generics, owner, false)?;
                 self.nested_items(module, &mut t.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Impl(i) => {
-                self.associated_constants(module, &mut i.members, &i.generics, owner)?;
+                self.associated_constants(module, &mut i.members, &i.generics, owner, false)?;
                 self.nested_items(module, &mut i.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}
@@ -2041,8 +2044,10 @@ pub(crate) fn materialize(
         track_declarations: declaration_origins.is_some(),
         declaration_lineage_preserved: true,
         generated_context: false,
+        self_constant_sources: BTreeSet::new(),
     };
     for (index, module) in output.iter_mut().enumerate() {
+        materializer.self_constants(module)?;
         let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
         if !materializer.declaration_lineage_preserved {
             declaration_origins = None;

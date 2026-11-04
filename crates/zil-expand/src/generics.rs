@@ -16,6 +16,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_constant_plan.rs"]
+pub(crate) mod constant_plan;
 #[path = "generic_const.rs"]
 mod consts;
 #[path = "generic_copy.rs"]

@@ -189,6 +189,10 @@ impl<'a> Environment<'a> {
         limits
     }
 
+    pub(super) fn target_width(&self) -> u16 {
+        self.target.pointer_width
+    }
+
     pub(super) fn remaining_limits_for_input(&self) -> Limits {
         self.remaining_limits()
     }
@@ -286,6 +290,74 @@ impl<'a> Environment<'a> {
         result?;
         self.ct_only.extend(classified);
         Ok(())
+    }
+
+    /// Check a symbolic scalar equation's real CT program without inventing
+    /// values for its typed dependency parameters or executing the VM.
+    pub(super) fn verify_expression(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+    ) -> CompileResult<()> {
+        let invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
+            &entry,
+            self.parsed,
+            &self.index,
+            self.source_origins.as_ref(),
+            &mut self.budget,
+        )?;
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let modules = self.index.modules(self.sources, &syntax);
+        let selected_limits = self.remaining_limits();
+        let (expected, _) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: self.target.pointer_width,
+            modules: &modules,
+            source_fingerprint: self.source_fingerprint,
+            entry,
+            input_tokens,
+            snapshot: &self.snapshot,
+            limits: &selected_limits,
+        })?;
+        let declared = expected.budget;
+        let before = self.budget.remaining();
+        self.budget.reserve_analysis_work(
+            before
+                .max_analysis_work
+                .saturating_sub(declared.max_analysis_work),
+        )?;
+        self.budget.reserve_generated_nodes(
+            before
+                .max_generated_nodes
+                .saturating_sub(declared.max_generated_nodes),
+        )?;
+        for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
+            self.budget.reserve_instance()?;
+        }
+        let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
+        self.budget.reserve_temporary_bytes(copied_bytes)?;
+        let authority = FrozenAuthority {
+            source_fingerprint: self.source_fingerprint,
+            snapshot: &self.snapshot,
+            input: input_tokens,
+            index: &self.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: invocation_context.as_deref(),
+        };
+        let mut meter =
+            zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
+        let result = zil_verify::verify_ct_artifact_metered(
+            expected.clone(),
+            &selected_limits,
+            &authority,
+            &mut meter,
+        );
+        self.budget.reserve_analysis_work(meter.spent())?;
+        self.budget.release_temporary_bytes(copied_bytes);
+        if let Some(context) = invocation_context {
+            self.budget.release_temporary_bytes(context.bytes);
+        }
+        result.map(|_| ())
     }
 
     pub(super) fn evaluate(
