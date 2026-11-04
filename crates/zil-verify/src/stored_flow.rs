@@ -201,7 +201,7 @@ fn vt(f: &TypedFunction, v: ValueId) -> Check<&Type> {
         .ok_or_else(|| err("operand outside actual value table"))
 }
 
-fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
+pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()> {
     b.spend(1)?;
     let mut stack = vec![(ty, 0usize)];
     while let Some((t, depth)) = stack.pop() {
@@ -434,39 +434,44 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
-                if !matches!(
-                    &i.kind,
-                    InstructionKind::Constant(_)
-                        | InstructionKind::Load(_)
-                        | InstructionKind::Store { .. }
-                        | InstructionKind::StorageLive(_)
-                        | InstructionKind::StorageDead(_)
-                        | InstructionKind::BorrowLocal { .. }
-                        | InstructionKind::BorrowLocalMut { .. }
-                        | InstructionKind::ReborrowAddress { .. }
-                        | InstructionKind::AddressField { .. }
-                        | InstructionKind::AddressIndex { .. }
-                        | InstructionKind::AddressSlice { .. }
-                        | InstructionKind::ReadAddress { .. }
-                        | InstructionKind::WriteAddress { .. }
-                        | InstructionKind::SliceLength { .. }
-                        | InstructionKind::MakeAggregate { .. }
-                        | InstructionKind::Call { .. }
-                        | InstructionKind::Unary { .. }
-                        | InstructionKind::Binary { .. }
-                        | InstructionKind::ConvertInteger { .. }
-                        | InstructionKind::ConvertNumber { .. }
-                        | InstructionKind::ScopeEnter { .. }
-                        | InstructionKind::ScopeExit { .. }
-                        | InstructionKind::LoadStoredBorrow {
-                            mode: StoredBorrowLoad::CopyShared,
-                            ..
-                        }
-                ) {
+                if !super::class_flow::pointer_instruction(f, i)
+                    && !matches!(
+                        &i.kind,
+                        InstructionKind::Constant(_)
+                            | InstructionKind::Load(_)
+                            | InstructionKind::Store { .. }
+                            | InstructionKind::StorageLive(_)
+                            | InstructionKind::StorageDead(_)
+                            | InstructionKind::BorrowLocal { .. }
+                            | InstructionKind::BorrowLocalMut { .. }
+                            | InstructionKind::ReborrowAddress { .. }
+                            | InstructionKind::AddressField { .. }
+                            | InstructionKind::AddressIndex { .. }
+                            | InstructionKind::AddressSlice { .. }
+                            | InstructionKind::ReadAddress { .. }
+                            | InstructionKind::WriteAddress { .. }
+                            | InstructionKind::SliceLength { .. }
+                            | InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::Call { .. }
+                            | InstructionKind::Unary { .. }
+                            | InstructionKind::Binary { .. }
+                            | InstructionKind::ConvertInteger { .. }
+                            | InstructionKind::ConvertNumber { .. }
+                            | InstructionKind::ScopeEnter { .. }
+                            | InstructionKind::ScopeExit { .. }
+                            | InstructionKind::LoadStoredBorrow {
+                                mode: StoredBorrowLoad::CopyShared,
+                                ..
+                            }
+                    )
+                {
                     return Err(unsupported(
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
                     ));
+                }
+                if super::class_flow::pointer_instruction(f, i) {
+                    super::class_flow::pointer_types(module, f, i, b)?;
                 }
             }
         }
@@ -737,21 +742,6 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
     };
     b.spend(super::signature_life::work(c))?;
     b.spend(f.parameters.len())?;
-    if c.fixed_binder_count > 1
-        || f.parameters
-            .iter()
-            .filter(|p| {
-                qualified(&f.locals[p.0 as usize].ty)
-                    .or_else(|| addressed(&f.locals[p.0 as usize].ty))
-                    .is_some()
-            })
-            .count()
-            > 1
-    {
-        return Err(err(
-            "multiple retained classes/inputs need invariant actual class substitution",
-        ));
-    }
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(err("stored signature contradicts another active profile"));
     }
@@ -765,32 +755,6 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
     super::signature_life::relation(&parameters, &f.return_type, c, Some(f.span))?;
-    for (i, ty) in parameters.iter().enumerate() {
-        b.spend(c.bindings.len())?;
-        if matches!(ty, Type::Address { .. })
-            && matches!(
-                super::signature_life::outer(c, StorageBase::Parameter(i as u32)),
-                Some(StorageBinder::Fixed(_))
-            )
-        {
-            return Err(err(
-                "new outer borrow meeting retained Fixed needs actual invariant substitution",
-            ));
-        }
-        if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
-            for row in &c.classes {
-                b.spend(row.position.path.len().saturating_add(1))?;
-                if row.position.base == StorageBase::Parameter(i as u32)
-                    && !matches!(row.binder, StorageBinder::Fixed(_))
-                {
-                    return Err(err(
-                        "incoming retained class needs invariant actual substitution",
-                    ));
-                }
-            }
-            b.spend(shape.slots.len())?;
-        }
-    }
     Ok(())
 }
 
@@ -1119,6 +1083,8 @@ fn step(
                 }
             }
         }
+        InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
+            if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::WriteAddress { address, .. } => {
             let Type::Address { inner, .. } = vt(f, *address)? else {
                 return Err(err("write base lacks an actual Address type"));
@@ -1614,6 +1580,41 @@ fn windows(
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, false, &active, &solution.loans, requirements, b)?;
                 }
+                InstructionKind::CallIndirect { arguments, .. } => {
+                    let mut all: Vec<(Permission, bool)> = Vec::new();
+                    for argument in arguments {
+                        let actual = &solution.values[argument.0 as usize];
+                        if let Type::Address { mutable, .. } = vt(f, *argument)? {
+                            permission_work(&actual.address, b)?;
+                            b.spend(1)?;
+                            all.push((actual.address.clone(), *mutable));
+                        }
+                        for (_, p) in &actual.leaves {
+                            permission_work(p, b)?;
+                            b.spend(1)?;
+                            all.push((p.clone(), false));
+                        }
+                        if let Some((_, shape)) = addressed(vt(f, *argument)?) {
+                            for slot in &shape.slots {
+                                let p = select(&state, &actual.address, &slot.path, b)?;
+                                b.spend(1)?;
+                                all.push((p, false));
+                            }
+                        }
+                    }
+                    for (index, (p, write)) in all.iter().enumerate() {
+                        access(p, *write, &active, &solution.loans, requirements, b)?;
+                        for (other, other_write) in &all[..index] {
+                            if *write || *other_write {
+                                for a in &p.sources {
+                                    for z in &other.sources {
+                                        apart(a, z, requirements, b)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 InstructionKind::Call {
                     function,
                     arguments,
@@ -1738,6 +1739,7 @@ pub(super) fn check(
         ));
     }
     for f in &module.functions {
+        super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if f.foreign.is_some()
             || f.environment.is_some()
             || f.callable_contract.is_some()

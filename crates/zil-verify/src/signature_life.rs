@@ -85,10 +85,6 @@ pub(super) fn relation(
             Type::BorrowedStorage { storage, life } => {
                 if !matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
                     || !life.retained.is_empty()
-                    || life
-                        .slots
-                        .iter()
-                        .any(|s| s.mode != StoredBorrowMode::SharedAddress)
                 {
                     return Err(unsupported(
                         "signature owning/nested carrier consumer is not implemented",
