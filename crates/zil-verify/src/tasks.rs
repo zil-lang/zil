@@ -1,6 +1,29 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
 
+fn empty_context() -> zil_ir::RetainedLifeShape {
+    zil_ir::RetainedLifeShape {
+        binder_count: 0,
+        ports: vec![],
+        retained: vec![],
+        nominal_arguments: vec![],
+    }
+}
+pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
+    if let Type::Task { retained_life, .. } = ty
+        && (retained_life.binder_count != 0
+            || !retained_life.ports.is_empty()
+            || !retained_life.retained.is_empty()
+            || !retained_life.nominal_arguments.is_empty())
+    {
+        return Err(unsupported(
+            "borrowed Task retained classes require actual implemented frame port mappings",
+            span,
+        ));
+    }
+    Ok(())
+}
+
 fn task_payload(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Managed(t) | Type::Desc(t) | Type::Address { inner: t, .. } => task_payload(t),
@@ -16,6 +39,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
+            retained_life: empty_context(),
         }))),
     }
 }
@@ -55,6 +79,7 @@ pub(super) fn carrier(
             "task carrier requires actual owning or descriptor payload",
         ));
     };
+    require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
     if matches!(payload.as_ref(),Type::Task{result} if **result!=Type::I32) {
         return Err(unsupported(
@@ -64,7 +89,7 @@ pub(super) fn carrier(
     }
     let name = match payload.as_ref() {
         Type::TaskI32 => TASK_I32_RESOURCE_NAME.into(),
-        Type::Task { result } => format!("{TASK_RESOURCE_NAME_PREFIX}{}", result.fingerprint()),
+        Type::Task { .. } => format!("{TASK_RESOURCE_NAME_PREFIX}{}", payload.fingerprint()),
         _ => return Err(reject("E-VERIFY-TASK", span, "task payload absent")),
     };
     budget.spend(module.resources.len().saturating_mul(2))?;
@@ -192,7 +217,7 @@ pub(super) fn instruction(
             carrier(module, inner, span, budget)?;
             match i.kind {
                 InstructionKind::TaskPoll { .. } => match task_payload(ty) {
-                    Some(Type::Task { result }) => {
+                    Some(Type::Task { result, .. }) => {
                         for _ in 0..4 {
                             resources::charge_payload(result, budget)?;
                         }

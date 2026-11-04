@@ -811,6 +811,7 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
         pending.push((&fields[0], 0usize));
     }
     while let Some((ty, depth)) = pending.pop() {
+        tasks::require_closed_context(ty, None)?;
         budget.spend(1)?;
         identity_work = identity_work.saturating_add(1);
         if depth > limits.max_call_depth {
@@ -839,7 +840,9 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
                 pending.extend(fields.iter().map(|field| (field, depth + 1)));
                 0
             }
-            Type::Task { result: element }
+            Type::Task {
+                result: element, ..
+            }
             | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
@@ -895,6 +898,7 @@ fn check_type_shape(
     let mut anonymous = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        tasks::require_closed_context(ty, None)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
         if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
@@ -990,7 +994,7 @@ fn check_type_shape(
                     }
                 }
             }
-            Type::Task { result: inner }
+            Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner) => {

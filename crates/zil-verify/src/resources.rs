@@ -45,8 +45,11 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(2)?;
+        tasks::require_closed_context(ty, None)?;
         match ty {
-            Type::Task { result: element }
+            Type::Task {
+                result: element, ..
+            }
             | Type::Array { element, .. }
             | Type::Registration {
                 environment: element,
