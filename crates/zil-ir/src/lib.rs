@@ -15,6 +15,8 @@ pub use program::*;
 
 /// Reserved raw identity for the sealed byte storage resource. Not authority.
 pub const BYTE_BUFFER_RESOURCE_NAME: &str = "@builtin:ByteBuffer";
+/// Exact sealed scalar cooperative-task resource identity, never producer authority.
+pub const TASK_I32_RESOURCE_NAME: &str = "@builtin:TaskI32";
 
 macro_rules! identity {
     ($($name:ident),+ $(,)?) => {$(
@@ -69,6 +71,8 @@ pub enum Type {
     ForeignHandle,
     /// Opaque native payload, only available behind a checked shared address.
     SyncCell(SyncCellKind),
+    /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
+    TaskI32,
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -145,11 +149,15 @@ impl Type {
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
-        self.is_shared_sync_cell_address()
+        self.is_exclusive_task_head_address()
+            || self.is_shared_sync_cell_address()
             || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
+    }
+    pub fn is_exclusive_task_head_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if payload.as_ref() == &Self::TaskI32))
     }
     pub fn is_shared_sync_cell_address(&self) -> bool {
         matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
@@ -228,6 +236,7 @@ impl Type {
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
+            Self::TaskI32 => "TaskI32".into(),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
             Self::SyncCell(kind) => match kind {
@@ -1353,6 +1362,33 @@ pub enum InstructionKind {
         value: Option<ValueId>,
         ordering: AtomicOrdering,
     },
+    /// Explicit allocation/execution root for a verified scalar Suspend worker.
+    TaskStart {
+        worker: FunctionId,
+        argument: ValueId,
+    },
+    /// A source suspension point. Its live scalar state is spilled in the SABI frame.
+    TaskYield,
+    /// Observe the explicit fallible nullable task head without consuming it.
+    TaskValid {
+        task: ValueId,
+    },
+    /// Unique head authority; result status/value moves a Ready result at most once.
+    TaskPoll {
+        task: ValueId,
+    },
+    /// Unique head authority; sticky and idempotent, never proof of quiescence.
+    TaskRequestCancel {
+        task: ValueId,
+    },
+    /// Unique head authority; actual no-external scalar profile closes without hidden blocking.
+    TaskPollClose {
+        task: ValueId,
+    },
+    /// Consumes the owning head; the runtime requires Closed before destruction.
+    TaskFinishDestroy {
+        task: ValueId,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1861,6 +1897,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             b.push(25);
             encode_type(b, element);
         }
+        Type::TaskI32 => b.push(33),
         Type::ForeignHandle => b.push(20),
         Type::SyncCell(kind) => {
             b.push(30);
@@ -2417,6 +2454,32 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, value.0);
             }
             b.push(*ordering as u8);
+        }
+        InstructionKind::TaskStart { worker, argument } => {
+            b.push(99);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+        }
+        InstructionKind::TaskYield => b.push(100),
+        InstructionKind::TaskValid { task } => {
+            b.push(101);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskPoll { task } => {
+            b.push(102);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskRequestCancel { task } => {
+            b.push(103);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskPollClose { task } => {
+            b.push(104);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskFinishDestroy { task } => {
+            b.push(105);
+            encode_u32(b, task.0);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
