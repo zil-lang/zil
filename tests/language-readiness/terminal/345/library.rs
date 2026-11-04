@@ -334,3 +334,73 @@ fn main()->i32 {
         }
     }
 }
+
+#[test]
+fn ordinary_iterators_keep_callback_order_short_circuit_and_option_results() {
+    let input = include_str!("iterator.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("iterator-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+        }
+    }
+    for (label, text) in [
+        (
+            "parent-write",
+            include_str!("iterator_capture_reset_invalid.zil"),
+        ),
+        (
+            "alias",
+            "import std.iter\nfn main()->i32{var values=[1,2];var callback=(value:i32)=>{values[0]+=value};iter.for_each(&values[..],&mut callback);return values[0]}",
+        ),
+    ] {
+        let dir = directory(&format!("iterator-invalid-{label}"));
+        fs::write(dir.join("main.zil"), text).unwrap();
+        let denied = CompilationSession::default()
+            .compile_path(&dir.join("main.zil"), &CompileOptions::default());
+        assert_eq!(
+            denied.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            denied.to_json()
+        );
+        assert!(
+            matches!(
+                denied.phase,
+                zil_base::Phase::Analyze | zil_base::Phase::Verify
+            ),
+            "{label}: {}",
+            denied.to_json()
+        );
+    }
+}
