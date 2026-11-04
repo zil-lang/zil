@@ -236,6 +236,7 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
+    unconsumed_inventory(core).map_err(|e| vec![e])?;
     let mut budget = Budget::new(limits);
     budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
@@ -314,6 +315,7 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         )]);
     }
     for module in &program.modules {
+        unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
         count = count
             .checked_add(module.core.functions.len())
             .filter(|n| *n <= limits.max_functions)
@@ -522,6 +524,7 @@ fn headers(
             "unknown Core schema",
         ));
     }
+    unconsumed_inventory(core)?;
     if core.functions.len() > budget.limits.max_functions {
         return Err(Diagnostic::limit(
             Phase::Types,
@@ -705,6 +708,11 @@ fn prepare<'a>(
 
 fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> CoreModule {
     CoreModule {
+        life_declarations: core.life_declarations.clone(),
+        life_instances: core.life_instances.clone(),
+        dyn_declarations: core.dyn_declarations.clone(),
+        dyn_interfaces: core.dyn_interfaces.clone(),
+        dyn_vtables: core.dyn_vtables.clone(),
         aggregate_templates: core.aggregate_templates.clone(),
         aggregate_applications: core.aggregate_applications.clone(),
         schema_version: core.schema_version,
@@ -5219,4 +5227,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         Ok(())
     }
+}
+
+/// Initial39 boundary: nonempty new data must reach a real bounded consumer.
+pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
+    if !core.life_declarations.is_empty() || !core.life_instances.is_empty() {
+        return Err(unsupported(
+            Span::default(),
+            "stored nominal declaration/instance inventory consumer is not yet implemented",
+        ));
+    }
+    if !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+    {
+        return Err(unsupported(
+            Span::default(),
+            "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
+        ));
+    }
+    Ok(())
 }

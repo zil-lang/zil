@@ -15,7 +15,12 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
     // trivial, and all owning-mode and receiver transformations inapplicable.
     // Current inference bounded this immutable input before preparation.
     if program.modules.iter().any(|module| {
-        !module.core.aggregate_templates.is_empty()
+        !module.core.life_declarations.is_empty()
+            || !module.core.life_instances.is_empty()
+            || !module.core.dyn_declarations.is_empty()
+            || !module.core.dyn_interfaces.is_empty()
+            || !module.core.dyn_vtables.is_empty()
+            || !module.core.aggregate_templates.is_empty()
             || !module.core.aggregate_applications.is_empty()
             || !module.core.aggregates.is_empty()
             || !module.core.enums.is_empty()

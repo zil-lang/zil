@@ -501,6 +501,13 @@ pub(super) fn preflight(
             None,
         )]);
     }
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "stored declaration/instance inventory consumer is not yet implemented",
+            None,
+        )]);
+    }
     count(0, module.functions.len(), limits.max_functions, "function")?;
     budget.input(1, "module preflight")?;
     if let Some(feature) = module.unsupported.first() {

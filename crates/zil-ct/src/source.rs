@@ -52,6 +52,7 @@ impl<'a> SourceProgramContext<'a> {
         let mut imports = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for module in &program.modules {
+            unconsumed_life_inventory(&module.core)?;
             if !module.core.aggregate_templates.is_empty()
                 || !module.core.aggregate_applications.is_empty()
             {
@@ -699,7 +700,12 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
         stack.push((node, depth));
         Some(())
     }
-    if !core.aggregate_templates.is_empty()
+    if !core.life_declarations.is_empty()
+        || !core.life_instances.is_empty()
+        || !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+        || !core.aggregate_templates.is_empty()
         || !core.aggregate_applications.is_empty()
         || !core.aggregates.is_empty()
         || !core.enums.is_empty()
@@ -831,6 +837,7 @@ fn evaluate_with_context(
     context: Option<&SourceProgramContext<'_>>,
     compiler: Option<&dyn SourceCompiler>,
 ) -> CompileResult<(CoreModule, SourceEvaluationUsage)> {
+    unconsumed_life_inventory(core)?;
     if core.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
             Phase::Ct,
@@ -889,6 +896,11 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
+            life_declarations: core.life_declarations.clone(),
+            life_instances: core.life_instances.clone(),
+            dyn_declarations: core.dyn_declarations.clone(),
+            dyn_interfaces: core.dyn_interfaces.clone(),
+            dyn_vtables: core.dyn_vtables.clone(),
             aggregate_templates: core.aggregate_templates.clone(),
             aggregate_applications: core.aggregate_applications.clone(),
             functions,
@@ -3704,4 +3716,22 @@ mod tests {
             );
         }
     }
+}
+
+// Closed39 bootstrap boundary before metadata snapshots. CT4 source consumers
+// replace this with a bounded traversal; ignored tables must not be cloned.
+fn unconsumed_life_inventory(core: &CoreModule) -> CompileResult<()> {
+    if !core.life_declarations.is_empty()
+        || !core.life_instances.is_empty()
+        || !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "retained nominal/dynamic inventory consumer is not yet implemented",
+            None,
+        )]);
+    }
+    Ok(())
 }

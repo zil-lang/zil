@@ -88,6 +88,11 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .collect();
             modules.push(ProgramModule {
                 core: CoreModule {
+                    life_declarations: module.core.life_declarations.clone(),
+                    life_instances: module.core.life_instances.clone(),
+                    dyn_declarations: module.core.dyn_declarations.clone(),
+                    dyn_interfaces: module.core.dyn_interfaces.clone(),
+                    dyn_vtables: module.core.dyn_vtables.clone(),
                     aggregate_templates: Vec::new(),
                     aggregate_applications: Vec::new(),
                     schema_version: module.core.schema_version,

@@ -798,6 +798,11 @@ fn expand_inner_project(
     }
     e.source_map.validate(sources, limits)?;
     let core = CoreModule {
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
