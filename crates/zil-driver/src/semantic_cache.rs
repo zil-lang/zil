@@ -148,6 +148,11 @@ impl Writer {
     }
     fn signature(&mut self, s: &ScalarFunction, module: &TypedModule) -> Option<()> {
         let f = module.functions.get(s.function.0 as usize)?;
+        if f.storage_life.is_some() || s.storage_life.is_some() {
+            // This cache record does not serialize contextual function classes.
+            // Rebuild Types rather than replacing the exported relation by None.
+            return None;
+        }
         if f.id != s.function
             || f.parameters
                 .iter()
@@ -271,6 +276,9 @@ impl<'a> Reader<'a> {
     fn signature(&mut self, module: &TypedModule, limits: &Limits) -> Option<ScalarFunction> {
         let function = FunctionId(u32::try_from(self.number()?).ok()?);
         let f = module.functions.get(function.0 as usize)?;
+        if f.storage_life.is_some() {
+            return None;
+        }
         if f.id != function {
             return None;
         }
@@ -524,15 +532,7 @@ fn charge_type(
             result,
             life,
         } => {
-            *nodes = nodes.checked_sub(
-                (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
-            )?;
-            *bytes = bytes.checked_sub(
-                life.parameter_lives
-                    .len()
-                    .checked_mul(std::mem::size_of::<Option<u32>>())?
-                    .checked_add(8)?,
-            )?;
+            charge_life(life, nodes, bytes, maximum_depth)?;
             for ty in parameters {
                 charge_type(ty, nodes, bytes, maximum_depth, depth + 1)?;
             }
@@ -561,6 +561,55 @@ fn charge_type(
         | Type::ForeignHandle
         | Type::CWideString
         | Type::Closure(_) => {}
+    }
+    Some(())
+}
+
+fn charge_life(
+    life: &zil_ir::StorageLifeContract,
+    nodes: &mut usize,
+    bytes: &mut usize,
+    depth: usize,
+) -> Option<()> {
+    use std::mem::size_of;
+    use zil_ir::{
+        ContractProjection, LifeTypeProjection, SignatureLifeClassBinding, StorageLifeBinding,
+        StorageLifeContract,
+    };
+    *nodes = nodes.checked_sub(
+        (life.fixed_binder_count as usize)
+            .checked_add(life.invocation_binder_count as usize)?
+            .checked_add(life.bindings.len())?
+            .checked_add(life.classes.len())?,
+    )?;
+    *bytes = bytes.checked_sub(
+        size_of::<StorageLifeContract>()
+            .checked_add(
+                life.bindings
+                    .len()
+                    .checked_mul(size_of::<StorageLifeBinding>())?,
+            )?
+            .checked_add(
+                life.classes
+                    .len()
+                    .checked_mul(size_of::<SignatureLifeClassBinding>())?,
+            )?,
+    )?;
+    for row in &life.bindings {
+        let length = row.position.path.len();
+        if length > depth {
+            return None;
+        }
+        *nodes = nodes.checked_sub(length)?;
+        *bytes = bytes.checked_sub(length.checked_mul(size_of::<ContractProjection>())?)?;
+    }
+    for row in &life.classes {
+        let length = row.position.path.len();
+        if length > depth {
+            return None;
+        }
+        *nodes = nodes.checked_sub(length)?;
+        *bytes = bytes.checked_sub(length.checked_mul(size_of::<LifeTypeProjection>())?)?;
     }
     Some(())
 }

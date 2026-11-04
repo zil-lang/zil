@@ -11,7 +11,7 @@ pub(super) fn publish(
     interfaces: &mut [ScalarInterface],
 ) -> CompileResult<()> {
     for interface in interfaces {
-        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-5\0".to_vec();
+        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-6\0".to_vec();
         bytes.extend_from_slice(&interface.signature_fingerprint.0);
         let mut results = Vec::with_capacity(interface.exports.len());
         let mut callables = Vec::new();
@@ -93,11 +93,7 @@ pub(super) fn callable_json(interface: &ScalarInterface) -> String {
             let c = &entry.contract;
             let traces = traces_json(&c.traces);
             let roles = c.roles.iter().map(|role| {
-                let life=role.life.as_ref().map_or_else(||"null".into(),|life| {
-                    let parameters=life.parameter_lives.iter().map(|v|v.map_or_else(||"null".into(),|v|v.to_string())).collect::<Vec<_>>().join(",");
-                    let result=life.result_life.map_or_else(||"null".into(),|v|v.to_string());
-                    format!("{{\"binder_count\":{},\"parameter_lives\":[{}],\"result_life\":{}}}",life.binder_count,parameters,result)
-                });
+                let life = role.life.as_ref().map_or_else(|| "null".into(), storage_life_json);
                 format!("{{\"parameter\":{},\"closure\":{},\"kind\":{},\"life\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{}}}",
                     role.parameter, role.closure.0, json_string(&format!("{:?}", role.kind)), life,
                     role.hold, role.call, role.writes, json_string(&format!("{:?}", role.cleanup)))
@@ -169,4 +165,90 @@ fn traces_json(traces: &zil_ir::CallableTraces) -> String {
                 .join(",")
         ),
     }
+}
+
+fn storage_life_json(life: &zil_ir::StorageLifeContract) -> String {
+    use zil_ir::{
+        ContractProjection, LifeTypeProjection, PlaceProjection, StorageBase, StorageBinder,
+    };
+    fn base(base: StorageBase) -> String {
+        match base {
+            StorageBase::Parameter(n) => format!("{{\"parameter\":{n}}}"),
+            StorageBase::Capture(n) => format!("{{\"capture\":{n}}}"),
+            StorageBase::Result => "\"result\"".into(),
+        }
+    }
+    fn binder(binder: StorageBinder) -> String {
+        match binder {
+            StorageBinder::Fixed(n) => format!("{{\"fixed\":{n}}}"),
+            StorageBinder::Invocation(n) => format!("{{\"invocation\":{n}}}"),
+        }
+    }
+    fn place(place: PlaceProjection) -> String {
+        match place {
+            PlaceProjection::Field(n) => format!("{{\"field\":{n}}}"),
+            PlaceProjection::Variant(p) => {
+                format!("{{\"variant\":{},\"index\":{}}}", p.variant, p.index)
+            }
+            PlaceProjection::ErrorArm(error) => format!("{{\"error_arm\":{error}}}"),
+        }
+    }
+    let bindings = life
+        .bindings
+        .iter()
+        .map(|row| {
+            let path = row
+                .position
+                .path
+                .iter()
+                .map(|step| match *step {
+                    ContractProjection::Place(p) => place(p),
+                    ContractProjection::RetainedPort(n) => format!("{{\"retained_port\":{n}}}"),
+                    ContractProjection::RetainedClass(n) => format!("{{\"retained_class\":{n}}}"),
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{{\"base\":{},\"path\":[{}],\"binder\":{}}}",
+                base(row.position.base),
+                path,
+                binder(row.binder)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let classes = life
+        .classes
+        .iter()
+        .map(|row| {
+            let path = row
+                .position
+                .path
+                .iter()
+                .map(|step| match *step {
+                    LifeTypeProjection::Place(p) => place(p),
+                    LifeTypeProjection::TypeArgument(n) => format!("{{\"type_argument\":{n}}}"),
+                    LifeTypeProjection::Port(n) => format!("{{\"port\":{n}}}"),
+                    LifeTypeProjection::AssociatedType(n) => format!("{{\"associated_type\":{n}}}"),
+                    LifeTypeProjection::Parameter(n) => format!("{{\"parameter\":{n}}}"),
+                    LifeTypeProjection::Pointee => "\"pointee\"".into(),
+                    LifeTypeProjection::Element => "\"element\"".into(),
+                    LifeTypeProjection::Result => "\"result\"".into(),
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            format!(
+                "{{\"base\":{},\"path\":[{}],\"class\":{},\"binder\":{}}}",
+                base(row.position.base),
+                path,
+                row.position.class,
+                binder(row.binder)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    format!(
+        "{{\"fixed_binder_count\":{},\"invocation_binder_count\":{},\"bindings\":[{}],\"classes\":[{}]}}",
+        life.fixed_binder_count, life.invocation_binder_count, bindings, classes
+    )
 }
