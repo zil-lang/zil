@@ -29,6 +29,44 @@ impl Expander<'_> {
             }
         };
         let owned_factory = template.as_ref().is_some_and(|bounds| bounds.owned_factory);
+        let source_coordinates = if self
+            .storage_catalog
+            .is_some_and(|storage| storage.source_helpers)
+        {
+            let count = template.as_ref().map_or(0, |t| t.roles.len());
+            if self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work)
+                < count
+                || self.member_owner_nodes < count
+            {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "source helper coordinate snapshot exceeded",
+                    Some(f.span),
+                ));
+                return;
+            }
+            self.member_owner_work += count;
+            self.member_owner_nodes -= count;
+            template
+                .as_ref()
+                .map(|t| {
+                    t.roles
+                        .iter()
+                        .map(|r| {
+                            (
+                                r.index as u32,
+                                r.source_generic_parameter,
+                                r.source_bound_ordinal,
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let (callable_parameters, state_parameters) = match template {
             Some(template) => {
                 let state_parameters = if let Some(first) = template.state_bindings.first() {
@@ -139,6 +177,26 @@ impl Expander<'_> {
         let saved_parent = self.parent_map;
         let id = self.id();
         let saved_function = self.current_function.replace(id);
+        for (parameter, generic, bound) in source_coordinates {
+            if self.member_owner_work >= self.member_owner_limit || self.member_owner_nodes == 0 {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "source helper lowering event budget exhausted",
+                    Some(f.span),
+                ));
+                break;
+            }
+            self.member_owner_work += 1;
+            self.member_owner_nodes -= 1;
+            self.callable_context_emissions
+                .push(CallableContextEmission {
+                    creator: id,
+                    item: self.source_item_ordinal,
+                    parameter,
+                    generic,
+                    bound,
+                });
+        }
         let parent = self.map_node(id, f.span, ExpansionRole::Source, Vec::new());
         self.parent_map = Some(parent);
 

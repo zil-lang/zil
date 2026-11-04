@@ -131,7 +131,11 @@ pub(super) fn validate_template(
                     prepay(ty, function.span)?;
                 }
             }
-            borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
+            if bound.source_life.is_some() {
+                source_life::validate(function, bound)?;
+            } else {
+                borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
+            }
         }
     }
     let invocation_result = bounds.iter().any(|b| b.life.is_some())
@@ -407,6 +411,7 @@ pub(super) fn install(
         {
             state.snapshot(function.callable_parameters.len(), function.span)?;
             for bound in &function.callable_parameters {
+                state.source_helper_context(function, bound)?;
                 if let Some(life) = &bound.life {
                     state.snapshot(borrowed_fp::metadata_work(life), function.span)?;
                 }
@@ -714,7 +719,11 @@ impl Builder<'_, '_> {
             borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
                 self.closures.snapshot(work, span)
             })?;
-            borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+            if bound.source_life.is_some() {
+                source_life::relation(bound, span)?;
+            } else {
+                borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+            }
         }
         if owned_state {
             let mut work = self.limits.max_analysis_steps;
@@ -893,6 +902,17 @@ impl Builder<'_, '_> {
                 };
             }
         }
+        let mut source_role_life = None;
+        if let [bound] = bounds
+            && bound.source_life.is_some()
+        {
+            let closure = bindings.get(bound.generic_index, span)?;
+            let (header, role) =
+                self.closures
+                    .source_helper_relation(&template.function, bound, closure, span)?;
+            function.storage_life = Some(header);
+            source_role_life = Some(role);
+        }
         aggregate_templates::rebind_callable_function(
             &mut function,
             bounds,
@@ -978,7 +998,11 @@ impl Builder<'_, '_> {
                         .snapshot(borrowed_fp::metadata_work(life), span)?;
                 }
                 roles.push(CallableRole {
-                    life: bound.life.clone(),
+                    life: if bound.source_life.is_some() {
+                        source_role_life.clone()
+                    } else {
+                        bound.life.clone()
+                    },
                     parameter: bound.index,
                     closure,
                     kind: bound.kind,

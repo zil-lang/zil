@@ -70,15 +70,21 @@ impl<'a> Engine<'a> {
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.life_scope.clear();
-                for parameter in &function.generics {
+                let mut callable_parameter = None;
+                for (index, parameter) in function.generics.iter().enumerate() {
                     self.budget.node(parameter.span, 0)?;
+                    if callable_parameter.is_none()
+                        && matches!(parameter.kind, GenericParamKind::Type(_))
+                    {
+                        callable_parameter = Some(index);
+                    }
                     if matches!(parameter.kind, GenericParamKind::Lifetime) {
                         self.budget.text(&parameter.name, parameter.span)?;
                         self.life_scope.push(parameter.name.clone());
                     }
                 }
                 self.with_origin(pending.origin, |engine| {
-                    if engine.stored_signature(function)? {
+                    if engine.stored_signature_context(function, callable_parameter)? {
                         engine.budget.function_snapshot(function)?;
                         engine.budget.text(&function.name, function.span)?;
                         engine.stored_lookup_fee(
@@ -105,6 +111,13 @@ impl<'a> Engine<'a> {
     }
 
     pub(super) fn stored_signature(&mut self, function: &mut Function) -> R<bool> {
+        self.stored_signature_context(function, None)
+    }
+    fn stored_signature_context(
+        &mut self,
+        function: &mut Function,
+        callable_parameter: Option<usize>,
+    ) -> R<bool> {
         if !self.stored_nominals {
             return Ok(false);
         }
@@ -149,7 +162,15 @@ impl<'a> Engine<'a> {
         if !stored {
             return Ok(false);
         }
-        let contract = stored_types::contract(occurrences, &mut self.budget, function.span)?;
+        let (contract, fixed, invocation) = stored_types::contract_with_sources(
+            occurrences,
+            Vec::new(),
+            &mut self.budget,
+            function.span,
+        )?;
+        if let Some(parameter) = callable_parameter {
+            self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
+        }
         self.budget.text(&function.name, function.span)?;
         self.stored_lookup_fee(
             self.products.storage.functions.len(),

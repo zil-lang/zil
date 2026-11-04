@@ -1,7 +1,7 @@
 //! Raw CT query compilation reuses the ordinary type/CFG pipeline. No operation
 //! executes here; the CT crate independently verifies the result before its VM.
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, NodeId, Phase, TargetProfile};
+use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, NodeId, Phase, Span, TargetProfile};
 use zil_ir::*;
 
 const QUERY: &str = "$ct_query";
@@ -781,12 +781,15 @@ impl Collector<'_> {
         }
         for contract in &function.callable_parameters {
             self.charge(0)?;
-            if contract.source_life.is_some() {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Ct,
-                    "source helper context needs bounded ordinary formation before any CT snapshot",
-                    Some(function.span),
-                )]);
+            if let Some(context) = &contract.source_life {
+                if self.query {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "source helper context cannot execute in a pure CT query",
+                        Some(function.span),
+                    )]);
+                }
+                self.callable_source_context(context, function.span)?;
             }
             if let Some(life) = &contract.life {
                 if life.bindings.len() > self.limits.max_locals
@@ -830,6 +833,65 @@ impl Collector<'_> {
             for _ in &foreign.noescape_parameters {
                 self.charge(0)?;
             }
+        }
+        Ok(())
+    }
+    fn callable_source_context(
+        &mut self,
+        context: &CoreCallableLifeContext,
+        span: Span,
+    ) -> CompileResult<()> {
+        self.charge(0)?;
+        for count in [
+            context.parameters.len(),
+            context.named_fixed.len(),
+            context.inputs.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > self.limits.max_nodes {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "source helper context vector exceeded",
+                    Some(span),
+                )]);
+            }
+            self.text_len(count)?;
+        }
+        if context.declaration.compiler
+            || !context.identity.generation_path.is_empty()
+            || context
+                .parameters
+                .iter()
+                .any(|p| matches!(p, LifeParameterKind::Const(_)))
+        {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "source helper context requires original life/one-F scope",
+                Some(span),
+            )]);
+        }
+        for text in std::iter::once(&context.identity.package)
+            .chain(&context.identity.module_path)
+            .chain(&context.identity.declaration_path)
+        {
+            self.text(text)?;
+        }
+        for input in &context.inputs {
+            self.charge(0)?;
+            let depth = match &input.position {
+                CoreClosureHeaderPosition::Borrow(p) => p.path.len(),
+                CoreClosureHeaderPosition::Class(p) => p.path.len(),
+            };
+            if depth > self.limits.max_call_depth {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "source helper context path exceeded",
+                    Some(span),
+                )]);
+            }
+            self.text_len(depth)?;
         }
         Ok(())
     }
