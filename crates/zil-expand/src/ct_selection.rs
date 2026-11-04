@@ -300,8 +300,33 @@ pub fn walk_type<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     v.node(t.span, depth)?;
+    if let s::TypeKind::Dyn { bindings, .. } = &t.kind {
+        for binding in bindings {
+            v.node(binding.span, depth + 1)?;
+            match &binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(value, depth + 2)?;
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(ty, depth + 2)?;
+                    v.expression(value, depth + 2)?;
+                }
+                s::DynBindingKind::Method { member, arguments } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    for a in arguments {
+                        argument(v, a, depth + 2)?;
+                    }
+                }
+            }
+        }
+    }
     match &t.kind {
-        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args } => {
+        s::TypeKind::Named { path: names, args }
+        | s::TypeKind::Dyn {
+            path: names, args, ..
+        } => {
             path(v, names, t.span, depth + 1)?;
             for a in args {
                 argument(v, a, depth + 1)?;

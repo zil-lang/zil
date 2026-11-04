@@ -19,6 +19,7 @@ impl<'a> Compiler<'a> {
                 }
                 for argument in args {
                     match argument {
+                        s::GenericArg::Lifetime(name) => self.budget.text(name, ty.span)?,
                         s::GenericArg::Type(inner) => self.source_type_cost(inner, depth + 1)?,
                         s::GenericArg::Const(value) => {
                             self.source_expression_copy(value, depth + 1)?

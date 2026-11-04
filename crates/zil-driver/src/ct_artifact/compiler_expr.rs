@@ -464,6 +464,9 @@ impl Builder<'_, '_> {
                         s::ExprKind::TypeApply { callee, arguments } => {
                             for arg in arguments {
                                 match arg {
+                                    s::GenericArg::Lifetime(name) => {
+                                        self.compiler.budget.text(name, t.span)?
+                                    }
                                     s::GenericArg::Type(actual) => {
                                         self.compiler.source_type_cost(actual, depth + 1)?
                                     }

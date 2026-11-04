@@ -17,6 +17,13 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(span, "Type metadata node is absent"))?;
         let mut arguments = Vec::new();
         let constructor = match node {
+            CtTypeNode::BorrowedStorage { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT4 scoped Type value construction is not yet implemented",
+                    Some(span),
+                )]);
+            }
             CtTypeNode::Primitive(s) => {
                 return self.emit(CtInstructionKind::TypePrimitive(*s), CtTy::Type, span);
             }
@@ -32,6 +39,13 @@ impl Builder<'_, '_> {
                     let value = match arg {
                         CtTypeArgument::Type(id) => {
                             self.metadata_type_value(graph, *id, depth + 1, span)?
+                        }
+                        CtTypeArgument::Lifetime(_) => {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 scoped Type argument construction is not yet implemented",
+                                Some(span),
+                            )]);
                         }
                         CtTypeArgument::Scalar(c) => self.constant(
                             CtConstant::Scalar(c.clone()),

@@ -497,6 +497,13 @@ impl Materializer<'_, '_> {
                             span,
                             depth + 1,
                         )?)),
+                        CtTypeArgument::Lifetime(_) => {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 scoped lifetime spelling requires its joint context",
+                                Some(span),
+                            )]);
+                        }
                         CtTypeArgument::Scalar(value) => {
                             if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_))
                             {
@@ -1387,6 +1394,33 @@ impl Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.depth(depth, ty.span)?;
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            self.environment
+                .budget
+                .reserve_analysis_work(bindings.len() as u64)?;
+            for binding in bindings {
+                match &mut binding.kind {
+                    s::DynBindingKind::Type { value, .. } => {
+                        self.ty(module, value, owner, depth + 2)?
+                    }
+                    s::DynBindingKind::Constant { ty, value, .. } => {
+                        self.ty(module, ty, owner, depth + 2)?;
+                        self.expr(module, value, owner, depth + 2)?;
+                    }
+                    s::DynBindingKind::Method { arguments, .. } => {
+                        for argument in arguments {
+                            match argument {
+                                s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 2)?,
+                                s::GenericArg::Const(value) => {
+                                    self.expr(module, value, owner, depth + 2)?
+                                }
+                                s::GenericArg::Lifetime(_) => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
         match &mut ty.kind {
             s::TypeKind::MetaSplice(expression) => {
                 self.reject_alias_cycle(owner, expression)?;

@@ -2,10 +2,13 @@
 use super::*;
 pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
     match node {
+        CtTypeNode::BorrowedStorage { storage, .. } => map(storage),
         CtTypeNode::Nominal { arguments, .. } => {
             for arg in arguments {
-                if let CtTypeArgument::Type(id) = arg {
-                    map(id)
+                match arg {
+                    CtTypeArgument::Type(id) => map(id),
+                    CtTypeArgument::Lifetime(life) => map(&mut life.owner),
+                    CtTypeArgument::Scalar(_) => {}
                 }
             }
         }
@@ -52,6 +55,9 @@ impl Budget<'_> {
                 }
                 _ => 2,
             };
+            if let CtTypeNode::BorrowedStorage { life, .. } = node {
+                self.storage_metadata(life, span)?;
+            }
             self.work(edges, span)?;
             Self::take(
                 &mut self.bytes,
@@ -70,6 +76,52 @@ impl Budget<'_> {
             }
         }
         Ok(())
+    }
+    fn storage_metadata(&mut self, life: &zil_ir::StorageLifeShape, span: Span) -> R<()> {
+        self.work(
+            life.slots
+                .len()
+                .saturating_add(life.retained.len())
+                .saturating_add(life.nominal_arguments.len()),
+            span,
+        )?;
+        let mut bytes = 0usize;
+        for slot in &life.slots {
+            self.work(slot.path.len(), span)?;
+            bytes = bytes
+                .saturating_add(std::mem::size_of::<zil_ir::StorageLifeSlot>())
+                .saturating_add(
+                    slot.path
+                        .len()
+                        .saturating_mul(std::mem::size_of::<zil_ir::PlaceProjection>()),
+                );
+        }
+        for row in &life.retained {
+            self.work(row.path.len(), span)?;
+            bytes = bytes
+                .saturating_add(std::mem::size_of::<zil_ir::StorageRetainedBinding>())
+                .saturating_add(
+                    row.path
+                        .len()
+                        .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()),
+                );
+        }
+        for row in &life.nominal_arguments {
+            self.work(row.path.len(), span)?;
+            bytes = bytes
+                .saturating_add(std::mem::size_of::<zil_ir::NominalLifeArgument>())
+                .saturating_add(
+                    row.path
+                        .len()
+                        .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()),
+                );
+        }
+        Budget::take(
+            &mut self.bytes,
+            bytes,
+            span,
+            "CT4 storage metadata bytes exhausted",
+        )
     }
 }
 impl Compiler<'_> {
@@ -417,6 +469,13 @@ impl Compiler<'_> {
                         graph.clone(),
                         span,
                     )?));
+                }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 scoped nominal metadata construction is not yet implemented",
+                        Some(span),
+                    )]);
                 }
                 CtSchemaArgument::Scalar(c) => arguments.push(CtTypeArgument::Scalar(c.clone())),
             }
