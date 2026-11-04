@@ -441,6 +441,17 @@ pub enum Op {
         align: u32,
         ordering: AtomicOrdering,
     },
+    /// Strong process-scope compare/exchange; result must be exactly
+    /// {expected integer type, i1}. Orders are independently preflighted.
+    AtomicCompareExchange {
+        result: Ty,
+        expected: Arg,
+        desired: Val,
+        ptr: Val,
+        align: u32,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    },
     Binary {
         opcode: String,
         ty: Ty,
@@ -516,6 +527,17 @@ impl Op {
             Self::Store { arg, ptr, .. }
             | Self::AtomicStore { arg, ptr, .. }
             | Self::AtomicRmw { arg, ptr, .. } => (Some(&arg.value), Some(ptr), &[], &[]),
+            Self::AtomicCompareExchange {
+                expected,
+                desired,
+                ptr,
+                ..
+            } => (
+                Some(ptr),
+                Some(desired),
+                std::slice::from_ref(expected),
+                &[],
+            ),
             Self::Binary { left, right, .. } | Self::Compare { left, right, .. } => {
                 (Some(left), Some(right), &[], &[])
             }
@@ -1029,6 +1051,26 @@ fn write_inst(s: &mut String, instruction: &Inst) {
             s.push_str(", ");
             write_argument(s, arg);
             write!(s, " {}", ordering.spelling()).unwrap();
+            write_alignment(s, *align);
+        }
+        Op::AtomicCompareExchange {
+            expected,
+            desired,
+            ptr,
+            align,
+            success,
+            failure,
+            ..
+        } => {
+            s.push_str("cmpxchg ptr ");
+            write_value(s, ptr);
+            s.push_str(", ");
+            write_argument(s, expected);
+            s.push_str(", ");
+            write_type(s, &expected.ty);
+            s.push(' ');
+            write_value(s, desired);
+            write!(s, " {} {}", success.spelling(), failure.spelling()).unwrap();
             write_alignment(s, *align);
         }
         Op::Binary {
