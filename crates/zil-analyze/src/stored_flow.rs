@@ -24,6 +24,9 @@ struct Value {
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
+    /// Capture ordinal followed by its pointee's stored-leaf path. These are
+    /// symbolic environment payload selectors, never physical slot authority.
+    environment: BTreeMap<Path, Permission>,
     creation_complete: Option<bool>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -93,9 +96,22 @@ fn union(to: &mut Permission, from: &Permission, b: &mut Budget) -> CompileResul
     }
     Ok(changed)
 }
+fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
+    let mut changed = union(&mut to.held, &from.held, b)?;
+    for (path, permission) in &from.environment {
+        ordered(b, to.environment.len(), path.len())?;
+        fee(b, path.len().saturating_add(1))?;
+        changed |= union(
+            to.environment.entry(path.clone()).or_default(),
+            permission,
+            b,
+        )?;
+    }
+    Ok(changed)
+}
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
-    changed |= union(&mut to.held, &from.held, b)?;
+    changed |= environment_merge(to, from, b)?;
     if let Some(complete) = from.creation_complete {
         let joined = Some(to.creation_complete.unwrap_or(false) || complete);
         changed |= to.creation_complete != joined;
@@ -108,6 +124,7 @@ fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     }
     Ok(changed)
 }
+
 fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
     let mut result = Value::default();
     merge(&mut result, value, b)?;
@@ -155,7 +172,8 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
         fee(b, value.pointer.loans.len())?;
-        for (path, permission) in &value.slots {
+        fee(b, value.environment.len())?;
+        for (path, permission) in value.environment.iter().chain(&value.slots) {
             fee(
                 b,
                 path.len()
@@ -873,6 +891,82 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 
+fn environment_leaf(
+    value: &mut Value,
+    path: Path,
+    permission: &Permission,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    union(&mut value.held, permission, b)?;
+    ordered(b, value.environment.len(), path.len())?;
+    union(value.environment.entry(path).or_default(), permission, b)?;
+    Ok(())
+}
+fn environment_path(
+    capture: usize,
+    leaf: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<Path> {
+    fee(b, leaf.len().saturating_add(1))?;
+    let index = u32::try_from(capture).map_err(|_| failure("capture payload ordinal overflow"))?;
+    let mut path = Vec::with_capacity(leaf.len().saturating_add(1));
+    path.push(PlaceProjection::Field(index));
+    path.extend_from_slice(leaf);
+    Ok(path)
+}
+fn seed_environment(
+    module: &TypedModule,
+    ty: &Type,
+    base: HoldRoot,
+    value: &mut Value,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else { return Ok(()) };
+    let d = module
+        .closures
+        .get(id.0 as usize)
+        .ok_or_else(|| failure("environment parameter definition absent"))?;
+    if d.storage_life.is_none() {
+        return Ok(());
+    }
+    fee(b, d.captures.len())?;
+    let mut add = |path: Path, value: &mut Value, b: &mut Budget| -> CompileResult<()> {
+        fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+        let target = Target {
+            base,
+            stored: path.clone(),
+            place: Vec::new(),
+        };
+        let id = loans.len();
+        loans.push(Loan {
+            targets: BTreeSet::from([target.clone()]),
+            parents: Loans::new(),
+            mutable: false,
+        });
+        let permission = Permission {
+            targets: BTreeSet::from([target]),
+            loans: Loans::from([id]),
+        };
+        environment_leaf(value, path, &permission, b)
+    };
+    for (index, capture) in d.captures.iter().enumerate() {
+        if matches!(capture, Type::Address { mutable: false, .. }) {
+            add(environment_path(index, &[], b)?, value, b)?;
+            if let Some((_, shape)) = pointed_carrier(capture) {
+                for leaf in &shape.slots {
+                    add(environment_path(index, &leaf.path, b)?, value, b)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
 fn seed_value(
     ty: &Type,
     base: HoldRoot,
@@ -947,10 +1041,18 @@ fn seed(
     let mut state = State::default();
     for (index, local) in f.parameters.iter().enumerate() {
         fee(b, 1)?;
-        let value = seed_value(
+        let mut value = seed_value(
             &f.locals[local.0 as usize].ty,
             HoldRoot::Parameter(index as u32),
             &mut state,
+            loans,
+            b,
+        )?;
+        seed_environment(
+            module,
+            &f.locals[local.0 as usize].ty,
+            HoldRoot::Parameter(index as u32),
+            &mut value,
             loans,
             b,
         )?;
@@ -1044,6 +1146,13 @@ fn substitute(
     let mut result = if source.stored.is_empty() {
         let mut out = Permission::default();
         union(&mut out, &value.pointer, b)?;
+        out
+    } else if !value.environment.is_empty() {
+        ordered(b, value.environment.len(), source.stored.len())?;
+        let mut out = Permission::default();
+        if let Some(actual) = value.environment.get(&source.stored) {
+            union(&mut out, actual, b)?;
+        }
         out
     } else if !value.slots.is_empty() {
         ordered(b, value.slots.len(), source.stored.len())?;
@@ -1143,7 +1252,7 @@ fn transfer(
             if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
                 ordered(b, state.locals.len(), 0)?;
                 if let Some(held) = state.locals.get(local) {
-                    union(&mut out.held, &held.held, b)?;
+                    environment_merge(&mut out, held, b)?;
                 }
             }
             if carrier(&f.locals[local.0 as usize].ty).is_some() {
@@ -1186,7 +1295,7 @@ fn transfer(
         | InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
-            union(&mut out.held, &get(*address)?.held, b)?;
+            environment_merge(&mut out, get(*address)?, b)?;
         }
         InstructionKind::MakeAggregate { fields } => {
             let ty = value_type(
@@ -1278,22 +1387,19 @@ fn transfer(
             if module.closures[closure.0 as usize].storage_life.is_some() =>
         {
             let mut complete = true;
-            for capture in captures {
+            for (index, capture) in captures.iter().enumerate() {
                 let actual = get(*capture)?;
-                if matches!(value_type(f, *capture)?, Type::Address { .. })
-                    && actual.pointer.targets.is_empty()
-                {
-                    complete = false;
-                }
-                union(&mut out.held, &actual.pointer, b)?;
-                for leaf in actual.slots.values() {
-                    union(&mut out.held, leaf, b)?;
+                if matches!(value_type(f, *capture)?, Type::Address { .. }) {
+                    complete &= !actual.pointer.targets.is_empty();
+                    let path = environment_path(index, &[], b)?;
+                    environment_leaf(&mut out, path, &actual.pointer, b)?;
                 }
                 if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
                     for slot in &shape.slots {
                         let leaf = select(state, &actual.pointer, &slot.path, b)?;
                         complete &= !leaf.targets.is_empty();
-                        union(&mut out.held, &leaf, b)?;
+                        let path = environment_path(index, &slot.path, b)?;
+                        environment_leaf(&mut out, path, &leaf, b)?;
                     }
                 }
             }
@@ -2716,6 +2822,81 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn captured_fixed_helper_payload_naturally_projects_parameter_roots() {
+        for mode in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            let m = fixture::captured_fixed_helper(mode, false);
+            let limits = Limits::default();
+            let plan = super::super::analyze(&m, &limits).unwrap();
+            assert_eq!(
+                plan.functions[2].holds[0].roots,
+                vec![HoldRoot::Parameter(0)],
+                "{mode:?}"
+            );
+            let mut b = Budget::new(&limits);
+            let helper = &m.functions[2];
+            let mut loans = vec![Loan::default(); helper.values.len()];
+            let entry = seed(&m, helper, &mut loans, &mut b).unwrap();
+            let actual = &entry.locals[&LocalId(0)];
+            assert_eq!(
+                actual.environment.len(),
+                2,
+                "outer Address and its distinct physical field target"
+            );
+            assert_eq!(actual.held.loans.len(), 2);
+            for (path, permission) in &actual.environment {
+                assert!(matches!(
+                    path.as_slice(),
+                    [PlaceProjection::Field(0)]
+                        | [PlaceProjection::Field(0), PlaceProjection::Field(0)]
+                ));
+                for target in &permission.targets {
+                    assert_eq!(target.base, HoldRoot::Parameter(0));
+                    assert_eq!(&target.stored, path);
+                }
+                for loan in &permission.loans {
+                    assert_eq!(loans[*loan].targets, permission.targets);
+                    assert!(!loans[*loan].mutable);
+                }
+            }
+        }
+    }
+    #[test]
+    fn captured_fixed_helper_substitutes_actual_local_capture_targets() {
+        // The independent review's neutral actual-IR constructor: a real
+        // local scalar is retained through a Tag and &mut Closure helper.
+        let mut m = fixture::captured_fixed_helper(CallableKind::FnMut, false);
+        m.functions[1] = fixture::captured_fixed_parent_end(false).functions[1].clone();
+        let f = &mut m.functions[1];
+        f.locals[2].mutable = true;
+        f.values.push(address(Type::Closure(ClosureId(0)), true));
+        let code = &mut f.blocks[0].instructions;
+        code.pop();
+        code.push(instruction(
+            Some(6),
+            InstructionKind::BorrowLocalMut { local: LocalId(2) },
+        ));
+        code.push(instruction(
+            Some(5),
+            InstructionKind::Call {
+                function: FunctionId(2),
+                arguments: vec![ValueId(6), ValueId(3)],
+            },
+        ));
+        super::super::analyze(&m, &Limits::default()).unwrap();
+        let at = m.functions[1].blocks[0].instructions.len() - 1;
+        m.functions[1].blocks[0].instructions.insert(
+            at,
+            instruction(None, InstructionKind::StorageDead(LocalId(0))),
+        );
+        let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("actual stored target/parent loan")),
+            "{error:?}"
+        );
     }
     #[test]
     fn captured_fixed_phantom_needs_actual_header_origin() {
