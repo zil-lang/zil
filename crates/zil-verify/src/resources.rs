@@ -106,7 +106,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                 result,
                 life,
             } => {
-                budget.spend(super::signature_life::work(life))?;
+                crate::signature_life::charge(life, budget)?;
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);
                 pending.push(result);
