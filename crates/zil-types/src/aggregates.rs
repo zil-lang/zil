@@ -214,6 +214,21 @@ pub(super) fn resolve_program(
     let mut normalized = Vec::new();
     for module in &program.modules {
         inference::unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
+        let work = inference::life_inventory_snapshot_work(
+            &module.core,
+            &Limits {
+                max_analysis_steps: remaining,
+                ..limits.clone()
+            },
+        )
+        .map_err(|e| vec![e])?;
+        remaining = remaining.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "stored inventory snapshot budget exceeded",
+                None,
+            )]
+        })?;
         let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
             core,
@@ -249,6 +264,7 @@ fn resolve_indexed(
     limits: &Limits,
     remaining: &mut usize,
 ) -> CompileResult<CoreModule> {
+    stored::inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -397,7 +413,40 @@ fn resolve_indexed(
     }
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
+    let mut stored_instances = BTreeMap::new();
+    for inventory in std::iter::once(core.life_instances.as_slice()).chain(
+        project
+            .iter()
+            .copied()
+            .filter(|source| source.module_id != core.module_id)
+            .map(|source| source.life_instances.as_slice()),
+    ) {
+        for instance in inventory {
+            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                continue;
+            };
+            let Type::Record { name, .. } = storage.as_ref() else {
+                continue;
+            };
+            aggregate_templates::spend(
+                remaining,
+                name.len()
+                    .saturating_add(1)
+                    .saturating_mul(stored_instances.len().saturating_add(1)),
+                Span::default(),
+            )
+            .map_err(|e| vec![e])?;
+            if stored_instances.insert(name.as_str(), instance).is_some() {
+                return Err(vec![error(
+                    "E-STORED-IDENTITY",
+                    Span::default(),
+                    "duplicate project stored instance",
+                )]);
+            }
+        }
+    }
     let mut resolver = Resolver {
+        stored_instances,
         generic,
         generic_types: BTreeMap::new(),
         generic_active: BTreeSet::new(),
@@ -593,6 +642,36 @@ fn resolve_indexed(
             field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
         }
     }
+    let mut resolved_life_instances = Vec::new();
+    for instance in &core.life_instances {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+            unreachable!("checked stored inventory");
+        };
+        let Type::Record { name, .. } = storage.as_ref() else {
+            unreachable!("checked stored inventory");
+        };
+        aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let ty = resolver
+            .ty(&Type::Named(name.clone()), 0, Span::default())
+            .map_err(|e| vec![e])?;
+        let mut arguments = Vec::new();
+        for argument in &instance.arguments {
+            resolver.charge(0, Span::default()).map_err(|e| vec![e])?;
+            arguments.push(match argument {
+                LifeNominalActual::Type(ty) => LifeNominalActual::Type(
+                    resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
+                ),
+                LifeNominalActual::Const(value) => LifeNominalActual::Const(*value),
+                LifeNominalActual::Lifetime(class) => LifeNominalActual::Lifetime(*class),
+            });
+        }
+        resolved_life_instances.push(LifeNominalInstance {
+            declaration: instance.declaration,
+            ty,
+            arguments,
+        });
+    }
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {
@@ -607,6 +686,7 @@ fn resolve_indexed(
     core.aggregates = aggregates;
     core.functions = functions;
     core.enums = resolved_enums;
+    core.life_instances = resolved_life_instances;
     Ok(core)
 }
 
@@ -623,6 +703,7 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
+    stored_instances: BTreeMap<&'a str, &'a LifeNominalInstance>,
     generic: aggregate_templates::Index,
     generic_types: BTreeMap<String, Type>,
     generic_active: BTreeSet<aggregate_templates::Family>,
@@ -821,6 +902,18 @@ impl Resolver<'_> {
                     ));
                 }
                 if let Some(cached) = self.cache.get(name) {
+                    if matches!(cached, Type::BorrowedStorage { .. }) {
+                        let cost = inference::type_snapshot_work(
+                            cached,
+                            span,
+                            &Limits {
+                                max_analysis_steps: self.remaining,
+                                ..self.generic_limits.clone()
+                            },
+                        )?;
+                        aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                        return Ok(cached.clone());
+                    }
                     let mut pending = vec![cached];
                     while let Some(t) = pending.pop() {
                         if self.remaining == 0 {
@@ -905,11 +998,23 @@ impl Resolver<'_> {
                     ty
                 } else {
                     let d = self.declarations[name];
+                    if !self.stored_instances.is_empty() {
+                        aggregate_templates::spend(
+                            &mut self.remaining,
+                            name.len()
+                                .saturating_add(1)
+                                .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                            span,
+                        )?;
+                    }
+                    let stored_instance = self.stored_instances.get(name.as_str()).copied();
                     let mut fields = Vec::new();
                     let mut new_shape = false;
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
+                            || (stored_instance.is_some()
+                                && matches!(ty, Type::Address { mutable: false, .. }))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && d.name.starts_with("$generic_")
@@ -972,12 +1077,42 @@ impl Resolver<'_> {
                         let payload = Type::Record { name, fields };
                         if d.kind == AggregateKind::Resource {
                             Type::Desc(Box::new(payload))
+                        } else if let Some(instance) = stored_instance {
+                            let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                                unreachable!()
+                            };
+                            let work = inference::type_snapshot_work(
+                                &instance.ty,
+                                span,
+                                &Limits {
+                                    max_analysis_steps: self.remaining,
+                                    ..self.generic_limits.clone()
+                                },
+                            )?;
+                            aggregate_templates::spend(&mut self.remaining, work, span)?;
+                            let qualified = Type::BorrowedStorage {
+                                storage: Box::new(payload),
+                                life: life.clone(),
+                            };
+                            stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                            qualified
                         } else {
                             payload
                         }
                     }
                 };
                 self.active.remove(name);
+                if matches!(result, Type::BorrowedStorage { .. }) {
+                    let cost = inference::type_snapshot_work(
+                        &result,
+                        span,
+                        &Limits {
+                            max_analysis_steps: self.remaining,
+                            ..self.generic_limits.clone()
+                        },
+                    )?;
+                    aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                }
                 self.cache.insert(name.clone(), result.clone());
                 result
             }

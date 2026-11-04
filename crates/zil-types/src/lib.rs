@@ -53,6 +53,7 @@ mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
 mod store_templates;
+mod stored;
 mod tasks;
 mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
