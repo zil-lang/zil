@@ -1,5 +1,7 @@
 //! Independent complete CT identities. A schema index is only a table edge.
 use super::*;
+#[path = "ct_artifact_graph_identity.rs"]
+mod graph;
 
 struct Identity<'a, 'b> {
     raw: &'a CtArtifactProgram,
@@ -66,7 +68,7 @@ impl Identity<'_, '_> {
         id: u32,
         symbol: &CtSymbolId,
         arguments: &[CtSchemaArgument],
-        depth: usize,
+        _depth: usize,
     ) -> Check<()> {
         self.meter
             .charge(self.visiting.len().saturating_add(1), None)?;
@@ -90,7 +92,9 @@ impl Identity<'_, '_> {
             match argument {
                 CtSchemaArgument::Type(ty) => {
                     self.put(out, &[0])?;
-                    self.child(out, ty, depth + 1)?;
+                    let key = self.graph(ty)?;
+                    self.number(out, key.len() as u64)?;
+                    self.put(out, &key)?;
                 }
                 CtSchemaArgument::Scalar(value) => {
                     self.put(out, &[1])?;
@@ -247,6 +251,32 @@ pub(super) fn check_instances(
             }
             identity.reserve(48)?;
             prior.push(key);
+        }
+    }
+    Ok(())
+}
+pub(super) fn check_argument_graphs(
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    for arguments in raw
+        .record_schemas
+        .iter()
+        .map(|s| s.arguments.as_slice())
+        .chain(raw.enum_schemas.iter().map(|s| s.arguments.as_slice()))
+    {
+        for arg in arguments {
+            if let CtSchemaArgument::Type(graph) = arg {
+                let mut identity = Identity {
+                    raw,
+                    limits,
+                    meter,
+                    bytes: 0,
+                    visiting: Vec::new(),
+                };
+                identity.graph(graph)?;
+            }
         }
     }
     Ok(())

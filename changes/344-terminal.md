@@ -201,3 +201,18 @@ symbol and every ordered Type/Scalar argument. Repeated full instances and
 identity cycles reject independently; lexicographic comparisons and key buffers
 are paid before copying or comparing. Ordinary zero-argument, non-sum shapes
 retain their existing shape-walk charges.
+
+The root corrected CT3 Type schema arguments to CtTypeRef, since a phantom
+ordinary fn pointer is legal metadata while its pointer value cannot execute in
+CT. Normalize every argument graph through the bounded constructor graph model;
+admission independently requires canonical postorder structure and full keys,
+including all signature and eventual BFP lifetime relations. New metadata-only
+bindings must remain separate from serializable CtTy data bindings. No pointer
+CT value, fake nominal schema, or free lifetime spelling becomes authority.
+
+A retained actual CT-source negative exposes another pending producer defect:
+Left.V matched by Right.V currently selects the variant by its final name. The
+source matcher must resolve the complete owner instance before selecting a tag;
+nearest Left.V and mismatched Right.V sources stay separate. This checkpoint
+contains raw VM/metadata consumers; the source Sum/value/reification bridge and
+phantom callable source positives are still unfinished.
