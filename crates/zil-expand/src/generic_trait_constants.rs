@@ -267,6 +267,68 @@ impl<'a> Index<'a> {
     }
 }
 impl Engine<'_> {
+    /// Expansion consumes scalar equations; it never evaluates a template or
+    /// claims the Source Driver's separate overridden-default CT guarantee.
+    pub(crate) fn require_evaluated_constants(&mut self, _module: &Module) -> R<()> {
+        if !self.traits.has_constants {
+            return Ok(());
+        }
+        for item in &self.traits.recipes {
+            self.budget.node(item.span, 0)?;
+            let ItemKind::Impl(implementation) = &item.kind else {
+                continue;
+            };
+            let Some(application) = &implementation.trait_type else {
+                continue;
+            };
+            let reference = self
+                .traits
+                .pattern_reference(application, &mut self.budget)?;
+            let (_, declaration) = self.traits.declaration_item(&reference);
+            for member in &implementation.members {
+                self.budget.node(member.span, 0)?;
+                if let ItemKind::Const(c) = &member.kind
+                    && let Some(value) = &c.value
+                    && !closed(value, &mut self.budget)?
+                {
+                    return Err(unsupported(
+                        value.span,
+                        "concrete associated equation needs Source Driver verified CT materialization",
+                    ));
+                }
+            }
+            for member in &declaration.members {
+                self.budget.node(member.span, 0)?;
+                let ItemKind::Const(c) = &member.kind else {
+                    continue;
+                };
+                let Some(value) = &c.value else { continue };
+                if closed(value, &mut self.budget)? {
+                    continue;
+                }
+                let mut supplied = false;
+                for candidate in &implementation.members {
+                    self.budget.node(candidate.span, 0)?;
+                    if let ItemKind::Const(actual) = &candidate.kind {
+                        self.budget.text(&c.name, member.span)?;
+                        self.budget.text(&actual.name, candidate.span)?;
+                        if actual.name == c.name {
+                            supplied = true;
+                            break;
+                        }
+                    }
+                }
+                if !supplied {
+                    return Err(unsupported(
+                        value.span,
+                        "concrete Self-dependent default needs Source Driver verified CT materialization",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn validate_trait_constants(&mut self, module: &Module) -> R<()> {
         if !self.traits.has_constants {
             return Ok(());
@@ -317,11 +379,13 @@ impl Engine<'_> {
                             "associated constant default needs verified CT evaluation",
                         ));
                     }
-                    if constant
+                    let scalar = constant
                         .ty
                         .as_ref()
-                        .is_none_or(|ty| !super::super::constant_plan::scalar(ty))
-                    {
+                        .map(|ty| super::super::constant_plan::scalar(ty, &mut self.budget))
+                        .transpose()?
+                        .unwrap_or(false);
+                    if !scalar {
                         return Err(unsupported(
                             value.span,
                             "Self-dependent constants require an explicit scalar receiving type",
@@ -407,11 +471,13 @@ impl Engine<'_> {
                         "associated constant equation needs verified CT evaluation",
                     ));
                 }
-                if required
+                let scalar = required
                     .ty
                     .as_ref()
-                    .is_none_or(|ty| !super::super::constant_plan::scalar(ty))
-                {
+                    .map(|ty| super::super::constant_plan::scalar(ty, &mut self.budget))
+                    .transpose()?
+                    .unwrap_or(false);
+                if !scalar {
                     return Err(unsupported(
                         value.span,
                         "Self-dependent constants require an explicit scalar receiving type",

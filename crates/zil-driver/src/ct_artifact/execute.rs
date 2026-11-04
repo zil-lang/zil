@@ -189,6 +189,10 @@ impl<'a> Environment<'a> {
         limits
     }
 
+    pub(super) fn request_fingerprint(&self) -> Fingerprint {
+        self.source_fingerprint
+    }
+
     pub(super) fn target_width(&self) -> u16 {
         self.target.pointer_width
     }
@@ -306,6 +310,12 @@ impl<'a> Environment<'a> {
             self.source_origins.as_ref(),
             &mut self.budget,
         )?;
+        self.budget
+            .reserve_analysis_work(self.parsed.len() as u64 * 2)?;
+        let module_bytes = self.parsed.len() as u64
+            * (std::mem::size_of::<&zil_syntax::ast::Module>()
+                + std::mem::size_of::<compiler::SourceModule<'_>>()) as u64;
+        self.budget.reserve_temporary_bytes(module_bytes)?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
@@ -357,6 +367,7 @@ impl<'a> Environment<'a> {
         if let Some(context) = invocation_context {
             self.budget.release_temporary_bytes(context.bytes);
         }
+        self.budget.release_temporary_bytes(module_bytes);
         result.map(|_| ())
     }
 

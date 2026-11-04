@@ -17,6 +17,8 @@ use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{GeneratedSyntax, ParseResult, ast as s};
 #[path = "associated_constants.rs"]
 mod associated_constants;
+#[path = "self_constant_coverage.rs"]
+mod self_constant_coverage;
 #[path = "self_constants.rs"]
 mod self_constants;
 
@@ -204,7 +206,9 @@ struct Materializer<'a, 'b> {
     track_declarations: bool,
     declaration_lineage_preserved: bool,
     generated_context: bool,
-    self_constant_sources: BTreeSet<(ModuleId, usize, usize)>,
+    self_constant_sources: Vec<(ModuleId, usize, usize)>,
+    self_constant_impl_sources: Vec<(ModuleId, usize)>,
+    self_constant_impl_outputs: Vec<(ModuleId, usize)>,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -1289,11 +1293,24 @@ impl Materializer<'_, '_> {
         )?;
         let mut output = Vec::new();
         let mut retained = self.track_declarations.then(Vec::new);
+        // CT scalar constants need authentic coordinates even when this source
+        // has no life metadata and therefore no declaration-lineage inventory.
+        let constant_coordinates = if self.self_constant_sources.is_empty() {
+            false
+        } else {
+            self.environment
+                .budget
+                .reserve_analysis_work(self.self_constant_sources.len() as u64 + 1)?;
+            self.self_constant_sources
+                .iter()
+                .any(|(owner, _, _)| *owner == module)
+        };
+        let original_coordinates = self.track_declarations || constant_coordinates;
         for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
-            let owner = if self.track_declarations && inherited.is_none() && !generated {
+            let owner = if original_coordinates && inherited.is_none() && !generated {
                 self.environment
                     .budget
                     .reserve_analysis_work(self.environment.index.symbol_lookup_work())?;
@@ -1312,7 +1329,7 @@ impl Materializer<'_, '_> {
                     ));
                 }
                 symbol
-            } else if self.track_declarations
+            } else if original_coordinates
                 && !generated
                 && !self.generated_context
                 && inherited.is_some()
@@ -1398,6 +1415,22 @@ impl Materializer<'_, '_> {
                             .budget
                             .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
                         retained.push(ordinal);
+                    }
+                    if inherited.is_none()
+                        && !generated
+                        && !self.generated_context
+                        && matches!(item.kind, s::ItemKind::Impl(_))
+                    {
+                        self.environment.budget.reserve_analysis_work(
+                            self.self_constant_impl_sources.len() as u64 + 1,
+                        )?;
+                        if self.self_constant_impl_sources.contains(&(module, ordinal)) {
+                            self.environment.budget.reserve_analysis_work(
+                                self.self_constant_impl_outputs.len() as u64 + 1,
+                            )?;
+                            self.environment.budget.reserve_temporary_bytes(128)?;
+                            self.self_constant_impl_outputs.push((module, output.len()));
+                        }
                     }
                     output.push(item);
                 }
@@ -2044,7 +2077,9 @@ pub(crate) fn materialize(
         track_declarations: declaration_origins.is_some(),
         declaration_lineage_preserved: true,
         generated_context: false,
-        self_constant_sources: BTreeSet::new(),
+        self_constant_sources: Vec::new(),
+        self_constant_impl_sources: Vec::new(),
+        self_constant_impl_outputs: Vec::new(),
     };
     for (index, module) in output.iter_mut().enumerate() {
         materializer.self_constants(module)?;
@@ -2091,6 +2126,7 @@ pub(crate) fn materialize(
             rows.items = moved;
         }
     }
+    materializer.audit_self_constant_coverage(&output, imports)?;
     if !materializer.declaration_lineage_preserved {
         declaration_origins = None;
     }
@@ -2275,6 +2311,198 @@ mod scoped_tests {
             true,
         )
     }
+    #[test]
+    fn g231_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
+        fn audit(text: &str, extra: &str, move_original: bool) -> CompileResult<()> {
+            let source =
+                SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-coverage.zil", text);
+            let parsed = Arc::new(zil_syntax::parse(&source));
+            assert!(parsed.diagnostics.is_empty());
+            let sources = std::slice::from_ref(&source);
+            let parsed_slice = std::slice::from_ref(&parsed);
+            let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+            let imports = vec![vec![]];
+            let limits = Limits::default();
+            let target = TargetProfile::host_llvm();
+            let mut environment = Environment::new(
+                sources,
+                parsed_slice,
+                &paths,
+                &imports,
+                ModuleId(0),
+                source.fingerprint(),
+                &target,
+                &limits,
+            )?;
+            environment.classify_definitions()?;
+            let mut materializer = Materializer {
+                environment: &mut environment,
+                sources,
+                parsed: parsed_slice,
+                registry: None,
+                paths: &paths,
+                previews: vec![],
+                required_imports: vec![],
+                runtime_scopes: vec![],
+                data_source_scopes: vec![],
+                max_depth: limits.max_call_depth,
+                track_declarations: false,
+                declaration_lineage_preserved: true,
+                generated_context: false,
+                self_constant_sources: vec![],
+                self_constant_impl_sources: vec![],
+                self_constant_impl_outputs: vec![],
+            };
+            let mut module = parsed.module.clone();
+            materializer.self_constants(&mut module)?;
+            if move_original {
+                materializer.items(module.id, &mut module.items, None, 0, false)?;
+                assert_eq!(materializer.self_constant_impl_sources.len(), 1);
+                assert_eq!(materializer.self_constant_impl_outputs.len(), 1);
+                assert_ne!(
+                    materializer.self_constant_impl_sources[0].1,
+                    materializer.self_constant_impl_outputs[0].1,
+                    "the CT-only item must actually be removed before its impl"
+                );
+            } else {
+                assert_eq!(
+                    materializer.environment.budget.usage().steps,
+                    0,
+                    "symbolic templates execute no fabricated Self values"
+                );
+                let generated = SourceUnit::new(
+                    zil_base::FileId(0),
+                    ModuleId(0),
+                    "untrusted-output.zil",
+                    extra,
+                );
+                let generated = zil_syntax::parse(&generated).into_result().unwrap();
+                module.items.extend(generated.items);
+            }
+            materializer.audit_self_constant_coverage(&[module], &imports)
+        }
+        let base = "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}fn main(){}";
+        for extra in [
+            "impl C for P{const A:i32=2147483647;const B:i32=0;}",
+            "type Alias=C;impl Alias for P{const A:i32=2147483647;const B:i32=0;}",
+            "type Alias<T>=T;type Relay<T>=Alias<T>;impl Relay<Alias<C>> for P{const A:i32=2147483647;const B:i32=0;}",
+            "#if(true){impl C for P{const A:i32=2147483647;const B:i32=0;}}",
+            "#if(true){type Alias=C;}else{type Alias=C;}impl Alias for P{const A:i32=2147483647;const B:i32=0;}",
+        ] {
+            let errors = audit(base, extra, false).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                zil_base::ResultCategory::Unsupported,
+                "{errors:?}"
+            );
+            assert!(
+                errors[0].message.contains("no completed Source CT jobs"),
+                "{errors:?}"
+            );
+        }
+        let errors = audit(
+            base,
+            "type A=B;type B=A;impl A for P{const A:i32=0;const B:i32=0;}",
+            false,
+        )
+        .unwrap_err();
+        assert!(
+            errors[0].message.contains("recursive trait alias"),
+            "{errors:?}"
+        );
+        audit("trait C{const A:i32;const B:i32=42;}trait Other{const A:i32;const B:i32=Self.A+1;}struct P{}fn main(){}","type Alias=C;impl Alias for P{const A:i32=41;const B:i32=0;}",false).unwrap();
+        audit("trait C{const A:i32;const B:i32=Self.A+1;}fn discarded()->Type{return i32}struct P{}impl C for P{const A:i32=41;}fn main(){}","",true).unwrap();
+    }
+
+    #[test]
+    fn g231_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/341/associated-constant-self.zil"
+        );
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-shared.zil", text);
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let shared = parsed.module.items[0].span;
+        for item in &mut parsed.module.items {
+            item.span = shared;
+            match &mut item.kind {
+                s::ItemKind::Function(f) => f.span = shared,
+                s::ItemKind::Trait(t) => {
+                    for member in &mut t.members {
+                        member.span = shared;
+                        if let s::ItemKind::Const(c) = &mut member.kind {
+                            if let Some(ty) = &mut c.ty {
+                                ty.span = shared;
+                            }
+                            if let Some(value) = &mut c.value {
+                                value.span = shared;
+                            }
+                        }
+                    }
+                }
+                s::ItemKind::Impl(i) => {
+                    for member in &mut i.members {
+                        member.span = shared;
+                        if let s::ItemKind::Const(c) = &mut member.kind {
+                            if let Some(ty) = &mut c.ty {
+                                ty.span = shared;
+                            }
+                            if let Some(value) = &mut c.value {
+                                value.span = shared;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let parsed = Arc::new(parsed);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let materialized = materialize(
+            std::slice::from_ref(&source),
+            std::slice::from_ref(&parsed),
+            &[&parsed.module],
+            &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &target,
+            &limits,
+            None,
+            true,
+        )
+        .unwrap();
+        let core = zil_expand::expand(&source, &materialized.modules[0]).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let verified =
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        let lir = zil_lower::lower(&verified).unwrap();
+        for optimization in [
+            zil_backend_llvm::Optimization::O0,
+            zil_backend_llvm::Optimization::O2,
+        ] {
+            let dir = std::env::temp_dir().join(format!(
+                "g231-shared-{}-{:?}",
+                std::process::id(),
+                optimization
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+            options.backend = zil_backend_llvm::NativeBackend::Clang;
+            options.optimization = optimization;
+            let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+            let output = std::process::Command::new(&artifact.executable)
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
     #[test]
     fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
         check_shared_scope_spans(
