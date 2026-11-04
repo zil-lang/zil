@@ -3,6 +3,8 @@
 use crate::CtExecutionBudget;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ir::{Constant, ct_artifact::*};
+#[path = "anonymous_type_scoped.rs"]
+mod scoped;
 
 fn bad(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Ct, "E-CT-ARTIFACT", None, message)]
@@ -227,11 +229,18 @@ fn canonical_type_key_mode(
     budget: &mut CtExecutionBudget,
     keep_key: bool,
 ) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    budget.reserve_analysis_work(reference.nodes.len() as u64)?;
+    if reference.nodes.iter().any(|node| {
+        matches!(node, CtTypeNode::BorrowedStorage { .. })
+            || matches!(node, CtTypeNode::Nominal { arguments, .. }
+                if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
+    }) {
+        return scoped::canonical(reference, budget, keep_key);
+    }
     if reference.root.0 as usize >= reference.nodes.len() {
         return Err(bad("CT type root is outside its graph"));
     }
     let count = reference.nodes.len() as u64;
-    budget.reserve_analysis_work(count)?;
     let scratch = mul(count, 96)?;
     budget.reserve_temporary_bytes(scratch)?;
     let mut canonical: Vec<Canonical> = Vec::new();
