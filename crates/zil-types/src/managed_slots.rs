@@ -508,75 +508,21 @@ impl BindingScan {
             | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
-            | CoreExprKind::Unary { operand: value, .. } => self.expr(value, d + 1)?,
-            CoreExprKind::Binary { left, right, .. } => {
-                self.expr(left, d + 1)?;
-                self.expr(right, d + 1)?
-            }
-            CoreExprKind::Call { callee, arguments }
-            | CoreExprKind::CallDynSlot {
-                callee, arguments, ..
-            } => {
-                self.expr(callee, d + 1)?;
-                for a in arguments {
-                    self.expr(a, d + 1)?
-                }
-            }
-            CoreExprKind::Tuple(xs) | CoreExprKind::Array(xs) => {
-                for x in xs {
-                    self.expr(x, d + 1)?
-                }
-            }
-            CoreExprKind::Index { object, index } => {
-                self.expr(object, d + 1)?;
-                self.expr(index, d + 1)?
-            }
-            CoreExprKind::Slice { object, start, end } => {
-                self.expr(object, d + 1)?;
-                for x in [start, end].into_iter().flatten() {
-                    self.expr(x, d + 1)?
-                }
-            }
-            CoreExprKind::Member { object, .. } => self.expr(object, d + 1)?,
-            CoreExprKind::Record { fields, .. } => {
-                for (_, x) in fields {
-                    self.expr(x, d + 1)?
-                }
-            }
-            CoreExprKind::RecordUpdate { base, fields, .. } => {
-                self.expr(base, d + 1)?;
-                for (_, x) in fields {
-                    self.expr(x, d + 1)?
-                }
-            }
-            CoreExprKind::Sequence { bindings, value } => {
-                self.scopes.push(BTreeMap::new());
-                for (n, x) in bindings {
-                    self.expr(x, d + 1)?;
-                    self.scopes.last_mut().unwrap().insert(n.clone(), None);
-                }
-                self.expr(value, d + 1)?;
-                self.scopes.pop();
-            }
-            CoreExprKind::Closure {
-                parameters, body, ..
-            } => {
-                self.scopes.push(BTreeMap::new());
-                for p in parameters {
-                    self.scopes.last_mut().unwrap().insert(p.name.clone(), None);
-                }
-                self.block(body, d + 1)?;
-                self.scopes.pop();
-            }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                self.expr(condition, d + 1)?;
-                self.expr(then_value, d + 1)?;
-                self.expr(else_value, d + 1)?
-            }
+            | CoreExprKind::Unary { operand: value, .. } => self.expr(value, d + 1),
+            CoreExprKind::Binary { left, right, .. }
+            | CoreExprKind::Index {
+                object: left,
+                index: right,
+            } => self.expr_pair(left, right, d + 1),
+            CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => self.expr_call(e, d),
+            CoreExprKind::Tuple(xs) | CoreExprKind::Array(xs) => self.expr_list(xs, d + 1),
+            CoreExprKind::Slice { .. } => self.expr_slice(e, d),
+            CoreExprKind::Member { object, .. } => self.expr(object, d + 1),
+            CoreExprKind::Record { fields, .. } => self.expr_fields(fields, d + 1),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(e, d),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(e, d),
+            CoreExprKind::Closure { .. } => self.expr_closure(e, d),
+            CoreExprKind::If { .. } => self.expr_if(e, d),
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
             | CoreExprKind::Float(_)
@@ -585,8 +531,110 @@ impl BindingScan {
             | CoreExprKind::Unit
             | CoreExprKind::Name(_)
             | CoreExprKind::ReceiverMember(_)
-            | CoreExprKind::Unsupported(_) => {}
+            | CoreExprKind::Unsupported(_) => Ok(()),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_pair(&mut self, first: &CoreExpr, second: &CoreExpr, d: usize) -> R<()> {
+        self.expr(first, d)?;
+        self.expr(second, d)
+    }
+
+    #[inline(never)]
+    fn expr_list(&mut self, values: &[CoreExpr], d: usize) -> R<()> {
+        for value in values {
+            self.expr(value, d)?;
         }
         Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_fields(&mut self, fields: &[(String, CoreExpr)], d: usize) -> R<()> {
+        for (_, value) in fields {
+            self.expr(value, d)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_call(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let (CoreExprKind::Call { callee, arguments }
+        | CoreExprKind::CallDynSlot {
+            callee, arguments, ..
+        }) = &e.kind
+        else {
+            unreachable!("binding call dispatcher")
+        };
+        self.expr(callee, d + 1)?;
+        self.expr_list(arguments, d + 1)
+    }
+
+    #[inline(never)]
+    fn expr_slice(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let CoreExprKind::Slice { object, start, end } = &e.kind else {
+            unreachable!("binding slice dispatcher")
+        };
+        self.expr(object, d + 1)?;
+        for x in [start, end].into_iter().flatten() {
+            self.expr(x, d + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_record_update(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let CoreExprKind::RecordUpdate { base, fields, .. } = &e.kind else {
+            unreachable!("binding record dispatcher")
+        };
+        self.expr(base, d + 1)?;
+        self.expr_fields(fields, d + 1)
+    }
+
+    #[inline(never)]
+    fn expr_sequence(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let CoreExprKind::Sequence { bindings, value } = &e.kind else {
+            unreachable!("binding sequence dispatcher")
+        };
+        self.scopes.push(BTreeMap::new());
+        for (n, x) in bindings {
+            self.expr(x, d + 1)?;
+            self.scopes.last_mut().unwrap().insert(n.clone(), None);
+        }
+        self.expr(value, d + 1)?;
+        self.scopes.pop();
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_closure(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let CoreExprKind::Closure {
+            parameters, body, ..
+        } = &e.kind
+        else {
+            unreachable!("binding closure dispatcher")
+        };
+        self.scopes.push(BTreeMap::new());
+        for p in parameters {
+            self.scopes.last_mut().unwrap().insert(p.name.clone(), None);
+        }
+        self.block(body, d + 1)?;
+        self.scopes.pop();
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_if(&mut self, e: &CoreExpr, d: usize) -> R<()> {
+        let CoreExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &e.kind
+        else {
+            unreachable!("binding if dispatcher")
+        };
+        self.expr(condition, d + 1)?;
+        self.expr(then_value, d + 1)?;
+        self.expr(else_value, d + 1)
     }
 }

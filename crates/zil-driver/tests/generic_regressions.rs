@@ -4513,3 +4513,68 @@ mod general_task343;
 
 #[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
 mod cas343;
+
+#[test]
+fn terminal_g10_1_7_life_values_keep_default_worker_stack() {
+    const CHILD: &str = "ZIL_G10_1_7_STACK_CHILD";
+    if let Ok(mode) = std::env::var(CHILD) {
+        std::thread::spawn(move || {
+            let directory = std::env::temp_dir().join(format!("zil-g10-1-7-{}-{mode}", std::process::id()));
+            std::fs::create_dir_all(&directory).unwrap();
+            for phantom in [false, true] {
+                for copy in [false, true] {
+                    let depths: &[usize] = if mode == "binary" {
+                        // Left-associated binary syntax remains parseable past
+                        // the call-nesting boundary; keep its nearby cases too.
+                        &[32, 64, 96, 112, 124, 126, 192, 240]
+                    } else {
+                        &[32, 64, 96, 112, 124, 126]
+                    };
+                    for &depth in depths {
+                        let expression = if mode == "binary" {
+                            std::iter::repeat_n("1", depth).collect::<Vec<_>>().join("+")
+                        } else {
+                            let call = match mode.as_str() { "generic" => "same", "conversion" => "i32", _ => "plain" };
+                            format!("{}0{}", format!("{call}(").repeat(depth), ")".repeat(depth))
+                        };
+                        let gate = if phantom { "struct Phantom<life s>{n:i32}" } else { "" };
+                        let (generics, parameters, arguments) = if copy {
+                            ("life a,T:Copy", "p:&'a i32,witness:T", "&n,n")
+                        } else { ("life a", "p:&'a i32", "&n") };
+                        let text = format!("{gate}fn same<T:Copy>(x:T)->T{{return x}}fn plain(x:i32)->i32{{return x}}fn value<{generics}>({parameters})->i32{{return {expression}}}fn main()->i32{{let n=0;return value({arguments})}}");
+                        let path = directory.join(format!("{phantom}-{copy}-{depth}.zil"));
+                        std::fs::write(&path, text).unwrap();
+                        let options = zil_driver::CompileOptions { stop_after: zil_driver::Stage::Verify, ..Default::default() };
+                        let report = zil_driver::compile_path(&path, &options);
+                        let exhausted = depth == 126 && mode != "binary";
+                        let expected = if exhausted { ResultCategory::ResourceLimit } else { ResultCategory::Success };
+                        assert_eq!(report.status, expected, "{mode}/{phantom}/{copy}/{depth}: {}", report.to_json());
+                        assert_eq!(report.verification_runs, usize::from(!exhausted));
+                        if exhausted { assert_eq!(report.phase, zil_base::Phase::Parse); }
+                    }
+                }
+            }
+        }).join().unwrap();
+        return;
+    }
+    for mode in ["plain", "generic", "binary", "conversion"] {
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "terminal_g10_1_7_life_values_keep_default_worker_stack",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env_remove("LD_PRELOAD")
+            .env(CHILD, mode)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{mode}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+    }
+}

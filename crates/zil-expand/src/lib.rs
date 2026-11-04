@@ -1523,8 +1523,41 @@ impl Expander<'_> {
         self.expr_expected(e, None)
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        // A thin variant dispatcher keeps unrelated reconstruction/diagnostic
+        // storage off every recursive lowering edge. Group/receiver/record/
+        // pipeline retain their original early-return node behavior.
+        match &e.kind {
+            s::ExprKind::ReceiverMember(n) => self.receiver_member(n, e.span),
+            s::ExprKind::Group(v) => self.expr_expected(v, expected),
+            s::ExprKind::Pipeline { input, target } => self.pipeline(e.span, input, target),
+            s::ExprKind::Record { ty, base, fields } => {
+                if let Some(value) =
+                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
+                {
+                    return value;
+                }
+                self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected)
+            }
+            s::ExprKind::Ascribed { .. } => self.lower_expr_ascribed(e, expected),
+            s::ExprKind::Array(_) => self.lower_expr_array(e, expected),
+            s::ExprKind::Index { .. } => self.lower_expr_index(e, expected),
+            s::ExprKind::Slice { .. } => self.lower_expr_slice(e, expected),
+            s::ExprKind::Tuple(_) => self.lower_expr_tuple(e, expected),
+            s::ExprKind::Unary { .. } => self.lower_expr_unary(e, expected),
+            s::ExprKind::Binary { .. } => self.lower_expr_binary(e, expected),
+            s::ExprKind::Call { .. } => self.lower_expr_call(e, expected),
+            s::ExprKind::Member { .. } => self.lower_expr_member(e, expected),
+            s::ExprKind::Closure { .. } => self.lower_expr_closure(e, expected),
+            s::ExprKind::If { .. } => self.lower_expr_if(e, expected),
+            s::ExprKind::Try(_) => self.lower_expr_try(e, expected),
+            s::ExprKind::MetaEval(_) => self.lower_expr_metaeval(e, expected),
+            _ => self.lower_expr_leaf(e),
+        }
+    }
+
+    #[inline(never)]
+    fn lower_expr_leaf(&mut self, e: &s::Expr) -> CoreExpr {
         let kind = match &e.kind {
-            s::ExprKind::Ascribed { .. } => self.generated_ascription(e),
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
                 s::Literal::Float(v) if v.starts_with("@bits:") => {
@@ -1551,24 +1584,73 @@ impl Expander<'_> {
                 _ => CoreExprKind::Unsupported("floating/character literal typing".into()),
             },
             s::ExprKind::Name(n) => CoreExprKind::Name(n.clone()),
-            s::ExprKind::ReceiverMember(n) => return self.receiver_member(n, e.span),
-            s::ExprKind::Group(v) => return self.expr_expected(v, expected),
+            _ => {
+                CoreExprKind::Unsupported("expression requires a later language capability".into())
+            }
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_ascribed(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
+            s::ExprKind::Ascribed { .. } => self.generated_ascription(e),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_array(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Array(values) => {
                 CoreExprKind::Array(values.iter().map(|v| self.expr(v)).collect())
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_index(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Index { object, index } => CoreExprKind::Index {
                 object: Box::new(self.expr(object)),
                 index: Box::new(self.expr(index)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_slice(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Slice { object, start, end } => CoreExprKind::Slice {
                 object: Box::new(self.expr(object)),
                 start: start.as_ref().map(|value| Box::new(self.expr(value))),
                 end: end.as_ref().map(|value| Box::new(self.expr(value))),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_tuple(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Tuple(values) if values.is_empty() => CoreExprKind::Unit,
             s::ExprKind::Tuple(values) => {
                 CoreExprKind::Tuple(values.iter().map(|v| self.expr(v)).collect())
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_unary(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Unary { op, operand } => CoreExprKind::Unary {
                 op: match op {
                     s::UnaryOp::Not => UnaryOp::Not,
@@ -1581,6 +1663,14 @@ impl Expander<'_> {
                 },
                 operand: Box::new(self.expr(operand)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_binary(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Binary { op, left, right } => {
                 let Some(op) = binary(*op) else {
                     return self.expr_node(CoreExprKind::Unsupported("range value".into()), e.span);
@@ -1591,6 +1681,14 @@ impl Expander<'_> {
                     right: Box::new(self.expr(right)),
                 }
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_call(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Call { callee, arguments } => {
                 if let Some(value) = self.foreign_constructor(callee, arguments, e.span) {
                     value
@@ -1655,7 +1753,14 @@ impl Expander<'_> {
                     }
                 }
             }
-            s::ExprKind::Pipeline { input, target } => return self.pipeline(e.span, input, target),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_member(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Member { object, member } => {
                 let (name, owner) = match member {
                     s::MemberName::Name(name) => (name.clone(), None),
@@ -1695,14 +1800,14 @@ impl Expander<'_> {
                     owner,
                 }
             }
-            s::ExprKind::Record { ty, base, fields } => {
-                if let Some(value) =
-                    self.record_enum(e.span, ty.as_deref(), base.as_deref(), fields)
-                {
-                    return value;
-                }
-                return self.record(e.span, ty.as_deref(), base.as_deref(), fields, expected);
-            }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_closure(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Closure {
                 move_capture,
                 params,
@@ -1743,6 +1848,14 @@ impl Expander<'_> {
                     body,
                 }
             }
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_if(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::If {
                 condition,
                 then_value,
@@ -1752,11 +1865,25 @@ impl Expander<'_> {
                 then_value: Box::new(self.expr_expected(then_value, expected)),
                 else_value: Box::new(self.expr_expected(else_value, expected)),
             },
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_try(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::Try(inner) => CoreExprKind::Try(Box::new(self.expr(inner))),
+            _ => unreachable!("lowering expression dispatcher"),
+        };
+        self.expr_node(kind, e.span)
+    }
+
+    #[inline(never)]
+    fn lower_expr_metaeval(&mut self, e: &s::Expr, _expected: Option<&Type>) -> CoreExpr {
+        let kind = match &e.kind {
             s::ExprKind::MetaEval(inner) => CoreExprKind::CompileTime(Box::new(self.expr(inner))),
-            _ => {
-                CoreExprKind::Unsupported("expression requires a later language capability".into())
-            }
+            _ => unreachable!("lowering expression dispatcher"),
         };
         self.expr_node(kind, e.span)
     }
