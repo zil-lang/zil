@@ -1,0 +1,46 @@
+{
+  "status": "PassLimitedImpossibleDomainAllocationGuard",
+  "source": "3438bdb242b9cee496b65a64d1a168efac375bab",
+  "method": "Read-only exact Git source audit and independent replay of copied author-built executable hashes; no reviewer rebuild. Full crate/test input manifest recomputed from Git blobs.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/rich40-3438-source-binding.json",
+    "sha256": "514510fa6c050c8231d4a07c466ffb467788dc965fc95851f786f6cf0085b160"
+  },
+  "manifest": {
+    "count": 822,
+    "manifest_sha256": "c5d9dbfbd745c449ebe541f83df112d87e6073751a8f9121dfa062edc6cc358c",
+    "selector": "git ls-tree path order; crates entries ending .rs or Cargo.toml, including crate tests",
+    "encoding": "lowercase file SHA256 + two spaces + repository-relative path + LF"
+  },
+  "harness_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/rich40-3438-harness-binding.json",
+    "sha256": "6c7d9fa249f6303a92b330c60a14386abb31017518782412a84c867cb996fb21"
+  },
+  "replays": [
+    {
+      "selector": "Analyze signature_life",
+      "result": "2 passed, 0 failed, 132 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/rich40-3438-analyze.log",
+        "sha256": "ba0ae62e1749f284309dba30f132d35e6034048fc138fee9f1af159d7eb071a4"
+      }
+    },
+    {
+      "selector": "Verify signature_life",
+      "result": "1 passed, 0 failed, 351 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/rich40-3438-verify.log",
+        "sha256": "392417a5111a73498d0fc0dd9b562b388e3641b2bd3d86961ee1bdc74f9fd0e7"
+      }
+    }
+  ],
+  "review": [
+    "Both kernels use checked total domain and relation row counts before allocating the Fixed grounding vector. Fixed classes cannot outnumber class rows or incoming parameter class occurrences.",
+    "The prior complete signature traversal still validates actual typed positions, dense first occurrence, input grounding and result relation. The new bounds do not grant any new root, class equality or access permission.",
+    "The additional class-count scan occurs after the existing per-use relation prepayment at production callers; count rejection is also safe when directly exercised by isolated library tests."
+  ],
+  "relation_to_prior": "Narrow hardening successor to f469 scalar rich-call equation review; earlier successful raw/Wire and budgets remain attributed to f469.",
+  "limits": [
+    "Only these three signature controls were replayed at this source. No new full library, source/native, callback-role or borrowed-result acceptance is claimed."
+  ]
+}
