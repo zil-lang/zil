@@ -96,6 +96,12 @@ fn closed(
         while let Some(t) = fields.pop() {
             budget.spend(1)?;
             match t {
+                Type::AsyncRegistration { .. } => {
+                    return Err(unsupported(
+                        "pollable registration ClosedEnvironment consumer is not implemented",
+                        span,
+                    ));
+                }
                 Type::Address { .. }
                 | Type::Dyn { .. }
                 | Type::Desc(_)

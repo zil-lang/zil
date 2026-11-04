@@ -46,6 +46,15 @@ pub(super) fn declaration(
         result: Box::new(Type::I64),
     };
     let expected = match role {
+        ScopedCallbackRole::AsyncRegister
+        | ScopedCallbackRole::AsyncRequestClose
+        | ScopedCallbackRole::AsyncPollDrain => {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "pollable registration foreign role consumer is not implemented",
+                Some(function.span),
+            )]);
+        }
         ScopedCallbackRole::Register => vec![callback, Type::ForeignHandle],
         ScopedCallbackRole::Close => vec![Type::ForeignHandle],
     };

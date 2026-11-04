@@ -29,6 +29,14 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
         return Err(invalid());
     }
     let valid = match role {
+        ScopedCallbackRole::AsyncRegister
+        | ScopedCallbackRole::AsyncRequestClose
+        | ScopedCallbackRole::AsyncPollDrain => {
+            return Err(unsupported(
+                "pollable registration foreign role consumer is not implemented",
+                span,
+            ));
+        }
         ScopedCallbackRole::Register => {
             if function.parameters.len() != 2 || function.return_type != Type::ForeignHandle {
                 false

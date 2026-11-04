@@ -776,6 +776,13 @@ pub(crate) fn member_owner_type_cost(
     fn core_shape(v: &mut dyn Visitor, ty: &Type, span: Span, depth: usize) -> CompileResult<()> {
         v.node(span, depth)?;
         match ty {
+            Type::AsyncRegistration { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Expand,
+                    "pollable registration metadata consumer is not implemented",
+                    Some(span),
+                )]);
+            }
             Type::Dyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Expand,

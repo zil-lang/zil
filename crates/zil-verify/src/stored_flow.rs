@@ -210,6 +210,12 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
             return Err(limit("stored type depth exceeds verification limit"));
         }
         match t {
+            Type::AsyncRegistration { .. } => {
+                return Err(unsupported(
+                    "pollable registration inventory consumer is not implemented",
+                    None,
+                ));
+            }
             Type::BorrowedStorage { storage, life } => {
                 b.spend(
                     life.slots

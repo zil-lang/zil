@@ -101,6 +101,13 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
+                Type::AsyncRegistration { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "pollable registration ClosedEnvironment consumer is not implemented",
+                        Some(span),
+                    )]);
+                }
                 Type::Task { .. }
                 | Type::Dyn { .. }
                 | Type::Address { .. }

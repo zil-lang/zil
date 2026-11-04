@@ -1050,6 +1050,12 @@ fn check_type_shape(
                 budget.stored_borrows = true;
                 pending.push((storage, depth + 1, context));
             }
+            Type::AsyncRegistration { .. } => {
+                return Err(unsupported(
+                    "pollable registration type consumer is not implemented",
+                    None,
+                ));
+            }
             Type::Dyn { .. } => {
                 return Err(unsupported(
                     "dyn type consumer is not yet implemented",
@@ -1861,6 +1867,16 @@ fn check_instruction(
         stored_flow::instruction_work(function, instruction, budget)?;
     }
     let expected = match &instruction.kind {
+        InstructionKind::AsyncRegistrationStart { .. }
+        | InstructionKind::AsyncRegistrationValid { .. }
+        | InstructionKind::AsyncRegistrationRequestClose { .. }
+        | InstructionKind::AsyncRegistrationPollClose { .. }
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+            return Err(unsupported(
+                "pollable registration operation consumer is not implemented",
+                Some(instruction.span),
+            ));
+        }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
             return Err(unsupported(
                 "dyn instruction consumer is not yet implemented",
@@ -3222,6 +3238,13 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::AsyncRegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
+        InstructionKind::AsyncRegistrationValid { registration }
+        | InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            ([Some(*registration), None], &[])
+        }
         InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..

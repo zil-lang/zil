@@ -45,6 +45,13 @@ impl Walk<'_> {
         while let Some((recipe, depth)) = pending.pop() {
             self.node(depth, Some(span))?;
             match recipe {
+                CoreAggregateTypeRecipe::AsyncRegistration { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "pollable registration recipe consumer is not implemented",
+                        Some(span),
+                    )]);
+                }
                 CoreAggregateTypeRecipe::Concrete(ty) => self.ty(ty, span, depth + 1)?,
                 CoreAggregateTypeRecipe::Parameter { .. } => {}
                 CoreAggregateTypeRecipe::Task { result: element }

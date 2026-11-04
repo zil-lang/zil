@@ -183,6 +183,13 @@ impl<'a> Budget<'a> {
         }
     }
     fn copy_work(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
+        if matches!(ty, Type::AsyncRegistration { .. }) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Lower,
+                "pollable registration type consumer is not implemented",
+                None,
+            )]);
+        }
         if let Type::BorrowedFunctionPointer { life, .. } = ty {
             self.stored_contract(life)?;
         }

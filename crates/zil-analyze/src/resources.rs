@@ -427,6 +427,13 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::AsyncRegistrationStart { callback, .. } => (Some(*callback), None, &[]),
+        InstructionKind::AsyncRegistrationValid { registration }
+        | InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            (Some(*registration), None, &[])
+        }
         InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..
