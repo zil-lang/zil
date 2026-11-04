@@ -621,7 +621,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
             .chain(std::iter::once(&f.return_type))
         {
             fee(b, 1)?;
-            if carrier(ty).is_some() || pointed_carrier(ty).is_some() {
+            if f.environment.is_none() && (carrier(ty).is_some() || pointed_carrier(ty).is_some()) {
                 return Err(failure("stored signature requires complete class relation"));
             }
         }
@@ -641,7 +641,12 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
         parameters.push(ty.clone());
     }
     b.type_work(&f.return_type, true, "stored signature result relation")?;
-    super::signature_life::relation(&parameters, &f.return_type, c)?;
+    super::signature_life::function_relation(
+        &parameters,
+        &f.return_type,
+        c,
+        f.callable_contract.is_some(),
+    )?;
     Ok(())
 }
 

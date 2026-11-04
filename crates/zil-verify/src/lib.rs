@@ -88,6 +88,7 @@ mod scoped_thread;
 mod signature_life;
 mod slices;
 mod stored_borrows;
+mod stored_callables;
 mod stored_flow;
 mod sums;
 mod tasks;

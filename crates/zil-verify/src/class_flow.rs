@@ -208,6 +208,35 @@ pub(super) fn check(
     reachable: &[bool],
     b: &mut Budget,
 ) -> Check<()> {
+    check_with(module, f, reachable, b, f.storage_life.as_ref())
+}
+pub(super) fn check_role(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    life: &StorageLifeContract,
+    b: &mut Budget,
+) -> Check<()> {
+    crate::signature_life::charge(life, b)?;
+    let d = module
+        .closures
+        .get(
+            f.environment
+                .ok_or_else(|| bad("role actual entry has no environment"))?
+                .0 as usize,
+        )
+        .ok_or_else(|| bad("role entry environment is absent"))?;
+    super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
+    super::signature_life::relation(&d.parameters, &d.result, life, Some(f.span))?;
+    check_with(module, f, reachable, b, Some(life))
+}
+fn check_with(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    b: &mut Budget,
+    assumptions: Option<&StorageLifeContract>,
+) -> Check<()> {
     let mut e = Equations {
         representative: Vec::new(),
         rigid: Vec::new(),
@@ -222,7 +251,7 @@ pub(super) fn check(
     for local in &f.locals {
         locals.push(e.ports(&local.ty, b)?);
     }
-    let header = if let Some(c) = &f.storage_life {
+    let header = if let Some(c) = assumptions {
         let vars = variables(c, &mut e, true, b)?;
         for (i, local) in f.parameters.iter().enumerate() {
             bind(
@@ -236,6 +265,19 @@ pub(super) fn check(
         }
         Some(vars)
     } else {
+        if f.environment.is_some() {
+            for local in &f.parameters {
+                let p = &locals[local.0 as usize];
+                if let Some(outer) = p.outer {
+                    let rigid = e.fresh(true, b)?;
+                    e.equal(outer, rigid, b)?;
+                }
+                for class in &p.classes {
+                    let rigid = e.fresh(true, b)?;
+                    e.equal(*class, rigid, b)?;
+                }
+            }
+        }
         None
     };
     for block in &f.blocks {
@@ -333,6 +375,14 @@ pub(super) fn check(
                         call(c, arguments, i.result, &values, &mut e, b)?;
                     }
                 }
+                InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. } => {
+                    if let Some(life) = super::stored_callables::role(f, &i.kind, b)? {
+                        let (_, arguments) = super::stored_callables::called(module, f, &i.kind)
+                            .ok_or_else(|| bad("role call has no actual qualified closure"))?;
+                        call(life, arguments, i.result, &values, &mut e, b)?;
+                    }
+                }
                 InstructionKind::CallIndirect { callee, arguments } => {
                     let Type::BorrowedFunctionPointer { life, .. } = &f.values[callee.0 as usize]
                     else {
@@ -346,7 +396,7 @@ pub(super) fn check(
             }
         }
     }
-    if let (Some(c), Some(vars)) = (&f.storage_life, header) {
+    if let (Some(c), Some(vars)) = (assumptions, header) {
         for (block, live) in f.blocks.iter().zip(reachable) {
             if *live && let Terminator::Return(Some(v)) = block.terminator {
                 bind(
@@ -423,6 +473,7 @@ pub(super) fn pointer_types(
             if target.foreign.is_some()
                 || target.environment.is_some()
                 || target.call_kind != CallKind::Direct
+                || target.callable_contract.is_some()
                 || target.parameters.len() != parameters.len()
                 || target.return_type != **result
             {

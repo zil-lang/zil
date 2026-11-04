@@ -36,6 +36,7 @@ mod scoped_thread;
 mod scopes;
 mod signature_life;
 mod stored_borrows;
+mod stored_callables;
 mod stored_flow;
 #[cfg(test)]
 mod sum_tests;

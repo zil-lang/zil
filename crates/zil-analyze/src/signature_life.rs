@@ -32,6 +32,22 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
+    relation_inner(parameters, result, c, false)
+}
+pub(super) fn function_relation(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+) -> CompileResult<()> {
+    relation_inner(parameters, result, c, allow_callback)
+}
+fn relation_inner(
+    parameters: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    allow_callback: bool,
+) -> CompileResult<()> {
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
             "vacuous borrowed signature must use the ordinary callable type",
@@ -64,6 +80,7 @@ pub(super) fn relation(
         invocation: u32,
         grounded: Vec<bool>,
         inputs: Option<(u32, u32)>,
+        allow_callback: bool,
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -143,7 +160,9 @@ pub(super) fn relation(
                     self.binder(row.binder, self.inputs.is_none())?;
                 }
             } else if pointed {
-                if !target.is_address_pointee() {
+                if !(target.is_address_pointee()
+                    || self.allow_callback && matches!(target, Type::Closure(_)))
+                {
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !target.is_copy_value() {
@@ -160,6 +179,7 @@ pub(super) fn relation(
         invocation: 0,
         grounded: vec![false; c.fixed_binder_count as usize],
         inputs: None,
+        allow_callback,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
