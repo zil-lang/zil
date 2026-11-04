@@ -18,13 +18,13 @@
 | G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 实现待验 | P0 | root / g10_1_review | [C39][c39] / [C40][c40] 已有 role 检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | g3_3 / goal_publish | [标量捕获交付](https://github.com/zil-lang/zil/tree/46d15e69d781a18009c78e43e9972eac681703de)：Once责任与共享叶修正已独审，已组合PR36；外层Fixed仅接口提案。 |
+| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | g3_3 / goal_publish | [标量捕获交付](https://github.com/zil-lang/zil/tree/46d15e69d781a18009c78e43e9972eac681703de)：Once责任与共享叶修正已独审；G3.3.1正修普通注解丢失真实life类，外层Fixed仍缺。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
 | G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 实现待验 | P0 | root / g10_1_review | [C39][c39] 已有限定独审和原生检查；由 root / g10_1_review 在 G10.1 复核。 |
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 实现待验 | P0 | root / g10_1_review | [C40][c40] 已有上下文及原生检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | g4_4 / goal_publish | [成员CT交付](https://github.com/zil-lang/zil/tree/bc5a193ab9f73ba94d41c6518c21b48f28e78344)：生成归属修正已独审、API原生已补核，已组合PR36；完整实参向量/生成life仍缺。 |
+| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | g4_4 / goal_publish | 成员CT及[G4.4.1子值上下文修复](https://github.com/zil-lang/zil/tree/d1b7867ba21b38784d076eaa8337c3b0163e9be4)已独审并组合；完整实参向量/生成life仍缺。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
 | G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有前端；实际消费者待接。 |
@@ -41,7 +41,7 @@
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
 | G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 实现待验 | P0 | root / g10_1_review | [Task 复核][task40]；由 root / g10_1_review 在 G10.1 复核，不覆盖通用 frame port/拥有 Sum。 |
 | G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 实现待验 | P0 | root | [源码交付及作者收据](https://github.com/zil-lang/zil/blob/e797559b51cef6ccc75377caf55270ea8fc7a927/docs/validation/G8.3-cas-source.json)；非作者限定复核11项通过，待共同回归合入。 |
-| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 待排期 | P1 | 待派 | 与 G7.3 共用责任合同和真实事件源。 |
+| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 进行中 | P1 | g8_3 / root | G8.4.1已核现有静态child排空；接续真实外部事件源、登记关闭票据及晚通知，需公共接口前置。 |
 | G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
 | G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.1、G6.2、G8.2、G8.4。 |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
@@ -51,7 +51,7 @@
 | G9.5 | 字体/文本布局、渲染呈现及输入到绘制的真实闭环 | 待排期 | P2 | 待派 | 与 G9.4 协调；需实际字体、呈现和输入链路。 |
 | G9.6 | 真实ZUI应用集成、资源失败/关闭及维护场景 | 待排期 | P2 | 待派 | 依赖 G9.3、G9.4、G9.5 及必要语言能力。 |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root / g10_1_review | [PR36](https://github.com/zil-lang/zil/pull/36)为共同候选草稿；四项限定独审通过，完整workspace/reference与严格Clippy进行中，未正式接受。 |
+| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root / g10_1_review | [PR36](https://github.com/zil-lang/zil/pull/36)草稿；栈/CT回归修复已独审，预算及旧fixture复核中，本地全量重跑。Actions因账单/额度未启动，尚未正式接受。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
