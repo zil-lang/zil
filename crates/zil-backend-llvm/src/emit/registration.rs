@@ -796,6 +796,7 @@ mod tests {
         // Internal planning fixture only; source/runtime/Verify evidence lives
         // in the driver tests. This does not grant authority to the raw model.
         let f = TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -833,6 +834,7 @@ mod tests {
                 .collect(),
         };
         let definition = ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(3),
             parameters: vec![Type::I32],

@@ -168,7 +168,7 @@ impl Builder<'_, '_> {
             .get(&key)
             .filter(|s| s.public && s.receiver.is_some() && !s.cleanup))
     }
-    pub(super) fn borrowed_task_hint<'b>(
+    pub(crate) fn borrowed_task_hint<'b>(
         &'b self,
         e: &'b CoreExpr,
         left: &mut usize,
@@ -268,7 +268,8 @@ impl Builder<'_, '_> {
             CoreExprKind::Call { callee, .. } => {
                 if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(t) = self.borrowed_task_hint(object, left, depth + 1)?
-                    && let Some(signature) = self.hint_method(payload_view(t), member, left, e.span)?
+                    && let Some(signature) =
+                        self.hint_method(payload_view(t), member, left, e.span)?
                 {
                     return Ok(Some(&signature.result));
                 }
