@@ -1,5 +1,6 @@
 //! Source preparation for the sealed scalar cooperative task ABI.
 use super::*;
+mod hint;
 
 pub(super) fn suspends(f: &TypedFunction) -> bool {
     f.call_kind == CallKind::Suspend
@@ -279,7 +280,7 @@ impl Builder<'_, '_> {
                     span,
                     self.limits,
                     &mut remaining,
-                    4,
+                    1,
                 )?;
                 Ok((
                     signature.concrete_id(worker_expr.span)?,
@@ -302,6 +303,7 @@ impl Builder<'_, '_> {
                 self.same(&t, wanted, argument.span)?;
                 inputs.push(v);
             }
+            self.closures.snapshot_type(&worker_result, 3, 0, span)?;
             let ty = create_type(&worker_result);
             if let Some(wanted) = expected {
                 self.same(&ty, wanted, span)?;
@@ -317,20 +319,23 @@ impl Builder<'_, '_> {
             return Ok((v, ty));
         }
         if !matches!(name, "task_start" | "task_await" | "task_yield") && arguments.len() == 1 {
-            let mut expression = &arguments[0];
-            while let CoreExprKind::Unary { operand, .. } = &expression.kind {
-                expression = operand;
-            }
-            let local = match &expression.kind {
-                CoreExprKind::Name(name) => self.lookup(name),
-                _ => None,
-            };
-            if let Some(actual) = local.map(|id| &self.function.locals[id.0 as usize].ty)
-                && let Some(task @ Type::Task { .. }) = payload(actual)
-            {
-                self.closures.snapshot_type(task, 6, 0, span)?;
-                let parameter = parameter_for(name, task);
-                let ty = result_for(name, task);
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let looked = (|| -> R<Option<Type>> {
+                let Some(actual) = self.borrowed_task_hint(&arguments[0], &mut remaining, 0)?
+                else {
+                    return Ok(None);
+                };
+                let Some(task @ Type::Task { .. }) = payload(actual) else {
+                    return Ok(None);
+                };
+                inference::charge_type_snapshot(task, span, self.limits, &mut remaining, 6)?;
+                Ok(Some(task.clone()))
+            })();
+            self.closures.snapshot(before - remaining, span)?;
+            if let Some(task) = looked? {
+                let parameter = parameter_for(name, &task);
+                let ty = result_for(name, &task);
                 let (task, t) = self.argument_expr(&arguments[0], &parameter)?;
                 self.same(&t, &parameter, arguments[0].span)?;
                 let kind = match name {
