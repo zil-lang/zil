@@ -95,13 +95,13 @@ pub(super) fn instruction(
     if let InstructionKind::BorrowVariantAddress { mutable, .. } = &i.kind {
         if path.is_empty()
             || (*mutable && !available)
-            || (!ty.is_copy_value() && !matches!(ty, Type::Package { .. } | Type::Enum { .. }))
+            || (!ty.is_copy_value() && !matches!(ty, Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion{..}))
         {
             return Err(invalid(span));
         }
         match ty {
             Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget)?,
-            Type::Enum { .. } => sums::check_type_for(module, ty, span, budget)?,
+            Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..} => sums::check_type_for(module, ty, span, budget)?,
             _ => check_type(ty, span)?,
         }
         Ok(Some(Type::Address {

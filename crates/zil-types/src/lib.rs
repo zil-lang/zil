@@ -29,6 +29,7 @@ mod managed_slots;
 mod member_owner;
 mod names;
 mod owned_enums;
+mod partial_patterns;
 mod owned_shapes;
 mod owning_factory;
 mod packages;
@@ -487,6 +488,7 @@ struct Builder<'a, 'c> {
     unsafe_regions: Vec<u32>,
     next_unsafe_region: u32,
     resource_temps: Vec<LocalId>,
+    resource_temp_floor: usize,
     sequenced_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
@@ -568,6 +570,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             unsafe_regions: Vec::new(),
             next_unsafe_region: 0,
             resource_temps: Vec::new(),
+            resource_temp_floor: 0,
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
@@ -1000,12 +1003,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(())
     }
     fn stmt(&mut self, s: &CoreStatement) -> R<()> {
-        let rewritten = self.rewrite_managed_statement(s)?;
-        self.stmt_inner(rewritten.as_ref().unwrap_or(s))?;
-        if self.current.is_some() {
-            self.finish_resource_temps(s.span)?;
-        }
-        Ok(())
+        let previous=self.resource_temp_floor;
+        self.resource_temp_floor=self.resource_temps.len();
+        let result=(|| {
+            let rewritten = self.rewrite_managed_statement(s)?;
+            self.stmt_inner(rewritten.as_ref().unwrap_or(s))?;
+            if self.current.is_some() {self.finish_resource_temps(s.span)?;}
+            Ok(())
+        })();
+        self.resource_temp_floor=previous;
+        result
     }
     fn stmt_inner(&mut self, s: &CoreStatement) -> R<()> {
         if self.defer_body && matches!(s.kind, CoreStatementKind::Return(_)) {
