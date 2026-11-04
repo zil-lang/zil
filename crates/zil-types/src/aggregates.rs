@@ -197,7 +197,9 @@ pub(super) fn resolve(core: CoreModule, limits: &Limits) -> CompileResult<CoreMo
 }
 
 pub(super) fn project_symbol(name: &str) -> bool {
-    name.starts_with("$module") || name.starts_with("$generic_$module")
+    name.starts_with("$module")
+        || name.starts_with("$generic_$module")
+        || name.starts_with("$generic_$builtinOption340_")
 }
 
 /// Resolve project syntax names against actual declarations, not a parsed
@@ -804,6 +806,7 @@ impl Resolver<'_> {
         }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
+            Type::Named(name) if name == "TaskI32" => Type::Desc(Box::new(Type::TaskI32)),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -868,8 +871,29 @@ impl Resolver<'_> {
                         }
                         variants.push((variant.clone(), fields));
                     }
+                    if name.starts_with("$generic_$builtinOption340_") {
+                        for (_, fields) in &variants {
+                            for field in fields {
+                                let work = inference::type_snapshot_work(
+                                    field,
+                                    span,
+                                    &self.generic_limits,
+                                )?;
+                                self.remaining = self
+                                    .remaining
+                                    .checked_sub(work.saturating_mul(4))
+                                    .ok_or_else(|| {
+                                        Diagnostic::limit(
+                                            Phase::Types,
+                                            "Option identity work budget exceeded",
+                                            Some(span),
+                                        )
+                                    })?;
+                            }
+                        }
+                    }
                     let ty = Type::Enum {
-                        name: format!("@module{}:{}", self.owners[name], name),
+                        name: enums::nominal_name(self.owners[name], name, &variants),
                         variants,
                     };
                     if owns {
@@ -1020,6 +1044,9 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
+                        Box::new(Type::TaskI32)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }
@@ -1043,6 +1070,11 @@ impl Resolver<'_> {
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if *mutable && *payload == Type::TaskI32 =>
+                    {
+                        Type::Managed(payload)
+                    }
                     Type::Managed(payload) | Type::Desc(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })
@@ -1116,6 +1148,23 @@ impl Resolver<'_> {
                     .collect::<R<_>>()?,
                 result: Box::new(self.ty(result, depth + 1, span)?),
             },
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty, depth + 1, span))
+                    .collect::<R<Vec<_>>>()?;
+                let result = Box::new(self.ty(result, depth + 1, span)?);
+                borrowed_fp::relation(&parameters, &result, life, span)?;
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                }
+            }
             Type::ForeignCallback { parameters, result } => {
                 let parameters = parameters
                     .iter()
@@ -1251,7 +1300,8 @@ impl Resolver<'_> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 *ty = self.ty(ty, depth + 1, e.span)?;
                 self.expr(value, depth + 1)?;
             }
@@ -1502,306 +1552,345 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
         match &e.kind {
-            CoreExprKind::Array(items) => {
-                let (mut element, length) = match expected {
-                    Some(Type::Array { element, length }) => (Some((**element).clone()), *length),
-                    _ => (None, items.len() as u32),
-                };
-                if length as usize != items.len() {
-                    return Err(error(
-                        "E-ARRAY-LENGTH",
-                        e.span,
-                        "array literal length does not match its type",
-                    ));
-                }
-                self.closures.snapshot(items.len(), e.span)?;
-                let mut staged = Vec::new();
-                for v in items {
-                    let (id, t) = self.owned_array_input(v, element.as_ref())?;
-                    if element.is_none() {
-                        element = Some(t.clone());
-                    }
-                    self.same(&t, element.as_ref().expect("known array element"), v.span)?;
-                    staged.push(self.stage_argument(id, &t, v.span)?);
-                }
-                let element = element.ok_or_else(|| {
-                    error(
-                        "E-ARRAY-INFER",
-                        e.span,
-                        "empty array requires an element type",
-                    )
-                })?;
-                let ty = Type::Array {
-                    element: Box::new(element),
-                    length,
-                };
-                let owned = packages::owned_array_supported(&ty);
-                if let Type::Array { element, length } = &ty {
-                    self.check_owned_array_closure(element, *length, e.span)?;
-                }
-                if !owned && !ty.is_copy_value() {
-                    return Err(unsupported(
-                        e.span,
-                        "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
-                    ));
-                }
-                let fields = self.commit_arguments(staged, e.span)?;
-                Ok((
-                    self.value(
-                        if owned {
-                            InstructionKind::MakeOwnedArray { elements: fields }
-                        } else {
-                            InstructionKind::MakeAggregate { fields }
-                        },
-                        ty.clone(),
-                        e.span,
-                    )?,
-                    ty,
-                ))
-            }
-            CoreExprKind::Index { object, index } => {
-                if let Some((local, index, ty)) = self.owned_array_place(e)? {
-                    return Ok((
-                        self.value(
-                            InstructionKind::TakeOwnedArrayElement { local, index },
-                            ty.clone(),
-                            e.span,
-                        )?,
-                        ty,
-                    ));
-                }
-                if matches!(self.known_type(object), Some(Type::Address { .. }))
-                    || dynamic_store::borrow_expression(object)
-                {
-                    let (address, ty) = self.borrow_place(e)?;
-                    let Type::Address { inner, .. } = ty else {
-                        unreachable!()
-                    };
-                    let ty = *inner;
-                    return Ok((
-                        self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
-                        ty,
-                    ));
-                }
-                let (aggregate, ty) = self.expr(object, None)?;
-                let Type::Array { element, .. } = ty else {
-                    return Err(error(
-                        "E-INDEX-TYPE",
-                        e.span,
-                        "index requires a fixed array",
-                    ));
-                };
-                let (index, index_ty) = self.expr(index, None)?;
-                if !index_ty.is_integer() {
-                    return Err(error(
-                        "E-INDEX-TYPE",
-                        e.span,
-                        "array index must be i32 or i64",
-                    ));
-                }
-                let ty = *element;
-                Ok((
-                    self.value(
-                        InstructionKind::ExtractIndex { aggregate, index },
-                        ty.clone(),
-                        e.span,
-                    )?,
-                    ty,
-                ))
-            }
-            CoreExprKind::Tuple(items) => {
-                let expected_fields = match expected {
-                    Some(Type::Tuple(fs)) if fs.len() == items.len() => Some(fs),
-                    _ => None,
-                };
-                let mut fields = Vec::new();
-                let mut types = Vec::new();
-                for (i, v) in items.iter().enumerate() {
-                    let (id, t) = self.expr(v, expected_fields.map(|fs| &fs[i]))?;
-                    fields.push(id);
-                    types.push(t);
-                }
-                let ty = Type::Tuple(types);
-                if !ty.is_copy_value() {
-                    return Err(unsupported(e.span, "tuple with non-Copy fields"));
-                }
-                Ok((
-                    self.value(
-                        InstructionKind::MakeAggregate { fields },
-                        ty.clone(),
-                        e.span,
-                    )?,
-                    ty,
-                ))
-            }
-            CoreExprKind::Record { ty, fields } => {
-                let payload = if let Type::Managed(payload) = ty {
-                    payload.as_ref()
-                } else {
-                    ty
-                };
-                let (Type::Record { fields: decl, .. } | Type::Package { fields: decl, .. }) =
-                    payload
-                else {
-                    return Err(error(
-                        "E-RECORD-TYPE",
-                        e.span,
-                        "record constructor requires a resolved nominal type",
-                    ));
-                };
-                let mut slots = vec![None; decl.len()];
-                let mut guarded = vec![None; decl.len()];
-                for (name, value) in fields {
-                    let (i, t) = field(payload, name, value.span)?;
-                    if slots[i as usize].is_some() {
-                        return Err(error(
-                            "E-FIELD-DUPLICATE",
-                            value.span,
-                            "duplicate record field",
-                        ));
-                    }
-                    slots[i as usize] = Some(if matches!(ty, Type::Package { .. }) {
-                        let (prepared, actual) = if matches!(t, Type::Closure(_)) {
-                            self.check_owned_array_closure(&t, 1, value.span)?;
-                            self.owned_array_input(value, Some(&t))?
-                        } else {
-                            self.argument_expr(value, &t)?
-                        };
-                        let (prepared, guard) =
-                            self.stage_argument(prepared, &actual, value.span)?;
-                        guarded[i as usize] = guard;
-                        prepared
-                    } else {
-                        self.expr(value, Some(&t))?.0
-                    });
-                }
-                if slots.iter().any(Option::is_none) {
-                    return Err(error(
-                        "E-FIELD-MISSING",
-                        e.span,
-                        "record constructor is missing required fields",
-                    ));
-                }
-                let fields = if matches!(ty, Type::Package { .. }) {
-                    self.commit_arguments(
-                        slots
-                            .into_iter()
-                            .zip(guarded)
-                            .map(|(value, guard)| (value.expect("complete package"), guard))
-                            .collect(),
-                        e.span,
-                    )?
-                } else {
-                    slots.into_iter().map(Option::unwrap).collect()
-                };
-                Ok((
-                    self.value(
-                        if matches!(ty, Type::Managed(_)) {
-                            InstructionKind::MakeManaged { fields }
-                        } else if matches!(ty, Type::Package { .. }) {
-                            InstructionKind::MakePackage { fields }
-                        } else {
-                            InstructionKind::MakeAggregate { fields }
-                        },
-                        ty.clone(),
-                        e.span,
-                    )?,
-                    ty.clone(),
-                ))
-            }
-            CoreExprKind::RecordUpdate { ty, base, fields } => {
-                let (mut current, actual) = self.expr(base, ty.as_ref().or(expected))?;
-                if !matches!(actual, Type::Record { .. }) {
-                    return Err(error(
-                        "E-RECORD-TYPE",
-                        e.span,
-                        "record update requires a nominal record",
-                    ));
-                }
-                let mut seen = BTreeSet::new();
-                for (name, value) in fields {
-                    if !seen.insert(name) {
-                        return Err(error(
-                            "E-FIELD-DUPLICATE",
-                            value.span,
-                            "duplicate update field",
-                        ));
-                    }
-                    let (index, t) = field(&actual, name, value.span)?;
-                    let value = self.expr(value, Some(&t))?.0;
-                    current = self.value(
-                        InstructionKind::UpdateField {
-                            aggregate: current,
-                            index,
-                            value,
-                        },
-                        actual.clone(),
-                        e.span,
-                    )?;
-                }
-                Ok((current, actual))
-            }
-            CoreExprKind::Member {
-                object,
-                member,
-                owner,
-            } => {
-                if matches!(self.known_type(object), Some(Type::Package { .. }))
-                    && !self.indirect_place(e)
-                    && self.method_signature(object, member).is_none()
-                {
-                    return self.package_field(object, member, owner.as_ref(), e.span);
-                }
-                if matches!(
-                    self.known_type(object),
-                    Some(Type::Managed(_) | Type::Desc(_))
-                ) && !self.indirect_place(e)
-                    && self.method_signature(object, member).is_none()
-                {
-                    return self.resource_field(object, member, owner.as_ref(), e.span);
-                }
-                if self.method_signature(object, member).is_some() {
-                    return Err(error(
-                        "E-RECEIVER-METHOD-VALUE",
-                        e.span,
-                        "instance method value requires an explicit closure",
-                    ));
-                }
-                if matches!(self.known_type(object), Some(Type::Address { .. }))
-                    || dynamic_store::borrow_expression(object)
-                    || self.indirect_place(e)
-                {
-                    let (address, ty) = self.borrow_place(e)?;
-                    let Type::Address { inner, .. } = ty else {
-                        unreachable!()
-                    };
-                    let ty = *inner;
-                    if !ty.is_copy_value() {
-                        return Err(unsupported(
-                            e.span,
-                            "shared Product projections only read Copy leaves; borrow an owned child explicitly",
-                        ));
-                    }
-                    return Ok((
-                        self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
-                        ty,
-                    ));
-                }
-                let (aggregate, ty) = self.expr(object, None)?;
-                self.member_owner(&ty, owner.as_ref(), e.span)?;
-                let (index, field_ty) = field(&ty, member, e.span)?;
-                Ok((
-                    self.value(
-                        InstructionKind::ExtractField { aggregate, index },
-                        field_ty.clone(),
-                        e.span,
-                    )?,
-                    field_ty,
-                ))
-            }
+            CoreExprKind::Array(..) => self.aggregate_array(e, expected),
+            CoreExprKind::Index { .. } => self.aggregate_index(e),
+            CoreExprKind::Tuple(..) => self.aggregate_tuple(e, expected),
+            CoreExprKind::Record { .. } => self.aggregate_record(e),
+            CoreExprKind::RecordUpdate { .. } => self.aggregate_record_update(e, expected),
+            CoreExprKind::Member { .. } => self.aggregate_member(e),
             _ => unreachable!(),
         }
     }
+    #[inline(never)]
+    fn aggregate_array(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Array(items) = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let (mut element, length) = match expected {
+            Some(Type::Array { element, length }) => (Some((**element).clone()), *length),
+            _ => (None, items.len() as u32),
+        };
+        if length as usize != items.len() {
+            return Err(error(
+                "E-ARRAY-LENGTH",
+                e.span,
+                "array literal length does not match its type",
+            ));
+        }
+        self.closures.snapshot(items.len(), e.span)?;
+        let mut staged = Vec::new();
+        for v in items {
+            let (id, t) = self.owned_array_input(v, element.as_ref())?;
+            if element.is_none() {
+                element = Some(t.clone());
+            }
+            self.same(&t, element.as_ref().expect("known array element"), v.span)?;
+            staged.push(self.stage_argument(id, &t, v.span)?);
+        }
+        let element = element.ok_or_else(|| {
+            error(
+                "E-ARRAY-INFER",
+                e.span,
+                "empty array requires an element type",
+            )
+        })?;
+        let ty = Type::Array {
+            element: Box::new(element),
+            length,
+        };
+        let owned = packages::owned_array_supported(&ty);
+        if let Type::Array { element, length } = &ty {
+            self.check_owned_array_closure(element, *length, e.span)?;
+        }
+        if !owned && !ty.is_copy_value() {
+            return Err(unsupported(
+                e.span,
+                "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
+            ));
+        }
+        let fields = self.commit_arguments(staged, e.span)?;
+        Ok((
+            self.value(
+                if owned {
+                    InstructionKind::MakeOwnedArray { elements: fields }
+                } else {
+                    InstructionKind::MakeAggregate { fields }
+                },
+                ty.clone(),
+                e.span,
+            )?,
+            ty,
+        ))
+    }
+
+    #[inline(never)]
+    fn aggregate_index(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
+        let CoreExprKind::Index { object, index } = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        if let Some((local, index, ty)) = self.owned_array_place(e)? {
+            return Ok((
+                self.value(
+                    InstructionKind::TakeOwnedArrayElement { local, index },
+                    ty.clone(),
+                    e.span,
+                )?,
+                ty,
+            ));
+        }
+        if matches!(self.known_type(object), Some(Type::Address { .. }))
+            || dynamic_store::borrow_expression(object)
+        {
+            let (address, ty) = self.borrow_place(e)?;
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
+            };
+            let ty = *inner;
+            return Ok((
+                self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
+                ty,
+            ));
+        }
+        let (aggregate, ty) = self.expr(object, None)?;
+        let Type::Array { element, .. } = ty else {
+            return Err(error(
+                "E-INDEX-TYPE",
+                e.span,
+                "index requires a fixed array",
+            ));
+        };
+        let (index, index_ty) = self.expr(index, None)?;
+        if !index_ty.is_integer() {
+            return Err(error(
+                "E-INDEX-TYPE",
+                e.span,
+                "array index must be i32 or i64",
+            ));
+        }
+        let ty = *element;
+        Ok((
+            self.value(
+                InstructionKind::ExtractIndex { aggregate, index },
+                ty.clone(),
+                e.span,
+            )?,
+            ty,
+        ))
+    }
+
+    #[inline(never)]
+    fn aggregate_tuple(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Tuple(items) = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let expected_fields = match expected {
+            Some(Type::Tuple(fs)) if fs.len() == items.len() => Some(fs),
+            _ => None,
+        };
+        let mut fields = Vec::new();
+        let mut types = Vec::new();
+        for (i, v) in items.iter().enumerate() {
+            let (id, t) = self.expr(v, expected_fields.map(|fs| &fs[i]))?;
+            fields.push(id);
+            types.push(t);
+        }
+        let ty = Type::Tuple(types);
+        if !ty.is_copy_value() {
+            return Err(unsupported(e.span, "tuple with non-Copy fields"));
+        }
+        Ok((
+            self.value(
+                InstructionKind::MakeAggregate { fields },
+                ty.clone(),
+                e.span,
+            )?,
+            ty,
+        ))
+    }
+
+    #[inline(never)]
+    fn aggregate_record(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
+        let CoreExprKind::Record { ty, fields } = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let payload = if let Type::Managed(payload) = ty {
+            payload.as_ref()
+        } else {
+            ty
+        };
+        let (Type::Record { fields: decl, .. } | Type::Package { fields: decl, .. }) = payload
+        else {
+            return Err(error(
+                "E-RECORD-TYPE",
+                e.span,
+                "record constructor requires a resolved nominal type",
+            ));
+        };
+        let mut slots = vec![None; decl.len()];
+        let mut guarded = vec![None; decl.len()];
+        for (name, value) in fields {
+            let (i, t) = field(payload, name, value.span)?;
+            if slots[i as usize].is_some() {
+                return Err(error(
+                    "E-FIELD-DUPLICATE",
+                    value.span,
+                    "duplicate record field",
+                ));
+            }
+            slots[i as usize] = Some(if matches!(ty, Type::Package { .. }) {
+                let (prepared, actual) = if matches!(t, Type::Closure(_)) {
+                    self.check_owned_array_closure(&t, 1, value.span)?;
+                    self.owned_array_input(value, Some(&t))?
+                } else {
+                    self.argument_expr(value, &t)?
+                };
+                let (prepared, guard) = self.stage_argument(prepared, &actual, value.span)?;
+                guarded[i as usize] = guard;
+                prepared
+            } else {
+                self.expr(value, Some(&t))?.0
+            });
+        }
+        if slots.iter().any(Option::is_none) {
+            return Err(error(
+                "E-FIELD-MISSING",
+                e.span,
+                "record constructor is missing required fields",
+            ));
+        }
+        let fields = if matches!(ty, Type::Package { .. }) {
+            self.commit_arguments(
+                slots
+                    .into_iter()
+                    .zip(guarded)
+                    .map(|(value, guard)| (value.expect("complete package"), guard))
+                    .collect(),
+                e.span,
+            )?
+        } else {
+            slots.into_iter().map(Option::unwrap).collect()
+        };
+        Ok((
+            self.value(
+                if matches!(ty, Type::Managed(_)) {
+                    InstructionKind::MakeManaged { fields }
+                } else if matches!(ty, Type::Package { .. }) {
+                    InstructionKind::MakePackage { fields }
+                } else {
+                    InstructionKind::MakeAggregate { fields }
+                },
+                ty.clone(),
+                e.span,
+            )?,
+            ty.clone(),
+        ))
+    }
+
+    #[inline(never)]
+    fn aggregate_record_update(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+    ) -> R<(ValueId, Type)> {
+        let CoreExprKind::RecordUpdate { ty, base, fields } = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let (mut current, actual) = self.expr(base, ty.as_ref().or(expected))?;
+        if !matches!(actual, Type::Record { .. }) {
+            return Err(error(
+                "E-RECORD-TYPE",
+                e.span,
+                "record update requires a nominal record",
+            ));
+        }
+        let mut seen = BTreeSet::new();
+        for (name, value) in fields {
+            if !seen.insert(name) {
+                return Err(error(
+                    "E-FIELD-DUPLICATE",
+                    value.span,
+                    "duplicate update field",
+                ));
+            }
+            let (index, t) = field(&actual, name, value.span)?;
+            let value = self.expr(value, Some(&t))?.0;
+            current = self.value(
+                InstructionKind::UpdateField {
+                    aggregate: current,
+                    index,
+                    value,
+                },
+                actual.clone(),
+                e.span,
+            )?;
+        }
+        Ok((current, actual))
+    }
+
+    #[inline(never)]
+    fn aggregate_member(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &e.kind
+        else {
+            unreachable!("expression dispatcher variant")
+        };
+        if matches!(self.known_type(object), Some(Type::Package { .. }))
+            && !self.indirect_place(e)
+            && self.method_signature(object, member).is_none()
+        {
+            return self.package_field(object, member, owner.as_ref(), e.span);
+        }
+        if matches!(
+            self.known_type(object),
+            Some(Type::Managed(_) | Type::Desc(_))
+        ) && !self.indirect_place(e)
+            && self.method_signature(object, member).is_none()
+        {
+            return self.resource_field(object, member, owner.as_ref(), e.span);
+        }
+        if self.method_signature(object, member).is_some() {
+            return Err(error(
+                "E-RECEIVER-METHOD-VALUE",
+                e.span,
+                "instance method value requires an explicit closure",
+            ));
+        }
+        if matches!(self.known_type(object), Some(Type::Address { .. }))
+            || dynamic_store::borrow_expression(object)
+            || self.indirect_place(e)
+        {
+            let (address, ty) = self.borrow_place(e)?;
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
+            };
+            let ty = *inner;
+            if !ty.is_copy_value() {
+                return Err(unsupported(
+                    e.span,
+                    "shared Product projections only read Copy leaves; borrow an owned child explicitly",
+                ));
+            }
+            return Ok((
+                self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
+                ty,
+            ));
+        }
+        let (aggregate, ty) = self.expr(object, None)?;
+        self.member_owner(&ty, owner.as_ref(), e.span)?;
+        let (index, field_ty) = field(&ty, member, e.span)?;
+        Ok((
+            self.value(
+                InstructionKind::ExtractField { aggregate, index },
+                field_ty.clone(),
+                e.span,
+            )?,
+            field_ty,
+        ))
+    }
+
     pub(super) fn assign_field(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<()> {
         enum Written<'a> {
             Field(&'a str, Option<&'a Type>, Span),

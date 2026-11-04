@@ -28,7 +28,10 @@ use zil_syntax::ast as s;
 
 /// These names are source primitives, never ordinary function values.
 fn integer_name(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "i32" | "i64")
+    matches!(
+        name,
+        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+    )
 }
 fn foreign_constructor_name(name: &str) -> bool {
     matches!(
@@ -65,15 +68,67 @@ fn owned_store_name(name: &str) -> bool {
             | "store_at_mut"
     )
 }
+fn sync_name(name: &str) -> bool {
+    matches!(
+        name,
+        "MutexI32"
+            | "AtomicI32"
+            | "mutex_scope"
+            | "atomic_scope"
+            | "mutex_load"
+            | "mutex_store"
+            | "mutex_fetch_add"
+            | "atomic_load"
+            | "atomic_store"
+            | "atomic_fetch_add"
+    )
+}
+fn task_name(name: &str) -> bool {
+    matches!(
+        name,
+        "TaskI32"
+            | "task_start"
+            | "task_yield"
+            | "task_valid"
+            | "task_poll"
+            | "task_request_cancel"
+            | "task_poll_close"
+            | "task_finish_destroy"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    task_name(name)
+        || sync_name(name)
+        || name == "Option"
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if task_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-TASK-NAME",
+            Some(span),
+            "sealed task names cannot be rebound",
+        )
+    } else if sync_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-SYNC-NAME",
+            Some(span),
+            "sealed synchronization names cannot be rebound",
+        )
+    } else if name == "Option" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OPTION-NAME",
+            Some(span),
+            "Option is a reserved built-in type and constructor namespace",
+        )
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
@@ -127,7 +182,7 @@ fn conversion_name_error(span: Span) -> Diagnostic {
         Phase::Expand,
         "E-INTEGER-CONVERSION-NAME",
         Some(span),
-        "u8, u16, i32 and i64 are reserved bare integer conversion names",
+        "u8, u16, u64, usize, i32 and i64 are reserved bare integer conversion names",
     )
 }
 
@@ -946,7 +1001,12 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" || name == "thread_scope" {
+        if task_name(name)
+            || sync_name(name)
+            || name == "Option"
+            || name == "c_with_callback"
+            || name == "thread_scope"
+        {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1060,6 +1120,7 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
+            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1071,7 +1132,10 @@ impl Expander<'_> {
                 ty,
                 value,
             } => {
-                if matches!(pattern.kind, s::PatternKind::Tuple(_)) {
+                if matches!(
+                    pattern.kind,
+                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(
                             CoreStatementKind::Unsupported(
@@ -1271,6 +1335,25 @@ impl Expander<'_> {
         let kind = match &e.kind {
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
+                s::Literal::Float(v) if v.starts_with("@bits:") => {
+                    let parsed = self.enum_meter(|meter| {
+                        meter.text(v, e.span)?;
+                        zil_base::numeric::FloatValue::from_generated_spelling(v).map_err(|_| Diagnostic::error(Phase::Expand, "E-FLOAT-LITERAL", Some(e.span), "generated floating constant requires fixed-width canonical hexadecimal bits"))
+                    });
+                    match parsed {
+                        Ok(zil_base::numeric::FloatValue::F32(bits)) => {
+                            CoreExprKind::Literal(Constant::F32(bits))
+                        }
+                        Ok(zil_base::numeric::FloatValue::F64(bits)) => {
+                            CoreExprKind::Literal(Constant::F64(bits))
+                        }
+                        Err(error) => {
+                            self.diagnostics.push(error);
+                            CoreExprKind::Unit
+                        }
+                    }
+                }
+                s::Literal::Float(v) => CoreExprKind::Float(v.clone()),
                 s::Literal::Bool(v) => CoreExprKind::Bool(*v),
                 s::Literal::String(v) => CoreExprKind::String(v.clone()),
                 _ => CoreExprKind::Unsupported("floating/character literal typing".into()),
@@ -1327,13 +1410,17 @@ impl Expander<'_> {
                         ));
                         CoreExprKind::Unsupported("invalid integer conversion".into())
                     } else {
-                        CoreExprKind::IntegerConvert {
+                        CoreExprKind::NumericConvert {
                             value: Box::new(self.expr(&arguments[0].value)),
                             target: match name {
                                 "u8" => Type::U8,
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
+                                "f32" => Type::F32,
+                                "f64" => Type::F64,
+                                "u64" => Type::U64,
+                                "usize" => Type::Usize,
                                 _ => unreachable!(),
                             },
                         }
@@ -1503,9 +1590,15 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "u8" => Type::U8,
             "u16" => Type::U16,
             "c_handle" => Type::ForeignHandle,
+            "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
+            "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,
+            "f32" => Type::F32,
+            "f64" => Type::F64,
+            "u64" => Type::U64,
+            "usize" => Type::Usize,
             "bool" => Type::Bool,
             "void" => Type::Unit,
             n => Type::Named(n.into()),
@@ -1561,10 +1654,30 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             parameters: params.iter().map(type_ref).collect(),
             result: Box::new(type_ref(result)),
         },
-        s::TypeKind::Function { params, result } => Type::FunctionPointer {
-            parameters: params.iter().map(type_ref).collect(),
-            result: Box::new(type_ref(result)),
-        },
+        s::TypeKind::Function { params, result } => {
+            let parameters: Vec<_> = params.iter().map(type_ref).collect();
+            let result = Box::new(type_ref(result));
+            if parameters.iter().any(|p| matches!(p, Type::Address { .. }))
+                || matches!(result.as_ref(), Type::Address { .. })
+            {
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: parameters
+                        .iter()
+                        .map(|p| matches!(p, Type::Address { .. }).then_some(0))
+                        .collect(),
+                    result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
+                };
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                }
+            } else {
+                Type::FunctionPointer { parameters, result }
+            }
+        }
+        s::TypeKind::ForLifetime { .. } => lifetimes::pointer_type(t),
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }

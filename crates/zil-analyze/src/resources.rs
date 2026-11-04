@@ -412,9 +412,20 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
+        InstructionKind::TaskYield => (None, None, &[]),
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
+        InstructionKind::WithSyncCell { initial, body, .. } => (Some(*initial), Some(*body), &[]),
+        InstructionKind::SyncI32 { address, value, .. } => (Some(*address), *value, &[]),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             (Some(*callback), Some(*body), &[])
         }
@@ -431,6 +442,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
@@ -495,6 +507,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -1027,7 +1041,9 @@ impl Flow<'_> {
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. } => {
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(
@@ -1305,7 +1321,8 @@ impl Flow<'_> {
                 }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => {
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => {
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),
@@ -1829,6 +1846,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -2251,6 +2269,9 @@ impl Flow<'_> {
                     }
                     produced = Some(fact);
                 }
+                InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, check, budget)?;
+                }
                 InstructionKind::Call {
                     function,
                     arguments,
@@ -2401,14 +2422,14 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     let operands = match i.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             [Some((callback, false)), Some((body, true))]
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
-                            [None, Some((body, true))]
-                        }
+                        InstructionKind::WithScopedThread { body, .. }
+                        | InstructionKind::WithSyncCell { body, .. } => [None, Some((body, true))],
                         _ => unreachable!(),
                     };
                     for (value, consume) in operands.into_iter().flatten() {
@@ -2838,6 +2859,7 @@ fn effect_consumers(
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values

@@ -215,6 +215,54 @@ impl Tree {
     ) -> CompileResult<bool> {
         edit(self, budget)?.narrow_body(path, tag, equal, budget)
     }
+    fn forget_addressed_copy_tags(
+        self: &mut Arc<Self>,
+        ty: &Type,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
+        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+            *self = Self::unknown(ty, budget)?;
+            return Ok(());
+        }
+        match (&mut edit(self, budget)?.node, ty) {
+            (Node::Sum(vs), Type::Enum { variants, .. }) => {
+                for (tag, fields) in vs {
+                    for (child, t) in fields.iter_mut().zip(&variants[*tag as usize].1) {
+                        child.forget_addressed_copy_tags(t, budget)?;
+                    }
+                }
+            }
+            (Node::Product(children), Type::Package { fields, .. }) => {
+                for (child, (_, t)) in children.iter_mut().zip(fields) {
+                    child.forget_addressed_copy_tags(t, budget)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn forget_copy_endpoint(
+        self: &mut Arc<Self>,
+        path: &[VariantProjection],
+        ty: &Type,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        if path.is_empty() {
+            *self = Self::unknown(ty, budget)?;
+            return Ok(());
+        }
+        let Node::Sum(vs) = &mut edit(self, budget)?.node else {
+            return Err(error("mutable payload path crosses non-Enum"));
+        };
+        if let Some(fs) = vs.get_mut(&path[0].variant) {
+            let field = fs
+                .get_mut(path[0].index as usize)
+                .ok_or_else(|| error("mutable payload field absent"))?;
+            field.forget_copy_endpoint(&path[1..], ty, budget)?;
+        }
+        Ok(())
+    }
     fn complete(&self, budget: &mut Budget) -> CompileResult<bool> {
         budget.spend(1, "Sum completeness")?;
         if self.missing {
@@ -650,6 +698,16 @@ impl Plan {
         }
         let mut output = None;
         match &i.kind {
+            InstructionKind::BorrowLocalMut { local }
+                if matches!(f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+            {
+                facts
+                    .locals
+                    .get_mut(local)
+                    .ok_or_else(|| error("mutable Sum local absent"))?
+                    .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                facts.invalidate(*local, self, budget)?;
+            }
             InstructionKind::Constant(_) | InstructionKind::MakeAggregate { .. } => {}
             InstructionKind::MakeManaged { .. }
             | InstructionKind::ByteBufferNew
@@ -787,10 +845,31 @@ impl Plan {
                 );
             }
             InstructionKind::VariantTagLocal { local, path }
-            | InstructionKind::ReadVariantLocal { local, path } => {
+            | InstructionKind::ReadVariantLocal { local, path }
+            | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                 let ty = projection(&f.locals[local.0 as usize].ty, path, budget)?;
                 let tag = matches!(i.kind, InstructionKind::VariantTagLocal { .. });
-                let expected = if tag {
+                let borrowed = matches!(i.kind, InstructionKind::BorrowVariantLocal { .. });
+                let borrowed_ty;
+                let expected = if borrowed {
+                    let InstructionKind::BorrowVariantLocal { mutable, .. } = i.kind else {
+                        unreachable!()
+                    };
+                    if path.is_empty()
+                        || (!ty.is_copy_value() && !matches!(ty, Type::Package { .. }))
+                        || (mutable && !f.locals[local.0 as usize].mutable)
+                    {
+                        return Err(error(
+                            "payload borrow requires finite Copy and actual mutable authority",
+                        ));
+                    }
+                    budget.type_work(ty, true, "Sum payload address type")?;
+                    borrowed_ty = Type::Address {
+                        mutable,
+                        inner: Box::new(ty.clone()),
+                    };
+                    &borrowed_ty
+                } else if tag {
                     if !matches!(ty, Type::Enum { .. }) {
                         return Err(error("tag endpoint is not Enum"));
                     }
@@ -805,6 +884,24 @@ impl Plan {
                     return Err(error("local Sum observation result type differs"));
                 }
                 facts.locals[local].projected(path, check, budget)?;
+                if matches!(
+                    i.kind,
+                    InstructionKind::BorrowVariantLocal { mutable: true, .. }
+                ) && matches!(ty, Type::Enum { .. })
+                    && ty.is_copy_value()
+                {
+                    facts
+                        .locals
+                        .get_mut(local)
+                        .unwrap()
+                        .forget_copy_endpoint(path, ty, budget)?;
+                    budget.spend(facts.valid.len(), "mutable payload tag epoch")?;
+                    facts.valid.retain(|v| {
+                        self.observations.get(v).is_none_or(|(root, observed)| {
+                            *root != *local || !observed.starts_with(path)
+                        })
+                    });
+                }
                 if tag {
                     budget.lookup(facts.valid.len(), "Sum live observation insertion")?;
                     facts.valid.insert(i.result.unwrap());

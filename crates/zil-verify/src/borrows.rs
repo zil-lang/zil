@@ -14,7 +14,7 @@ type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
-        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }))
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn has_sources(
@@ -404,6 +404,8 @@ fn check(
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::BorrowPackageField { local, .. }
+            | InstructionKind::BorrowVariantLocal { local, .. }
+            | InstructionKind::BorrowFieldLocal { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -434,6 +436,8 @@ fn check(
             }
             let invalidated = match instruction.kind {
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -603,7 +607,7 @@ fn reconstruct(
                     match &instruction.kind {
                         InstructionKind::DescribeLocal { local }
                             if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
-                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
+                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
                         {
                             row.push(Root::Local(*local));
                         }
@@ -634,6 +638,22 @@ fn reconstruct(
                         }
                         InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             row.push(Root::Local(*local));
+                        }
+                        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                            row.push(roots::inline_field_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                            row = roots::address_roots(
+                                f,
+                                *address,
+                                path,
+                                &values[address.0 as usize],
+                                budget,
+                            )?;
+                        }
+                        InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                            budget.spend(path.len().saturating_add(1))?;
+                            row.push(roots::variant_root(f, *local, path, budget)?);
                         }
                         InstructionKind::BorrowPackageField { local, index, .. } => {
                             row.push(field_root(f, *local, *index, budget)?);
@@ -680,6 +700,13 @@ fn reconstruct(
                             if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                         {
                             roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                        }
+                        InstructionKind::CallIndirect { callee, arguments } => {
+                            for index in borrowed_fp::inputs(&f.values[callee.0 as usize], budget)?
+                            {
+                                let argument = arguments[index];
+                                roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                            }
                         }
                         InstructionKind::Call {
                             function,
@@ -831,8 +858,10 @@ fn reconstruct_module(
                         budget.spend(roots.len())?;
                         let incoming: Vec<_> = roots
                             .iter()
-                            .copied()
-                            .filter(|root| matches!(root, Root::Parameter(_)))
+                            .filter_map(|root| match root.coarse() {
+                                HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                _ => None,
+                            })
                             .collect();
                         changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                     }
@@ -875,6 +904,47 @@ pub(super) fn check_module(
 ) -> Check<()> {
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, budget)?;
+    if budget.borrowed_function_pointers {
+        budget.spend(module.functions.len())?;
+        for function in &module.functions {
+            budget.spend(function.blocks.len())?;
+            for block in &function.blocks {
+                budget.spend(block.instructions.len())?;
+                for instruction in &block.instructions {
+                    let InstructionKind::FunctionRef { function: target } = instruction.kind else {
+                        continue;
+                    };
+                    let Some(pointer @ Type::BorrowedFunctionPointer { .. }) = instruction
+                        .result
+                        .and_then(|id| function.values.get(id.0 as usize))
+                    else {
+                        continue;
+                    };
+                    let allowed = borrowed_fp::inputs(pointer, budget)?;
+                    let target_function = &module.functions[target.0 as usize];
+                    if !matches!(target_function.return_type, Type::Address { .. }) {
+                        continue;
+                    }
+                    budget.spend(target_function.blocks.len())?;
+                    for (block, reachable) in target_function
+                        .blocks
+                        .iter()
+                        .zip(&graphs[target.0 as usize].reachable)
+                    {
+                        if *reachable && let Terminator::Return(Some(value)) = block.terminator {
+                            let roots = &facts[target.0 as usize].values[value.0 as usize];
+                            budget.spend(
+                                roots.len().saturating_mul(allowed.len().saturating_add(1)),
+                            )?;
+                            if roots.is_empty() || roots.iter().any(|root| !matches!(root, Root::Parameter(index) if allowed.contains(&(*index as usize)))) {
+                                return Err(reject("E-VERIFY-FUNCTION-LIFE", Some(instruction.span), "actual pointer target return exceeds the declared input relation"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Public Hold remains an address dependency claim. Weak descriptions are
     // independently reconstructed above for effects and responsibility, and
     // must not be promoted to strong holds when publishing or checking it.
@@ -1010,7 +1080,7 @@ pub(super) fn check_module(
                 }
                 if let Some(bound) = &function.reference_return_bound {
                     budget.spend(roots.len().saturating_mul(bound.len().saturating_add(1)))?;
-                    if roots.iter().any(|root|!matches!(root,Root::Parameter(index) if bound.binary_search(index).is_ok())) {
+                    if roots.iter().any(|root|!matches!(root.coarse(),HoldRoot::Parameter(index) if bound.binary_search(&index).is_ok())) {
                         return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
                     }
                 }
@@ -1026,7 +1096,10 @@ pub(super) fn check_module(
                         };
                         lending_sources.insert(*index);
                     }
-                } else if roots.iter().any(|root| !matches!(root, Root::Parameter(_))) {
+                } else if roots
+                    .iter()
+                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(_)))
+                {
                     return Err(reject(
                         "E-BORROW-ESCAPE",
                         Some(function.span),
@@ -1286,8 +1359,10 @@ mod frontier_tests {
                             budget.spend(roots.len())?;
                             let incoming: Vec<_> = roots
                                 .iter()
-                                .copied()
-                                .filter(|root| matches!(root, Root::Parameter(_)))
+                                .filter_map(|root| match root.coarse() {
+                                    HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                    _ => None,
+                                })
                                 .collect();
                             changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                         }

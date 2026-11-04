@@ -257,6 +257,9 @@ pub(super) fn check_definitions(
         }
         if !owning_signature {
             for ty in &closure.parameters {
+                if ty.is_shared_sync_cell_address() {
+                    continue;
+                }
                 if let Type::Address { inner, .. } = ty
                     && closure.result.is_copy_value()
                 {
@@ -529,6 +532,9 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
                 pending.extend([error.as_ref(), result.as_ref()]);
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_add(1))?;
                 pending.extend(parameters);

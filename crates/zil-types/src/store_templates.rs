@@ -676,6 +676,9 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
                 self.ty(result, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
                     self.ty(parameter, depth + 1)?;
@@ -690,7 +693,8 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
         self.node(depth)?;
         match &mut expression.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 self.ty(ty, depth + 1)?;
                 self.expr(value, depth + 1)?;
             }

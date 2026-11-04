@@ -8,6 +8,8 @@
 //! CFG visits, instruction visits, matrix cells, and set elements traversed or
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
+mod address_sums;
+mod borrowed_fp;
 mod budget;
 mod callable_fields;
 #[cfg(test)]
@@ -29,6 +31,7 @@ mod scoped_thread;
 mod scopes;
 #[cfg(test)]
 mod sum_tests;
+mod tasks;
 
 use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
@@ -90,6 +93,7 @@ fn analyze_budgeted(
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
+        address_sums::check(module, f, &reachable, limits, budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,
@@ -99,6 +103,7 @@ fn analyze_budgeted(
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
+    tasks::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
@@ -114,6 +119,7 @@ fn analyze_budgeted(
     )?) {
         function.holds = holds;
     }
+    tasks::loans(module, &plan, &hold_graphs, budget)?;
     Ok(plan)
 }
 

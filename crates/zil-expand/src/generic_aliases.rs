@@ -1,4 +1,4 @@
-//! Definition-time State windows. These facts describe source positions and
+//! Definition-time borrow windows. These facts describe source positions and
 //! fresh borrow identities; neither a type slot nor a concrete instance grants
 //! an alias proof. Concrete Analyze and Verify still rebuild their own facts.
 use super::*;
@@ -40,6 +40,7 @@ struct Use {
 struct Held {
     loan: usize,
     mutable: bool,
+    argument: Option<usize>,
 }
 
 #[derive(Default)]
@@ -49,6 +50,7 @@ pub(super) struct Tracker {
     active: Vec<Held>,
     uses: Vec<Use>,
     joins: Vec<BTreeMap<usize, usize>>,
+    inputs: BTreeSet<usize>,
 }
 
 #[derive(Clone, Copy)]
@@ -67,12 +69,6 @@ fn tree_work(size: usize) -> usize {
 }
 
 impl Check<'_, '_, '_> {
-    fn alias_scope(&self) -> bool {
-        self.callable
-            .as_ref()
-            .is_some_and(|scope| scope.owned_state)
-    }
-
     fn alias_fee(&mut self, count: usize, span: Span) -> R<()> {
         for _ in 0..count {
             self.budget.node(span, 0)?;
@@ -302,29 +298,30 @@ impl Check<'_, '_, '_> {
                         return Ok(origins);
                     }
                 }
+                // Every ordinary local has a real storage position. An
+                // address parameter/local instead carries its seeded or
+                // propagated referent loans above; its pointer slot must not
+                // be mistaken for the object it points at.
                 self.budget.ty(&local.ty)?;
                 if let Some(scope) = &self.callable {
                     for binding in scope.bindings() {
                         self.budget.text(&binding.generic_name, expression.span)?;
                     }
                 }
-                let callback = self.callable.as_ref().is_some_and(|scope| {
-                    scope.bindings().any(|binding| {
-                        callable::parameter_mode(&local.ty, &binding.generic_name) == Some(None)
-                    })
-                });
-                if callback || self.package_local(expression, state).is_some() {
-                    self.alias_fee(1, expression.span)?;
-                    Ok(vec![Origin {
-                        position: Position {
-                            owner: local.id,
-                            field: None,
-                        },
-                        parents: Vec::new(),
-                    }])
-                } else {
-                    Ok(Vec::new())
+                if matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
+                    return Err(unsupported(
+                        expression.span,
+                        "generic address has no established symbolic borrow origin",
+                    ));
                 }
+                self.alias_fee(1, expression.span)?;
+                Ok(vec![Origin {
+                    position: Position {
+                        owner: local.id,
+                        field: None,
+                    },
+                    parents: Vec::new(),
+                }])
             }
             ExprKind::Member { object, member } => {
                 let mut origins = self.alias_origins(object, state, depth + 1)?;
@@ -349,6 +346,42 @@ impl Check<'_, '_, '_> {
             | ExprKind::Slice {
                 object: operand, ..
             } => self.alias_origins(operand, state, depth + 1),
+            ExprKind::Call { .. } => {
+                let ids = self.alias_result_copy(expression.span)?;
+                let mut origins = Vec::new();
+                self.alias_fee(ids.len(), expression.span)?;
+                origins.reserve(ids.len());
+                for id in ids {
+                    let aliases = state.aliases.as_ref().ok_or_else(|| {
+                        unsupported(
+                            expression.span,
+                            "generic call place has no established borrow origin",
+                        )
+                    })?;
+                    self.alias_fee(tree_work(aliases.loans.len()), expression.span)?;
+                    let loan = &aliases.loans[&id];
+                    if loan.invalid {
+                        return Err(error(
+                            expression.span,
+                            "State alias outlives a moved or replaced field",
+                        ));
+                    }
+                    self.alias_fee(loan.parents.len().saturating_add(2), expression.span)?;
+                    let mut parents = loan.parents.clone();
+                    parents.push(id);
+                    origins.push(Origin {
+                        position: loan.position,
+                        parents,
+                    });
+                }
+                if origins.is_empty() {
+                    return Err(unsupported(
+                        expression.span,
+                        "generic call place has no established borrow origin",
+                    ));
+                }
+                Ok(origins)
+            }
             _ => Ok(Vec::new()),
         }
     }
@@ -431,11 +464,8 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         mutable: bool,
     ) -> R<()> {
-        self.aliases.result.clear();
-        if !self.alias_scope() {
-            return Ok(());
-        }
         let origins = self.alias_origins(expression, state, 0)?;
+        self.aliases.result.clear();
         self.alias_fee(origins.len(), expression.span)?;
         self.aliases.result.reserve(origins.len());
         let through = self.alias_origin_parents(&origins, expression.span)?;
@@ -455,6 +485,70 @@ impl Check<'_, '_, '_> {
             self.aliases.result.push(id);
         }
         Ok(())
+    }
+
+    /// Parameter windows are justified by their actual passing modes. Each
+    /// incoming reference names an external referent, distinct from the
+    /// local pointer slot; life spellings never supply this identity.
+    pub(super) fn alias_parameter(
+        &mut self,
+        state: &mut State,
+        local: usize,
+        mutable: bool,
+        span: Span,
+    ) -> R<()> {
+        self.alias_fee(2, span)?;
+        let owner = self.next_local;
+        self.next_local = owner.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "generic borrow root identity overflow",
+                Some(span),
+            )
+        })?;
+        self.alias_fee(tree_work(self.aliases.inputs.len()), span)?;
+        self.aliases.inputs.insert(owner);
+        let id = self.alias_new(
+            state,
+            Origin {
+                position: Position { owner, field: None },
+                parents: Vec::new(),
+            },
+            mutable,
+            span,
+        )?;
+        self.aliases.result.clear();
+        self.aliases.result.push(id);
+        self.alias_bind(state, local, span)
+    }
+
+    pub(super) fn alias_return(&mut self, state: &State, span: Span) -> R<()> {
+        if self.aliases.result.is_empty() {
+            return Err(unsupported(
+                span,
+                "generic reference return has no established symbolic source",
+            ));
+        }
+        for index in 0..self.aliases.result.len() {
+            self.alias_fee(tree_work(self.aliases.inputs.len()).saturating_add(2), span)?;
+            let id = self.aliases.result[index];
+            let loan = &state
+                .aliases
+                .as_ref()
+                .expect("result loans have records")
+                .loans[&id];
+            if loan.invalid || !self.aliases.inputs.contains(&loan.position.owner) {
+                return Err(error(
+                    span,
+                    "generic reference return escapes local storage or an invalidated borrow",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn alias_result_restore(&mut self, result: Vec<usize>) {
+        self.aliases.result = result;
     }
 
     fn alias_origin_parents(&mut self, origins: &[Origin], span: Span) -> R<Vec<usize>> {
@@ -589,6 +683,7 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         mutable: bool,
         span: Span,
+        argument: Option<usize>,
     ) -> R<()> {
         if self.aliases.result.is_empty() {
             return Ok(());
@@ -640,9 +735,11 @@ impl Check<'_, '_, '_> {
         };
         self.alias_fee(ids.len().saturating_add(growth).saturating_mul(2), span)?;
         self.aliases.active.reserve(ids.len());
-        self.aliases
-            .active
-            .extend(ids.into_iter().map(|loan| Held { loan, mutable }));
+        self.aliases.active.extend(ids.into_iter().map(|loan| Held {
+            loan,
+            mutable,
+            argument,
+        }));
         Ok(())
     }
 
@@ -655,13 +752,47 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         base: usize,
         result: &TypeRef,
-        span: Span,
+        expression: &Expr,
     ) -> R<()> {
-        self.aliases.result.clear();
+        let span = expression.span;
         if base == self.aliases.active.len() {
+            if !matches!(group(result).kind, TypeKind::Reference { .. }) {
+                self.aliases.result.clear();
+            }
             return Ok(());
         }
+        self.aliases.result.clear();
         if let TypeKind::Reference { mutable, .. } = &group(result).kind {
+            // Life indices belong to this callee's binder. Only arguments in
+            // its declared result input set can supply the returned window;
+            // parameter spelling at the caller supplies no relationship.
+            let mut sources = None;
+            if let ExprKind::Call { callee, arguments } = &expression.kind
+                && let Some(name) = stores::call_name(callee)
+                && let Some(function) = self.signatures.get(name)
+                && let Some(TypeRef {
+                    kind:
+                        TypeKind::Reference {
+                            lifetime: Some(life),
+                            ..
+                        },
+                    ..
+                }) = function.return_type.as_ref().map(group)
+            {
+                let mut allowed = BTreeSet::new();
+                for (index, (parameter, argument)) in
+                    function.params.iter().zip(arguments).enumerate()
+                {
+                    self.budget.text(life, argument.span)?;
+                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(tag), mutable: input_mutable, .. }
+                        if tag == life && (!mutable || *input_mutable))
+                    {
+                        self.budget.node(argument.span, 0)?;
+                        allowed.insert(index);
+                    }
+                }
+                sources = Some(allowed);
+            }
             self.alias_fee(
                 self.aliases
                     .active
@@ -674,6 +805,13 @@ impl Check<'_, '_, '_> {
             self.aliases.active.truncate(base);
             self.aliases.result.reserve(parents.len());
             for parent in parents {
+                if sources.as_ref().is_some_and(|allowed| {
+                    parent
+                        .argument
+                        .is_some_and(|index| !allowed.contains(&index))
+                }) {
+                    continue;
+                }
                 let aliases = state.aliases.as_ref().expect("active alias has records");
                 self.alias_fee(tree_work(aliases.loans.len()), span)?;
                 let loan = &aliases.loans[&parent.loan];

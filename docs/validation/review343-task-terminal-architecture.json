@@ -1,0 +1,50 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "3eb5794a71d06f85c10faf8c88c9b862bcc15d17",
+  "author_receipt_commit": "d59f66c2ac9d6519ced6807e4f24efd3112f12a3",
+  "scope": "Closed scalar native tasks with persistent pc/local/SSA/result frame, five internal SABI entries, exclusive owner-head operations and proven absence of external users. This is not general async or exported TaskInterface acceptance.",
+  "identity": {
+    "production_rust_count": 307,
+    "production_rust_sha256": "574fb50ae7e98c5a5d8cc84a8edf40e368e16cb153c8c3bbaf42db7bd07b9b94",
+    "algorithm": "Exact Git blobs for crates/**/src/**/*.rs sorted by Python Path component order; UTF-8 path + NUL + bytes + NUL.",
+    "test_source_sha256": "2c0cbd4e5e9e8f5b2a78b4c05386c9349dcd22f2f6d154a780a7e19d9d2dc2de",
+    "all_11_author_fixture_hashes": "Independently recomputed from exact Git blobs; all match.",
+    "retained_harness": "/tmp/zil-terminal-review/generic-tasks-343-corrected",
+    "retained_harness_sha256": "4964d5eeae10e4429aeb0bed26dfc8afa5a035594a5f81cd8a2c86b13eb51117",
+    "binding": "Copied and hashed against committed author receipt before target reuse. Native executables were freshly produced and executed by the retained harness.",
+    "runtime_read_observer": "task-observer.c exact Git and live bytes matched before and after corrected replay: SHA25660db744913fdbcf06893e7079963636cff97f8e0c532285bd9c68afd46b5660f"
+  },
+  "independent_execution": {
+    "command": "source /workspace/.zil-env/env.sh && /tmp/zil-terminal-review/generic-tasks-343-corrected task343 --test-threads=1 --nocapture",
+    "passed": 5,
+    "failed": 0,
+    "filtered": 36,
+    "seconds": 2.2,
+    "native_success_configurations": 24,
+    "native_fault_configurations": 16,
+    "raw_mutations": 10,
+    "raw_mutation_results": "Analyze, raw Verify and decoded-Wire Verify reject all ten; valid Wire roundtrip and Lower pass.",
+    "analyze_N": 26182,
+    "verify_N": 142578,
+    "boundary": "N accepts, N-1 ResourceLimit, fresh N accepts; no default limits changed."
+  },
+  "source_review": [
+    "Both kernels derive Suspend from actual TaskYield bodies and direct call closure. Ordinary Call, FunctionRef, ForeignFunctionRef and scoped thread roots reject those targets. No producer effect flag grants authority.",
+    "Worker whitelist admits only the actually lowered scalar storage/arithmetic/CFG profile; it excludes calls, address/environment/owned values, foreign operations, callbacks and wakers. Fast close is justified only by that independently checked absence of external users.",
+    "Actual owner-head loans and ancestry reject competing activation and live-borrow destruction. Nullable allocation failure is a defined empty state. Ready is delivered once; early finish_destroy traps before freeing; default Drop cancels/closes before free.",
+    "Native lowering persists actual values across branch/backedge/yield continuations. One request meter shares the remaining Copy/LargeCopy planning balance, including parallel batches. Unused yielding workers receive runtime allocation imports.",
+    "The NoInline init boundary preserves explicit fallibility at O2. The same source observes AVF on success and AN/exit10 under allocator failure; no unmeasured zero-cost assertion is made."
+  ],
+  "superseded_candidate": {
+    "commit": "4977c72c76ccff90ef5451777d7ac8d7b171c4f3",
+    "independent_replay": "Five tests passed before further source review found the ForeignFunctionRef omission; historical results are not relabeled.",
+    "finding": "C callback references could target a yielding worker despite the ordinary Direct ABI.",
+    "correction": "Both independent kernels now reject ForeignFunctionRef against derived Suspend; retained source rejection, ordinary static callback native positive and tenth raw/Wire mutation replay successfully."
+  },
+  "limitations": [
+    "Public semantic TaskInterface/exported physical SABI, general owned spills/defer, returned retained registration, external callback/waker drain and late wake remain unestablished.",
+    "General Mutex<T>/owned constructors and full Transfer/Share are separate obligations. Native Windows and Rust runtime/RSS/compile/maintenance comparisons were not run.",
+    "Merged BFP/Suspend and whole-product/reference consumers require integration validation. Author all-target lint was blocked by the old shared cp34_reference_v34.rs consumer; reviewer ran no Cargo build, Clippy or full workspace gate."
+  ]
+}

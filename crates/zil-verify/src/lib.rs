@@ -41,6 +41,8 @@ use zil_base::{
 };
 use zil_ir::*;
 
+mod address_sums;
+mod borrowed_fp;
 mod borrows;
 mod byte_buffers;
 mod c_layout;
@@ -78,6 +80,7 @@ mod scoped_callback;
 mod scoped_thread;
 mod slices;
 mod sums;
+mod tasks;
 pub use ct_artifact::{
     CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
     verify_ct_artifact, verify_ct_artifact_metered,
@@ -92,6 +95,9 @@ pub struct VerifiedModule {
     fingerprint: Fingerprint,
     limits: Limits,
     uses_owned_sum_extension: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
+    uses_scalar_tasks: bool,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -154,6 +160,15 @@ impl VerifiedModule {
         &self.limits
     }
     /// Enables additional lowering work only; it grants no type permission.
+    pub fn task_worker_ids(&self) -> &BTreeSet<FunctionId> {
+        &self.task_workers
+    }
+    pub fn is_suspend(&self, id: FunctionId) -> bool {
+        self.suspend_functions.contains(&id)
+    }
+    pub fn uses_scalar_tasks(&self) -> bool {
+        self.uses_scalar_tasks
+    }
     pub fn uses_owned_sum_extension(&self) -> bool {
         self.uses_owned_sum_extension
     }
@@ -233,6 +248,9 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 struct Budget {
     remaining: usize,
     sums: bool,
+    tasks: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -240,12 +258,16 @@ struct Budget {
     private_slot_functions: Option<Vec<bool>>,
     scoped_functions: Option<Vec<bool>>,
     shared_thread_functions: Option<Vec<bool>>,
+    borrowed_function_pointers: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
             sums: false,
+            tasks: false,
+            task_workers: BTreeSet::new(),
+            suspend_functions: BTreeSet::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -253,6 +275,7 @@ impl Budget {
             private_slot_functions: None,
             scoped_functions: None,
             shared_thread_functions: None,
+            borrowed_function_pointers: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -342,11 +365,14 @@ fn verify_inputs(
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
     match check_module(inputs.module(), inputs.plan(), expected_target, limits) {
-        Ok((fingerprint, uses_owned_sum_extension)) => Ok(VerifiedModule {
+        Ok(checked) => Ok(VerifiedModule {
             inputs,
-            fingerprint,
+            fingerprint: checked.fingerprint,
             limits: limits.clone(),
-            uses_owned_sum_extension,
+            uses_owned_sum_extension: checked.uses_owned_sum_extension,
+            uses_scalar_tasks: checked.uses_scalar_tasks,
+            task_workers: checked.task_workers,
+            suspend_functions: checked.suspend_functions,
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -394,12 +420,19 @@ fn check_target(actual: &TargetProfile, expected: &TargetProfile) -> Check<()> {
     Ok(())
 }
 
+struct CheckedModule {
+    fingerprint: Fingerprint,
+    uses_owned_sum_extension: bool,
+    uses_scalar_tasks: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
+}
 fn check_module(
     module: &TypedModule,
     plan: &CandidatePlan,
     expected_target: &TargetProfile,
     limits: &Limits,
-) -> Check<(Fingerprint, bool)> {
+) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
             "E-VERIFY-SCHEMA",
@@ -597,7 +630,8 @@ fn check_module(
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
-                    InstructionKind::ConvertInteger { target, .. } => {
+                    InstructionKind::ConvertInteger { target, .. }
+                    | InstructionKind::ConvertNumber { target, .. } => {
                         // This embedded raw type is not necessarily one of the
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
@@ -648,10 +682,17 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    tasks::module(module, &mut budget)?;
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
-    Ok((fingerprint, budget.sums))
+    Ok(CheckedModule {
+        fingerprint,
+        uses_owned_sum_extension: budget.sums,
+        uses_scalar_tasks: budget.tasks,
+        task_workers: budget.task_workers,
+        suspend_functions: budget.suspend_functions,
+    })
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {
@@ -668,6 +709,7 @@ fn check_type_shape(
 ) -> Check<()> {
     let mut first = Some((ty, 0usize, 0u8));
     let mut pending = Vec::new();
+    let mut options = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         // Detect the new ordinary profile during the already paid raw-tree
@@ -731,6 +773,9 @@ fn check_type_shape(
             }
             Type::Enum { name, variants } => {
                 budget.spend(name.len().saturating_add(variants.len()))?;
+                if name.starts_with("@builtin:Option") {
+                    options.push((name, variants));
+                }
                 for (name, fields) in variants {
                     budget.spend(name.len().saturating_add(fields.len()))?;
                     for ty in fields {
@@ -760,6 +805,23 @@ fn check_type_shape(
                 pending.push((error, depth + 1, context));
                 pending.push((result, depth + 1, context));
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.borrowed_function_pointers = true;
+                budget.spend(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )?;
+                borrowed_fp::relation(parameters, result, life, None)?;
+                pending.push((result, depth + 1, context));
+                for parameter in parameters {
+                    pending.push((parameter, depth + 1, context));
+                }
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
@@ -769,6 +831,39 @@ fn check_type_shape(
                 }
             }
             _ => {}
+        }
+    }
+    // Fingerprint only after the complete raw type tree has been bounded.
+    // This independently checks the sealed family key and payload shape.
+    for (name, variants) in options {
+        let [(none, empty), (some, payload)] = variants.as_slice() else {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Option must have exactly None and Some variants",
+            ));
+        };
+        let [payload] = payload.as_slice() else {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Some requires exactly one payload",
+            ));
+        };
+        if none != "None" || !empty.is_empty() || some != "Some" {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "invalid Option variant shape",
+            ));
+        }
+        resources::charge_payload(payload, budget)?;
+        if *name != format!("@builtin:Option:{}", payload.fingerprint()) {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Option identity does not match its complete payload type",
+            ));
         }
     }
     Ok(())
@@ -785,6 +880,10 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ForeignHandle
@@ -798,6 +897,17 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             Type::FunctionPointer { parameters, result } => {
                 pending.extend(parameters);
                 pending.push(result);
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                for parameter in parameters {
+                    check_signature_type(parameter, span)?;
+                }
+                check_signature_type(result, span)?;
             }
             Type::ForeignCallback { parameters, result } => {
                 native_values::callback_signature(parameters, result, span)?;
@@ -854,6 +964,9 @@ fn affine_type(module: &TypedModule, ty: &Type) -> bool {
     }
 }
 fn check_signature_type(ty: &Type, span: Option<Span>) -> Check<()> {
+    if ty.is_shared_sync_cell_address() {
+        return Ok(());
+    }
     match ty {
         Type::Address { inner, .. } => slices::check_pointee(inner, span),
         _ => check_type(ty, span),
@@ -872,10 +985,15 @@ fn check_function_signature_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+            sums::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. }
+            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+        {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
@@ -901,6 +1019,7 @@ fn check_local_type(
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
     let checked = match ty {
+        ty if ty.is_shared_sync_cell_address() => Ok(()),
         Type::Closure(id) if (id.0 as usize) < module.closures.len() => Ok(()),
         Type::Closure(_) => Err(reject(
             "E-VERIFY-CLOSURE",
@@ -912,10 +1031,15 @@ fn check_local_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+            sums::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. }
+            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+        {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -1062,6 +1186,7 @@ fn check_function(
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
+    let mut addressed_sums = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -1093,6 +1218,11 @@ fn check_function(
                     ));
                 }
             }
+            addressed_sums |= matches!(
+                instruction.kind,
+                InstructionKind::VariantTagAddress { .. }
+                    | InstructionKind::BorrowVariantAddress { .. }
+            );
             check_instruction(module, function, instruction, budget)?;
             if let InstructionKind::Store { local, .. }
             | InstructionKind::BindPackageCapture { local, .. } = instruction.kind
@@ -1198,6 +1328,9 @@ fn check_function(
         ));
     }
     let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
+    if addressed_sums {
+        address_sums::check(function, &successors, &reachable, budget)?;
+    }
     let (initialized_in, initialized_out) =
         initialization(function, &predecessors, &reachable, &parameters, budget)?;
     for (b, block) in function.blocks.iter().enumerate() {
@@ -1240,6 +1373,8 @@ fn check_function(
                 InstructionKind::Load(local)
                 | InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1358,6 +1493,15 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::TaskStart { .. }
+        | InstructionKind::TaskYield
+        | InstructionKind::TaskValid { .. }
+        | InstructionKind::TaskPoll { .. }
+        | InstructionKind::TaskRequestCancel { .. }
+        | InstructionKind::TaskPollClose { .. }
+        | InstructionKind::TaskFinishDestroy { .. } => {
+            tasks::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -1389,6 +1533,11 @@ fn check_instruction(
         | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
+        InstructionKind::BorrowFieldLocal { .. }
+        | InstructionKind::VariantTagAddress { .. }
+        | InstructionKind::BorrowVariantAddress { .. } => {
+            address_sums::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::MakeOwnedArray { .. }
         | InstructionKind::ProjectOwnedArrayField { .. }
         | InstructionKind::TakeOwnedArrayElement { .. }
@@ -1413,6 +1562,7 @@ fn check_instruction(
         }
         InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. } => {
             let limits = budget.limits.clone();
@@ -1488,6 +1638,9 @@ fn check_instruction(
         InstructionKind::WithScopedThread { .. } => {
             scoped_thread::instruction(module, function, instruction, budget)?
         }
+        InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. } => {
+            scoped_thread::sync_instruction(module, function, instruction, budget)?
+        }
         InstructionKind::WithForeignCallback { .. } => {
             scoped_callback::instruction(module, function, instruction, budget)?
         }
@@ -1497,6 +1650,11 @@ fn check_instruction(
             ..
         } => foreign::check_call(module, function, *callee, arguments, span, budget)?,
         InstructionKind::Constant(constant) => Some(constant.ty()),
+        InstructionKind::ConvertNumber { value, target } => Some(number_conversion(
+            value_type(function, *value, span)?,
+            target,
+            span,
+        )?),
         InstructionKind::ConvertInteger { value, target } => Some(integer_conversion(
             value_type(function, *value, span)?,
             target,
@@ -1550,6 +1708,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Enum { .. }) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
@@ -1567,8 +1727,12 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Enum { .. }) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
+            } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
+                tasks::carrier(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
             }
@@ -1883,26 +2047,61 @@ fn check_instruction(
                     "function pointer target requires a closure environment",
                 ));
             }
-            let mut parameters = Vec::with_capacity(target.parameters.len());
-            for parameter in &target.parameters {
-                let ty = local_type(target, *parameter, span)?;
-                check_type(ty, span)?;
-                parameters.push(ty.clone());
+            if let Some(
+                pointer @ Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                },
+            ) = instruction
+                .result
+                .and_then(|id| function.values.get(id.0 as usize))
+            {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                if target.parameters.len() != parameters.len() || target.return_type != **result {
+                    return Err(reject(
+                        "E-VERIFY-FUNCTION-LIFE",
+                        span,
+                        "borrowed pointer target has a different complete signature",
+                    ));
+                }
+                for (parameter, expected) in target.parameters.iter().zip(parameters) {
+                    if local_type(target, *parameter, span)? != expected {
+                        return Err(reject(
+                            "E-VERIFY-FUNCTION-LIFE",
+                            span,
+                            "borrowed pointer target parameter mode differs",
+                        ));
+                    }
+                }
+                Some(pointer.clone())
+            } else {
+                let mut parameters = Vec::with_capacity(target.parameters.len());
+                for parameter in &target.parameters {
+                    let ty = local_type(target, *parameter, span)?;
+                    check_type(ty, span)?;
+                    parameters.push(ty.clone());
+                }
+                check_type(&target.return_type, span)?;
+                Some(Type::FunctionPointer {
+                    parameters,
+                    result: Box::new(target.return_type.clone()),
+                })
             }
-            check_type(&target.return_type, span)?;
-            Some(Type::FunctionPointer {
-                parameters,
-                result: Box::new(target.return_type.clone()),
-            })
         }
         InstructionKind::CallIndirect { callee, arguments } => {
-            let Type::FunctionPointer { parameters, result } = value_type(function, *callee, span)?
-            else {
-                return Err(reject(
-                    "E-VERIFY-INDIRECT-CALL",
-                    span,
-                    "callee must be a function pointer",
-                ));
+            let (parameters, result) = match value_type(function, *callee, span)? {
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                } => (parameters, result),
+                _ => {
+                    return Err(reject(
+                        "E-VERIFY-INDIRECT-CALL",
+                        span,
+                        "callee must be a function pointer",
+                    ));
+                }
             };
             if arguments.len() != parameters.len() {
                 return Err(reject(
@@ -2456,9 +2655,20 @@ fn integer_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check
     Ok(target.clone())
 }
 
+fn number_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check<Type> {
+    if !source.is_numeric() || !target.is_numeric() || !(source.is_float() || target.is_float()) {
+        return Err(reject(
+            "E-VERIFY-TYPE",
+            span,
+            "ConvertNumber requires numeric types and a floating endpoint",
+        ));
+    }
+    Ok(target.clone())
+}
 fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> {
     match op {
         UnaryOp::Not if operand == &Type::Bool => Ok(Type::Bool),
+        UnaryOp::Negate if operand.is_float() => Ok(operand.clone()),
         UnaryOp::Negate | UnaryOp::BitNot if operand.is_integer() => Ok(operand.clone()),
         UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference | UnaryOp::Give => {
             Err(unsupported(
@@ -2475,7 +2685,11 @@ fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> 
 }
 fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) -> Check<Type> {
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
-        if matches!(left, Type::U8 | Type::U16 | Type::I32 | Type::I64) && left == right {
+        if matches!(
+            left,
+            Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64
+        ) && left == right
+        {
             return Ok(left.clone());
         }
         return Err(unsupported(
@@ -2490,6 +2704,24 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
             "binary operands have different types",
         ));
     }
+    if left.is_float() {
+        return match op {
+            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide => {
+                Ok(left.clone())
+            }
+            BinaryOp::Equal
+            | BinaryOp::NotEqual
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual => Ok(Type::Bool),
+            _ => Err(reject(
+                "E-VERIFY-TYPE",
+                span,
+                "operator is not an IEEE floating operation",
+            )),
+        };
+    }
     match op {
         BinaryOp::Equal | BinaryOp::NotEqual
             if matches!(
@@ -2497,6 +2729,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 Type::Bool
                     | Type::I32
                     | Type::I64
+                    | Type::U64
+                    | Type::Usize
                     | Type::U8
                     | Type::U16
                     | Type::Unit
@@ -2536,9 +2770,20 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => ([Some(*task), None], &[]),
+        InstructionKind::TaskYield => ([None, None], &[]),
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::RegisterDefer { .. }
@@ -2581,6 +2826,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::WithScopedThread { argument, body, .. } => {
             ([Some(*argument), Some(*body)], &[])
         }
+        InstructionKind::WithSyncCell { initial, body, .. } => ([Some(*initial), Some(*body)], &[]),
+        InstructionKind::SyncI32 { address, value, .. } => ([Some(*address), *value], &[]),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             ([Some(*callback), Some(*body)], &[])
         }
@@ -2597,6 +2844,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => ([Some(*value), None], &[]),
@@ -2937,7 +3185,7 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
         budget.spend(match &instruction.kind {
             CtInstructionKind::Constant(_) => 1,
             CtInstructionKind::Unary { .. } => 2,
-            CtInstructionKind::ConvertInteger { .. } => 2,
+            CtInstructionKind::ConvertInteger { .. } | CtInstructionKind::ConvertNumber { .. } => 2,
             CtInstructionKind::Binary { .. } => 3,
             CtInstructionKind::Forbidden(name) => name.len().saturating_add(1),
         })?;
@@ -2949,7 +3197,9 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             ));
         }
         check_type_shape(&instruction.ty, &module.target, limits, &mut budget)?;
-        if let CtInstructionKind::ConvertInteger { target, .. } = &instruction.kind {
+        if let CtInstructionKind::ConvertInteger { target, .. }
+        | CtInstructionKind::ConvertNumber { target, .. } = &instruction.kind
+        {
             check_type_shape(target, &module.target, limits, &mut budget)?;
         }
         // CT has its own closed capability set. Expanding runtime Copy
@@ -2979,8 +3229,14 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             })
         };
         let ty = match &instruction.kind {
-            CtInstructionKind::Constant(constant) => constant.ty(),
+            CtInstructionKind::Constant(constant) => {
+                native_values::constant(constant, &module.target, None, limits, &mut budget)?;
+                constant.ty()
+            }
             CtInstructionKind::Unary { op, operand } => unary_result(*op, lookup(*operand)?, None)?,
+            CtInstructionKind::ConvertNumber { value, target } => {
+                number_conversion(lookup(*value)?, target, None)?
+            }
             CtInstructionKind::ConvertInteger { value, target } => {
                 integer_conversion(lookup(*value)?, target, None)?
             }

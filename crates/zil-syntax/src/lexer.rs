@@ -192,6 +192,8 @@ impl Lexer<'_> {
             let digits = spelling
                 .strip_suffix("u8")
                 .or_else(|| spelling.strip_suffix("u16"))
+                .or_else(|| spelling.strip_suffix("u64"))
+                .or_else(|| spelling.strip_suffix("usize"))
                 .unwrap_or(spelling);
             if !digit_group(digits, radix) {
                 self.error(
@@ -235,7 +237,12 @@ impl Lexer<'_> {
             self.consume_while(is_xid_continue);
             // u8/u16 are the admitted source suffixes. The i32/i64
             // spellings used by later normalization remain internal forms.
-            valid &= !floating && matches!(&self.source.text[suffix..self.offset], "u8" | "u16");
+            let suffix = &self.source.text[suffix..self.offset];
+            if matches!(suffix, "f32" | "f64") {
+                floating = true;
+            } else {
+                valid &= !floating && matches!(suffix, "u8" | "u16" | "u64" | "usize");
+            }
         }
         if !valid {
             self.error(

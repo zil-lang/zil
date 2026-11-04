@@ -136,18 +136,21 @@ fn mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses(
         Phase::Verify,
         "E-BORROW-CONFLICT",
     );
+    // Original mixed-mutable source bytes retained; terminal342 now proves
+    // their uninstantiated template before permitting concrete execution.
     for text in [
         "fn forward<T:Copy,life a>(p:&'a mut T)->&'a mut T{return p}fn main(){}",
         "fn forward<T:Copy,life a>(p:&'a mut T)->&'a mut T{return p}fn result()->i64{var x:i64=40;return *forward(&mut x)}",
-        "fn local<life a>(p:&'a mut i64)->&'a mut i64{let q:&'a mut i64=p;return q}fn main(){}",
     ] {
-        reject(
-            text,
-            ResultCategory::Unsupported,
-            Phase::Expand,
-            "E-UNSUPPORTED",
-        );
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
     }
+    reject(
+        "fn local<life a>(p:&'a mut i64)->&'a mut i64{let q:&'a mut i64=p;return q}fn main(){}",
+        ResultCategory::Unsupported,
+        Phase::Expand,
+        "E-UNSUPPORTED",
+    );
     let incomplete = include_str!("known-incomplete-unused-generic.zil");
     let called = incomplete.replace(
         "fn main(){}",
@@ -156,8 +159,8 @@ fn mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses(
     reject(
         &called,
         ResultCategory::SafeReject,
-        Phase::Verify,
-        "E-BORROW-CONFLICT",
+        Phase::Expand,
+        "E-GENERIC-ARGUMENT",
     );
 }
 

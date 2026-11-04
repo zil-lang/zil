@@ -26,6 +26,7 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) addressed_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -34,6 +35,8 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) borrowed_function_pointers: bool,
+    pub(super) tasks: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -53,6 +56,7 @@ impl Budget {
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            addressed_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -61,6 +65,8 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            borrowed_function_pointers: false,
+            tasks: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -163,6 +169,17 @@ impl Budget {
                 self.type_work(error, copy_check, context)?;
                 self.type_work(result, copy_check, context)?;
             }
+            Type::BorrowedFunctionPointer {
+                life,
+                parameters,
+                result,
+            } => {
+                self.spend(super::borrowed_fp::work(life), context)?;
+                for parameter in parameters {
+                    self.type_work(parameter, copy_check, context)?;
+                }
+                self.type_work(result, copy_check, context)?;
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
@@ -173,13 +190,21 @@ impl Budget {
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
             }
+            Type::TaskI32 => {
+                self.tasks = true;
+            }
             Type::ByteBuffer
+            | Type::SyncCell(_)
             | Type::Unit
             | Type::Bool
             | Type::U8
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}
@@ -288,11 +313,13 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
             )])
         }
     } else if crate::dynamic_store::is_carrier(ty)
+        || ty.is_shared_sync_cell_address()
+        || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer
+            if **inner == Type::ByteBuffer || **inner == Type::TaskI32
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -308,6 +335,11 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address { inner, .. } = ty
+        && matches!(inner.as_ref(), Type::Enum { .. })
+    {
+        return super::resources::sums::admit(module, inner, budget).map(|_| false);
+    }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
@@ -376,7 +408,8 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => {
+                            InstructionKind::ConvertInteger { target, .. }
+                            | InstructionKind::ConvertNumber { target, .. } => {
                                 Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {
@@ -415,6 +448,10 @@ pub(super) fn preflight(
         let root = ty as *const Type as usize;
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
+        let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Enum{..}))
+            && store_element.is_none()
+            && capture_owner.is_none()
+            && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
         let mut new_sum = false;
@@ -480,12 +517,16 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Address { .. } if depth == 0 && sum_address_root => {
+                    child = SumContext::default();
+                }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Opaque { .. }
                 | Type::FunctionPointer { .. }
+                | Type::BorrowedFunctionPointer { .. }
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
@@ -606,6 +647,22 @@ pub(super) fn preflight(
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
                     pending.push((inner, depth + 1, store_element, None, resource_head, child))
+                }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    budget.borrowed_function_pointers = true;
+                    budget.input(
+                        super::borrowed_fp::work(life),
+                        "borrowed function pointer relation",
+                    )?;
+                    super::borrowed_fp::relation(parameters, result, life)?;
+                    pending.push((result, depth + 1, store_element, None, false, child));
+                    for parameter in parameters {
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
+                    }
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
@@ -735,6 +792,9 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if ty.is_shared_sync_cell_address() {
+                continue;
+            }
             if owned_signature {
                 super::owned_callbacks::data(module, ty, budget)?;
                 continue;
@@ -944,6 +1004,39 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::TaskStart { .. }
+                    | InstructionKind::TaskYield
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. } => {
+                        budget.tasks = true;
+                        budget.input(3, "task ABI operands")?;
+                        for v in crate::resources::uses(&instruction.kind) {
+                            if v.0 as usize >= function.values.len() {
+                                return Err(bad("task operand is outside actual table"));
+                            }
+                        }
+                    }
+                    InstructionKind::WithSyncCell { initial, body, .. } => {
+                        budget.input(3, "sealed cell scope operands")?;
+                        if initial.0 as usize >= function.values.len()
+                            || body.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("sealed cell scope operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::SyncI32 { address, value, .. } => {
+                        budget.input(3, "sealed cell operation operands")?;
+                        if address.0 as usize >= function.values.len()
+                            || value.is_some_and(|value| value.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("sealed cell operation operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,
@@ -982,8 +1075,33 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        budget.addressed_sums = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("field place local outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "field place path")?;
+                        budget.input(path.len().saturating_add(1), "field place preflight")?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        if address.0 as usize >= function.values.len() {
+                            return Err(bad("address Sum base outside value table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "address Sum path")?;
+                        budget.input(
+                            path.len().saturating_mul(2).saturating_add(1),
+                            "address Sum path preflight",
+                        )?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        budget.addressed_sums |=
+                            matches!(instruction.kind, InstructionKind::BorrowVariantLocal { .. });
+
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("Sum local outside table"));
@@ -1015,6 +1133,20 @@ pub(super) fn preflight(
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
+                    }
+                    InstructionKind::ConvertNumber { value, target } => {
+                        let source = function
+                            .values
+                            .get(value.0 as usize)
+                            .ok_or_else(|| bad("numeric conversion value outside table"))?;
+                        if !source.is_numeric()
+                            || !target.is_numeric()
+                            || !(source.is_float() || target.is_float())
+                        {
+                            return Err(bad(
+                                "numeric conversion requires numeric endpoints and at least one float",
+                            ));
+                        }
                     }
                     InstructionKind::ConvertInteger { target, .. } if !target.is_integer() => {
                         return Err(bad("integer conversion target is not a supported integer"));

@@ -285,7 +285,17 @@ fn value_bytes(value: &CtValue) -> u64 {
     match value {
         CtValue::Scalar(_) => 16,
         CtValue::Text(s) => 16u64.saturating_add(s.len() as u64),
-        CtValue::Type(t) => 16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
+        CtValue::Type(t) => t.nodes.iter().fold(
+            16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
+            |bytes, node| {
+                bytes.saturating_add(match node {
+                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
+                        (life.parameter_lives.len() as u64).saturating_mul(8)
+                    }
+                    _ => 0,
+                })
+            },
+        ),
         CtValue::Syntax(t) => 16u64
             .saturating_add((t.nodes.len() as u64).saturating_mul(80))
             .saturating_add((t.origins.len() as u64).saturating_mul(32))
@@ -345,6 +355,10 @@ fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::F32(_) => Some(CtScalarTy::F32),
+        Constant::F64(_) => Some(CtScalarTy::F64),
+        Constant::U64(_) => Some(CtScalarTy::U64),
+        Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
     }
 }
@@ -356,14 +370,19 @@ fn ordinary_scalar(ty: CtScalarTy) -> Type {
         CtScalarTy::U16 => Type::U16,
         CtScalarTy::I32 => Type::I32,
         CtScalarTy::I64 => Type::I64,
+        CtScalarTy::F32 => Type::F32,
+        CtScalarTy::F64 => Type::F64,
+        CtScalarTy::U64 => Type::U64,
+        CtScalarTy::Usize => Type::Usize,
     }
 }
 fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
     let n = match value {
-        CtValue::Scalar(Constant::U8(n)) => *n as i64,
-        CtValue::Scalar(Constant::U16(n)) => *n as i64,
-        CtValue::Scalar(Constant::I32(n)) => *n as i64,
-        CtValue::Scalar(Constant::I64(n)) => *n,
+        CtValue::Scalar(Constant::U8(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U16(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I32(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I64(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U64(n) | Constant::Usize(n)) => i128::from(*n),
         _ => unreachable!("verified CT index is integer"),
     };
     usize::try_from(n)
@@ -495,7 +514,10 @@ fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth
         return false;
     }
     match (value, ty) {
-        (CtValue::Scalar(c), CtTy::Scalar(t)) => scalar_ty(c) == Some(*t),
+        (CtValue::Scalar(c), CtTy::Scalar(t)) => {
+            scalar_ty(c) == Some(*t)
+                && !matches!(c, Constant::Usize(v) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX))
+        }
         (CtValue::Text(v), CtTy::Text) => v.len() as u64 <= raw.budget.max_temporary_bytes,
         (CtValue::Type(v), CtTy::Type) => type_ref_valid(v, raw),
         (CtValue::Ident(v), CtTy::Ident) => {
@@ -594,6 +616,40 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
             | CtTypeNode::Managed(element)
             | CtTypeNode::Desc(element)
             | CtTypeNode::OwnedStore(element) => child(*element),
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let mut dense = 0;
+                let inputs = parameters.len() == life.parameter_lives.len()
+                    && parameters
+                        .iter()
+                        .zip(&life.parameter_lives)
+                        .all(|(id, label)| {
+                            if !child(*id) {
+                                return false;
+                            }
+                            if matches!(reference.nodes[id.0 as usize], CtTypeNode::Address { .. })
+                            {
+                                let Some(tag) =
+                                    label.filter(|tag| *tag < life.binder_count && *tag <= dense)
+                                else {
+                                    return false;
+                                };
+                                if tag == dense {
+                                    dense += 1;
+                                }
+                                true
+                            } else {
+                                label.is_none()
+                            }
+                        });
+                inputs && child(*result) && dense==life.binder_count && dense>0 && match &reference.nodes[result.0 as usize]{
+                    CtTypeNode::Address{mutable,..}=>life.result_life.is_some_and(|tag|tag<dense&&parameters.iter().zip(&life.parameter_lives).any(|(id,label)|*label==Some(tag)&&matches!(reference.nodes[id.0 as usize],CtTypeNode::Address{mutable:authority,..}if !mutable||authority))),
+                    _=>life.result_life.is_none(),
+                }
+            }
             CtTypeNode::FunctionPointer { parameters, result }
             | CtTypeNode::ForeignCallback { parameters, result } => {
                 child(*result) && parameters.iter().all(|id| child(*id))
@@ -654,12 +710,13 @@ fn syntax_tree_valid(tree: &CtSyntaxTree, raw: &CtArtifactProgram) -> bool {
     })
 }
 
-fn int(value: &CtValue) -> i64 {
+fn int(value: &CtValue) -> i128 {
     match value {
-        CtValue::Scalar(Constant::U8(v)) => *v as i64,
-        CtValue::Scalar(Constant::U16(v)) => *v as i64,
-        CtValue::Scalar(Constant::I32(v)) => *v as i64,
-        CtValue::Scalar(Constant::I64(v)) => *v,
+        CtValue::Scalar(Constant::U8(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::U16(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I32(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I64(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::U64(v) | Constant::Usize(v)) => i128::from(*v),
         _ => unreachable!("verified integer"),
     }
 }
@@ -700,6 +757,19 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
             CtTypeNode::Array { element, length } => CtTypeNode::Array {
                 element: plus(*element)?,
                 length: *length,
+            },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => CtTypeNode::BorrowedFunctionPointer {
+                parameters: parameters
+                    .iter()
+                    .copied()
+                    .map(plus)
+                    .collect::<CompileResult<Vec<_>>>()?,
+                result: plus(*result)?,
+                life: life.clone(),
             },
             CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
                 parameters: parameters
@@ -744,7 +814,7 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
     ))
 }
 fn construct_type(
-    kind: CtTypeConstructor,
+    kind: &CtTypeConstructor,
     args: &[CtValue],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
@@ -776,15 +846,46 @@ fn construct_type(
             }
         }
         CtTypeConstructor::Tuple => CtTypeNode::Tuple(children),
-        CtTypeConstructor::FunctionPointer => {
-            let result = children.pop().expect("verified function Type result");
-            CtTypeNode::FunctionPointer {
+        CtTypeConstructor::BorrowedFunctionPointer { life } => {
+            budget.reserve_analysis_work(
+                (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
+            )?;
+            budget
+                .reserve_temporary_bytes((life.parameter_lives.len() as u64).saturating_mul(8))?;
+            let result = children.pop().expect("verified borrowed pointer result");
+            CtTypeNode::BorrowedFunctionPointer {
                 parameters: children,
                 result,
+                life: life.clone(),
+            }
+        }
+        CtTypeConstructor::FunctionPointer => {
+            let result = children.pop().expect("verified function Type result");
+            let address = |id: &CtTypeNodeId| {
+                matches!(nodes.get(id.0 as usize), Some(CtTypeNode::Address { .. }))
+            };
+            if children.iter().any(address) || address(&result) {
+                budget.reserve_analysis_work(children.len() as u64)?;
+                budget.reserve_temporary_bytes((children.len() as u64).saturating_mul(8))?;
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: children.iter().map(|id| address(id).then_some(0)).collect(),
+                    result_life: address(&result).then_some(0),
+                };
+                CtTypeNode::BorrowedFunctionPointer {
+                    parameters: children,
+                    result,
+                    life,
+                }
+            } else {
+                CtTypeNode::FunctionPointer {
+                    parameters: children,
+                    result,
+                }
             }
         }
         CtTypeConstructor::Address { mutable } => CtTypeNode::Address {
-            mutable,
+            mutable: *mutable,
             inner: children[0],
         },
         CtTypeConstructor::Slice => CtTypeNode::Slice(children[0]),
@@ -906,6 +1007,7 @@ fn execute_instruction(
                 .expect("verified initialized local"),
         ),
         K::ConvertInteger { .. }
+        | K::ConvertNumber { .. }
         | K::Unary { .. }
         | K::Binary { .. }
         | K::Length(_)
@@ -968,22 +1070,39 @@ fn execute_instruction(
             let CtValue::Scalar(c) = get(*value) else {
                 unreachable!("verified scalar conversion")
             };
-            Some(CtValue::Scalar(crate::convert_integer(
+            Some(CtValue::Scalar(crate::convert_integer_target(
                 c,
                 &ordinary_scalar(*target),
+                raw.target_pointer_width,
+            )?))
+        }
+        K::ConvertNumber { value, target } => {
+            let CtValue::Scalar(c) = get(*value) else {
+                unreachable!("verified scalar conversion")
+            };
+            Some(CtValue::Scalar(crate::convert_number(
+                c,
+                &ordinary_scalar(*target),
+                raw.target_pointer_width,
             )?))
         }
         K::Unary { op, operand } => {
             let CtValue::Scalar(c) = get(*operand) else {
                 unreachable!("verified scalar unary")
             };
-            Some(CtValue::Scalar(crate::unary(*op, c)?))
+            Some(CtValue::Scalar(crate::unary_target(
+                *op,
+                c,
+                raw.target_pointer_width,
+            )?))
         }
         K::Binary { op, left, right } => {
             let a = get(*left);
             let b = get(*right);
             let result = match (a, b) {
-                (CtValue::Scalar(a), CtValue::Scalar(b)) => crate::binary(*op, a, b)?,
+                (CtValue::Scalar(a), CtValue::Scalar(b)) => {
+                    crate::binary_target(*op, a, b, raw.target_pointer_width)?
+                }
                 (CtValue::Type(_), CtValue::Type(_))
                 | (CtValue::Ident(_), CtValue::Ident(_))
                 | (CtValue::Text(_), CtValue::Text(_)) => {
@@ -1132,7 +1251,7 @@ fn execute_instruction(
             arguments,
         } => {
             let (args, temporary) = clone_operands(frame, arguments, budget)?;
-            let answer = construct_type(*constructor, &args, budget);
+            let answer = construct_type(constructor, &args, budget);
             budget.release_temporary_bytes(temporary);
             Some(CtValue::Type(answer?))
         }
@@ -1184,7 +1303,11 @@ fn execute_instruction(
             projection,
             index,
         } => {
-            let number = index.map(|id| int(get(id)));
+            let number = index
+                .map(|id| {
+                    i64::try_from(int(get(id))).map_err(|_| error("CT token index exceeds i64"))
+                })
+                .transpose()?;
             Some(reader.token_inspect(get(*source), *projection, number, budget)?)
         }
         K::Text { op, arguments } => {
@@ -1407,6 +1530,7 @@ mod tests {
         let span = Span::default();
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CtFunction {
                 id: CtFunctionId(0),
@@ -1468,6 +1592,140 @@ mod tests {
             },
         }
     }
+    #[test]
+    fn ieee_float_unsigned_artifact_conversions_observe_raw_bits_and_target_width() {
+        for (width, input, target, expected) in [
+            (
+                64,
+                Constant::U64(1 << 63),
+                CtScalarTy::F64,
+                Some(Constant::F64(0x43e0000000000000)),
+            ),
+            (
+                64,
+                Constant::U64(u64::MAX),
+                CtScalarTy::F32,
+                Some(Constant::F32(0x5f800000)),
+            ),
+            (
+                64,
+                Constant::F64(0x43efffffffffffff),
+                CtScalarTy::U64,
+                Some(Constant::U64(u64::MAX - 2047)),
+            ),
+            (
+                64,
+                Constant::F64(0x43efffffffffffff),
+                CtScalarTy::Usize,
+                Some(Constant::Usize(u64::MAX - 2047)),
+            ),
+            (64, Constant::F64(0x43f0000000000000), CtScalarTy::U64, None),
+            (
+                64,
+                Constant::F64(0x43f0000000000000),
+                CtScalarTy::Usize,
+                None,
+            ),
+            (
+                32,
+                Constant::F64(0x41efffffffe00000),
+                CtScalarTy::Usize,
+                Some(Constant::Usize(u64::from(u32::MAX))),
+            ),
+            (
+                32,
+                Constant::Usize(u64::from(u32::MAX)),
+                CtScalarTy::F64,
+                Some(Constant::F64(0x41efffffffe00000)),
+            ),
+            (
+                32,
+                Constant::F64(0x41f0000000000000),
+                CtScalarTy::Usize,
+                None,
+            ),
+        ] {
+            let mut raw = raw();
+            raw.target_pointer_width = width;
+            let source = scalar_ty(&input).unwrap();
+            raw.constants = vec![CtConstant::Scalar(input)];
+            let function = &mut raw.functions[0];
+            function.result_type = CtTy::Scalar(target);
+            function.values = vec![CtTy::Scalar(source), CtTy::Scalar(target)];
+            function.blocks[0].instructions.truncate(1);
+            function.blocks[0].instructions.push(CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::ConvertNumber {
+                    value: CtValueId(0),
+                    target,
+                },
+                span: Span::default(),
+            });
+            function.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+            let authority = Authority {
+                snapshot: raw.snapshot.clone(),
+            };
+            let verified = verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+            let mut budget = CtExecutionBudget::new(raw.budget);
+            let result = evaluate_ct_artifact(&verified, &[], &Reader, &mut budget);
+            if let Some(expected) = expected {
+                assert_eq!(result.unwrap().0, CtValue::Scalar(expected));
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .all(|d| d.code == "E-NUMERIC-CONVERSION")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn ieee_float_raw_artifact_constants_and_identity_casts_preserve_bits() {
+        for constant in [
+            Constant::F32(0x7fc00001),
+            Constant::F32(0xff800001),
+            Constant::F64(0x7ff8000000000001),
+            Constant::F64(0xfff0000000000001),
+        ] {
+            for cast in [false, true] {
+                let mut raw = raw();
+                let ty = if matches!(constant, Constant::F32(_)) {
+                    CtScalarTy::F32
+                } else {
+                    CtScalarTy::F64
+                };
+                raw.constants = vec![CtConstant::Scalar(constant.clone())];
+                let function = &mut raw.functions[0];
+                function.result_type = CtTy::Scalar(ty);
+                function.values = vec![CtTy::Scalar(ty); if cast { 2 } else { 1 }];
+                function.blocks[0].instructions.truncate(1);
+                if cast {
+                    function.blocks[0].instructions.push(CtInstruction {
+                        result: Some(CtValueId(1)),
+                        kind: CtInstructionKind::ConvertNumber {
+                            value: CtValueId(0),
+                            target: ty,
+                        },
+                        span: Span::default(),
+                    });
+                }
+                function.blocks[0].terminator =
+                    CtTerminator::Return(Some(CtValueId(u32::from(cast))));
+                let authority = Authority {
+                    snapshot: raw.snapshot.clone(),
+                };
+                let verified =
+                    verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+                let mut budget = CtExecutionBudget::new(raw.budget);
+                let (value, _) =
+                    evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
+                assert_eq!(value, CtValue::Scalar(constant.clone()));
+            }
+        }
+    }
+
     #[test]
     fn executes_verified_scalar_cfg_with_shared_target_arithmetic() {
         let raw = raw();

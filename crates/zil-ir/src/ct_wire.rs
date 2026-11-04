@@ -1,7 +1,7 @@
 //! Bounded, canonical CT-only wire. Field codecs below use explicit
 //! schema-order tags; no Debug/serde layout or runtime Wire31 dependency.
 use crate::ct_artifact::*;
-use crate::{BinaryOp, Constant, UnaryOp};
+use crate::{BinaryOp, Constant, FunctionLifeContract, UnaryOp};
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -931,6 +931,22 @@ impl Wire for Constant {
                     3u8.encode(e)?;
                     v0.encode(e)?;
                 }
+                Self::U64(v0) => {
+                    9u8.encode(e)?;
+                    v0.encode(e)?;
+                }
+                Self::Usize(v0) => {
+                    10u8.encode(e)?;
+                    v0.encode(e)?;
+                }
+                Self::F32(bits) => {
+                    11u8.encode(e)?;
+                    bits.encode(e)?;
+                }
+                Self::F64(bits) => {
+                    12u8.encode(e)?;
+                    bits.encode(e)?;
+                }
                 Self::U8(v0) => {
                     4u8.encode(e)?;
                     v0.encode(e)?;
@@ -959,6 +975,10 @@ impl Wire for Constant {
             1 => Ok(Self::Bool(<bool as Wire>::decode(d)?)),
             2 => Ok(Self::I32(<i32 as Wire>::decode(d)?)),
             3 => Ok(Self::I64(<i64 as Wire>::decode(d)?)),
+            9 => Ok(Self::U64(<u64 as Wire>::decode(d)?)),
+            10 => Ok(Self::Usize(<u64 as Wire>::decode(d)?)),
+            11 => Ok(Self::F32(<u32 as Wire>::decode(d)?)),
+            12 => Ok(Self::F64(<u64 as Wire>::decode(d)?)),
             4 => Ok(Self::U8(<u8 as Wire>::decode(d)?)),
             5 => Ok(Self::U16(<u16 as Wire>::decode(d)?)),
             6 => Ok(Self::NullHandle),
@@ -1153,6 +1173,18 @@ impl Wire for CtScalarTy {
                 Self::I64 => {
                     5u8.encode(e)?;
                 }
+                Self::U64 => {
+                    6u8.encode(e)?;
+                }
+                Self::Usize => {
+                    7u8.encode(e)?;
+                }
+                Self::F32 => {
+                    8u8.encode(e)?;
+                }
+                Self::F64 => {
+                    9u8.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -1165,6 +1197,10 @@ impl Wire for CtScalarTy {
             3 => Ok(Self::U16),
             4 => Ok(Self::I32),
             5 => Ok(Self::I64),
+            6 => Ok(Self::U64),
+            7 => Ok(Self::Usize),
+            8 => Ok(Self::F32),
+            9 => Ok(Self::F64),
             _ => Err(WireError::UnknownTag),
         })
     }
@@ -1309,6 +1345,29 @@ impl Wire for CtTypeRef {
     }
 }
 
+impl Wire for FunctionLifeContract {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        e.descend(|e| {
+            // Binder count is bounded before spending or allocating map data.
+            e.nodes(self.binder_count as usize)?;
+            self.binder_count.encode(e)?;
+            self.parameter_lives.encode(e)?;
+            self.result_life.encode(e)
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        d.descend(|d| {
+            let binder_count = u32::decode(d)?;
+            d.nodes(binder_count as usize)?;
+            Ok(Self {
+                binder_count,
+                parameter_lives: Vec::<Option<u32>>::decode(d)?,
+                result_life: Option::<u32>::decode(d)?,
+            })
+        })
+    }
+}
+
 impl Wire for CtTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
@@ -1339,6 +1398,16 @@ impl Wire for CtTypeNode {
                     5u8.encode(e)?;
                     parameters.encode(e)?;
                     result.encode(e)?;
+                }
+                Self::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    14u8.encode(e)?;
+                    parameters.encode(e)?;
+                    result.encode(e)?;
+                    life.encode(e)?;
                 }
                 Self::Address { mutable, inner } => {
                     6u8.encode(e)?;
@@ -1395,6 +1464,11 @@ impl Wire for CtTypeNode {
             5 => Ok(Self::FunctionPointer {
                 parameters: <Vec<CtTypeNodeId> as Wire>::decode(d)?,
                 result: <CtTypeNodeId as Wire>::decode(d)?,
+            }),
+            14 => Ok(Self::BorrowedFunctionPointer {
+                parameters: Vec::<CtTypeNodeId>::decode(d)?,
+                result: CtTypeNodeId::decode(d)?,
+                life: FunctionLifeContract::decode(d)?,
             }),
             6 => Ok(Self::Address {
                 mutable: <bool as Wire>::decode(d)?,
@@ -2153,6 +2227,10 @@ impl Wire for CtTypeConstructor {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
+                Self::BorrowedFunctionPointer { life } => {
+                    10u8.encode(e)?;
+                    life.encode(e)?;
+                }
                 Self::Array => {
                     0u8.encode(e)?;
                 }
@@ -2187,6 +2265,9 @@ impl Wire for CtTypeConstructor {
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| match u8::decode(d)? {
+            10 => Ok(Self::BorrowedFunctionPointer {
+                life: FunctionLifeContract::decode(d)?,
+            }),
             0 => Ok(Self::Array),
             1 => Ok(Self::Tuple),
             2 => Ok(Self::FunctionPointer),
@@ -2446,6 +2527,11 @@ impl Wire for CtInstructionKind {
                     local.encode(e)?;
                     value.encode(e)?;
                 }
+                Self::ConvertNumber { value, target } => {
+                    36u8.encode(e)?;
+                    value.encode(e)?;
+                    target.encode(e)?;
+                }
                 Self::ConvertInteger { value, target } => {
                     6u8.encode(e)?;
                     value.encode(e)?;
@@ -2635,6 +2721,10 @@ impl Wire for CtInstructionKind {
             5 => Ok(Self::Store {
                 local: <CtLocalId as Wire>::decode(d)?,
                 value: <CtValueId as Wire>::decode(d)?,
+            }),
+            36 => Ok(Self::ConvertNumber {
+                value: <CtValueId as Wire>::decode(d)?,
+                target: <CtScalarTy as Wire>::decode(d)?,
             }),
             6 => Ok(Self::ConvertInteger {
                 value: <CtValueId as Wire>::decode(d)?,
@@ -2889,6 +2979,7 @@ impl Wire for CtArtifactProgram {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             self.schema_version.encode(e)?;
+            self.target_pointer_width.encode(e)?;
             self.source_fingerprint.encode(e)?;
             self.functions.encode(e)?;
             self.entry.encode(e)?;
@@ -2906,6 +2997,7 @@ impl Wire for CtArtifactProgram {
         d.descend(|d| {
             Ok(Self {
                 schema_version: <u32 as Wire>::decode(d)?,
+                target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,

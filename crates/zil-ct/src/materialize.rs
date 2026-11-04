@@ -12,6 +12,7 @@ fn quota(span: Span) -> Vec<Diagnostic> {
 
 pub(super) fn scalar(c: Constant) -> CoreExprKind {
     match c {
+        c @ (Constant::F32(_) | Constant::F64(_)) => CoreExprKind::Literal(c),
         Constant::Unit => CoreExprKind::Unit,
         Constant::Bool(v) => CoreExprKind::Bool(v),
         Constant::U8(v) => CoreExprKind::Integer(format!("{v}u8")),
@@ -21,6 +22,8 @@ pub(super) fn scalar(c: Constant) -> CoreExprKind {
         }
         Constant::I32(v) => CoreExprKind::Integer(format!("{v}i32")),
         Constant::I64(v) => CoreExprKind::Integer(format!("{v}i64")),
+        Constant::U64(v) => CoreExprKind::Integer(format!("{v}u64")),
+        Constant::Usize(v) => CoreExprKind::Integer(format!("{v}usize")),
     }
 }
 pub(super) struct Reifier<'a> {
@@ -312,7 +315,8 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         callee: operand, ..
                     }
                     | CoreExprKind::Ascribed { value: operand, .. }
-                    | CoreExprKind::IntegerConvert { value: operand, .. } => {
+                    | CoreExprKind::IntegerConvert { value: operand, .. }
+                    | CoreExprKind::NumericConvert { value: operand, .. } => {
                         pending.push((Visit::Expr(operand), depth + 1))
                     }
                     CoreExprKind::Binary { left, right, .. } => {

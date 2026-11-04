@@ -64,9 +64,13 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Unit => Layout { size: 0, align: 1 },
         Type::Bool | Type::U8 => Layout { size: 1, align: 1 },
         Type::U16 => Layout { size: 2, align: 2 },
-        Type::I32 => Layout { size: 4, align: 4 },
+        Type::I32 | Type::F32 => Layout { size: 4, align: 4 },
         Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F64
         | Type::FunctionPointer { .. }
+        | Type::BorrowedFunctionPointer { .. }
         | Type::ForeignHandle
         | Type::CWideString
         | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
@@ -77,6 +81,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {
             Layout { size: 8, align: 8 }
@@ -84,6 +89,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Layout { size: 8, align: 8 }
@@ -93,6 +99,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             fields_layout(fields.iter().map(|(_, ty)| ty))?
         }
         Type::Managed(payload) => physical_layout(payload)?,
+        Type::TaskI32 => Layout { size: 8, align: 8 },
         Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
@@ -307,6 +314,9 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                 self.ty(result, depth + 1, false)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
                     self.ty(parameter, depth + 1, false)?;
@@ -317,11 +327,17 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
+            | Type::SyncCell(_)
             | Type::ForeignHandle
-            | Type::CWideString => {}
+            | Type::CWideString
+            | Type::U64
+            | Type::Usize => {}
         }
         Ok(())
     }
@@ -620,11 +636,17 @@ impl FunctionEmitter<'_> {
                     },
                 )));
             }
-            Type::U8
+            Type::TaskI32
+            | Type::U8
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::FunctionPointer { .. }
+            | Type::BorrowedFunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ForeignCallback { .. } => self.event(m::Event::Instruction(m::Inst::new(

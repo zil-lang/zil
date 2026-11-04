@@ -24,6 +24,8 @@ mod copy;
 mod enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
+#[path = "generic_options.rs"]
+mod options;
 #[path = "generic_products.rs"]
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
@@ -46,7 +48,7 @@ pub(super) mod trait_instances;
 mod where_copy;
 
 fn check_nominal_name(name: &str, span: Span) -> R<()> {
-    if super::byte_buffer_name(name) || super::owned_store_name(name) {
+    if name == "Option" || super::byte_buffer_name(name) || super::owned_store_name(name) {
         return Err(super::primitive_name_error(name, span));
     }
     if copy::reserved_name(name) {
@@ -69,6 +71,19 @@ pub(super) fn check_generated_type_name(name: &str, span: Span) -> R<()> {
 }
 
 pub(super) fn specialize_products<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+) -> CompileResult<Cow<'a, Module>> {
+    let (prepared, remaining) = options::prepare(module, limits)?;
+    match prepared {
+        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products)
+            .map(|module| Cow::Owned(module.into_owned())),
+        None => specialize_products_prepared(module, &remaining, products),
+    }
+}
+
+fn specialize_products_prepared<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
@@ -129,7 +144,10 @@ pub(super) fn specialize_products<'a>(
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
-            if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
+            if param.name == "Option"
+                || super::byte_buffer_name(&param.name)
+                || super::owned_store_name(&param.name)
+            {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }
@@ -540,6 +558,7 @@ impl<'a> Engine<'a> {
             }
             if let ItemKind::Enum(e) = &item.kind
                 && !engine.budget.enum_profile(item.span)
+                && e.name != options::TEMPLATE
             {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
@@ -827,7 +846,9 @@ impl<'a> Engine<'a> {
         // Original generic enums retain their existing Copy payload profile,
         // even though ordinary monomorphic enums now admit owners. Inspect the
         // actual substituted fields while the real template identity exists.
-        if let ItemKind::Enum(e) = &instance.kind {
+        if let ItemKind::Enum(e) = &instance.kind
+            && template != options::TEMPLATE
+        {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {
                     for field in fields {
@@ -1388,10 +1409,22 @@ impl<'a> Engine<'a> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, e.span)?;
-                Ok(["u8", "u16", "i32", "i64"]
+                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
                     .or(default_integer.then_some("i32"))
+                    .map(|suffix| named(suffix, e.span)))
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
+                    .or(default_integer.then_some("f64"))
                     .map(|suffix| named(suffix, e.span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
@@ -1430,6 +1463,13 @@ impl<'a> Engine<'a> {
                 ..
             } => Ok(Some(named("bool", e.span))),
             ExprKind::Binary { left, right, .. } => {
+                if check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                    && let Some(ty) = self
+                        .value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                {
+                    return Ok(Some(ty));
+                }
                 match self.value_hint(left, env, depth + 1, default_integer)? {
                     Some(ty) => Ok(Some(ty)),
                     None => self.value_hint(right, env, depth + 1, default_integer),
@@ -1680,6 +1720,10 @@ impl<'a> Engine<'a> {
                             "u8"
                         } else if text.ends_with("u16") {
                             "u16"
+                        } else if text.ends_with("u64") {
+                            "u64"
+                        } else if text.ends_with("usize") {
+                            "usize"
                         } else if text.ends_with("i64") {
                             "i64"
                         } else {
@@ -1687,6 +1731,19 @@ impl<'a> Engine<'a> {
                         },
                         e.span,
                     ))
+                }
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let suffix = ["f32", "f64"].into_iter().find(|suffix| {
+                    text.ends_with(suffix)
+                        || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                        || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                });
+                if suffix.is_none() && expected.is_some_and(check::floating) {
+                    self.budget.ty(expected.unwrap())?;
+                    expected.cloned()
+                } else {
+                    Some(named(suffix.unwrap_or("f64"), e.span))
                 }
             }
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
@@ -1739,6 +1796,15 @@ impl<'a> Engine<'a> {
                             | BinaryOp::GreaterEqual
                     )
                 });
+                let float_hint = if hint.is_none()
+                    && check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                {
+                    self.value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                } else {
+                    None
+                };
+                let hint = hint.or(float_hint.as_ref());
                 let left_type = self.expr_expected(left, env, hint, depth + 1)?;
                 self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
                 if matches!(
@@ -2260,14 +2326,23 @@ impl<'a> Engine<'a> {
                         self.signature_result(&target)?
                     }
                 } else {
-                    self.expr(callee, env, depth + 1)?;
+                    let callee_type = self.expr(callee, env, depth + 1)?;
                     if let Some(mut signature) = trait_signature {
                         if let Some(result) = &mut signature.return_type {
                             self.ty(result, depth + 1)?;
                         }
                         signature.return_type
                     } else {
-                        None
+                        // A dynamic call still has a statically known complete
+                        // signature. Preserve its result for following source
+                        // patterns; Types checks the actual call independently.
+                        match callee_type.as_ref().map(grouped).map(|ty| &ty.kind) {
+                            Some(TypeKind::Function { result, .. }) => {
+                                self.budget.ty(result)?;
+                                Some(*result.clone())
+                            }
+                            _ => None,
+                        }
                     }
                 }
             }

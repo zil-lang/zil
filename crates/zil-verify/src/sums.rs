@@ -207,6 +207,32 @@ pub(super) fn check_instruction(
                 Ok(Some(ty.clone()))
             }
         }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            if path.is_empty() || path.len() > limits.max_call_depth {
+                return Err(bad(
+                    span,
+                    "payload borrow requires a nonempty bounded Enum path",
+                ));
+            }
+            let ty = projected_type(f, *local, path, span, budget)?;
+            resources::charge_payload(ty, budget)?;
+            if (!ty.is_copy_value() && !matches!(ty, Type::Package { .. }))
+                || (*mutable && !f.locals[local.0 as usize].mutable)
+            {
+                return Err(bad(
+                    span,
+                    "payload borrow requires finite Copy and actual mutable authority",
+                ));
+            }
+            Ok(Some(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(ty.clone()),
+            }))
+        }
         InstructionKind::UnpackVariant {
             local,
             variant,
@@ -823,6 +849,42 @@ impl Flow<'_> {
             let mut result = None;
             let mut bridge = Bridge::default();
             match &instruction.kind {
+                InstructionKind::BorrowLocalMut { local }
+                    if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+                {
+                    fn forget(at: &mut Content, t: &Type, b: &mut Budget) -> Check<()> {
+                        resources::charge_payload(t, b)?;
+                        if matches!(t, Type::Enum { .. }) && t.is_copy_value() {
+                            *at = content(t, None, &mut Vec::new(), false, b)?;
+                            return Ok(());
+                        }
+                        match (at, t) {
+                            (Content::Sum(vs, _), Type::Enum { variants, .. }) => {
+                                for (tag, fields) in vs {
+                                    for (child, t) in
+                                        fields.iter_mut().zip(&variants[*tag as usize].1)
+                                    {
+                                        forget(child, t, b)?;
+                                    }
+                                }
+                            }
+                            (Content::Product(children), Type::Package { fields, .. }) => {
+                                for (child, (_, t)) in children.iter_mut().zip(fields) {
+                                    forget(child, t, b)?;
+                                }
+                            }
+                            _ => {}
+                        }
+                        Ok(())
+                    }
+                    state.locals[local.0 as usize].cost(budget)?;
+                    forget(
+                        Arc::make_mut(&mut state.locals[local.0 as usize]),
+                        &self.f.locals[local.0 as usize].ty,
+                        budget,
+                    )?;
+                    self.kill(state, *local, budget)?;
+                }
                 InstructionKind::MakeManaged { .. }
                 | InstructionKind::ByteBufferNew
                 | InstructionKind::OwnedStoreNew { .. } => {
@@ -903,7 +965,8 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::VariantTagLocal { local, path }
-                | InstructionKind::ReadVariantLocal { local, path } => {
+                | InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                     self.selected(
                         state,
                         *local,
@@ -913,6 +976,62 @@ impl Flow<'_> {
                         instruction.span,
                         budget,
                     )?;
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowVariantLocal { mutable: true, .. }
+                    ) {
+                        let ty =
+                            projected_type(self.f, *local, path, Some(instruction.span), budget)?;
+                        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+                            fn forget(
+                                at: &mut Content,
+                                path: &[VariantProjection],
+                                ty: &Type,
+                                budget: &mut Budget,
+                            ) -> Check<()> {
+                                if path.is_empty() {
+                                    *at = content(ty, None, &mut Vec::new(), false, budget)?;
+                                    return Ok(());
+                                }
+                                let Content::Sum(vs, _) = at else {
+                                    return Err(bad(None, "mutable payload path crosses non-Enum"));
+                                };
+                                if let Some(fs) = vs.get_mut(&path[0].variant) {
+                                    let child = fs
+                                        .get_mut(path[0].index as usize)
+                                        .ok_or_else(|| bad(None, "mutable payload field absent"))?;
+                                    forget(child, &path[1..], ty, budget)?;
+                                }
+                                Ok(())
+                            }
+                            state.locals[local.0 as usize].cost(budget)?;
+                            forget(
+                                Arc::make_mut(&mut state.locals[local.0 as usize]),
+                                path,
+                                ty,
+                                budget,
+                            )?;
+                            budget.spend(
+                                path.len()
+                                    .saturating_add(state.facts.len())
+                                    .saturating_add(state.observations.len()),
+                            )?;
+                            let prefix = path
+                                .iter()
+                                .map(|p| (p.variant, p.index))
+                                .collect::<Vec<_>>();
+                            state.facts.retain(|(root, observed, _)| {
+                                *root != *local || !observed.starts_with(&prefix)
+                            });
+                            state.observations.retain(|v| {
+                                self.observers[v.0 as usize].as_ref().is_none_or(
+                                    |(root, observed)| {
+                                        *root != *local || !observed.starts_with(&prefix)
+                                    },
+                                )
+                            });
+                        }
+                    }
                     if matches!(instruction.kind, InstructionKind::VariantTagLocal { .. }) {
                         budget.spend(state.observations.len().saturating_add(1))?;
                         state
