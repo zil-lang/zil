@@ -366,3 +366,190 @@ pub(super) fn exclusive_returns(overlap: bool) -> TypedModule {
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(10)));
     m
 }
+
+#[allow(dead_code)] // Shared raw builder is used by the driver subset only.
+pub(super) fn phantom() -> TypedModule {
+    let mut m = module();
+    let Type::BorrowedStorage { storage, life } = &mut m.life_instances[0].ty else {
+        unreachable!()
+    };
+    *storage = Box::new(Type::Record {
+        name: "Phantom".into(),
+        fields: vec![("number".into(), Type::I32)],
+    });
+    life.slots.clear();
+    let phantom = m.life_instances[0].ty.clone();
+    m.life_declarations[0].identity.declaration_path = vec!["Phantom".into()];
+    let mut use_value = function(
+        0,
+        vec![address(Type::I32, false)],
+        Type::I32,
+        vec![
+            Type::I32,
+            phantom.clone(),
+            address(phantom.clone(), false),
+            address(Type::I32, false),
+            Type::I32,
+        ],
+        vec![
+            instruction(Some(0), InstructionKind::Constant(Constant::I32(42))),
+            instruction(
+                Some(1),
+                InstructionKind::MakeAggregate {
+                    fields: vec![ValueId(0)],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(1),
+                },
+            ),
+            instruction(Some(2), InstructionKind::BorrowLocal { local: LocalId(1) }),
+            instruction(
+                Some(3),
+                InstructionKind::AddressField {
+                    address: ValueId(2),
+                    index: 0,
+                },
+            ),
+            instruction(
+                Some(4),
+                InstructionKind::ReadAddress {
+                    address: ValueId(3),
+                },
+            ),
+        ],
+        4,
+    );
+    use_value.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "marker".into(),
+        ty: phantom,
+        mutable: false,
+        span: s(),
+    });
+    let mut main = function(
+        1,
+        vec![],
+        Type::I32,
+        vec![Type::I32, address(Type::I32, false), Type::I32],
+        vec![
+            instruction(Some(0), InstructionKind::Constant(Constant::I32(0))),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(0),
+                },
+            ),
+            instruction(Some(1), InstructionKind::BorrowLocal { local: LocalId(0) }),
+            instruction(
+                Some(2),
+                InstructionKind::Call {
+                    function: FunctionId(0),
+                    arguments: vec![ValueId(1)],
+                },
+            ),
+        ],
+        2,
+    );
+    main.locals.push(LocalDecl {
+        id: LocalId(0),
+        name: "actual".into(),
+        ty: Type::I32,
+        mutable: false,
+        span: s(),
+    });
+    m.functions = vec![use_value, main];
+    m
+}
+
+#[allow(dead_code)]
+pub(super) fn unimplemented_unreachable() -> TypedModule {
+    let mut m = module();
+    m.functions[0].blocks[0].instructions[1].kind = InstructionKind::ReborrowAddress {
+        address: ValueId(0),
+        mutable: false,
+    };
+    m.functions[4] = function(
+        4,
+        vec![Type::I64; 64],
+        Type::I64,
+        vec![Type::I64],
+        vec![instruction(
+            Some(0),
+            InstructionKind::Constant(Constant::I64(42)),
+        )],
+        0,
+    );
+    let f = &mut m.functions[3];
+    f.values.extend([
+        Type::FunctionPointer {
+            parameters: vec![Type::I64; 64],
+            result: Box::new(Type::I64),
+        },
+        Type::I64,
+    ]);
+    f.blocks.push(BasicBlock {
+        id: BlockId(1),
+        instructions: vec![
+            instruction(
+                Some(6),
+                InstructionKind::FunctionRef {
+                    function: FunctionId(4),
+                },
+            ),
+            instruction(
+                Some(7),
+                InstructionKind::CallIndirect {
+                    callee: ValueId(6),
+                    arguments: vec![ValueId(0); 64],
+                },
+            ),
+        ],
+        terminator: Terminator::Unreachable,
+    });
+    m
+}
+
+#[allow(dead_code)]
+pub(super) fn wide_shared(width: usize) -> TypedModule {
+    fn qualify(ty: &mut Type, width: usize) {
+        match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                let Type::Record { fields, .. } = storage.as_mut() else {
+                    unreachable!()
+                };
+                for n in 0..width {
+                    fields.push((format!("padding{n}"), Type::I64));
+                }
+            }
+            Type::Address { inner, .. } => qualify(inner, width),
+            _ => {}
+        }
+    }
+    let mut m = module();
+    qualify(&mut m.life_instances[0].ty, width);
+    for f in &mut m.functions {
+        qualify(&mut f.return_type, width);
+        for l in &mut f.locals {
+            qualify(&mut l.ty, width);
+        }
+        for t in &mut f.values {
+            qualify(t, width);
+        }
+    }
+    let make = &mut m.functions[0];
+    make.values.push(Type::I64);
+    make.blocks[0].instructions.insert(
+        2,
+        instruction(Some(3), InstructionKind::Constant(Constant::I64(0))),
+    );
+    let InstructionKind::MakeAggregate { fields } = &mut make.blocks[0].instructions[3].kind else {
+        unreachable!()
+    };
+    fields.extend(vec![ValueId(3); width]);
+    m
+}

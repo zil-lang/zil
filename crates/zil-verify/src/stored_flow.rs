@@ -424,6 +424,45 @@ pub(super) fn qualification(
 
 pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
     for f in &module.functions {
+        for block in &f.blocks {
+            for i in &block.instructions {
+                b.spend(1)?;
+                if !matches!(
+                    &i.kind,
+                    InstructionKind::Constant(_)
+                        | InstructionKind::Load(_)
+                        | InstructionKind::Store { .. }
+                        | InstructionKind::StorageLive(_)
+                        | InstructionKind::StorageDead(_)
+                        | InstructionKind::BorrowLocal { .. }
+                        | InstructionKind::BorrowLocalMut { .. }
+                        | InstructionKind::ReborrowAddress { .. }
+                        | InstructionKind::AddressField { .. }
+                        | InstructionKind::AddressIndex { .. }
+                        | InstructionKind::AddressSlice { .. }
+                        | InstructionKind::ReadAddress { .. }
+                        | InstructionKind::WriteAddress { .. }
+                        | InstructionKind::SliceLength { .. }
+                        | InstructionKind::MakeAggregate { .. }
+                        | InstructionKind::Call { .. }
+                        | InstructionKind::Unary { .. }
+                        | InstructionKind::Binary { .. }
+                        | InstructionKind::ConvertInteger { .. }
+                        | InstructionKind::ConvertNumber { .. }
+                        | InstructionKind::ScopeEnter { .. }
+                        | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::LoadStoredBorrow {
+                            mode: StoredBorrowLoad::CopyShared,
+                            ..
+                        }
+                ) {
+                    return Err(unsupported(
+                        "instruction is outside the checked stored profile, including unreachable blocks",
+                        Some(i.span),
+                    ));
+                }
+            }
+        }
         for root in f
             .locals
             .iter()
