@@ -1050,21 +1050,13 @@ fn check_type_shape(
                 budget.stored_borrows = true;
                 pending.push((storage, depth + 1, context));
             }
-            Type::AsyncRegistration { .. } => {
-                return Err(unsupported(
-                    "pollable registration type consumer is not implemented",
-                    None,
-                ));
-            }
             Type::Dyn { .. } => {
                 return Err(unsupported(
                     "dyn type consumer is not yet implemented",
                     None,
                 ));
             }
-            Type::Registration {
-                environment: element,
-            }
+            Type::Registration { environment: element } | Type::AsyncRegistration { environment: element }
             | Type::OwnedStore { element } => {
                 pending.push((element, depth + 1, context));
             }
@@ -1871,12 +1863,7 @@ fn check_instruction(
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
         | InstructionKind::AsyncRegistrationPollClose { .. }
-        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
-            return Err(unsupported(
-                "pollable registration operation consumer is not implemented",
-                Some(instruction.span),
-            ));
-        }
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => registration::instruction(module,function,instruction,budget)?,
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
             return Err(unsupported(
                 "dyn instruction consumer is not yet implemented",

@@ -861,7 +861,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 | "ClosedEnvironment"
                 | "c_register"
                 | "registration_valid"
-                | "registration_close"
+                | "registration_close" | "c_register_async" | "async_registration_valid" | "async_registration_request_close" | "async_registration_poll_close" | "async_registration_finish_destroy"
         ) {
             return Err(error(
                 "E-REGISTRATION-NAME",

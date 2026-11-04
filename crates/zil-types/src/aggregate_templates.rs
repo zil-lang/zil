@@ -344,6 +344,7 @@ impl Index {
                 }
             }
             CoreAggregateTypeRecipe::Task { result: element }
+            | CoreAggregateTypeRecipe::AsyncRegistration { environment: element }
             | CoreAggregateTypeRecipe::Registration {
                 environment: element,
             }
@@ -375,12 +376,6 @@ fn validate_recipe(
         ));
     }
     match r {
-        CoreAggregateTypeRecipe::AsyncRegistration { .. } => {
-            return Err(unsupported(
-                span,
-                "pollable registration recipe consumer is not implemented",
-            ));
-        }
         CoreAggregateTypeRecipe::Parameter { index: 0 } => {}
         CoreAggregateTypeRecipe::Parameter { .. } => {
             return Err(bad(
@@ -390,7 +385,8 @@ fn validate_recipe(
         }
         CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
         CoreAggregateTypeRecipe::Task { result: element }
-        | CoreAggregateTypeRecipe::Registration {
+        | CoreAggregateTypeRecipe::AsyncRegistration { environment: element }
+            | CoreAggregateTypeRecipe::Registration {
             environment: element,
         }
         | CoreAggregateTypeRecipe::Store { element } => {
@@ -630,7 +626,7 @@ fn contextual_free(
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
             | Type::Task { result: t, .. }
-            | Type::Registration { environment: t }
+            | Type::Registration { environment: t } | Type::AsyncRegistration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }
@@ -737,7 +733,7 @@ pub(super) fn rebind_type(
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
             | Type::Task { result: t, .. }
-            | Type::Registration { environment: t }
+            | Type::Registration { environment: t } | Type::AsyncRegistration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }

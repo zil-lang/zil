@@ -894,7 +894,7 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             budget.inside_store = previous;
         }
         Type::Task { result: inner, .. }
-        | Type::Registration { environment: inner }
+        | Type::Registration { environment: inner } | Type::AsyncRegistration { environment: inner }
         | Type::Address { inner, .. }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
@@ -1575,7 +1575,7 @@ enum Term {
     /// Only the finite payload participates in the Copy constraint graph.
     /// The bool distinguishes a carrier expression from a descriptor.
     Resource(Variable, bool),
-    Registration(Rc<Term>, bool),
+    Registration(Rc<Term>, bool, bool),
     Closure(usize),
     ClosureArray {
         element: usize,
@@ -1942,7 +1942,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             let source = self.known_term(environment, span)?;
             return Ok(Term::Registration(
                 Rc::new(source),
-                matches!(ty, Type::Managed(_)),
+                matches!(ty, Type::Managed(_)), registration::asynchronous(ty),
             ));
         }
         if self.helper_environments.len() > 1
@@ -2551,7 +2551,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
-        if let Term::Registration(environment, owned) = term {
+        if let Term::Registration(environment, owned, asynchronous) = term {
             let Some(wanted) = registration::environment(ty) else {
                 return Err(error(
                     "E-TYPE-MISMATCH",
@@ -2559,7 +2559,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "registration carrier differs from expected type",
                 ));
             };
-            if matches!(ty, Type::Managed(_)) && !owned {
+            if *asynchronous != registration::asynchronous(ty) || matches!(ty, Type::Managed(_)) && !owned {
                 return Err(error(
                     "E-TYPE-MISMATCH",
                     span,
@@ -2654,7 +2654,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
-            (Term::Registration(a, am), Term::Registration(b, bm)) if am == bm => {
+            (Term::Registration(a, am, aa), Term::Registration(b, bm, ba)) if am == bm && aa == ba => {
                 self.unify(a, b, span)
             }
             (Term::ValueStore(a, _), Term::ValueStore(b, _)) => self.unify(a, b, span),
@@ -2870,7 +2870,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
             return Ok(match binding.term {
-                Term::Registration(environment, _) => Term::Registration(environment, false),
+                Term::Registration(environment, _, asynchronous) => Term::Registration(environment, false, asynchronous),
                 Term::Resource(variable, _) => Term::Resource(variable, false),
                 Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
@@ -3608,9 +3608,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             };
             return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                 Some(Binding {
-                    term: Term::Registration(environment, true),
+                    term: Term::Registration(environment, true, asynchronous),
                     ..
-                }) => Ok(Term::Registration(environment.clone(), true)),
+                }) => Ok(Term::Registration(environment.clone(), true, *asynchronous)),
                 Some(Binding {
                     term: Term::ValueStore(element, true),
                     ..
@@ -4112,18 +4112,19 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if let Some(name) = registration::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
-            if name == "c_register" {
-                let [register, close, callback] = arguments.as_slice() else {
+            let asynchronous = name.starts_with("async_registration_") || name == "c_register_async";
+            if matches!(name,"c_register" | "c_register_async") {
+                let (providers, callback): (Vec<_>, _) = match arguments.as_slice() {
+                    [register, close, callback] if !asynchronous => (vec![(register, ScopedCallbackRole::Register),(close,ScopedCallbackRole::Close)],callback),
+                    [register, close, drain, callback] if asynchronous => (vec![(register,ScopedCallbackRole::AsyncRegister),(close,ScopedCallbackRole::AsyncRequestClose),(drain,ScopedCallbackRole::AsyncPollDrain)],callback),
+                    _ => {
                     return Err(error(
                         "E-CALL-ARITY",
                         span,
-                        "c_register requires three arguments",
-                    ));
+                        "registration constructor requires ordered actual providers and F",
+                    )); }
                 };
-                for (expression, role) in [
-                    (register, ScopedCallbackRole::Register),
-                    (close, ScopedCallbackRole::Close),
-                ] {
+                for (expression, role) in providers {
                     let Term::Function(signature) = self.expr(expression, depth + 1, false)? else {
                         return Err(error(
                             "E-FFI-REGISTRATION",
@@ -4160,7 +4161,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     .bind(self.closures[id].parameters[0], &Type::I32, span)?;
                 self.graph
                     .bind(self.closures[id].result, &Type::I32, span)?;
-                return Ok(Term::Registration(Rc::new(Term::Closure(id)), true));
+                return Ok(Term::Registration(Rc::new(Term::Closure(id)), true, asynchronous));
             }
             let [argument] = arguments.as_slice() else {
                 return Err(error(
@@ -4169,8 +4170,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "registration operation requires one carrier",
                 ));
             };
+            if asynchronous && matches!(name,"async_registration_request_close"|"async_registration_poll_close") {
+                let CoreExprKind::Unary { op:UnaryOp::BorrowMut,operand } = &argument.kind else { return Err(error("E-REGISTRATION-CARRIER",span,"async close requires explicit exclusive owning head address")); };
+                let CoreExprKind::Name(local) = &operand.kind else { return Err(error("E-REGISTRATION-CARRIER",span,"async close requires actual complete local owning head")); };
+                self.budget.work(local.len().saturating_add(self.scopes.len()),span)?;
+                if !self.scopes.iter().rev().find_map(|s|s.get(local)).is_some_and(|b|b.mutable && matches!(b.term,Term::Registration(_,true,true))) { return Err(error("E-REGISTRATION-CARRIER",span,"async close requires mutable complete local owner")); }
+                self.expr(operand,depth+1,false)?;
+                let returned = if name == "async_registration_poll_close" { tasks::poll_type(&Type::Unit) } else { Type::Unit };
+                return self.known_term(&returned,span);
+            }
             let actual = self.expr(argument, depth + 1, false)?;
-            if !matches!(actual,Term::Registration(_,owned) if name=="registration_valid" || owned)
+            if !matches!(actual,Term::Registration(_,owned,a) if a == asynchronous && (matches!(name,"registration_valid"|"async_registration_valid") || owned))
             {
                 return Err(error(
                     "E-REGISTRATION-CARRIER",
@@ -4179,7 +4189,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
             return self.known_term(
-                if name == "registration_valid" {
+                if matches!(name,"registration_valid"|"async_registration_valid") {
                     &Type::Bool
                 } else {
                     &Type::Unit
@@ -4400,7 +4410,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     return Ok(Term::Registration(
                         Rc::new(Term::Closure(environment)),
-                        matches!(signature.result, Type::Managed(_)),
+                        matches!(signature.result, Type::Managed(_)), registration::asynchronous(&signature.result),
                     ));
                 }
                 if forwarding::signature(&signature).is_some() {
@@ -4473,7 +4483,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     return Ok(Term::Registration(
                         Rc::new(Term::Closure(environment)),
-                        matches!(signature.result, Type::Managed(_)),
+                        matches!(signature.result, Type::Managed(_)), registration::asynchronous(&signature.result),
                     ));
                 }
                 if forwarding::signature(&signature).is_some() {

@@ -1201,12 +1201,7 @@ impl Resolver<'_> {
                     retained_life: retained_life.clone(),
                 }
             }
-            Type::AsyncRegistration { .. } => {
-                return Err(unsupported(
-                    span,
-                    "pollable registration type consumer is not implemented",
-                ));
-            }
+            Type::AsyncRegistration { environment } => Type::AsyncRegistration { environment: Box::new(self.ty(environment, depth + 1, span)?) },
             Type::Registration { environment } => Type::Registration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
             },
@@ -1263,8 +1258,8 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
-                    Type::Registration { .. }
-                        if matches!(inner.as_ref(), Type::Registration { .. }) =>
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                        if matches!(inner.as_ref(), Type::Registration { .. } | Type::AsyncRegistration { .. }) =>
                     {
                         Box::new(resolved)
                     }
@@ -2827,10 +2822,10 @@ impl Resolver<'_> {
     ) -> R<Type> {
         self.charge(depth, span)?;
         match recipe {
-            CoreAggregateTypeRecipe::AsyncRegistration { .. } => Err(unsupported(
-                span,
-                "pollable registration recipe consumer is not implemented",
-            )),
+            CoreAggregateTypeRecipe::AsyncRegistration { environment } => {
+                let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::AsyncRegistration { environment: Box::new(environment) })))
+            },
             CoreAggregateTypeRecipe::Concrete(t) => {
                 // Concrete recipe syntax is in the aggregate declaration, not
                 // the caller's T/F scope. It cannot capture a same-spelled binder.
