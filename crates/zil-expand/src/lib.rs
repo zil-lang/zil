@@ -16,6 +16,7 @@ mod project_traits;
 mod receivers;
 mod records;
 mod resources;
+pub mod source_context;
 mod static_traits;
 mod tasks;
 

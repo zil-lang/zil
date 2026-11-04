@@ -2,6 +2,9 @@
 //! and generated spellings are never owner authority.
 use super::*;
 use zil_base::ModuleId;
+use zil_base::NodeId;
+use zil_ir::LifeDeclarationIdentity;
+use crate::source_context::{DeclarationOrigin, DeclarationPlacement, SourceIdentityContext};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DeclId {
@@ -24,6 +27,7 @@ pub(crate) struct Origin {
 #[derive(Default)]
 pub(crate) struct Origins {
     pub(crate) entries: Vec<Origin>,
+    pub(crate) identities: BTreeMap<DeclId, DeclarationOrigin>,
 }
 impl Origin {
     pub(crate) fn source(module: ModuleId, ordinal: usize, span: Span) -> R<Self> {
@@ -86,7 +90,7 @@ impl Origins {
             }
             entries.push(origin);
         }
-        Ok(Self { entries })
+        Ok(Self { entries, identities: BTreeMap::new() })
     }
     pub(crate) fn insert_option(&mut self, module: &Module, budget: &mut Budget<'_>) -> R<()> {
         if self.entries.len() + 1 != module.items.len() {
@@ -121,6 +125,107 @@ impl Origins {
             .copied()
             .ok_or_else(|| error(span, "declaration provenance absent"))
     }
+
+    pub(crate) fn capture_identities(
+        &mut self,
+        module: &Module,
+        inserted_option: bool,
+        context: SourceIdentityContext<'_>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        if self.entries.len() != module.items.len() {
+            return Err(error(module.span, "identity provenance is not aligned with syntax"));
+        }
+        let mut supplied = None;
+        match context.declarations {
+            DeclarationPlacement::Unavailable => return Err(unsupported(module.span,
+                "transformed declarations require explicit source lineage")),
+            DeclarationPlacement::Original => {}
+            DeclarationPlacement::Aligned(modules) => {
+                for candidate in modules {
+                    budget.node(module.span, 0)?;
+                    if candidate.module == module.id {
+                        if supplied.is_some() { return Err(error(module.span,"duplicate declaration-origin module")); }
+                        supplied = Some(candidate);
+                    }
+                }
+                let actual = supplied.ok_or_else(|| error(module.span,"declaration-origin module absent"))?;
+                if actual.items.len().checked_add(usize::from(inserted_option)) != Some(module.items.len()) {
+                    return Err(error(module.span,"declaration-origin item count differs"));
+                }
+            }
+        }
+        let mut module_path = None;
+        if module.id == context.root {
+            module_path = Some(&[][..]);
+        } else {
+            for (path, owner) in context.modules {
+                budget.node(module.span, 0)?;
+                if *owner == module.id && module_path.is_none() { module_path = Some(path.as_slice()); }
+            }
+        }
+        let module_path = module_path.ok_or_else(|| unsupported(module.span,
+            "declaration metadata requires an explicit logical module identity"))?;
+        if context.package.is_empty() { return Err(error(module.span,"source package namespace is empty")); }
+        for (index, (item, origin)) in module.items.iter().zip(&self.entries).enumerate() {
+            budget.node(item.span, 0)?;
+            if origin.declaration.module != module.id { continue; }
+            if origin.declaration.compiler { continue; }
+            let ordinal = index.checked_sub(usize::from(inserted_option))
+                .ok_or_else(|| error(item.span,"source declaration ordinal underflow"))?;
+            let captured = if let Some(supplied) = supplied {
+                let captured = &supplied.items[ordinal];
+                pay_identity(&captured.identity, budget, item.span)?;
+                budget.text(context.package,item.span)?;
+                if captured.identity.package != context.package {
+                    return Err(error(item.span,"declaration package differs from request context"));
+                }
+                captured.clone()
+            } else {
+                let (kind, actual_name) = match &item.kind {
+                    ItemKind::Function(f) => ("function", Some(f.name.as_str())),
+                    ItemKind::Extern{function,..} => ("extern", Some(function.name.as_str())),
+                    ItemKind::Aggregate(a) => (match a.kind { AggregateKind::Struct => "struct", AggregateKind::Package => "package", AggregateKind::Resource => "resource" },Some(a.name.as_str())),
+                    ItemKind::Enum(e) => ("enum",Some(e.name.as_str())),
+                    ItemKind::Trait(t) => ("trait",Some(t.name.as_str())),
+                    ItemKind::TypeAlias(a) => ("alias",Some(a.name.as_str())),
+                    ItemKind::Const(c) => ("const",Some(c.name.as_str())),
+                    ItemKind::Impl(_) => ("impl",None),
+                    ItemKind::Import(_) => ("import",None),
+                    ItemKind::Meta(_) => ("meta",None),
+                };
+                budget.text(context.package,item.span)?;
+                for part in module_path { budget.node(item.span,0)?; budget.text(part,item.span)?; }
+                budget.text(kind,item.span)?;
+                let actual_name = if let Some(actual_name) = actual_name {
+                    budget.text(actual_name,item.span)?; actual_name.to_owned()
+                } else {
+                    // An anonymous declaration uses its actual source structural
+                    // ordinal. This is not a location/span or a generated name.
+                    for _ in 0..=ordinal.checked_ilog10().unwrap_or(0) { budget.node(item.span,0)?; }
+                    ordinal.to_string()
+                };
+                DeclarationOrigin { declaration:NodeId(u32::try_from(ordinal).map_err(|_| error(item.span,"source declaration identity exhausted"))?),
+                    identity:LifeDeclarationIdentity { package:context.package.to_owned(), module_path:module_path.to_vec(),
+                        declaration_path:vec![kind.to_owned(),actual_name],generation_path:Vec::new() } }
+            };
+            for _ in 0..self.identities.len().checked_ilog2().map_or(1,|n| n as usize+2) { budget.node(item.span,0)?; }
+            self.identities.insert(origin.declaration,captured);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn copy_identities(&self, budget:&mut Budget<'_>,span:Span) -> R<BTreeMap<DeclId,DeclarationOrigin>> {
+        for identity in self.identities.values() { budget.node(span,0)?; pay_identity(&identity.identity,budget,span)?; }
+        Ok(self.identities.clone())
+    }
+}
+
+fn pay_identity(identity:&LifeDeclarationIdentity,budget:&mut Budget<'_>,span:Span)->R<()> {
+    budget.text(&identity.package,span)?;
+    for part in identity.module_path.iter().chain(&identity.declaration_path) { budget.node(span,0)?;budget.text(part,span)?; }
+    for _ in &identity.generation_path { budget.node(span,0)?; }
+    Ok(())
 }
 pub(crate) struct Pending {
     pub(crate) item: Item,
