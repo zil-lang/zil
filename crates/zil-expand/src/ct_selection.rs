@@ -754,6 +754,13 @@ pub(crate) fn member_owner_type_cost(
     fn core_shape(v: &mut dyn Visitor, ty: &Type, span: Span, depth: usize) -> CompileResult<()> {
         v.node(span, depth)?;
         match ty {
+            Type::Dyn { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Expand,
+                    "dynamic owner metadata requires its complete declaration context",
+                    Some(span),
+                )]);
+            }
             Type::Named(name) | Type::Unsupported(name) => v.text(name, span)?,
             Type::Record { name, fields } | Type::Package { name, fields } => {
                 v.text(name, span)?;
@@ -781,6 +788,13 @@ pub(crate) fn member_owner_type_cost(
                 storage: inner,
                 life,
             } => {
+                if !life.retained.is_empty() || !life.nominal_arguments.is_empty() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Expand,
+                        "retained storage owner metadata requires its complete declaration context",
+                        Some(span),
+                    )]);
+                }
                 for _ in 0..life.binder_count {
                     v.node(span, depth + 1)?;
                 }
