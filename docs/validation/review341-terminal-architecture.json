@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/terminal_architecture",
+  "implementation_author": "/root/traits341",
+  "reviewed_delivery_commit": "381d803c243a7590f4240815bd4c1f7551113ec6",
+  "status": "ChangesRequested",
+  "scope": "Typed scalar const function parameters, module normalization and concrete supertrait closure; broader trait solver work excluded",
+  "identity": {
+    "production_rust_path_nul_bytes_nul_sha256": "77466b65416d58cac7ca92b18cefbda6954d49aebe7e55d9b254035c04486ac0",
+    "test_rust_path_nul_bytes_nul_sha256": "d9302126eecf558fb86b5362d2042cff070c69ddca771de1242ecc8fc76390ce",
+    "executables": {
+      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "e784b1cb9e400b22aadbac750e74915758a214db1b57120307a504f74f636cc7",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "dc5e58f22981bd5674e849ccd4f5d6afc35b52a1ad1b20ca0cfbb8f96229bbb1"
+    },
+    "algorithm": "SHA-256 of sorted repository-relative UTF-8 path, NUL, exact file bytes, NUL for each selected path",
+    "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
+    "production_file_count": 305,
+    "test_selection": [
+      "crates/zil-driver/tests/generics.rs",
+      "crates/zil-driver/tests/impl162_trait_bounds.rs"
+    ]
+  },
+  "identity_checked": "Both retained executable SHA-256 values matched. All305 exact committed production Rust files and both test Rust files matched committed digests. Production sort is Python pathlib path-component order, not whole-path string order.",
+  "replay": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/generics-341-index terminal341 --nocapture --test-threads=1",
+      "passed": 3,
+      "failed": 0,
+      "elapsed_seconds": 0.15
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/traits-341-index terminal341 --nocapture --test-threads=1",
+      "passed": 3,
+      "failed": 0,
+      "elapsed_seconds": 0.98
+    }
+  ],
+  "observed": {
+    "const_Expand_N": 1256,
+    "supertrait_request_work_N": 3197,
+    "supertrait_request_nodes_N": 826,
+    "const_match_request_work_N": 2414,
+    "const_match_request_nodes_N": 823,
+    "limits": "N accepts; N-1 ResourceLimit; cold/warm/fresh agree",
+    "machine": "Actual local/project const and supertrait sources execute through Clang/API O0/O2, with raw Typed/Analyze/Wire verification and persisted cache controls"
+  },
+  "resolved_review_findings": [
+    "Synthetic const bindings cannot be borrowed as storage; runtime shadowing remains addressable.",
+    "Const symbolic identity uses declaration-scoped ordinal/local IDs, with spans retained for diagnostics only. Unused runtime-shadowed array lengths reject.",
+    "Each shadowing match arm prepays its substitution-map clone.",
+    "Canonical const-only index replaces the uncharged scan across all symbols; empty-index path is constant time."
+  ],
+  "open_finding": {
+    "location": "crates/zil-expand/src/generic_trait_super.rs: inherited / validate_supertraits",
+    "issue": "Inherited trait applications call trait_instances::arguments for shape/key construction without validating the actual type and required argument capabilities under the declaring trait lexical bounds before publishing the closure.",
+    "probes": [
+      "trait Base<T>{}trait Child:Base<Missing>{}fn main(){}",
+      "resource R{n:i32}trait Base<T:Copy>{}trait Child:Base<R>{}fn main(){}"
+    ],
+    "evidence": "Static source inspection and author confirmation; these new probes were not independently executed at this checkpoint.",
+    "required_change": "Reject unknown or unsupported/non-Copy inherited actuals at unused declaration checking, or prove them using the current declaration bounds; do not obtain premises from eventual concrete instances."
+  },
+  "Rust_goals": {
+    "safety": "Existing retained controls pass; open unused-supertrait admission gap prevents acceptance of this checkpoint.",
+    "runtime_memory": "Actual native behavior reproduced; Rust performance/RSS NotRun.",
+    "expression_maintenance": "Const forwarding/shadowing and concrete supertraits compose within tested scope; general impl/projection/method work pending.",
+    "compile_cost": "Budget fixes reviewed and exact boundaries reproduced; Rust compile-cost comparison NotRun.",
+    "breakthrough": "Finite source expressiveness improvement only; product conjunction not established."
+  },
+  "limits": [
+    "No independent Cargo rebuild or full workspace gate.",
+    "No u64/usize const integration, general CT const evaluation, associated projections, conditional impl/coherence or generic-method acceptance."
+  ]
+}
