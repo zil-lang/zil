@@ -224,7 +224,7 @@ pub(crate) fn state_type(ty: &TypeRef, name: &str) -> bool {
         return false;
     };
     path.as_slice() != [name]
-        && path.as_slice() != ["Registration"]
+        && !matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration")
         && (1..=2).contains(&args.len())
         && args
             .iter()
@@ -247,7 +247,7 @@ fn dual_state_type(ty: &TypeRef, name: &str) -> bool {
         return false;
     };
     path.as_slice() != [name]
-        && path.as_slice() != ["Registration"]
+        && !matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration")
         && (1..=3).contains(&args.len())
         && args
             .iter()
@@ -329,7 +329,7 @@ pub(crate) fn registration_environment(ty: &TypeRef) -> Option<&TypeRef> {
     let TypeKind::Named { path, args } = &grouped(ty).kind else {
         return None;
     };
-    if path.as_slice() != ["Registration"] {
+    if !matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration") {
         return None;
     }
     let [GenericArg::Type(environment)] = args.as_slice() else {

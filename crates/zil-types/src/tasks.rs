@@ -323,6 +323,13 @@ impl Builder<'_, '_> {
             }
             let mut prepared_inputs = Vec::new();
             for (argument, wanted) in arguments[1..].iter().zip(&parameters) {
+                if name == "task_create" && registration::asynchronous(wanted) {
+                    return Err(error(
+                        "E-ASYNC-REGISTRATION-TASK-INPUT",
+                        argument.span,
+                        "a live pollable TaskCreate input has no synchronous allocation-failure cleanup; create it inside the Suspend worker",
+                    ));
+                }
                 let (v, t) = self.argument_expr(argument, wanted)?;
                 self.same(&t, wanted, argument.span)?;
                 prepared_inputs.push(self.stage_argument(v, &t, argument.span)?);

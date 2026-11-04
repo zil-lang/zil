@@ -299,6 +299,7 @@ struct Budget {
     sums: bool,
     tasks: bool,
     registrations: bool,
+    async_registrations: bool,
     replacements: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
@@ -325,6 +326,7 @@ impl Budget {
             sums: false,
             tasks: false,
             registrations: false,
+            async_registrations: false,
             replacements: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
@@ -1050,12 +1052,6 @@ fn check_type_shape(
                 budget.stored_borrows = true;
                 pending.push((storage, depth + 1, context));
             }
-            Type::AsyncRegistration { .. } => {
-                return Err(unsupported(
-                    "pollable registration type consumer is not implemented",
-                    None,
-                ));
-            }
             Type::Dyn { .. } => {
                 return Err(unsupported(
                     "dyn type consumer is not yet implemented",
@@ -1065,7 +1061,11 @@ fn check_type_shape(
             Type::Registration {
                 environment: element,
             }
+            | Type::AsyncRegistration {
+                environment: element,
+            }
             | Type::OwnedStore { element } => {
+                budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
                 pending.push((element, depth + 1, context));
             }
             Type::Slice { element } => {
@@ -1872,10 +1872,7 @@ fn check_instruction(
         | InstructionKind::AsyncRegistrationRequestClose { .. }
         | InstructionKind::AsyncRegistrationPollClose { .. }
         | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
-            return Err(unsupported(
-                "pollable registration operation consumer is not implemented",
-                Some(instruction.span),
-            ));
+            registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
             return Err(unsupported(
@@ -2159,6 +2156,9 @@ fn check_instruction(
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
+            } else if matches!(inner,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+            {
+                registration::carrier(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
             {
                 tasks::carrier(module, inner, span, budget)?;

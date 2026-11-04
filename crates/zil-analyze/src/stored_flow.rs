@@ -269,13 +269,6 @@ pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileR
             )]);
         }
         match ty {
-            Type::AsyncRegistration { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "pollable registration inventory consumer is not implemented",
-                    None,
-                )]);
-            }
             Type::BorrowedStorage { storage, life } => {
                 fee(
                     b,
@@ -318,7 +311,8 @@ pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileR
                     }
                 }
             }
-            Type::Address { inner, .. }
+            Type::AsyncRegistration { environment: inner }
+            | Type::Address { inner, .. }
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner }
             | Type::Managed(inner)

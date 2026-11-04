@@ -2,6 +2,7 @@
 use super::*;
 use zil_base::Span;
 const PREFIX: &str = "@builtin:Registration:";
+pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Analyze,
@@ -11,7 +12,7 @@ fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
     )]
 }
 pub(super) fn resource(ty: &Type) -> bool {
-    matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}))
+    matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}|Type::AsyncRegistration{..}))
 }
 fn definition(
     module: &TypedModule,
@@ -19,7 +20,8 @@ fn definition(
     budget: &mut Budget,
     span: Span,
 ) -> CompileResult<()> {
-    let Type::Registration { environment } = payload else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = payload
+    else {
         return Err(fail(span, "registration payload is absent"));
     };
     let Type::Closure(id) = environment.as_ref() else {
@@ -32,7 +34,12 @@ fn definition(
         module.resources.len().saturating_add(32),
         "registration sealed resource definition",
     )?;
-    let name = format!("{PREFIX}{}", id.0);
+    let prefix = if matches!(payload, Type::AsyncRegistration { .. }) {
+        ASYNC_PREFIX
+    } else {
+        PREFIX
+    };
+    let name = format!("{prefix}{}", id.0);
     if !module.target.is_supported_x64_llvm()
         || (module
             .resources
@@ -125,8 +132,27 @@ fn closed(
                     budget.spend(1, "registration nested concrete environment")?;
                     pending.push(*id)
                 }
+                Type::Managed(t) => {
+                    budget.spend(
+                        module.resources.len(),
+                        "registration actual environment teardown inventory",
+                    )?;
+                    for resource in &module.resources {
+                        budget.type_work(
+                            &resource.payload,
+                            false,
+                            "registration actual teardown payload equality",
+                        )?;
+                        if resource.payload == **t {
+                            if let Some(teardown) = resource.teardown {
+                                functions.push(teardown);
+                            }
+                        }
+                    }
+                    budget.spend(1, "registration managed environment payload")?;
+                    types.push(t);
+                }
                 Type::BorrowedStorage { storage: t, .. }
-                | Type::Managed(t)
                 | Type::Opaque { hidden: t, .. }
                 | Type::OwnedStore { element: t }
                 | Type::Registration { environment: t }
@@ -217,7 +243,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     for r in &module.resources {
         budget.spend(1, "registration resource inventory")?;
-        if matches!(r.payload, Type::Registration { .. }) || r.name.starts_with(PREFIX) {
+        if matches!(
+            r.payload,
+            Type::Registration { .. } | Type::AsyncRegistration { .. }
+        ) || r.name.starts_with(PREFIX)
+            || r.name.starts_with(ASYNC_PREFIX)
+        {
             definition(module, &r.payload, budget, Span::default())?
         }
     }
@@ -252,6 +283,101 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         .ok_or_else(|| fail(i.span, "registration operand outside actual values"))
                 };
                 let expected = match i.kind {
+                    InstructionKind::AsyncRegistrationStart {
+                        register,
+                        request_close,
+                        poll_drain,
+                        callback,
+                        ..
+                    } => {
+                        for (id, role) in [
+                            (register, ScopedCallbackRole::AsyncRegister),
+                            (request_close, ScopedCallbackRole::AsyncRequestClose),
+                            (poll_drain, ScopedCallbackRole::AsyncPollDrain),
+                        ] {
+                            let target = module
+                                .functions
+                                .get(id.0 as usize)
+                                .ok_or_else(|| fail(i.span, "async provider target absent"))?;
+                            foreign_scoped::declaration(target, role, budget)?;
+                        }
+                        let Type::Closure(id) = value(callback)? else {
+                            return Err(fail(
+                                i.span,
+                                "async registration requires actual consumed concrete F",
+                            ));
+                        };
+                        let closure = module
+                            .closures
+                            .get(id.0 as usize)
+                            .ok_or_else(|| fail(i.span, "async callback absent"))?;
+                        budget.spend(
+                            closure.parameters.len().saturating_add(1),
+                            "async callback actual signature",
+                        )?;
+                        if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                            || closure.parameters != [Type::I32]
+                            || closure.result != Type::I32
+                        {
+                            return Err(fail(
+                                i.span,
+                                "async callback requires actual FnMut(i32)->i32",
+                            ));
+                        }
+                        let payload = Type::AsyncRegistration {
+                            environment: Box::new(Type::Closure(*id)),
+                        };
+                        definition(module, &payload, budget, i.span)?;
+                        Some(Type::Managed(Box::new(payload)))
+                    }
+                    InstructionKind::AsyncRegistrationValid { registration } => {
+                        if !matches!(value(registration)?,Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(fail(i.span, "async validity requires actual descriptor"));
+                        }
+                        Some(Type::Bool)
+                    }
+                    InstructionKind::AsyncRegistrationRequestClose { registration }
+                    | InstructionKind::AsyncRegistrationPollClose { registration } => {
+                        let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = value(registration)?
+                        else {
+                            return Err(fail(
+                                i.span,
+                                "async close requires exclusive complete head address",
+                            ));
+                        };
+                        let Type::Managed(payload) = inner.as_ref() else {
+                            return Err(fail(i.span, "async close requires actual owning head"));
+                        };
+                        if !matches!(payload.as_ref(), Type::AsyncRegistration { .. }) {
+                            return Err(fail(i.span, "async close requires pollable payload"));
+                        }
+                        definition(module, payload, budget, i.span)?;
+                        Some(
+                            if matches!(i.kind, InstructionKind::AsyncRegistrationPollClose { .. })
+                            {
+                                Type::Enum {
+                                    name: format!("@std.task:v1:Poll:{}", Type::Unit.fingerprint()),
+                                    variants: vec![
+                                        ("Pending".into(), vec![]),
+                                        ("Ready".into(), vec![Type::Unit]),
+                                    ],
+                                }
+                            } else {
+                                Type::Unit
+                            },
+                        )
+                    }
+                    InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                        if !matches!(value(registration)?,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(fail(i.span, "async finish consumes actual owning head"));
+                        }
+                        Some(Type::Unit)
+                    }
                     InstructionKind::RegistrationStart {
                         register,
                         close,
@@ -363,7 +489,8 @@ pub(super) fn factory(
     let Type::Managed(p) = &f.return_type else {
         return Ok(false);
     };
-    let Type::Registration { environment } = p.as_ref() else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = p.as_ref()
+    else {
         return Ok(false);
     };
     let Type::Closure(id) = environment.as_ref() else {
