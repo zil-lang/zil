@@ -42,6 +42,7 @@ pub(super) struct Facts {
     pub values: Vec<Vec<Target>>,
     pub returned: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
+    complete: bool,
 }
 
 fn failure(text: &str) -> Vec<Diagnostic> {
@@ -107,6 +108,7 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     fee(b, s.locals.len().saturating_add(s.external.len()))?;
     let mut out = State::default();
     for (local, value) in &s.locals {
+        ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
     }
     for (index, slots) in &s.external {
@@ -116,9 +118,84 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
             fee(b, path.len())?;
             union(charged.slots.entry(path.clone()).or_default(), value, b)?;
         }
+        ordered(b, out.external.len(), 0)?;
         out.external.insert(*index, charged.slots);
     }
     Ok(out)
+}
+fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
+    fee(b, s.locals.len().saturating_add(s.external.len()))?;
+    for value in s.locals.values() {
+        target_work(&value.pointer.targets, b)?;
+        fee(b, value.pointer.loans.len())?;
+        for (path, permission) in &value.slots {
+            fee(
+                b,
+                path.len()
+                    .saturating_add(permission.loans.len())
+                    .saturating_add(1),
+            )?;
+            target_work(&permission.targets, b)?;
+        }
+    }
+    for slots in s.external.values() {
+        fee(b, slots.len())?;
+        for (path, permission) in slots {
+            fee(
+                b,
+                path.len()
+                    .saturating_add(permission.loans.len())
+                    .saturating_add(1),
+            )?;
+            target_work(&permission.targets, b)?;
+        }
+    }
+    Ok(())
+}
+
+fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    fee(
+        b,
+        f.values
+            .len()
+            .saturating_add(f.returned.len())
+            .saturating_add(f.apart.len()),
+    )?;
+    for row in &f.values {
+        for root in row {
+            fee(
+                b,
+                root.stored
+                    .len()
+                    .saturating_add(root.place.len())
+                    .saturating_add(1),
+            )?;
+        }
+    }
+    for (path, row) in &f.returned {
+        fee(b, path.len().saturating_add(row.len()))?;
+        for root in row {
+            fee(
+                b,
+                root.stored
+                    .len()
+                    .saturating_add(root.place.len())
+                    .saturating_add(1),
+            )?;
+        }
+    }
+    for (left, right) in &f.apart {
+        fee(
+            b,
+            left.stored
+                .len()
+                .saturating_add(left.place.len())
+                .saturating_add(right.stored.len())
+                .saturating_add(right.place.len())
+                .saturating_add(2),
+        )?;
+    }
+    Ok(())
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
     for (local, value) in &from.locals {
@@ -293,7 +370,6 @@ pub(super) fn inventory(
     for (index, decl) in module.life_declarations.iter().enumerate() {
         identity_work(&decl.identity, b)?;
         if decl.identity.package.is_empty()
-            || decl.identity.module_path.is_empty()
             || decl.identity.declaration_path.is_empty()
             || decl
                 .identity
@@ -732,6 +808,7 @@ fn seed(f: &TypedFunction, loans: &mut Vec<Loan>, b: &mut Budget) -> CompileResu
                     parents: Loans::new(),
                     mutable: false,
                 });
+                ordered(b, slots.len(), decl.path.len())?;
                 slots.insert(
                     decl.path.clone(),
                     Permission {
@@ -747,10 +824,12 @@ fn seed(f: &TypedFunction, loans: &mut Vec<Loan>, b: &mut Budget) -> CompileResu
                     fee(b, path.len())?;
                     union(copy.slots.entry(path.clone()).or_default(), permission, b)?;
                 }
+                ordered(b, state.external.len(), 0)?;
                 state.external.insert(index as u32, copy.slots);
             }
             value.slots = slots;
         }
+        ordered(b, state.locals.len(), 0)?;
         state.locals.insert(*local, value);
     }
     Ok(state)
@@ -762,8 +841,10 @@ fn select(
     path: &[PlaceProjection],
     b: &mut Budget,
 ) -> CompileResult<Permission> {
+    // Bottom while a predecessor/callee is unsolved is not permission. Final
+    // completeness and window checking reject every remaining empty target.
     if address.targets.is_empty() {
-        return Err(failure("stored selection has no actual carrier location"));
+        return Ok(Permission::default());
     }
     let mut out = Permission::default();
     for root in &address.targets {
@@ -774,11 +855,10 @@ fn select(
         let slots = match root.base {
             HoldRoot::Local(local) => {
                 ordered(b, state.locals.len(), 0)?;
-                &state
-                    .locals
-                    .get(&local)
-                    .ok_or_else(|| failure("carrier local is unavailable"))?
-                    .slots
+                let Some(value) = state.locals.get(&local) else {
+                    continue;
+                };
+                &value.slots
             }
             HoldRoot::Parameter(index) => {
                 ordered(b, state.external.len(), 0)?;
@@ -796,13 +876,9 @@ fn select(
             }
         };
         ordered(b, slots.len(), path.len())?;
-        let leaf = slots
-            .get(path)
-            .ok_or_else(|| failure("stored leaf is unavailable or uninitialized"))?;
-        union(&mut out, leaf, b)?;
-    }
-    if out.targets.is_empty() {
-        return Err(failure("stored leaf has no actual target"));
+        if let Some(leaf) = slots.get(path) {
+            union(&mut out, leaf, b)?;
+        }
     }
     Ok(out)
 }
@@ -841,14 +917,9 @@ fn substitute(
     } else if !value.slots.is_empty() {
         ordered(b, value.slots.len(), source.stored.len())?;
         let mut out = Permission::default();
-        union(
-            &mut out,
-            value
-                .slots
-                .get(&source.stored)
-                .ok_or_else(|| failure("actual carrier lacks the callee's returned leaf"))?,
-            b,
-        )?;
+        if let Some(actual) = value.slots.get(&source.stored) {
+            union(&mut out, actual, b)?;
+        }
         out
     } else {
         select(state, &value.pointer, &source.stored, b)?
@@ -983,17 +1054,9 @@ fn transfer(
                     union(&mut permission, &source.pointer, b)?;
                 } else {
                     ordered(b, source.slots.len(), tail.len())?;
-                    union(
-                        &mut permission,
-                        source
-                            .slots
-                            .get(tail)
-                            .ok_or_else(|| failure("nested aggregate omits stored field"))?,
-                        b,
-                    )?;
-                }
-                if permission.targets.is_empty() {
-                    return Err(failure("constructed stored field has no actual target"));
+                    if let Some(actual) = source.slots.get(tail) {
+                        union(&mut permission, actual, b)?;
+                    }
                 }
                 if !matches!(
                     slot(storage, &decl.path, b)?,
@@ -1043,6 +1106,7 @@ fn transfer(
                 if path.is_empty() {
                     out.pointer = permission;
                 } else {
+                    ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
                     out.slots.insert(path.clone(), permission);
                 }
@@ -1056,11 +1120,21 @@ fn transfer(
                 ));
             }
         }
+        InstructionKind::WriteAddress { address, .. } => {
+            let Type::Address { inner, .. } = value_type(f, *address)? else {
+                return Err(failure("write base is not an actual Address"));
+            };
+            b.type_work(inner, true, "stored profile actual ordinary write payload")?;
+            if !inner.is_copy_value() {
+                return Err(failure(
+                    "ordinary write cannot replace stored leaves or qualified carriers; use the checked slot protocol",
+                ));
+            }
+        }
         InstructionKind::Constant(_)
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
         | InstructionKind::ReadAddress { .. }
-        | InstructionKind::WriteAddress { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
@@ -1356,8 +1430,8 @@ fn windows(
             reverse(f, i, &mut live, b)?;
         }
         for (position, i) in block.instructions.iter().enumerate() {
-            let mut live = after[position].clone();
             fee(b, width)?;
+            let mut live = after[position].clone();
             if let Some(v) = i.result {
                 live[v.0 as usize] = false;
             }
@@ -1501,7 +1575,13 @@ pub(super) fn derive(
         let mut changed = false;
         for (index, f) in module.functions.iter().enumerate() {
             let (preds, reachable) = &graphs[index];
-            fee(b, f.values.len().saturating_add(f.blocks.len()))?;
+            fee(
+                b,
+                f.values
+                    .len()
+                    .saturating_mul(6)
+                    .saturating_add(f.blocks.len()),
+            )?;
             let mut loans = vec![Loan::default(); f.values.len()];
             let entry = seed(f, &mut loans, b)?;
             let mut values = vec![Value::default(); f.values.len()];
@@ -1539,10 +1619,8 @@ pub(super) fn derive(
                             local_changed |= merge(&mut values[id.0 as usize], &out, b)?;
                         }
                     }
-                    fee(
-                        b,
-                        state.locals.len().saturating_add(outputs[bi].locals.len()),
-                    )?;
+                    state_work(&state, b)?;
+                    state_work(&outputs[bi], b)?;
                     if state != outputs[bi] {
                         outputs[bi] = state;
                         local_changed = true;
@@ -1556,6 +1634,7 @@ pub(super) fn derive(
                 values: Vec::with_capacity(values.len()),
                 returned: BTreeMap::new(),
                 apart: BTreeSet::new(),
+                complete: false,
             };
             for value in &values {
                 let root = roots(value, b)?;
@@ -1576,6 +1655,7 @@ pub(super) fn derive(
                                 target
                                     .stored
                                     .len()
+                                    .saturating_add(target.place.len())
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
@@ -1598,19 +1678,53 @@ pub(super) fn derive(
                     }
                 }
             }
-            windows(
-                module,
-                f,
-                preds,
-                reachable,
-                &entry,
-                &outputs,
-                &values,
-                &mut loans,
-                &summaries,
-                &mut actual.apart,
-                b,
-            )?;
+            let mut grounded = true;
+            for (ty, value) in f.values.iter().zip(&values) {
+                fee(b, 1)?;
+                if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
+                    grounded = false;
+                }
+                if let Some((_, life)) = carrier(ty) {
+                    fee(b, life.slots.len())?;
+                    for slot in &life.slots {
+                        ordered(b, value.slots.len(), slot.path.len())?;
+                        if value
+                            .slots
+                            .get(&slot.path)
+                            .is_none_or(|p| p.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
+                }
+            }
+            for (id, loan) in loans.iter().enumerate() {
+                let parents = ancestry(&loan.parents, &loans, b)?;
+                ordered(b, parents.len(), 0)?;
+                if parents.contains(&id) {
+                    return Err(failure(
+                        "cyclic stored/target loan ancestry has no actual finite authority",
+                    ));
+                }
+            }
+            actual.complete = grounded;
+            if grounded {
+                windows(
+                    module,
+                    f,
+                    preds,
+                    reachable,
+                    &entry,
+                    &outputs,
+                    &values,
+                    &mut loans,
+                    &summaries,
+                    &mut actual.apart,
+                    b,
+                )?;
+            }
+            facts_work(&actual, b)?;
+            facts_work(&summaries[index], b)?;
             if actual != summaries[index] {
                 summaries[index] = actual;
                 changed = true;
@@ -1621,7 +1735,21 @@ pub(super) fn derive(
         }
     }
     for (f, facts) in module.functions.iter().zip(&summaries) {
+        if !facts.complete {
+            return Err(failure(
+                "stored/address producer has incomplete actual target facts",
+            ));
+        }
         returns(f, facts, b)?;
+        for (ty, roots) in f.values.iter().zip(&facts.values) {
+            fee(b, 1)?;
+            if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. }) && roots.is_empty()
+            {
+                return Err(failure(
+                    "stored/address producer has no independently grounded actual origin",
+                ));
+            }
+        }
     }
     Ok(summaries)
 }

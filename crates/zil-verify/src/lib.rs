@@ -83,6 +83,9 @@ mod scoped_callback;
 mod scoped_thread;
 mod slices;
 mod stored_borrows;
+// Staged behind the existing raw type/signature admission guards.
+#[allow(dead_code)]
+mod stored_flow;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
