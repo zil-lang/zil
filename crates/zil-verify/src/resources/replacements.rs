@@ -29,6 +29,53 @@ impl Plan {
             written: writes.to_vec(),
         })
     }
+    pub(super) fn extend_slots(
+        &self,
+        f: &TypedFunction,
+        slots: &mut Slots,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let routes = &self.actual.functions[f.id.0 as usize].values;
+        for (value, row) in routes.iter().enumerate() {
+            b.spend(row.len().saturating_add(1))?;
+            let ty = &f.values[value];
+            if slots.desc_value[value].is_none()
+                && (head_address(ty) || ty.is_package_address())
+                && row
+                    .iter()
+                    .any(|target| matches!(target.base, actual::Base::Element(_)))
+            {
+                slots.desc_value[value] = Some(slots.desc_count);
+                slots.desc_count = slots
+                    .desc_count
+                    .checked_add(1)
+                    .ok_or_else(|| limit("Store address description slot count overflow"))?;
+            }
+        }
+        for block in &f.blocks {
+            for i in &block.instructions {
+                b.spend(1)?;
+                if let InstructionKind::Store { local, value } = i.kind {
+                    let row = &routes[value.0 as usize];
+                    b.spend(row.len())?;
+                    let ty = &f.locals[local.0 as usize].ty;
+                    if slots.desc_local[local.0 as usize].is_none()
+                        && (head_address(ty) || ty.is_package_address())
+                        && row
+                            .iter()
+                            .any(|target| matches!(target.base, actual::Base::Element(_)))
+                    {
+                        slots.desc_local[local.0 as usize] = Some(slots.desc_count);
+                        slots.desc_count = slots
+                            .desc_count
+                            .checked_add(1)
+                            .ok_or_else(|| limit("Store local description slot count overflow"))?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     pub(super) fn writes(&self, id: FunctionId, b: &mut Budget) -> Check<BTreeSet<Root>> {
         let row = &self.written[id.0 as usize];
         b.spend(row.len())?;

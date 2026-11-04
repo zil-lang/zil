@@ -483,7 +483,7 @@ impl Slots {
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
-        let head_descriptions = budget.head_descriptions || budget.replacements;
+        let head_descriptions = budget.head_descriptions;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -2322,7 +2322,10 @@ fn run_function_data(
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
-    let slots = Slots::new(module, f, &graph.package_views, budget)?;
+    let mut slots = Slots::new(module, f, &graph.package_views, budget)?;
+    if let Some(plan) = replacements {
+        plan.extend_slots(f, &mut slots, budget)?;
+    }
     if slots.debt_count == 0 && slots.desc_count == 0 {
         return Ok(BTreeSet::new());
     }

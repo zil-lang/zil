@@ -919,6 +919,10 @@ fn owning_store_field_replacement_preserves_failure_and_actual_description_bound
         "{MODEL}{STATE}fn main()->i32{{let s=state();let v=store_at_mut(s.left,0);v.owner=R{{code:68}};return 0}}"
     );
     replacement_native(&[("main", &package)], b"AZDB", 0);
+    let order = format!(
+        "{MODEL}fn index()->i64{{unsafe{{putchar(73)}}return 0}}fn owner()->R contract{{result(create)}}{{unsafe{{putchar(82)}}return R{{code:90}}}}fn main()->i32{{{SETUP}let v=store_at_mut(s,index());v.owner=owner();return 0}}"
+    );
+    replacement_native(&[("main", &order)], b"IRAZB", 0);
     let child = format!(
         "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);let child=&v.owner.code;v.owner=R{{code:90}};return *child}}"
     );
@@ -1083,7 +1087,7 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
         "store-replacement-budget.zil",
         &text,
     );
-    for (stage, expected_n) in [(Stage::Analyze, 20084), (Stage::Verify, 54814)] {
+    for (stage, expected_n) in [(Stage::Analyze, 19754), (Stage::Verify, 54842)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
