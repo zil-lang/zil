@@ -66,6 +66,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::U16 => Layout { size: 2, align: 2 },
         Type::I32 => Layout { size: 4, align: 4 },
         Type::I64
+        | Type::U64
+        | Type::Usize
         | Type::FunctionPointer { .. }
         | Type::ForeignHandle
         | Type::CWideString
@@ -627,6 +629,8 @@ impl FunctionEmitter<'_> {
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::U64
+            | Type::Usize
             | Type::FunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString
