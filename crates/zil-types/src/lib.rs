@@ -1499,21 +1499,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
             )
         {
-            let work = inference::type_snapshot_work(sum, e.span, self.limits)?;
-            self.closures.snapshot(work.saturating_mul(2), e.span)?;
-            let (value, actual) = self.expr_raw(e, None)?;
-            let Some(variant) = enums::anonymous_injection(&actual, sum, e.span)? else {
-                return Ok((value, actual));
-            };
-            let result = self.value(
-                InstructionKind::MakeVariant {
-                    variant,
-                    fields: vec![value],
-                },
-                sum.clone(),
-                e.span,
-            )?;
-            return Ok((result, sum.clone()));
+            return self.expr_anonymous_injection(e, sum);
         }
         if let Some(union @ Type::ErrorUnion { .. }) = expected
             && !matches!(
@@ -1521,21 +1507,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
             )
         {
-            // A sealed Store constructor has no operands from which to infer
-            // its element. A direct owned-success signature is an explicit
-            // expected resource shape, just like a direct create signature.
-            let payload_expected = match (&e.kind, union) {
-                (CoreExprKind::Call { callee, .. }, Type::ErrorUnion { result, .. })
-                    if dynamic_store::primitive(callee) == Some("store_new")
-                        && matches!(result.as_ref(), Type::Managed(payload)
-                            if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
-                {
-                    Some(result.as_ref())
-                }
-                _ => None,
-            };
-            let (value, actual) = self.expr_raw(e, payload_expected)?;
-            return self.inject_error_union(value, actual, union, e.span);
+            return self.expr_error_injection(e, union);
         }
         self.expr_raw(e, expected)
     }
@@ -1544,6 +1516,51 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(value);
         }
 
+        match &e.kind {
+            CoreExprKind::Call { .. } => self.expr_call_body(e, expected),
+            CoreExprKind::If { .. } => self.expr_if_body(e, expected),
+            CoreExprKind::Sequence { .. } => self.expr_sequence_body(e, expected),
+            CoreExprKind::NumericConvert { value, target } => {
+                self.numeric_conversion(value, target, expected, e.span)
+            }
+            _ => self.expr_non_call(e, expected),
+        }
+    }
+    fn expr_anonymous_injection(&mut self, e: &CoreExpr, sum: &Type) -> R<(ValueId, Type)> {
+        let work = inference::type_snapshot_work(sum, e.span, self.limits)?;
+        self.closures.snapshot(work.saturating_mul(2), e.span)?;
+        let (value, actual) = self.expr_raw(e, None)?;
+        let Some(variant) = enums::anonymous_injection(&actual, sum, e.span)? else {
+            return Ok((value, actual));
+        };
+        let result = self.value(
+            InstructionKind::MakeVariant {
+                variant,
+                fields: vec![value],
+            },
+            sum.clone(),
+            e.span,
+        )?;
+        Ok((result, sum.clone()))
+    }
+    fn expr_error_injection(&mut self, e: &CoreExpr, union: &Type) -> R<(ValueId, Type)> {
+        // A sealed Store constructor has no operands from which to infer
+        // its element. A direct owned-success signature is an explicit
+        // expected resource shape, just like a direct create signature.
+        let payload_expected = match (&e.kind, union) {
+            (CoreExprKind::Call { callee, .. }, Type::ErrorUnion { result, .. })
+                if dynamic_store::primitive(callee) == Some("store_new")
+                    && matches!(result.as_ref(), Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::OwnedStore { .. })) =>
+            {
+                Some(result.as_ref())
+            }
+            _ => None,
+        };
+        let (value, actual) = self.expr_raw(e, payload_expected)?;
+        self.inject_error_union(value, actual, union, e.span)
+    }
+    fn expr_non_call(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         let result = match &e.kind {
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, e.span)?;
@@ -1652,12 +1669,52 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(result)
     }
+    fn expr_direct_call(
+        &mut self,
+        signature: Signature,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let result = {
+            if arguments.len() != signature.parameters.len() {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    format!(
+                        "{} arguments required, {} supplied",
+                        signature.parameters.len(),
+                        arguments.len()
+                    ),
+                ));
+            }
+            let mut values = vec![];
+            for (a, t) in arguments.iter().zip(&signature.parameters) {
+                let (v, actual) = self.argument_expr(a, t)?;
+                self.same(&actual, t, a.span)?;
+                values.push(self.stage_argument(v, &actual, a.span)?)
+            }
+            let values = self.commit_arguments(values, span)?;
+            let call = self.direct_call(&signature, values, span)?;
+            if signature.result == Type::Unit {
+                self.emit(call, None, span)?;
+                self.constant(Constant::Unit, span)?
+            } else {
+                let id = self.value(call, signature.result.clone(), span)?;
+                (id, signature.result)
+            }
+        };
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, span)?;
+        }
+        Ok(result)
+    }
     #[inline(never)]
     fn expr_call_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         let CoreExprKind::Call { callee, arguments } = &e.kind else {
             unreachable!("expression dispatcher variant")
         };
-        let result = {
+        {
             if let CoreExprKind::TypeApply {
                 callee: target,
                 type_arguments,
@@ -1776,37 +1833,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             if !signature.callable.is_empty() {
                 return self.call_helper(&signature, arguments, expected, e.span);
             }
-            if arguments.len() != signature.parameters.len() {
-                return Err(error(
-                    "E-CALL-ARITY",
-                    e.span,
-                    format!(
-                        "{} arguments required, {} supplied",
-                        signature.parameters.len(),
-                        arguments.len()
-                    ),
-                ));
-            }
-            let mut values = vec![];
-            for (a, t) in arguments.iter().zip(&signature.parameters) {
-                let (v, actual) = self.argument_expr(a, t)?;
-                self.same(&actual, t, a.span)?;
-                values.push(self.stage_argument(v, &actual, a.span)?)
-            }
-            let values = self.commit_arguments(values, e.span)?;
-            let call = self.direct_call(&signature, values, e.span)?;
-            if signature.result == Type::Unit {
-                self.emit(call, None, e.span)?;
-                self.constant(Constant::Unit, e.span)?
-            } else {
-                let id = self.value(call, signature.result.clone(), e.span)?;
-                (id, signature.result)
-            }
-        };
-        if let Some(expected) = expected {
-            self.same(&result.1, expected, e.span)?;
+            self.expr_direct_call(signature, arguments, expected, e.span)
         }
-        Ok(result)
     }
 
     #[inline(never)]

@@ -38,6 +38,12 @@ impl Builder<'_, '_> {
         if let Some(value) = self.take_replacement_input(e, expected)? {
             return Ok(value);
         }
+        if matches!(&e.kind, CoreExprKind::Name(_)) {
+            return self.transfer_name(e, expected);
+        }
+        self.expr(e, expected)
+    }
+    fn transfer_name(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
@@ -86,45 +92,54 @@ impl Builder<'_, '_> {
     }
     pub(super) fn argument_expr(&mut self, e: &CoreExpr, expected: &Type) -> R<(ValueId, Type)> {
         if matches!(expected, Type::Desc(_)) {
-            let (value, ty) = self.expr(e, None)?;
-            let (value, ty) = self.resource_descriptor(value, ty, e.span)?;
-            self.same(&ty, expected, e.span)?;
-            return Ok((value, ty));
+            return self.argument_description(e, expected);
         }
         if let Type::Address { mutable, inner } = expected {
-            let (address, actual) = self.expr(e, None)?;
-            let Type::Address {
-                mutable: available,
-                inner: actual_inner,
-            } = actual
-            else {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    e.span,
-                    "address parameter requires an address",
-                ));
-            };
-            if *mutable && !available {
-                return Err(error(
-                    "E-ADDRESS-PERMISSION",
-                    e.span,
-                    "a shared address cannot grant exclusive access",
-                ));
-            }
-            self.same(inner, &actual_inner, e.span)?;
-            return Ok((
-                self.value(
-                    InstructionKind::ReborrowAddress {
-                        address,
-                        mutable: *mutable,
-                    },
-                    expected.clone(),
-                    e.span,
-                )?,
-                expected.clone(),
-            ));
+            return self.argument_address(e, expected, *mutable, inner);
         }
         self.transfer_expr(e, Some(expected))
+    }
+    fn argument_description(&mut self, e: &CoreExpr, expected: &Type) -> R<(ValueId, Type)> {
+        let (value, ty) = self.expr(e, None)?;
+        let (value, ty) = self.resource_descriptor(value, ty, e.span)?;
+        self.same(&ty, expected, e.span)?;
+        Ok((value, ty))
+    }
+    fn argument_address(
+        &mut self,
+        e: &CoreExpr,
+        expected: &Type,
+        mutable: bool,
+        inner: &Type,
+    ) -> R<(ValueId, Type)> {
+        let (address, actual) = self.expr(e, None)?;
+        let Type::Address {
+            mutable: available,
+            inner: actual_inner,
+        } = actual
+        else {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                e.span,
+                "address parameter requires an address",
+            ));
+        };
+        if mutable && !available {
+            return Err(error(
+                "E-ADDRESS-PERMISSION",
+                e.span,
+                "a shared address cannot grant exclusive access",
+            ));
+        }
+        self.same(inner, &actual_inner, e.span)?;
+        Ok((
+            self.value(
+                InstructionKind::ReborrowAddress { address, mutable },
+                expected.clone(),
+                e.span,
+            )?,
+            expected.clone(),
+        ))
     }
     pub(super) fn borrow_place(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
         self.borrow_place_mode(e, false)

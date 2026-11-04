@@ -43,3 +43,19 @@ bfe682bfb再合入关联常量后，generics21、trait56（修正历史semantic-
 耗尽栈，正由344按原栈/原源定位修复。它不是本轮完整全仓通过。
 最新源码备份20261104T041016Z已核对15远端引用/5份源码WIP；主集成
 bfe682bfb实际存在于task/language-terminal-20261104，已验收main仍未升级。
+
+
+## 当前集成接续
+
+返回式Registration已在178abb147合入；5632c4b7d增加UInt/Float/借用薄函数指针
+真实捕获组合，Astra ea87928c7独立重放7项/56原生执行。实际Address/Desc/Slice
+捕获反例仍在各自较早源边界拒绝，不冒称这些源例重验了后端安全核。异步/跨线程
+登记尚未因Direct登记完成而自动关闭。
+
+完整aggregates106/0之后，深层普通/泛型/转换调用仍暴露Types及CT宿主递归栈问题。
+最终新提取先经作者默认2MiB全Driver30进程：五种模式至124通过、126清洁ResourceLimit；
+当前主树正在用最终含lint修正源码复验。历史SIGABRT没有被删除或改成已通过。
+
+345分支b7b0f25f1保留普通UI布局、RGBA软件光栅及输入法预编辑状态源码。
+布局/光栅已有两后端O0/O2共8原生执行；输入原源触发mutable nested Product
+字段借用缺口，342窄修复待合流。没有把这几个源码库等同于OS窗口/IME服务或完整ZUI。

@@ -979,141 +979,425 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
+    match &e.kind {
+        CoreExprKind::Literal(Constant::WideString(_)) => {
+            expression_has_closure_literal(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Ascribed { .. }
+        | CoreExprKind::IntegerConvert { .. }
+        | CoreExprKind::NumericConvert { .. } => {
+            expression_has_closure_ascribed(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Closure { .. } => {
+            expression_has_closure_closure(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Unary { .. } | CoreExprKind::CompileTime(..) | CoreExprKind::Try(..) => {
+            expression_has_closure_unary(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Binary { .. } => {
+            expression_has_closure_binary(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Call { .. } => {
+            expression_has_closure_call(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::TypeApply { .. } => {
+            expression_has_closure_type_apply(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Index { .. } => {
+            expression_has_closure_index(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Slice { .. } => {
+            expression_has_closure_slice(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Tuple(..) | CoreExprKind::Array(..) => {
+            expression_has_closure_tuple(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Member { .. } => {
+            expression_has_closure_member(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Record { .. } => {
+            expression_has_closure_record(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::RecordUpdate { .. } => {
+            expression_has_closure_record_update(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::Sequence { .. } => {
+            expression_has_closure_sequence(e, depth, budget, direct_type_callee)
+        }
+        CoreExprKind::If { .. } => expression_has_closure_if(e, depth, budget, direct_type_callee),
+        CoreExprKind::Integer(..)
+        | CoreExprKind::Float(..)
+        | CoreExprKind::String(..)
+        | CoreExprKind::Name(..)
+        | CoreExprKind::ReceiverMember(..)
+        | CoreExprKind::Unsupported(..) => {
+            expression_has_closure_integer(e, depth, budget, direct_type_callee)
+        }
+        _ => expression_has_closure_other(e, depth, budget, direct_type_callee),
+    }
+}
+
+fn expression_has_closure_literal(
+    e: &CoreExpr,
+    _depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    match &e.kind {
+        CoreExprKind::Literal(Constant::WideString(units)) => {
+            budget.work(units.len(), e.span)?;
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_ascribed(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
         CoreExprKind::Ascribed { ty, value }
         | CoreExprKind::IntegerConvert { target: ty, value }
         | CoreExprKind::NumericConvert { target: ty, value } => {
-            validate_type(ty, depth + 1, e.span, budget)?;
-            found |= expression_has_closure(value, depth + 1, budget)?;
+            {
+                validate_type(ty, depth + 1, e.span, budget)?;
+                found |= expression_has_closure(value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_closure(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    match &e.kind {
         CoreExprKind::Closure {
             parameters,
             return_type,
             body,
             ..
         } => {
-            budget.work(parameters.len(), e.span)?;
-            for parameter in parameters {
-                budget.work(parameter.name.len(), parameter.span)?;
-                if let Some(ty) = &parameter.ty {
-                    validate_type(ty, depth + 1, parameter.span, budget)?;
+            {
+                budget.work(parameters.len(), e.span)?;
+                for parameter in parameters {
+                    budget.work(parameter.name.len(), parameter.span)?;
+                    if let Some(ty) = &parameter.ty {
+                        validate_type(ty, depth + 1, parameter.span, budget)?;
+                    }
                 }
-            }
-            if let Some(ty) = return_type {
-                validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            contains_closure(body, depth + 1, budget)?;
-            found = true;
+                if let Some(ty) = return_type {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                contains_closure(body, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(true)
+}
+fn expression_has_closure_unary(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Unary { operand, .. }
         | CoreExprKind::CompileTime(operand)
         | CoreExprKind::Try(operand) => {
-            found |= expression_has_closure(operand, depth + 1, budget)?
+            found |= expression_has_closure(operand, depth + 1, budget)?;
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_binary(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Binary { left, right, .. } => {
-            found |= expression_has_closure(left, depth + 1, budget)?;
-            found |= expression_has_closure(right, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(left, depth + 1, budget)?;
+                found |= expression_has_closure(right, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_call(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Call { callee, arguments } => {
-            let previous = budget.direct_type_callee;
-            budget.direct_type_callee = true;
-            found |= expression_has_closure(callee, depth + 1, budget)?;
-            budget.direct_type_callee = false;
-            for argument in arguments {
-                found |= expression_has_closure(argument, depth + 1, budget)?;
-            }
-            budget.direct_type_callee = previous;
+            {
+                let previous = budget.direct_type_callee;
+                budget.direct_type_callee = true;
+                found |= expression_has_closure(callee, depth + 1, budget)?;
+                budget.direct_type_callee = false;
+                for argument in arguments {
+                    found |= expression_has_closure(argument, depth + 1, budget)?;
+                }
+                budget.direct_type_callee = previous;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_type_apply(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::TypeApply {
             callee,
             type_arguments,
         } => {
-            if !direct_type_callee
-                || type_arguments.len() != 1
-                || !(matches!(&callee.kind, CoreExprKind::Name(_))
-                    || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
             {
-                return Err(error(
-                    "E-TYPE-APPLICATION",
-                    e.span,
-                    "one type argument is allowed only on a static call's direct callee",
-                ));
-            }
-            budget.work(type_arguments.len(), e.span)?;
-            for argument in type_arguments {
-                validate_type(argument, depth + 1, e.span, budget)?;
-            }
-            budget.direct_type_callee = false;
-            found |= expression_has_closure(callee, depth + 1, budget)?;
+                if !direct_type_callee
+                    || type_arguments.len() != 1
+                    || !(matches!(&callee.kind, CoreExprKind::Name(_))
+                        || matches!(&callee.kind, CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(_))))
+                {
+                    return Err(error(
+                        "E-TYPE-APPLICATION",
+                        e.span,
+                        "one type argument is allowed only on a static call's direct callee",
+                    ));
+                }
+                budget.work(type_arguments.len(), e.span)?;
+                for argument in type_arguments {
+                    validate_type(argument, depth + 1, e.span, budget)?;
+                }
+                budget.direct_type_callee = false;
+                found |= expression_has_closure(callee, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_index(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Index { object, index } => {
-            found |= expression_has_closure(object, depth + 1, budget)?;
-            found |= expression_has_closure(index, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(object, depth + 1, budget)?;
+                found |= expression_has_closure(index, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_slice(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Slice { object, start, end } => {
-            found |= expression_has_closure(object, depth + 1, budget)?;
-            for endpoint in [start, end].into_iter().flatten() {
-                found |= expression_has_closure(endpoint, depth + 1, budget)?;
-            }
+            {
+                found |= expression_has_closure(object, depth + 1, budget)?;
+                for endpoint in [start, end].into_iter().flatten() {
+                    found |= expression_has_closure(endpoint, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_tuple(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-            for value in values {
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
+            {
+                for value in values {
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_member(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Member {
             object,
             member,
             owner,
         } => {
-            if let Some(ty) = owner {
-                validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            budget.work(member.len(), e.span)?;
-            found |= expression_has_closure(object, depth + 1, budget)?;
+            {
+                if let Some(ty) = owner {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                budget.work(member.len(), e.span)?;
+                found |= expression_has_closure(object, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_record(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Record { ty, fields } => {
-            validate_type(ty, depth + 1, e.span, budget)?;
-            for (name, value) in fields {
-                budget.work(name.len(), value.span)?;
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
-        }
-        CoreExprKind::RecordUpdate { ty, base, fields } => {
-            if let Some(ty) = ty {
+            {
                 validate_type(ty, depth + 1, e.span, budget)?;
-            }
-            found |= expression_has_closure(base, depth + 1, budget)?;
-            for (name, value) in fields {
-                budget.work(name.len(), value.span)?;
-                found |= expression_has_closure(value, depth + 1, budget)?;
-            }
+                for (name, value) in fields {
+                    budget.work(name.len(), value.span)?;
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_record_update(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
+        CoreExprKind::RecordUpdate { ty, base, fields } => {
+            {
+                if let Some(ty) = ty {
+                    validate_type(ty, depth + 1, e.span, budget)?;
+                }
+                found |= expression_has_closure(base, depth + 1, budget)?;
+                for (name, value) in fields {
+                    budget.work(name.len(), value.span)?;
+                    found |= expression_has_closure(value, depth + 1, budget)?;
+                }
+            };
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_sequence(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::Sequence { bindings, value } => {
-            for (name, binding) in bindings {
-                budget.work(name.len(), binding.span)?;
-                found |= expression_has_closure(binding, depth + 1, budget)?;
-            }
-            found |= expression_has_closure(value, depth + 1, budget)?;
+            {
+                for (name, binding) in bindings {
+                    budget.work(name.len(), binding.span)?;
+                    found |= expression_has_closure(binding, depth + 1, budget)?;
+                }
+                found |= expression_has_closure(value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_if(
+    e: &CoreExpr,
+    depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let mut found = false;
+    match &e.kind {
         CoreExprKind::If {
             condition,
             then_value,
             else_value,
         } => {
-            found |= expression_has_closure(condition, depth + 1, budget)?;
-            found |= expression_has_closure(then_value, depth + 1, budget)?;
-            found |= expression_has_closure(else_value, depth + 1, budget)?;
+            {
+                found |= expression_has_closure(condition, depth + 1, budget)?;
+                found |= expression_has_closure(then_value, depth + 1, budget)?;
+                found |= expression_has_closure(else_value, depth + 1, budget)?;
+            };
         }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_integer(
+    e: &CoreExpr,
+    _depth: usize,
+    budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    match &e.kind {
         CoreExprKind::Integer(text)
         | CoreExprKind::Float(text)
         | CoreExprKind::String(text)
         | CoreExprKind::Name(text)
         | CoreExprKind::ReceiverMember(text)
-        | CoreExprKind::Unsupported(text) => budget.work(text.len(), e.span)?,
-        _ => {}
+        | CoreExprKind::Unsupported(text) => {
+            budget.work(text.len(), e.span)?;
+        }
+        _ => unreachable!("closure presence dispatch"),
+    }
+    Ok(found)
+}
+fn expression_has_closure_other(
+    _e: &CoreExpr,
+    _depth: usize,
+    _budget: &mut Budget<'_>,
+    _direct_type_callee: bool,
+) -> R<bool> {
+    let found = false;
+    {
+        {};
     }
     Ok(found)
 }

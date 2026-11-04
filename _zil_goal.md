@@ -1,5 +1,14 @@
 # ZIL 施工总计划
 
+## 2026-11-04：终态施工与源码持续备份
+
+主集成已推进到返回式Registration、完整拥有Tuple、UInt/Float及普通Type/Syntax、关联类型/常量的组合；远端接受main仍为bcc5714f2，不能把施工分支当作终态验收。当前schema/Wire35，HRTB36及显式Suspend子任务37分别已有待合流候选；未来公共合同不等于实际消费者完成。
+
+Registration组合7项含56次原生执行已独立复跑，原大数组/聚合106项通过。新增嵌套调用揭示后续Types/CT默认栈溢出，机械缩小递归帧的最终组合仍在复验。HRTB候选13677ef8c的10项/64原生配置已独立复跑；泛型方法、混合模式、一般存储/lending、dyn/状态、拥有异步与waker等继续并行施工。普通UI布局/光栅8次原生执行通过，输入组合原源正在补其可变嵌套Product借用前置。
+
+所有实际源码和tracked/untracked施工快照按阶段atomic推送并逐完整SHA核对；见docs/PROGRESS-BACKUP.md及/workspace/backups/zil-terminal-20261104。旧不可恢复断点、legacy Fail及原生Windows/完整产品未执行边界保持；本段为当前施工摘要，下面各日期验收是其各自历史范围。
+
+
 ## 2026-11-04：336–339有限语言组合继续验收
 
 共同受测874f071bb默认4196/参考4086，均零失败/忽略/过滤、各422组；双Clippy、text65及工具门通过。默认trait静态函数值、具体mutable life、普通大Copy Sum内部ABI/入口和共享i32子线程已独立复核。新/旧组件与原CT共16机器配置、旧清理消费者16构建/128执行/56注入通过。源推断注解缺口、小栈API崩溃、完整泛型/lending、Mutex/Atomic/异步和ZUI仍未关闭。
