@@ -181,6 +181,14 @@ impl<'a> Budget<'a> {
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
         }
+        if let TypeKind::Named { path, .. } = &ty.kind
+            && path.len() > 1
+            && let Some(replacement) = substitutions
+                .and_then(|s| s.get(&path[0]))
+                .and_then(trait_bounds::plain)
+        {
+            self.text(replacement, ty.span)?;
+        }
         match &ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
                 for name in path {
