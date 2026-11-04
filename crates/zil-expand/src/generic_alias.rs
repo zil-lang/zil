@@ -592,6 +592,14 @@ impl Visitor<'_, '_, '_> {
                     }
                 }
             }
+            ItemKind::TypeAlias(alias) => {
+                for bound in &mut alias.bounds {
+                    self.ty(bound, &types, depth + 1)?;
+                }
+                if let Some(value) = &mut alias.value {
+                    self.ty(value, &types, depth + 1)?;
+                }
+            }
             ItemKind::Trait(t) => {
                 types.insert("Self".into());
                 for m in &mut t.members {

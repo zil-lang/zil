@@ -15,6 +15,63 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
+        ),
+        "trait Read<T>{type Item:Copy;fn read(self:&Self)->Self.Item;}struct Box<T:Copy>{value:T}impl<T:Copy> Read<bool> for Box<T>{type Item=T;fn read()->Self.Item{return .value}}fn get<V:Read<bool>>(p:&V)->V.Item{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<Box<i32>>(&p)-7}",
+        "trait Read<T:Copy>{type Item:Copy=T;}fn main(){}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct P{n:i32}impl Read for P{type Item=i32;fn read()->i32{return .n}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn relay<U:Read>(p:&U)->U.Item{return get(p)}fn main()->i32{let p=P{n:7};return relay(&p)-7}",
+        "trait Read{type Item:Copy;fn identity(self:&Self,x:Self.Item)->Self.Item{return x}}struct P{}impl Read for P{type Item=i32;}fn main()->i32{let p=P{};return p.identity(7)-7}",
+
+        "trait Read:Copy{type Item:Copy=Self;}fn main(){}",
+        "trait Read{type A:Copy;type B:Copy;fn read(self:&Self)->Self.B;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{type A=T;type B=Self.A;fn read()->Self.B{return .value}}fn get<V:Read>(p:&V)->V.B{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<Box<i32>>(&p)-7}",
+        "trait Read{type Item:Copy=i32;}struct P{}impl Read for P{}fn main(){}",
+        "trait Read{type Item:Copy;}struct T{}fn unused<T:Read>(x:T.Item)->T.Item{return x}fn main(){}",
+        "type Scalar=i32;trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct P{}impl Read for P{type Item=Scalar;fn read()->Scalar{return 7}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn main()->i32{let p=P{};return get::<P>(&p)-7}",
+        "trait A{type Item:Copy;}trait B{type Item:Copy;}fn unused<T:A+B>(x:&T){}fn main(){}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}fn unused<T:Read>(p:&T)->T.Item{return p.read()}fn main(){}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct P{n:i32}impl Read for P{type Item=i32;fn read()->i32{return .n}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn main()->i32{let p=P{n:7};return get::<P>(&p)-7}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{type Item=T;fn read()->T{return .value}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<Box<i32>>(&p)-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait Read<T>{type Item:Copy=T;}fn main(){}",
+        "trait Read{type Item:Copy;fn bad(self:&Self,x:Self.Item)->Self.Item{return x+1}}struct P{}impl Read for P{type Item=i32;fn bad(x:i32)->i32{return x}}fn main(){}",
+
+        "trait Read{type Item:Copy=Self.Item;}fn main(){}",
+        "trait Read{type Item:Copy;type Item:Copy;}fn main(){}",
+        "trait Marker{}trait Read{type Item:Copy;}struct P{}impl Read for P where Self.Item:Marker{type Item=P;}fn get<T:Read>(p:&T){}fn main(){let p=P{};get(&p)}",
+        "trait Read{type Item:Copy;}struct Box<T>{}impl<T> Read for Box<T>{type Item=T;}fn main(){}",
+        "resource R{n:i32}trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=R;}fn main(){}",
+        "trait Read{type A:Copy;type B:Copy;}struct P{}impl Read for P{type A=Self.B;type B=Self.A;}fn main(){}",
+        "trait A{type Item:Copy;}trait B{type Item:Copy;}fn bad<T:A+B>(x:T.Item){}fn main(){}",
+        "trait Read{type Item:Copy;}fn bad<T:Read>(x:T.Item)->T.Item{return x+1}fn main(){}",
+        "trait Read{type Item;}fn bad<T:Read>(x:T.Item)->(T.Item,T.Item){return (x,x)}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=Missing;}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=Self.Item;}fn main(){}",
+        "trait Read{type Item:Copy;}fn bad<T>(x:T.Item){}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil"),
@@ -379,6 +436,55 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     native_both(&[("main", super_source)]);
     native_both(&[("main", impl_source)]);
     native_both(&[("main", symbolic_source)]);
+    let associated_source = include_str!(
+        "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
+    );
+    native_both(&[("main", associated_source)]);
+    native_both(&[
+        (
+            "main",
+            "import model;import rules;fn main()->i32{let p=model.make();return rules.get::<model.Box<i32>>(&p)-7}",
+        ),
+        (
+            "rules",
+            "pub trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}pub fn get<T:Read>(p:&T)->T.Item{return p.read()}",
+        ),
+        (
+            "model",
+            "import rules;pub struct Box<T:Copy>{value:T}impl<T:Copy> rules.Read for Box<T>{type Item=T;fn read()->Self.Item{return .value}}pub fn make()->Box<i32>{return Box::<i32>{value:7}}",
+        ),
+    ]);
+
+    let associated_unit = source(associated_source);
+    let associated_ast = zil_syntax::parse(&associated_unit).into_result().unwrap();
+    let associated_core = zil_expand::expand(&associated_unit, &associated_ast).unwrap();
+    let associated_typed = zil_types::check(
+        &associated_core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let associated_plan = zil_analyze::analyze(&associated_typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        associated_typed.clone(),
+        associated_plan.clone(),
+        &associated_typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let associated_wire = zil_ir::wire::encode_module_candidate(
+        &associated_typed,
+        &associated_plan,
+        &Limits::default(),
+    )
+    .unwrap();
+    zil_verify::verify_module_bytes(
+        &associated_wire,
+        &associated_typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+
     native_both(&[
         (
             "main",
@@ -528,6 +634,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("const-match-shadow", const_source),
         ("generic-impl", impl_source),
         ("symbolic-trait-arguments", symbolic_source),
+        ("associated-types", associated_source),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {
