@@ -386,9 +386,9 @@ fn normalize(
     let mut has_trait_instances = false;
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            let (defaults, associated) = generics::trait_defaults::features(t, &mut budget)?;
+            let (defaults, associated, methods) = generics::trait_defaults::features_with_methods(t, &mut budget)?;
             has_trait_instances |=
-                defaults || associated || !t.generics.is_empty() || !t.bounds.is_empty();
+                defaults || associated || methods || !t.generics.is_empty() || !t.bounds.is_empty();
         }
         has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()

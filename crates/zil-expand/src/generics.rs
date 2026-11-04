@@ -42,6 +42,8 @@ mod trait_bounds;
 pub(super) mod trait_defaults;
 #[path = "generic_trait_impls.rs"]
 mod trait_impls;
+#[path = "generic_trait_methods.rs"]
+mod trait_methods;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -94,6 +96,7 @@ fn specialize_products_prepared<'a>(
     let mut has_where = false;
     let mut has_defaults = false;
     let mut has_associated = false;
+    let mut has_generic_methods = false;
     let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
@@ -102,8 +105,9 @@ fn specialize_products_prepared<'a>(
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
-            let (defaults, associated) =
-                trait_defaults::features(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            let (defaults, associated, methods) =
+                trait_defaults::features_with_methods(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            has_generic_methods |= methods;
             has_associated |= associated;
             has_defaults |= defaults || associated;
             has_defaults |= !declaration.bounds.is_empty();
@@ -177,6 +181,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -193,6 +198,7 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+            has_generic_methods,
             ),
             None => specialize_with_budget(
                 &normalized,
@@ -201,6 +207,7 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+            has_generic_methods,
             ),
         }
         .map(Cow::Owned)
@@ -216,6 +223,7 @@ fn specialize_products_prepared<'a>(
             .all(|item| params(item).is_empty())
             && !has_defaults
             && !has_impl_recipes
+            && !has_generic_methods
             && !normalized
                 .module
                 .items
@@ -232,6 +240,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -239,6 +248,7 @@ fn specialize_products_prepared<'a>(
     if module.items.iter().all(|item| params(item).is_empty())
         && !has_defaults
         && !has_impl_recipes
+        && !has_generic_methods
         && !module
             .items
             .iter()
@@ -254,6 +264,7 @@ fn specialize_products_prepared<'a>(
         names_budget,
         products,
         has_associated,
+        has_generic_methods,
     )
     .map(Cow::Owned)
     .map_err(|error| vec![error])
@@ -266,8 +277,11 @@ fn specialize_with_budget<'a>(
     mut budget: Budget<'a>,
     products: &mut products::Products,
     has_associated: bool,
+    has_generic_methods: bool,
 ) -> R<Module> {
-    let prepared = trait_bounds::associated::prepare(module, has_associated, &mut budget)?;
+    let methods = trait_methods::prepare(module, has_generic_methods, &mut budget)?;
+    let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
+    let prepared = trait_bounds::associated::prepare(module, has_associated, methods.as_ref().map(|prepared| &prepared.bindings), &mut budget)?;
     let module = prepared.as_ref().unwrap_or(module);
     let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
     if !engine.nominal_binder_collision {
@@ -3280,6 +3294,12 @@ impl Substitution<'_> {
             *ty = value.clone();
             ty.span = span;
             return;
+        }
+        if let TypeKind::Named { path, .. } = &mut ty.kind
+            && path.len() > 1
+            && let Some(replacement) = self.substitutions.get(&path[0]).and_then(trait_bounds::plain)
+        {
+            path[0] = replacement.to_owned();
         }
         match &mut ty.kind {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {

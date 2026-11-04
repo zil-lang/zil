@@ -216,3 +216,14 @@ CT receiving contexts, aggregate/Type/Syntax associated values and generic
 methods remain active work. Safety and static/native behavior have the evidence
 above; Rust runtime/RSS, maintenance and compile-cost comparisons and the joint
 product gates remain unmeasured. Latest exact checkpoint review is pending.
+
+Generic methods will alpha-normalize type and const binders by owning declaration,
+member and parameter ordinals before any outer substitution. Lifetime binders
+retain their own function scope and ordered header positions. Original lexical
+spellings are retained in a private scope map for associated value references;
+source spans remain diagnostic data. Impl/default providers become private
+ordinary generic helpers, with every original definition checked before removal
+from runtime trait tables. Calls preserve exact trait actuals and Self, prove
+impl and method premises, and keep receiver argument zero. Impl methods cannot
+strengthen the required generic contract. Generic default delegation, cross-module
+same-spelled traits and outer/method binder shadowing are required real controls.

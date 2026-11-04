@@ -3,15 +3,21 @@
 use super::*;
 
 pub(crate) fn features(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool, bool)> {
+    let (defaults, associated, _) = features_with_methods(declaration, budget)?;
+    Ok((defaults, associated))
+}
+pub(crate) fn features_with_methods(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool, bool, bool)> {
     let mut found = false;
     let mut associated = false;
+    let mut methods = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
         associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+        methods |= matches!(&member.kind, ItemKind::Function(f) if !f.generics.is_empty());
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok((found, associated))
+    Ok((found, associated, methods))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
