@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 use std::collections::BTreeMap;
+mod owned;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -1057,6 +1058,9 @@ fn seed(
             loans,
             b,
         )?;
+        if b.stored_owned_fixed && matches!(f.locals[local.0 as usize].ty, Type::Desc(_)) {
+            owned::describe(&mut value, HoldRoot::Parameter(index as u32), b)?;
+        }
         ordered(b, state.locals.len(), 0)?;
         state.locals.insert(*local, value);
     }
@@ -1416,6 +1420,16 @@ fn transfer(
                 b,
             )?;
         }
+        InstructionKind::DescribeLocal { local } if b.stored_owned_fixed => {
+            owned::describe(&mut out, HoldRoot::Local(*local), b)?;
+        }
+        InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
+            owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
+        }
+        InstructionKind::DropManaged { local } if b.stored_owned_fixed => {
+            state.locals.remove(local);
+        }
+        _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
@@ -2276,13 +2290,7 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    if !module.resources.is_empty() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "owned/closure storage integration requires the common retained carrier consumer",
-            None,
-        )]);
-    }
+    b.stored_owned_fixed = owned::profile(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         if f.foreign.is_some()
@@ -2316,7 +2324,8 @@ pub(super) fn infer(
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
-                || ty.is_copy_value())
+                || ty.is_copy_value()
+                || b.stored_owned_fixed && owned::data(ty, b)?)
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -2345,6 +2354,7 @@ pub(super) fn infer(
         .closures
         .iter()
         .any(|d| d.kind == CallableKind::FnOnce)
+        || b.stored_owned_fixed
     {
         super::resources::check_module(module, graphs, b)?;
     }
@@ -2401,8 +2411,10 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            let owned_operation = b.stored_owned_fixed && owned::instruction(module, f, i, b)?;
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
+                && !owned_operation
                 && !matches!(
                     &i.kind,
                     InstructionKind::Constant(_)
@@ -2809,6 +2821,69 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn owned_fixed_once_keeps_resource_and_class_proofs_independent() {
+        let m = fixture::captured_owned_fixed(false);
+        let limits = Limits::default();
+        let plan = super::super::analyze(&m, &limits).unwrap();
+        assert!(plan.functions[0].holds[7].roots.is_empty());
+        assert_eq!(
+            plan.functions[0].holds[8].roots,
+            vec![HoldRoot::Local(LocalId(1))]
+        );
+        assert!(super::super::analyze(&fixture::captured_owned_fixed(true), &limits).is_err());
+        for mode in 0..5 {
+            let mut raw = m.clone();
+            let entry = &mut raw.functions[0];
+            match mode {
+                0 => {
+                    let mut take = entry.blocks[0].instructions[0].clone();
+                    let id = ValueId(entry.values.len() as u32);
+                    entry.values.push(entry.values[7].clone());
+                    take.result = Some(id);
+                    entry.blocks[0].instructions.insert(1, take);
+                }
+                1 => {
+                    entry.blocks[0].instructions[0].kind = InstructionKind::ReadCapture { index: 0 }
+                }
+                2 => {
+                    let code = &mut entry.blocks[0].instructions;
+                    let at = code
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                        .unwrap();
+                    let drop = code.remove(at);
+                    let read = code
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+                        .unwrap();
+                    code.insert(read, drop);
+                }
+                3 => {
+                    let maker = raw.functions[1].blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+                        .unwrap();
+                    maker.kind = InstructionKind::MakeManaged { fields: vec![] };
+                }
+                _ => {
+                    let read = entry.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+                        .unwrap();
+                    if let InstructionKind::ReadDesc { index, .. } = &mut read.kind {
+                        *index = 9;
+                    }
+                }
+            }
+            assert!(
+                super::super::analyze(&raw, &limits).is_err(),
+                "owned neighbor {mode}"
+            );
+        }
     }
     use fixture::{address, instruction, module};
     fn prove(module: &TypedModule) -> CompileResult<Vec<Facts>> {
