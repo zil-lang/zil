@@ -268,12 +268,9 @@ impl Builder<'_, '_> {
             CoreExprKind::Call { callee, .. } => {
                 if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(t) = self.borrowed_task_hint(object, left, depth + 1)?
+                    && let Some(signature) = self.hint_method(payload_view(t), member, left, e.span)?
                 {
-                    if let Some(signature) =
-                        self.hint_method(payload_view(t), member, left, e.span)?
-                    {
-                        return Ok(Some(&signature.result));
-                    }
+                    return Ok(Some(&signature.result));
                 }
                 if let Some(t) = self.borrowed_task_hint(callee, left, depth + 1)? {
                     match t {
