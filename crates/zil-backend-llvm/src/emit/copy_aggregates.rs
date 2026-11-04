@@ -155,13 +155,13 @@ pub(super) fn reserve_enum_metadata(
     if depth > limits.max_call_depth {
         return Err(exhausted());
     }
+    if let Type::BorrowedFunctionPointer { life, .. } = ty {
+        stored_borrows::contract(life, work)?;
+    }
     let mut name = |name: &str| -> CompileResult<()> {
         *work = work.checked_sub(name.len()).ok_or_else(exhausted)?;
         Ok(())
     };
-    if let Type::BorrowedFunctionPointer { life, .. } = ty {
-        stored_borrows::contract(life, work)?;
-    }
     match ty {
         Type::Named(text) | Type::Unsupported(text) => name(text)?,
         Type::Record { name: text, fields } | Type::Package { name: text, fields } => {
