@@ -106,6 +106,15 @@ impl Builder<'_, '_> {
         target: &CoreExpr,
         rhs: &CoreExpr,
     ) -> R<bool> {
+        // Literal and binary expressions cannot produce a Managed carrier.
+        // Keep ordinary scalar writes on their existing address path instead
+        // of planning a second lexical lookup and an owning reservation.
+        if matches!(
+            rhs.kind,
+            CoreExprKind::Literal(_) | CoreExprKind::Binary { .. }
+        ) {
+            return Ok(false);
+        }
         let mut fields = Vec::new();
         let mut root = target;
         while let CoreExprKind::Member {

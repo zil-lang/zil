@@ -584,11 +584,20 @@ impl Visitor<'_, '_, '_> {
             && !path.is_empty()
             && !types.contains(&path[0])
         {
-            let key = qualified_key(path, &mut self.resolver.budget, ty.span)?;
-            if self.resolver.definitions.contains_key(&key) {
+            // The ordinary single-name key is already present in the AST.
+            // Only a qualified path needs a newly allocated joined spelling.
+            let qualified;
+            let key = match path.as_slice() {
+                [name] => name.as_str(),
+                _ => {
+                    qualified = qualified_key(path, &mut self.resolver.budget, ty.span)?;
+                    qualified.as_str()
+                }
+            };
+            if self.resolver.definitions.contains_key(key) {
                 *ty = self
                     .resolver
-                    .instantiate(&key, args, types, ty.span, depth)?;
+                    .instantiate(key, args, types, ty.span, depth)?;
                 return Ok(());
             }
         }
@@ -634,6 +643,15 @@ impl Visitor<'_, '_, '_> {
             ExprKind::TypeApply { callee, .. } => callee.as_ref(),
             _ => e,
         };
+        // A known lexical value/type binder, or a bare non-alias, cannot be
+        // an alias namespace. Avoid constructing two unused owned names.
+        if let ExprKind::Name(root) = &namespace.kind
+            && (types.contains(root)
+                || values.contains(root)
+                || !self.resolver.definitions.contains_key(root))
+        {
+            return Ok(());
+        }
         let Some((name, root)) = namespace_path(namespace, &mut self.resolver.budget, depth)?
         else {
             return Ok(());

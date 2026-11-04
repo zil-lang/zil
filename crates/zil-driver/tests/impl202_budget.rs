@@ -121,7 +121,10 @@ fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
     // accepted 204 baseline, whose test and input bytes were identical.
     assert_eq!(
         [original, pair, nested],
-        [(6667, 16), (30137, 39), (30706, 40)],
+        // Prior 205 values: 6667/30137/30706. G10.1.5 preserves the new
+        // callable inventory and bounded rich-life/signature snapshot work;
+        // see changes/G10.1.5-budget-regressions.md. N-1/fresh remain above.
+        [(6729, 16), (30319, 39), (30931, 40)],
         "205 measured State definition checks; original 201 input bytes unchanged"
     );
 }
