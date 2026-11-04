@@ -1,5 +1,6 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod owned;
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -97,6 +98,9 @@ fn worker_one(
             .saturating_add(1),
         "task worker real scalar profile",
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_))) || f.values.iter().any(|t| matches!(t, Type::Managed(_))) {
+        return owned::profile(module, f, budget, Some(span));
+    }
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.callable_contract.is_some()

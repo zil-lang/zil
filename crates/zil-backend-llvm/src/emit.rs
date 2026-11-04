@@ -547,6 +547,7 @@ fn lower_function_batch(
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
         let emitted = FunctionEmitter {
+            task_ownership: verified.task_ownership(function.id),
             function,
             target: lir.target,
             functions,
@@ -1151,6 +1152,7 @@ fn entry_wrapper(
 }
 
 struct FunctionEmitter<'a> {
+    task_ownership: Option<&'a zil_verify::TaskOwnership>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
@@ -1384,8 +1386,14 @@ impl FunctionEmitter<'_> {
         )));
         for block in &self.function.blocks {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
-            for instruction in &block.instructions {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                if let Some(actions) = self.task_ownership.and_then(|p| p.actions_at(block.id, index)) {
+                    for &action in actions.before() { self.event(tasks::owner_marker(action)); }
+                }
                 self.instruction(instruction)?;
+                if let Some(actions) = self.task_ownership.and_then(|p| p.actions_at(block.id, index)) {
+                    for &action in actions.after() { self.event(tasks::owner_marker(action)); }
+                }
             }
             self.terminator(&block.terminator)?;
         }

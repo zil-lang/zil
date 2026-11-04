@@ -1,5 +1,6 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod owned;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -255,6 +256,9 @@ fn profile_one(
             .saturating_add(module.resources.len())
             .saturating_add(1),
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_))) || f.values.iter().any(|t| matches!(t, Type::Managed(_))) {
+        return owned::profile(module, f, budget, span);
+    }
     let scalar = |t: &Type| {
         matches!(
             t,

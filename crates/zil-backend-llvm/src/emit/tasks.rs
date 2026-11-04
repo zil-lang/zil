@@ -1,6 +1,8 @@
 //! Persistent scalar continuation frames. Source TaskYield becomes a saved pc;
 //! all actual machine SSA and local storage survive return from poll.
 use super::*;
+mod owners;
+pub(super) use owners::marker as owner_marker;
 const STATE: u32 = 4;
 const PC: u32 = 5;
 const CANCEL: u32 = 6;
@@ -188,11 +190,15 @@ fn compare(
     );
 }
 fn poll_result(v: &mut Vec<m::Inst>, status: i32, value: m::Val, prefix: &str) {
+    poll_result_typed(v, status, value, prefix, &m::Ty::Int(32));
+}
+fn poll_result_typed(v: &mut Vec<m::Inst>, status: i32, value: m::Val, prefix: &str, payload: &m::Ty) {
+    let result = m::Ty::Struct(vec![m::Ty::Int(32), payload.clone()]);
     push(
         v,
         Some(&format!("{prefix}.tag")),
         m::Op::Insert {
-            arg: m::Arg::new(result_ty(), m::Val::Zero),
+            arg: m::Arg::new(result.clone(), m::Val::Zero),
             field: m::Arg::new(m::Ty::Int(32), status),
             index: 0,
         },
@@ -201,12 +207,12 @@ fn poll_result(v: &mut Vec<m::Inst>, status: i32, value: m::Val, prefix: &str) {
         v,
         Some(&format!("{prefix}.value")),
         m::Op::Insert {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.tag"))),
-            field: m::Arg::new(m::Ty::Int(32), value),
+            arg: m::Arg::new(result.clone(), loc(format!("{prefix}.tag"))),
+            field: m::Arg::new(payload.clone(), value),
             index: 1,
         },
     );
-    ret(v, result_ty(), loc(format!("{prefix}.value")));
+    ret(v, result.clone(), loc(format!("{prefix}.value")));
 }
 fn trap_block() -> m::Block {
     let mut v = vec![];
@@ -338,6 +344,7 @@ struct FramePlan {
     fields: Vec<m::Ty>,
     slots: BTreeMap<String, Slot>,
     children: Vec<ChildFrame>,
+    owners: Option<owners::OwnerFrame>,
 }
 fn split_await(
     mut current: m::Block,
@@ -346,6 +353,7 @@ fn split_await(
     site: usize,
     pieces: &mut Vec<m::Block>,
     resumes: &mut BTreeSet<usize>,
+    parent_result: &m::Ty,
 ) -> m::Block {
     let m::Op::Call { args, .. } = &instruction.op else {
         unreachable!("actual await marker is a call")
@@ -531,6 +539,7 @@ fn own_frame(machine: &m::Function, meter: &Meter) -> CompileResult<FramePlan> {
         fields,
         slots,
         children: vec![],
+        owners: None,
     })
 }
 fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<()> {
@@ -566,6 +575,7 @@ fn plan_frame(
     plans: &mut BTreeMap<FunctionId, FramePlan>,
     path: &mut BTreeSet<FunctionId>,
     meter: &Meter,
+    verified: Option<&VerifiedModule>,
 ) -> CompileResult<()> {
     meter.spend(plans.len().saturating_add(path.len()).saturating_add(1))?;
     if plans.contains_key(&id) {
@@ -587,11 +597,12 @@ fn plan_frame(
         )]
     })?;
     let mut plan = own_frame(machine, meter)?;
+    if let Some(verified) = verified { owners::plan(&mut plan, verified.task_ownership(id), &verified.module().resources, verified.limits(), meter)?; }
     for block in machine.blocks.as_ref().expect("task machine definition") {
         for instruction in &block.instructions {
             meter.spend(1)?;
             if let Some(worker) = awaited(&instruction.op) {
-                plan_frame(worker, machines, plans, path, meter)?;
+                plan_frame(worker, machines, plans, path, meter, verified)?;
                 let child = &plans[&worker];
                 for field in &child.fields {
                     reserve_frame_type(field, meter, 0)?;
@@ -637,16 +648,22 @@ pub(super) fn lower_workers(
     let mut plans = BTreeMap::new();
     let mut path = BTreeSet::new();
     for &id in machines.keys() {
-        plan_frame(id, &machines, &mut plans, &mut path, meter)?;
+        plan_frame(id, &machines, &mut plans, &mut path, meter, Some(verified))?;
     }
     let mut items = vec![];
+    if machines.keys().any(|id| verified.task_ownership(*id).is_some()) {
+        items.extend(owners::helpers(meter)?);
+    }
     for (id, mut machine) in machines {
         let plan = plans.remove(&id).expect("actual frame was planned");
-        items.extend(lower_worker(id, &machine, plan, meter)?);
+        items.extend(lower_worker(id, &machine, plan, meter, verified)?);
         if verified.is_task_export(id) {
             items.extend(exports(id, meter)?);
         }
         if !verified.is_suspend(id) {
+            for block in machine.blocks.as_mut().expect("actual Direct body") {
+                block.instructions.retain(|i| !owners::is_marker(&i.op));
+            }
             scalar_locals::promote(functions[&id], &mut machine);
             items.push(m::Item::Function(machine));
         }
@@ -658,12 +675,16 @@ fn lower_worker(
     machine: &m::Function,
     plan: FramePlan,
     meter: &Meter,
+    verified: &VerifiedModule,
 ) -> CompileResult<Vec<m::Item>> {
+    let payload_ty = &machine.signature.result;
+    let poll_ty = m::Ty::Struct(vec![m::Ty::Int(32), payload_ty.clone()]);
     let frame_name = format!("zil_task_frame_{}", id.0);
     let FramePlan {
         fields: frame_fields,
         slots,
         children,
+        owners,
     } = plan;
     let frame = m::Ty::Named(frame_name.clone());
     let original = machine.blocks.as_ref().expect("scalar worker definition");
@@ -691,11 +712,12 @@ fn lower_worker(
                     m::val(0),
                     loc("task.state"),
                 );
-                poll_result(
+                poll_result_typed(
                     &mut current.instructions,
                     0,
-                    m::val(0),
+                    m::Val::Zero,
                     &format!("pending.{pc}"),
+                    payload_ty,
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
@@ -707,6 +729,7 @@ fn lower_worker(
                     child_site,
                     &mut pieces,
                     &mut resumes,
+                    &machine.signature.result,
                 );
                 child_site += 1;
             } else {
@@ -717,6 +740,7 @@ fn lower_worker(
     }
     // pc=0 starts the original entry. Every yield stores the next piece index.
     let mut setup = vec![];
+    owners::setup(&mut setup, &frame, owners.as_ref());
     for (index, label) in [
         (STATE, "task.state"),
         (PC, "task.pc"),
@@ -811,13 +835,14 @@ fn lower_worker(
             if matches!(i.op, m::Op::Alloca { .. }) {
                 continue;
             }
+            owners::lower(&mut i.op)?;
             rewrite(&mut i.op, &slots, &mut instructions, &mut serial)?;
             if let m::Op::Return(Some(arg)) = &i.op {
                 // Generated Pending returns already have the SABI result type.
-                if arg.ty == m::Ty::Int(32) {
+                if arg.ty == *payload_ty {
                     store(
                         &mut instructions,
-                        m::Ty::Int(32),
+                        payload_ty.clone(),
                         arg.value.clone(),
                         loc("task.result"),
                     );
@@ -830,12 +855,12 @@ fn lower_worker(
                     load(
                         &mut instructions,
                         &format!("task.ready.{serial}"),
-                        m::Ty::Int(32),
+                        payload_ty.clone(),
                         loc("task.result"),
                     );
                     let ready = loc(format!("task.ready.{serial}"));
                     serial += 1;
-                    poll_result(&mut instructions, 1, ready, &format!("ready.{serial}"));
+                    poll_result_typed(&mut instructions, 1, ready, &format!("ready.{serial}"), payload_ty);
                     continue;
                 }
             }
@@ -894,7 +919,7 @@ fn lower_worker(
         if status == 3 {
             store(&mut v, m::Ty::Int(32), m::val(2), loc("task.state"));
         }
-        poll_result(&mut v, status, m::val(0), label);
+        poll_result_typed(&mut v, status, m::Val::Zero, label, payload_ty);
         poll.push(block(label, v));
     }
     poll.push(trap_block());
@@ -902,7 +927,7 @@ fn lower_worker(
         m::Item::NamedType(frame_name, frame_fields),
         function(
             name(id, "poll"),
-            result_ty(),
+            poll_ty,
             vec![m::Param::new(m::Ty::Ptr, "frame")],
             poll,
         ),
@@ -944,7 +969,7 @@ fn lower_worker(
         m::Val::Null,
         "ne",
     );
-    cond(&mut init, "allocated", "init", "return");
+    cond(&mut init, "allocated", "init", if owners.is_some() { "failure" } else { "return" });
     let mut initialize = vec![];
     store(&mut initialize, frame.clone(), m::Val::Zero, loc("frame"));
     for (index, operation) in ["poll", "request_cancel", "poll_close", "finish_into"]
@@ -971,6 +996,7 @@ fn lower_worker(
             loc(pointer),
         );
     }
+    owners::initialize(&mut initialize, &frame, &slots, owners.as_ref(), verified.task_ownership(id), &verified.module().functions[id.0 as usize])?;
     push(&mut initialize, None, m::Op::Return(None));
     let mut into_parameters = vec![m::Param::new(m::Ty::Ptr, "frame")];
     into_parameters.extend(machine.signature.params.clone());
@@ -1006,15 +1032,19 @@ fn lower_worker(
     branch(&mut commit, "return");
     let mut returned = vec![];
     ret(&mut returned, m::Ty::Ptr, loc("frame"));
+    let mut init_blocks = vec![block("entry", init), block("init", commit)];
+    if owners.is_some() {
+        let mut failed = vec![];
+        owners::allocation_failure(&mut failed, owners.as_ref(), verified.task_ownership(id), &verified.module().functions[id.0 as usize])?;
+        branch(&mut failed, "return");
+        init_blocks.push(block("failure", failed));
+    }
+    init_blocks.push(block("return", returned));
     items.push(function(
         name(id, "init"),
         m::Ty::Ptr,
         machine.signature.params.clone(),
-        vec![
-            block("entry", init),
-            block("init", commit),
-            block("return", returned),
-        ],
+        init_blocks,
     ));
     let mut cancel = vec![];
     gep(&mut cancel, "cancel", &frame, loc("frame"), CANCEL);
@@ -1117,6 +1147,7 @@ fn lower_worker(
         label = next;
         closed = vec![];
     }
+    owners::drain(&mut closed, &frame, owners.as_ref());
     store(&mut closed, m::Ty::Int(32), m::val(3), loc("state"));
     ret(&mut closed, m::Ty::Int(1), m::val(true));
     close_blocks.push(block(&label, closed));
@@ -1953,6 +1984,7 @@ mod child_frame_tests {
             &mut plans,
             &mut BTreeSet::new(),
             &meter,
+            None,
         )?;
         Ok((
             balance - meter.remaining(),
@@ -1990,7 +2022,8 @@ mod child_frame_tests {
                 &cycle,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
-                &Meter::new(1_000_000)
+                &Meter::new(1_000_000),
+                None,
             )
             .is_err()
         );

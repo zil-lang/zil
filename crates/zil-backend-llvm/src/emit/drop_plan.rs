@@ -282,6 +282,27 @@ fn link(
     }
     unsupported("unsupported complete Sum cleanup leaf", None)
 }
+
+/// Continuations share the actual ordinary leaf cleanup selection. This
+/// returns no second ownership rule and is called only for canonical slots
+/// carried by the immutable verified responsibility artifact.
+pub(super) fn task_leaf(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    meter: &tasks::Meter,
+) -> CompileResult<Option<String>> {
+    let mut bounded = limits.clone();
+    bounded.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&bounded);
+    let result = link(ty, resources, &mut budget, 0);
+    meter.spend(budget.spent())?;
+    match result? {
+        DropPlan::Empty => Ok(None),
+        DropPlan::Leaf(symbol) => Ok(Some(symbol)),
+        _ => unsupported("continuation canonical slot needs ordinary complete cleanup helper", None),
+    }
+}
 fn product_plan(
     ty: &Type,
     fields: &[&Type],

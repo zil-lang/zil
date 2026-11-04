@@ -604,3 +604,50 @@ fn general_task343_generated_ascribed_and_sequence_head_hints_preserve_types() {
         report.to_json()
     );
 }
+
+#[test]
+fn owned_task343_native_input_before_poll_pending_and_completion() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case,fixture) in [("input",include_str!("task-owned-input.zil")),("argument",include_str!("task-owned-argument.zil"))] {
+            for polls in 0..3 {
+                let text = fixture.replace("// POLLS", &"task_poll(&mut task);".repeat(polls));
+                let dir = std::env::temp_dir().join(format!("zil343-owned-input-{}-{case}-{polls}-{backend:?}-{optimization:?}", std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(&source(&text), &CompileOptions { backend, optimization, stop_after: Stage::Build, output: Some(dir.join("program")), ..CompileOptions::default() });
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                let actual = std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+                assert_eq!(actual.stdout, b"A", "{actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+    }
+}
+
+#[test]
+fn owned_task343_native_dynamic_branch_order_matches_ordinary_teardown() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for text in [include_str!("task-owned-ordinary-trace.zil"), include_str!("task-owned-order.zil")] {
+                let dir=std::env::temp_dir().join(format!("zil343-owned-order-{}-{backend:?}-{optimization:?}",std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report=compile_source(&source(text), &CompileOptions {backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+                if report.status != ResultCategory::Success {
+                    let typed = zil_types::check(&expand(text, &Limits::default()).unwrap().core, &zil_base::TargetProfile::default(), &Limits::default()).unwrap();
+                    for f in &typed.functions { if f.name == "work" { eprintln!("OWNING DEBUG locals={:?} values={:?}",f.locals,f.values); } }
+                }
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(),Some(0),"{actual:?}");
+                assert_eq!(actual.stdout,b"BACDABDC","{actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}

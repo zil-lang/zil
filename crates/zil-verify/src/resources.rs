@@ -10,6 +10,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
+pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -933,6 +934,10 @@ impl Transfer<'_> {
                     .saturating_add(1),
             )?;
             let span = instruction.span;
+            let task_before = if validate { task_frames::begin(f, state, budget)? } else { None };
+            if validate && matches!(instruction.kind, InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }) {
+                task_frames::capture(f, b, i, state, budget)?;
+            }
             if validate {
                 for operand in instruction_operands(&instruction.kind) {
                     if let Some(row) = slots.desc_value[operand.0 as usize] {
@@ -2069,6 +2074,7 @@ impl Transfer<'_> {
                     }
                 }
             }
+            if validate { task_frames::finish(f, b, i, task_before, state, budget)?; }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
@@ -2204,6 +2210,9 @@ fn run_function_with_sums(
         if let Some(index) = slots.desc_local[local.0 as usize] {
             initial.desc[index].insert(Root::Parameter(p as u32));
         }
+    }
+    if validate {
+        task_frames::start(f, &slots, &initial, budget)?;
     }
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
