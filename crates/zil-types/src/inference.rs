@@ -245,8 +245,10 @@ fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget
 /// Infer closure-related source types without executing CT or producing a
 /// verified artifact. The caller must still run CT, ordinary types and Verify.
 pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResult<CoreModule> {
-    unconsumed_inventory(core).map_err(|e| vec![e])?;
     let mut budget = Budget::new(limits);
+    closures::reserve_source_contexts(&core.closure_life_contexts, limits, &mut budget.work, 2)
+        .map_err(|e| vec![e])?;
+    unconsumed_inventory(core).map_err(|e| vec![e])?;
     budget.current_module = core.module_id;
     budget.ordinary_functions = core.functions.len();
     aggregate_templates::Index::new(&[core], limits, &mut budget.work).map_err(|e| vec![e])?;
@@ -324,6 +326,13 @@ pub(super) fn infer_program_closures_borrowed<'a>(
         )]);
     }
     for module in &program.modules {
+        closures::reserve_source_contexts(
+            &module.core.closure_life_contexts,
+            limits,
+            &mut budget.work,
+            1,
+        )
+        .map_err(|e| vec![e])?;
         unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
         count = count
             .checked_add(module.core.functions.len())
@@ -739,7 +748,20 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
     }
 }
 pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
-    life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits)
+    if core.closure_life_contexts.is_empty() {
+        return life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits);
+    }
+    let mut left = limits.max_analysis_steps;
+    closures::reserve_source_contexts(&core.closure_life_contexts, limits, &mut left, 1)?;
+    let work = life_table_snapshot_work(
+        &core.life_declarations,
+        &core.life_instances,
+        &Limits {
+            max_analysis_steps: left,
+            ..limits.clone()
+        },
+    )?;
+    Ok((limits.max_analysis_steps - left).saturating_add(work))
 }
 pub(super) fn life_table_snapshot_work(
     declarations: &[LifeNominalDeclaration],
@@ -5491,12 +5513,6 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
 
 /// Initial39 boundary: nonempty new data must reach a real bounded consumer.
 pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
-    if !core.closure_life_contexts.is_empty() {
-        return Err(unsupported(
-            Span::default(),
-            "source closure context requires its bounded actual formation consumer",
-        ));
-    }
     if !core.dyn_declarations.is_empty()
         || !core.dyn_interfaces.is_empty()
         || !core.dyn_vtables.is_empty()
