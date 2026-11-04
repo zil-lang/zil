@@ -17,6 +17,7 @@ pub(crate) struct Budget<'a> {
     reference_patterns: bool,
     generic_methods: bool,
     dynamic_interfaces: bool,
+    stored_lifetimes: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -35,10 +36,17 @@ impl<'a> Budget<'a> {
             reference_patterns: false,
             generic_methods: false,
             dynamic_interfaces: false,
+            stored_lifetimes: false,
         }
     }
     pub(crate) fn has_dynamic(&self) -> bool {
         self.dynamic_interfaces
+    }
+    pub(crate) fn has_stored_lifetimes(&self) -> bool {
+        self.stored_lifetimes
+    }
+    pub(crate) fn note_stored_lifetimes(&mut self) {
+        self.stored_lifetimes = true;
     }
     pub(crate) fn note_dynamic(&mut self) {
         self.dynamic_interfaces = true;

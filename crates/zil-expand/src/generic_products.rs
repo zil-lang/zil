@@ -8,6 +8,7 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    pub(crate) storage: crate::stored_types::Catalog,
     pub(crate) origins: Option<origins::Origins>,
     pub(crate) dynamic: dynamic::Catalog,
     pub(crate) target_pointer_width: Option<u16>,
@@ -249,11 +250,22 @@ impl Products {
         sources: &[zil_base::SourceUnit],
         limits: &Limits,
     ) -> CompileResult<()> {
-        if self.templates.is_empty() {
+        if self.templates.is_empty()
+            && self.storage.instances.is_empty()
+            && self.storage.functions.is_empty()
+        {
             return Ok(());
         }
         let allowance = self.allowance.as_ref().unwrap_or(limits);
         let mut budget = Budget::new(allowance);
+        for (core, _) in cores.iter_mut() {
+            self.storage
+                .publish(core, &mut budget)
+                .map_err(|e| vec![e])?;
+        }
+        if self.templates.is_empty() {
+            return Ok(());
+        }
         self.publish_inner(cores, sources, &mut budget)
             .map_err(|e| vec![e])
     }

@@ -18,6 +18,7 @@ mod records;
 mod resources;
 pub mod source_context;
 mod static_traits;
+mod stored_types;
 mod tasks;
 
 use std::collections::{BTreeMap, BTreeSet};
