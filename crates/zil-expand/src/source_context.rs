@@ -6,6 +6,10 @@ use crate::generics::Budget;
 use zil_base::{Diagnostic, FingerprintBuilder, ModuleId, NodeId, Phase, SourceUnit, Span};
 use zil_ir::LifeDeclarationIdentity;
 
+#[path = "source_context_lineage.rs"]
+mod lineage;
+pub(crate) use lineage::capture_original_impl;
+
 /// One actual output item retains its original source declaration, or an
 /// explicitly allocated generated declaration. Vector position is current AST
 /// placement, not a source declaration identity. Spans are diagnostics only.
