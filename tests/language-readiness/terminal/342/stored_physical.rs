@@ -95,6 +95,18 @@ fn terminal342_phantom_nominal_classes_preserve_metadata_without_target_roots() 
         "{}",
         error.to_json()
     );
+    let raw=fixture::phantom();let plan=accept(&raw);
+    assert!(plan.functions[0].holds[1].roots.is_empty());
+    let mut forged=plan.clone();forged.functions[0].holds[1].roots.push(HoldRoot::Parameter(0));
+    let wire=zil_ir::wire::encode_module_candidate(&raw,&forged,&Limits::default()).unwrap();
+    assert!(zil_verify::verify_module(raw.clone(),forged,&raw.target,&Limits::default()).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire,&raw.target,&Limits::default()).is_err());
+    let mut escaped=raw.clone();escaped.functions[0].return_type=fixture::address(Type::I32,false);escaped.functions[0].reference_return_bound=Some(vec![0]);escaped.functions[0].values[4]=fixture::address(Type::I32,false);
+    escaped.functions[0].blocks[0].instructions[5].kind=InstructionKind::ReborrowAddress{address:ValueId(3),mutable:false};
+    escaped.functions[1].values[2]=fixture::address(Type::I32,false);escaped.functions[1].values.push(Type::I32);
+    escaped.functions[1].blocks[0].instructions.push(fixture::instruction(Some(3),InstructionKind::ReadAddress{address:ValueId(2)}));escaped.functions[1].blocks[0].terminator=Terminator::Return(Some(ValueId(3)));
+    let mut claim=plan;claim.functions[1].holds.push(zil_ir::ValueHold{value:ValueId(3),roots:vec![]});
+    reject(&escaped,claim,"nominal phantom class cannot turn its activation-local field into input target permission");
 }
 fn accept(module: &TypedModule) -> CandidatePlan {
     let plan = candidate(module);

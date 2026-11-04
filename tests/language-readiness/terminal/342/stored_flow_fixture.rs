@@ -366,3 +366,28 @@ pub(super) fn exclusive_returns(overlap: bool) -> TypedModule {
     f.blocks[0].terminator = Terminator::Return(Some(ValueId(10)));
     m
 }
+
+#[allow(dead_code)] // Shared raw builder is used by the driver subset only.
+pub(super) fn phantom()->TypedModule{
+    let mut m=module();
+    let Type::BorrowedStorage{storage,life}=&mut m.life_instances[0].ty else{unreachable!()};
+    *storage=Box::new(Type::Record{name:"Phantom".into(),fields:vec![("number".into(),Type::I32)]});life.slots.clear();
+    let phantom=m.life_instances[0].ty.clone();m.life_declarations[0].identity.declaration_path=vec!["Phantom".into()];
+    let mut use_value=function(0,vec![address(Type::I32,false)],Type::I32,vec![Type::I32,phantom.clone(),address(phantom.clone(),false),address(Type::I32,false),Type::I32],vec![
+        instruction(Some(0),InstructionKind::Constant(Constant::I32(42))),
+        instruction(Some(1),InstructionKind::MakeAggregate{fields:vec![ValueId(0)]}),
+        instruction(None,InstructionKind::Store{local:LocalId(1),value:ValueId(1)}),
+        instruction(Some(2),InstructionKind::BorrowLocal{local:LocalId(1)}),
+        instruction(Some(3),InstructionKind::AddressField{address:ValueId(2),index:0}),
+        instruction(Some(4),InstructionKind::ReadAddress{address:ValueId(3)}),
+    ],4);
+    use_value.locals.push(LocalDecl{id:LocalId(1),name:"marker".into(),ty:phantom,mutable:false,span:s()});
+    let mut main=function(1,vec![],Type::I32,vec![Type::I32,address(Type::I32,false),Type::I32],vec![
+        instruction(Some(0),InstructionKind::Constant(Constant::I32(0))),
+        instruction(None,InstructionKind::Store{local:LocalId(0),value:ValueId(0)}),
+        instruction(Some(1),InstructionKind::BorrowLocal{local:LocalId(0)}),
+        instruction(Some(2),InstructionKind::Call{function:FunctionId(0),arguments:vec![ValueId(1)]}),
+    ],2);
+    main.locals.push(LocalDecl{id:LocalId(0),name:"actual".into(),ty:Type::I32,mutable:false,span:s()});
+    m.functions=vec![use_value,main];m
+}
