@@ -1,0 +1,61 @@
+{
+  "status": "PassLimitedConcreteCapturedOwningAddressLending",
+  "source": "d2fe57d36",
+  "production_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-source-binding.json",
+    "sha256": "17b22696f71e2399c1b8c4643251844a23feb8dddeebea4bf8fcf9fa3f971bed"
+  },
+  "production_digest": "7e9cca3b30683e494cb9381f93dea1f33a5c641a6b1159c5dfd158084b753eb6",
+  "production_files": 419,
+  "tests_digest": "d3c59d8223a74d0ba506424319c5d983a9da6a84553b1524fb7f93466d466790",
+  "tests_files": 19,
+  "method": "Read-only independent review and replay of exact SHA-bound author-built executables; no independent rebuild. Exact Git production/test manifests match author receipt.",
+  "replays": [
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-aggregates",
+        "sha256": "7b090b44c337c65b247069271e872ab3e1b50ec47a57eec908d096ea7f455017"
+      },
+      "filter": "terminal340",
+      "result": "50 passed, 0 failed, 92 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-aggregates.log",
+        "sha256": "a77861beaa7b8eb1cb757348d3ac5010fc1f7b6cb664e7f0540af6504ecabc93"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-impl187",
+        "sha256": "9a7919359fbdd236aebdc8306df43b1bdf1d1f284c83e404df8576b84db202d0"
+      },
+      "result": "25 passed, 0 failed, 0 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-impl187.log",
+        "sha256": "2cf7946745d5bb5cd67593640a653b1f929b63c32496a7cafcfed9ecdd7139d1"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-lending",
+        "sha256": "80312aebf04407aa0f54fd8975e797e9d25cf7180ecce3e701fc0e8b20c558e5"
+      },
+      "result": "13 passed, 0 failed, 0 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-lending.log",
+        "sha256": "a38fc1762abacecb01d9e12941a644b7aedc67801a7f435e8bb69abf5bfbde68"
+      }
+    }
+  ],
+  "review": [
+    "Actual local closure captures preserve complete owning Tuple/Enum/ErrorUnion address targets and modes; actual selected capture slots and returned Capture/Window paths are reconstructed independently.",
+    "Derived returned child retains actual target/parent ancestry after the closure activation ends. Dead intermediate capture views do not become separately live whole-parent accesses; independently live parent/closure/other-child windows remain checked.",
+    "New Analyze ordinary-call ancestry uses independently derived returned parameter positions, not overlapping roots as a delegation witness.",
+    "Symbolic callable-parameter external lending is explicitly Unsupported in both kernels; no carrier Parameter is substituted as its captured target.",
+    "Original let-bound writing closure remains rejected by ordinary FnMut position rules; nearest var-bound source executes. Parent move, same-field mutation, subsequent mutating closure recall, slot rebound, forged mutable Fn mode and malformed capture slot controls are retained."
+  ],
+  "budgets": "Full request68065; Analyze66078; Verify/raw-decoded68065, N/N-1/fresh and live/warm controls independently replayed.",
+  "limits": [
+    "Known common39 default-stack conversion regression remains open at this source; review745c5159f proves it already exists at parent03fa. Full aggregate target is NOT accepted here.",
+    "No general callable-parameter capture substitution, reservation121-124, full partial Package/Product, physical CT ErrorUnion or whole-language completion."
+  ]
+}
