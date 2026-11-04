@@ -224,3 +224,22 @@ executes no native command and publishes no executable. These are frontend and
 handoff controls. Genuine generated/filtered Aligned production, full dyn source
 tables/coercions/calls, contextual type keys, independent safety/native consumers
 and their raw/Wire/budget/cache controls remain unfinished.
+
+Retained-original lineage now has a concrete producer. The bounded
+capture_original API reuses the Original capture encoding before CT, returns
+the actual rows and remaining limits, and avoids constructing a namespace when
+the paid discovery finds no identity consumer. The materializer carries input
+positions while it removes CT-only declarations. Import pruning moves the same
+rows with the same AST items. Final Expand receives Aligned rows and continues
+the capture/CT/move budget, including a second paid snapshot resolution from the
+complete original graph. No source coordinate or output ordinal is an original
+declaration identity.
+
+This slice preserves original top-level declarations only. Generated item
+expansion, selection and nested member-list changes invalidate the usable rows;
+those routes still require a genuine generation/member ledger. Expression and
+type reification preserve the enclosing original row. The actual source control
+places a removed CT Type function before or after a used life-only View and
+removes a std.meta import; View retains original declaration ordinals1/0/2.
+The private capture unit pays exact work698/nodes33 and rejects N-1. These are
+frontend lineage controls, not dyn/safety/native acceptance.
