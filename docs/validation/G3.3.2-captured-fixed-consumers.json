@@ -20,7 +20,7 @@
       "FnOnce"
     ],
     "result": "inline scalar",
-    "captures": "inline scalar or shared ordinary/qualified Address; shared finite Record/Tuple, no owning/lending/nested environment",
+    "captures": "inline scalar, shared Address<scalar>, or shared Address to qualified finite Record/Tuple; no owning/lending/nested environment",
     "parameters": "shared; mutable closure helper receiver allowed, scalar WriteCapture only",
     "canonical": "joint Parameter/Capture/Result with each Fixed anchored in Capture",
     "runtime_context": "actual MakeClosure origins plus persistent receiver Fixed; only Invocation is fresh",
@@ -79,7 +79,8 @@
     "Source F bound P/R must be mapped through actual source identity and receiver captures before forming complete role; equality of local Fixed indices is insufficient",
     "user-resource/Mark owning captures mixed with qualified storage remain at existing stored_flow::infer resources fence; not a completed true owning FnOnce Source consumer",
     "lending/owning/nested captures, mutable explicit arguments needing capture-target summary substitution, retained environment result transfer",
-    "actual Once adaptation from concrete Fn/FnMut needs its separate consumption ledger"
+    "actual Once adaptation from concrete Fn/FnMut needs its separate consumption ledger",
+    "Verify additionally accepts ordinary Copy Record/Tuple shared capture pointees; Analyze/Types do not, so this is outside the common complete profile"
   ],
   "build": {
     "target_dir": "/workspace/.zil-env/target342-40",
