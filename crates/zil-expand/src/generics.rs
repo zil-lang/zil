@@ -34,6 +34,8 @@ pub(super) mod products;
 pub(super) mod record_enums;
 #[path = "generic_rich_pointer.rs"]
 pub(super) mod rich_pointer;
+#[path = "generic_source_life.rs"]
+mod source_life;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -351,6 +353,7 @@ fn specialize_with_budget<'a>(
     has_associated: bool,
     has_generic_methods: bool,
 ) -> R<Module> {
+    source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
     let methods =
         trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
