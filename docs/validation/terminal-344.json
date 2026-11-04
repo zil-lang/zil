@@ -4,7 +4,7 @@
   "implementation_commit": "c5696a1c10d9b25549499fd991d73c4d2d681871",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "proposal_commit": "9dac5e157",
-  "scope": "344 milestones: completed default-2MiB source/API stack reliability; separate float candidate below; broader reliability and anonymous-sum work remains open",
+  "scope": "344 separate default-stack, float, composed UInt/float, and anonymous source/CT Type milestones; later artifact sum values and broader reliability remain open",
   "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
   "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade",
   "failure_location": {
@@ -147,10 +147,10 @@
     "breakthrough": "Finite reliability improvement with actual default-stack API and machine evidence; product four-goal conjunction not established"
   },
   "remaining": [
-    "Non-author exact composed candidate replay pending",
-    "Anonymous structural tagged sums and their CT type representation are next; not present or claimed in this checkpoint",
-    "Broader large closure/helper/foreign reliability remains in progress",
-    "No full workspace, native Windows or Rust performance comparisons run; parent B0 remains Doing"
+    "Independent non-author review of this exact checkpoint pending",
+    "Artifact CT structural sum values need CtTy/CtValue and constructor/injection schema; current generic record schemas omit public phantom argument lineage, which must be retained before full-identity canonical ordering",
+    "Anonymous owned cleanup/borrow/move/failure composition and broader large closure/helper/foreign reliability remain in progress",
+    "No full workspace test, native Windows execution or Rust performance comparison was run by this author; parent B0 remains Doing"
   ],
   "stack_independent_review": {
     "candidate_commit": "3ff1dc270",
@@ -365,6 +365,104 @@
       "Anonymous structural tagged sums and their CT type representation are next; not present or claimed in this checkpoint",
       "Broader large closure/helper/foreign reliability remains in progress",
       "No full workspace, native Windows or Rust performance comparisons run; parent B0 remains Doing"
+    ],
+    "independent_review": {
+      "reviewer": "/root/terminal_architecture",
+      "candidate": "25620de91a63f160512ba950ff24207cf09045f0",
+      "review_commit": "71d0012ea28a121d4ee942a7d80ec46bdd5bf41a",
+      "result": "PassLimited; all37 targeted tests independently replayed; full306-file source digest and all listed source/executable hashes matched. No anonymous sum claim."
+    }
+  },
+  "anonymous_type_milestone": {
+    "implementation_commit": "befe93e8137432f321de036f3a43e0e12bb7f5a1",
+    "public_schema_commit": "7a420aa0d",
+    "spec_hash": "dff904decca4cd76f7db173ad5e5f5c8598a78063e40483b5a4a168d4a552d11",
+    "normative_hash": "d95a2aa655045cd0ef218146df0ccb37d89d4269e12e2aedbe74239ad14f08e4",
+    "authority": "Current main-tree task344 metadata; E-ANONYMOUS-SUM and CT15/11 normative updates are root-owned external commits. This branch does not independently rewrite the shared normative snapshot.",
+    "scope": "Source canonical tagged structural sums, complete member type patterns and Copy generic substitutions, Type-valued CT graph canonicalization, ordinary typed-CFG CT Copy sum value reification, independent Analyze/Verify canonical checks, and existing native Enum machine representation. Structural sum values in the Type/Syntax artifact VM are a subsequent public-schema stage, not claimed here.",
+    "production_rust_count": 307,
+    "production_rust_sha256": "581155e9acb8fa3fae010ce98751f17f4f23ba38d2375b259c2bc4e22fa1a541",
+    "production_digest_algorithm": "crates/*/src/**/*.rs sorted by Python Path component order; UTF-8 relative path + NUL + exact bytes + NUL. Working production source equals the implementation commit; receipt-only later commit changes no source.",
+    "inputs": {
+      "tests/language-readiness/terminal/344/anonymous/aliases.zil": "c168a00d5bace9d9a33a5a2ed874cb261eb0ca7b108cec74ffdc5dfab99ead9e",
+      "tests/language-readiness/terminal/344/anonymous/basic.zil": "01fb4b568282c73c422d0a793ab2cdfcf2ad0241d12ad0baec3b43e23d9916b0",
+      "tests/language-readiness/terminal/344/anonymous/ct-types.zil": "c4782062af8579d6a3f09a3aecb679228652f0f037be189a9a79317b05dd5703",
+      "tests/language-readiness/terminal/344/anonymous/float-enum.zil": "3b91a1a9f0142739c1109192e60d99e54ba690ff35c6b9b217ce37919d2877ad",
+      "tests/language-readiness/terminal/344/anonymous/phantom.zil": "2d0db2340184c0e227fb64cd59146d5b89c43e9744dea4db97f39768e0a5b419"
+    },
+    "harnesses": {
+      "crates/zil-driver/tests/aggregates.rs": "37976c3aa3b6f6ccd1f8acd3d49d18170d3f635047191384a49c241e4bc2a77f",
+      "crates/zil-ct/src/anonymous_type.rs": "0060c25e4d21bb6c6a4fbceac9765a89874f25d0bce122ef44ff607eab798f9f",
+      "crates/zil-ct/src/ct_artifact.rs": "acb9afd29d4470723c3bd70c4b34ee42a12750928e33da4e26979209b5279b1f"
+    },
+    "retained_executables_sha256": {
+      "/workspace/.zil-env/target344/debug/deps/aggregates-e68efd3bca6e242d": "314572988bb656a34fa316a0c9b9b4ce71ed32c9f1aa1ed1a8dd081ec24a398b",
+      "/workspace/.zil-env/target344/debug/deps/zil_ct-06d11309bb052277": "1cd212de8d7bd4928af7a5b45cd0a039b6cd4a2ab295aded003626e45f1ea9af",
+      "/workspace/.zil-env/target344/debug/deps/zil_ir-9fc6e6e71850ac8f": "f212f7856d91e451523477d29f89103568ab6fb30ec27ad433c5780d8f64f1e3"
+    },
+    "commands": [
+      {
+        "command": "cargo clippy -p zil-types -p zil-expand -p zil-analyze -p zil-verify -p zil-ct -p zil-driver --lib -- -D warnings",
+        "result": "Pass"
+      },
+      {
+        "command": "cargo clippy -p zil-driver --features llvm-api --test aggregates -- -D warnings",
+        "result": "Pass"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates anonymous_sum_ -- --nocapture --test-threads=1",
+        "result": "Pass10; seven native test functions include eight actual source variants (phantom declaration order is swapped), 32 Clang/API O0/O2 executions, stdout42 newline, Verify1 and fallback null. Includes11 nearest invalid source definitions/casts/patterns, duplicate actual generic member rejection, raw Analyze/Verify/Wire canonical attacks, and exact request budget/cache control."
+      },
+      {
+        "command": "cargo test -p zil-ct --lib anonymous_ -- --nocapture --test-threads=1",
+        "result": "Pass4; complete-key nominal/phantom identity, DAG numbering/sharing and member-order invariance, duplicate/nested rejection, expansion limit before cloning, exact N/N-1/fresh work, raw VM constructor and Wire admission. Handcrafted artifact tests use a test authority and are distinct from authenticated source/native evidence."
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates ieee_float_ -- --nocapture --test-threads=1",
+        "result": "Pass10; existing float source/native/C ABI/raw/conversion controls; exact source budget2189 unchanged"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_ -- --nocapture --test-threads=1",
+        "result": "Pass4; existing UInt/fnptr/target-width controls; exact source budget9050 unchanged"
+      },
+      {
+        "command": "cargo test -p zil-ir --lib ct_wire::tests -- --test-threads=1",
+        "result": "Pass19; previous payload and default2MiB Wire stack controls retained. The new constructor/node15/11 is separately roundtripped and consumed by the anonymous CT VM test."
+      },
+      {
+        "command": "git diff --check",
+        "result": "Pass"
+      }
+    ],
+    "representation": {
+      "runtime": "Existing full Type::Enum payload structure, marker @anonymous-sum:v1 and ordinal MemberN labels; full resolved Type ordering and duplicates. No shortened hash or marker-only identity/cache key.",
+      "CT": "CtTypeNode::AnonymousSum15 and CtTypeConstructor::AnonymousSum11. Iterative topological normalization expands reachable constructor trees and full explicit byte keys (constructor, full nominal symbol and arguments, scalar bits). Keys contain no DAG IDs or hash ordering. Exact copy/key/compare/generated-node work is reserved on the passed request ledger before expansion.",
+      "cross_phase": "CT internal key order is recanonicalized after resolving complete runtime Type members. TypeName(payload) selects exact full runtime type; member indexes are never copied across the CT/runtime boundary. Type-valued selectors materialize full AST Union with generic phantom args, and ordinary typed-CFG CT values materialize full Core Ascribed sum plus active payload.",
+      "cache_layout_audit": "Types Resolver cache keyed by source nominal name is entered only by Type::Named; marked Enum values take the structural branch. Core enum declarations contain only declared nominals. CT nominal reifier handles marker Enum before nominal-name lookup. Backend Enum LLVM representation/layout is structural, and existing Wire/interface fingerprints include full member fields. Real simultaneous distinct member sets and nested UInt/float generic Enum exercise these consumers."
+    },
+    "observed_gaps_closed": [
+      "Alias normalization previously returned Unsupported for Union targets; it now resolves them and rejects erased duplicate aliases before removal.",
+      "Concrete T(payload) patterns needed a private full substitution map, including complex tuple aliases; no textual hash or invented nominal type is used.",
+      "Generic Enum primitive layout/definition tables omitted floating scalars; finite Union payload syntax now traverses all members. The retained Envelope<f64|u64> source with explicit and generic sum fields reaches both native backends."
+    ],
+    "budgets": {
+      "anonymous_source_N": 8558,
+      "float_source_N": 2189,
+      "unsigned_source_N": 9050,
+      "results": "N accepts, N-1 ResourceLimit, warm/fresh agree; active queries return0. Defaults and global stack sizes unchanged. New normalization uses the existing mutable CT request ledger; old Type values are classified during their existing structural walk, with no new legacy classifier pass."
+    },
+    "Rust_goals": {
+      "safety": "Independent canonical/raw/Wire rejection and exact member selection demonstrated for finite Copy source programs. Owned cleanup, borrowing composition and full-language safety remain open.",
+      "runtime_memory": "32 real inline Sum native executions introduce no language-level Box/RC/lock. CT compile-time identity trees/keys use explicitly bounded temporary allocations. Same-semantics Rust runtime/RSS comparison NotRun.",
+      "expression_maintenance": "Transparent/imported aliases, exact generic T patterns, phantom types, CT Type selection and nested float/UInt Enum work as ordinary source. Framework-scale maintenance comparison NotRun.",
+      "compile_cost": "Exact source/CT ledger boundaries tested; inherited float/UInt N values unchanged, defaults unchanged. No Rust compile-speed advantage claimed.",
+      "breakthrough": "Anonymous tagged structural sum source/CT Type/native composition now has retained real positive and nearest negative evidence. Existing product four-goal conjunction remains unestablished."
+    },
+    "remaining": [
+      "Independent non-author review of this exact checkpoint pending",
+      "Artifact CT structural sum values need CtTy/CtValue and constructor/injection schema; current generic record schemas omit public phantom argument lineage, which must be retained before full-identity canonical ordering",
+      "Anonymous owned cleanup/borrow/move/failure composition and broader large closure/helper/foreign reliability remain in progress",
+      "No full workspace test, native Windows execution or Rust performance comparison was run by this author; parent B0 remains Doing"
     ]
   }
 }
