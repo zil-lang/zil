@@ -2458,6 +2458,85 @@ mod tests {
         )
     }
     #[test]
+    fn qualified_role_proofs_share_the_actual_request_allowance() {
+        let m = fixture::qualified_two_fn_roles(false);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if super::super::analyze(&m, &limit(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = super::super::analyze(&m, &limit(low - 1)).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        println!("342 qualified Fn role Analyze N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn qualified_callback_arguments_keep_simultaneous_exclusive_windows() {
+        super::super::analyze(
+            &fixture::qualified_fn_exclusive_call(false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(
+            &fixture::qualified_fn_exclusive_call(true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live access overlaps")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn the_same_closure_is_checked_under_each_actual_parameter_role() {
+        super::super::analyze(&fixture::qualified_two_fn_roles(false), &Limits::default()).unwrap();
+        let error =
+            super::super::analyze(&fixture::qualified_two_fn_roles(true), &Limits::default())
+                .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn qualified_fn_roles_use_actual_entry_and_fresh_argument_class_equations() {
+        super::super::analyze(
+            &fixture::qualified_fn_role(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        for m in [
+            fixture::qualified_fn_role(true, false),
+            fixture::qualified_fn_role(false, true),
+        ] {
+            let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+            assert!(
+                error
+                    .iter()
+                    .any(|d| d.message.contains("actual retained classes")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
     fn a_pointer_fixed_class_without_enclosing_context_is_not_fresh_per_call() {
         super::super::analyze(
             &fixture::phantom_class_calls(true, false),

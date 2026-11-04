@@ -895,3 +895,281 @@ pub(super) fn unbound_fixed_pointer() -> TypedModule {
     }
     m
 }
+
+#[allow(dead_code)]
+pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedModule {
+    let mut m = rich_marker_pointer(false, false);
+    let target = &mut m.functions[0];
+    target.storage_life = None;
+    target.environment = Some(ClosureId(0));
+    let parameters = target
+        .parameters
+        .iter()
+        .map(|p| target.locals[p.0 as usize].ty.clone())
+        .collect::<Vec<_>>();
+    let definition = ClosureDefinition {
+        storage_life: None,
+        id: ClosureId(0),
+        function: FunctionId(0),
+        captures: vec![],
+        parameters: parameters.clone(),
+        result: Type::I32,
+        kind: CallableKind::Fn,
+        lending_captures: vec![],
+    };
+    let env = address(Type::Closure(ClosureId(0)), false);
+    let role_life = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 2,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(1),
+            ),
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(if wrong_role { 0 } else { 1 }),
+        }],
+    };
+    let mut helper = function(
+        1,
+        vec![env.clone(), parameters[0].clone(), parameters[1].clone()],
+        Type::I32,
+        vec![env, parameters[0].clone(), parameters[1].clone(), Type::I32],
+        vec![
+            instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(Some(2), InstructionKind::Load(LocalId(2))),
+            instruction(
+                Some(3),
+                InstructionKind::CallClosureBorrowed {
+                    callee: ValueId(0),
+                    kind: CallableKind::Fn,
+                    arguments: vec![ValueId(1), ValueId(2)],
+                },
+            ),
+        ],
+        3,
+    );
+    helper.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: if wrong_actual { 3 } else { 2 },
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(1),
+            ),
+            row(
+                StorageBase::Parameter(2),
+                vec![],
+                if wrong_actual {
+                    StorageBinder::Invocation(2)
+                } else {
+                    StorageBinder::Fixed(0)
+                },
+            ),
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(1),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
+    });
+    helper.callable_contract = Some(CallableParameterContract {
+        roles: vec![CallableRole {
+            life: Some(role_life),
+            parameter: 0,
+            closure: ClosureId(0),
+            kind: CallableKind::Fn,
+            hold: vec![],
+            call: vec![],
+            writes: vec![],
+            cleanup: CallableCleanup::Borrowed,
+        }],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent {
+                parameter: 0,
+                kind: CallableKind::Fn,
+            }],
+            exit: CallableExit::Return,
+        }]),
+    });
+    m.functions[1] = helper;
+    m.closures = vec![definition];
+    m
+}
+
+#[allow(dead_code)]
+pub(super) fn qualified_two_fn_roles(wrong_second: bool) -> TypedModule {
+    let mut m = qualified_fn_role(false, false);
+    let old = &m.functions[1];
+    let env = old.locals[0].ty.clone();
+    let tag = old.locals[1].ty.clone();
+    let number = old.locals[2].ty.clone();
+    let mut first = old.callable_contract.as_ref().unwrap().roles[0].clone();
+    first.parameter = 0;
+    let mut second = first.clone();
+    second.parameter = 1;
+    let life = second.life.as_mut().unwrap();
+    if wrong_second {
+        life.classes[0].binder = StorageBinder::Invocation(0);
+    } else {
+        life.invocation_binder_count = 3;
+        life.bindings[1].binder = StorageBinder::Invocation(2);
+    }
+    let mut helper = function(
+        1,
+        vec![env.clone(), env.clone(), tag.clone(), number.clone()],
+        Type::I32,
+        vec![env.clone(), env, tag, number, Type::I32, Type::I32],
+        vec![
+            instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(Some(2), InstructionKind::Load(LocalId(2))),
+            instruction(Some(3), InstructionKind::Load(LocalId(3))),
+            instruction(
+                Some(4),
+                InstructionKind::CallClosureBorrowed {
+                    callee: ValueId(0),
+                    kind: CallableKind::Fn,
+                    arguments: vec![ValueId(2), ValueId(3)],
+                },
+            ),
+            instruction(
+                Some(5),
+                InstructionKind::CallClosureBorrowed {
+                    callee: ValueId(1),
+                    kind: CallableKind::Fn,
+                    arguments: vec![ValueId(2), ValueId(3)],
+                },
+            ),
+        ],
+        5,
+    );
+    helper.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 3,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(1),
+            ),
+            row(
+                StorageBase::Parameter(2),
+                vec![],
+                StorageBinder::Invocation(2),
+            ),
+            row(StorageBase::Parameter(3), vec![], StorageBinder::Fixed(0)),
+        ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(2),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
+    });
+    helper.callable_contract = Some(CallableParameterContract {
+        roles: vec![first, second],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![
+                CallEvent {
+                    parameter: 0,
+                    kind: CallableKind::Fn,
+                },
+                CallEvent {
+                    parameter: 1,
+                    kind: CallableKind::Fn,
+                },
+            ],
+            exit: CallableExit::Return,
+        }]),
+    });
+    m.functions[1] = helper;
+    m
+}
+
+#[allow(dead_code)]
+pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
+    let mut m = qualified_fn_role(false, false);
+    let mutable = address(Type::I32, true);
+    let d = &mut m.closures[0];
+    d.parameters[1] = mutable.clone();
+    d.parameters.push(mutable.clone());
+    let entry = &mut m.functions[0];
+    entry.locals[1].ty = mutable.clone();
+    entry.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "other".into(),
+        ty: mutable.clone(),
+        mutable: false,
+        span: s(),
+    });
+    entry.parameters.push(LocalId(2));
+    let helper = &mut m.functions[1];
+    helper.locals[2].ty = mutable.clone();
+    helper.values[2] = mutable.clone();
+    helper.locals.push(LocalDecl {
+        id: LocalId(3),
+        name: "other".into(),
+        ty: mutable.clone(),
+        mutable: false,
+        span: s(),
+    });
+    helper.parameters.push(LocalId(3));
+    helper.values.push(mutable);
+    let c = helper.storage_life.as_mut().unwrap();
+    c.invocation_binder_count = 3;
+    c.bindings.push(row(
+        StorageBase::Parameter(3),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
+    let life = helper.callable_contract.as_mut().unwrap().roles[0]
+        .life
+        .as_mut()
+        .unwrap();
+    life.invocation_binder_count = 3;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
+    helper.blocks[0]
+        .instructions
+        .insert(3, instruction(Some(4), InstructionKind::Load(LocalId(3))));
+    let InstructionKind::CallClosureBorrowed { arguments, .. } =
+        &mut helper.blocks[0].instructions.last_mut().unwrap().kind
+    else {
+        unreachable!()
+    };
+    arguments.push(ValueId(if alias { 2 } else { 4 }));
+    m
+}

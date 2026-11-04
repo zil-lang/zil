@@ -162,10 +162,8 @@ pub(super) fn role<'a>(
                         "actual callback receiver definition scan",
                     )?;
                     for i in &block.instructions {
-                        if i.result == Some(current) {
-                            if found.replace(&i.kind).is_some() {
-                                return Err(bad("callback receiver has duplicate definition"));
-                            }
+                        if i.result == Some(current) && found.replace(&i.kind).is_some() {
+                            return Err(bad("callback receiver has duplicate definition"));
                         }
                     }
                 }
@@ -205,6 +203,9 @@ pub(super) fn roles(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if module.closures.is_empty() {
+        return Ok(());
+    }
     b.spend(
         module.functions.len(),
         "qualified callback role entry inventory",
