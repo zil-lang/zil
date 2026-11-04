@@ -552,55 +552,84 @@ fn binding(
     let c = f
         .storage_life
         .as_ref()
-        .ok_or_else(|| failure("stored signature has no relation"))?;
-    fee(b, c.bindings.len())?;
-    let mut found = None;
-    for row in &c.bindings {
+        .ok_or_else(|| failure("stored signature lacks complete relation"))?;
+    if path.is_empty() {
+        fee(b, c.bindings.len())?;
+        return super::signature_life::outer(c, base)
+            .ok_or_else(|| failure("signature omits actual outer borrow"));
+    }
+    let ty = match base {
+        StorageBase::Parameter(i) => f
+            .parameters
+            .get(i as usize)
+            .and_then(|l| f.locals.get(l.0 as usize))
+            .map(|l| &l.ty),
+        StorageBase::Result => Some(&f.return_type),
+        StorageBase::Capture(_) => None,
+    }
+    .ok_or_else(|| failure("stored relation base is absent"))?;
+    let ((_, shape), pointee) = if let Some(q) = carrier(ty) {
+        (q, false)
+    } else {
+        (
+            pointed_carrier(ty)
+                .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
+            true,
+        )
+    };
+    fee(b, shape.slots.len())?;
+    let mut local = None;
+    for slot in &shape.slots {
         fee(
             b,
-            row.position
-                .path
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(1),
+            slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if row.position.base == base
-            && row.position.path.len() == path.len()
-            && row
-                .position
-                .path
-                .iter()
-                .zip(path)
-                .all(|(a, b)| *a == ContractProjection::Place(*b))
-            && found.replace(row.binder).is_some()
-        {
-            return Err(failure("duplicate signature position"));
+        if slot.path == path {
+            if local.replace(slot.binder).is_some() {
+                return Err(failure("duplicate actual stored leaf"));
+            }
         }
     }
-    found.ok_or_else(|| failure("signature omits actual borrowed position"))
+    let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    fee(b, c.classes.len())?;
+    for row in &c.classes {
+        fee(b, row.position.path.len().saturating_add(1))?;
+        if row.position.base == base
+            && row.position.class == local
+            && if pointee {
+                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            } else {
+                row.position.path.is_empty()
+            }
+        {
+            return Ok(row.binder);
+        }
+    }
+    Err(failure("signature omits actual qualified local class"))
 }
 
 pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
-            return Err(failure("signature parameter outside actual locals"));
+            return Err(failure("signature parameter outside actual local table"));
         }
     }
     let Some(c) = &f.storage_life else {
         for ty in f
             .parameters
             .iter()
-            .map(|l| &f.locals[l.0 as usize].ty)
+            .map(|p| &f.locals[p.0 as usize].ty)
             .chain(std::iter::once(&f.return_type))
         {
             fee(b, 1)?;
             if carrier(ty).is_some() || pointed_carrier(ty).is_some() {
-                return Err(failure("stored signature requires its complete relation"));
+                return Err(failure("stored signature requires complete class relation"));
             }
         }
         return Ok(());
     };
+    fee(b, super::signature_life::work(c))?;
     fee(b, f.parameters.len())?;
     if c.fixed_binder_count > 1
         || f.parameters
@@ -613,123 +642,48 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
             .count()
             > 1
     {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "multiple retained input classes require invariant actual class substitution",
-            Some(f.span),
-        )]);
+        return Err(failure(
+            "multiple retained classes/inputs need invariant actual class substitution",
+        ));
     }
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(failure(
-            "stored relation contradicts another signature profile",
+            "stored signature contradicts another active profile",
         ));
     }
-    fee(b, c.bindings.len())?;
-    let mut expected = 0usize;
-    let mut fixed = BTreeSet::new();
-    let mut invocation = BTreeSet::new();
-    let mut grounded = BTreeSet::new();
-    for (ordinal, ty) in f
-        .parameters
-        .iter()
-        .map(|l| &f.locals[l.0 as usize].ty)
-        .chain(std::iter::once(&f.return_type))
-        .enumerate()
-    {
-        let input = ordinal < f.parameters.len();
-        let base = if input {
-            StorageBase::Parameter(ordinal as u32)
-        } else {
-            StorageBase::Result
-        };
-        let mut positions = Vec::new();
-        if matches!(ty, Type::Address { .. }) {
-            fee(b, 1)?;
-            positions.push(Vec::new());
+    let mut parameters = Vec::with_capacity(f.parameters.len());
+    for p in &f.parameters {
+        let ty = &f.locals[p.0 as usize].ty;
+        b.type_work(ty, true, "stored signature type clone and relation")?;
+        parameters.push(ty.clone());
+    }
+    b.type_work(&f.return_type, true, "stored signature result relation")?;
+    super::signature_life::relation(&parameters, &f.return_type, c)?;
+    for (i, ty) in parameters.iter().enumerate() {
+        fee(b, c.bindings.len())?;
+        if matches!(ty, Type::Address { .. })
+            && matches!(
+                super::signature_life::outer(c, StorageBase::Parameter(i as u32)),
+                Some(StorageBinder::Fixed(_))
+            )
+        {
+            return Err(failure(
+                "new outer borrow meeting retained Fixed needs actual invariant substitution",
+            ));
         }
-        if let Some((_, life)) = carrier(ty).or_else(|| pointed_carrier(ty)) {
-            let mut classes = BTreeMap::new();
-            for slot in &life.slots {
-                fee(b, slot.path.len().saturating_add(1))?;
-                let upper = binding(f, base, &slot.path, b)?;
-                ordered(b, classes.len(), 0)?;
-                if let Some(previous) = classes.insert(slot.binder, upper)
-                    && previous != upper
+        if let Some((_, shape)) = carrier(ty).or_else(|| pointed_carrier(ty)) {
+            for row in &c.classes {
+                fee(b, row.position.path.len().saturating_add(1))?;
+                if row.position.base == StorageBase::Parameter(i as u32)
+                    && !matches!(row.binder, StorageBinder::Fixed(_))
                 {
-                    return Err(failure("one stored fixed class is rebound inconsistently"));
+                    return Err(failure(
+                        "incoming retained class needs invariant actual substitution",
+                    ));
                 }
-                if input {
-                    let StorageBinder::Fixed(class) = upper else {
-                        return Err(failure(
-                            "input retained class was freshened to invocation scope",
-                        ));
-                    };
-                    ordered(b, grounded.len(), 0)?;
-                    grounded.insert(class);
-                }
-                positions.push(slot.path.clone());
             }
+            fee(b, shape.slots.len())?;
         }
-        for path in positions {
-            expected = expected
-                .checked_add(1)
-                .ok_or_else(|| failure("signature position count overflow"))?;
-            let row = c
-                .bindings
-                .get(expected - 1)
-                .ok_or_else(|| failure("stored signature omits actual position"))?;
-            fee(
-                b,
-                row.position
-                    .path
-                    .len()
-                    .saturating_add(path.len())
-                    .saturating_add(1),
-            )?;
-            if row.position.base != base
-                || row.position.path.len() != path.len()
-                || !row
-                    .position
-                    .path
-                    .iter()
-                    .zip(&path)
-                    .all(|(x, y)| *x == ContractProjection::Place(*y))
-            {
-                return Err(failure(
-                    "stored signature rows are not in actual canonical position order",
-                ));
-            }
-            let upper = binding(f, base, &path, b)?;
-            if input && path.is_empty() && matches!(upper, StorageBinder::Fixed(_)) {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "meeting a new input borrow with an existing fixed class requires actual upper-bound substitution",
-                    Some(f.span),
-                )]);
-            }
-            let (set, index, limit) = match upper {
-                StorageBinder::Fixed(i) => (&mut fixed, i, c.fixed_binder_count),
-                StorageBinder::Invocation(i) => (&mut invocation, i, c.invocation_binder_count),
-            };
-            if index >= limit {
-                return Err(failure("signature binder outside declared domain"));
-            }
-            ordered(b, set.len(), 0)?;
-            if set.insert(index) && index as usize != set.len() - 1 {
-                return Err(failure(
-                    "signature binders are not dense by first occurrence",
-                ));
-            }
-        }
-    }
-    if expected != c.bindings.len()
-        || fixed.len() != c.fixed_binder_count as usize
-        || invocation.len() != c.invocation_binder_count as usize
-        || fixed != grounded
-    {
-        return Err(failure(
-            "signature has missing/extra positions, unused classes or ungrounded Fixed classes",
-        ));
     }
     Ok(())
 }

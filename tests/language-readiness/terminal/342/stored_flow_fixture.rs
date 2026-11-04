@@ -128,18 +128,19 @@ pub(super) fn module() -> TypedModule {
     make.storage_life = Some(StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 1,
-        bindings: vec![
-            row(
-                StorageBase::Parameter(0),
-                vec![],
-                StorageBinder::Invocation(0),
-            ),
-            row(
-                StorageBase::Result,
-                vec![PlaceProjection::Field(0)],
-                StorageBinder::Invocation(0),
-            ),
-        ],
+        bindings: vec![row(
+            StorageBase::Parameter(0),
+            vec![],
+            StorageBinder::Invocation(0),
+        )],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Result,
+                path: vec![],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(0),
+        }],
     });
     let mut get = function(
         1,
@@ -168,13 +169,16 @@ pub(super) fn module() -> TypedModule {
                 vec![],
                 StorageBinder::Invocation(0),
             ),
-            row(
-                StorageBase::Parameter(0),
-                vec![PlaceProjection::Field(0)],
-                StorageBinder::Fixed(0),
-            ),
             row(StorageBase::Result, vec![], StorageBinder::Fixed(0)),
         ],
+        classes: vec![SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(0),
+        }],
     });
     let mut relay = function(
         2,
