@@ -2723,9 +2723,10 @@ fn g3_3_2_raw_source_context_rows_are_consumed_from_actual_creators() {
                 extra.expression.0 = u32::MAX;
                 bad.closure_life_contexts.push(extra);
             }
-            7 => bad.closure_life_contexts[0]
-                .inputs
-                .push(bad.closure_life_contexts[0].inputs[0].clone()),
+            7 => {
+                let duplicate = bad.closure_life_contexts[0].inputs[0].clone();
+                bad.closure_life_contexts[0].inputs.push(duplicate);
+            }
             _ => {
                 let input = &mut bad.closure_life_contexts[0].inputs[0];
                 match &mut input.position {
@@ -2755,18 +2756,6 @@ fn g3_3_2_raw_source_context_rows_are_consumed_from_actual_creators() {
     unused.functions.retain(|f| f.id == apply.id); // definition is never invoked
     zil_types::check(&unused, &target, &limits).unwrap();
     // Same diagnostic spans do not merge distinct real declaration/expression IDs.
-    let doubled = format!(
-        "{text}{}",
-        text.split_once("fn apply")
-            .unwrap()
-            .1
-            .split_once("fn setup")
-            .unwrap()
-            .0
-            .replace("<life s>", "<life s>")
-            .replacen("(", "(", 1)
-    );
-    let _ = doubled; // The explicit second declaration below preserves valid syntax.
     let extra = text
         .split_once("fn apply")
         .unwrap()
