@@ -199,7 +199,13 @@ impl Engine<'_> {
 }
 impl Products {
     pub(crate) fn metered(&self) -> bool {
-        self.trait_instances || self.record_variants || self.protected_binders
+        self.trait_instances
+            || self.record_variants
+            || self.protected_binders
+            || self
+                .origins
+                .as_ref()
+                .is_some_and(|origins| !origins.identities.is_empty())
     }
     pub(crate) fn trait_limits(&self, limits: &Limits) -> Limits {
         let mut selected = limits.clone();
