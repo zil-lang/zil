@@ -1,0 +1,187 @@
+{
+  "task": "G10.1.9",
+  "status": "AuthorLimitedPassPendingIndependentReview",
+  "source_test_commit": "ebb8331f88abc7c30c755a008830f4b55b2c2b05",
+  "baseline": "b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3",
+  "goal_read_commit": "e345c9a441605b6291e9115780c3480c99c688af",
+  "scope": "Main-tree engineering record specification identity only; no language/runtime/schema/normative change or task-status promotion.",
+  "implementation": {
+    "field": "specification_revision",
+    "eligibility": "Committed unmerged implementation-slice contract, explicit status_authority goal:goal.md; complete existing commit in authoritative main ancestry.",
+    "validation": "Reuses full historical normative required-set, actual committed input bytes and registry digest checks.",
+    "kept": "Ordinary in-flight current-spec locks; merged implementation_commit lock; formal Done/review/evidence/commit checks; current normative registry verification; readonly --check; separate unavailable historical accounting.",
+    "metadata": "7 records181,340–345 keep all original JSON field values/status/baseline/spec/norm hashes. Added revision83bdab; five missing explicit status_authority fields now state existing global Goal authority."
+  },
+  "reference_revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+  "reference_is_main_ancestor": true,
+  "reference_specification": {
+    "181": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "340": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "341": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "342": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "343": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "344": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    },
+    "345": {
+      "source": "specification_revision",
+      "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+      "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
+    }
+  },
+  "node_tests": {
+    "command": "TMPDIR=/workspace/.zil-env/G10.1.9-tmp/node ZIL_HANDOFF_REPORT=/workspace/.zil-env/G10.1.9-tmp/handoff-tests-final.json node --test tests/handoff.test.mjs",
+    "cwd": "/workspace/zil-G10.1.9",
+    "passed": 35,
+    "failed": 0,
+    "assertions": 292,
+    "node": "v24.19.0",
+    "tests_report": "/workspace/.zil-env/G10.1.9-tmp/handoff-tests-final.json",
+    "tests_report_sha256": "d72dcc64324523f3e7e184080a9a916593a340823d910a4a562e2cc33a0a28ee",
+    "stdout_log": "/workspace/.zil-env/G10.1.9-tmp/node-final.log",
+    "stdout_sha256": "3330bc20734ac751d13aaf37fffd0e1280dc086e4119c9a8c57c1c8db25a5f14",
+    "tested_head": "ebb8331f88abc7c30c755a008830f4b55b2c2b05",
+    "new_controls": [
+      "Committed Goal historical reference preserves status/hash across current normative revision",
+      "Reject null/array/object/short/nonexistent/blob and unmerged side commit",
+      "Reject uncommitted or missing-Goal references and merged/formal override; exact historical hash mismatch rejected",
+      "Historical real-byte corruption and omitted required registry member rejected; unregistered current normative change still rejected"
+    ]
+  },
+  "actual_candidate": {
+    "method": "Independent isolated Git clone as actual main authority, not --main-tree pointing at a development branch.",
+    "setup_commands": [
+      "git clone --shared --no-checkout --single-branch --branch task/G10.1.9 /workspace/zil /workspace/.zil-env/G10.1.9-tmp/candidate-main",
+      "git -C /workspace/.zil-env/G10.1.9-tmp/candidate-main branch -m main",
+      "git -C /workspace/.zil-env/G10.1.9-tmp/candidate-main checkout main"
+    ],
+    "command": "node tools/handoff.mjs --check",
+    "cwd": "/workspace/.zil-env/G10.1.9-tmp/candidate-main",
+    "exit_code": 0,
+    "main_head": "ebb8331f88abc7c30c755a008830f4b55b2c2b05",
+    "authority_current_is_main": true,
+    "current_gate": {
+      "status": "CurrentPass",
+      "error_count": 0
+    },
+    "current_spec_hash": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+    "current_normative_hash": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+    "historical_status": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "object_availability_changes": 0,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "historical_status_unchanged_from_baseline": true,
+    "clone_clean_after_readonly_check": true,
+    "result": "/workspace/.zil-env/G10.1.9-tmp/candidate-handoff.json",
+    "sha256": "964126fc062dbe8ab6f8cb88b48ee66ee47953e80d2a4e8a63e211a714eed461"
+  },
+  "baseline_and_authority_controls": {
+    "baseline_main_head": "b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3",
+    "baseline_gate": {
+      "status": "CurrentFail",
+      "error_count": 7
+    },
+    "baseline_errors": [
+      {
+        "id": "181",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "340",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "341",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "342",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "343",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "344",
+        "reason": "Task specification snapshot is stale."
+      },
+      {
+        "id": "345",
+        "reason": "Task specification snapshot is stale."
+      }
+    ],
+    "before_path": "/workspace/.zil-env/G10.1.9-tmp/before.json",
+    "before_sha256": "400cb3e723471ef3be49d3e863170021983caf24f746a48755163f5648be0093",
+    "development_tree_check_command": "node tools/handoff.mjs --check",
+    "development_tree_cwd": "/workspace/zil-G10.1.9",
+    "expected_exit_code": 1,
+    "actual_exit_code": 1,
+    "resolved_main_head": "b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3",
+    "resolved_current_gate": {
+      "status": "CurrentFail",
+      "error_count": 7
+    },
+    "explanation": "New tool launched from development tree correctly still checks unchanged original main, so its CurrentFail7 was never mislabeled as candidate validation.",
+    "result": "/workspace/.zil-env/G10.1.9-tmp/authoritative-main-check.json",
+    "sha256": "70a6d916af2453d1b6ce0c53afcea5304682edc3fa0e4868ba88a11608a99f19"
+  },
+  "source_sha256": {
+    "tools/handoff.mjs": "de5ca5d9ad7add2e6aa7c77583943ca112a6edc27b230c7a269075b5d8ca68a7",
+    "tests/handoff.test.mjs": "2a2ad64f80b62dfab7236c4e1a771d40634608a460c9eefd07d3c5b22f5ae1c5",
+    ".task/impl/181.md": "4ac1f1fc7b1b742550946fb057b0e86cc9900037a3ecf7319374bf5409c7f8ed",
+    ".task/impl/340.md": "8265764f9fcdd889ac039ee3c1861e569f57db10a68448d766918863e8de9fc3",
+    ".task/impl/341.md": "ec02ae9e79e6f5077ee68b13a5bc366a0857e145beaab91a5382b2c4fb898f82",
+    ".task/impl/342.md": "cf2427b04b26fe57d2f983c5362bdd1d3e3739f286053720f6c03c944c1dd2b2",
+    ".task/impl/343.md": "5185ddc9378862b57a9e9d61c62774a6235d19bd494fbe94cc2e0bcb0a3d7101",
+    ".task/impl/344.md": "0e0ec0db508490532f61432273457f317d753a62af0f3ef8664fcb8335c36d1d",
+    ".task/impl/345.md": "a7d6d5dbbfebd8079310abeb1c87c058f3588144e57012191adc98f0d8536066"
+  },
+  "diff_check": "Pass",
+  "no_compiler_or_full_gate_run": true,
+  "rust_goals": {
+    "safety": "Engineering provenance and honest historical identity improved; language safety unchanged.",
+    "runtime_memory": "No compiled language/runtime changes; no Rust runtime/RSS comparison.",
+    "expression_maintenance": "Explicit ancestral contract identity removes false stale failures while retaining current Goal authority.",
+    "compile_cost": "Only bounded cached Git historical validation; no compiler or Rust compile-speed comparison.",
+    "breakthrough": "Reproducible tooling reliability increment from real CurrentFail7 to actual candidate CurrentPass; no product-level or language completion claim."
+  },
+  "remaining": [
+    "Independent review assigned to g8_3; root owns integration.",
+    "Historical Unavailable records remain Unavailable; legacy-wide audit and language/native/full acceptance are not rerun or claimed."
+  ]
+}
