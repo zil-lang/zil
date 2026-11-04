@@ -609,6 +609,47 @@ impl Check<'_, '_, '_> {
         depth: usize,
     ) -> R<Fact> {
         self.budget.node(e.span, depth)?;
+        let actual = self.expr_value(e, scope, env, wanted, depth)?;
+        if let Some(wanted) = wanted {
+            self.compatible(wanted, &actual, e.span)?;
+        }
+        Ok(actual)
+    }
+    #[inline(never)]
+    fn expr_value(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        match &e.kind {
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) | ExprKind::MetaSplice(inner) => {
+                self.expr(inner, scope, env, wanted, depth + 1)
+            }
+            ExprKind::Ascribed { .. } => self.expr_ascribed(e, scope, env, wanted, depth),
+            ExprKind::Record { .. } => self.expr_record(e, scope, env, wanted, depth),
+            ExprKind::Array(_) => self.expr_array(e, scope, env, wanted, depth),
+            ExprKind::Tuple(_) => self.expr_tuple(e, scope, env, wanted, depth),
+            ExprKind::Index { .. } => self.expr_index(e, scope, env, wanted, depth),
+            ExprKind::Slice { .. } => self.expr_slice(e, scope, env, wanted, depth),
+            ExprKind::Try(_) => self.expr_try(e, scope, env, wanted, depth),
+            ExprKind::Pipeline { .. } => self.expr_pipeline(e, scope, env, wanted, depth),
+            ExprKind::MetaBlock(_) => self.expr_metablock(e, scope, env, wanted, depth),
+            ExprKind::Member { .. } => self.expr_member(e, scope, env, wanted, depth),
+            ExprKind::Unary { .. } => self.expr_unary(e, scope, env, wanted, depth),
+            ExprKind::Call { .. } => self.expr_call(e, scope, env, wanted, depth),
+            ExprKind::TypeApply { .. } => self.expr_typeapply(e, scope, env, wanted, depth),
+            ExprKind::If { .. } => self.expr_if(e, scope, env, wanted, depth),
+            ExprKind::Binary { .. } => self.expr_binary(e, scope, env, wanted, depth),
+            ExprKind::Closure { .. } => self.expr_closure(e, scope, env, wanted, depth),
+            _ => self.expr_leaf(e, env),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_leaf(&mut self, e: &Expr, env: &mut Facts) -> R<Fact> {
         let actual = match &e.kind {
             ExprKind::Name(name) => {
                 self.budget.text(name, e.span)?;
@@ -618,14 +659,58 @@ impl Check<'_, '_, '_> {
                     None => Fact::Unknown,
                 }
             }
-            ExprKind::Group(inner) | ExprKind::MetaEval(inner) | ExprKind::MetaSplice(inner) => {
-                self.expr(inner, scope, env, wanted, depth + 1)?
-            }
+            _ => Fact::Unknown,
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_binary(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let ExprKind::Binary { left, right, .. } = &e.kind else {
+            unreachable!("source fact binary dispatcher")
+        };
+        self.expr(left, scope, env, None, depth + 1)?;
+        self.expr(right, scope, env, None, depth + 1)?;
+        Ok(Fact::Unknown)
+    }
+
+    #[inline(never)]
+    fn expr_ascribed(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Ascribed { ty, value } => {
                 let annotation = self.ty(ty, scope, depth + 1)?;
                 self.expr(value, scope, env, Some(&annotation), depth + 1)?;
                 annotation
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_record(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Record { ty, base, fields } => {
                 let explicit = match ty.as_deref().map(|t| &t.kind) {
                     Some(ExprKind::TypeApply { callee, arguments }) => match &callee.kind {
@@ -677,6 +762,21 @@ impl Check<'_, '_, '_> {
                 }
                 record
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_array(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Array(values) => {
                 let mut element = None;
                 for value in values {
@@ -687,6 +787,21 @@ impl Check<'_, '_, '_> {
                 }
                 Fact::List(Box::new(element.unwrap_or(Fact::Unknown)))
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_tuple(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Tuple(values) => {
                 let mut fs = Vec::new();
                 for (i, value) in values.iter().enumerate() {
@@ -699,6 +814,21 @@ impl Check<'_, '_, '_> {
                 }
                 Fact::Tuple(fs)
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_index(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Index { object, index } => {
                 let array = self.expr(object, scope, env, None, depth + 1)?;
                 self.expr(index, scope, env, None, depth + 1)?;
@@ -708,6 +838,21 @@ impl Check<'_, '_, '_> {
                     Fact::Unknown
                 }
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_slice(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Slice { object, start, end } => {
                 let array = self.expr(object, scope, env, None, depth + 1)?;
                 for bound in [start, end].into_iter().flatten() {
@@ -715,15 +860,60 @@ impl Check<'_, '_, '_> {
                 }
                 array
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_try(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Try(inner) => {
                 self.expr(inner, scope, env, None, depth + 1)?;
                 Fact::Unknown
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_pipeline(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Pipeline { input, target } => {
                 self.expr(input, scope, env, None, depth + 1)?;
                 self.expr(target, scope, env, None, depth + 1)?;
                 Fact::Unknown
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_metablock(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::MetaBlock(block) => {
                 self.budget.node(block.span, depth + 1)?;
                 let mut local = self.environment(env, block.span)?;
@@ -746,10 +936,40 @@ impl Check<'_, '_, '_> {
                 }
                 output.unwrap_or(Fact::Unknown)
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_member(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Member { object, member } => {
                 let object = self.expr(object, scope, env, None, depth + 1)?;
                 self.field(&object, member, e.span, depth + 1)?
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_unary(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Unary { op, operand } => {
                 let source = self.expr(operand, scope, env, None, depth + 1)?;
                 match op {
@@ -774,6 +994,21 @@ impl Check<'_, '_, '_> {
                     _ => Fact::Unknown,
                 }
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_call(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Call { callee, arguments } => {
                 self.expr(callee, scope, env, None, depth + 1)?;
                 let mut actuals = Vec::new();
@@ -853,6 +1088,21 @@ impl Check<'_, '_, '_> {
                 }
                 output
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_typeapply(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::TypeApply { callee, arguments } => {
                 self.expr(callee, scope, env, None, depth + 1)?;
                 for argument in arguments {
@@ -862,6 +1112,21 @@ impl Check<'_, '_, '_> {
                 }
                 Fact::Unknown
             }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_if(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::If {
                 condition,
                 then_value,
@@ -872,11 +1137,21 @@ impl Check<'_, '_, '_> {
                 self.expr(else_value, scope, env, wanted.or(Some(&a)), depth + 1)?;
                 a
             }
-            ExprKind::Binary { left, right, .. } => {
-                self.expr(left, scope, env, None, depth + 1)?;
-                self.expr(right, scope, env, None, depth + 1)?;
-                Fact::Unknown
-            }
+            _ => unreachable!("source fact expression dispatcher"),
+        };
+        Ok(actual)
+    }
+
+    #[inline(never)]
+    fn expr_closure(
+        &mut self,
+        e: &Expr,
+        scope: &Scope<'_>,
+        env: &mut Facts,
+        _wanted: Option<&Fact>,
+        depth: usize,
+    ) -> R<Fact> {
+        let actual = match &e.kind {
             ExprKind::Closure {
                 params,
                 return_type,
@@ -901,13 +1176,11 @@ impl Check<'_, '_, '_> {
                 self.arrow(body, scope, &mut child, output.as_ref(), depth + 1)?;
                 Fact::Unknown
             }
-            _ => Fact::Unknown,
+            _ => unreachable!("source fact expression dispatcher"),
         };
-        if let Some(wanted) = wanted {
-            self.compatible(wanted, &actual, e.span)?;
-        }
         Ok(actual)
     }
+
     fn arrow(
         &mut self,
         body: &ArrowBody,
