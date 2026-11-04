@@ -1252,7 +1252,7 @@ impl Wire for CtSchemaArgument {
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| match u8::decode(d)? {
-            0 => Ok(Self::Type(CtTy::decode(d)?)),
+            0 => Ok(Self::Type(CtTypeRef::decode(d)?)),
             1 => Ok(Self::Scalar(Constant::decode(d)?)),
             _ => Err(WireError::UnknownTag),
         })

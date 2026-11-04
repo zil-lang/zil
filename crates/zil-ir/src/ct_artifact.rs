@@ -93,7 +93,10 @@ pub enum CtTy {
 /// constructible through MakeRecord/MakeVariant; verifier checks their origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtSchemaArgument {
-    Type(CtTy),
+    /// Full canonical type metadata, including phantom callable signatures and
+    /// borrowed-function lifetime relations. This never represents a runtime
+    /// pointer value or grants declaration access/construction authority.
+    Type(CtTypeRef),
     Scalar(Constant),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
