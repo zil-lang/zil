@@ -6629,22 +6629,23 @@ fn ct4_fixed_phantom_context_source_bridge() {
 }
 
 #[test]
-fn ct4_mixed_nominal_context_retains_pending_source_ordinal_boundary() {
+fn ct4_mixed_nominal_context_preserves_full_source_ordinals() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-GENERIC-ARGUMENT" && d.message.contains("full ordinal")),
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    let wrong = text.replace("Phantom::<'s,i32,7>", "Phantom::<'s,i32,8>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
@@ -6659,6 +6660,9 @@ fn ct4_phantom_source_work_neighbors_remain_checked_after_cache_reuse() {
         ),
         include_str!(
             "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
         ),
     ] {
         let input = source(text);
@@ -6718,6 +6722,9 @@ fn ct4_phantom_source_default_worker_subprocess() {
             ),
             include_str!(
                 "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
             ),
         ] {
             let report = compile_source(&source(text), &CompileOptions::default());

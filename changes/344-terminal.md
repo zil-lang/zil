@@ -431,3 +431,16 @@ and reification explicitly reject contextual inputs until joint authenticated
 relocation is implemented. This is a compile checkpoint only. The retained
 CT4 source fixtures have not been attributed to this40 build, and no rich CT5
 signature/ambient/cache/native acceptance is claimed.
+### Mixed full nominal ordinal source completion
+
+341's ordinary source producer correction e90572dff (39 integration c4c4b44f1)
+now preserves the full life/type/const parameter positions. The retained mixed
+Phantom source reaches Verify and real Clang/API O0/O2 execution with stdout42;
+its const7-declaration/const8-construction neighbor rejects. The same actual
+source runs in the default worker and has whole-source analysis N26283,
+N−1 ResourceLimit, warm reuse and fresh exact-N controls. The existing base,
+joint and generic CT4 controls remain included: four source positives now give
+16 native profiles, and the invocation-scoped rich BFP fixture stays explicitly
+pending its different producer/consumer obligation. Historical e65 rejection
+and629 three-source accounting receipts remain tied to their original sources.
+No full CT5 semantic or language-terminal conclusion follows from this fix.
