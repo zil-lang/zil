@@ -1,0 +1,102 @@
+{
+  "task": "G2.3.1",
+  "author": "g8_4_front",
+  "scope": "Limited nongeneric Self-dependent associated scalar CT bridge; author validation, not independent review or whole G2.3 completion",
+  "common_baseline": "318875a451c5eb53b5392d869f975ec96e2963b4",
+  "history_preserving_merge": "db5d7f43d",
+  "semantic_checkpoint": "f3e86950e44c58a3ef448d6e428d6af032853e91",
+  "source_commit": "f9a14fad4168221acd475c049199096446cb8ee7",
+  "phase_contract": {
+    "prepare": "Request-local untrusted source positions; existing Index proves real impl premises; no value proves itself.",
+    "definition": "Declaration types/members and verified CT scalar parameters; no VM sample for symbolic Self, including no-impl template cycles.",
+    "effective": "All effective constants of each admitted concrete impl evaluated through existing compiler/independent CT verifier/VM.",
+    "default_check": "Every overridden Self-dependent default separately evaluated with completed effective values; cannot replace overrides or supply effective values.",
+    "standalone_expand": "Symbolic/definition and consumption stage; actual unevaluated effective equations Unsupported. Full DefaultCheck Source acceptance belongs to Driver before Types.",
+    "coverage": "Private successful-current-request job coordinates follow actual output moves; no external/raw-cache serialized completion field."
+  },
+  "checks": {
+    "source_existing_impl162": {
+      "passed": 3,
+      "failed": 0,
+      "semantic_positive_sources": 11,
+      "nearest_negative_sources": 6,
+      "extra_controls": [
+        "Standalone pending effective Unsupported",
+        "mixed Drop old literal/Self fence preserved",
+        "exact usize 32-bit overflow versus 64-bit success",
+        "foreign impl of Self-default Unsupported while closed foreign default passes",
+        "module-local impls with distinct private same-named helpers and bool/f64 values",
+        "original/override/source-change/revert actual warm-session executable values"
+      ]
+    },
+    "existing_lib_components": {
+      "passed": 3,
+      "failed": 0,
+      "cases": [
+        "same-span real materialization -> Types -> Analyze -> Verify raw/Wire -> Clang O0/O2",
+        "untrusted output plain/alias/nested-generic-alias/late-Meta impls cannot supply missing job completion; exact ordinal changes after CT-only removal accepted",
+        "same-name Meta candidates and conflicting same-alias frozen module targets are unresolved; duplicate edges to same target preserve the closed control"
+      ]
+    },
+    "old_closed_associated_source": "1 Pass",
+    "old_shared_span_associated_raw_wire_native": "1 Pass",
+    "llvm_api_feature_identity_and_machine_test": "1 Pass; same exact four thresholds",
+    "affected_strict_clippy": "Pass",
+    "fmt": "Pass",
+    "diff_check": "Pass"
+  },
+  "exact_limits": {
+    "max_analysis_steps": 51274,
+    "max_nodes": 7518,
+    "max_ct_steps": 28,
+    "max_source_bytes": 3436043,
+    "boundary": "N Pass; N-1 ResourceLimit; cold/warm/fresh N Pass for each ledger",
+    "byte_note": "Opt-in conservative planner object/text/key allocation preflight; exact returned Plan capacities stay charged, released scratch is refunded. These numbers are request accounting, not measured RSS."
+  },
+  "native": {
+    "original_request": "Original Self.A+1 / A=41 / main returns P.B rebuilt with Clang and LLVM API, O0/O2: actual process exit42 in all four, fallback null.",
+    "source_fixture": "Each host/trait result checked separately, with a method between A/B to force full member ordinals; no commutative sum can hide swapped values.",
+    "warm": "Actual Clang O0 executables run from one CompilationSession across original/override/value-change/revert sources; Verify runs remain required.",
+    "same_spans": "Synthetic shared-span AST control: independent raw/Wire and actual Clang O0/O2 exit0; not a source-generation claim.",
+    "module_owners": "Actual Clang/API O0/O2 execution distinguishes both module-private helper owners and bool/f64 results."
+  },
+  "generation_scope": {
+    "source_emit": "Expand/Unsupported: generic expansion of unexecuted syntax island",
+    "source_for": "Expand/Unsupported: current #for item-kind profile excludes impl",
+    "closed_emit": "Success",
+    "claim": "No observed Source bypass and no claim these Source probes reached coverage; post-coverage is separately exercised at the untrusted actual-output AST component layer."
+  },
+  "cli": {
+    "path": "/workspace/.zil-env/target341/debug/zil",
+    "sha256": "673d37554ab1eff2ceecccc95c6b916b28114760e6021cd48229126e2df9de51",
+    "binding": "Built from final source tree; current Self-dependent check reaches Verify. Kept outside repository."
+  },
+  "commands": [
+    "cargo test -p zil-driver --test impl162_trait_bounds g231_ --offline -- --nocapture",
+    "cargo test -p zil-driver --lib g231_ --offline -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test impl162_trait_bounds g231_self_associated_identity_budgets_and_machine_values --offline -- --exact --nocapture",
+    "cargo test -p zil-driver --test impl162_trait_bounds terminal341_associated_constants_keep_declared_types_and_committed_values --offline -- --exact --nocapture",
+    "cargo test -p zil-driver --test impl162_trait_bounds terminal341_associated_constant_member_ordinals_survive_shared_spans --offline -- --exact --nocapture",
+    "cargo clippy -p zil-expand -p zil-driver --test impl162_trait_bounds --offline -- -D warnings",
+    "cargo fmt --all -- --check",
+    "cargo build -p zil-cli --offline"
+  ],
+  "environment": {
+    "target_dir": "/workspace/.zil-env/target341",
+    "tmp_dir": "/workspace/.zil-env/G2.3.1-tmp",
+    "jobs": 2,
+    "debug": 0,
+    "incremental": false,
+    "strip": "symbols",
+    "default_limits_changed": false,
+    "public_schema_changed": false,
+    "root_cargo_changed": false
+  },
+  "limits": [
+    "No formal full suite, main merge or independent-review claim; following batch, separate from 41/42 integration acceptance.",
+    "Generic/inherited traits, nonlocal impls, non-builtin/type-dependent receiving types, and unprepared generated/late contexts remain explicit follow-up scope.",
+    "The mixed resource Drop/associated-constant source has the pre-existing Expand generic-bound Drop fence; fe69 baseline CLI also rejects its literal42 control while resource-only input passes.",
+    "Self references inside scalar CT syntax/statement forms without an implemented substitution consumer remain Unsupported; existing closed/helper paths retain their compiler contract.",
+    "Runtime/RSS, compilation/maintenance costs and repeatable same-semantics Rust net benefit remain unmeasured."
+  ]
+}
