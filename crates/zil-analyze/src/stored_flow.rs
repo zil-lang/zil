@@ -1967,6 +1967,7 @@ pub(super) fn infer(
             }
         }
         actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
     let facts = derive(module, graphs, b)?;
     let mut result = Vec::new();
