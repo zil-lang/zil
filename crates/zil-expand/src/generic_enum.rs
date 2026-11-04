@@ -230,7 +230,7 @@ fn shape(
             let arity = if variables.contains(name)
                 || matches!(
                     name.as_str(),
-                    "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+                    "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
                 ) {
                 0
             } else {
@@ -290,7 +290,7 @@ fn layout(
             }
             if matches!(
                 name.as_str(),
-                "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
             ) && args.is_empty()
             {
                 return Ok(());

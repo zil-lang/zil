@@ -82,6 +82,7 @@ pub(crate) enum Entry<'a> {
     },
 }
 pub(crate) struct CompileRequest<'a> {
+    pub target_pointer_width: u16,
     pub modules: &'a [SourceModule<'a>],
     pub source_fingerprint: Fingerprint,
     pub entry: Entry<'a>,
@@ -594,6 +595,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
     )?;
     Ok(CtArtifactProgram {
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+        target_pointer_width: request.target_pointer_width,
         source_fingerprint: request.source_fingerprint,
         functions: compiler
             .functions

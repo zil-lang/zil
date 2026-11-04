@@ -1245,7 +1245,7 @@ impl<'a> Engine<'a> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, e.span)?;
-                Ok(["u8", "u16", "i32", "i64"]
+                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
                     .or(default_integer.then_some("i32"))
@@ -1537,6 +1537,10 @@ impl<'a> Engine<'a> {
                             "u8"
                         } else if text.ends_with("u16") {
                             "u16"
+                        } else if text.ends_with("u64") {
+                            "u64"
+                        } else if text.ends_with("usize") {
+                            "usize"
                         } else if text.ends_with("i64") {
                             "i64"
                         } else {

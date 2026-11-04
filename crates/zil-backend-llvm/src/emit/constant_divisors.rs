@@ -45,6 +45,8 @@ pub(super) fn retain_safe(function: &TypedFunction, candidates: &mut Option<BTre
                 }
                 (InstructionKind::Constant(Constant::U8(n)), Some(Type::U8)) => *n != 0,
                 (InstructionKind::Constant(Constant::U16(n)), Some(Type::U16)) => *n != 0,
+                (InstructionKind::Constant(Constant::U64(n)), Some(Type::U64)) => *n != 0,
+                (InstructionKind::Constant(Constant::Usize(n)), Some(Type::Usize)) => *n != 0,
                 _ => false,
             };
             if valid {

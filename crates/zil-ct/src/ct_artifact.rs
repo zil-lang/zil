@@ -345,6 +345,8 @@ fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::U64(_) => Some(CtScalarTy::U64),
+        Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
     }
 }
@@ -356,14 +358,17 @@ fn ordinary_scalar(ty: CtScalarTy) -> Type {
         CtScalarTy::U16 => Type::U16,
         CtScalarTy::I32 => Type::I32,
         CtScalarTy::I64 => Type::I64,
+        CtScalarTy::U64 => Type::U64,
+        CtScalarTy::Usize => Type::Usize,
     }
 }
 fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
     let n = match value {
-        CtValue::Scalar(Constant::U8(n)) => *n as i64,
-        CtValue::Scalar(Constant::U16(n)) => *n as i64,
-        CtValue::Scalar(Constant::I32(n)) => *n as i64,
-        CtValue::Scalar(Constant::I64(n)) => *n,
+        CtValue::Scalar(Constant::U8(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U16(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I32(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I64(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U64(n) | Constant::Usize(n)) => i128::from(*n),
         _ => unreachable!("verified CT index is integer"),
     };
     usize::try_from(n)
@@ -495,7 +500,7 @@ fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth
         return false;
     }
     match (value, ty) {
-        (CtValue::Scalar(c), CtTy::Scalar(t)) => scalar_ty(c) == Some(*t),
+        (CtValue::Scalar(c), CtTy::Scalar(t)) => scalar_ty(c) == Some(*t) && !matches!(c, Constant::Usize(v) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX)),
         (CtValue::Text(v), CtTy::Text) => v.len() as u64 <= raw.budget.max_temporary_bytes,
         (CtValue::Type(v), CtTy::Type) => type_ref_valid(v, raw),
         (CtValue::Ident(v), CtTy::Ident) => {
@@ -654,12 +659,13 @@ fn syntax_tree_valid(tree: &CtSyntaxTree, raw: &CtArtifactProgram) -> bool {
     })
 }
 
-fn int(value: &CtValue) -> i64 {
+fn int(value: &CtValue) -> i128 {
     match value {
-        CtValue::Scalar(Constant::U8(v)) => *v as i64,
-        CtValue::Scalar(Constant::U16(v)) => *v as i64,
-        CtValue::Scalar(Constant::I32(v)) => *v as i64,
-        CtValue::Scalar(Constant::I64(v)) => *v,
+        CtValue::Scalar(Constant::U8(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::U16(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I32(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::I64(v)) => i128::from(*v),
+        CtValue::Scalar(Constant::U64(v) | Constant::Usize(v)) => i128::from(*v),
         _ => unreachable!("verified integer"),
     }
 }
@@ -968,22 +974,23 @@ fn execute_instruction(
             let CtValue::Scalar(c) = get(*value) else {
                 unreachable!("verified scalar conversion")
             };
-            Some(CtValue::Scalar(crate::convert_integer(
+            Some(CtValue::Scalar(crate::convert_integer_target(
                 c,
                 &ordinary_scalar(*target),
+                raw.target_pointer_width,
             )?))
         }
         K::Unary { op, operand } => {
             let CtValue::Scalar(c) = get(*operand) else {
                 unreachable!("verified scalar unary")
             };
-            Some(CtValue::Scalar(crate::unary(*op, c)?))
+            Some(CtValue::Scalar(crate::unary_target(*op, c, raw.target_pointer_width)?))
         }
         K::Binary { op, left, right } => {
             let a = get(*left);
             let b = get(*right);
             let result = match (a, b) {
-                (CtValue::Scalar(a), CtValue::Scalar(b)) => crate::binary(*op, a, b)?,
+                (CtValue::Scalar(a), CtValue::Scalar(b)) => crate::binary_target(*op, a, b, raw.target_pointer_width)?,
                 (CtValue::Type(_), CtValue::Type(_))
                 | (CtValue::Ident(_), CtValue::Ident(_))
                 | (CtValue::Text(_), CtValue::Text(_)) => {
@@ -1184,7 +1191,7 @@ fn execute_instruction(
             projection,
             index,
         } => {
-            let number = index.map(|id| int(get(id)));
+            let number = index.map(|id| i64::try_from(int(get(id))).map_err(|_| error("CT token index exceeds i64"))).transpose()?;
             Some(reader.token_inspect(get(*source), *projection, number, budget)?)
         }
         K::Text { op, arguments } => {
@@ -1407,6 +1414,7 @@ mod tests {
         let span = Span::default();
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CtFunction {
                 id: CtFunctionId(0),

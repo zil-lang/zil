@@ -48,6 +48,86 @@ fn terminal340_fnptr_record_enum_result_inference() {
     );
 }
 
+#[test]
+fn terminal340_unsigned_native_and_ct() {
+    let text = include_str!("../../../tests/language-readiness/terminal/340/unsigned.zil");
+    review329_native(&[("main", text)], 42);
+    for text in [
+        "fn result()->i32{let x:u64=18446744073709551616u64;return 0}",
+        "fn result()->i32{let x:u64=-1u64;return 0}",
+        "fn result()->i32{let x:u64=1usize;return 0}",
+        "fn unused(x:usize)->u64{return x}fn result()->i32{return 0}",
+        "fn result()->i32{let x:u64=#(18446744073709551615u64+1u64);return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(report.status, ResultCategory::Success, "{}", report.to_json());
+    }
+    for text in [
+        "fn result()->i32{let x=18446744073709551615u64;let y=x+1u64;return 0}",
+        "fn result()->i32{let x=0u64;let y=x-1u64;return 0}",
+        "fn result()->i32{let x=18446744073709551615u64;let y=i64(x);return 0}",
+        "fn result()->i32{let x:i64=-1;let y=usize(x);return 0}",
+        "fn result()->i32{let x=1usize;let y=x<<64usize;return 0}",
+    ] {
+        native(text, None);
+    }
+}
+
+#[test]
+fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
+    let text = "fn select()->Type{let high=0usize-%1usize;if high>4294967295usize{return bool}return usize}fn result()->i32{let value:#(select())=7;return 0}";
+    let mut target = TargetProfile::default();
+    target.id = "terminal340-32".into();
+    target.triple = "i686-unknown-linux-gnu".into();
+    target.pointer_width = 32;
+    let report = compile_source(&source(text), &CompileOptions { target: target.clone(), ..CompileOptions::default() });
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let wide = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(wide.status, ResultCategory::SafeReject, "{}", wide.to_json());
+
+    let limits = Limits::default();
+    let input = source("fn result()->u64{return 18446744073709551615u64}");
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let typed = zil_types::check(&core, &TargetProfile::default(), &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(zil_verify::verify_module_bytes(&bytes, &typed.target, &limits).unwrap().module(), &typed);
+    let mut broken = typed.clone();
+    broken.functions[0].return_type = Type::Usize;
+    let mut claim = plan.clone();
+    claim.module_fingerprint = broken.fingerprint();
+    assert!(zil_verify::verify_module(broken.clone(), claim.clone(), &typed.target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&broken, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &typed.target, &limits).is_err());
+}
+
+#[test]
+fn terminal340_unsigned_budget_boundaries() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!("../../../tests/language-readiness/terminal/340/unsigned.zil"));
+    let options = |work| CompileOptions { limits: Limits { max_analysis_steps: work, ..Limits::default() }, ..CompileOptions::default() };
+    let maximum = Limits::default().max_analysis_steps;
+    let mut low = 1;
+    let mut high = maximum;
+    while low < high {
+        let middle = low + (high-low)/2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected budget result {status:?}"),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [(low, ResultCategory::Success), (low-1, ResultCategory::ResourceLimit), (low, ResultCategory::Success)] {
+        for report in [warm.compile_source(&input, &options(work)), CompilationSession::default().compile_source(&input, &options(work))] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 unsigned full-request analysis N={low}, N-1 rejects, fresh/warm agree");
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

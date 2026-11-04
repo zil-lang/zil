@@ -785,6 +785,8 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::U64
+            | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ForeignHandle
@@ -2475,7 +2477,7 @@ fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> 
 }
 fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) -> Check<Type> {
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
-        if matches!(left, Type::U8 | Type::U16 | Type::I32 | Type::I64) && left == right {
+        if matches!(left, Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64) && left == right {
             return Ok(left.clone());
         }
         return Err(unsupported(
@@ -2497,6 +2499,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 Type::Bool
                     | Type::I32
                     | Type::I64
+            | Type::U64
+            | Type::Usize
                     | Type::U8
                     | Type::U16
                     | Type::Unit
@@ -2979,7 +2983,10 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             })
         };
         let ty = match &instruction.kind {
-            CtInstructionKind::Constant(constant) => constant.ty(),
+            CtInstructionKind::Constant(constant) => {
+                native_values::constant(constant, &module.target, None, limits, &mut budget)?;
+                constant.ty()
+            }
             CtInstructionKind::Unary { op, operand } => unary_result(*op, lookup(*operand)?, None)?,
             CtInstructionKind::ConvertInteger { value, target } => {
                 integer_conversion(lookup(*value)?, target, None)?
