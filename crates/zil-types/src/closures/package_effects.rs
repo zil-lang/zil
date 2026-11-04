@@ -429,6 +429,7 @@ impl Scan<'_> {
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::TypeApply {
                 callee: operand, ..
             }
@@ -544,6 +545,7 @@ impl Scan<'_> {
                 }
             }
             CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::Literal(_)
             | CoreExprKind::String(_)

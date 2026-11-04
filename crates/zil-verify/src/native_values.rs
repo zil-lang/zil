@@ -41,8 +41,14 @@ pub(super) fn constant(
     budget: &mut Budget,
 ) -> Check<()> {
     match constant {
-        Constant::Usize(value) if target_profile.pointer_width == 32 && *value > u64::from(u32::MAX) => {
-            return Err(reject("E-VERIFY-INTEGER-RANGE", span, "usize constant exceeds the selected32-bit target"));
+        Constant::Usize(value)
+            if target_profile.pointer_width == 32 && *value > u64::from(u32::MAX) =>
+        {
+            return Err(reject(
+                "E-VERIFY-INTEGER-RANGE",
+                span,
+                "usize constant exceeds the selected32-bit target",
+            ));
         }
         Constant::WideString(units) => {
             if units.len() > limits.max_nodes {

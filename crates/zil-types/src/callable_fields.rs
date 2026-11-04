@@ -245,7 +245,8 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
             CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
                 expr(operand, replace)
             }
-            CoreExprKind::IntegerConvert { value, .. } => expr(value, replace),
+            CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. } => expr(value, replace),
             CoreExprKind::Binary { left, right, .. } => {
                 expr(left, replace);
                 expr(right, replace)

@@ -242,6 +242,7 @@ impl Names<'_> {
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand)
             | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. } => {
                 self.expr(operand, receiver, depth + 1)?
             }

@@ -126,6 +126,8 @@ impl FrozenReadView<'_> {
                     CtScalarTy::U16 => "u16",
                     CtScalarTy::I32 => "i32",
                     CtScalarTy::I64 => "i64",
+                    CtScalarTy::F32 => "f32",
+                    CtScalarTy::F64 => "f64",
                     CtScalarTy::U64 => "u64",
                     CtScalarTy::Usize => "usize",
                 }

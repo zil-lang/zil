@@ -28,7 +28,10 @@ use zil_syntax::ast as s;
 
 /// These names are source primitives, never ordinary function values.
 fn integer_name(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "u64" | "usize" | "i32" | "i64")
+    matches!(
+        name,
+        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+    )
 }
 fn foreign_constructor_name(name: &str) -> bool {
     matches!(
@@ -1332,6 +1335,25 @@ impl Expander<'_> {
         let kind = match &e.kind {
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
+                s::Literal::Float(v) if v.starts_with("@bits:") => {
+                    let parsed = self.enum_meter(|meter| {
+                        meter.text(v, e.span)?;
+                        zil_base::numeric::FloatValue::from_generated_spelling(v).map_err(|_| Diagnostic::error(Phase::Expand, "E-FLOAT-LITERAL", Some(e.span), "generated floating constant requires fixed-width canonical hexadecimal bits"))
+                    });
+                    match parsed {
+                        Ok(zil_base::numeric::FloatValue::F32(bits)) => {
+                            CoreExprKind::Literal(Constant::F32(bits))
+                        }
+                        Ok(zil_base::numeric::FloatValue::F64(bits)) => {
+                            CoreExprKind::Literal(Constant::F64(bits))
+                        }
+                        Err(error) => {
+                            self.diagnostics.push(error);
+                            CoreExprKind::Unit
+                        }
+                    }
+                }
+                s::Literal::Float(v) => CoreExprKind::Float(v.clone()),
                 s::Literal::Bool(v) => CoreExprKind::Bool(*v),
                 s::Literal::String(v) => CoreExprKind::String(v.clone()),
                 _ => CoreExprKind::Unsupported("floating/character literal typing".into()),
@@ -1388,13 +1410,15 @@ impl Expander<'_> {
                         ));
                         CoreExprKind::Unsupported("invalid integer conversion".into())
                     } else {
-                        CoreExprKind::IntegerConvert {
+                        CoreExprKind::NumericConvert {
                             value: Box::new(self.expr(&arguments[0].value)),
                             target: match name {
                                 "u8" => Type::U8,
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
+                                "f32" => Type::F32,
+                                "f64" => Type::F64,
                                 "u64" => Type::U64,
                                 "usize" => Type::Usize,
                                 _ => unreachable!(),
@@ -1571,6 +1595,8 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,
+            "f32" => Type::F32,
+            "f64" => Type::F64,
             "u64" => Type::U64,
             "usize" => Type::Usize,
             "bool" => Type::Bool,

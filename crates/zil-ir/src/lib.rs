@@ -69,6 +69,8 @@ pub enum Type {
     U64,
     /// Target pointer-width unsigned integer; constants retain mathematical bits.
     Usize,
+    F32,
+    F64,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -168,6 +170,8 @@ impl Type {
                 | Self::I64
                 | Self::U64
                 | Self::Usize
+                | Self::F32
+                | Self::F64
                 | Self::U8
                 | Self::U16
         )
@@ -234,6 +238,8 @@ impl Type {
             | Self::I64
             | Self::U64
             | Self::Usize
+            | Self::F32
+            | Self::F64
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -269,6 +275,12 @@ impl Type {
             Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
         )
     }
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
+    pub fn is_numeric(&self) -> bool {
+        self.is_integer() || self.is_float()
+    }
     pub fn name(&self) -> String {
         match self {
             Self::Unit => "()".into(),
@@ -277,6 +289,8 @@ impl Type {
             Self::I64 => "i64".into(),
             Self::U64 => "u64".into(),
             Self::Usize => "usize".into(),
+            Self::F32 => "f32".into(),
+            Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
@@ -336,6 +350,9 @@ pub enum Constant {
     I64(i64),
     U64(u64),
     Usize(u64),
+    /// Exact IEEE bits; identity preserves signed zero and every NaN spelling.
+    F32(u32),
+    F64(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -352,6 +369,8 @@ impl Constant {
             Self::I64(_) => Type::I64,
             Self::U64(_) => Type::U64,
             Self::Usize(_) => Type::Usize,
+            Self::F32(_) => Type::F32,
+            Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -708,6 +727,12 @@ pub enum CoreExprKind {
         value: Box<CoreExpr>,
     },
     Integer(String),
+    Float(String),
+    /// Numeric conversion with numeric endpoints before Types resolves the operand.
+    NumericConvert {
+        value: Box<CoreExpr>,
+        target: Type,
+    },
     IntegerConvert {
         value: Box<CoreExpr>,
         target: Type,
@@ -1306,6 +1331,11 @@ pub enum InstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Load(LocalId),
     /// Transfer a non-Copy carrier and make its source uninitialized.
     TakeLocal {
@@ -1800,6 +1830,11 @@ pub enum CtInstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Unary {
         op: UnaryOp,
         operand: ValueId,
@@ -1971,6 +2006,8 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::I64 => b.push(3),
         Type::U64 => b.push(26),
         Type::Usize => b.push(27),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -2233,10 +2270,23 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(10);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::F32(bits) => {
+            b.push(11);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
+        Constant::F64(bits) => {
+            b.push(12);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
     }
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
         InstructionKind::ConvertInteger { value, target } => {
             b.push(59);
             encode_u32(b, value.0);

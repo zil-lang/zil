@@ -442,6 +442,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),

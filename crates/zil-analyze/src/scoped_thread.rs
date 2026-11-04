@@ -257,6 +257,7 @@ fn worker(
                         | Constant::I64(_),
                     )
                     | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
                     | InstructionKind::Load(_)
                     | InstructionKind::TakeLocal { .. }
                     | InstructionKind::StorageLive(_)

@@ -49,6 +49,8 @@ pub enum CtScalarTy {
     I64,
     U64,
     Usize,
+    F32,
+    F64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -486,6 +488,10 @@ pub enum CtInstructionKind {
         value: CtValueId,
     },
     ConvertInteger {
+        value: CtValueId,
+        target: CtScalarTy,
+    },
+    ConvertNumber {
         value: CtValueId,
         target: CtScalarTy,
     },

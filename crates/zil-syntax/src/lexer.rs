@@ -237,7 +237,12 @@ impl Lexer<'_> {
             self.consume_while(is_xid_continue);
             // u8/u16 are the admitted source suffixes. The i32/i64
             // spellings used by later normalization remain internal forms.
-            valid &= !floating && matches!(&self.source.text[suffix..self.offset], "u8" | "u16" | "u64" | "usize");
+            let suffix = &self.source.text[suffix..self.offset];
+            if matches!(suffix, "f32" | "f64") {
+                floating = true;
+            } else {
+                valid &= !floating && matches!(suffix, "u8" | "u16" | "u64" | "usize");
+            }
         }
         if !valid {
             self.error(

@@ -760,7 +760,11 @@ pub(super) const HANDLE: u16 = 128;
 pub(super) const U64: u16 = 256;
 pub(super) const USIZE: u16 = 512;
 pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
-pub(super) const SCALAR: u16 = UNIT | BOOL | INTEGER | HANDLE;
+pub(super) const F32: u16 = 1024;
+pub(super) const F64: u16 = 2048;
+pub(super) const FLOAT: u16 = F32 | F64;
+pub(super) const NUMBER: u16 = INTEGER | FLOAT;
+pub(super) const SCALAR: u16 = UNIT | BOOL | NUMBER | HANDLE;
 const AGGREGATE: u16 = 16;
 pub(super) const VALUE: u16 = SCALAR | AGGREGATE;
 
@@ -1046,6 +1050,8 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            Type::F32 => F32,
+            Type::F64 => F64,
             Type::U64 => U64,
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
@@ -1540,6 +1546,8 @@ impl Graph {
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
+            F32 => Some(Type::F32),
+            F64 => Some(Type::F64),
             U64 => Some(Type::U64),
             USIZE => Some(Type::Usize),
             AGGREGATE => {
@@ -1614,6 +1622,10 @@ impl Graph {
             self.bind(variable, &Type::I32, span)?;
             return Ok(Type::I32);
         }
+        if self.nodes[root].literal && self.nodes[root].domain == FLOAT {
+            self.bind(variable, &Type::F64, span)?;
+            return Ok(Type::F64);
+        }
         Err(error(
             "E-ERROR-INFERENCE",
             span,
@@ -1624,6 +1636,8 @@ impl Graph {
         for node in &mut self.nodes {
             if node.literal && node.domain == INTEGER {
                 node.domain = I32;
+            } else if node.literal && node.domain == FLOAT {
+                node.domain = F64;
             }
         }
     }
@@ -2874,6 +2888,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 foreign::check_literal(value, span)?;
                 self.known(&value.ty(), span)
             }
+            CoreExprKind::Float(text) => {
+                self.graph
+                    .spend_count(zil_base::numeric::decimal_work(text.len()), span)?;
+                let domain = if text.ends_with("f32") {
+                    F32
+                } else if text.ends_with("f64") {
+                    F64
+                } else {
+                    FLOAT
+                };
+                let variable = self.graph.fresh(domain, domain == FLOAT);
+                if let Some(expected) = expected.filter(|ty| ty.is_float()) {
+                    self.graph.bind(variable, expected, span)?;
+                }
+                Ok(LocalType::Scalar(variable))
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(error(
+                        "E-NUMERIC-CONVERSION",
+                        span,
+                        "numeric target required",
+                    ));
+                }
+                let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                self.graph.constrain(value, NUMBER, span)?;
+                self.known(target, span)
+            }
             CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(expression, depth),
             CoreExprKind::Ascribed { .. } => self.expr_ascribed(expression, depth),
             CoreExprKind::Try(..) => self.expr_try(expression, depth),
@@ -3097,7 +3139,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let variable = value.scalar(span)?;
         match op {
             UnaryOp::Not => self.graph.constrain(variable, BOOL, span)?,
-            UnaryOp::Negate | UnaryOp::BitNot => self.graph.constrain(variable, INTEGER, span)?,
+            UnaryOp::Negate => self.graph.constrain(variable, NUMBER, span)?,
+            UnaryOp::BitNot => self.graph.constrain(variable, INTEGER, span)?,
             _ => return Err(unsupported(span, "address/resource operation in closure")),
         }
         Ok(value)
@@ -3124,9 +3167,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let domain = if matches!(op, BinaryOp::And | BinaryOp::Or) {
             BOOL
         } else if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
-            BOOL | INTEGER | HANDLE
+            BOOL | NUMBER | HANDLE
         } else {
-            INTEGER
+            NUMBER
         };
         self.graph.constrain(left, domain, span)?;
         Ok(LocalType::Scalar(if comparison {

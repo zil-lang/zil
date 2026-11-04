@@ -12,6 +12,7 @@ fn quota(span: Span) -> Vec<Diagnostic> {
 
 pub(super) fn scalar(c: Constant) -> CoreExprKind {
     match c {
+        c @ (Constant::F32(_) | Constant::F64(_)) => CoreExprKind::Literal(c),
         Constant::Unit => CoreExprKind::Unit,
         Constant::Bool(v) => CoreExprKind::Bool(v),
         Constant::U8(v) => CoreExprKind::Integer(format!("{v}u8")),
@@ -314,7 +315,8 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         callee: operand, ..
                     }
                     | CoreExprKind::Ascribed { value: operand, .. }
-                    | CoreExprKind::IntegerConvert { value: operand, .. } => {
+                    | CoreExprKind::IntegerConvert { value: operand, .. }
+                    | CoreExprKind::NumericConvert { value: operand, .. } => {
                         pending.push((Visit::Expr(operand), depth + 1))
                     }
                     CoreExprKind::Binary { left, right, .. } => {

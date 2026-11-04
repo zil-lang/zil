@@ -4,7 +4,7 @@
   "implementation_commit": "c5696a1c10d9b25549499fd991d73c4d2d681871",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "proposal_commit": "9dac5e157",
-  "scope": "344 first milestone: default-2MiB source/API stack reliability; broader machine/floating/anonymous-union obligations remain in progress",
+  "scope": "344 milestones: completed default-2MiB source/API stack reliability; separate float candidate below; broader reliability and anonymous-sum work remains open",
   "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
   "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade",
   "failure_location": {
@@ -147,8 +147,224 @@
     "breakthrough": "Finite reliability improvement with actual default-stack API and machine evidence; product four-goal conjunction not established"
   },
   "remaining": [
-    "Independent non-author review pending",
-    "Broader large closure/helper/foreign ABI, IEEE floating and anonymous tagged-union semantics remain under344 work",
-    "No full workspace gate, native Windows or product/Rust comparison run by author; parent B0 remains Doing"
-  ]
+    "Non-author exact composed candidate replay pending",
+    "Anonymous structural tagged sums and their CT type representation are next; not present or claimed in this checkpoint",
+    "Broader large closure/helper/foreign reliability remains in progress",
+    "No full workspace, native Windows or Rust performance comparisons run; parent B0 remains Doing"
+  ],
+  "stack_independent_review": {
+    "candidate_commit": "3ff1dc270",
+    "reviewer": "/root/terminal_architecture",
+    "result": "Parent accepted independent replay of default-stack positive/deep/negative, budget, raw/Wire and both native backends O0/O2; no stack milestone replay counted as new float evidence"
+  },
+  "float_milestone": {
+    "implementation_commits": [
+      "f6f698b0e747ee9e6bb9c8b00249177b27b9bc9d",
+      "3f9670cb065fd6eb5d7279186d34b79b1585b1d7"
+    ],
+    "proposal_commit": "76393a60c",
+    "root_schema_commit": "90fc1065d",
+    "software_dependency_commit": "5c87fc7a7",
+    "normative_commit": "532c3f877",
+    "spec_hash": "f1f31f085b0c57415b56e11dc40c2d3a9f6342ccb0814572abe17b72ac6c65e9",
+    "normative_hash": "e5faf748892a057211d2ec6b227f6051957d3d98fa3877be1db4d32edbaab8d1",
+    "scope": "IEEE binary32/64 source literals, exact-format arithmetic/comparison, checked numeric conversions, raw constants, independent runtime/CT kernels, Wire, generic/aggregate/closure/fnptr consumers, ordinary C scalar/POD ABI and LLVM text/API machine operations. This branch has old integer types u8/u16/i32/i64; Float x U64/Usize is not yet tested or claimed.",
+    "inputs": {
+      "tests/language-readiness/terminal/344/floats/aggregate-closure.zil": "264d56d9e47d6e325599ad347a773e182d5c3c9e0a2e0fdf9af6e1dc234bd8af",
+      "tests/language-readiness/terminal/344/floats/c-abi.zil": "edbfd0a3c7299a5e9d574837c7612d6f56dbfc78af7ac2ac666315dcdca75e7d",
+      "tests/language-readiness/terminal/344/floats/ct-artifact.zil": "e176fa9621be62f80c681027fcfb93b4eb4815c13ec721c8b95a5b4ecc3d5bec",
+      "tests/language-readiness/terminal/344/floats/ieee-native.zil": "3960065e01ae2166c40c38f0fa4e119228522eb1ace7d75e7c6d2856dc603eb8"
+    },
+    "harnesses": {
+      "crates/zil-driver/tests/aggregates.rs": "75bbe0362489d6561d021af7083624018654c5910fb6bda0c1d653b0c29986ad",
+      "crates/zil-driver/src/ct_artifact/materialize.rs": "ce2d29e630e32197151336af96ac01da32d3b3a2947fa386fabfd9466119c448",
+      "crates/zil-ct/src/ct_artifact.rs": "212c226f0f8d371d0a1f5dba04c66cb5b3e23a33fbf3bc2335f5aec757b03153",
+      "crates/zil-base/src/numeric.rs": "945ac376394ad5dad4f726d023273254826949ac718c6a1ddcebf2f72d45f9fc"
+    },
+    "retained_executables_sha256": {
+      "/workspace/.zil-env/target344/debug/deps/aggregates-e68efd3bca6e242d": "49b496cc28114f1e63ae6293f2493c4dba629d14ce09cc73606776c040eaa7a4",
+      "/workspace/.zil-env/target344/debug/deps/zil_driver-468c111f55cac14d": "58d985128a7818c196a3bcfaeb7cf9b2d4d6a74d0bc462df82ea6cc92eb688e4",
+      "/workspace/.zil-env/target344/debug/deps/zil_ct-06d11309bb052277": "b7340209bc2df67adf0d7c2c8abefa9088d2963d247f4f0b63461a47313fab75",
+      "/workspace/.zil-env/target344/debug/deps/zil_base-fdee78893812a433": "fb83b8aa261c3f5525597bf7b1b28113dd60ede4c9931843a7202b36e5662d18",
+      "/workspace/.zil-env/target344/debug/deps/zil_llvm_api-02316412a50cfef5": "acd5c1aeeb8e4268156fa05ec003e7c9da1183f812ba281a180854a70cc40bd8"
+    },
+    "environment": "Same task344 environment above; Linux x86_64 LLVM23.1.4, jobs1, debug0, incremental0, default language limits. No global stack or budget increases.",
+    "commands": [
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates ieee_float_ -- --nocapture --test-threads=1",
+        "result": "Pass 8 tests, 0 failed; all actual source profiles below"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --lib ieee_float_ -- --nocapture",
+        "result": "Pass 2 tests, 0 failed; exact raw reification -> Expand/Types/Analyze/Verify/Wire; malformed generated AST, source lexical exclusion, and three real N-1 ledgers"
+      },
+      {
+        "command": "cargo test -p zil-ct --lib ieee_float_raw_artifact_constants_and_identity_casts_preserve_bits -- --exact ct_artifact::tests::ieee_float_raw_artifact_constants_and_identity_casts_preserve_bits",
+        "result": "Pass 1 test, 0 failed; 4 noncanonical/signaling raw NaNs x constant return and identity ConvertNumber, independently verified before VM execution; handcrafted artifact test authority is not source authentication evidence"
+      },
+      {
+        "command": "cargo test -p zil-base --lib numeric::tests",
+        "result": "Pass 2 tests, 0 failed; software ties-to-even/subnormal/overflow, raw identity, NaN arithmetic and mathematical integer bounds"
+      },
+      {
+        "command": "cargo test -p zil-llvm-api --features native --lib ieee_float_bits_and_operations_have_distinct_machine_types",
+        "result": "Pass 1 test; explicit machine float types/raw constant bits, independent preflight rejects six wrong integer/float op/predicate/cast forms"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test impl085_frontend u16_is_a_real_unsigned_integer_through_inference_and_conversion",
+        "result": "Pass 1 old integer regression test"
+      },
+      {
+        "command": "cargo clippy -p zil-base -p zil-ct -p zil-types -p zil-expand -p zil-analyze -p zil-verify -p zil-lower -p zil-backend-llvm -p zil-llvm-api -p zil-driver --features zil-driver/llvm-api --lib -- -D warnings",
+        "result": "Pass"
+      },
+      {
+        "command": "cargo clippy -p zil-driver --features llvm-api --test aggregates -- -D warnings",
+        "result": "Pass"
+      },
+      {
+        "command": "rustfmt --edition 2024 on changed Rust files; git diff --check",
+        "result": "Pass"
+      }
+    ],
+    "actual_native": {
+      "backends": [
+        "Clang",
+        "LLVM API builder"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "success_profiles": "Three full source fixtures x four profiles =12 executions, all exit0/stdout344\\n/stderr empty/Verify1; API object builder report nonempty and fallback null",
+      "checked_runtime_rejections": "Six invalid conversion expressions x four profiles =24 executions; compile and Verify succeed, subprocess terminates by signal and prints no stdout; trap present, ordered 2^63 range guard precedes fptosi",
+      "c_abi": "Actual emitted LLVM linked with typed C at O0/O2: float/double args/results, borrowed Pair float+double size16 offset8; correct C declarations exit0, nearest wrong float-as-double declaration exits9; 4 actual probes. Existing FP-environment contract retained; no full callback/foreign ABI widening claim"
+    },
+    "independent_boundaries": "Four damaged real TypedModule candidates reject independently both direct and after Wire: legacy IntegerConvert with float, Number target bool, constant/result float width mismatch, integer BitAnd on float. Raw +/-0 and distinct NaN payload constants retain separate module fingerprints. Ten reified raw float constants including signaling/noncanonical NaNs survive independent Verify/Wire exactly.",
+    "budgets": {
+      "source_analysis_N": 2189,
+      "controls": "N accepts, N-1 ResourceLimit; warm/fresh sessions agree and active query count returns0. Generated reification fixed charge26 work/26 bytes/1 node: each N-1 resource rejects before a generated node is produced. Decimal literal parsing prepays bytes^2+64 before normalization/APFloat; reserved generated bits prepay full bytes before strict width/lowercase-hex decode; no default limits increased."
+    },
+    "review_findings_and_corrections": [
+      {
+        "finding": "Actual generic same(1.0 + 2.0f32) defaulted the unsuffixed operand early to f64",
+        "correction": "Inspect explicit other-operand float metadata before defaulting, including Group/Negate, with actual metadata node work charged; value evaluation remains left-to-right."
+      },
+      {
+        "finding": "Non-author live review found CT reification converted a raw NaN constant to 0/0 and same-format CT conversion canonicalized its payload while runtime Freeze preserved it",
+        "correction": "Root-approved generated-only @bits:f32:XXXXXXXX/@bits:f64:XXXXXXXXXXXXXXXX lowers straight to existing raw Core Constant after byte prepayment/strict canonical decoding; same-format software conversion preserves bits. True arithmetic can still canonicalize NaNs. Tests exercise noncanonical and signaling NaNs across both boundaries."
+      }
+    ],
+    "Rust_goals": {
+      "safety": "Exact types and conversion predicates checked independently by runtime Verify and CT admission; raw/Wire and machine counterexamples reject. Full-language safety not established.",
+      "runtime_memory": "IEEE scalar machine values and existing inline aggregate layouts; no implicit heap/RC/lock. Actual native/C execution passed; same-semantics Rust runtime/RSS comparison NotRun.",
+      "expression_maintenance": "Ordinary generic arithmetic, aggregate/Enum, closure/fnptr, CT artifact and C consumers now compose with f32/f64; whole-framework maintenance comparison NotRun.",
+      "compile_cost": "Software IEEE parsing/arithmetic and exact new work charges on request-owned ledgers; source N/N-1/warm/fresh controls passed. No Rust compile-speed advantage claimed.",
+      "breakthrough": "Previously unsupported real float source now executes on both LLVM paths with checked conversions and independent admission; relative Rust net benefit/product four-goal conjunction not established."
+    },
+    "remaining": [
+      "Non-author exact corrected float candidate review pending",
+      "Complete UInt340 composition and Float x U64/Usize mathematical-boundary tests pending",
+      "Anonymous tagged sums and broader large closure/helper/foreign reliability remain in progress",
+      "No full workspace gates, native Windows or Rust performance comparison run by author; parent B0 remains Doing"
+    ],
+    "independent_review": {
+      "reviewer": "/root/terminal_architecture",
+      "candidate": "c81fafe43012600d553432d578c9c03ee5211f3c",
+      "review_commit": "f593c4aaf",
+      "result": "PassLimited; 8 source/native, 2 raw reification, 1 artifact, 2 software numeric and 1 machine test independently replayed; raw NaN finding resolved. This review does not cover the UInt composition below."
+    }
+  },
+  "float_unsigned_milestone": {
+    "implementation_commit": "d483d3863af8f693a61b63b638ba8fe05626cdd6",
+    "parents": [
+      "c81fafe43012600d553432d578c9c03ee5211f3c",
+      "dac5e6966fb39494fd6bc54a2346752081c53374"
+    ],
+    "spec_hash": "3d041cfde156a02afdc069526bf7df406095cbfa3156c19dfb793f757942f967",
+    "normative_hash": "a1bc7eb712d742cd4f561cf15649222aeba14152195becb21029e5c37655a4c1",
+    "public_integration": "Parent resolved/staged public Type/Constant/CT Wire schema2 and current normative metadata. Author reconciled private scalar consumers, CT target-width conversion, mask domains and tests; no new anonymous CT node exists in this checkpoint.",
+    "inputs": {
+      "tests/language-readiness/terminal/344/floats/aggregate-closure.zil": "264d56d9e47d6e325599ad347a773e182d5c3c9e0a2e0fdf9af6e1dc234bd8af",
+      "tests/language-readiness/terminal/344/floats/c-abi.zil": "edbfd0a3c7299a5e9d574837c7612d6f56dbfc78af7ac2ac666315dcdca75e7d",
+      "tests/language-readiness/terminal/344/floats/ct-artifact.zil": "e176fa9621be62f80c681027fcfb93b4eb4815c13ec721c8b95a5b4ecc3d5bec",
+      "tests/language-readiness/terminal/344/floats/ieee-native.zil": "3960065e01ae2166c40c38f0fa4e119228522eb1ace7d75e7c6d2856dc603eb8",
+      "tests/language-readiness/terminal/344/floats/unsigned-boundaries.zil": "6c55e5c69ce3c390075f0e0dd896d97e06a31782ac5eb21d5754b73226f317da"
+    },
+    "harnesses": {
+      "crates/zil-driver/tests/aggregates.rs": "ba2f295b6a247f0a59a614f2e91f9e123dd70bb7777ede3eb3fce52e70532851",
+      "crates/zil-driver/src/ct_artifact/materialize.rs": "941217a1b84ab35d0b5d1d3746993b2e96e631c115da834e5bfc566fe1713e69",
+      "crates/zil-ct/src/ct_artifact.rs": "fe971b0e4290a429c125d9336832d874b56ab8c61787f2e5172ca35ee220a8a4",
+      "crates/zil-ir/src/ct_wire/tests.rs": "6a7930352f062c52cb4198d37604c820329dab881de1ef6475a720b3d5911a09"
+    },
+    "retained_executables_sha256": {
+      "/workspace/.zil-env/target344/debug/deps/aggregates-e68efd3bca6e242d": "e1512808e1af1f674f568bddf4997d4eb80dcce5173d1b9c046d1bc0a712cd04",
+      "/workspace/.zil-env/target344/debug/deps/zil_driver-468c111f55cac14d": "a4e80cd9cd50a220761549611f9d4d7cd40cd27d9cf510f02fbf1c99da12ff6b",
+      "/workspace/.zil-env/target344/debug/deps/zil_ct-06d11309bb052277": "7cafe2d57265d369a3a5d15366de73d156c88ff40fcdc8de7fd336479061d385",
+      "/workspace/.zil-env/target344/debug/deps/zil_ir-9fc6e6e71850ac8f": "7af7fc898381d303a5090522e5bb46ae7930a7dbc4e1142f68be9eea32c0a09a"
+    },
+    "commands": [
+      {
+        "command": "cargo check -p zil-driver --features llvm-api",
+        "result": "Pass"
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates ieee_float_ -- --nocapture --test-threads=1",
+        "result": "Pass10; final exact executable replay 2.04s. 16 successful source/native profiles and32 runtime trap profiles across Clang/API O0/O2, plus4 real C positive/negative ABI probes. All successful source profiles Verify1 and fallback null."
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_ -- --nocapture --test-threads=1",
+        "result": "Pass4; complete inherited unsigned/native/target32/raw/Wire/fnptr-record-Enum and budget regressions. Exact final executable replay0.98s."
+      },
+      {
+        "command": "cargo test -p zil-driver --features llvm-api --lib ieee_float_ -- --nocapture",
+        "result": "Pass2; raw reification/Verify/Wire bits and negative generated candidates"
+      },
+      {
+        "command": "cargo test -p zil-ct --lib ieee_float_",
+        "result": "Pass2; raw noncanonical/signaling NaN constant/identity conversions and9 explicit raw-bit unsigned/float target32/64 cases. These raw artifact tests use a test authority and are separate from actual source authentication/native evidence."
+      },
+      {
+        "command": "cargo test -p zil-ir --lib ct_wire::tests",
+        "result": "Pass19; frozen legacy byte fixtures remain unchanged, stale schema1 rejects and unchanged recursive payload bytes are compared with exactly schema2 header/target-width fields and current checksum domain"
+      },
+      {
+        "command": "cargo clippy -p zil-base -p zil-ir -p zil-ct -p zil-types -p zil-expand -p zil-analyze -p zil-verify -p zil-lower -p zil-backend-llvm -p zil-llvm-api -p zil-driver --features zil-driver/llvm-api --lib -- -D warnings",
+        "result": "Pass"
+      },
+      {
+        "command": "cargo clippy -p zil-driver --features llvm-api --test aggregates -- -D warnings",
+        "result": "Pass after correcting inherited target fixture initialization style"
+      },
+      {
+        "command": "git diff --check",
+        "result": "Pass"
+      }
+    ],
+    "numeric_edges": "Unsigned2^63 -> f64 retains positive value; u64::MAX -> f64/f32 rounds to2^64; greatest representable f64 below2^64 (18446744073709549568) -> u64/usize64 succeeds exactly; exact2^64 rejects in both CT paths and traps through guarded fptoui on both native backends O0/O2. Target32 usize accepts4294967295f64 and rejects4294967296f64 and f32-rounded4294967295, through ordinary CT CFG and actual Type-parameter artifact functions.",
+    "mixed_machine_regression": {
+      "source": "tests/language-readiness/terminal/344/floats/unsigned-boundaries.zil",
+      "first_failure": "Stronger Carrier.Value(Mixed{word:u64,amount:f64},usize) completed Verify1/Lower but codegen returned Unsupported non-Copy enum payload physical layout. Scalar-only earlier test had passed and did not establish aggregate support.",
+      "correction": "Add U64/Usize natural x64 8/8 physical layout and scalar payload stores to the existing Enum backend tables. Retained corrected mixed source executes on Clang/API O0/O2, all stdout344 newline."
+    },
+    "fixture_failures": "Inherited CT Wire Registry fixture incorrectly acquired target_pointer_width; removed only that field. Three schema1 assumptions failed after parent schema2 migration: version2 is current, frozen recursive fixtures carry legacy header/digest, and inner version2 is valid. Tests now explicitly reject stale1/future version, preserve every old binary fixture, and compare only the exact normative envelope/schema/target-width migration. Production Wire encoder/decoder was not modified by author.",
+    "budgets": {
+      "float_source_N": 2189,
+      "inherited_unsigned_N": 9050,
+      "results": "N accepts, N-1 ResourceLimit; warm/fresh agree and all active query counts return0. Default limits unchanged; parsing/reification charges remain those of the prior float milestone."
+    },
+    "Rust_goals": {
+      "safety": "Full unsigned mathematical range and target usize width are checked independently before CT/native conversion; no authority from raw artifact test models. Full-language safety remains open.",
+      "runtime_memory": "Actual inline mixed UInt/Float Enum and numeric scalar native profiles pass without added heap/RC/lock. Rust runtime/RSS comparison NotRun.",
+      "expression_maintenance": "Complete UInt and Float consumers compose in generic/fnptr/Enum/CT/API paths; same marker cannot substitute for future anonymous sum identity. Framework comparison NotRun.",
+      "compile_cost": "FloatN2189 and inherited UIntN9050 boundary/cache controls retained, defaults unchanged. Rust compile-speed advantage not measured.",
+      "breakthrough": "Real >=2^63 unsigned float conversion and mixed Enum machine omission closed with retained source and both backend profiles; product four-goal conjunction not established."
+    },
+    "remaining": [
+      "Non-author exact composed candidate replay pending",
+      "Anonymous structural tagged sums and their CT type representation are next; not present or claimed in this checkpoint",
+      "Broader large closure/helper/foreign reliability remains in progress",
+      "No full workspace, native Windows or Rust performance comparisons run; parent B0 remains Doing"
+    ]
+  }
 }

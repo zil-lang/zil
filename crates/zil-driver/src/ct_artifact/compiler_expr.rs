@@ -8,6 +8,8 @@ fn scalar_constant(c: &Constant) -> CtTy {
         Constant::U16(_) => CtScalarTy::U16,
         Constant::I32(_) => CtScalarTy::I32,
         Constant::I64(_) => CtScalarTy::I64,
+        Constant::F32(_) => CtScalarTy::F32,
+        Constant::F64(_) => CtScalarTy::F64,
         Constant::U64(_) => CtScalarTy::U64,
         Constant::Usize(_) => CtScalarTy::Usize,
         _ => unreachable!(),
@@ -19,6 +21,8 @@ fn runtime_scalar(ty: Option<&CtTy>) -> Option<zil_ir::Type> {
         CtTy::Scalar(CtScalarTy::U16) => zil_ir::Type::U16,
         CtTy::Scalar(CtScalarTy::I32) => zil_ir::Type::I32,
         CtTy::Scalar(CtScalarTy::I64) => zil_ir::Type::I64,
+        CtTy::Scalar(CtScalarTy::F32) => zil_ir::Type::F32,
+        CtTy::Scalar(CtScalarTy::F64) => zil_ir::Type::F64,
         CtTy::Scalar(CtScalarTy::U64) => zil_ir::Type::U64,
         CtTy::Scalar(CtScalarTy::Usize) => zil_ir::Type::Usize,
         _ => return None,
@@ -115,6 +119,21 @@ impl Builder<'_, '_> {
                     spelling,
                     runtime_scalar(expected).as_ref(),
                     false,
+                    span,
+                )?;
+                let ty = scalar_constant(&c);
+                self.constant(CtConstant::Scalar(c), ty, span)?
+            }
+            s::ExprKind::Literal(s::Literal::Float(spelling)) => {
+                let work = if spelling.starts_with("@bits:") {
+                    spelling.len()
+                } else {
+                    zil_base::numeric::decimal_work(spelling.len())
+                };
+                self.compiler.budget.work(work, span)?;
+                let c = zil_types::parse_float_literal(
+                    spelling,
+                    runtime_scalar(expected).as_ref(),
                     span,
                 )?;
                 let ty = scalar_constant(&c);
@@ -301,11 +320,22 @@ impl Builder<'_, '_> {
                 let integer = matches!(
                     lhs.ty,
                     CtTy::Scalar(
-                        CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64
+                        CtScalarTy::U8
+                            | CtScalarTy::U16
+                            | CtScalarTy::U64
+                            | CtScalarTy::Usize
+                            | CtScalarTy::I32
+                            | CtScalarTy::I64
                     )
                 );
                 let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
+                let floating = matches!(lhs.ty, CtTy::Scalar(CtScalarTy::F32 | CtScalarTy::F64));
+                let float_operator = matches!(
+                    op,
+                    BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide
+                ) || compare;
                 if !integer
+                    && !(floating && float_operator)
                     && !(equality
                         && matches!(
                             lhs.ty,
@@ -963,21 +993,36 @@ impl Builder<'_, '_> {
             let value = self.expr(&arguments[0].value, None, depth)?;
             if !matches!(
                 value.ty,
-                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
+                CtTy::Scalar(
+                    CtScalarTy::U8
+                        | CtScalarTy::U16
+                        | CtScalarTy::U64
+                        | CtScalarTy::Usize
+                        | CtScalarTy::I32
+                        | CtScalarTy::I64
+                        | CtScalarTy::F32
+                        | CtScalarTy::F64
+                )
             ) {
                 return Err(error(
                     span,
                     "integer conversion requires a concrete integer value",
                 ));
             }
-            return self.emit(
+            let kind = if matches!(target, CtScalarTy::F32 | CtScalarTy::F64)
+                || matches!(value.ty, CtTy::Scalar(CtScalarTy::F32 | CtScalarTy::F64))
+            {
+                CtInstructionKind::ConvertNumber {
+                    value: value.id,
+                    target,
+                }
+            } else {
                 CtInstructionKind::ConvertInteger {
                     value: value.id,
                     target,
-                },
-                CtTy::Scalar(target),
-                span,
-            );
+                }
+            };
+            return self.emit(kind, CtTy::Scalar(target), span);
         }
         if let Some(value) = self.enum_value(&path, arguments, depth, span)? {
             return Ok(value);

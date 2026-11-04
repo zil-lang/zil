@@ -630,7 +630,8 @@ fn check_module(
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
-                    InstructionKind::ConvertInteger { target, .. } => {
+                    InstructionKind::ConvertInteger { target, .. }
+                    | InstructionKind::ConvertNumber { target, .. } => {
                         // This embedded raw type is not necessarily one of the
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
@@ -879,6 +880,8 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::U64
             | Type::Usize
             | Type::U8
@@ -1647,6 +1650,11 @@ fn check_instruction(
             ..
         } => foreign::check_call(module, function, *callee, arguments, span, budget)?,
         InstructionKind::Constant(constant) => Some(constant.ty()),
+        InstructionKind::ConvertNumber { value, target } => Some(number_conversion(
+            value_type(function, *value, span)?,
+            target,
+            span,
+        )?),
         InstructionKind::ConvertInteger { value, target } => Some(integer_conversion(
             value_type(function, *value, span)?,
             target,
@@ -2647,9 +2655,20 @@ fn integer_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check
     Ok(target.clone())
 }
 
+fn number_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check<Type> {
+    if !source.is_numeric() || !target.is_numeric() || !(source.is_float() || target.is_float()) {
+        return Err(reject(
+            "E-VERIFY-TYPE",
+            span,
+            "ConvertNumber requires numeric types and a floating endpoint",
+        ));
+    }
+    Ok(target.clone())
+}
 fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> {
     match op {
         UnaryOp::Not if operand == &Type::Bool => Ok(Type::Bool),
+        UnaryOp::Negate if operand.is_float() => Ok(operand.clone()),
         UnaryOp::Negate | UnaryOp::BitNot if operand.is_integer() => Ok(operand.clone()),
         UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference | UnaryOp::Give => {
             Err(unsupported(
@@ -2684,6 +2703,24 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
             span,
             "binary operands have different types",
         ));
+    }
+    if left.is_float() {
+        return match op {
+            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide => {
+                Ok(left.clone())
+            }
+            BinaryOp::Equal
+            | BinaryOp::NotEqual
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual => Ok(Type::Bool),
+            _ => Err(reject(
+                "E-VERIFY-TYPE",
+                span,
+                "operator is not an IEEE floating operation",
+            )),
+        };
     }
     match op {
         BinaryOp::Equal | BinaryOp::NotEqual
@@ -2807,6 +2844,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => ([Some(*value), None], &[]),
@@ -3147,7 +3185,7 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
         budget.spend(match &instruction.kind {
             CtInstructionKind::Constant(_) => 1,
             CtInstructionKind::Unary { .. } => 2,
-            CtInstructionKind::ConvertInteger { .. } => 2,
+            CtInstructionKind::ConvertInteger { .. } | CtInstructionKind::ConvertNumber { .. } => 2,
             CtInstructionKind::Binary { .. } => 3,
             CtInstructionKind::Forbidden(name) => name.len().saturating_add(1),
         })?;
@@ -3159,7 +3197,9 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             ));
         }
         check_type_shape(&instruction.ty, &module.target, limits, &mut budget)?;
-        if let CtInstructionKind::ConvertInteger { target, .. } = &instruction.kind {
+        if let CtInstructionKind::ConvertInteger { target, .. }
+        | CtInstructionKind::ConvertNumber { target, .. } = &instruction.kind
+        {
             check_type_shape(target, &module.target, limits, &mut budget)?;
         }
         // CT has its own closed capability set. Expanding runtime Copy
@@ -3194,6 +3234,9 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
                 constant.ty()
             }
             CtInstructionKind::Unary { op, operand } => unary_result(*op, lookup(*operand)?, None)?,
+            CtInstructionKind::ConvertNumber { value, target } => {
+                number_conversion(lookup(*value)?, target, None)?
+            }
             CtInstructionKind::ConvertInteger { value, target } => {
                 integer_conversion(lookup(*value)?, target, None)?
             }

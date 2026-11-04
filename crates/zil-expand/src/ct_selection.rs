@@ -805,6 +805,8 @@ pub(crate) fn member_owner_type_cost(
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::U64
             | Type::Usize
             | Type::U8

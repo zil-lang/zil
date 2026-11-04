@@ -81,10 +81,12 @@ fn terminal340_unsigned_native_and_ct() {
 #[test]
 fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
     let text = "fn select()->Type{let high=0usize-%1usize;if high>4294967295usize{return bool}return usize}fn result()->i32{let value:#(select())=7;return 0}";
-    let mut target = TargetProfile::default();
-    target.id = "terminal340-32".into();
-    target.triple = "i686-unknown-linux-gnu".into();
-    target.pointer_width = 32;
+    let target = TargetProfile {
+        id: "terminal340-32".into(),
+        triple: "i686-unknown-linux-gnu".into(),
+        pointer_width: 32,
+        ..TargetProfile::default()
+    };
     let report = compile_source(
         &source(text),
         &CompileOptions {
@@ -3888,5 +3890,420 @@ fn large_copy_enum_error_default_stack_api_reliability() {
             String::from_utf8_lossy(&child.stderr)
         );
         eprint!("{}", String::from_utf8_lossy(&child.stderr));
+    }
+}
+
+#[test]
+fn ieee_float_source_ct_and_native_agree() {
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/344/floats/ieee-native.zil");
+    review329_native(&[("main", text)], 344);
+}
+
+#[test]
+fn ieee_float_c_scalar_and_borrowed_pod_abi() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/344/floats/c-abi.zil"
+    ));
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let verified = zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    let llvm = zil_backend_llvm::emit(&verified, &lir).unwrap();
+    assert!(llvm.contains("declare double @consume(float"), "{llvm}");
+    let out = Temp::new();
+    let ll = out.0.join("float.ll");
+    fs::write(&ll, llvm).unwrap();
+    for opt in ["-O0", "-O2"] {
+        for wrong in [false, true] {
+            let probe = out.0.join("consumer.c");
+            let declaration = if wrong {
+                "extern double inspect(double,double) __asm__(\"zil.fn.1\");"
+            } else {
+                "extern double inspect(float,double) __asm__(\"zil.fn.1\");"
+            };
+            fs::write(&probe,format!("#include <stddef.h>\nstruct Pair{{float a;double b;}};_Static_assert(sizeof(struct Pair)==16,\"size\");_Static_assert(offsetof(struct Pair,b)==8,\"offset\");double consume(float a,double b,const struct Pair*p){{return (double)a+b+(double)p->a+p->b;}}{declaration}extern float rounded(float) __asm__(\"zil.fn.2\");int main(void){{return inspect(1.25,2.5)==7.5 && rounded(16777216.0f)==16777216.0f ? 0:9;}}\n")).unwrap();
+            let exe = out.0.join("probe");
+            let built = Command::new("clang")
+                .arg(opt)
+                .arg(&ll)
+                .arg(&probe)
+                .arg("-o")
+                .arg(&exe)
+                .output()
+                .unwrap();
+            assert!(built.status.success(), "{built:?}");
+            let ran = Command::new(&exe).output().unwrap();
+            assert_eq!(
+                ran.status.code(),
+                Some(if wrong { 9 } else { 0 }),
+                "{opt}/{wrong}: {ran:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn ieee_float_artifact_ct_reification_preserves_ieee_values() {
+    review329_native(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/344/floats/ct-artifact.zil"),
+        )],
+        344,
+    );
+}
+
+#[test]
+fn ieee_float_aggregate_closure_and_function_pointer_are_native() {
+    review329_native(
+        &[(
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/floats/aggregate-closure.zil"
+            ),
+        )],
+        344,
+    );
+}
+
+#[test]
+fn ieee_float_rejects_invalid_source_and_checked_ct_conversions() {
+    for text in [
+        "fn unused()->f32{return 1e40f32}fn result()->i32{return 0}",
+        "fn result()->f64{return 1.0f32+2.0f64}",
+        "fn result()->f64{return 1.0+2}",
+        "fn result()->f32{return 1.0f64}",
+        "fn result()->f32{return 1.0f32%2.0f32}",
+        "fn result()->f64{return ~1.0}",
+        "fn result()->f32{return f32(true)}",
+        "fn unused<T:Copy>(x:T)->f32{return 1e40f32}fn result()->i32{return 0}",
+        "extern \"C\" fn invalid()->&f32;fn result()->i32{return 0}",
+        "fn result()->i32{return #(i32(1.5))}",
+        "fn result()->i32{return #(i32(0.0/0.0))}",
+        "fn result()->i32{return #(i32(1.0/0.0))}",
+        "fn result()->i32{return #(i32(2147483648.0))}",
+        "fn result()->i64{return #(i64(9223372036854775808.0))}",
+        "fn result()->u8{return #(u8(-1.0))}",
+        "fn result()->f32{return #(f32(3.5e38))}",
+    ] {
+        let out = Temp::new();
+        let executable = out.0.join("rejected");
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                output: Some(executable.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(!executable.exists());
+        assert!(report.native_codegen.is_none());
+        assert!(!report.diagnostics.is_empty());
+    }
+}
+
+#[test]
+fn ieee_float_raw_and_wire_checks_are_independent() {
+    use zil_ir::{BinaryOp, Constant};
+    let input = source("fn cast(x:f64)->i32{return i32(x)}fn calc(x:f64)->f64{return x+1.0}");
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    for attack in 0..4 {
+        let mut damaged = typed.clone();
+        match attack {
+            0 | 1 => {
+                let function = &mut damaged.functions[0];
+                let instruction = function
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::ConvertNumber { .. }))
+                    .unwrap();
+                let InstructionKind::ConvertNumber { value, target } = instruction.kind.clone()
+                else {
+                    unreachable!()
+                };
+                if attack == 0 {
+                    instruction.kind = InstructionKind::ConvertInteger { value, target };
+                } else {
+                    instruction.kind = InstructionKind::ConvertNumber {
+                        value,
+                        target: Type::Bool,
+                    };
+                    function.values[instruction.result.unwrap().0 as usize] = Type::Bool;
+                }
+            }
+            2 => {
+                for instruction in damaged.functions[1]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                {
+                    if let InstructionKind::Constant(c) = &mut instruction.kind {
+                        *c = Constant::F32(0x3f800000);
+                        break;
+                    }
+                }
+            }
+            _ => {
+                for instruction in damaged.functions[1]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                {
+                    if let InstructionKind::Binary { op, .. } = &mut instruction.kind {
+                        *op = BinaryOp::BitAnd;
+                        break;
+                    }
+                }
+            }
+        }
+        let mut claims = plan.clone();
+        claims.module_fingerprint = damaged.fingerprint();
+        assert!(
+            zil_verify::verify_module(damaged.clone(), claims.clone(), &target, &limits).is_err(),
+            "attack {attack}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&damaged, &claims, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "wire attack {attack}"
+        );
+    }
+    let mut negative_zero = typed.clone();
+    let mut positive_zero = typed.clone();
+    for (module, bits) in [
+        (&mut negative_zero, 0x8000000000000000),
+        (&mut positive_zero, 0),
+    ] {
+        for instruction in module.functions[1]
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::Constant(c) = &mut instruction.kind {
+                *c = Constant::F64(bits);
+                break;
+            }
+        }
+    }
+    assert_ne!(negative_zero.fingerprint(), positive_zero.fingerprint());
+}
+
+#[test]
+fn ieee_float_budget_boundary_is_request_local() {
+    use zil_driver::CompilationSession;
+    let input = source(
+        "fn result()->i32{let x:f32=1.401298464324817070923729583289916131280e-45;if x>0.0f32{return 344}return 0}",
+    );
+    let options = |n| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let mut low = 1usize;
+    let mut high = 1_000_000usize;
+    assert_eq!(
+        compile_source(&input, &options(high)).status,
+        ResultCategory::Success
+    );
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let report = compile_source(&input, &options(middle));
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    assert_eq!(
+        warm.compile_source(&input, &options(low)).status,
+        ResultCategory::Success
+    );
+    for (n, status) in [
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        assert_eq!(warm.compile_source(&input, &options(n)).status, status);
+        assert_eq!(
+            CompilationSession::default()
+                .compile_source(&input, &options(n))
+                .status,
+            status
+        );
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("344 float source analysis-work exact N={low}; N-1 ResourceLimit, warm/fresh agree");
+}
+
+#[test]
+fn ieee_float_runtime_conversions_trap_at_o0_and_o2() {
+    use std::os::unix::process::ExitStatusExt;
+    use zil_driver::{NativeBackend, Optimization};
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (target, value) in [
+                ("i32", "i32(1.5)"),
+                ("i64", "i64(9223372036854775808.0)"),
+                ("i32", "i32(1.0/0.0)"),
+                ("i32", "i32(0.0/0.0)"),
+                ("u8", "u8(-1.0)"),
+                ("u64", "u64(18446744073709551616.0)"),
+                ("usize", "usize(18446744073709551616.0)"),
+                ("i32", "i32(f32(3.5e38))"),
+            ] {
+                let out = Temp::new();
+                let text = format!("fn result()->{target}{{return {value}}}");
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        output: Some(out.0.join("trap")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{text}: {}",
+                    report.to_json()
+                );
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let observed = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    observed.status.signal().is_some(),
+                    "{backend:?}/{optimization:?}/{value}: {observed:?}"
+                );
+                assert!(observed.stdout.is_empty());
+                let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+                assert!(llvm.contains("@llvm.trap"));
+                if value.starts_with("i64(") {
+                    let guard = llvm.find("fcmp olt double").unwrap();
+                    let cast = llvm.find("fptosi double").unwrap();
+                    assert!(guard < cast);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn ieee_float_unsigned_boundaries_are_ct_and_native() {
+    review329_native(
+        &[(
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/floats/unsigned-boundaries.zil"
+            ),
+        )],
+        344,
+    );
+    for target in ["u64", "usize"] {
+        let text = format!("fn result()->{target}{{return #({target}(18446744073709551616.0))}}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-NUMERIC-CONVERSION")
+        );
+        assert!(report.native_codegen.is_none());
+    }
+}
+
+#[test]
+fn ieee_float_usize_conversions_use_target_width_in_both_ct_vms() {
+    let target = TargetProfile {
+        id: "float-usize32".into(),
+        triple: "i686-unknown-linux-gnu".into(),
+        pointer_width: 32,
+        ..TargetProfile::host_llvm()
+    };
+    for text in [
+        "fn result()->usize{return #(usize(4294967295.0))}",
+        "fn cast(t:Type)->usize{return usize(4294967295.0)}fn result()->usize{return #(cast(i32))}",
+        "fn cast(t:Type)->f64{return f64(4294967295usize)}fn result()->f64{return #(cast(i32))}",
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                target: target.clone(),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for text in [
+        "fn result()->usize{return #(usize(4294967296.0))}",
+        "fn result()->usize{return #(usize(4294967295.0f32))}",
+        "fn cast(t:Type)->usize{return usize(4294967296.0)}fn result()->usize{return #(cast(i32))}",
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                target: target.clone(),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-NUMERIC-CONVERSION")
+        );
+        assert_eq!(report.verification_runs, 0);
+        assert!(report.native_codegen.is_none());
     }
 }

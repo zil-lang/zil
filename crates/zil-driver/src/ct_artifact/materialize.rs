@@ -135,6 +135,28 @@ impl super::hygiene::Context for Materializer<'_, '_> {
     }
 }
 
+fn float_expression(
+    value: &zil_ir::Constant,
+    budget: &mut zil_ct::CtExecutionBudget,
+    span: Span,
+) -> CompileResult<s::Expr> {
+    use zil_base::numeric::FloatValue;
+    let value = match value {
+        zil_ir::Constant::F32(bits) => FloatValue::F32(*bits),
+        zil_ir::Constant::F64(bits) => FloatValue::F64(*bits),
+        _ => unreachable!("floating reification caller"),
+    };
+    // Preserve every raw bit, including noncanonical/signaling NaNs. This
+    // generated-only fixed spelling goes directly to Core Constant.
+    budget.reserve_analysis_work(26)?;
+    budget.reserve_temporary_bytes(26)?;
+    budget.reserve_generated_nodes(1)?;
+    Ok(s::Expr {
+        span,
+        kind: s::ExprKind::Literal(s::Literal::Float(value.generated_spelling())),
+    })
+}
+
 impl Materializer<'_, '_> {
     fn depth(&self, depth: usize, span: Span) -> CompileResult<()> {
         if depth > self.max_depth {
@@ -416,6 +438,8 @@ impl Materializer<'_, '_> {
                     CtScalarTy::U16 => "u16",
                     CtScalarTy::I32 => "i32",
                     CtScalarTy::I64 => "i64",
+                    CtScalarTy::F32 => "f32",
+                    CtScalarTy::F64 => "f64",
                     CtScalarTy::U64 => "u64",
                     CtScalarTy::Usize => "usize",
                 },
@@ -466,6 +490,15 @@ impl Materializer<'_, '_> {
                             depth + 1,
                         )?)),
                         CtTypeArgument::Scalar(value) => {
+                            if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_))
+                            {
+                                args.push(s::GenericArg::Const(float_expression(
+                                    value,
+                                    &mut self.environment.budget,
+                                    span,
+                                )?));
+                                continue;
+                            }
                             let literal = match value {
                                 zil_ir::Constant::Bool(value) => s::Literal::Bool(*value),
                                 zil_ir::Constant::U8(value) => {
@@ -477,8 +510,12 @@ impl Materializer<'_, '_> {
                                 zil_ir::Constant::I32(value) => {
                                     s::Literal::Integer(value.to_string())
                                 }
-                                zil_ir::Constant::U64(value) => s::Literal::Integer(format!("{value}u64")),
-                                zil_ir::Constant::Usize(value) => s::Literal::Integer(format!("{value}usize")),
+                                zil_ir::Constant::U64(value) => {
+                                    s::Literal::Integer(format!("{value}u64"))
+                                }
+                                zil_ir::Constant::Usize(value) => {
+                                    s::Literal::Integer(format!("{value}usize"))
+                                }
                                 zil_ir::Constant::I64(value) => {
                                     s::Literal::Integer(value.to_string())
                                 }
@@ -1458,6 +1495,10 @@ impl Materializer<'_, '_> {
                     ));
                 };
                 expression.kind = match scalar {
+                    value @ (zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_)) => {
+                        float_expression(&value, &mut self.environment.budget, expression.span)?
+                            .kind
+                    }
                     zil_ir::Constant::Bool(value) => s::ExprKind::Literal(s::Literal::Bool(value)),
                     zil_ir::Constant::U8(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
@@ -1468,8 +1509,12 @@ impl Materializer<'_, '_> {
                     zil_ir::Constant::I32(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
-                    zil_ir::Constant::U64(value) => s::ExprKind::Literal(s::Literal::Integer(format!("{value}u64"))),
-                    zil_ir::Constant::Usize(value) => s::ExprKind::Literal(s::Literal::Integer(format!("{value}usize"))),
+                    zil_ir::Constant::U64(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}u64")))
+                    }
+                    zil_ir::Constant::Usize(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}usize")))
+                    }
                     zil_ir::Constant::I64(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
                     }
@@ -1620,4 +1665,137 @@ pub(crate) fn materialize(
         required_imports: materializer.required_imports,
         usage: environment.budget.usage().clone(),
     })
+}
+
+#[cfg(test)]
+mod float_tests {
+    use super::*;
+    use zil_ir::{Constant, InstructionKind};
+
+    fn allowance() -> CtDeclaredBudget {
+        CtDeclaredBudget {
+            max_steps: 100,
+            max_call_depth: 10,
+            max_live_cells: 100,
+            max_temporary_bytes: 26,
+            max_generated_nodes: 1,
+            max_instances: 1,
+            max_analysis_work: 26,
+        }
+    }
+
+    fn generated_module(value: s::Expr, name: &str) -> (SourceUnit, s::Module) {
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "float-bits.zil",
+            format!("fn result()->{name}{{return 0.0}}"),
+        );
+        let mut syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let s::ItemKind::Function(function) = &mut syntax.items[0].kind else {
+            unreachable!()
+        };
+        let s::FunctionBody::Block(body) = &mut function.body else {
+            unreachable!()
+        };
+        body.statements[0].kind = s::StmtKind::Return(Some(value));
+        (source, syntax)
+    }
+
+    #[test]
+    fn ieee_float_ct_reification_preserves_all_raw_bits_through_wire() {
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut fingerprints = BTreeSet::new();
+        for constant in [
+            Constant::F32(0),
+            Constant::F32(0x80000000),
+            Constant::F32(1),
+            Constant::F32(0x7fc00001),
+            Constant::F32(0x7f800001),
+            Constant::F64(0),
+            Constant::F64(0x8000000000000000),
+            Constant::F64(1),
+            Constant::F64(0x7ff8000000000001),
+            Constant::F64(0xfff0000000000001),
+        ] {
+            let mut budget = zil_ct::CtExecutionBudget::new(allowance());
+            let expression = float_expression(&constant, &mut budget, Span::default()).unwrap();
+            assert_eq!(budget.usage().analysis_work, 26);
+            assert_eq!(budget.usage().generated_nodes, 1);
+            assert_eq!(budget.live_temporary_bytes(), 26);
+            let name = if matches!(constant, Constant::F32(_)) {
+                "f32"
+            } else {
+                "f64"
+            };
+            let (source, syntax) = generated_module(expression, name);
+            let core = zil_expand::expand(&source, &syntax).unwrap();
+            let typed = zil_types::check(&core, &target, &limits).unwrap();
+            assert!(typed.functions[0].blocks.iter().flat_map(|b| &b.instructions)
+                .any(|i| matches!(&i.kind, InstructionKind::Constant(value) if value == &constant)));
+            assert!(fingerprints.insert(typed.fingerprint()));
+            let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+            let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+            assert_eq!(
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+                    .unwrap()
+                    .module(),
+                &typed
+            );
+        }
+        for dimension in 0..3 {
+            let mut limits = allowance();
+            match dimension {
+                0 => limits.max_analysis_work -= 1,
+                1 => limits.max_temporary_bytes -= 1,
+                _ => limits.max_generated_nodes -= 1,
+            }
+            let mut budget = zil_ct::CtExecutionBudget::new(limits);
+            let errors =
+                float_expression(&Constant::F64(1), &mut budget, Span::default()).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|error| error.category == zil_base::ResultCategory::ResourceLimit)
+            );
+            assert_eq!(budget.usage().generated_nodes, 0);
+        }
+    }
+
+    #[test]
+    fn ieee_float_generated_spellings_are_untrusted_and_unlexable() {
+        for spelling in [
+            "@bits:f32:0000000",
+            "@bits:f32:000000000",
+            "@bits:f32:7FC00001",
+            "@bits:f64:7ff800000000000g",
+            "@bits:f16:00000000",
+        ] {
+            let expression = s::Expr {
+                span: Span::default(),
+                kind: s::ExprKind::Literal(s::Literal::Float(spelling.into())),
+            };
+            let (source, syntax) = generated_module(expression, "f32");
+            let errors = zil_expand::expand(&source, &syntax).unwrap_err();
+            assert!(
+                errors.iter().any(|error| error.code == "E-FLOAT-LITERAL"),
+                "{errors:?}"
+            );
+        }
+        let mut budget = zil_ct::CtExecutionBudget::new(allowance());
+        let expression =
+            float_expression(&Constant::F32(0x7fc00001), &mut budget, Span::default()).unwrap();
+        let (source, syntax) = generated_module(expression, "f64");
+        let core = zil_expand::expand(&source, &syntax).unwrap();
+        assert!(zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).is_err());
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "not-source.zil",
+            "fn result()->f32{return @bits:f32:7fc00001}",
+        );
+        assert!(zil_syntax::parse(&source).into_result().is_err());
+    }
 }

@@ -1343,6 +1343,18 @@ impl<'a> Engine<'a> {
                     .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, e.span)))
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
+                    .or(default_integer.then_some("f64"))
+                    .map(|suffix| named(suffix, e.span)))
+            }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, env, depth + 1, default_integer)
@@ -1379,6 +1391,13 @@ impl<'a> Engine<'a> {
                 ..
             } => Ok(Some(named("bool", e.span))),
             ExprKind::Binary { left, right, .. } => {
+                if check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                    && let Some(ty) = self
+                        .value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                {
+                    return Ok(Some(ty));
+                }
                 match self.value_hint(left, env, depth + 1, default_integer)? {
                     Some(ty) => Ok(Some(ty)),
                     None => self.value_hint(right, env, depth + 1, default_integer),
@@ -1642,6 +1661,19 @@ impl<'a> Engine<'a> {
                     ))
                 }
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let suffix = ["f32", "f64"].into_iter().find(|suffix| {
+                    text.ends_with(suffix)
+                        || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                        || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                });
+                if suffix.is_none() && expected.is_some_and(check::floating) {
+                    self.budget.ty(expected.unwrap())?;
+                    expected.cloned()
+                } else {
+                    Some(named(suffix.unwrap_or("f64"), e.span))
+                }
+            }
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
             ExprKind::Name(name) => {
                 if let Some(Some(ty)) = env.get(name) {
@@ -1692,6 +1724,15 @@ impl<'a> Engine<'a> {
                             | BinaryOp::GreaterEqual
                     )
                 });
+                let float_hint = if hint.is_none()
+                    && check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                {
+                    self.value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                } else {
+                    None
+                };
+                let hint = hint.or(float_hint.as_ref());
                 let left_type = self.expr_expected(left, env, hint, depth + 1)?;
                 self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
                 if matches!(

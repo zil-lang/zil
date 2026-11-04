@@ -56,6 +56,11 @@ pub fn encode_ct(module: &CtModule, limits: &Limits) -> CompileResult<Vec<u8>> {
                     writer.u8(0)?;
                     writer.constant(constant)?;
                 }
+                CtInstructionKind::ConvertNumber { value, target } => {
+                    writer.u8(4)?;
+                    writer.u32(value.0)?;
+                    writer.ty(target, 0)?;
+                }
                 CtInstructionKind::ConvertInteger { value, target } => {
                     writer.u8(3)?;
                     writer.u32(value.0)?;
@@ -127,6 +132,10 @@ pub fn decode_ct(bytes: &[u8], limits: &Limits) -> CompileResult<CtModule> {
                     op: reader.binary()?,
                     left: ValueId(reader.u32()?),
                     right: ValueId(reader.u32()?),
+                },
+                4 => CtInstructionKind::ConvertNumber {
+                    value: ValueId(reader.u32()?),
+                    target: reader.ty(0)?,
                 },
                 3 => CtInstructionKind::ConvertInteger {
                     value: ValueId(reader.u32()?),
@@ -430,6 +439,8 @@ impl<'a> Writer<'a> {
                 Type::I64 => self.u8(3)?,
                 Type::U64 => self.u8(26)?,
                 Type::Usize => self.u8(27)?,
+                Type::F32 => self.u8(28)?,
+                Type::F64 => self.u8(29)?,
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
@@ -578,6 +589,14 @@ impl<'a> Writer<'a> {
             Constant::Usize(value) => {
                 self.u8(10)?;
                 self.bytes(&value.to_le_bytes())
+            }
+            Constant::F32(bits) => {
+                self.u8(11)?;
+                self.bytes(&bits.to_le_bytes())
+            }
+            Constant::F64(bits) => {
+                self.u8(12)?;
+                self.bytes(&bits.to_le_bytes())
             }
         }
     }
@@ -1042,6 +1061,11 @@ impl<'a> Writer<'a> {
                 self.u8(2)?;
                 self.u32(local.0)?;
                 self.u32(value.0)?;
+            }
+            InstructionKind::ConvertNumber { value, target } => {
+                self.u8(98)?;
+                self.u32(value.0)?;
+                self.ty(target, 0)?;
             }
             InstructionKind::ConvertInteger { value, target } => {
                 self.u8(59)?;
@@ -1945,6 +1969,8 @@ impl<'a> Reader<'a> {
                 3 => Type::I64,
                 26 => Type::U64,
                 27 => Type::Usize,
+                28 => Type::F32,
+                29 => Type::F64,
                 18 => Type::U8,
                 19 => Type::U16,
                 33 => Type::TaskI32,
@@ -2091,6 +2117,12 @@ impl<'a> Reader<'a> {
             }
             2 => Constant::I32(i32::from_le_bytes(
                 self.take(4)?.try_into().expect("checked length"),
+            )),
+            11 => Constant::F32(u32::from_le_bytes(
+                self.take(4)?.try_into().expect("four float32 bytes"),
+            )),
+            12 => Constant::F64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("eight float64 bytes"),
             )),
             3 => Constant::I64(i64::from_le_bytes(
                 self.take(8)?.try_into().expect("checked length"),
@@ -2512,6 +2544,10 @@ impl<'a> Reader<'a> {
             2 => InstructionKind::Store {
                 local: LocalId(self.u32()?),
                 value: ValueId(self.u32()?),
+            },
+            98 => InstructionKind::ConvertNumber {
+                value: ValueId(self.u32()?),
+                target: self.ty(0)?,
             },
             59 => InstructionKind::ConvertInteger {
                 value: ValueId(self.u32()?),

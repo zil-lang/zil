@@ -67,6 +67,16 @@ impl<'a> Budget<'a> {
         self.work -= 1;
         Ok(())
     }
+    pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "floating literal conversion work exhausted",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
             Diagnostic::limit(

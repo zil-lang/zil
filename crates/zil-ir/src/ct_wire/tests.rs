@@ -98,10 +98,12 @@ fn roundtrip_program_value_registry_and_domain_fingerprints() {
 fn rejects_bad_version_truncation_trailing_and_digest() {
     let limits = Limits::default();
     let good = encode_program(&program(), &limits).unwrap();
-    let mut bad = good.clone();
-    bad[8] = 3;
-    resign(&mut bad, CT_ARTIFACT_FINGERPRINT_DOMAIN);
-    assert_eq!(decode_program(&bad, &limits), Err(WireError::BadVersion));
+    for version in [1, CT_ARTIFACT_SCHEMA_VERSION + 1] {
+        let mut bad = good.clone();
+        bad[8..12].copy_from_slice(&version.to_le_bytes());
+        resign(&mut bad, CT_ARTIFACT_FINGERPRINT_DOMAIN);
+        assert_eq!(decode_program(&bad, &limits), Err(WireError::BadVersion));
+    }
     let mut bad = good.clone();
     bad.pop();
     assert_eq!(
@@ -537,7 +539,7 @@ fn over_depth_type_rejects_before_worker_stack_growth() {
 }
 
 #[test]
-fn iterative_recursive_variants_preserve_schema_one_payload_bytes() {
+fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_two() {
     // Frozen bytes captured from the pre-iterative schema1 codec; no duplicate encoder is compiled.
     let limits = Limits::default();
     let scalar = CtValue::Scalar(Constant::I32(3));
@@ -562,9 +564,12 @@ fn iterative_recursive_variants_preserve_schema_one_payload_bytes() {
             include_bytes!("fixtures/record.wire").as_slice(),
             include_bytes!("fixtures/variant-array.wire").as_slice(),
         ][index];
-        assert_eq!(&fresh[12..fresh.len() - 32], &prior[12..prior.len() - 32]);
         assert_eq!(decode_value(prior, &limits), Err(WireError::BadVersion));
-        assert_eq!(decode_value(&fresh, &limits), Ok(value));
+        let mut current = prior.to_vec();
+        current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
+        resign(&mut current, VALUE_DOMAIN);
+        assert_eq!(fresh, current);
+        assert_eq!(decode_value(&current, &limits), Ok(value));
     }
     let mut p = program();
     let ty = CtTy::Tuple(vec![
@@ -592,13 +597,18 @@ fn iterative_recursive_variants_preserve_schema_one_payload_bytes() {
     });
     let fresh = encode_program(&p, &limits).unwrap();
     let prior = include_bytes!("fixtures/typed-program.wire").as_slice();
-    assert_eq!(&fresh[12..16], &CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
-    assert_eq!(&fresh[16..18], &64u16.to_le_bytes());
-    assert_eq!(&fresh[18..fresh.len() - 32], &prior[16..prior.len() - 32]);
-    // The old artifact domain also changes, so the frozen schema1
-    // artifact may fail its digest before the stale header is read.
-    assert!(decode_program(prior, &limits).is_err());
-    assert_eq!(decode_program(&fresh, &limits), Ok(p));
+    let mut stale = prior.to_vec();
+    resign(&mut stale, CT_ARTIFACT_FINGERPRINT_DOMAIN);
+    assert_eq!(decode_program(&stale, &limits), Err(WireError::BadVersion));
+    // Schema2 adds only the explicitly frozen target width after the inner
+    // schema; all pre-iterative recursive payload bytes remain the old golden.
+    let mut current = prior.to_vec();
+    current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
+    current[12..16].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
+    current.splice(16..16, 64u16.to_le_bytes());
+    resign(&mut current, CT_ARTIFACT_FINGERPRINT_DOMAIN);
+    assert_eq!(fresh, current);
+    assert_eq!(decode_program(&current, &limits), Ok(p));
 }
 
 #[test]
