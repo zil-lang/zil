@@ -1184,11 +1184,7 @@ pub(super) fn preflight(
                 match &instruction.kind {
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "stored-borrow instruction consumer is not yet implemented",
-                            Some(instruction.span),
-                        )]);
+                        super::stored_borrows::instruction(function, instruction, budget)?;
                     }
                     InstructionKind::RegistrationStart {
                         register,
