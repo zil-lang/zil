@@ -1052,25 +1052,34 @@ impl<'a> Engine<'a> {
             self.resolved_method_calls.insert(generated.clone(), calls);
         }
         self.budget.item(&instance)?;
-        // Original generic enums retain their existing Copy payload profile,
-        // even though ordinary monomorphic enums now admit owners. Inspect the
-        // actual substituted fields while the real template identity exists.
-        if let ItemKind::Enum(e) = &instance.kind
-            && template != options::TEMPLATE
-            && template != options::TASK_POLL
-        {
+        // Inspect complete substituted value fields while their ordinary
+        // template identity exists. Explicit Managed arguments remain owning
+        // values; this never grants Copy or manufactures a resource header.
+        if let ItemKind::Enum(e) = &instance.kind {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {
                     for field in fields {
                         if field.manages {
                             return Err(unsupported(field.span, "owned generic enum payload"));
                         }
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 } else if let VariantFields::Record(fields) = &variant.fields {
                     for field in fields {
                         self.budget.node(field.span, 0)?;
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 }
             }

@@ -402,3 +402,53 @@ mod tests {
         eprintln!("task343 actual machine identity N={n}");
     }
 }
+
+/// Complete machine reservation reused by owning continuation cloning. The
+/// caller supplies its actual remaining ledger and chooses the finite number
+/// of subsequent traversals; no default allowance is renewed here.
+pub(super) fn prepay_function(f: &m::Function, left: &mut usize) -> CompileResult<()> {
+    let m::Function {
+        name,
+        linkage: _,
+        signature,
+        attrs: a,
+        blocks,
+    } = f;
+    text(name, left)?;
+    attrs(a, left)?;
+    let m::Signature {
+        result,
+        result_attrs,
+        params,
+        variadic: _,
+    } = signature;
+    ty(result, left, 0)?;
+    attrs(result_attrs, left)?;
+    for p in params {
+        let m::Param {
+            ty: t,
+            name,
+            attrs: a,
+        } = p;
+        spend(left, 8)?;
+        ty(t, left, 0)?;
+        attrs(a, left)?;
+        if let Some(s) = name {
+            text(s, left)?;
+        }
+    }
+    for b in blocks.iter().flatten() {
+        let m::Block { name, instructions } = b;
+        spend(left, 8)?;
+        text(name, left)?;
+        for i in instructions {
+            let m::Inst { result, op: o } = i;
+            spend(left, 8)?;
+            if let Some(s) = result {
+                text(s, left)?;
+            }
+            op(o, left)?;
+        }
+    }
+    Ok(())
+}
