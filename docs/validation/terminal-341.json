@@ -499,8 +499,10 @@
   "generic_method_limitations": "Receiver-method checkpoint only. General life/lending headers, static associated functions, type-qualified symbolic calls, semantic implication beyond canonical direct-premise subsets, remaining const/associated equation consumers and dyn stay open. No product-gate/terminal claim.",
   "generic_method_accounting_review": "Live independent review found a repeated borrowed signature Function clone at captured no-outer-trait calls. Fixed: const_function prepays Cow::Borrowed before into_owned, owned path unchanged; member-name clones removed. The no-outer default body/two captured calls fixture is retained with work8963/nodes2612 exact/cache/native controls. All other into_owned consumers audited for existing borrowed-member payment.",
   "generic_method_review": {
-    "status": "Pending",
-    "known_finding": "Borrowed signature clone corrected before freeze; exact candidate independent replay not yet run."
+    "status": "PassLimited",
+    "review_commit": "cf41493a1",
+    "exact_focused_tests_passed": 19,
+    "binding": "Independent327 production/test/retained-harness hashes matched;7+12 replay,36 new native profiles,69617/10074 and8963/2612 exact/cache boundaries replayed; source-member/Origin/Span-free identity and borrowed-clone accounting findings closed for this receiver checkpoint"
   },
   "generic_method_fixture_sha256": {
     "tests/language-readiness/terminal/341/generic-method-no-outer.zil": "8201da112c41ab7e4ff7d18a817c79c284ae0ed2d93535deea8af186ca38e743",

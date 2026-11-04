@@ -85,9 +85,17 @@ Construction requires an explicit borrowed or owning storage operation. Proposed
 public operations are `MakeDynBorrow {interface,vtable,source,mutable}` and
 `CallDynSlot {callee,interface,slot,arguments}` with fully checked typed variants;
 owned construction additionally transfers one actual environment responsibility
-and its real cleanup route.342 determines the exact borrowed-storage Type wrapper
-and fixed life rows, reusing BorrowedStorage rather than inventing a second loan
-model. No implicit allocation, RC, lock or global runtime registry is introduced.
+and its real cleanup route.The joint representation keeps `Type::Dyn {interface}` an unsized pointee,
+like Slice. `MakeDynBorrow` returns `Address<Dyn>` whose actual machine value is
+(environment address, static vtable address), never an address of a temporary
+pair. This ordinary stored Address is covered by342 BorrowedStorage, with no dyn
+wrapper exception or second loan model. Interface fixed environment dependencies
+use canonical numbered ports; each vtable explicitly maps ports to the concrete
+Self's actual StoragePosition rows. Ports are contract substitution positions,
+not Place projections, private-field universal paths or raw GEP permissions.
+Both kernels rebuild actual receiver and port roots and validate the common
+Fixed relation. Root reserves Type wire36 and opcodes131/132 for Dyn,
+MakeDynBorrow and CallDynSlot, alongside existing Task/Storage allocations. No implicit allocation, RC, lock or global runtime registry is introduced.
 Borrowed storage cannot call a consuming Self slot. Shared storage cannot acquire
 an exclusive receiver by choosing a different vtable or life label.
 
