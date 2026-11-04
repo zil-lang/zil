@@ -130,6 +130,11 @@ impl Index<'_> {
         ty: &TypeRef,
         budget: &mut Budget<'_>,
     ) -> R<trait_instances::Reference> {
+        if let TypeKind::Dyn { bindings, .. } = &grouped(ty).kind
+            && !bindings.is_empty()
+        {
+            return Err(unsupported(ty.span, "dyn binding semantic consumer is not yet implemented"));
+        }
         let TypeKind::Dyn { path, args, .. } = &grouped(ty).kind else {
             return Err(error(
                 ty.span,

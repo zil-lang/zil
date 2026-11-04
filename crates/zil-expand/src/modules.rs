@@ -688,8 +688,13 @@ impl Visitor<'_, '_, '_> {
     }
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
+        if let TypeKind::Dyn { bindings, .. } = &ty.kind
+            && !bindings.is_empty()
+        {
+            return Err(Diagnostic::unsupported(Phase::Expand, "dyn binding module consumer is not yet implemented", Some(ty.span)));
+        }
         match &mut ty.kind {
-            TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+            TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
                     if matches!(self.mode, Mode::Binders { .. }) {
                         path[0] = name;

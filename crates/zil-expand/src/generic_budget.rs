@@ -248,6 +248,26 @@ impl<'a> Budget<'a> {
         if matches!(ty.kind, TypeKind::Dyn { .. }) {
             self.dynamic_interfaces = true;
         }
+        if let TypeKind::Dyn { bindings, .. } = &ty.kind {
+            for binding in bindings {
+                self.node(binding.span, depth + 1)?;
+                match &binding.kind {
+                    DynBindingKind::Type { member, value } => {
+                        for name in member { self.text(name, binding.span)?; }
+                        self.ty_context(value, depth + 2, substitutions, false)?;
+                    }
+                    DynBindingKind::Constant { member, ty, value } => {
+                        for name in member { self.text(name, binding.span)?; }
+                        self.ty_context(ty, depth + 2, substitutions, false)?;
+                        self.expr(value, depth + 2, substitutions)?;
+                    }
+                    DynBindingKind::Method { member, arguments } => {
+                        for name in member { self.text(name, binding.span)?; }
+                        for actual in arguments { self.arg(actual, depth + 2, substitutions)?; }
+                    }
+                }
+            }
+        }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
         }
@@ -260,7 +280,7 @@ impl<'a> Budget<'a> {
             self.text(replacement, ty.span)?;
         }
         match &ty.kind {
-            TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+            TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
                 for name in path {
                     self.text(name, ty.span)?;
                 }
