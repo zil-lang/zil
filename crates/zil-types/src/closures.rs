@@ -435,6 +435,17 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn snapshot_type(
+        &mut self,
+        ty: &Type,
+        copies: usize,
+        extra: usize,
+        span: Span,
+    ) -> R<()> {
+        self.snapshot(extra, span)?;
+        inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
+    }
+
     // Thread-only queries join this request's existing work counter. General
     // expression inference keeps its historical independent Graph profile.
     pub(super) fn thread_result(&mut self, id: ClosureId) -> R<Option<Type>> {
@@ -4523,6 +4534,65 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 Ok(signature)
             }
             _ => Err(unsupported(callee.span, "indirect call in closure body")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod terminal340_prepared_owner_budget {
+    use super::*;
+    use zil_base::ResultCategory;
+    #[test]
+    fn remaining_allowance_stops_owner_planning_before_deep_tail_and_is_not_refunded() {
+        let limits = Limits {
+            max_call_depth: 8,
+            ..Limits::default()
+        };
+        let mut owner = Type::I32;
+        for _ in 0..32 {
+            owner = Type::Record {
+                name: "R".into(),
+                fields: vec![("x".into(), owner)],
+            };
+        }
+        let uncapped = inference::type_snapshot_work(&owner, Span::default(), &limits).unwrap_err();
+        assert!(uncapped.message.contains("depth"), "{uncapped:?}");
+        let mut state = State::new(0, &limits);
+        state
+            .snapshot(limits.max_analysis_steps - 3, Span::default())
+            .unwrap();
+        let error = state
+            .snapshot_type(&owner, 1, 0, Span::default())
+            .unwrap_err();
+        assert_eq!(error.category, ResultCategory::ResourceLimit);
+        assert!(error.message.contains("work"), "{error:?}");
+        assert_eq!(
+            state.remaining_work(),
+            0,
+            "failed visits refunded the caller allowance"
+        );
+    }
+    #[test]
+    fn complete_owner_comparison_preserves_exact_n_and_fresh_retry() {
+        let limits = Limits::default();
+        let owner = Type::Record {
+            name: "Owner".into(),
+            fields: vec![("nested".into(), Type::Tuple(vec![Type::I32, Type::I64]))],
+        };
+        let work = inference::type_snapshot_work(&owner, Span::default(), &limits).unwrap();
+        let boundary = work * 2 + 2;
+        for (allowance, success) in [(boundary, true), (boundary - 1, false), (boundary, true)] {
+            let mut state = State::new(0, &limits);
+            state
+                .snapshot(limits.max_analysis_steps - allowance, Span::default())
+                .unwrap();
+            let checked = state.snapshot_type(&owner, 2, 2, Span::default());
+            assert_eq!(checked.is_ok(), success, "{checked:?}");
+            if success {
+                assert_eq!(state.remaining_work(), 0);
+            } else {
+                assert_eq!(checked.unwrap_err().category, ResultCategory::ResourceLimit);
+            }
         }
     }
 }

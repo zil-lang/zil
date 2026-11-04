@@ -344,3 +344,63 @@ fn member_owner_work_has_an_exact_request_limit_and_fresh_replay() {
     );
     eprintln!("Types member owner N={high}; N-1 ResourceLimit; fresh N identical TypedModule");
 }
+
+#[test]
+fn long_raw_owner_compound_place_has_exact_caller_budget() {
+    let mut text = "struct Nested0{pub x:i32}".to_owned();
+    for i in 1..=12 {
+        text.push_str(&format!(
+            "struct Nested{i}{{pub child:Nested{};pub x:i32}}",
+            i - 1
+        ));
+    }
+    text.push_str("fn bump(p:&mut Nested12)->i32{p.x+=22;return p.x}");
+    let (mut module, owner) = core(&text, "Nested12");
+    for f in &mut module.functions {
+        block(&mut f.body, "x", &owner);
+    }
+    let target = TargetProfile::host_llvm();
+    let defaults = Limits::default();
+    let expected = zil_types::check(&module, &target, &defaults).unwrap();
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: mid,
+            ..defaults.clone()
+        };
+        match zil_types::check(&module, &target, &limits) {
+            Ok(typed) => {
+                assert_eq!(typed, expected);
+                high = mid;
+            }
+            Err(errors) => {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|e| e.category == zil_base::ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                low = mid + 1;
+            }
+        }
+    }
+    for (work, success) in [(low, true), (low - 1, false), (low, true)] {
+        let limits = Limits {
+            max_analysis_steps: work,
+            ..defaults.clone()
+        };
+        let checked = zil_types::check(&module, &target, &limits);
+        if success {
+            assert_eq!(checked.unwrap(), expected);
+        } else {
+            assert!(
+                checked
+                    .unwrap_err()
+                    .iter()
+                    .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+            );
+        }
+    }
+    eprintln!("340 long raw explicit owner compound N={low};N-1 ResourceLimit;fresh agree");
+}
