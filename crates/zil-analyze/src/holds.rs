@@ -1545,7 +1545,7 @@ fn infer_with_private(
                         budget,
                     )?;
                 }
-                if store_windows || callback_windows || scoped {
+                if (store_windows || callback_windows || scoped) && !address_afters.is_empty() {
                     store_window_transition(
                         module,
                         f,

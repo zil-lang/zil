@@ -28,3 +28,5 @@
 该阶段不改变 FFI、线程 worker、捕获或普通 Copy 的资格。
 =======
 >>>>>>> 4f735240c
+
+组合回归修复：模式借入新增liveness门后，原有Store/callback窗口检查仍必须同时要求实际address_afters非空。纯Desc/closure来源的合法ZUI函数没有地址liveness表，不能仅凭module/profile标记索引空表；保留原有限制并与新模式检查分别启用。原有impl236三个consumer测试作为原源复验，不迁移其预期。
