@@ -641,15 +641,11 @@ impl Catalog {
                     result: result_type,
                     result_mode: zil_ir::PassingMode::Infer,
                     call_kind: zil_ir::CallKind::Direct,
-                    invocation_life: Some(zil_ir::FunctionLifeContract {
-                        binder_count,
-                        parameter_lives,
-                        result_life: None,
-                    }),
                     storage_life: Some(zil_ir::StorageLifeContract {
                         fixed_binder_count: 0,
                         invocation_binder_count: binder_count,
                         bindings,
+                        classes: Vec::new(),
                     }),
                     contract: zil_ir::DynContract {
                         requires: None,

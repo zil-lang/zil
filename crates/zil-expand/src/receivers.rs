@@ -70,8 +70,9 @@ impl Expander<'_> {
                         } else {
                             type_ref(&role.result)
                         };
+                        let life = role.life.and_then(|life| self.source_flat_life(life, f.span));
                         CoreCallableParameter {
-                            life: role.life,
+                            life,
                             index: role.index as u32,
                             generic_index: role.generic_index,
                             generic_name: role.generic_name,

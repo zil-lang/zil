@@ -3,6 +3,32 @@
 use super::*;
 
 impl Expander<'_> {
+    pub(super) fn source_flat_life(&mut self, life: zil_ir::FunctionLifeContract, span: Span) -> Option<zil_ir::StorageLifeContract> {
+        let limits = Limits {
+            max_analysis_steps: self.member_owner_limit.saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let result = (|| {
+            for binder in &life.parameter_lives {
+                budget.node(span, 0)?;
+                if binder.is_some() { budget.node(span, 0)?; }
+            }
+            budget.node(span, 0)?;
+            if life.result_life.is_some() { budget.node(span, 0)?; }
+            zil_ir::StorageLifeContract::from_flat(life).ok_or_else(|| Diagnostic::limit(Phase::Expand, "callable relation arity exhausted", Some(span)))
+        })();
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match result {
+            Ok(life) => Some(life),
+            Err(error) => { self.diagnostics.push(error); None }
+        }
+    }
+
     pub(super) fn record_dyn_method(&mut self, member: usize, function: NodeId, span: Span) {
         if self
             .dynamic_catalog

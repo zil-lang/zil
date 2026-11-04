@@ -869,11 +869,16 @@ pub(crate) fn member_owner_type_cost(
                 result,
                 life,
             } => {
-                for _ in 0..life.binder_count {
+                for _ in 0..life.fixed_binder_count.saturating_add(life.invocation_binder_count) {
                     v.node(span, depth + 1)?;
                 }
-                for _ in &life.parameter_lives {
+                for binding in &life.bindings {
                     v.node(span, depth + 1)?;
+                    for _ in &binding.position.path { v.node(span, depth + 2)?; }
+                }
+                for class in &life.classes {
+                    v.node(span, depth + 1)?;
+                    for _ in &class.position.path { v.node(span, depth + 2)?; }
                 }
                 for ty in parameters {
                     core_shape(v, ty, span, depth + 1)?;
