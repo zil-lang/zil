@@ -90,6 +90,9 @@ impl<'a> Budget<'a> {
     pub(crate) fn ty(&mut self, ty: &TypeRef) -> R<()> {
         self.ty_at(ty, 0, None)
     }
+    pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
+        self.expr(expression, 0, None)
+    }
     pub(crate) fn ty_depth(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.ty_at(ty, depth, None)
     }

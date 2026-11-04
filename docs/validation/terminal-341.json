@@ -1,0 +1,37 @@
+{
+  "task": "341",
+  "status": "MilestoneInProgress",
+  "scope": "Scalar const function parameters and fixed-array substitution; general trait terminal work remains in progress",
+  "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
+  "commands": [
+    "cargo check -p zil-expand --quiet",
+    "cargo test -p zil-driver --test generics terminal341 -- --nocapture"
+  ],
+  "observed": {
+    "targeted_tests_passed": 2,
+    "source_positive_cases": 7,
+    "source_negative_cases": 9,
+    "unused_invalid_definitions_rejected": true,
+    "typed_analyze_verify": "Pass",
+    "wire_independent_verify": "Pass",
+    "clang_native_O0_O2": "Pass, result 7",
+    "expand_exact_steps": 934,
+    "expand_N_minus_1": "ResourceLimit",
+    "expand_fresh_N_twice": "Pass"
+  },
+  "remaining": [
+    "Target usize/u64 const domains await shared type consumer integration",
+    "General verified CT expression arguments and const inference",
+    "Aggregate/enum/trait const parameter consumers and project const lexical normalization",
+    "Associated types/constants and bound-supported symbolic projections",
+    "First-order generic/conditional impl selection, coherence, supertraits and generic methods",
+    "LLVM API O0/O2, persisted cache controls and independent review"
+  ],
+  "rust_goals": {
+    "safety": "Unused const definitions use symbolic immutable scalar parameters; downstream Types/Analyze/Verify and Wire verification were executed",
+    "runtime_memory": "Existing static calls and fixed arrays reach native code; no runtime dictionary introduced; Rust runtime/RSS comparison NotRun",
+    "expression_maintenance": "Explicit typed const forwarding and fixed-array function reuse now compose; full framework maintenance comparison NotRun",
+    "compile_cost": "Request limits unchanged; exact N/N-1/fresh boundary measured; Rust compile-cost comparison NotRun",
+    "breakthrough": "Incremental source expressiveness only; product-gates conjunction and terminal completion remain unestablished"
+  }
+}

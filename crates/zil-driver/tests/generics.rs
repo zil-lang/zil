@@ -9,6 +9,96 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_values() {
+    for text in [
+        "fn constant<#N:i32>()->i32{return N}fn main()->i32{return constant::<7>()-7}",
+        "fn pick<T:Copy,#N:i32>(x:T)->T{let n:i32=N;return x}fn main()->i32{return pick::<i32,3>(7)-7}",
+        "fn flag<#B:bool>()->bool{return B}fn main()->i32{if flag::<true>(){return 0}return 1}",
+        "fn constant<#N:u8>()->u8{return N}fn main()->i32{let x:u8=constant::<255>();return 0}",
+        "fn scoped<#N:i32>()->i32{let N:i32=8;return N}fn main()->i32{return scoped::<7>()-8}",
+        "fn array<#N:i32>(x:[i32;N])->[i32;N]{return x}fn main()->i32{let x=array::<2>([3,4]);return x[0]-3}",
+        "fn inner<#N:i32>()->i32{return N}fn outer<#M:i32>()->i32{return inner::<M>()}fn main()->i32{return outer::<7>()-7}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for text in [
+        "fn bad<#B:bool>()->i32{return B}fn main()->i32{return 0}",
+        "fn bad<T,#N:i32>(x:T)->T{return x+x}fn main()->i32{return 0}",
+        "fn value<#N:u8>()->u8{return N}fn main()->i32{value::<256>();return 0}",
+        "fn value<#N:u8>()->u8{return N}fn main()->i32{value::<3i32>();return 0}",
+        "fn value<#N:bool>()->bool{return N}fn main()->i32{value::<1>();return 0}",
+        "fn value<T>(x:T)->T{return x}fn main()->i32{return value::<3>(7)}",
+        "fn inner<#N:i32>()->i32{return N}fn bad<#M:i32>(x:i32)->i32{return inner::<x>()}fn main(){}",
+        "fn inner<#N:i32>()->i32{return N}fn bad<#M:i32>()->i32{let M=2;return inner::<M>()}fn main(){}",
+        "fn bad<#N:bool>(x:[i32;N])->[i32;N]{return x}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_const_instances_reach_wire_native_and_exact_budget() {
+    use zil_base::{Limits, TargetProfile};
+    let text = "fn fixed<T:Copy,#N:i32>(x:[T;N])->[T;N]{return x}fn result()->i32{let a=fixed::<i32,2>([7,9]);let b=fixed::<i32,1>([a[0]]);return b[0]}";
+    let src = source(text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default()).unwrap();
+    let llvm = native(text, 7);
+    assert!(!llvm.contains("dictionary"));
+    let check = |steps| {
+        zil_expand::expand_with_map_limits(
+            &src,
+            &ast,
+            &Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    assert!(check(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if check(middle).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    assert_eq!(
+        check(low - 1).unwrap_err()[0].category,
+        ResultCategory::ResourceLimit
+    );
+    assert!(check(low).is_ok());
+    assert!(check(low).is_ok());
+    eprintln!("341 const Expand exact work limit: {low}");
+}
+
+#[test]
 fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
     use zil_driver::{NativeBackend, Optimization};
     for text in [
