@@ -188,6 +188,7 @@ fn collector_bounds_retained_and_returned_callable_contracts() {
         let f = &mut p.modules[0].core.functions[0];
         if retained {
             f.callable_parameters = vec![CoreCallableParameter {
+                source_life: None,
                 life: None,
                 closed_environment: false,
                 index: 0,

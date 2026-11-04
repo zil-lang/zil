@@ -56,6 +56,7 @@ impl Expander<'_> {
                     .map(|role| {
                         if let Some((parameters, result, life)) = self.source_rich_role(f, &role) {
                             return CoreCallableParameter {
+                                source_life: None,
                                 life: Some(life),
                                 index: role.index as u32,
                                 generic_index: role.generic_index,
@@ -86,6 +87,7 @@ impl Expander<'_> {
                             .life
                             .and_then(|life| self.source_flat_life(life, f.span));
                         CoreCallableParameter {
+                            source_life: None,
                             life,
                             index: role.index as u32,
                             generic_index: role.generic_index,
