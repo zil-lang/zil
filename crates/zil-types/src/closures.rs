@@ -1159,6 +1159,9 @@ impl Graph {
             | Type::Registration {
                 environment: element,
             }
+            | Type::AsyncRegistration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -1247,6 +1250,9 @@ impl Graph {
                 result: element, ..
             }
             | Type::Registration {
+                environment: element,
+            }
+            | Type::AsyncRegistration {
                 environment: element,
             }
             | Type::Address { inner: element, .. }
@@ -1370,8 +1376,8 @@ impl Graph {
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if matches!(ty, Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
-                || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
+            ty if matches!(ty, Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || resources::head_address(ty) || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+                || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. } | Type::AsyncRegistration { .. })
                 || ty.is_copy_value()
                 || stored::shared_value(ty)
                 || stored::shared_address(ty)
@@ -2128,6 +2134,7 @@ impl LocalType {
                 || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
                 || ty.is_exclusive_task_head_address()
+                || resources::head_address(ty)
                 || ty.is_package_address())
                 && (mutable || !wanted) =>
             {

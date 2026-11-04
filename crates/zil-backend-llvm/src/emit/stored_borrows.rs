@@ -101,6 +101,7 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::Slice { element: inner }
         | Type::OwnedStore { element: inner }
         | Type::Registration { environment: inner }
+        | Type::AsyncRegistration { environment: inner }
         | Type::Opaque { hidden: inner, .. } => type_work(inner, work, limits, depth + 1)?,
         Type::ErrorUnion { error, result } => {
             type_work(error, work, limits, depth + 1)?;

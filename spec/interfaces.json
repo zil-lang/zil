@@ -538,6 +538,39 @@
       },
       "responsibility": "Strong non-spurious cmpxchg; independent actual cell/root/operand/order proofs; both observed and success results, all visitors/identities, decoded Wire and two native paths. Raw transport and LLVM model success do not grant source admission.",
       "compatibility": "Isolated successor of40; Typed/Type/LifeInventory domainsV41 and Wire41 reject older versions. CT5 unchanged."
+    },
+    "pollable_registration_G8_4_1": {
+      "authority": "_zil_design.md §12.3.1 and §12.1.3/§12.2/§12.3",
+      "state": "ContractToImplement",
+      "schema_version": 42,
+      "wire_version": 42,
+      "ct_schema_version": 5,
+      "Type": "AsyncRegistration {environment:Box<Type>} tag37; sealed actual F payload only under Managed/Desc or exact exclusive owning-head address; no Copy/Transfer/Share or synchronous Drop proof",
+      "Core": "CoreAggregateTypeRecipe::AsyncRegistration {environment}; untrusted actual recipe, not source admission",
+      "instructions": {
+        "134": "AsyncRegistrationStart {register:FunctionId,request_close:FunctionId,poll_drain:FunctionId,callback:ValueId,region:u32}; actual F transfer and explicit unsafe region",
+        "135": "AsyncRegistrationValid {registration:ValueId}; read descriptor -> Bool",
+        "136": "AsyncRegistrationRequestClose {registration:ValueId}; exclusive owning head -> Unit",
+        "137": "AsyncRegistrationPollClose {registration:ValueId}; exclusive owning head -> ordinary actual Poll<Unit>",
+        "138": "AsyncRegistrationFinishDestroy {registration:ValueId}; consuming actual head, mandatory runtime CLOSED guard before reclamation"
+      },
+      "foreign_roles": {
+        "3": "AsyncRegister / async_callback_register(): Direct C(callback(c_handle,i32)->i64,c_handle)->c_handle",
+        "4": "AsyncRequestClose / async_callback_request_close(): Direct C(c_handle)->Unit",
+        "5": "AsyncPollDrain / async_callback_poll_drain(): Direct C(c_handle)->i32;0 Pending,1 complete raw/backend no-future,other values never authorize free"
+      },
+      "source": [
+        "unsafe c_register_async(register,request_close,poll_drain,f)",
+        "async_registration_valid(owner)",
+        "async_registration_request_close(&mut owner)",
+        "async_registration_poll_close(&mut owner)",
+        "async_registration_finish_destroy(give owner)"
+      ],
+      "external_promise": "Failed installation synchronously withdraws and drains all raw/backend users before null; close request alone is not quiescence. PollDrain1 covers queued/not-yet-entered/rejected raw entries and all direct userdata accesses, forever. Same-thread only.",
+      "ownership": "Actual FnMut(i32)->i32 ClosedEnvironment plus independently synchronous complete environment teardown. Stable record outlives every raw/backend user; guard closes before provider request; Pending retains complete owner/environment/result/loan responsibility. No implicit busy loop, leaking root or Pending-to-abort default cleanup.",
+      "finish": "Explicit nonclosed finish faults without freeing, as the existing Task protocol; no static Closed refinement is claimed. Unknown pollable Direct automatic Drop is rejected until actual independent Closed or synchronous-close proof exists.",
+      "identity": "Typed/Type/LifeInventory domainsV42 and Wire42 reject older envelopes; prior synchronous tags remain unchanged, CT5 unchanged. All actual provider IDs, operands, environment and lifetime/cleanup dependencies retained and prepaid.",
+      "admission": "Transport-only publication is separate from source, independent Analyze/Verify, Task frame and native event-queue consumers. Unimplemented consumers explicitly return Unsupported, including unused new declarations and types."
     }
   },
   "schemas": [

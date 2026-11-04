@@ -1,0 +1,197 @@
+{
+  "task": "G8.4.2",
+  "reviewer": "g8_3",
+  "verdict": "LimitedPassComposition",
+  "reviewed_commit": "a5972e08b9fdea76ef44d881f811ca3a753bc061",
+  "merge_source_commit": "a5732a3b3cc4127a28e1d2656a9d7e3aa36515f3",
+  "parents": [
+    "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "43881a0965c490a7086bf12199b9e9247c3df99f"
+  ],
+  "scope": "Non-author review of root integration conflict resolutions and automatic overlap only. Reviewer authored original B; this receipt does not independently reapprove B. Original B independent review remains g3_3.",
+  "saved_goal_reference": "3bfb089eaa818f201bb2aae3a07e24c251d7f8b0",
+  "static": {
+    "base": "ee4ff070044204dd1fc953e17032d817d50871ca",
+    "overlap": [
+      {
+        "path": "crates/zil-analyze/src/resources.rs",
+        "merge_file_exit": 0,
+        "actual_equals_independent_automerge": true
+      },
+      {
+        "path": "crates/zil-driver/tests/generic_regressions.rs",
+        "merge_file_exit": 1,
+        "actual_equals_independent_automerge": false
+      },
+      {
+        "path": "crates/zil-expand/src/generic_check.rs",
+        "merge_file_exit": 1,
+        "actual_equals_independent_automerge": false
+      },
+      {
+        "path": "crates/zil-expand/src/lib.rs",
+        "merge_file_exit": 0,
+        "actual_equals_independent_automerge": true
+      },
+      {
+        "path": "crates/zil-types/src/aggregates.rs",
+        "merge_file_exit": 0,
+        "actual_equals_independent_automerge": true
+      },
+      {
+        "path": "crates/zil-types/src/lib.rs",
+        "merge_file_exit": 0,
+        "actual_equals_independent_automerge": true
+      },
+      {
+        "path": "crates/zil-verify/src/resources.rs",
+        "merge_file_exit": 0,
+        "actual_equals_independent_automerge": true
+      }
+    ],
+    "manual_test_conflict": {
+      "parent1_test_attrs": 59,
+      "parent2_test_attrs": 65,
+      "merged_test_attrs": 66,
+      "missing_parent1_test_attrs": [],
+      "missing_parent2_test_attrs": [],
+      "B_new_tail_byte_equal": true,
+      "parent_default104_byte_equal": true
+    }
+  },
+  "manual_generic_check": {
+    "parent_thin_dispatch_preserved": true,
+    "exact_async_delta_hunks": 4,
+    "delta": "c_register_async in create/ownership classifiers and async primitive dispatch names only",
+    "foreign_store_local_static_order_preserved": true
+  },
+  "automatic_overlap_assessment": {
+    "independent_text_automerge_exact": true,
+    "two_kernel_store_parent_identity_and_pin_retained": true,
+    "two_kernel_async_whole_and_actual_partial_drop_guards_retained": true,
+    "types_thin_expression_dispatch_and_new_async_annotation_resolution_retained": true,
+    "new_helper_G1_3_2_included": false
+  },
+  "source_sha256": {
+    "crates/zil-expand/src/generic_check.rs": "af7d8dafda6f3a353c6f00af3c56c7fd5d9b7b9c059f1f9f11e27142bdaea30e",
+    "crates/zil-driver/tests/generic_regressions.rs": "f014e674ef71feaeb78d32a8fab96d4383a02db40d5f422b3faa7a8a2de863a9",
+    "crates/zil-analyze/src/resources.rs": "91ef15bd466ded8a4a8a300b7eb4a4b8398bc9ae0c405441d1b68b4c978bbb86",
+    "crates/zil-verify/src/resources.rs": "8d8e8ce49cdaf7f8717e1bf7b247c32cd6fb5df0ed20eade350ae5e0e242dca2",
+    "crates/zil-types/src/aggregates.rs": "fe8724d5584031100467de3521d110cd96e1515cdfd52f55ee3756cb4e89c43b",
+    "crates/zil-types/src/lib.rs": "c4eef4418cbdd0179a0ed852813ce330a384116d81057df0268322ca70f36447",
+    "crates/zil-expand/src/lib.rs": "4d698698bdfce27a05dc4f6a45635ed38eae63b21ef643c4821e679ee915729b",
+    "crates/zil-driver/tests/generics.rs": "7a89f2b13fc6ea9d51072f3f91fff6f258799307c7cfea72afda7fd16dec9125",
+    "crates/zil-driver/tests/impl180_store_mut.rs": "428bcbb849c14731bc3440e8d6e7fb359776be8be1e3934555cf4f9b6168cc56"
+  },
+  "build": {
+    "target": "/workspace/.zil-env/target343",
+    "tmpdir": "/workspace/.zil-env/G8.4.2-review-tmp",
+    "exclusive": true,
+    "j": 2,
+    "locked_offline": true,
+    "first_cross_tree_compiled_crates": [
+      "zil-base",
+      "zil-llvm-api",
+      "zil-ir",
+      "zil-syntax",
+      "zil-db",
+      "zil-verify",
+      "zil-types",
+      "zil-lower",
+      "zil-backend-llvm",
+      "zil-ct",
+      "zil-analyze",
+      "zil-expand",
+      "zil-driver"
+    ],
+    "RUST_MIN_STACK": "unset",
+    "LD_PRELOAD": "unset",
+    "executables_sha256": {
+      "generic_regressions-6ecdb24ac684ead8": "3d62e8bdf22d2518597d1b5286f294db901c8e239ccc88de2c884561a37d416c",
+      "generics-ba4159fc2009dbc9": "13bc0f58c16aa05d92c2649ecac5c1d685360b6069b3dd021f67572939e9c214",
+      "impl180_store_mut-4ebd16ce64ec1cb7": "f54b1f28ff14d8d1b5dcc2bdbbd37c124c7ddce8267f9d890f175a297100985c"
+    }
+  },
+  "checks": {
+    "terminal_g10_1_7_life_values_keep_default_worker_stack": {
+      "passed": 1,
+      "failed": 0,
+      "source_requests": 104
+    },
+    "g10_1_8_nested_source_classes_keep_default_stack_and_compatibility": {
+      "passed": 1,
+      "failed": 0,
+      "source_requests": 8
+    },
+    "async_registration": {
+      "passed": 6,
+      "failed": 0,
+      "includes_frontend_tests": 3,
+      "analyze_exact_steps": 6012,
+      "verify_exact_steps": 7928,
+      "original_native_cases_replayed": true,
+      "native_processes_replayed": 56,
+      "counting": "Replay only; no added source coverage or duplicated original B native total."
+    },
+    "owning_store_field_replacement_preserves_failure_and_actual_description_boundaries": {
+      "passed": 1,
+      "failed": 0,
+      "native_sources": 5,
+      "native_processes": 20,
+      "backends": {
+        "clang": 10,
+        "llvm-api": 10
+      },
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "stdout": {
+        "ABX": 4,
+        "CABX": 4,
+        "ACZB": 4,
+        "AZDB": 4,
+        "IRAZB": 4
+      },
+      "fallbacks": 0,
+      "unexpected_exits": 0,
+      "counting_note": "The sixth original replacement source AZB belongs to a different existing filter; not counted as run here."
+    },
+    "total_unique_rust_tests": 9,
+    "failed": 0,
+    "diff_check": "Pass",
+    "worktree": "Clean; reviewer changed no tracked file"
+  },
+  "logs": {
+    "default_worker104": {
+      "path": "/workspace/.zil-env/G8.4.2-review-tmp/first-build-default104.log",
+      "sha256": "6f798f1a2b56d65a2197027bc1797a1ba08d4dccccccb68b77a48324cc696374"
+    },
+    "new_source_class8": {
+      "path": "/workspace/.zil-env/G8.4.2-review-tmp/default8.log",
+      "sha256": "fad2e3aa841e90ead39d1a31be9bee6d8b312a305f0477a6ae8793fe81ec76be"
+    },
+    "async_composition6": {
+      "path": "/workspace/.zil-env/G8.4.2-review-tmp/async6.log",
+      "sha256": "ca1a4064e5ecd721c886f8ed085099506e9e27260d26d50738399912b64928b9"
+    },
+    "store_native5": {
+      "path": "/workspace/.zil-env/G8.4.2-review-tmp/store-native6.log",
+      "sha256": "d3c314f5f7b58ac714bd096409db96642e36c566e17cdcc1bcfb705fa597b797"
+    }
+  },
+  "commands": [
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions terminal_g10_1_7_life_values_keep_default_worker_stack -- --exact --nocapture --test-threads=1",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generics g10_1_8_nested_source_classes_keep_default_stack_and_compatibility -- --exact --nocapture --test-threads=1",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions async_registration -- --nocapture --test-threads=1",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test impl180_store_mut owning_store_field_replacement_preserves_failure_and_actual_description_boundaries -- --exact --nocapture --test-threads=1",
+    "git diff --check"
+  ],
+  "limitations": [
+    "Not a full suite, formal root gate, complete G8.4 acceptance or original-B independent review.",
+    "Original Async source/ABI/runtime profile limitations remain; no new permission is inferred from composition.",
+    "G1.3.2 helper invalidation is absent and remains outside this receipt.",
+    "No comparative Rust runtime, memory or compilation-cost measurement."
+  ],
+  "findings": []
+}

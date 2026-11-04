@@ -1,0 +1,49 @@
+{
+  "status": "OpenRawFixedPointerContextDefect",
+  "related_reviewed_source": "f469463e88ab50e31ea4c25d92b065454393c6a3",
+  "subsequent_count_guard": "3438bdb242b9cee496b65a64d1a168efac375bab",
+  "method": "Independent standalone Rust diagnostic using exact Git f469 raw fixture and SHA-bound existing kernel rlibs. No full candidate rebuild or source/native execution claim.",
+  "construction": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/construction.json",
+    "sha256": "1a9b804985b325af62789144a6e553f1e047c612812e5afc1b06a6f57759451b"
+  },
+  "source": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/probe.rs",
+    "sha256": "0c52ea0ba5bf309a8d114e594e5e57cb9fa02cbacea446eaf8fa1d8dc4ddeb9e"
+  },
+  "fixture": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/fixture.rs",
+    "sha256": "b8e4127d58c5101cc185007da18d9a96351ba80456f8c9a1729e3719e4281acc"
+  },
+  "executable": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/probe",
+    "sha256": "963a1ef724446c19014329defe5d1e6783107f6510537ea3712174f0e47dcd8d"
+  },
+  "build_log": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/build.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "run_log": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/run.log",
+    "sha256": "5206aedf2a1d306b04f8b563d1f1b84052701dad6cf0c5076f395421b3bffc4d"
+  },
+  "wire_inputs": [
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/invocation.wire",
+      "sha256": "88bebfe04bb1adb77429ea1391242a8628dfa9673f5b08b59dab5b9daf81caca"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/fixed-pointer-probe/fixed.wire",
+      "sha256": "8f0143301690e2b1bab8fdf5767ab6392d265095de0384bfab1168a51b70a7f6"
+    }
+  ],
+  "reproduction": [
+    "Start from phantom_class_calls(true,false): one pointer SSA is called twice, against distinct rigid incoming caller classes, each paired with a separate freshly constructed phantom value. Invocation-only pointer is the intended positive.",
+    "Change only the BFP contract fixed_binder_count to 1, invocation_binder_count to 0 and both class-row binders Invocation0 to Fixed0. No enclosing pointer-value class mapping is supplied. Recreate the independent raw CandidatePlan for the actual mutated module.",
+    "Invocation positive and Fixed mutation both return Ok from Analyze, raw Verify and decoded Wire Verify."
+  ],
+  "cause": "class_flow::call allocates fresh formal variables for Fixed and Invocation on every call. This is valid substitution for an ordinary function definition input class, but the thin pointer value has no retained Fixed ports/context in this lane, so its supposedly persistent Fixed class is silently freshened.",
+  "normative_boundary": "Main design common40 callable rule requires a thin pointer free Fixed domain to come from a real enclosing semantic context; captured Fixed cannot become fresh Invocation. Actual root/alias permission proofs are separate.",
+  "requested_correction": "Reject unbound Fixed BFP contracts at the actual pointer/type boundaries until complete enclosing pointer-class mapping is implemented. Preserve ordinary definition Fixed substitution and inferred static Invocation-only pointer positives. Retain this exact raw/Wire mutation.",
+  "scope": "Semantic lifetime-class contract defect. No native memory-safety exploit was run or claimed. The prior successful f469/3438 test counts and root034 source/native results remain historical evidence, not proof that this additional boundary passed."
+}

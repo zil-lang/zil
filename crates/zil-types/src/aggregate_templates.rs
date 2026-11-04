@@ -344,6 +344,9 @@ impl Index {
                 }
             }
             CoreAggregateTypeRecipe::Task { result: element }
+            | CoreAggregateTypeRecipe::AsyncRegistration {
+                environment: element,
+            }
             | CoreAggregateTypeRecipe::Registration {
                 environment: element,
             }
@@ -384,6 +387,9 @@ fn validate_recipe(
         }
         CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
         CoreAggregateTypeRecipe::Task { result: element }
+        | CoreAggregateTypeRecipe::AsyncRegistration {
+            environment: element,
+        }
         | CoreAggregateTypeRecipe::Registration {
             environment: element,
         }
@@ -625,6 +631,7 @@ fn contextual_free(
             | Type::Address { inner: t, .. }
             | Type::Task { result: t, .. }
             | Type::Registration { environment: t }
+            | Type::AsyncRegistration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }
@@ -732,6 +739,7 @@ pub(super) fn rebind_type(
             | Type::Address { inner: t, .. }
             | Type::Task { result: t, .. }
             | Type::Registration { environment: t }
+            | Type::AsyncRegistration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
             | Type::Slice { element: t }

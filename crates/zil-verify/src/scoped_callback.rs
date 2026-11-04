@@ -20,7 +20,8 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
         )
     };
     budget.spend(4)?;
-    if !foreign.static_callbacks
+    if function.call_kind != CallKind::Direct
+        || !foreign.static_callbacks
         || !foreign.noescape_parameters.is_empty()
         || function.result_mode != PassingMode::Infer
         || function.callable_contract.is_some()
@@ -29,7 +30,12 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
         return Err(invalid());
     }
     let valid = match role {
-        ScopedCallbackRole::Register => {
+        ScopedCallbackRole::AsyncPollDrain => {
+            function.parameters.len() == 1
+                && function.return_type == Type::I32
+                && local_type(function, function.parameters[0], span)? == &Type::ForeignHandle
+        }
+        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
             if function.parameters.len() != 2 || function.return_type != Type::ForeignHandle {
                 false
             } else {
@@ -39,7 +45,7 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
                     && context == &Type::ForeignHandle
             }
         }
-        ScopedCallbackRole::Close => {
+        ScopedCallbackRole::Close | ScopedCallbackRole::AsyncRequestClose => {
             function.parameters.len() == 1
                 && function.return_type == Type::Unit
                 && local_type(function, function.parameters[0], span)? == &Type::ForeignHandle
@@ -68,6 +74,7 @@ pub(super) fn instruction(
     };
     let span = Some(instruction.span);
     budget.spend(5)?;
+    tasks::require_synchronous_value(module, caller, callback, budget, span)?;
     for (id, role) in [
         (register, ScopedCallbackRole::Register),
         (close, ScopedCallbackRole::Close),

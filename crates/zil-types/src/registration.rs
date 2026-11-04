@@ -7,7 +7,14 @@ pub(super) fn primitive(e: &CoreExpr) -> Option<&str> {
     };
     matches!(
         n.as_str(),
-        "c_register" | "registration_valid" | "registration_close"
+        "c_register"
+            | "registration_valid"
+            | "registration_close"
+            | "c_register_async"
+            | "async_registration_valid"
+            | "async_registration_request_close"
+            | "async_registration_poll_close"
+            | "async_registration_finish_destroy"
     )
     .then_some(n)
 }
@@ -15,10 +22,14 @@ pub(super) fn environment(t: &Type) -> Option<&Type> {
     let (Type::Managed(p) | Type::Desc(p)) = t else {
         return None;
     };
-    let Type::Registration { environment } = p.as_ref() else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = p.as_ref()
+    else {
         return None;
     };
     Some(environment)
+}
+pub(super) fn asynchronous(t: &Type) -> bool {
+    matches!(t,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
 }
 pub(super) fn resource(t: &Type) -> bool {
     environment(t).is_some()
@@ -91,12 +102,19 @@ pub(super) fn add_definitions(
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&f.return_type))
         {
-            let mut pending = vec![root];
-            while let Some(t) = pending.pop() {
+            let mut pending = vec![(root, false)];
+            while let Some((t, blocked)) = pending.pop() {
                 spend(left, 1)?;
                 tasks::require_closed_context(t, f.span)?;
+                if blocked && matches!(t, Type::AsyncRegistration { .. }) {
+                    return Err(unsupported(
+                        f.span,
+                        "pollable registration roots in ordinary aggregate storage require an asynchronous ownership consumer",
+                    ));
+                }
                 match t {
-                    Type::Registration { environment } => {
+                    Type::Registration { environment }
+                    | Type::AsyncRegistration { environment } => {
                         let Type::Closure(id) = environment.as_ref() else {
                             return Err(unsupported(
                                 f.span,
@@ -104,7 +122,10 @@ pub(super) fn add_definitions(
                             ));
                         };
                         spend(left, found.len().saturating_add(32))?;
-                        found.insert(*id, t.clone());
+                        found.insert(
+                            (matches!(t, Type::AsyncRegistration { .. }), *id),
+                            t.clone(),
+                        );
                     }
                     Type::BorrowedStorage { storage: t, .. }
                     | Type::Task { result: t, .. }
@@ -113,29 +134,33 @@ pub(super) fn add_definitions(
                     | Type::Address { inner: t, .. }
                     | Type::Opaque { hidden: t, .. }
                     | Type::Array { element: t, .. }
-                    | Type::OwnedStore { element: t }
                     | Type::Slice { element: t } => {
                         spend(left, 1)?;
-                        pending.push(t)
+                        pending.push((t, blocked))
+                    }
+                    Type::OwnedStore { element } => {
+                        spend(left, 1)?;
+                        pending.push((element, true));
                     }
                     Type::Tuple(ts) => {
                         spend(left, ts.len())?;
-                        pending.extend(ts)
+                        pending.extend(ts.iter().map(|t| (t, true)))
                     }
                     Type::Record { fields, .. } | Type::Package { fields, .. } => {
                         spend(left, fields.len())?;
-                        pending.extend(fields.iter().map(|(_, t)| t))
+                        let blocked = blocked || matches!(t, Type::Package { .. });
+                        pending.extend(fields.iter().map(|(_, t)| (t, blocked)))
                     }
                     Type::Enum { variants, .. } => {
                         spend(left, variants.len())?;
                         for (_, ts) in variants {
                             spend(left, ts.len())?;
-                            pending.extend(ts)
+                            pending.extend(ts.iter().map(|t| (t, true)))
                         }
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        pending.extend([error.as_ref(), result.as_ref()])
+                        pending.extend([(error.as_ref(), true), (result.as_ref(), true)])
                     }
                     _ => {}
                 }
@@ -143,9 +168,17 @@ pub(super) fn add_definitions(
         }
     }
     spend(left, found.len().saturating_mul(32))?;
-    for (id, payload) in found {
+    for ((asynchronous, id), payload) in found {
         definitions.push(ResourceDefinition {
-            name: format!("@builtin:Registration:{}", id.0),
+            name: format!(
+                "@builtin:{}:{}",
+                if asynchronous {
+                    "AsyncRegistration"
+                } else {
+                    "Registration"
+                },
+                id.0
+            ),
             payload,
             teardown: None,
         })
@@ -160,13 +193,20 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let (kind, ty) = if name == "c_register" {
-            let [register, close, callback] = arguments else {
-                return Err(error(
-                    "E-CALL-ARITY",
-                    span,
-                    "c_register requires register, close and actual F",
-                ));
+        let asynchronous = name.starts_with("async_registration_") || name == "c_register_async";
+        let (kind, ty) = if matches!(name, "c_register" | "c_register_async") {
+            let (register, close, drain, callback) = match arguments {
+                [register, close, callback] if !asynchronous => (register, close, None, callback),
+                [register, close, drain, callback] if asynchronous => {
+                    (register, close, Some(drain), callback)
+                }
+                _ => {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "registration constructor requires ordered actual providers and F",
+                    ));
+                }
             };
             let region = self.unsafe_regions.last().copied().ok_or_else(|| {
                 error(
@@ -177,8 +217,22 @@ impl Builder<'_, '_> {
             })?;
             let register = self.resolve_callee(register)?.clone();
             let close = self.resolve_callee(close)?.clone();
-            if register.scoped_callback != Some(ScopedCallbackRole::Register)
-                || close.scoped_callback != Some(ScopedCallbackRole::Close)
+            let drain = drain.map(|d| self.resolve_callee(d).cloned()).transpose()?;
+            if register.scoped_callback
+                != Some(if asynchronous {
+                    ScopedCallbackRole::AsyncRegister
+                } else {
+                    ScopedCallbackRole::Register
+                })
+                || close.scoped_callback
+                    != Some(if asynchronous {
+                        ScopedCallbackRole::AsyncRequestClose
+                    } else {
+                        ScopedCallbackRole::Close
+                    })
+                || drain
+                    .as_ref()
+                    .is_some_and(|d| d.scoped_callback != Some(ScopedCallbackRole::AsyncPollDrain))
             {
                 return Err(error(
                     "E-FFI-REGISTRATION",
@@ -227,16 +281,29 @@ impl Builder<'_, '_> {
                 ));
             }
             self.closures.factory_self_contained(id, callback.span)?;
-            closed_environment(self.closures, id, callback.span)?;
-            let ty = Type::Managed(Box::new(Type::Registration {
-                environment: Box::new(Type::Closure(id)),
+            closed_environment_for(self.closures, id, callback.span, asynchronous)?;
+            let environment = Box::new(Type::Closure(id));
+            let ty = Type::Managed(Box::new(if asynchronous {
+                Type::AsyncRegistration { environment }
+            } else {
+                Type::Registration { environment }
             }));
             (
-                InstructionKind::RegistrationStart {
-                    register: register.concrete_id(span)?,
-                    close: close.concrete_id(span)?,
-                    callback: callback_value,
-                    region,
+                if let Some(drain) = drain {
+                    InstructionKind::AsyncRegistrationStart {
+                        register: register.concrete_id(span)?,
+                        request_close: close.concrete_id(span)?,
+                        poll_drain: drain.concrete_id(span)?,
+                        callback: callback_value,
+                        region,
+                    }
+                } else {
+                    InstructionKind::RegistrationStart {
+                        register: register.concrete_id(span)?,
+                        close: close.concrete_id(span)?,
+                        callback: callback_value,
+                        region,
+                    }
                 },
                 ty,
             )
@@ -249,7 +316,49 @@ impl Builder<'_, '_> {
                 ));
             };
             let (registration, ty) = self.expr(argument, None)?;
-            if !resource(&ty)
+            if asynchronous {
+                let result = match name {
+                    "async_registration_valid" if matches!(&ty,Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
+                        (
+                            InstructionKind::AsyncRegistrationValid { registration },
+                            Type::Bool,
+                        )
+                    }
+                    "async_registration_finish_destroy" if matches!(&ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
+                        (
+                            InstructionKind::AsyncRegistrationFinishDestroy { registration },
+                            Type::Unit,
+                        )
+                    }
+                    "async_registration_request_close" | "async_registration_poll_close" if matches!(&ty,Type::Address{mutable:true,inner} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))) => {
+                        if name == "async_registration_request_close" {
+                            (
+                                InstructionKind::AsyncRegistrationRequestClose { registration },
+                                Type::Unit,
+                            )
+                        } else {
+                            (
+                                InstructionKind::AsyncRegistrationPollClose { registration },
+                                tasks::poll_type(&Type::Unit),
+                            )
+                        }
+                    }
+                    _ => {
+                        return Err(error(
+                            "E-REGISTRATION-CARRIER",
+                            span,
+                            "async validity reads actual descriptor; request/poll require exclusive owning head address; finish consumes give owner",
+                        ));
+                    }
+                };
+                if let Some(wanted) = expected {
+                    self.same(&result.1, wanted, span)?;
+                }
+                let value = self.value(result.0, result.1.clone(), span)?;
+                return Ok((value, result.1));
+            }
+            if matches!(&ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                || !resource(&ty)
                 || !matches!(
                     (&ty, name),
                     (Type::Desc(_), "registration_valid")
@@ -286,6 +395,14 @@ pub(super) fn closed_environment(
     state: &mut closures::State,
     root: ClosureId,
     span: Span,
+) -> R<()> {
+    closed_environment_for(state, root, span, false)
+}
+fn closed_environment_for(
+    state: &mut closures::State,
+    root: ClosureId,
+    span: Span,
+    asynchronous: bool,
 ) -> R<()> {
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
@@ -327,6 +444,19 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
+                Type::AsyncRegistration { .. } => {
+                    return Err(unsupported(
+                        span,
+                        "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
+                    ));
+                }
+                Type::TaskI32 if asynchronous => {
+                    return Err(error(
+                        "E-CLOSED-ENVIRONMENT",
+                        span,
+                        "AsyncRegistration environment requires an actual synchronous legacy Task frame cleanup proof",
+                    ));
+                }
                 Type::Dyn { .. }
                 | Type::Task { .. }
                 | Type::Address { .. }

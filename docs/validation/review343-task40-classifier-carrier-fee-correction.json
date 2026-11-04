@@ -1,0 +1,106 @@
+{
+  "status": "PassLimitedCorrectedClosedTask40",
+  "source": "e714671bd0370d6b5e707e4ff1c16580e767dde1",
+  "production_correction": "821f2c7fdb49d54705aa4e2c7d01b0f91a348100 composed as d7ce production; e714 fixes only unit-test Diagnostic access and records replay",
+  "baseline_review": "review343-task40-unit-error-with-accounting-findings.json",
+  "construction": "Independently SHA-verified/copy-preserved author executables and replayed them; not an independent rebuild. Git source/build manifest recomputed. Nine runtime C files matched exact Git and current files before/after replay.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-source-binding.json",
+    "count": 415,
+    "sha256": "041d48b8e68b167c8cd726d2d126701108b325463e3f97169ee54692f10a827c",
+    "algorithm": "Sorted Git paths, root Cargo.toml/Cargo.lock plus crates Cargo.toml and src Rust; path + NUL + lowercase file SHA256 + LF"
+  },
+  "harnesses": [
+    {
+      "source": "/workspace/.zil-env/target-public40/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-driver",
+      "sha256": "1272a60a828742ff07e7e21734a6c6eeb1c1969d992c332667e54b2aaec0ff3f"
+    },
+    {
+      "source": "/workspace/.zil-env/target-public40/debug/deps/zil_analyze-8dde3b1c204420d7",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-analyze",
+      "sha256": "e22fe1396a5eef8c5a7b1d95182fcd503abe4634115d30eeb6c505088943b186"
+    },
+    {
+      "source": "/workspace/.zil-env/target-public40/debug/deps/zil_verify-e5c00ec0866c83e5",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-verify",
+      "sha256": "eb590b3df8c8efa27f7cb42049914343a61d8fda76eb847c667fcf9eb1809b4e"
+    }
+  ],
+  "runtime_C_binding": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-runtime-c.json",
+  "replays": [
+    {
+      "filter": "tasks::budget_tests",
+      "kernel": "Analyze",
+      "passed": 2,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-analyze.log"
+    },
+    {
+      "filter": "tasks::budget_tests",
+      "kernel": "Verify",
+      "passed": 2,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-verify.log"
+    },
+    {
+      "filter": "complete existing generic_regressions target",
+      "passed": 83,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task40-e714-driver.log"
+    }
+  ],
+  "findings_closed": [
+    "Worker lane classification reserves actual blocks and each instruction vector before scanning for SuspendCall; the same helper is used at each actual profile request.",
+    "Resource matching separately pays actual and query structured payloads for each same-kind resource row before recursive equality. Canonical name bytes are paid before equality; Verify uses a single matching pass."
+  ],
+  "component_boundaries": {
+    "classifier_small_large_both": [
+      10,
+      4160
+    ],
+    "Analyze_carrier_small_large": [
+      680,
+      8909
+    ],
+    "Verify_carrier_small_large": [
+      1418,
+      17588
+    ],
+    "controls": "Exact N/N-1/fresh and low remaining allowance. Raw reservation-component inputs do not substitute for semantic task validation."
+  },
+  "corrected_actual_source_boundaries": {
+    "general_task_Analyze_Verify": [
+      12554,
+      39917
+    ],
+    "owned_task_Analyze_Verify": [
+      15110,
+      33931
+    ],
+    "owned_child_width8_Analyze_Verify_Codegen": [
+      26251,
+      67430,
+      347890
+    ],
+    "owned_child_width16_Analyze_Verify_Codegen": [
+      39140,
+      112861,
+      445626
+    ],
+    "Copy_ErrorUnion_Analyze_Verify_Codegen": [
+      30759,
+      94169,
+      347523
+    ],
+    "controls": "Actual-source N/N-1/fresh retained; Codegen limit phase explicitly asserted. No quota increase."
+  },
+  "scope": "Closes the two accounting findings for the previously replayed Task40 Unit/Bool/finite Copy result and inherited closed owning/static-child slice. Original499fd counts and budgets remain exact historical evidence.",
+  "limits": [
+    "Borrowed frame ports, owning sums/results, general partial responsibilities, tickets/defers, external wakers/Pending-close and a public general-result SABI are not accepted by this receipt.",
+    "No source CAS capability conclusion; its independently replayed machine accounting remains separate.",
+    "Strict two-kernel Clippy is author evidence, not independently rerun."
+  ]
+}

@@ -315,7 +315,7 @@ impl Builder<'_, '_> {
                     && !resource_head
                     && !(mutable
                         && matches!(decl.ty, Type::Managed(_))
-                        && tasks::resource(&decl.ty))
+                        && (tasks::resource(&decl.ty) || registration::asynchronous(&decl.ty)))
                     && !product_head
                     && !owned_shapes::sum(&decl.ty)
                 {

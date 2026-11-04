@@ -2,18 +2,77 @@
 //! owning position. The old destination has no second invented local debt.
 use super::*;
 use crate::place_replacements::{Inventory, actual};
+use std::collections::BTreeMap;
 pub(super) struct Plan {
     actual: actual::Program,
     inventories: Vec<Inventory>,
     written: Vec<BTreeSet<Root>>,
+    targets: BTreeMap<usize, Vec<actual::Target>>,
+}
+#[derive(Clone, Copy)]
+struct Point {
+    position: usize,
+    block: usize,
+    validate: bool,
+    span: Span,
+    sealed: bool,
+}
+struct Invocation<'a> {
+    entry: usize,
+    arguments: &'a [ValueId],
+    captures: Option<&'a actual::Captures>,
+    carrier: Option<usize>,
+}
+fn nested_descriptor_boundary(module: &TypedModule, b: &mut Budget) -> Check<()> {
+    b.spend(module.closures.len())?;
+    for environment in &module.closures {
+        b.spend(environment.captures.len())?;
+        for field in &environment.captures {
+            let inner = match field {
+                Type::Closure(id) => Some(*id),
+                Type::Address { inner, .. } => {
+                    if let Type::Closure(id) = inner.as_ref() {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            let Some(id) = inner else {
+                continue;
+            };
+            let target = module.closures.get(id.0 as usize).ok_or_else(|| {
+                reject(
+                    "E-VERIFY-RESOURCE",
+                    None,
+                    "nested description closure identity absent",
+                )
+            })?;
+            b.spend(target.captures.len())?;
+            if target
+                .captures
+                .iter()
+                .any(|capture| matches!(capture, Type::Desc(_)))
+            {
+                return Err(unsupported(
+                    "nested closure resource descriptions need their transitive carrier bridge",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 impl Plan {
     pub(super) fn new(
         module: &TypedModule,
         graphs: &[FunctionGraph],
         writes: &[BTreeSet<Root>],
+        targets: &BTreeMap<usize, Vec<actual::Target>>,
         b: &mut Budget,
     ) -> Check<Self> {
+        nested_descriptor_boundary(module, b)?;
         let actual = actual::Program::reconstruct(module, graphs, b)?;
         b.spend(module.functions.len().saturating_add(writes.len()))?;
         let mut inventories = Vec::with_capacity(module.functions.len());
@@ -23,10 +82,17 @@ impl Plan {
         for row in writes {
             b.spend(row.len())?;
         }
+        b.spend(targets.len())?;
+        for row in targets.values() {
+            for target in row {
+                b.spend(target.steps.len().saturating_add(1))?;
+            }
+        }
         Ok(Self {
             actual,
             inventories,
             written: writes.to_vec(),
+            targets: targets.clone(),
         })
     }
     pub(super) fn extend_slots(
@@ -81,6 +147,199 @@ impl Plan {
         b.spend(row.len())?;
         Ok(row.clone())
     }
+    fn invalidate_store(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &State,
+        parents: &BTreeSet<Root>,
+        written: &mut BTreeSet<Root>,
+        point: Point,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let f = transfer.f;
+        if point.sealed {
+            return Err(unsupported(
+                "Store instance invalidation across a sealed callback scope needs its simultaneous descriptor proof",
+                Some(point.span),
+            ));
+        }
+        if parents.is_empty() {
+            return Err(bad(
+                point.span,
+                "Store replacement has no actual parent responsibility family",
+            ));
+        }
+        b.spend(parents.len())?;
+        let nonlocal =
+            |root: Root| matches!(root.parent(), Root::Parameter(_) | Root::BorrowedCapture(_));
+        if parents.iter().any(|root| matches!(root.parent(), Root::OwnedCapture(_))
+            || matches!(root.parent(), Root::PackageField { local, .. } if transfer.slots.view(local).is_some())) {
+            return Err(unsupported("owned Store capture replacement needs its exact capture instance mapping", Some(point.span)));
+        }
+        if parents.iter().any(|root| nonlocal(*root))
+            && (f.callable_contract.is_some() || f.callable_return_contract.is_some())
+        {
+            return Err(unsupported(
+                "Store instance invalidation needs a public callable envelope",
+                Some(point.span),
+            ));
+        }
+        if point.validate {
+            for (ty, slot) in f.values.iter().zip(&transfer.slots.desc_value).chain(
+                f.locals
+                    .iter()
+                    .map(|local| &local.ty)
+                    .zip(&transfer.slots.desc_local),
+            ) {
+                b.spend(1)?;
+                if !(matches!(ty, Type::Desc(_) | Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
+                {
+                    continue;
+                }
+                let Some(slot) = *slot else {
+                    continue;
+                };
+                if !transfer.after[point.block][point.position][slot] {
+                    continue;
+                }
+                b.spend(
+                    state.desc[slot]
+                        .len()
+                        .saturating_mul(parents.len().saturating_add(1)),
+                )?;
+                if state.desc[slot].iter().any(|root| {
+                    !matches!(root, Root::StoreParent(_))
+                        && parents.iter().any(|actual| {
+                            root.parent() == actual.parent()
+                                || (nonlocal(*root) && nonlocal(*actual))
+                        })
+                }) {
+                    return Err(bad(
+                        point.span,
+                        "Store field replacement invalidates a live element resource description",
+                    ));
+                }
+            }
+        }
+        transfer.write_roots(parents, written, point.span, point.validate, b)?;
+        for root in parents {
+            let key = match root.parent() {
+                Root::Parameter(p) => Some(StoreParentRoot::Parameter(p)),
+                Root::BorrowedCapture(c) => Some(StoreParentRoot::BorrowedCapture(c)),
+                _ => None,
+            };
+            if let Some(key) = key {
+                b.spend(written.len().saturating_add(1))?;
+                written.insert(Root::InvalidatedStore(key));
+            }
+        }
+        Ok(())
+    }
+    fn invoke(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &State,
+        written: &mut BTreeSet<Root>,
+        point: Point,
+        invocation: Invocation<'_>,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let f = transfer.f;
+        let callee = &transfer.module.functions[invocation.entry];
+        // A checked public envelope does not authorize looking at private rows.
+        // Actual Store invalidation in such a body is independently closed by
+        // invalidate_store, rather than importing a private effect at the call.
+        if callee.callable_contract.is_some() || callee.callable_return_contract.is_some() {
+            return Ok(());
+        }
+        if point.sealed {
+            b.spend(transfer.effects[invocation.entry].len())?;
+            if transfer.effects[invocation.entry]
+                .iter()
+                .any(|effect| matches!(effect, Root::InvalidatedStore(_)))
+            {
+                return Err(unsupported(
+                    "Store instance invalidation across a sealed callback scope needs its simultaneous descriptor proof",
+                    Some(point.span),
+                ));
+            }
+        }
+        b.spend(self.targets.len())?;
+        let rows = self
+            .targets
+            .get(&invocation.entry)
+            .map_or(&[][..], Vec::as_slice);
+        b.spend(rows.len())?;
+        for target in rows {
+            b.spend(target.steps.len().saturating_add(1))?;
+            let selected = actual::substitute(
+                &BTreeSet::from([target.clone()]),
+                invocation.arguments,
+                invocation.captures,
+                &self.actual.functions[f.id.0 as usize],
+                b,
+            )?;
+            for target in selected {
+                if let actual::Base::Element(element) = target.base {
+                    sums::replacements::at_type(transfer.module, f, &target, b)?;
+                    let parent =
+                        transfer.slots.desc_value[element.0 as usize].ok_or_else(|| {
+                            bad(
+                                point.span,
+                                "Store call target has no actual resource parent",
+                            )
+                        })?;
+                    if point.validate {
+                        description_live(state, transfer.slots, parent, point.span, b)?;
+                    }
+                    self.invalidate_store(transfer, state, &state.desc[parent], written, point, b)?;
+                }
+            }
+        }
+        let effects = &transfer.effects[invocation.entry];
+        b.spend(effects.len())?;
+        for effect in effects {
+            let Root::InvalidatedStore(key) = effect else {
+                continue;
+            };
+            let parents = match key {
+                StoreParentRoot::Parameter(p) => {
+                    let value = invocation
+                        .arguments
+                        .get(*p as usize)
+                        .ok_or_else(|| bad(point.span, "Store invalidation input absent"))?;
+                    let slot = transfer.slots.desc_value[value.0 as usize].ok_or_else(|| {
+                        bad(
+                            point.span,
+                            "Store invalidation input has no actual description origin",
+                        )
+                    })?;
+                    b.spend(state.desc[slot].len())?;
+                    state.desc[slot].clone()
+                }
+                StoreParentRoot::BorrowedCapture(_) => {
+                    let slot = invocation.carrier.ok_or_else(|| {
+                        bad(point.span, "Store invalidation capture carrier absent")
+                    })?;
+                    b.spend(state.desc[slot].len())?;
+                    state.desc[slot]
+                        .iter()
+                        .filter(|root| matches!(root, Root::StoreParent(_)))
+                        .copied()
+                        .collect()
+                }
+                _ => {
+                    return Err(unsupported(
+                        "owned Store invalidation summary mapping is under construction",
+                        Some(point.span),
+                    ));
+                }
+            };
+            self.invalidate_store(transfer, state, &parents, written, point, b)?;
+        }
+        Ok(())
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn step(
         &self,
@@ -93,6 +352,88 @@ impl Plan {
         written: &mut BTreeSet<Root>,
         b: &mut Budget,
     ) -> Check<()> {
+        let f = transfer.f;
+        let point = Point {
+            position,
+            block,
+            validate,
+            span: instruction.span,
+            sealed: false,
+        };
+        let facts = &self.actual.functions[f.id.0 as usize];
+        let scoped = match instruction.kind {
+            InstructionKind::WithForeignCallback { callback, body, .. } => {
+                [Some(callback), Some(body)]
+            }
+            InstructionKind::WithScopedThread { body, .. }
+            | InstructionKind::WithSyncCell { body, .. } => [None, Some(body)],
+            _ => [None, None],
+        };
+        for value in scoped.into_iter().flatten() {
+            self.invoke(
+                transfer,
+                state,
+                written,
+                Point {
+                    sealed: true,
+                    ..point
+                },
+                Invocation {
+                    entry: effect_closure_target(
+                        transfer.module,
+                        &f.values[value.0 as usize],
+                        instruction.span,
+                    )?,
+                    arguments: &[],
+                    captures: Some(&facts.captures[value.0 as usize]),
+                    carrier: transfer.slots.desc_value[value.0 as usize],
+                },
+                b,
+            )?;
+        }
+        let invocation = match &instruction.kind {
+            InstructionKind::Call {
+                function,
+                arguments,
+            } => Some(Invocation {
+                entry: function.0 as usize,
+                arguments,
+                captures: None,
+                carrier: None,
+            }),
+            InstructionKind::CallClosureShared { callee, arguments }
+            | InstructionKind::CallClosureMut { callee, arguments } => {
+                b.spend(facts.local_captures.len())?;
+                Some(Invocation {
+                    entry: effect_closure_target(
+                        transfer.module,
+                        &f.locals[callee.0 as usize].ty,
+                        instruction.span,
+                    )?,
+                    arguments,
+                    captures: facts.local_captures.get(callee),
+                    carrier: transfer.slots.desc_local[callee.0 as usize],
+                })
+            }
+            InstructionKind::CallClosure { callee, arguments }
+            | InstructionKind::CallClosureOnce { callee, arguments }
+            | InstructionKind::CallClosureBorrowed {
+                callee, arguments, ..
+            } => Some(Invocation {
+                entry: effect_closure_target(
+                    transfer.module,
+                    &f.values[callee.0 as usize],
+                    instruction.span,
+                )?,
+                arguments,
+                captures: Some(&facts.captures[callee.0 as usize]),
+                carrier: transfer.slots.desc_value[callee.0 as usize],
+            }),
+            _ => None,
+        };
+        if let Some(invocation) = invocation {
+            self.invoke(transfer, state, written, point, invocation, b)?;
+        }
         let InstructionKind::CommitPlaceReplace { reservation, value } = instruction.kind else {
             return Ok(());
         };
@@ -197,58 +538,10 @@ impl Plan {
                                 "Store element has no actual parent responsibility origin",
                             )
                         })?;
-                    b.spend(state.desc[parent].len())?;
-                    if state.desc[parent].iter().any(|root| {
-                        matches!(
-                            root.parent(),
-                            Root::Parameter(_) | Root::OwnedCapture(_) | Root::BorrowedCapture(_)
-                        ) || matches!(root.parent(), Root::PackageField { local, .. } if transfer.slots.view(local).is_some())
-                    }) {
-                        return Err(unsupported(
-                            "Store replacement through a borrowed/captured parent needs its instance invalidation summary",
-                            Some(span),
-                        ));
-                    }
                     if validate {
                         description_live(state, transfer.slots, parent, span, b)?;
-                        // Both kernels retain a Store-carrier qualifier only
-                        // for actual Store Desc production. Element extraction
-                        // strips it; a same-family resource Desc blocks Commit.
-                        for (ty, slot) in f.values.iter().zip(&transfer.slots.desc_value).chain(
-                            f.locals
-                                .iter()
-                                .map(|local| &local.ty)
-                                .zip(&transfer.slots.desc_local),
-                        ) {
-                            b.spend(1)?;
-                            if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
-                                continue;
-                            }
-                            let Some(slot) = *slot else {
-                                continue;
-                            };
-                            if !transfer.after[block][position][slot] {
-                                continue;
-                            }
-                            b.spend(
-                                state.desc[slot]
-                                    .len()
-                                    .saturating_mul(state.desc[parent].len().saturating_add(1)),
-                            )?;
-                            if state.desc[slot].iter().any(|root| {
-                                !matches!(root, Root::StoreParent(_))
-                                    && state.desc[parent]
-                                        .iter()
-                                        .any(|actual| root.parent() == actual.parent())
-                            }) {
-                                return Err(bad(
-                                    span,
-                                    "Store field replacement invalidates a live element resource description",
-                                ));
-                            }
-                        }
                     }
-                    transfer.write_roots(&state.desc[parent], written, span, validate, b)?;
+                    self.invalidate_store(transfer, state, &state.desc[parent], written, point, b)?;
                     // Store retains exactly its original complete initialized
                     // prefix debt. No field debt or fresh permission is added.
                 }

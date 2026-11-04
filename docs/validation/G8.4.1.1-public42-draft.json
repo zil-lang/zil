@@ -1,0 +1,51 @@
+{
+  "task": "G8.4.1.1",
+  "status": "TransportOnly",
+  "publication": "NotPublished",
+  "tested_source_commit": "55b47af664ff01f979011df71fe94bf0e76237b9",
+  "baseline": "ee4ff070044204dd1fc953e17032d817d50871ca",
+  "proposal_commit": "0e10f4a32425f4f2954d48967032866d966ceabb",
+  "proposal_composition": "6ff404953a35a9f865f1164abbcfd02940cc6864",
+  "architecture_review": "docs/validation/G8.4.1-interface-review.json",
+  "schema": 42,
+  "wire": 42,
+  "ct_artifact": 5,
+  "new_type_tag": 37,
+  "new_operation_tags": [134, 135, 136, 137, 138],
+  "new_foreign_role_tags": [3, 4, 5],
+  "source_role_vocabulary_for_successor": [
+    "async_callback_register()",
+    "async_callback_request_close()",
+    "async_callback_poll_drain()"
+  ],
+  "source_role_frontend_implemented": false,
+  "semantic_consumers_implemented": false,
+  "task_drain_machine_implemented": false,
+  "commands": [
+    {"command": "cargo check -j2 --workspace", "status": "Pass", "scope": "All workspace crates, default feature configuration, exhaustive consumer matches"},
+    {"command": "cargo test -j2 -p zil-ir --tests", "status": "Pass", "passed": 90, "failed": 0, "groups": {"library_wire": 67, "legacy_vec_identity": 13, "slice_wire": 3, "byte_scoped_wire": 5, "value_transfer": 2}},
+    {"command": "git diff --check", "status": "Pass"}
+  ],
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target343; TMPDIR=/workspace/.zil-env/tmp-G8.4.1; existing targets only",
+  "actual_transport_controls": [
+    "All five raw operations retain every static provider FunctionId, callback/head ValueId and unsafe region in identity and bounded roundtrip; every truncated prefix and unknown operation139 reject",
+    "Complete environment type37 is distinct from synchronous Registration and from other actual environments; payload and Managed payload are non-Copy; unknown type38, truncated input and depth-quota neighbors reject",
+    "Role0/1/2 remain None/Register/Close; new3/4/5 are distinct raw identities; unknown6/255 and all truncated foreign records reject",
+    "Raw module plus candidate plan roundtrip; old40/41 and next43 envelope reject; old plans grant no semantic permission"
+  ],
+  "consumer_refusal_scope": "Both kernels explicitly refuse new payload/operation/foreign-role candidates, including unused function/type/resource/nominal metadata occurrences through their existing bounded walks. ClosedEnvironment rejects the new owner instead of inheriting synchronous Registration eligibility. CT/interface/cache/native/Lower metadata helpers refuse the new shape. These are compiled guards; no new semantic admission or external no-future proof is claimed.",
+  "preserved": [
+    "Frozen historical bytes and separately reviewed schema40 fixture adapter are unchanged; no arbitrary41 header-to42 adapter",
+    "Existing synchronous Registration paths, role tags and operation tags unchanged",
+    "Current normative _zil_design/spec/interfaces/attributes and their hashes unchanged for root's separate publication migration",
+    "G10.1 schema41 candidate not modified by this isolated branch"
+  ],
+  "initial_test_adjustment": "The existing scoped-callback unknown-role test used byte3, now a published raw tag in this draft. It initially failed by correctly decoding AsyncRegister; the nearest unknown tag was updated to6. Final complete existing IR tests pass. Initial compiler exhaustiveness failures were corrected by explicit refusal arms, not wildcard admission.",
+  "limitations": [
+    "No source API or role-attribute admission, independent semantic authorization, actual pending Task close, stable pollable runtime, late raw callback or host event queue execution",
+    "No automatic Drop permission, ClosedEnvironment qualification, borrowed frame ports, owning Sum expansion, Transfer/Share or cross-thread support",
+    "No full compiler suite, native synchronous-registration rerun, product gate, norm publication or main merge; those require root coordination and independent review",
+    "Architecture review binds proposal0e10 only; it is not independent review of this new draft implementation"
+  ],
+  "rust_comparison": "No Rust runtime/memory/maintenance/compile-cost comparison or product-level net breakthrough measured; original product-gates unchanged"
+}

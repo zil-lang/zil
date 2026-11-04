@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 41;
+pub const WIRE_VERSION: u32 = 42;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
@@ -727,6 +727,10 @@ impl<'a> Writer<'a> {
                 Type::ByteBuffer => self.u8(24)?,
                 Type::Registration { environment } => {
                     self.u8(32)?;
+                    pending.push(Task::Type(environment, depth + 1));
+                }
+                Type::AsyncRegistration { environment } => {
+                    self.u8(37)?;
                     pending.push(Task::Type(environment, depth + 1));
                 }
                 Type::TaskI32 => self.u8(33)?,
@@ -1582,6 +1586,36 @@ impl<'a> Writer<'a> {
             }
             InstructionKind::RegistrationClose { registration } => {
                 self.u8(113)?;
+                self.u32(registration.0)?;
+            }
+            InstructionKind::AsyncRegistrationStart {
+                register,
+                request_close,
+                poll_drain,
+                callback,
+                region,
+            } => {
+                self.u8(134)?;
+                self.u32(register.0)?;
+                self.u32(request_close.0)?;
+                self.u32(poll_drain.0)?;
+                self.u32(callback.0)?;
+                self.u32(*region)?;
+            }
+            InstructionKind::AsyncRegistrationValid { registration } => {
+                self.u8(135)?;
+                self.u32(registration.0)?;
+            }
+            InstructionKind::AsyncRegistrationRequestClose { registration } => {
+                self.u8(136)?;
+                self.u32(registration.0)?;
+            }
+            InstructionKind::AsyncRegistrationPollClose { registration } => {
+                self.u8(137)?;
+                self.u32(registration.0)?;
+            }
+            InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                self.u8(138)?;
                 self.u32(registration.0)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
@@ -2804,6 +2838,7 @@ impl<'a> Reader<'a> {
                         23 => Type::Slice { element: inner },
                         25 => Type::OwnedStore { element: inner },
                         32 => Type::Registration { environment: inner },
+                        37 => Type::AsyncRegistration { environment: inner },
                         _ => unreachable!("scheduled unary type tag"),
                     });
                     continue;
@@ -2934,7 +2969,7 @@ impl<'a> Reader<'a> {
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
-                7 | 8 | 23 | 25 | 32 => {
+                7 | 8 | 23 | 25 | 32 | 37 => {
                     pending.push(Task::Unary(tag));
                     pending.push(Task::Type(depth + 1));
                     continue;
@@ -3314,6 +3349,9 @@ impl<'a> Reader<'a> {
                     0 => None,
                     1 => Some(ScopedCallbackRole::Register),
                     2 => Some(ScopedCallbackRole::Close),
+                    3 => Some(ScopedCallbackRole::AsyncRegister),
+                    4 => Some(ScopedCallbackRole::AsyncRequestClose),
+                    5 => Some(ScopedCallbackRole::AsyncPollDrain),
                     _ => return Err(malformed("E-WIRE-TAG", "unknown scoped callback role")),
                 },
             })
@@ -4191,6 +4229,25 @@ impl<'a> Reader<'a> {
                 registration: ValueId(self.u32()?),
             },
             113 => InstructionKind::RegistrationClose {
+                registration: ValueId(self.u32()?),
+            },
+            134 => InstructionKind::AsyncRegistrationStart {
+                register: FunctionId(self.u32()?),
+                request_close: FunctionId(self.u32()?),
+                poll_drain: FunctionId(self.u32()?),
+                callback: ValueId(self.u32()?),
+                region: self.u32()?,
+            },
+            135 => InstructionKind::AsyncRegistrationValid {
+                registration: ValueId(self.u32()?),
+            },
+            136 => InstructionKind::AsyncRegistrationRequestClose {
+                registration: ValueId(self.u32()?),
+            },
+            137 => InstructionKind::AsyncRegistrationPollClose {
+                registration: ValueId(self.u32()?),
+            },
+            138 => InstructionKind::AsyncRegistrationFinishDestroy {
                 registration: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),

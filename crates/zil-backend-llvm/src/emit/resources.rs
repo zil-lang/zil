@@ -11,7 +11,7 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
     {
         return true;
     }
-    if matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
+    if matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}|Type::AsyncRegistration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
     {
         return true;
     }
@@ -132,6 +132,36 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
+        if matches!(payload.as_ref(), Type::AsyncRegistration { .. }) {
+            if self.task_ownership.is_none() {
+                return unsupported(
+                    "Direct automatic pollable registration Drop cannot suspend",
+                    Some(instruction.span),
+                );
+            }
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Call {
+                    result: m::Ty::Void,
+                    result_attrs: vec![],
+                    callee: m::global("zil.async_registration.drop.marker".into()),
+                    args: vec![m::Arg::new(
+                        m::Ty::Ptr,
+                        m::local(format!("local.{}", local.0)),
+                    )],
+                    vararg: None,
+                },
+            )));
+            self.event(m::Event::Instruction(m::Inst::new(
+                None,
+                m::Op::Store {
+                    arg: m::Arg::new(m::Ty::Int(1), false),
+                    ptr: m::local(format!("resource.live.{}", local.0)),
+                    align: 1,
+                },
+            )));
+            return Ok(());
+        }
         let Some(definition) = self
             .resources
             .iter()

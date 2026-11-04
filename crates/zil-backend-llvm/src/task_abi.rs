@@ -75,8 +75,16 @@ fn align(n: u64, a: u32) -> CompileResult<u64> {
         .ok_or_else(|| bad("task frame layout size overflow"))
 }
 // This is the explicit LLVM23 Linux x64 target layout, never Rust host layout.
-// Only closed unpacked scalar literal structures are in the frozen profile.
-fn layout(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<(u64, u32)> {
+// Named structures resolve only through actual machine definitions to the same
+// closed unpacked scalar profile; missing/recursive definitions never grant layout.
+type Definitions<'a> = std::collections::BTreeMap<&'a str, &'a Vec<m::Ty>>;
+fn layout<'a>(
+    t: &'a m::Ty,
+    types: &Definitions<'a>,
+    active: &mut std::collections::BTreeSet<&'a str>,
+    left: &mut usize,
+    depth: usize,
+) -> CompileResult<(u64, u32)> {
     spend(left, 16)?;
     if depth > 64 {
         return Err(bad(
@@ -89,11 +97,35 @@ fn layout(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<(u64, u32)
         m::Ty::Int(16) => (2, 2),
         m::Ty::Int(32) => (4, 4),
         m::Ty::Int(64) => (8, 8),
+        m::Ty::Named(name) => {
+            spend(
+                left,
+                name.len().saturating_add(types.len()).saturating_add(1),
+            )?;
+            spend(left, active.len().saturating_add(1))?;
+            if !active.insert(name.as_str()) {
+                return Err(bad("task frame named machine type is recursively inline"));
+            }
+            let fields = types
+                .get(name.as_str())
+                .ok_or_else(|| bad("task frame named machine type has no actual definition"))?;
+            spend(left, fields.len())?;
+            let (mut size, mut alignment) = (0, 1);
+            for field in *fields {
+                let (s, a) = layout(field, types, active, left, depth + 1)?;
+                size = align(size, a)?
+                    .checked_add(s)
+                    .ok_or_else(|| bad("task frame size overflow"))?;
+                alignment = alignment.max(a);
+            }
+            active.remove(name.as_str());
+            (align(size, alignment)?, alignment)
+        }
         m::Ty::Struct(fields) => {
             spend(left, fields.len())?;
             let (mut size, mut alignment) = (0, 1);
             for field in fields {
-                let (s, a) = layout(field, left, depth + 1)?;
+                let (s, a) = layout(field, types, active, left, depth + 1)?;
                 size = align(size, a)?
                     .checked_add(s)
                     .ok_or_else(|| bad("task frame size overflow"))?;
@@ -110,7 +142,13 @@ fn layout(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<(u64, u32)
 }
 // Embedded child structures make one outer field recursively large. Reserve
 // every actual hash node and rendered byte before Hash/Display visits it.
-fn reserve_field_identity(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<()> {
+fn reserve_field_identity<'a>(
+    t: &'a m::Ty,
+    types: &Definitions<'a>,
+    named: &mut Vec<(&'a str, &'a Vec<m::Ty>)>,
+    left: &mut usize,
+    depth: usize,
+) -> CompileResult<()> {
     spend(left, 8)?;
     if depth > 64 {
         return Err(bad("task field identity exceeds supported depth"));
@@ -119,10 +157,28 @@ fn reserve_field_identity(t: &m::Ty, left: &mut usize, depth: usize) -> CompileR
         m::Ty::Ptr => spend(left, 3),
         m::Ty::Int(1 | 8) => spend(left, 2),
         m::Ty::Int(16 | 32 | 64) => spend(left, 3),
+        m::Ty::Named(name) => {
+            spend(
+                left,
+                name.len()
+                    .saturating_mul(4)
+                    .saturating_add(types.len())
+                    .saturating_add(8),
+            )?;
+            let fields = *types
+                .get(name.as_str())
+                .ok_or_else(|| bad("task field named identity has no actual definition"))?;
+            spend(left, fields.len().saturating_mul(2).saturating_add(4))?;
+            named.push((name, fields));
+            for field in fields {
+                reserve_field_identity(field, types, named, left, depth + 1)?;
+            }
+            Ok(())
+        }
         m::Ty::Struct(fields) => {
             spend(left, fields.len().saturating_mul(2).saturating_add(4))?;
             for field in fields {
-                reserve_field_identity(field, left, depth + 1)?;
+                reserve_field_identity(field, types, named, left, depth + 1)?;
             }
             Ok(())
         }
@@ -130,6 +186,22 @@ fn reserve_field_identity(t: &m::Ty, left: &mut usize, depth: usize) -> CompileR
             "task field identity contains unsupported physical type",
         )),
     }
+}
+fn field_identity(
+    t: &m::Ty,
+    types: &Definitions<'_>,
+    hash: &mut FingerprintBuilder,
+    left: &mut usize,
+) -> CompileResult<()> {
+    let mut named = vec![];
+    reserve_field_identity(t, types, &mut named, left, 0)?;
+    t.hash(hash);
+    for (name, definition) in named {
+        hash.update(b"ZIL-TASK-ACTUAL-NAMED-FIELD\0");
+        name.hash(hash);
+        definition.hash(hash);
+    }
+    Ok(())
 }
 pub(crate) fn derive(
     verified: &VerifiedModule,
@@ -154,7 +226,11 @@ pub(crate) fn derive(
         match item {
             m::Item::NamedType(name, fields) => {
                 spend(left, name.len().saturating_add(types.len()))?;
-                types.insert(name.as_str(), fields);
+                if types.insert(name.as_str(), fields).is_some() {
+                    return Err(bad(
+                        "task machine named type has duplicate actual definitions",
+                    ));
+                }
             }
             m::Item::Function(f) => {
                 spend(left, f.name.len().saturating_add(functions.len()))?;
@@ -178,11 +254,10 @@ pub(crate) fn derive(
             let (mut size, mut alignment) = (0u64, 1u32);
             let mut actual = vec![];
             for (index, t) in fields.iter().enumerate() {
-                let (s, a) = layout(t, left, 0)?;
+                let (s, a) = layout(t, &types, &mut std::collections::BTreeSet::new(), left, 0)?;
                 size = align(size, a)?;
                 spend(left, 16)?;
-                reserve_field_identity(t, left, 0)?;
-                t.hash(&mut hash);
+                field_identity(t, &types, &mut hash, left)?;
                 size.hash(&mut hash);
                 s.hash(&mut hash);
                 a.hash(&mut hash);
@@ -337,4 +412,66 @@ pub(crate) fn bind_codegen(
 
 pub(crate) fn prepay_owned_frame(function: &m::Function, left: &mut usize) -> CompileResult<()> {
     identity::prepay_function(function, left)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn task841_named_frame_layout_resolves_actual_definitions_and_charges_identity() {
+        let top = m::Ty::Named("environment".into());
+        let first = vec![m::Ty::Int(32), m::Ty::Int(1)];
+        let second = vec![m::Ty::Int(1), m::Ty::Int(32)];
+        let run = |fields: &Vec<m::Ty>, steps| {
+            let types = Definitions::from([("environment", fields)]);
+            let mut left = steps;
+            let layout = layout(&top, &types, &mut Default::default(), &mut left, 0)?;
+            let mut hash = FingerprintBuilder::new();
+            field_identity(&top, &types, &mut hash, &mut left)?;
+            Ok::<_, Vec<Diagnostic>>((layout, hash.digest(), steps - left))
+        };
+        let a = run(&first, 10000).unwrap();
+        let b = run(&second, 10000).unwrap();
+        assert_eq!(a.0, (8, 4));
+        assert_eq!(a.0, b.0);
+        assert_ne!(
+            a.1, b.1,
+            "identical names/size cannot hide different actual inline fields"
+        );
+        assert_eq!(run(&first, a.2).unwrap(), a);
+        assert_eq!(
+            run(&first, a.2 - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(run(&first, a.2).unwrap(), a);
+        let empty = Definitions::new();
+        assert!(
+            layout(&top, &empty, &mut Default::default(), &mut 10000, 0).unwrap_err()[0]
+                .message
+                .contains("no actual definition")
+        );
+        assert_eq!(
+            layout(&m::Ty::Ptr, &empty, &mut Default::default(), &mut 10000, 0).unwrap(),
+            (8, 8),
+            "opaque pointers never chase an invented pointee"
+        );
+        let cycle = vec![top.clone()];
+        let types = Definitions::from([("environment", &cycle)]);
+        assert!(
+            layout(&top, &types, &mut Default::default(), &mut 10000, 0).unwrap_err()[0]
+                .message
+                .contains("recursively inline")
+        );
+        let mut deep = m::Ty::Int(32);
+        for _ in 0..65 {
+            deep = m::Ty::Struct(vec![deep]);
+        }
+        let deep = vec![deep];
+        let types = Definitions::from([("environment", &deep)]);
+        assert!(
+            layout(&top, &types, &mut Default::default(), &mut 10000, 0).unwrap_err()[0]
+                .message
+                .contains("depth")
+        );
+    }
 }

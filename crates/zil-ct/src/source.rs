@@ -540,6 +540,7 @@ pub(super) fn hint_type(
             Ok(usable)
         }
         Type::Address { inner, .. }
+        | Type::AsyncRegistration { environment: inner }
         | Type::Registration { environment: inner }
         | Type::OwnedStore { element: inner }
         | Type::Slice { element: inner }

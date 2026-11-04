@@ -298,7 +298,10 @@ struct Budget {
     remaining: usize,
     sums: bool,
     tasks: bool,
+    // Independent paid raw-type inventory; this only enables a proof, not permission.
+    task_origin_roots: bool,
     registrations: bool,
+    async_registrations: bool,
     replacements: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
@@ -324,7 +327,9 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             sums: false,
             tasks: false,
+            task_origin_roots: false,
             registrations: false,
+            async_registrations: false,
             replacements: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
@@ -609,6 +614,7 @@ fn check_module(
     }) {
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
+    registration::storage(module, &mut budget)?;
     closures::check_definitions(module, limits, &mut budget)?;
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
@@ -1009,6 +1015,7 @@ fn check_type_shape(
     let mut anonymous = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         tasks::require_closed_context(ty, None)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
@@ -1059,7 +1066,11 @@ fn check_type_shape(
             Type::Registration {
                 environment: element,
             }
+            | Type::AsyncRegistration {
+                environment: element,
+            }
             | Type::OwnedStore { element } => {
+                budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
                 pending.push((element, depth + 1, context));
             }
             Type::Slice { element } => {
@@ -1109,6 +1120,9 @@ fn check_type_shape(
                         ));
                     }
                 }
+            }
+            Type::Opaque { hidden, .. } => {
+                pending.push((hidden, depth + 1, context));
             }
             Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
@@ -1861,6 +1875,13 @@ fn check_instruction(
         stored_flow::instruction_work(function, instruction, budget)?;
     }
     let expected = match &instruction.kind {
+        InstructionKind::AsyncRegistrationStart { .. }
+        | InstructionKind::AsyncRegistrationValid { .. }
+        | InstructionKind::AsyncRegistrationRequestClose { .. }
+        | InstructionKind::AsyncRegistrationPollClose { .. }
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+            registration::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
             return Err(unsupported(
                 "dyn instruction consumer is not yet implemented",
@@ -2143,6 +2164,9 @@ fn check_instruction(
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
+            } else if matches!(inner,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+            {
+                registration::carrier(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
             {
                 tasks::carrier(module, inner, span, budget)?;
@@ -3222,6 +3246,13 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::AsyncRegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
+        InstructionKind::AsyncRegistrationValid { registration }
+        | InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            ([Some(*registration), None], &[])
+        }
         InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..

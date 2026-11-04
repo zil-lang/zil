@@ -4578,3 +4578,1175 @@ fn terminal_g10_1_7_life_values_keep_default_worker_stack() {
         );
     }
 }
+
+#[test]
+fn public42_unused_roles_and_unauthorized_pollable_candidates_raw_and_wire() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{InstructionKind as I, ScopedCallbackRole as R, Type};
+    let text = r#"
+extern "C" fn register_slot(cb:extern "C" fn(c_handle,i32)->i64,context:c_handle)->c_handle contract{provides(static_callbacks());effects(ffi);};
+extern "C" fn request_slot(token:c_handle) contract{provides(static_callbacks());effects(ffi);};
+extern "C" fn drain_slot(token:c_handle)->i32 contract{provides(static_callbacks());effects(ffi);};
+fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);}}
+"#;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_analyze::analyze(&decoded, &limits).unwrap();
+    zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    // The current stored-nominal profile excludes foreign declaration bodies,
+    // so give its unused actual table an independently successful source root.
+    let nominal_text = "struct Note<T:Copy,life a>{n:i32} fn nominal<life a>(input:&'a i32)->i32{let item:Note<i32,'a>=Note::<i32,'a>{n:*input};return item.n;} fn main()->i32{let callback=(value:i32)->i32=>value+1;let input=1;return callback(nominal(&input));}";
+    for control in [text, nominal_text] {
+        let report = compile_source(&source(control), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    let nominal_unit = source(nominal_text);
+    let nominal_syntax = zil_syntax::parse(&nominal_unit).into_result().unwrap();
+    let nominal_core = zil_expand::expand_with_map_limits_target_context(
+        &nominal_unit,
+        &nominal_syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: nominal_unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let nominal_typed = zil_types::check(&nominal_core, &target, &limits).unwrap();
+    let nominal_plan = zil_analyze::analyze(&nominal_typed, &limits).unwrap();
+    zil_verify::verify_module(
+        nominal_typed.clone(),
+        nominal_plan.clone(),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let function = |name: &str| typed.functions.iter().position(|f| f.name == name).unwrap();
+    let main = function("main");
+    let register = function("register_slot");
+    let request = function("request_slot");
+    let drain = function("drain_slot");
+    let closure = typed.closures[0].id;
+    let payload = Type::AsyncRegistration {
+        environment: Box::new(Type::Closure(closure)),
+    };
+    let callback = typed.functions[main]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind, I::MakeClosure { .. })
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let region = typed.functions[main]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let I::UnsafeEnter { region } = i.kind {
+                Some(region)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    for case in 0..8 {
+        let (mut raw, mut claim) = if case == 5 {
+            (nominal_typed.clone(), nominal_plan.clone())
+        } else {
+            (typed.clone(), plan.clone())
+        };
+        match case {
+            0..=2 => {
+                let (index, role) = [
+                    (register, R::AsyncRegister),
+                    (request, R::AsyncRequestClose),
+                    (drain, R::AsyncPollDrain),
+                ][case];
+                raw.functions[index]
+                    .foreign
+                    .as_mut()
+                    .unwrap()
+                    .scoped_callback = Some(role);
+            }
+            3 => {
+                let f = &mut raw.functions[main];
+                f.locals.push(zil_ir::LocalDecl {
+                    id: zil_ir::LocalId(f.locals.len() as u32),
+                    name: "unused_pollable_head".into(),
+                    ty: Type::Managed(Box::new(payload.clone())),
+                    mutable: false,
+                    span: f.span,
+                });
+            }
+            4 => raw.resources.push(zil_ir::ResourceDefinition {
+                name: "@fixture:unused-pollable-registration".into(),
+                payload: payload.clone(),
+                teardown: None,
+            }),
+            5 => {
+                let actual = raw
+                    .life_instances
+                    .iter_mut()
+                    .flat_map(|instance| &mut instance.arguments)
+                    .find_map(|a| {
+                        if let zil_ir::LifeNominalActual::Type(t) = a {
+                            Some(t)
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("real source retains its phantom type argument");
+                *actual = Type::AsyncRegistration {
+                    environment: Box::new(Type::Closure(raw.closures[0].id)),
+                };
+            }
+            6 | 7 => {
+                // Isolate the operation guard: retain the real callback/provider
+                // IDs but introduce no Async result type that would mask it.
+                // This raw candidate is never claimed as source admission.
+                let i = zil_ir::Instruction {
+                    result: None,
+                    span: raw.functions[main].span,
+                    kind: I::AsyncRegistrationStart {
+                        register: raw.functions[register].id,
+                        request_close: raw.functions[request].id,
+                        poll_drain: raw.functions[drain].id,
+                        callback,
+                        region,
+                    },
+                };
+                if case == 6 {
+                    let b = raw.functions[main]
+                        .blocks
+                        .iter_mut()
+                        .find(|b| {
+                            b.instructions
+                                .iter()
+                                .any(|i| matches!(i.kind, I::UnsafeExit { .. }))
+                        })
+                        .unwrap();
+                    let at = b
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, I::UnsafeExit { .. }))
+                        .unwrap();
+                    b.instructions.insert(at, i);
+                } else {
+                    let f = &mut raw.functions[main];
+                    let id = zil_ir::BlockId(f.blocks.len() as u32);
+                    f.blocks.push(zil_ir::BasicBlock {
+                        id,
+                        instructions: vec![],
+                        terminator: zil_ir::Terminator::Trap,
+                    });
+                    claim.functions[main].blocks.push(zil_ir::BlockPlan {
+                        block: id,
+                        initialized_in: vec![],
+                        initialized_out: vec![],
+                    });
+                    // The extra block itself and its truthful plan must pass
+                    // before adding the unauthorized async opcode into that block.
+                    claim.module_fingerprint = raw.fingerprint();
+                    zil_analyze::analyze(&raw, &limits).unwrap();
+                    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
+                        .unwrap();
+                    raw.functions[main]
+                        .blocks
+                        .last_mut()
+                        .unwrap()
+                        .instructions
+                        .push(i);
+                }
+            }
+            _ => unreachable!(),
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let (decoded, wire_claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for (wire, input, candidate) in [(false, raw, claim), (true, decoded, wire_claim)] {
+            if case <= 2 {
+                // Role declarations carry unsafe promises; unused valid roles
+                // are admitted independently of constructor/owner authority.
+                zil_analyze::analyze(&input, &limits).unwrap();
+                zil_verify::verify_module(input, candidate, &target, &limits).unwrap();
+                continue;
+            }
+            for (kernel, errors) in [
+                (
+                    "Analyze",
+                    zil_analyze::analyze(&input, &limits).unwrap_err(),
+                ),
+                (
+                    "Verify",
+                    zil_verify::verify_module(input, candidate, &target, &limits).unwrap_err(),
+                ),
+            ] {
+                assert!(
+                    errors.iter().all(|d| matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
+                    "case={case} wire={wire} kernel={kernel}: {errors:?}"
+                );
+                eprintln!(
+                    "public42 refusal case={case} wire={wire} kernel={kernel}: {} {}",
+                    errors[0].code, errors[0].message
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn async_registration_g8412_explicit_source_smoke() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/async-registration/explicit.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (raw, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn async_registration841_task_queued_cancel_native() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-async841-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("host.o");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let early_async = include_str!(
+                "../../../tests/language-readiness/async-registration/queued-export.zil"
+            )
+            .replace(
+                "task_yield();",
+                "task_yield();async_registration_finish_destroy(give owner);",
+            );
+            let child_sources: Vec<_> = [
+                include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil"),
+                include_str!("../../../tests/language-readiness/async-registration/queued-return.zil"),
+                include_str!("../../../tests/language-readiness/async-registration/queued-result.zil"),
+            ].into_iter().enumerate().map(|(index, source)| {
+                let wrapper = if index == 2 {
+                    "fn worker(seed:i32)->Answer contract{result(create);} {let answer=task_await(child,seed);return give answer}\n"
+                } else {
+                    "fn worker(seed:i32)->i32 {return task_await(child,seed)}\n"
+                };
+                source.replace("fn worker(seed:i32)", "fn child(seed:i32)").replace("fn drive(", &format!("{wrapper}fn drive("))
+            }).collect();
+            for (mode, text) in [
+                ("child_cancel", child_sources[0].as_str()),
+                ("child_return", child_sources[1].as_str()),
+                ("child_result", child_sources[2].as_str()),
+                (
+                    "cancel",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-cancel.zil"
+                    ),
+                ),
+                (
+                    "return",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-return.zil"
+                    ),
+                ),
+                (
+                    "result",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-result.zil"
+                    ),
+                ),
+                (
+                    "export",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-export.zil"
+                    ),
+                ),
+                ("early_async", early_async.as_str()),
+            ] {
+                let c = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                        if mode == "export" || mode == "early_async" {
+                            "../../tests/language-readiness/async-registration/queued-export-host.c"
+                        } else {
+                            "../../tests/language-readiness/async-registration/queued-host.c"
+                        },
+                    ))
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(c.status.success(), "{c:?}");
+                let report = zil_driver::compile_project(
+                    &zil_driver::ProjectSources {
+                        root: ModuleId(0),
+                        modules: vec![source(text)],
+                        paths: Default::default(),
+                    },
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper.clone()),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        emit_dir: Some(dir.join("artifacts")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let runs: Vec<Option<(&str, &str)>> = if mode == "export" {
+                    vec![
+                        None,
+                        Some(("ZIL_ASYNC_EXPORT_RETURN", "1")),
+                        Some(("ZIL_ASYNC_ALLOC_FAIL", "1")),
+                        Some(("ZIL_ASYNC_ALLOC_FAIL", "2")),
+                        Some(("ZIL_ASYNC_INSTALL_FAIL", "1")),
+                        Some(("ZIL_ASYNC_INVALID_DRAIN", "1")),
+                        Some(("ZIL_ASYNC_EARLY_TASK_FINISH", "1")),
+                    ]
+                } else {
+                    vec![None]
+                };
+                for failure in runs {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if ["return", "result", "child_return", "child_result"].contains(&mode) {
+                        command.env("ZIL_ASYNC_NORMAL", "1");
+                    }
+                    if mode == "result" || mode == "child_result" {
+                        command.env("ZIL_ASYNC_RESULT", "1");
+                    }
+                    if let Some((key, value)) = failure {
+                        command.env(key, value);
+                    }
+                    let traps = mode == "early_async"
+                        || failure.is_some_and(|(key, _)| {
+                            key == "ZIL_ASYNC_INVALID_DRAIN" || key == "ZIL_ASYNC_EARLY_TASK_FINISH"
+                        });
+                    if mode == "early_async" {
+                        command.env("ZIL_ASYNC_EARLY_ASYNC_FINISH", "1");
+                    }
+                    if traps {
+                        command.env("ZIL_ASYNC_TRACE", "1");
+                    }
+                    let actual = command.output().unwrap();
+                    if traps {
+                        assert_eq!(
+                            actual.status.code(),
+                            None,
+                            "{backend:?} {optimization:?} mode={mode} failure={failure:?}: {actual:?}"
+                        );
+                        assert!(
+                            !actual.stdout.contains(&b'F') && !actual.stdout.contains(&b'D'),
+                            "no free or environment Drop before Closed: {actual:?}"
+                        );
+                        assert!(
+                            String::from_utf8_lossy(&actual.stdout).contains("live=2 drops=0"),
+                            "{actual:?}"
+                        );
+                    } else {
+                        assert_eq!(
+                            actual.status.code(),
+                            Some(0),
+                            "{backend:?} {optimization:?} mode={mode} failure={failure:?}: {actual:?}"
+                        );
+                        let expected = match failure {
+                            Some(("ZIL_ASYNC_ALLOC_FAIL", "1")) => {
+                                "task allocation failure; no installed source\n"
+                            }
+                            Some(("ZIL_ASYNC_ALLOC_FAIL", "2"))
+                            | Some(("ZIL_ASYNC_INSTALL_FAIL", _)) => {
+                                "registration failure; owned environment dropped exactly once\n"
+                            }
+                            _ => "queued late entry rejected; no-future before two frees\n",
+                        };
+                        assert_eq!(actual.stdout, expected.as_bytes(), "{actual:?}");
+                    }
+                }
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn async_registration_g8412_source_neighbors_and_unused_definitions() {
+    let original =
+        include_str!("../../../tests/language-readiness/async-registration/explicit.zil");
+    let cases=[
+        original.replace("c_register_async(async_register,async_request,async_drain,callback)","c_register_async(async_register,async_drain,async_request,callback)"),
+        original.replace("let callback=move", "let callback="),
+        original.replace("var count=37;", "unsafe {async_drain(c_null());} var count=37;"),
+        original.replace("unsafe {", "{"),
+        original.replace("async_registration_finish_destroy(give owner);", ""),
+        original.replace("async_registration_finish_destroy(give owner);", "let pair=(give owner,1);"),
+        original.replace("async_registration_finish_destroy(give owner);", "let cleanup=move()->i32=>{async_registration_finish_destroy(give owner);return 0};"),
+        original.replace("async_registration_finish_destroy(give owner);", "registration_close(give owner);"),
+        original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(owner);"),
+        original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(give owner);async_registration_finish_destroy(give owner);"),
+        original.replace("async_registration_request_close(&mut owner)","async_registration_request_close(owner)"),
+        original.replace("var owner=", "let owner="),
+        original.replace("var count=37;", "let c_register_async=1;var count=37;"),
+        format!("{}fn main(){{}}",original.split("fn main").next().unwrap().replace("async_drain(token:c_handle)->i32","async_drain(token:c_handle)->bool")),
+        format!("{}fn main(){{}}",original.split("fn main").next().unwrap().replace("static_callbacks(),async_callback_poll_drain()","async_callback_poll_drain()")),
+    ];
+    for (index, text) in cases.iter().enumerate() {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "neighbor {index}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "neighbor {index}: {}",
+            report.to_json()
+        );
+        eprintln!(
+            "async_registration_g8412 neighbor {index}: {:?}",
+            report.status
+        );
+    }
+    for text in [
+        original.replace(
+            "c_register_async(async_register,async_request,async_drain,callback)",
+            "#(c_register_async(async_register,async_request,async_drain,callback))",
+        ),
+        original.replace("fn main()", "fn create_and_close()")
+            + "fn main()->i32=>#(create_and_close())",
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, zil_base::Phase::Ct, "{}", report.to_json());
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/async-registration/legacy-sync-direct.zil"),
+        include_str!(
+            "../../../tests/language-readiness/async-registration/legacy-sync-factory.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    let declarations = original.split("fn main").next().unwrap();
+    let generic = format!(
+        "{declarations}fn install<F:FnMut(i32)->i32 + ClosedEnvironment>(f:F)->AsyncRegistration<F> contract{{result(create);}} {{unsafe{{return c_register_async(async_register,async_request,async_drain,f)}}}}\nfn main()->i32 {{var count=37;let callback=move(value:i32)->i32=>{{count+=1;return value+count}};var owner=install(callback);async_registration_request_close(&mut owner);async_registration_poll_close(&mut owner);async_registration_finish_destroy(give owner);return 0}}"
+    );
+    let early = original
+        .replace("async_registration_request_close(&mut owner);", "")
+        .replace("async_registration_poll_close(&mut owner);", "");
+    assert_eq!(
+        compile_source(&source(&early), &CompileOptions::default()).status,
+        ResultCategory::Success,
+        "explicit early finish is guarded by runtime CLOSED, not an invented static Poll refinement"
+    );
+    let report = compile_source(&source(&generic), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let unused = generic.split("fn main").next().unwrap().to_owned() + "fn main(){}";
+    assert_eq!(
+        compile_source(&source(&unused), &CompileOptions::default()).status,
+        ResultCategory::Success
+    );
+    for text in [
+        unused.replace(" + ClosedEnvironment", ""),
+        unused.replace("FnMut(i32)", "FnOnce(i32)"),
+        unused.replace(
+            "async_register,async_request,async_drain,f",
+            "async_register,async_drain,async_request,f",
+        ),
+        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
+        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Share"),
+    ] {
+        assert_ne!(
+            compile_source(&source(&text), &CompileOptions::default()).status,
+            ResultCategory::Success
+        );
+    }
+}
+
+#[test]
+fn async_registration_g8412_raw_wire_and_exact_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let src = source(include_str!(
+        "../../../tests/language-readiness/async-registration/explicit.zil"
+    ));
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    for variant in 0..15 {
+        let mut raw = typed.clone();
+        match variant {
+            0 => {
+                let i = raw.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                if let I::AsyncRegistrationStart {
+                    request_close,
+                    poll_drain,
+                    ..
+                } = &mut i.kind
+                {
+                    std::mem::swap(request_close, poll_drain);
+                }
+            }
+            1 => {
+                let drain = raw
+                    .functions
+                    .iter_mut()
+                    .find(|f| f.name == "async_drain")
+                    .unwrap();
+                drain.return_type = Type::Unit;
+            }
+            2 => {
+                let resource = raw
+                    .resources
+                    .iter_mut()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap();
+                resource.name = "@builtin:Registration:0".into();
+            }
+            3 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationPollClose { .. }))
+                    .unwrap();
+                let v = i.result.unwrap();
+                let Type::Enum { name, .. } = &mut f.values[v.0 as usize] else {
+                    panic!()
+                };
+                *name = "@user:Poll".into();
+            }
+            4 => {
+                raw.closures[0].kind = zil_ir::CallableKind::FnOnce;
+            }
+            5 => {
+                let capture = &mut raw.closures[0].captures[0];
+                *capture = Type::Address {
+                    mutable: false,
+                    inner: Box::new(capture.clone()),
+                };
+            }
+            6 => {
+                let owner = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.functions[main].values.push(Type::Package {
+                    name: "@user:pollable-package".into(),
+                    fields: vec![("owner".into(), Type::Managed(Box::new(owner)))],
+                });
+            }
+            7 => {
+                let owner = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.functions[main].values.push(Type::OwnedStore {
+                    element: Box::new(Type::Managed(Box::new(owner))),
+                });
+            }
+            8 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                if let I::AsyncRegistrationStart { region, .. } = &mut i.kind {
+                    *region += 1;
+                }
+            }
+            9 => {
+                let f = &mut raw.functions[main];
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
+                    .unwrap();
+                i.result = None;
+            }
+            10..=12 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                let owner = Type::Managed(Box::new(payload));
+                let aggregate = match variant {
+                    10 => Type::Tuple(vec![owner, Type::I32]),
+                    11 => Type::Enum {
+                        name: "@user:pollable-enum".into(),
+                        variants: vec![("Owner".into(), vec![owner])],
+                    },
+                    _ => Type::ErrorUnion {
+                        error: Box::new(Type::I32),
+                        result: Box::new(owner),
+                    },
+                };
+                raw.functions[main].values.push(aggregate);
+            }
+            13 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.closures[0].captures[0] = Type::Managed(Box::new(payload));
+            }
+            14 => {
+                raw.closures[0].captures[0] = Type::Managed(Box::new(Type::TaskI32));
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            if (6..=7).contains(&variant) {
+                ResultCategory::Unsupported
+            } else {
+                ResultCategory::SafeReject
+            },
+            "Analyze raw {variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (input, claim) = if decoded {
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                if variant == 13 {
+                    ResultCategory::Unsupported
+                } else {
+                    ResultCategory::SafeReject
+                },
+                "Verify raw {variant} wire={decoded}: {errors:?}"
+            );
+        }
+    }
+    // A parent's exclusive address cannot be used while its actual child
+    // reborrow is live. The same operations through the child remain valid.
+    for poll in [false, true] {
+        for parent_access in [false, true] {
+            let mut raw = typed.clone();
+            let f = &mut raw.functions[main];
+            let child = zil_ir::ValueId(f.values.len() as u32);
+            let (block, position) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| {
+                            if poll {
+                                matches!(i.kind, I::AsyncRegistrationPollClose { .. })
+                            } else {
+                                matches!(i.kind, I::AsyncRegistrationRequestClose { .. })
+                            }
+                        })
+                        .map(|i| (b, i))
+                })
+                .unwrap();
+            let mut operation = f.blocks[block].instructions[position].clone();
+            let address = match operation.kind {
+                I::AsyncRegistrationRequestClose { registration }
+                | I::AsyncRegistrationPollClose { registration } => registration,
+                _ => unreachable!(),
+            };
+            f.values.push(f.values[address.0 as usize].clone());
+            if let Some(result) = operation.result.filter(|_| parent_access) {
+                let result_ty = f.values[result.0 as usize].clone();
+                operation.result = Some(zil_ir::ValueId(f.values.len() as u32));
+                f.values.push(result_ty);
+            }
+            match &mut operation.kind {
+                I::AsyncRegistrationRequestClose { registration }
+                | I::AsyncRegistrationPollClose { registration } => *registration = child,
+                _ => unreachable!(),
+            }
+            let span = operation.span;
+            f.blocks[block].instructions.insert(
+                position,
+                zil_ir::Instruction {
+                    result: Some(child),
+                    kind: I::ReborrowAddress {
+                        address,
+                        mutable: true,
+                    },
+                    span,
+                },
+            );
+            if parent_access {
+                f.blocks[block].instructions.insert(position + 2, operation);
+            } else {
+                f.blocks[block].instructions[position + 1] = operation;
+            }
+            let result = zil_analyze::analyze(&raw, &limits);
+            if parent_access {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|d| d.message.contains("live child")),
+                    "Analyze poll={poll}: {errors:?}"
+                );
+            } else {
+                result.unwrap();
+            }
+            let mut valid = raw.clone();
+            if parent_access {
+                match &mut valid.functions[main].blocks[block].instructions[position + 1].kind {
+                    I::AsyncRegistrationRequestClose { registration }
+                    | I::AsyncRegistrationPollClose { registration } => *registration = child,
+                    _ => unreachable!(),
+                }
+            }
+            let mut claim = zil_analyze::analyze(&valid, &limits).unwrap();
+            claim.module_fingerprint = raw.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+            for wire in [false, true] {
+                let (input, claim) = if wire {
+                    zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+                } else {
+                    (raw.clone(), claim.clone())
+                };
+                let result = zil_verify::verify_module(input, claim, &target, &limits);
+                if parent_access {
+                    let errors = result.unwrap_err();
+                    assert!(
+                        errors
+                            .iter()
+                            .any(|d| d.category == ResultCategory::SafeReject),
+                        "Verify poll={poll} wire={wire}: {errors:?}"
+                    );
+                } else {
+                    result.unwrap();
+                }
+            }
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let selected = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &selected)
+                    .map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &selected).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if accepts(middle).is_ok() {
+                high = middle
+            } else {
+                low = middle + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("async_registration_g8412 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wire() {
+    use zil_ir::{
+        BasicBlock, BlockId, Constant, Instruction, InstructionKind as I, Terminator, Type, ValueId,
+    };
+    let text =
+        include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
+    let prefix = text.split("fn drive(").next().unwrap();
+    let text = format!(
+        "{prefix}\nfn sync(seed:i32)->i32 {{task_yield();return seed}}\nfn hidden()->i32 {{var task=task_start(sync,37);return 0}}\nfn main()->i32 {{var task=task_start(sync,37);return 0}}\n"
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let pollable = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap()
+        .id;
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let hidden = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "hidden")
+        .unwrap();
+    for variant in 0..3 {
+        let mut raw = typed.clone();
+        let mut claim = plan.clone();
+        let index = if variant == 1 { hidden } else { main };
+        if variant == 2 {
+            let f = &mut raw.functions[index];
+            let block = BlockId(f.blocks.len() as u32);
+            let argument = ValueId(f.values.len() as u32);
+            f.values.push(Type::I32);
+            let output = ValueId(f.values.len() as u32);
+            f.values.push(Type::Managed(Box::new(Type::TaskI32)));
+            let sync = typed
+                .functions
+                .iter()
+                .find(|f| f.name == "sync")
+                .unwrap()
+                .id;
+            f.blocks.push(BasicBlock {
+                id: block,
+                instructions: vec![
+                    Instruction {
+                        result: Some(argument),
+                        kind: I::Constant(Constant::I32(37)),
+                        span: f.span,
+                    },
+                    Instruction {
+                        result: Some(output),
+                        kind: I::TaskStart {
+                            worker: sync,
+                            argument,
+                        },
+                        span: f.span,
+                    },
+                ],
+                terminator: Terminator::Trap,
+            });
+            claim = zil_analyze::analyze(&raw, &limits).unwrap();
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+            let i = raw.functions[index]
+                .blocks
+                .last_mut()
+                .unwrap()
+                .instructions
+                .last_mut()
+                .unwrap();
+            let I::TaskStart { worker, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            *worker = pollable;
+        } else {
+            for i in raw.functions[index]
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+            {
+                if let I::TaskStart { worker, .. } = &mut i.kind {
+                    *worker = pollable;
+                }
+            }
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (module, candidate) = if decoded {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            for (kernel, errors) in [
+                (
+                    "Analyze",
+                    zil_analyze::analyze(&module, &limits).unwrap_err(),
+                ),
+                (
+                    "Verify",
+                    zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err(),
+                ),
+            ] {
+                assert_eq!(
+                    errors[0].category,
+                    ResultCategory::SafeReject,
+                    "variant={variant} decoded={decoded} {kernel}: {errors:?}"
+                );
+                assert!(
+                    errors[0].message.contains("pollable Task"),
+                    "variant={variant} decoded={decoded} {kernel}: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin() {
+    let queued =
+        include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
+    let prefix = queued.split("fn drive(").next().unwrap();
+    for (case, tail) in [
+        ("direct", "return 0"),
+        ("tuple", "let pair=(give task,0);return 0"),
+        (
+            "closure",
+            "let callback=move ()=>{task_finish_destroy(give task);return true};return 0",
+        ),
+        (
+            "once",
+            "let callback=move ()=>{task_finish_destroy(give task);return true};invoke(callback);return 0",
+        ),
+        (
+            "package",
+            "let pair=Pair{task:give task,mark:Mark{code:1}};return 0",
+        ),
+    ] {
+        let package = if case == "package" {
+            "package Pair{task:Task<i32>;manages mark:Mark}"
+        } else {
+            ""
+        };
+        let text = format!(
+            "{prefix}{package}fn invoke<F:FnOnce()->bool>(f:F)->bool{{return f()}}fn main()->std.task.TaskCreateError!i32{{var task=task_create(worker,37)?;task_poll(&mut task);{tail}}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        if ["package", "closure", "once"].contains(&case) {
+            assert_eq!(
+                report.status,
+                ResultCategory::Unsupported,
+                "{case}: {}",
+                report.to_json()
+            );
+            let expected = if case == "package" {
+                "aggregate field requires"
+            } else {
+                "closure value requires a finite Copy type"
+            };
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains(expected)),
+                "{}",
+                report.to_json()
+            );
+            continue;
+        }
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{case}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("Task automatic Drop")),
+            "{case}: {}",
+            report.to_json()
+        );
+        let sync = text.replace("task_create(worker,37)", "task_create(sync,37)")
+            + "fn sync(seed:i32)->i32{task_yield();return seed}";
+        let report = compile_source(&source(&sync), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "sync {case}: {}",
+            report.to_json()
+        );
+        let limits = Limits::default();
+        let target = zil_base::TargetProfile::default();
+        let input = source(&sync);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+        let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let pollable = raw
+            .functions
+            .iter()
+            .find(|f| f.name == "worker")
+            .unwrap()
+            .id;
+        let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        for instruction in main.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let zil_ir::InstructionKind::TaskCreate { worker, .. } = &mut instruction.kind {
+                *worker = pollable;
+            }
+        }
+        plan.module_fingerprint = raw.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        for decoded in [false, true] {
+            let (raw, plan) = if decoded {
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (raw.clone(), plan.clone())
+            };
+            for (kernel, errors) in [
+                ("Analyze", zil_analyze::analyze(&raw, &limits).unwrap_err()),
+                (
+                    "Verify",
+                    zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err(),
+                ),
+            ] {
+                assert_eq!(
+                    errors[0].category,
+                    ResultCategory::SafeReject,
+                    "{case} {kernel} wire={decoded}: {errors:?}"
+                );
+                assert!(
+                    errors[0].message.contains("pollable Task automatic Drop"),
+                    "{case} {kernel} wire={decoded}: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
+    let text = "fn unused(give task:Task<i32>){}fn main(){}";
+    let input = source(text);
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors[0]
+            .message
+            .contains("Task automatic Drop has no complete synchronous worker origin"),
+        "{errors:?}"
+    );
+    // Nearest source control explicitly transfers responsibility to finish;
+    // its runtime CLOSED guard is the existing Task contract.
+    let control = text.replace(
+        "Task<i32>){}",
+        "Task<i32>){task_finish_destroy(give task);}",
+    );
+    let input = source(&control);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let control = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&control, &limits).unwrap();
+    zil_verify::verify_module(control, plan, &target, &limits).unwrap();
+}

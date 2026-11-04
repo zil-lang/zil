@@ -1,0 +1,57 @@
+{
+  "status": "PassLimitedMixedCT4NominalSourceWithCorrectedDomainPrepayment",
+  "source": "e50317ad5602dce79d57b8dafec22831fb3989e8",
+  "producer": "c4c4b44f152df4be15cae1707f7a83344d53b3d6",
+  "historical_source": "ad70efc689b77d1468def523169a2d35d276e14f",
+  "correction": "e503 is the main-tree copy of 9ca8164a52787b08f1613640cb9d48e88943ef3d; prepay complete const formal domain before normalize inspects it. Separate later Core type construction reservation remains.",
+  "method": "Exact Git source audit, independently recomputed source manifest and copied author-built aggregate executable replay. Not an independent compiler rebuild.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4mixed-e503-source-binding.json",
+    "sha256": "02b87d3f7d127dce3b676f54c2424b3ec778a48dc0954306cafbfde32f6274b0"
+  },
+  "source_manifest_count": 403,
+  "source_manifest_sha256": "e52b4dc1fa8b808f8349cf484edec69a2ed72dba8b12cbab9b1c6dd7032a2dce",
+  "harness_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4mixed-e503-harness-binding.json",
+    "sha256": "f20ab08b72e875a17a026f5f945339d5ef97d49cfb4d39773d25cc66958ec564"
+  },
+  "replay": {
+    "selector": "ct4_",
+    "result": "5 passed, 0 failed, 143 filtered",
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4mixed-e503-aggregates.log",
+      "sha256": "294d88a29a7acb2469810e6f55d63e68d5b92ebd972118cf50ba745fa075d2a4"
+    },
+    "native": "Four retained actual source programs, Clang and LLVM API at O0/O2: 16 successful native profiles. Default worker subprocess and nearest invalid source controls included."
+  },
+  "work_boundaries": {
+    "unchanged_sources": [
+      22057,
+      29218
+    ],
+    "mixed_full_actual_source": 26295,
+    "controls": "N-1 ResourceLimit, warm and fresh N success; no quota change",
+    "historical_mixed": 26283
+  },
+  "review": [
+    "Life/Type/Const parameters retain their original full positions when nominal applications are normalized; source const scalar values use the existing checked domain and target-width normalization.",
+    "Actual mixed phantom source retains lifetime and const arguments jointly. The nearest const 7 versus 8 comparison rejects instead of conflating nominal applications.",
+    "The formal-domain walk is now reserved before const argument interpretation and normalization; output Core type construction keeps a separate reservation.",
+    "Scoped nominal source authority remains authenticated through the frozen declaration and exact original parameter ordinals. No phantom semantic class is converted into a physical target or escape permission."
+  ],
+  "historical_evidence": {
+    "source_binding": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4mixed-ad70-source-binding.json",
+      "sha256": "0dfcc5a364d135cdcd8768e4a3e43fb9658249cb2ac5eaedffee2f5f45a78f66"
+    },
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/ct4mixed-ad70-aggregates.log",
+      "sha256": "061829215195a4918f38db99578672cc578220f398be8f4097344a399fc2ecdb"
+    },
+    "scope": "ad70 independently passed the same five controls and 16 native profiles, but had an identified domain traversal prepayment gap. Its old N is not attributed to the correction."
+  },
+  "limits": [
+    "Limited CT4 source composition only. CT5 ambient/context authority, rich BFP source bridges, owned CT values and general physical storage remain separate work.",
+    "The additional deep grouped-domain library control is forthcoming from the author; this review closes the concrete call-site ordering correction by source audit plus existing source budget replays, not a claim that that extra test already ran."
+  ]
+}
