@@ -1375,7 +1375,7 @@ fn check_callback_return(
 ) -> Check<()> {
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
-        budget.spend(super::signature_life::work(life))?;
+        crate::signature_life::charge(life, budget)?;
         borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
@@ -1390,7 +1390,9 @@ fn check_callback_return(
     {
         if *live && let Terminator::Return(Some(v)) = block.terminator {
             let origins = &facts[d.function.0 as usize].values[v.0 as usize];
-            budget.spend(origins.len())?;
+            budget.spend(origins.len().saturating_mul(
+                life.map_or(1, |c| c.bindings.len().saturating_mul(2).saturating_add(1)),
+            ))?;
             let mutable = matches!(d.result, Type::Address { mutable: true, .. });
             if origins.is_empty()
                 || origins.iter().any(|root| {

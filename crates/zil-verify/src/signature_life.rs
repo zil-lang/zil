@@ -1,24 +1,24 @@
 //! Independent canonical semantic-class checking. Rows do not supply roots.
 use super::*;
 
-pub(super) fn work(c: &StorageLifeContract) -> usize {
-    let mut n = (c.fixed_binder_count as usize)
-        .saturating_add(c.invocation_binder_count as usize)
-        .saturating_add(2)
-        .saturating_add(
-            c.bindings
-                .len()
-                .saturating_add(c.classes.len())
-                .saturating_mul(c.bindings.len().saturating_add(c.classes.len())),
-        );
+pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
+    let n = c.bindings.len().saturating_add(c.classes.len());
+    b.spend(
+        n.saturating_mul(n)
+            .saturating_add(n.saturating_mul(2))
+            .saturating_add(2)
+            .saturating_add(c.fixed_binder_count as usize)
+            .saturating_add(c.invocation_binder_count as usize),
+    )?;
     for r in &c.bindings {
-        n = n.saturating_add(r.position.path.len()).saturating_add(2);
+        b.spend(r.position.path.len())?;
     }
     for r in &c.classes {
-        n = n.saturating_add(r.position.path.len()).saturating_add(2);
+        b.spend(r.position.path.len())?;
     }
-    n
+    Ok(())
 }
+
 pub(super) fn outer(c: &StorageLifeContract, base: StorageBase) -> Option<StorageBinder> {
     c.bindings
         .iter()

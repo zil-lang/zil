@@ -584,10 +584,8 @@ fn binding(
             b,
             slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if slot.path == path {
-            if local.replace(slot.binder).is_some() {
-                return Err(failure("duplicate actual stored leaf"));
-            }
+        if slot.path == path && local.replace(slot.binder).is_some() {
+            return Err(failure("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
@@ -629,7 +627,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
         }
         return Ok(());
     };
-    fee(b, super::signature_life::work(c))?;
+    super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(failure(
@@ -2412,6 +2410,34 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn rich_pointer_proves_target_implication_and_actual_outer_to_class_equations() {
+        super::super::analyze(
+            &fixture::rich_marker_pointer(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(true, false),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{bad:?}"
+        );
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(false, true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("entail actual target")),
+            "{bad:?}"
+        );
     }
     #[test]
     fn a_fresh_phantom_class_is_instantiated_once_and_retained_between_actual_calls() {

@@ -216,7 +216,7 @@ impl Budget {
                 parameters,
                 result,
             } => {
-                self.spend(super::borrowed_fp::work(life), context)?;
+                crate::signature_life::charge(life, self)?;
                 for parameter in parameters {
                     self.type_work(parameter, copy_check, context)?;
                 }
@@ -864,10 +864,7 @@ pub(super) fn preflight(
                     life,
                 } => {
                     budget.borrowed_function_pointers = true;
-                    budget.input(
-                        super::borrowed_fp::work(life),
-                        "borrowed function pointer relation",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
                     // Bound the complete raw signature before recursive eligibility.
                     for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
                         super::stored_flow::shape_work(ty, limits, budget)?;
@@ -1154,10 +1151,7 @@ pub(super) fn preflight(
             )?;
             for role in &contract.roles {
                 if let Some(life) = &role.life {
-                    budget.input(
-                        crate::borrowed_fp::work(life),
-                        "higher-rank callable metadata",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
                     budget.borrowed_function_pointers = true;
                     budget.invocation_callbacks = true;
                 }

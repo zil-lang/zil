@@ -2,9 +2,6 @@
 //! roots are checked only after the whole-module provenance fixed point.
 use super::*;
 
-pub(super) fn work(life: &StorageLifeContract) -> usize {
-    super::signature_life::work(life)
-}
 pub(super) fn relation(
     parameters: &[Type],
     result: &Type,
@@ -21,7 +18,7 @@ pub(super) fn allowed(ty: &Type, budget: &mut Budget) -> CompileResult<Vec<usize
     else {
         return Ok(Vec::new());
     };
-    budget.spend(work(life), "borrowed pointer input substitution")?;
+    crate::signature_life::charge(life, budget)?;
     let mutable = matches!(result.as_ref(), Type::Address { mutable: true, .. });
     budget.spend(
         parameters
@@ -194,7 +191,7 @@ fn callback_returns(
     )?;
     signature_work(&closure.parameters, &closure.result, budget)?;
     if let Some(life) = life {
-        budget.spend(work(life), "callback declared invocation relation")?;
+        crate::signature_life::charge(life, budget)?;
         relation(&closure.parameters, &closure.result, life)?;
     }
     if !matches!(closure.result, Type::Address { .. }) {

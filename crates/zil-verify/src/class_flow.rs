@@ -84,7 +84,6 @@ impl Equations {
                 .len()
                 .saturating_add(z.classes.len())
                 .saturating_add(1),
-            "class port propagation",
         )?;
         if a.classes.len() != z.classes.len() {
             return Err(bad("class port arity differs from actual value"));
@@ -116,10 +115,7 @@ fn variables(
     rigid: bool,
     b: &mut Budget,
 ) -> Check<(Vec<usize>, Vec<usize>)> {
-    b.spend(
-        super::signature_life::work(c),
-        "class invocation variable domain",
-    )?;
+    crate::signature_life::charge(c, b)?;
     let mut fixed = Vec::new();
     let mut invocation = Vec::new();
     for _ in 0..c.fixed_binder_count {
@@ -147,10 +143,7 @@ fn bind(
     e: &mut Equations,
     b: &mut Budget,
 ) -> Check<()> {
-    b.spend(
-        super::signature_life::work(c),
-        "actual class position substitution",
-    )?;
+    crate::signature_life::charge(c, b)?;
     for row in &c.bindings {
         if row.position.base == base {
             if !row.position.path.is_empty() {
@@ -220,10 +213,7 @@ pub(super) fn check(
         rigid: Vec::new(),
         next_rigid: 0,
     };
-    b.spend(
-        f.values.len().saturating_add(f.locals.len()),
-        "function class fact allocation",
-    )?;
+    b.spend(f.values.len().saturating_add(f.locals.len()))?;
     let mut values = Vec::new();
     for ty in &f.values {
         values.push(e.ports(ty, b)?);
@@ -265,10 +255,7 @@ pub(super) fn check(
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {
                         let stored = &locals[local.0 as usize];
-                        b.spend(
-                            out.classes.len().saturating_add(stored.classes.len()),
-                            "borrowed carrier classes",
-                        )?;
+                        b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
                         if out.classes.len() != stored.classes.len() {
                             return Err(bad("borrowed actual class arity differs"));
                         }
@@ -299,7 +286,6 @@ pub(super) fn check(
                             .slots
                             .len()
                             .saturating_mul(path.len().saturating_add(1)),
-                        "stored class slot selection",
                     )?;
                     let leaf = actual
                         .slots
@@ -319,10 +305,7 @@ pub(super) fn check(
                         && let Some(actual) = shape(&f.values[id.0 as usize])
                     {
                         for slot in &actual.slots {
-                            b.spend(
-                                slot.path.len().saturating_add(1),
-                                "aggregate physical class operand",
-                            )?;
+                            b.spend(slot.path.len().saturating_add(1))?;
                             let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
                                 return Err(bad(
                                     "nested constructor class requires its physical operand consumer",
@@ -435,10 +418,7 @@ pub(super) fn pointer_types(
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| bad("pointer target is absent"))?;
-            b.spend(
-                target.parameters.len().saturating_add(1),
-                "rich pointer target signature",
-            )?;
+            b.spend(target.parameters.len().saturating_add(1))?;
             super::borrowed_fp::signature_work(parameters, result, b)?;
             if target.foreign.is_some()
                 || target.environment.is_some()
@@ -454,11 +434,8 @@ pub(super) fn pointer_types(
                 }
             }
             if let Some(required) = &target.storage_life {
-                b.spend(
-                    super::signature_life::work(required)
-                        .saturating_add(super::signature_life::work(life)),
-                    "actual target class implication",
-                )?;
+                super::signature_life::charge(required, b)?;
+                super::signature_life::charge(life, b)?;
                 if !super::signature_life::entails(required, life) {
                     return Err(bad(
                         "pointer relation does not entail actual target class requirements",
