@@ -9,6 +9,7 @@ pub(crate) struct Budget<'a> {
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
+    anonymous_sums: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -19,6 +20,7 @@ impl<'a> Budget<'a> {
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
+            anonymous_sums: false,
         }
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
@@ -49,6 +51,9 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(crate) fn has_anonymous_sums(&self) -> bool {
+        self.anonymous_sums
+    }
     pub(crate) fn has_primitive_binders(&self) -> bool {
         self.primitive_binders
     }
@@ -72,6 +77,16 @@ impl<'a> Budget<'a> {
             Diagnostic::limit(
                 Phase::Expand,
                 "floating literal conversion work exhausted",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
+    pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "structural type identity work exhausted",
                 Some(span),
             )
         })?;
@@ -180,7 +195,13 @@ impl<'a> Budget<'a> {
                 self.text(lifetime, ty.span)?;
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?;
             }
-            TypeKind::Tuple(types) | TypeKind::Union(types) | TypeKind::Impl(types) => {
+            TypeKind::Union(types) => {
+                self.anonymous_sums = true;
+                for ty in types {
+                    self.ty_context(ty, depth + 1, substitutions, slice_element)?;
+                }
+            }
+            TypeKind::Tuple(types) | TypeKind::Impl(types) => {
                 for ty in types {
                     self.ty_context(ty, depth + 1, substitutions, slice_element)?;
                 }

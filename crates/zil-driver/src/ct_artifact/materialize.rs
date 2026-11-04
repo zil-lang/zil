@@ -535,6 +535,12 @@ impl Materializer<'_, '_> {
                 }
                 s::TypeKind::Named { path, args }
             }
+            CtTypeNode::AnonymousSum(parts) => s::TypeKind::Union(
+                parts
+                    .iter()
+                    .map(|id| self.owner_node(ty, *id, caller, span, depth + 1))
+                    .collect::<CompileResult<Vec<_>>>()?,
+            ),
             CtTypeNode::Tuple(parts) => s::TypeKind::Tuple(
                 parts
                     .iter()
