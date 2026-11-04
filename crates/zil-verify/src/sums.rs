@@ -1317,10 +1317,10 @@ impl Flow<'_> {
                     }
                 }
             }
-            if let Some(context) = self.replacements {
-                if let Some(value) = context.step(self, state, instruction, validate, budget)? {
-                    result = Some(value);
-                }
+            if let Some(context) = self.replacements
+                && let Some(value) = context.step(self, state, instruction, validate, budget)?
+            {
+                result = Some(value);
             }
             match &instruction.kind {
                 InstructionKind::BorrowLocalMut { local }
@@ -1782,13 +1782,18 @@ fn run(
     validate: bool,
     budget: &mut Budget,
 ) -> Check<(Content, Vec<Vec<Bridge>>)> {
-    run_with_replacements(module,f,graph,summaries,validate,budget,None)
+    run_with_replacements(module, f, graph, summaries, validate, budget, None)
 }
 #[allow(clippy::too_many_arguments)]
 fn run_with_replacements(
-    module:&TypedModule, f:&TypedFunction, graph:&FunctionGraph, summaries:&[Content],
-    validate:bool, budget:&mut Budget, replacements:Option<&replacements::Context<'_>>,
-)->Check<(Content,Vec<Vec<Bridge>>)>{
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    summaries: &[Content],
+    validate: bool,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Context<'_>>,
+) -> Check<(Content, Vec<Vec<Bridge>>)> {
     let mut locals = Vec::new();
     let mut values = Vec::new();
     budget.spend(
@@ -1909,7 +1914,9 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Proofs> {
-    if budget.replacements { return replacements::check(module,graphs,budget); }
+    if budget.replacements {
+        return replacements::check(module, graphs, budget);
+    }
     if !budget.sums {
         return Ok(Proofs::default());
     }
@@ -2016,5 +2023,8 @@ pub(super) fn check_module(
             run(module, f, &graphs[index], &summaries, true, budget)?.1
         });
     }
-    Ok(Proofs { rows, ..Proofs::default() })
+    Ok(Proofs {
+        rows,
+        ..Proofs::default()
+    })
 }
