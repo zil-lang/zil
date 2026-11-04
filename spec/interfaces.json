@@ -296,7 +296,12 @@
       "Option": "T? == sealed hygienic Option<T>, canonical None/Some full-T identity using actual Enum consumers; no new runtime permission",
       "compatibility": "Typed domainV35/Wire35; old versions reject. Raw variants grant no numeric/borrow permission; all consumers independently validate. Floating reserved tags28/29 are not admitted until their published contract/consumers.",
       "CtArtifactProgram.target_pointer_width": "u16 in canonical CTprogramWire/fingerprint; independent verifier accepts only32/64 and checks actual usize values against selected target, never hostdefault",
-      "BorrowVariantLocal": "Typed opcode106 {local,path:Vec<VariantProjection>,mutable}; real active Enum place only, actual parent loan and tag invalidation checked independently."
+      "BorrowVariantLocal": "Typed opcode106 {local,path:Vec<VariantProjection>,mutable}; real active Enum place only, actual parent loan and tag invalidation checked independently.",
+      "address_instructions": {
+        "107": "VariantTagAddress {address,path:Vec<VariantProjection>}; actual address and active prefixes",
+        "108": "BorrowVariantAddress {address,path,mutable}; actual parent provenance, mode and active-tag epochs",
+        "110": "BorrowFieldLocal {local,path:Vec<u32>,mutable}; real finite Copy Tuple/Record field, bounded nonempty path; no whole-parent reload"
+      }
     },
     "terminal_generic_loans_342": {
       "authority": "_zil_design.md §18.1 terminal342",
@@ -336,7 +341,9 @@
       "Typed": "ConvertNumber opcode98; target exact Type, independently guard float-to-int finite/integral/range before potentially poison conversion",
       "union": "Canonical hygienic tagged structural Sum via existing Enum, exact member identity/no conversion search, ordinary borrow/move/cleanup",
       "machine": "IEEE nofastmath/noimplicitFMA, gradualunderflow/signedzero; actual LLVMAPI andtext consumers; CT same target semantics",
-      "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening."
+      "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening.",
+      "generated_AST_bits": "Generated Literal::Float reserved @bits:f32:XXXXXXXX / @bits:f64:XXXXXXXXXXXXXXXX, canonical fixed-width hex and prepaid parse directly to raw Constant; ordinary source lexer cannot spell it. Same-format conversion preserves bits; actual CT arithmetic retains specified NaN policy.",
+      "CT_anonymous_sum": "CtTypeNode::AnonymousSum(Vec<CtTypeNodeId>) tag15; CtTypeConstructor::AnonymousSum tag11. Bounded full structural constructor/nominal identity independent of DAG sharing/index; runtime full Type recanonicalization and explicit exact-member tag mapping, never hash/name-only identity."
     },
     "terminal_borrowed_function_pointer_342": {
       "authority": "_zil_design.md §18.1 higherranked342",
@@ -348,14 +355,15 @@
       "responsibility": "Independent target full signature/actualreturnroot subset check, actual mutable authority; each indirectcall fresh actualargs/parents/simultaneouswindows; no proof-bit or fixedenvironment capture",
       "ABI": "Thin Direct static codepointer; no foreign/env/teardown/Suspend authority",
       "CT": "CtTypeNode::BorrowedFunctionPointer {parameters:Vec<CtTypeNodeId>,result:CtTypeNodeId,life:FunctionLifeContract}, CT node tag14; bounded canonical DAG, lossless reflection/materialization.",
-      "elision": "Plain borrowed fn signature maps actual address inputs to one fresh upper-bound binder; explicit for-life can narrow; actual authority and simultaneous argument windows remain independent."
+      "elision": "Plain borrowed fn signature maps actual address inputs to one fresh upper-bound binder; explicit for-life can narrow; actual authority and simultaneous argument windows remain independent.",
+      "CT_constructor": "CtTypeConstructor::BorrowedFunctionPointer {life:FunctionLifeContract}, appended constructor tag10; existing TypeConstruct actual children and independent bounded relation validation"
     },
     "terminal_task_343": {
       "authority": "_zil_design.md §12.1.1",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
-      "Type": "TaskI32 tag33, sealed Managed/Desc owner; operations require exact exclusive AddressMut(Managed(TaskI32))",
+      "Type": "TaskI32 tag33, sealed Managed/Desc owner; valid reads actual Desc; poll/cancel/close require exclusive AddressMut(Managed(TaskI32)); finish consumes actual Managed via give/Take or fresh owning rvalue",
       "instructions": {
         "99": "TaskStart {worker,argument}",
         "100": "TaskYield",
@@ -365,13 +373,124 @@
         "104": "TaskPollClose {task}",
         "105": "TaskFinishDestroy {task}"
       },
-      "responsibility": "Actual persistent frame and five SABI entries; Ready once, sticky cancel, Closed before destroy. Independent reachable graph proves no external users for restricted default-close path, never a proof bit. Direct entry to Suspend rejected."
+      "responsibility": "Actual persistent frame and five SABI entries; Ready once, sticky cancel, Closed before destroy. Independent reachable graph proves no external users for restricted default-close path, never a proof bit. Direct entry to Suspend rejected.",
+      "source_signatures": [
+        "task_start(static fn(i32)->i32,i32)->Managed(TaskI32)",
+        "task_yield()->Unit",
+        "task_valid(Desc(TaskI32))->Bool",
+        "task_poll(&mut Managed(TaskI32))->(i32,i32)",
+        "task_request_cancel(&mut Managed(TaskI32))->Unit",
+        "task_poll_close(&mut Managed(TaskI32))->Bool",
+        "task_finish_destroy(give Managed(TaskI32))->Unit"
+      ],
+      "public_semantics": "TypedProgram.task_interfaces: Vec<TaskInterface {module,exports}>; TaskExport{name,worker,parameter:(PassingMode,Type),result:(PassingMode,Type),abi_version}. Untrusted declarations, independent actual Suspend/worker reconstruction; forged Scalar export rejected.",
+      "external_ABI": "zil.sabi.task.<op>.<worker-id>; init(i32)->ptr, poll(ptr)->i64(high32 status/low32 raw result), request_cancel(ptr)->Unit, poll_close(ptr)->i1, finish_destroy(ptr)->Unit. Source tuple remains unchanged; real wrapper and C calls required.",
+      "artifact": "Backend-only physical descriptor keyed by verified input/actual target+DataLayout/tools/codegen. Actual symbols, signatures, frame field offsets/sizes/alignment/machine and full type identity. Frozen supported Linux x64 layout checked against LLVM and C; no host size guesses."
     },
     "terminal_source_stdlib_345": {
       "authority": "_zil_design.md §15.1",
       "state": "ContractToImplement",
       "representation": "Ordinary bundled ZIL SourceUnits and exact reserved module bytes; ordinary compilation and request budget",
-      "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege"
+      "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege",
+      "registered_sources": [
+        "std.utf8",
+        "std.text_edit",
+        "std.string",
+        "std.store",
+        "std.iter"
+      ]
+    },
+    "terminal_resource_head_projection_342": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "instruction": "DescribeAddress {address:ValueId}, opcode109",
+      "result": "Desc(payload) from actual Address<Managed(payload)>, no Managed copy",
+      "responsibility": "Independent actual roots, parent loan and shared/exclusive authority through locals/calls/returns/captures; may-write from shared input rejected; not generic authority for Task/Registration"
+    },
+    "terminal_returned_registration_343": {
+      "authority": "_zil_design.md §12.3",
+      "state": "ContractToImplement",
+      "Type": "Registration {environment:Box<Type>} tag32; actual concrete closure, Managed owning root and read Desc",
+      "instructions": {
+        "111": "RegistrationStart {register:FunctionId,close:FunctionId,callback:ValueId,region:u32}; region denotes explicit unsafe invocation, not retained lifetime",
+        "112": "RegistrationValid {registration}",
+        "113": "RegistrationClose {registration}; consumes actual Managed root"
+      },
+      "Core": "Registration aggregate recipe preserves actual F; CoreCallableParameter.closed_environment is a required bound, never a proof",
+      "qualification": "Compiler-sealed ClosedEnvironment independently reconstructed from actual captures; required on unused generic definition. Strong close ends all entered and future raw entries before releasing stable environment."
+    },
+    "terminal_owned_tuple_patterns_340": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "Type": "existing structural Type::Tuple",
+      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1 | ErrorArm(bool is_error) tag2; bounded actual mixed path",
+      "instructions": {
+        "114": "MakeOwnedTuple {fields:Vec<ValueId>}",
+        "115": "UnpackTuple {local,fields:Vec<LocalId>}",
+        "116": "DropTuple {local}",
+        "117": "TakeTupleField {local,path:Vec<PlaceProjection>}",
+        "118": "TakeVariantField {local,path}; actual Enum/ErrorUnion root, exact active initialized subtree",
+        "119": "BorrowPlaceLocal {local,path,mutable}; nonempty path, actual precise initialized child interval",
+        "120": "PlaceTagLocal {local,path}; empty allowed, final live Enum/ErrorUnion header; i32 Enum ordinal/ErrorUnion0success1error"
+      },
+      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness; test all pattern discriminants before borrow/move, mixed ancestors checked and paid, partial live parent header grants no payload/whole replacement authority"
+    },
+    "terminal_higher_ranked_callable_342": {
+      "authority": "_zil_design.md §18.1",
+      "state": "ContractToImplement",
+      "Core": "CoreCallableParameter.life: Option<FunctionLifeContract>, invocation-local required bound",
+      "Typed": "CallableRole.life: Option<FunctionLifeContract>; fixed environment Hold remains separate",
+      "schema_version": 36,
+      "wire_version": 36,
+      "fingerprint": "Typed domainV36 and callable contract5; unchanged type identityV35/return contract3/CT2 retained",
+      "responsibility": "Unused definition and actual concrete CFG each checked; fresh actual roots per invocation, canonical full relation, simultaneous windows, no fixed capture masquerading as fresh input",
+      "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
+    },
+    "terminal_ct_anonymous_value_344": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "schema_version": 3,
+      "domains": "artifact/provider/dependencies and standalone function/value v3; old v2 rejected",
+      "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTypeRef)|Scalar(Constant)> in complete declaration order including phantom/const; canonical bounded full type DAG preserves callable/life metadata, while actual fields/values retain CtTy pure-value eligibility and no runtime pointer value or authority",
+      "transport": "CtTy::AnonymousSum tag16, CtValue::AnonymousSum{members,active,payload} tag16, MakeAnonymousSum opcode37",
+      "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
+    },
+    "terminal_suspend_child_343": {
+      "authority": "_zil_design.md §12.1.2",
+      "state": "ContractToImplement",
+      "schema_version": 37,
+      "wire_version": 37,
+      "fingerprint": "TypedV37; retains invocation-local role.life and callable contract5 from36; type identityV35 and TaskI32 external ABI1 unchanged",
+      "Core": "CoreFunction.call_kind:Option<CallKind>; source effect upper-bound or body-derived selection",
+      "Typed": "TypedFunction.call_kind:CallKind Direct0|Suspend1; independently reconstructed effects must fit the selected interface",
+      "instruction": {
+        "125": "SuspendCall{function:FunctionId,arguments:Vec<ValueId>}; actual SSA result only at Ready"
+      },
+      "responsibility": "Inputs initialized once; actual distinct stable child instance survives Pending, argument loans and partial/owned cleanup. Creation-order PendingExit drain; Direct Drop cannot suspend. No implicit recursion heap. Full actual layout/callee/Drop/effect identities prepaid and cache-bound.",
+      "selection": "Explicit effects containing suspend or any resume(local|transfer) selects Suspend; explicit effects without suspend selects Direct and conflicts with resume. No effects clause derives from body. Transfer unsupported until separately checked; static Direct targets use adapters and retain ordinary bodies."
+    },
+    "terminal_owned_task_343": {
+      "authority": "_zil_design.md §12.1.3",
+      "state": "ContractToImplement",
+      "schema_version": 38,
+      "wire_version": 38,
+      "fingerprint": "TypedV38; complete Task result Type tag34; callable contract5, Type identityV35 and scalar TaskI32 ABI1 retained",
+      "Type": "Task{result:Box<Type>} tag34 only Managed/Desc and exact AddressMut(Managed(Task<T>)); no bare payload, generic construction/access, Copy/Transfer/Share or close proof",
+      "Core": "CoreAggregateTypeRecipe::Task{result:Box<CoreAggregateTypeRecipe>}; preserve full actual T and actual family declaration identity",
+      "instruction": {
+        "128": "TaskCreate{worker:FunctionId,arguments:Vec<ValueId>}; ordinary TaskCreateError!Managed(Task<actual worker result>); transferred inputs cleaned once on Allocation; success non-null"
+      },
+      "ordinary_types": "Canonical std.task declarations through existing nominal Enum/family machinery: Poll<T>{Pending,Ready(T)}, TaskCreateError{Allocation}, TaskPollState{Complete,Cancelled,Invalid}; full T identity, ordinary moves/loans, no shape-derived authority",
+      "source": [
+        "task_create(static_worker,args...)->TaskCreateError!Task<T>",
+        "task_poll(&mut task)->TaskPollState!Poll<T>",
+        "task_request_cancel(&mut task)->Unit",
+        "task_poll_close(&mut task)->Poll<Unit>",
+        "task_finish_destroy(give task)->Unit"
+      ],
+      "compatibility": "task_start/TaskI32 nullable head, tuple five-state poll and Bool close remain explicit compatibility; general owning external SABI is not ABI1",
+      "responsibility": "Saved-PC canonical owner/live/partial/result slots; once-only input commit and Ready move; actual child creation-order PendingExit, parent loans retained through drain; Closed includes child/result/loan/external-user/no-future/drain settlement; Direct default Drop needs Closed or complete synchronous-close proof",
+      "accounting": "Single cumulative request ledger; full actual type/instance/layout/effect/cleanup/metadata/cache work paid before traversal or growth; no producer proof bits or default-limit increase"
     }
   },
   "schemas": [

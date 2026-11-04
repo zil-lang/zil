@@ -3,23 +3,34 @@
 use super::*;
 
 pub(crate) struct Budget<'a> {
+    pub(crate) target_pointer_width: u16,
+    pub(crate) context: origins::WalkContext,
     limits: &'a Limits,
     nodes: usize,
     work: usize,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
+    anonymous_sums: bool,
+    generic_methods: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
         Self {
+            target_pointer_width: 64,
+            context: origins::WalkContext::default(),
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
+            anonymous_sums: false,
+            generic_methods: false,
         }
+    }
+    pub(crate) fn has_generic_methods(&self) -> bool {
+        self.generic_methods
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
         Limits {
@@ -49,6 +60,9 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(crate) fn has_anonymous_sums(&self) -> bool {
+        self.anonymous_sums
+    }
     pub(crate) fn has_primitive_binders(&self) -> bool {
         self.primitive_binders
     }
@@ -65,6 +79,37 @@ impl<'a> Budget<'a> {
         }
         self.nodes -= 1;
         self.work -= 1;
+        Ok(())
+    }
+    pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "floating literal conversion work exhausted",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
+    pub(crate) fn identity_node(&mut self, depth: usize, span: Span) -> R<()> {
+        self.identity_work(1, span)?;
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "structural type key nesting exhausted",
+                Some(span),
+            ));
+        }
+        Ok(())
+    }
+    pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "structural type identity work exhausted",
+                Some(span),
+            )
+        })?;
         Ok(())
     }
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
@@ -89,6 +134,12 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn ty(&mut self, ty: &TypeRef) -> R<()> {
         self.ty_at(ty, 0, None)
+    }
+    pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
+        self.expr(expression, 0, None)
+    }
+    pub(crate) fn const_function(&mut self, function: &Function) -> R<()> {
+        self.function(function, 0, None)
     }
     pub(crate) fn ty_depth(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.ty_at(ty, depth, None)
@@ -126,6 +177,27 @@ impl<'a> Budget<'a> {
     ) -> R<()> {
         self.ty_context(ty, depth, substitutions, false)
     }
+    fn associated_type_substitution(
+        &mut self,
+        ty: &TypeRef,
+        substitutions: &BTreeMap<String, TypeRef>,
+        depth: usize,
+        slice_element: bool,
+    ) -> R<bool> {
+        self.ty(ty)?;
+        let key = super::trait_bounds::associated::equation_key(ty, self)?;
+        // A later Substitution walk repeats the lookup without a budget.
+        if self.has_anonymous_sums() {
+            super::type_keys::prepay(ty, self)?;
+            self.identity_work(11, ty.span)?;
+        }
+        self.text(&key, ty.span)?;
+        if let Some(value) = substitutions.get(&key) {
+            self.ty_context(value, depth, None, slice_element)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
     fn ty_context(
         &mut self,
         ty: &TypeRef,
@@ -134,17 +206,38 @@ impl<'a> Budget<'a> {
         slice_element: bool,
     ) -> R<()> {
         self.node(ty.span, depth)?;
-        if let TypeKind::Named { path, args } = &ty.kind
-            && path.len() == 1
-            && args.is_empty()
-            && let Some(value) = substitutions.and_then(|s| s.get(&path[0]))
+        if let Some(substitutions) = substitutions
+            && super::trait_bounds::associated::parts(ty).is_some()
+            && self.associated_type_substitution(ty, substitutions, depth, slice_element)?
         {
-            // A substitution is simultaneous. Do not substitute caller T again
-            // merely because the callee's type parameter is also named T.
-            return self.ty_context(value, depth, None, slice_element);
+            return Ok(());
+        }
+        if let TypeKind::Named { path, args } = &ty.kind
+            && args.is_empty()
+            && let Some(substitutions) = substitutions
+        {
+            if path.len() != 1 {
+                for part in path {
+                    self.text(part, ty.span)?;
+                    self.node(ty.span, depth)?;
+                }
+            }
+            if let Some(value) = substitutions.get(super::substitution_name(path).as_ref()) {
+                // A substitution is simultaneous. Do not substitute caller T again
+                // merely because the callee's type parameter is also named T.
+                return self.ty_context(value, depth, None, slice_element);
+            }
         }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
+        }
+        if let TypeKind::Named { path, .. } = &ty.kind
+            && path.len() > 1
+            && let Some(replacement) = substitutions
+                .and_then(|s| s.get(&path[0]))
+                .and_then(trait_bounds::plain)
+        {
+            self.text(replacement, ty.span)?;
         }
         match &ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
@@ -170,7 +263,13 @@ impl<'a> Budget<'a> {
                 self.text(lifetime, ty.span)?;
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?;
             }
-            TypeKind::Tuple(types) | TypeKind::Union(types) | TypeKind::Impl(types) => {
+            TypeKind::Union(types) => {
+                self.anonymous_sums = true;
+                for ty in types {
+                    self.ty_context(ty, depth + 1, substitutions, slice_element)?;
+                }
+            }
+            TypeKind::Tuple(types) | TypeKind::Impl(types) => {
                 for ty in types {
                     self.ty_context(ty, depth + 1, substitutions, slice_element)?;
                 }
@@ -459,6 +558,8 @@ impl<'a> Budget<'a> {
                     self.ty_at(bound, depth + 1, subs)?;
                 }
                 for member in &t.members {
+                    self.generic_methods |=
+                        matches!(&member.kind,ItemKind::Function(f) if !f.generics.is_empty());
                     self.item_at(member, depth + 1, subs)?;
                 }
             }
@@ -654,106 +755,363 @@ impl<'a> Budget<'a> {
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
         self.node(e.span, depth)?;
+        if let ExprKind::Member {
+            object,
+            member: MemberName::Name(member),
+        } = &e.kind
+            && let ExprKind::Name(subject) = &object.kind
+            && let Some(substitutions) = subs
+            && substitutions
+                .get(subject)
+                .is_some_and(trait_bounds::constants::subject)
+        {
+            self.text(subject, e.span)?;
+            self.text(member, e.span)?;
+            self.text("\0constant:.", e.span)?;
+            if let Some(value) = substitutions
+                .get(&trait_bounds::constants::key(subject, member))
+                .and_then(consts::expression)
+            {
+                return self.expr(value, depth, None);
+            }
+        }
+        if let ExprKind::Name(name) = &e.kind
+            && let Some(value) = subs
+                .and_then(|substitutions| substitutions.get(name))
+                .and_then(consts::expression)
+        {
+            return self.expr(value, depth, None);
+        }
+        if matches!(e.kind, ExprKind::ReceiverMember(_))
+            && subs.is_some_and(|s| s.contains_key("Self"))
+        {
+            self.node(e.span, depth + 1)?;
+            self.text("self", e.span)?;
+        }
         match &e.kind {
-            ExprKind::Literal(l) => self.literal(l, e.span)?,
-            ExprKind::Name(s) | ExprKind::ReceiverMember(s) => self.text(s, e.span)?,
+            ExprKind::Literal(..) => self.expr_literal(e, depth, subs),
+            ExprKind::Name(..) | ExprKind::ReceiverMember(..) => self.expr_name(e, depth, subs),
+            ExprKind::Group(..)
+            | ExprKind::Try(..)
+            | ExprKind::MetaEval(..)
+            | ExprKind::MetaSplice(..)
+            | ExprKind::Unary { .. } => self.expr_unary(e, depth, subs),
+            ExprKind::Tuple(..) | ExprKind::Array(..) => self.expr_sequence(e, depth, subs),
+            ExprKind::Binary { .. } => self.expr_binary(e, depth, subs),
+            ExprKind::Pipeline { .. } => self.expr_pipeline(e, depth, subs),
+            ExprKind::Member { .. } => self.expr_member(e, depth, subs),
+            ExprKind::TypeApply { .. } => self.expr_type_apply(e, depth, subs),
+            ExprKind::Call { .. } => self.expr_call(e, depth, subs),
+            ExprKind::Index { .. } => self.expr_index(e, depth, subs),
+            ExprKind::Slice { .. } => self.expr_slice(e, depth, subs),
+            ExprKind::Record { .. } => self.expr_record(e, depth, subs),
+            ExprKind::Closure { .. } => self.expr_closure(e, depth, subs),
+            ExprKind::If { .. } => self.expr_if(e, depth, subs),
+            ExprKind::MetaBlock(..) => self.expr_meta_block(e, depth, subs),
+            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => {
+                self.expr_syntax(e, depth, subs)
+            }
+        }
+    }
+    fn expr_literal(
+        &mut self,
+        e: &Expr,
+        _depth: usize,
+        _subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Literal(l) => {
+                self.literal(l, e.span)?;
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_name(
+        &mut self,
+        e: &Expr,
+        _depth: usize,
+        _subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Name(s) | ExprKind::ReceiverMember(s) => {
+                self.text(s, e.span)?;
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_unary(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)
             | ExprKind::MetaSplice(x)
-            | ExprKind::Unary { operand: x, .. } => self.expr(x, depth + 1, subs)?,
+            | ExprKind::Unary { operand: x, .. } => {
+                self.expr(x, depth + 1, subs)?;
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_sequence(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
             ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
-                for x in xs {
-                    self.expr(x, depth + 1, subs)?;
-                }
-            }
-            ExprKind::Binary { left, right, .. } => {
-                self.expr(left, depth + 1, subs)?;
-                self.expr(right, depth + 1, subs)?;
-            }
-            ExprKind::Pipeline { input, target } => {
-                self.expr(input, depth + 1, subs)?;
-                self.expr(target, depth + 1, subs)?;
-            }
-            ExprKind::Member { object, member } => {
-                self.expr(object, depth + 1, subs)?;
-                match member {
-                    MemberName::Name(name) => self.text(name, e.span)?,
-                    MemberName::Constrained { name, owner } => {
-                        self.text(name, e.span)?;
-                        self.ty_at(owner, depth + 1, subs)?;
-                    }
-                    MemberName::TupleIndex(_) => {}
-                }
-            }
-            ExprKind::TypeApply { callee, arguments } => {
-                self.expr(callee, depth + 1, subs)?;
-                for a in arguments {
-                    self.arg(a, depth + 1, subs)?;
-                }
-            }
-            ExprKind::Call { callee, arguments } => {
-                self.expr(callee, depth + 1, subs)?;
-                for a in arguments {
-                    self.expr(&a.value, depth + 1, subs)?;
-                }
-            }
-            ExprKind::Index { object, index } => {
-                self.expr(object, depth + 1, subs)?;
-                self.expr(index, depth + 1, subs)?;
-            }
-            ExprKind::Slice { object, start, end } => {
-                self.expr(object, depth + 1, subs)?;
-                for x in [start, end].into_iter().flatten() {
-                    self.expr(x, depth + 1, subs)?;
-                }
-            }
-            ExprKind::Record { ty, base, fields } => {
-                for x in [ty, base].into_iter().flatten() {
-                    self.expr(x, depth + 1, subs)?;
-                }
-                for f in fields {
-                    self.text(&f.name, f.span)?;
-                    if let Some(x) = &f.value {
+                {
+                    for x in xs {
                         self.expr(x, depth + 1, subs)?;
                     }
-                }
+                };
             }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_binary(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Binary { left, right, .. } => {
+                {
+                    self.expr(left, depth + 1, subs)?;
+                    self.expr(right, depth + 1, subs)?;
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_pipeline(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Pipeline { input, target } => {
+                {
+                    self.expr(input, depth + 1, subs)?;
+                    self.expr(target, depth + 1, subs)?;
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_member(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Member { object, member } => {
+                {
+                    self.expr(object, depth + 1, subs)?;
+                    match member {
+                        MemberName::Name(name) => self.text(name, e.span)?,
+                        MemberName::Constrained { name, owner } => {
+                            self.text(name, e.span)?;
+                            self.ty_at(owner, depth + 1, subs)?;
+                        }
+                        MemberName::TupleIndex(_) => {}
+                    }
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_type_apply(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                {
+                    self.expr(callee, depth + 1, subs)?;
+                    for a in arguments {
+                        self.arg(a, depth + 1, subs)?;
+                    }
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_call(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Call { callee, arguments } => {
+                {
+                    self.expr(callee, depth + 1, subs)?;
+                    for a in arguments {
+                        self.expr(&a.value, depth + 1, subs)?;
+                    }
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_index(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Index { object, index } => {
+                {
+                    self.expr(object, depth + 1, subs)?;
+                    self.expr(index, depth + 1, subs)?;
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_slice(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Slice { object, start, end } => {
+                {
+                    self.expr(object, depth + 1, subs)?;
+                    for x in [start, end].into_iter().flatten() {
+                        self.expr(x, depth + 1, subs)?;
+                    }
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_record(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::Record { ty, base, fields } => {
+                {
+                    for x in [ty, base].into_iter().flatten() {
+                        self.expr(x, depth + 1, subs)?;
+                    }
+                    for f in fields {
+                        self.text(&f.name, f.span)?;
+                        if let Some(x) = &f.value {
+                            self.expr(x, depth + 1, subs)?;
+                        }
+                    }
+                };
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_closure(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
             ExprKind::Closure {
                 params,
                 return_type,
                 body,
                 ..
             } => {
-                for p in params {
-                    self.node(p.span, depth + 1)?;
-                    self.text(&p.name, p.span)?;
-                    if let Some(t) = &p.ty {
+                {
+                    for p in params {
+                        self.node(p.span, depth + 1)?;
+                        self.text(&p.name, p.span)?;
+                        if let Some(t) = &p.ty {
+                            self.ty_at(t, depth + 1, subs)?;
+                        }
+                    }
+                    if let Some(t) = return_type {
                         self.ty_at(t, depth + 1, subs)?;
                     }
-                }
-                if let Some(t) = return_type {
-                    self.ty_at(t, depth + 1, subs)?;
-                }
-                self.arrow(body, depth + 1, subs)?;
+                    self.arrow(body, depth + 1, subs)?;
+                };
             }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_if(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
             ExprKind::If {
                 condition,
                 then_value,
                 else_value,
             } => {
-                self.expr(condition, depth + 1, subs)?;
-                self.expr(then_value, depth + 1, subs)?;
-                self.expr(else_value, depth + 1, subs)?;
+                {
+                    self.expr(condition, depth + 1, subs)?;
+                    self.expr(then_value, depth + 1, subs)?;
+                    self.expr(else_value, depth + 1, subs)?;
+                };
             }
-            ExprKind::MetaBlock(b) => self.block(b, depth + 1, subs)?,
-            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => {
-                return Err(unsupported(
-                    e.span,
-                    "generic expansion of unexecuted syntax island",
-                ));
-            }
+            _ => unreachable!("budget expression dispatch"),
         }
         Ok(())
+    }
+    fn expr_meta_block(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::MetaBlock(b) => {
+                self.block(b, depth + 1, subs)?;
+            }
+            _ => unreachable!("budget expression dispatch"),
+        }
+        Ok(())
+    }
+    fn expr_syntax(
+        &mut self,
+        e: &Expr,
+        _depth: usize,
+        _subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        match &e.kind {
+            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => Err(unsupported(
+                e.span,
+                "generic expansion of unexecuted syntax island",
+            )),
+            _ => unreachable!("budget expression dispatch"),
+        }
     }
 }

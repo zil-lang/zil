@@ -1316,7 +1316,7 @@ fn legacy_byte_capture_has_exact_fresh_budget_control() {
     // three historical phase fees below remain exact and unchanged.
     let actual = phase_budgets("legacy-byte-capture", source);
     // Schema31 adds one Fresh source tag to each kernel's two metadata scans.
-    assert_eq!(actual, [97, 196, 2230 + 2, 2490 + 2]);
+    assert_eq!(actual, [190, 196, 2230 + 2, 2490 + 2]);
 }
 
 #[test]

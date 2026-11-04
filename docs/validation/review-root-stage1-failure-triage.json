@@ -1,0 +1,170 @@
+{
+  "status": "ChangesRequired_NoWorkspaceAcceptance",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "8981bbccbcd88b3ed4fec65e5f10fead2b14a283",
+  "method": "Read-only classification of parent-run full default workspace log and exact current source. No assertions changed or tests rerun by this triage. Log is complete with49 failed targets.",
+  "log": {
+    "path": "/workspace/.zil-env/terminal-20261104/workspace-stage1-default.log",
+    "sha256": "9b32c84c1c9b284481f4f21b80525767128398fff5ce67a9491922fbeef99465",
+    "passed": 4170,
+    "failed": 115,
+    "failed_targets": 49
+  },
+  "categories": [
+    {
+      "kind": "Real safety regression; highest priority",
+      "tests": [
+        "crates/zil-driver/tests/impl187_borrowed_bytes.rs::internal_capture_windows_propagate_separation_to_each_actual_call",
+        "crates/zil-driver/tests/impl187_borrowed_bytes.rs::raw_and_wire_reconstruct_internal_capture_and_parameter_window_obligations"
+      ],
+      "observation": "Actual source alias edit=a is accepted; raw Verify also accepts MakeClosure captures changed from[read,edit] to[read,read]. Callback holds bytes_view(read), structurally mutates edit, then uses the live view.",
+      "likely_root": "crates/zil-verify/src/borrows/buffer_effects.rs::unknown_pairs condition(a.coarse()!=b.coarse()||a.intersects(b)) drops ParameterCapture(0,0) vs ParameterCapture(0,1). They share coarse Parameter0 and intentionally do not directly intersect, but their symbolic external targets can alias.",
+      "required": "Keep symbolic capture Apart requirements through every helper edge; only proven concrete projection intervals can establish disjointness. Preserve both original source and raw/Wire controls, and test direct plus helper forms."
+    },
+    {
+      "kind": "Stale independent manual LIR layouts",
+      "files": [
+        "crates/zil-backend-llvm/src/tests.rs::lir",
+        "crates/zil-backend-llvm/tests/closed_executable_research.rs",
+        "crates/zil-lower/src/lib.rs::tests::preserves_the_exact_checked_cfg_and_target_identity"
+      ],
+      "observation": "19 backend and4 closed executable failures reach E-CODEGEN-UNBOUND-LIR before intended behavior; manual tables omit F32/F64 while actual layout has4/4 and8/8 entries. Lower test has the same stale expected table.",
+      "required": "Add exact independent layout entries and retain stale-LIR/entry/infra/native assertions. Do not make expected layout depend on the implementation under test."
+    },
+    {
+      "kind": "Reserved built-in Option collides with old USER nominal declarations",
+      "files": [
+        "crates/zil-driver/tests/impl035.rs",
+        "crates/zil-driver/tests/impl039.rs",
+        "crates/zil-driver/tests/impl043.rs",
+        "crates/zil-driver/tests/impl103_generic_aliases.rs",
+        "crates/zil-driver/src/ct_artifact/execute.rs::generic_enum_type_and_layout_use_checked_concrete_instance",
+        "examples/mainline/app/main.zil",
+        "examples/mainline/stream/model.zil"
+      ],
+      "observation": "Most E-GENERIC-ARGUMENT/E-NAME-DUPLICATE cascades; the CT raw reflection fixture also loses ShapeReady because its user enum is named Option. Mainline/cache/stream CLI consumers inherit those fixtures.",
+      "required": "Rename only legacy USER enum spelling and all matching uses/imports, preserving ordinary nominal identity/privacy/layout/generic assertions. Keep separate built-in Option coverage."
+    },
+    {
+      "kind": "Generated helper names collide with newly reserved numeric conversion names",
+      "files": [
+        "crates/zil-driver/src/session.rs:1301",
+        "crates/zil-driver/tests/object_cache212.rs",
+        "crates/zil-driver/tests/impl046.rs:26",
+        "crates/zil-driver/tests/impl124_signed_shifts.rs"
+      ],
+      "observation": "f32/f64 generated in f{i} families and u64 CT helper collide; unchanged arithmetic/cache/source-edit assertions are not reached.",
+      "required": "Rename helper families and all references/edit targets; preserve every result, cache event and budget assertion until remeasured."
+    },
+    {
+      "kind": "Raw Core conversion fixture targets obsolete source node",
+      "files": [
+        "crates/zil-driver/tests/ct_unchanged_view.rs:213",
+        "crates/zil-driver/tests/impl081_frontend.rs:310"
+      ],
+      "observation": "Source now lowers numeric conversion to NumberConvert; tests panic matching IntegerConvert.",
+      "required": "Corrupt the actual source-produced numeric node to invalid Bool and retain independent rejection/equivalence assertions."
+    },
+    {
+      "kind": "Frozen/current Wire and newly allocated opcode expectations",
+      "files": [
+        "crates/zil-driver/tests/impl238_product_replacement.rs",
+        "crates/zil-driver/tests/impl248_source.rs",
+        "crates/zil-driver/tests/impl254_capture_probe.rs",
+        "crates/zil-driver/tests/impl254_operands.rs",
+        "crates/zil-driver/tests/impl254_wire.rs",
+        "crates/zil-ir/src/wire/owned_sum_tests.rs",
+        "crates/zil-ir/src/wire/store_tests.rs"
+      ],
+      "observation": "FrozenV34 inputs are fed to currentV35 verification or compared byte-for-byte to current headers; old invalid opcode bytes are now allocated WithSyncCell or another typed opcode.",
+      "required": "Preserve immutable historical fixtures and their identity. Use explicit current-schema migration/encoding for semantic replay, retain old-version rejection separately; choose truly unallocated opcode for malformed-opcode control and keep truncation checks."
+    },
+    {
+      "kind": "Raw authority mutations stop at an earlier unintended type mismatch",
+      "files": [
+        "crates/zil-driver/tests/impl171_resource_heads.rs",
+        "crates/zil-driver/tests/impl180_store_mut.rs"
+      ],
+      "observation": "Forged mutable head/resource projection now produces E-VERIFY-TYPE because source adds actual reborrow/type links.",
+      "required": "Update the mutation coherently across actual address/reborrow types so it still reaches the intended authority/owner proof. Do not replace the intended semantic diagnostic with arbitrary rejection."
+    },
+    {
+      "kind": "Old Unsupported negatives now correspond to explicit admitted capabilities",
+      "files": [
+        "crates/zil-driver/tests/impl039.rs",
+        "crates/zil-driver/tests/impl103_generic_aliases.rs",
+        "crates/zil-driver/tests/impl040.rs",
+        "crates/zil-driver/tests/impl147_static_traits.rs",
+        "crates/zil-driver/tests/impl175_store_views.rs",
+        "crates/zil-driver/tests/impl189_address.rs",
+        "crates/zil-driver/tests/impl224_shared_product.rs",
+        "crates/zil-driver/tests/review180_by179.rs",
+        "crates/zil-driver/tests/review228_hygiene.rs"
+      ],
+      "examples": [
+        "Optional T? aliases",
+        "Noncapturing thin fn(&i32)->i32",
+        "Associated-type trait declaration",
+        "Returning Copy field reference from actual &P parameter",
+        "Shared owner field projection now yields descriptor rather than copying owner",
+        "Const generic function declaration"
+      ],
+      "required": "Promote only exact cases justified by new feature with nearest actual native/raw positives. Retain capture escape, owned transfer, Store-origin escape, unknown bounds and unrelated negatives."
+    },
+    {
+      "kind": "Safe rejection occurs earlier with stronger definition-side alias checks",
+      "files": [
+        "crates/zil-driver/tests/impl181_composition.rs",
+        "crates/zil-driver/tests/impl190_flow_source.rs",
+        "crates/zil-driver/tests/impl195_loop_control_source.rs",
+        "crates/zil-driver/tests/impl201_independent.rs",
+        "crates/zil-driver/tests/impl201_source.rs"
+      ],
+      "observation": "Source invalid State/window cases now reject in Expand with E-GENERIC-ARGUMENT instead of Verify E-BORROW-CONFLICT.",
+      "required": "Keep exact invalid sources and nearest positives; record precise earlier rejection. Where a test promises independent kernel coverage, retain a separately well-formed raw candidate reaching that proof rather than claiming the source hit Verify."
+    },
+    {
+      "kind": "Owned write remains rejected but category shifted",
+      "files": [
+        "crates/zil-driver/tests/impl180_store_mut.rs",
+        "crates/zil-driver/tests/impl238_product_replacement.rs"
+      ],
+      "observation": "Owned-write path now reaches Analyze SafeReject responsibility-unpaid rather than Types Unsupported.",
+      "required": "Inspect intended full ownership behavior and retain unpaid responsibility rejection; do not relabel as a supported successful replacement."
+    },
+    {
+      "kind": "Exact budget baselines need attributable remeasurement, not increased request limits",
+      "files": [
+        "crates/zil-driver/tests/impl200_independent.rs",
+        "crates/zil-driver/tests/impl202_budget.rs",
+        "crates/zil-driver/tests/impl204_review.rs",
+        "crates/zil-driver/tests/impl205_budget.rs",
+        "crates/zil-driver/tests/impl229_nominal_shadow.rs",
+        "crates/zil-driver/tests/impl229_where_copy.rs",
+        "crates/zil-driver/tests/impl233_modules.rs",
+        "crates/zil-driver/tests/impl246_front.rs",
+        "crates/zil-expand/tests/generics.rs",
+        "crates/zil-expand/tests/impl202_store_templates.rs",
+        "crates/zil-expand/tests/impl240_generic_enum_budget.rs",
+        "crates/zil-verify/src/package_tests/shared_product.rs"
+      ],
+      "observed_examples": {
+        "legacy_single_State_Expand": "2358 ->2764",
+        "legacy_byte_capture_Expand": "97 ->190; other three phases unchanged",
+        "pre202_Types": "6326/29030/29566 ->6397/29233/29781; local counts unchanged",
+        "Types_refresh": "2935 ->2936",
+        "Types_old_State": "5293 ->5366",
+        "nominal_shadow_work_nodes": "922/229 ->1006/264",
+        "where_alias_work_nodes": "1813/549 ->1991/608",
+        "ordinary_store_Expand": "2713 ->3354",
+        "Verify_Store_indirect_false": "15662 ->15663"
+      },
+      "required": "Bind current measured N, N-1 ResourceLimit and fresh N with actual source/cache identity; attribute new work and preserve prior numbers historically. Investigate impl233 lower boundary separately since oldN-1 now succeeds."
+    }
+  ],
+  "limitations": [
+    "Classification identifies primary causes; fixing an early failure may expose another case within the same test loop.",
+    "The bounded head/SABI reviews do not establish full workspace or product acceptance.",
+    "No production edits or assertion weakening were performed."
+  ]
+}

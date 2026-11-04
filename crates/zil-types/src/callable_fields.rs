@@ -213,6 +213,7 @@ pub(super) fn specialize_type(t: &mut Type, name: &str, id: ClosureId) {
         | Type::Opaque { hidden: t, .. }
         | Type::Array { element: t, .. }
         | Type::Slice { element: t }
+        | Type::Registration { environment: t }
         | Type::OwnedStore { element: t } => specialize_type(t, name, id),
         Type::ErrorUnion { error, result } => {
             specialize_type(error, name, id);
@@ -245,7 +246,8 @@ pub(super) fn visit(function: &mut CoreFunction, replace: &mut impl FnMut(&mut T
             CoreExprKind::Unary { operand, .. } | CoreExprKind::Try(operand) => {
                 expr(operand, replace)
             }
-            CoreExprKind::IntegerConvert { value, .. } => expr(value, replace),
+            CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. } => expr(value, replace),
             CoreExprKind::Binary { left, right, .. } => {
                 expr(left, replace);
                 expr(right, replace)
@@ -473,6 +475,7 @@ pub(super) fn specialize_type_all(ty: &mut Type, bindings: &[(&str, ClosureId)])
         | Type::Opaque { hidden: inner, .. }
         | Type::Array { element: inner, .. }
         | Type::Slice { element: inner }
+        | Type::Registration { environment: inner }
         | Type::OwnedStore { element: inner } => specialize_type_all(inner, bindings),
         Type::ErrorUnion { error, result } => {
             specialize_type_all(error, bindings);

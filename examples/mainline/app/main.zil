@@ -1,15 +1,15 @@
 import seed.data as seed
 import ops
 
-// These are ordinary user declarations, with no privileged Option/Result names.
-enum Option<T> { None, Some(T) }
+// These are ordinary user declarations, with no privileged LegacyOption/Result names.
+enum LegacyOption<T> { None, Some(T) }
 enum Result<E, T> { Err(E), Ok(T) }
 struct Row<T> { index: i64; value: T }
 struct Stats { accepted: i64; rejected: i64; total: i64 }
 
-fn next(values: &[i64; 8], index: i64) -> Option<Row<i64>> {
-    if index >= 8 { return Option.None }
-    return Option.Some(Row::<i64> { index: index, value: *ops.at(values, index) })
+fn next(values: &[i64; 8], index: i64) -> LegacyOption<Row<i64>> {
+    if index >= 8 { return LegacyOption.None }
+    return LegacyOption.Some(Row::<i64> { index: index, value: *ops.at(values, index) })
 }
 
 fn validate(row: Row<i64>) -> Result<i64, Row<i64>> {
@@ -36,7 +36,7 @@ pub fn result() -> i64 {
 
     var index: i64 = 0
     var errors: i64 = 0
-    while let Option.Some(row) = next(&data.values, index) {
+    while let LegacyOption.Some(row) = next(&data.values, index) {
         index += 1
         let checked = validate(row)
         if let Result.Err(code) = checked {

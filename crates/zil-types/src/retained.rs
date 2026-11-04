@@ -388,6 +388,7 @@ impl Dependencies<'_, '_> {
             CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. }

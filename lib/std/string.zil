@@ -1,7 +1,7 @@
 import std.utf8
 import std.text_edit
 
-pub enum Error { InvalidUtf8, Range, Capacity, Allocation, Internal }
+pub enum Error { InvalidUtf8, Range, Capacity, Allocation, Internal, InvalidScalar }
 // The private buffer is always initialized, owned, and valid UTF-8.
 pub package String { manages data:ByteBuffer }
 
@@ -42,3 +42,29 @@ pub fn append(value:&mut String, insertion:&[u8], byte_limit:i64)->Error!void {
 }
 pub fn clear(value:&mut String) { bytes_truncate(value.data,0) }
 pub fn scalar_at(value:&String, byte_offset:i64)->utf8.Scalar { return utf8.decode(bytes_view(value.data),byte_offset) }
+
+pub fn is_empty(value:&String)->bool { return byte_len(value)==0 }
+pub fn reserve(value:&mut String, capacity:i64, byte_limit:i64)->Error!void {
+    if capacity<0 || byte_limit<0 || capacity>byte_limit { return Error.Capacity }
+    if !bytes_reserve(value.data,capacity) { return Error.Allocation }
+    return ()
+}
+pub fn push_scalar(value:&mut String, scalar:i32, byte_limit:i64)->Error!void {
+    let width=utf8.encoded_len(scalar)
+    if width==0 { return Error.InvalidScalar }
+    var encoded=[0u8,0u8,0u8,0u8]
+    if utf8.encode(scalar,&mut encoded[..])!=width { return Error.Internal }
+    return append(value,&encoded[..width],byte_limit)
+}
+pub fn truncate(value:&mut String, scalar_count:i64)->Error!void {
+    let bounds=utf8.locate(bytes_view(value.data),0,scalar_count)
+    if scalar_count<0 || bounds.last<0 { return Error.Range }
+    if !bytes_truncate(value.data,bounds.last) { return Error.Internal }
+    return ()
+}
+pub fn substring(value:&String, begin:i64, end:i64, byte_limit:i64)->Error!String {
+    let bounds=utf8.locate(bytes_view(value.data),begin,end)
+    if begin<0 || end<begin || bounds.first<0 || bounds.last<0 { return Error.Range }
+    let view=bytes_view(value.data)
+    return from_utf8(&view[bounds.first..bounds.last],byte_limit)
+}

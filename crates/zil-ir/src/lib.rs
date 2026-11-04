@@ -15,6 +15,8 @@ pub use program::*;
 
 /// Reserved raw identity for the sealed byte storage resource. Not authority.
 pub const BYTE_BUFFER_RESOURCE_NAME: &str = "@builtin:ByteBuffer";
+/// Exact sealed scalar cooperative-task resource identity, never producer authority.
+pub const TASK_I32_RESOURCE_NAME: &str = "@builtin:TaskI32";
 
 macro_rules! identity {
     ($($name:ident),+ $(,)?) => {$(
@@ -26,8 +28,37 @@ identity!(
     FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
 );
 
-/// Canonical invocation-local address relation for an environment-free code
-/// pointer. Numeric binders describe no runtime object or access authority.
+/// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
+/// Suspend may be explicitly declared even when an implementation does not yield.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CallKind {
+    Direct = 0,
+    Suspend = 1,
+}
+
+/// Sealed native cell kind; this raw tag grants no permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncCellKind {
+    MutexI32 = 0,
+    AtomicI32 = 1,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncI32Op {
+    Load = 0,
+    Store = 1,
+    FetchAdd = 2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicOrdering {
+    Relaxed = 0,
+    Acquire = 1,
+    Release = 2,
+    AcqRel = 3,
+    SeqCst = 4,
+}
+
+/// Canonical invocation-local address relation. Numeric binders describe no
+/// runtime object or access authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FunctionLifeContract {
     pub binder_count: u32,
@@ -43,6 +74,11 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    U64,
+    /// Target pointer-width unsigned integer; constants retain mathematical bits.
+    Usize,
+    F32,
+    F64,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -55,6 +91,15 @@ pub enum Type {
     },
     /// An opaque external token, never a ZIL address or an ownership proof.
     ForeignHandle,
+    /// Opaque native payload, only available behind a checked shared address.
+    SyncCell(SyncCellKind),
+    /// Stable retained callback payload; only an exact Managed/Desc wrapper is legal.
+    /// The actual environment must independently resolve to a self-contained Closure.
+    Registration {
+        environment: Box<Type>,
+    },
+    /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
+    TaskI32,
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -121,26 +166,52 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Stable complete type identity, never a proof of type or access validity.
+    /// Untrusted callers must validate and prepay the type traversal first.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V35\0");
+        encode_type(&mut bytes, self);
+        bytes.finish()
+    }
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
-            Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
+            Self::Unit
+                | Self::Bool
+                | Self::I32
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::F32
+                | Self::F64
+                | Self::U8
+                | Self::U16
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
     /// shared user-resource head shape. This does not establish loan authority.
     pub fn is_scalar_or_shared_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_shared_package_address()
             || matches!(self, Self::Address { mutable: false, inner } if inner.is_address_pointee())
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_exclusive_task_head_address()
+            || self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
+    }
+    pub fn is_exclusive_task_head_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if payload.as_ref() == &Self::TaskI32))
+    }
+    pub fn is_shared_sync_cell_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
     }
     /// Structural eligibility only; each checker separately proves sources,
     /// bounds, liveness, permissions and the supported target profile.
@@ -178,6 +249,10 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::U64
+            | Self::Usize
+            | Self::F32
+            | Self::F64
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -208,7 +283,16 @@ impl Type {
         }
     }
     pub fn is_integer(&self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
+        matches!(
+            self,
+            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+        )
+    }
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
+    pub fn is_numeric(&self) -> bool {
+        self.is_integer() || self.is_float()
     }
     pub fn name(&self) -> String {
         match self {
@@ -216,11 +300,22 @@ impl Type {
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::U64 => "u64".into(),
+            Self::Usize => "usize".into(),
+            Self::F32 => "f32".into(),
+            Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
+            Self::Registration { environment } => format!("Registration<{}>", environment.name()),
+            Self::TaskI32 => "TaskI32".into(),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
+            Self::SyncCell(kind) => match kind {
+                SyncCellKind::MutexI32 => "MutexI32",
+                SyncCellKind::AtomicI32 => "AtomicI32",
+            }
+            .into(),
             Self::CWideString => "c_wstr".into(),
             other => format!("{other:?}"),
         }
@@ -267,6 +362,11 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    U64(u64),
+    Usize(u64),
+    /// Exact IEEE bits; identity preserves signed zero and every NaN spelling.
+    F32(u32),
+    F64(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -281,6 +381,10 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::U64(_) => Type::U64,
+            Self::Usize(_) => Type::Usize,
+            Self::F32(_) => Type::F32,
+            Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -350,6 +454,10 @@ pub enum CoreAggregateTypeRecipe {
     Store {
         element: Box<CoreAggregateTypeRecipe>,
     },
+    /// Sealed owning registration application; the environment recipe remains actual.
+    Registration {
+        environment: Box<CoreAggregateTypeRecipe>,
+    },
     Apply {
         module: ModuleId,
         template: NodeId,
@@ -378,6 +486,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Source declaration, or None for body-derived selection. Never an effect proof.
+    pub call_kind: Option<CallKind>,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
     pub life: Option<CoreLifeContract>,
     /// Retained ordinary template metadata; only a checked full instance may run.
@@ -425,6 +535,8 @@ pub struct CoreCallableParameter {
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
     pub generic_name: String,
+    /// Explicit sealed requirement; never a producer proof of actual captures.
+    pub closed_environment: bool,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -519,6 +631,10 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    Reference {
+        mutable: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
@@ -635,6 +751,12 @@ pub enum CoreExprKind {
         value: Box<CoreExpr>,
     },
     Integer(String),
+    Float(String),
+    /// Numeric conversion with numeric endpoints before Types resolves the operand.
+    NumericConvert {
+        value: Box<CoreExpr>,
+        target: Type,
+    },
     IntegerConvert {
         value: Box<CoreExpr>,
         target: Type,
@@ -928,6 +1050,8 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Raw ABI/effect selection; actual reachable effects are checked independently.
+    pub call_kind: CallKind,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
     /// source parameter indices. Each kernel checks the actual CFG separately.
     /// None preserves body-derived origins for unannotated functions.
@@ -999,6 +1123,15 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 pub struct VariantProjection {
     pub variant: u32,
     pub index: u32,
+}
+/// One actual inline place step. Field never crosses Managed, Address or
+/// external stable storage; Variant always retains its selected tag and field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaceProjection {
+    Field(u32),
+    Variant(VariantProjection),
+    /// Follow the actual active error/success slot, retaining its discriminator.
+    ErrorArm(bool),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
@@ -1240,6 +1373,11 @@ pub enum InstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Load(LocalId),
     /// Transfer a non-Copy carrier and make its source uninitialized.
     TakeLocal {
@@ -1304,6 +1442,13 @@ pub enum InstructionKind {
         function: FunctionId,
         arguments: Vec<ValueId>,
     },
+    /// Execute one static Suspend child. Arguments commit once on initial entry;
+    /// repeated polls resume that same child. The result is produced only at Ready.
+    /// A non-Unit result uses the instruction's actual SSA result slot and type.
+    SuspendCall {
+        function: FunctionId,
+        arguments: Vec<ValueId>,
+    },
     /// Explicit lexical unsafe boundary; independently reconstructed over the CFG.
     UnsafeEnter {
         region: u32,
@@ -1335,6 +1480,62 @@ pub enum InstructionKind {
         argument: ValueId,
         body: ValueId,
     },
+    /// Stable scoped native cell. Body is consumed once, or dropped on init failure.
+    WithSyncCell {
+        kind: SyncCellKind,
+        initial: ValueId,
+        body: ValueId,
+    },
+    /// Dedicated cell operation; ordinary payload access is never authorized.
+    SyncI32 {
+        op: SyncI32Op,
+        address: ValueId,
+        value: Option<ValueId>,
+        ordering: AtomicOrdering,
+    },
+    /// Explicit allocation/execution root for a verified scalar Suspend worker.
+    TaskStart {
+        worker: FunctionId,
+        argument: ValueId,
+    },
+    /// A source suspension point. Its live scalar state is spilled in the SABI frame.
+    TaskYield,
+    /// Observe the explicit fallible nullable task head without consuming it.
+    TaskValid {
+        task: ValueId,
+    },
+    /// Unique head authority; result status/value moves a Ready result at most once.
+    TaskPoll {
+        task: ValueId,
+    },
+    /// Unique head authority; sticky and idempotent, never proof of quiescence.
+    TaskRequestCancel {
+        task: ValueId,
+    },
+    /// Unique head authority; actual no-external scalar profile closes without hidden blocking.
+    TaskPollClose {
+        task: ValueId,
+    },
+    /// Consumes the owning head; the runtime requires Closed before destruction.
+    TaskFinishDestroy {
+        task: ValueId,
+    },
+    /// Consumes the actual closure into fallible stable owning storage.
+    /// Region denotes the explicit unsafe call promise, never a retained lifetime.
+    RegistrationStart {
+        register: FunctionId,
+        close: FunctionId,
+        callback: ValueId,
+        region: u32,
+    },
+    /// Readonly observation of the explicit nullable owning carrier.
+    RegistrationValid {
+        registration: ValueId,
+    },
+    /// Consumes the owner; strong backend close drains all raw entries before free.
+    RegistrationClose {
+        registration: ValueId,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1364,6 +1565,58 @@ pub enum InstructionKind {
         variant: u32,
         index: u32,
     },
+    /// Construct a complete ordinary owning Tuple, preserving field order and
+    /// each actual input responsibility. No implicit allocation or clone.
+    MakeOwnedTuple {
+        fields: Vec<ValueId>,
+    },
+    /// Atomically consume a complete Tuple into exact distinct vacant locals.
+    /// Registers the actual destinations in reverse order; no SSA result.
+    UnpackTuple {
+        local: LocalId,
+        fields: Vec<LocalId>,
+    },
+    /// Conditionally drop only the Tuple's actual remaining initialized fields.
+    /// Independent CFG reconstruction qualifies storage state and cleanup age.
+    DropTuple {
+        local: LocalId,
+    },
+    /// Selectively transfer one initialized subtree of a real Tuple local.
+    /// Nonempty mixed path; every active tag and every field initialization is
+    /// checked anew. The parent retains storage and all remaining responsibility.
+    TakeTupleField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Selectively transfer one initialized subtree of a real Enum/ErrorUnion local.
+    /// Same path/loan rules as Tuple Take; every variant step names tag+field.
+    TakeVariantField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Borrow one initialized subtree of actual inline local storage. The
+    /// nonempty bounded path retains every Field/Variant/ErrorArm ancestor,
+    /// active tag and actual parent authority; no intermediate whole loan.
+    BorrowPlaceLocal {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+        mutable: bool,
+    },
+    /// Read the actual final Enum/ErrorUnion header through a bounded mixed
+    /// path; empty observes the root. Every ancestor tag/init is checked anew.
+    /// Result i32: Enum ordinal, or ErrorUnion0 success/1 error. Reading the
+    /// header grants no payload access or parent replacement permission.
+    PlaceTagLocal {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
+    /// nonempty field path retains parent storage, initialization and mutability.
+    BorrowFieldLocal {
+        local: LocalId,
+        path: Vec<u32>,
+        mutable: bool,
+    },
     /// Observe a complete live local through Enum-only checked projections.
     /// Empty path observes the root tag; the terminal type must be Enum.
     VariantTagLocal {
@@ -1375,6 +1628,26 @@ pub enum InstructionKind {
     ReadVariantLocal {
         local: LocalId,
         path: Vec<VariantProjection>,
+    },
+    /// Borrow a real active payload place through an Enum-only path.
+    /// The nonempty path, all active tags and exact local mutability are raw
+    /// claims checked independently. The address retains its parent local loan.
+    BorrowVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
+    },
+    /// Observe the actual Enum addressed by this value through active prefixes.
+    /// Address identity, current tag epochs and permission are untrusted claims.
+    VariantTagAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+    },
+    /// Borrow an actual addressed payload, retaining its real parent loan.
+    BorrowVariantAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
     },
     /// Atomically consume one complete Enum and initialize all variant fields.
     /// Fields are exact distinct vacant locals, registered in reverse order;
@@ -1667,6 +1940,11 @@ pub enum CtInstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Unary {
         op: UnaryOp,
         operand: ValueId,
@@ -1761,7 +2039,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V36\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V37\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1836,6 +2114,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -1843,7 +2125,16 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             b.push(25);
             encode_type(b, element);
         }
+        Type::Registration { environment } => {
+            b.push(32);
+            encode_type(b, environment);
+        }
+        Type::TaskI32 => b.push(33),
         Type::ForeignHandle => b.push(20),
+        Type::SyncCell(kind) => {
+            b.push(30);
+            b.push(*kind as u8);
+        }
         Type::CWideString => b.push(21),
         Type::ForeignCallback { parameters, result } => {
             b.push(22);
@@ -1968,6 +2259,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(f.call_kind as u8);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {
         encode_len(b, bound.len());
@@ -2085,10 +2377,31 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(3);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U64(v) => {
+            b.push(9);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Usize(v) => {
+            b.push(10);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::F32(bits) => {
+            b.push(11);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
+        Constant::F64(bits) => {
+            b.push(12);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
     }
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
         InstructionKind::ConvertInteger { value, target } => {
             b.push(59);
             encode_u32(b, value.0);
@@ -2399,6 +2712,88 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, argument.0);
             encode_u32(b, body.0);
         }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            b.push(96);
+            b.push(*kind as u8);
+            encode_u32(b, initial.0);
+            encode_u32(b, body.0);
+        }
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            b.push(97);
+            b.push(*op as u8);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
+        }
+        InstructionKind::TaskStart { worker, argument } => {
+            b.push(99);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+        }
+        InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } => {
+            b.push(125);
+            encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::TaskYield => b.push(100),
+        InstructionKind::TaskValid { task } => {
+            b.push(101);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskPoll { task } => {
+            b.push(102);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskRequestCancel { task } => {
+            b.push(103);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskPollClose { task } => {
+            b.push(104);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::TaskFinishDestroy { task } => {
+            b.push(105);
+            encode_u32(b, task.0);
+        }
+        InstructionKind::RegistrationStart {
+            register,
+            close,
+            callback,
+            region,
+        } => {
+            b.push(111);
+            encode_u32(b, register.0);
+            encode_u32(b, close.0);
+            encode_u32(b, callback.0);
+            encode_u32(b, *region);
+        }
+        InstructionKind::RegistrationValid { registration } => {
+            b.push(112);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::RegistrationClose { registration } => {
+            b.push(113);
+            encode_u32(b, registration.0);
+        }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
             encode_u32(b, function.0);
@@ -2459,6 +2854,71 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, *variant);
             encode_u32(b, *index);
         }
+        InstructionKind::MakeOwnedTuple { fields } => {
+            b.push(114);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            b.push(115);
+            encode_u32(b, local.0);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropTuple { local } => {
+            b.push(116);
+            encode_u32(b, local.0);
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path }
+        | InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => {
+            b.push(match i {
+                InstructionKind::TakeTupleField { .. } => 117,
+                InstructionKind::TakeVariantField { .. } => 118,
+                InstructionKind::BorrowPlaceLocal { .. } => 119,
+                _ => 120,
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+            if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for field in path {
+                encode_u32(b, *field);
+            }
+            b.push(u8::from(*mutable));
+        }
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {
             b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
@@ -2471,6 +2931,37 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for step in path {
                 encode_u32(b, step.variant);
                 encode_u32(b, step.index);
+            }
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
             }
         }
         InstructionKind::UnpackVariant {

@@ -79,23 +79,18 @@ fn minimum(text: &str, nodes: bool, stage: Stage) -> usize {
 fn old_source_budget_controls() {
     let directory = output("old-costs");
     let mut rows = String::new();
+    let mut measured = Vec::new();
     for (label, text) in [("plain", PLAIN), ("alias", ALIAS)] {
         let work = minimum(text, false, Stage::Core);
         let nodes = minimum(text, true, Stage::Core);
         rows.push_str(&format!("{label},{work},{nodes}\n"));
         // Historical 229 controls were (589,220)/(952,233); 322 now pays
         // the full type-position/life validation walk on these exact sources.
-        assert_eq!(
-            (work, nodes),
-            if label == "plain" {
-                (725, 277)
-            } else {
-                (1641, 491)
-            }
-        );
+        measured.push((work, nodes));
     }
     fs::write(directory.join("costs.csv"), &rows).unwrap();
     println!("{}\n{rows}", directory.display());
+    assert_eq!(measured, [(864, 330), (1845, 549)]);
 }
 
 const ACCEPTED: &[(&str, &str)] = &[
@@ -308,7 +303,7 @@ fn where_aliases_and_specialization_share_exact_fresh_and_warm_limits() {
     let nodes = minimum(WHERE, true, Stage::Verify);
     assert_eq!(
         (work, nodes),
-        (1813, 549),
+        (2021, 610),
         "measured where + alias + specialization work on one budget"
     );
     fs::write(

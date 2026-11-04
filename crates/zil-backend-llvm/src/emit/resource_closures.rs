@@ -123,7 +123,11 @@ pub(super) fn drop_functions(
                             .iter()
                             .find(|resource| &resource.payload == payload.as_ref())
                             .expect("verified captured resource definition");
-                        if resource.payload == Type::ByteBuffer {
+                        if matches!(resource.payload, Type::Registration { .. }) {
+                            Some("zil.registration.drop".into())
+                        } else if resource.payload == Type::TaskI32 {
+                            Some("zil.task.drop".into())
+                        } else if resource.payload == Type::ByteBuffer {
                             Some("zil.bytes.drop".into())
                         } else {
                             resource.teardown.map(symbol)
@@ -391,7 +395,7 @@ impl FunctionEmitter<'_> {
         match ty {
             Type::Managed(_) | Type::Package { .. } => true,
             Type::ErrorUnion { .. } => errors::owned(ty),
-            Type::Enum { .. } => !ty.is_copy_value(),
+            Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
             Type::Closure(id) => self.closures.get(id).is_some_and(|definition| {
                 owns(definition) || definition.kind == CallableKind::FnOnce
             }),

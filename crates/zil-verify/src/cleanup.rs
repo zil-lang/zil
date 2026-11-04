@@ -73,9 +73,17 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
 fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
     match instruction {
         InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::PlaceTagLocal { local, .. }
+        | InstructionKind::TakeTupleField { local, .. }
+        | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::ReadVariantLocal { local, .. }
+        | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::RegisterDefer { local, .. }
         | InstructionKind::Store { local, .. }
@@ -163,10 +171,18 @@ pub(super) fn check_function(
             }
             if matches!(
                 instruction.kind,
-                InstructionKind::VariantTagLocal { .. }
+                InstructionKind::BorrowPlaceLocal { .. }
+                    | InstructionKind::PlaceTagLocal { .. }
+                    | InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::TakeVariantField { .. }
+                    | InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
+                    | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::UnpackTuple { .. }
                     | InstructionKind::DropEnum { .. }
+                    | InstructionKind::DropTuple { .. }
             ) {
                 required = true;
             }
@@ -342,8 +358,8 @@ pub(super) fn check_function(
                                     ));
                                 }
                             }
-                            if let InstructionKind::UnpackVariant { ref fields, .. } =
-                                instruction.kind
+                            if let InstructionKind::UnpackVariant { ref fields, .. }
+                            | InstructionKind::UnpackTuple { ref fields, .. } = instruction.kind
                             {
                                 budget.spend(
                                     fields

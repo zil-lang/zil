@@ -22,6 +22,10 @@ use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 use zil_syntax::ast as s;
 
+pub(super) fn scalar_type(name: &str) -> Option<CtScalarTy> {
+    types::scalar(name)
+}
+
 /// Producer-only lexical lowering; a Type value carries no borrow permission.
 pub(super) fn source_relation(
     names: &[&str],
@@ -124,6 +128,7 @@ pub(crate) enum Entry<'a> {
     },
 }
 pub(crate) struct CompileRequest<'a> {
+    pub target_pointer_width: u16,
     pub modules: &'a [SourceModule<'a>],
     pub source_fingerprint: Fingerprint,
     pub entry: Entry<'a>,
@@ -636,6 +641,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
     )?;
     Ok(CtArtifactProgram {
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+        target_pointer_width: request.target_pointer_width,
         source_fingerprint: request.source_fingerprint,
         functions: compiler
             .functions

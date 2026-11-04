@@ -352,7 +352,8 @@ fn scan(
                             }
                         }
                     }
-                    InstructionKind::WithScopedThread { body, .. }
+                    InstructionKind::WithSyncCell { body, .. }
+                    | InstructionKind::WithScopedThread { body, .. }
                     | InstructionKind::WithForeignCallback { body, .. } => {
                         let id = entry(module, &f.values[body.0 as usize])
                             .ok_or_else(|| bad("head scoped body is not a closure"))?;

@@ -86,6 +86,9 @@ pub(super) fn validate_template(
     function: &CoreFunction,
     prepay: &mut impl FnMut(&Type, Span) -> R<()>,
 ) -> R<()> {
+    if registration::template(function) {
+        return registration::validate_template(function, prepay);
+    }
     if forwarding::bound(function).is_some() {
         return forwarding::validate(function, prepay);
     }
@@ -441,6 +444,7 @@ impl Builder<'_, '_> {
         }
         let owned_state = callable_fields::signature(signature);
         let owned_factory = owning_factory::signature(signature);
+        let retained_registration = registration::environment(&signature.result).is_some();
         let forward = forwarding::signature(signature).map(|bound| bound.index);
         if forward.is_some() {
             self.forward_modes(span)?;
@@ -448,6 +452,7 @@ impl Builder<'_, '_> {
         let mut returned_mode = None;
         if !owned_state
             && !owned_factory
+            && !retained_registration
             && forward.is_none()
             && let Some(expected) = expected
         {
@@ -596,7 +601,7 @@ impl Builder<'_, '_> {
                 };
                 self.require_state_kind(argument, None, closure, bound.kind)?;
                 self.factory_require_value(value, bound.kind, argument.span)?;
-                if owned_factory || forward.is_some() {
+                if owned_factory || forward.is_some() || bound.closed_environment {
                     self.closures
                         .factory_self_contained(closure, argument.span)?;
                 }
@@ -633,7 +638,7 @@ impl Builder<'_, '_> {
             environments,
             span,
         )?;
-        let result = if owned_state || owned_factory || forward.is_some() {
+        let result = if owned_state || owned_factory || retained_registration || forward.is_some() {
             self.closures
                 .snapshot(self.closures.helper_functions.len(), span)?;
             self.closures
@@ -719,6 +724,9 @@ impl Builder<'_, '_> {
         }
         pending.inference.expect_result(&bound.result, span)?;
         self.materialize_closure(closure)?;
+        if bound.closed_environment {
+            registration::closed_environment(self.closures, closure, span)?;
+        }
         Ok(())
     }
 
@@ -804,6 +812,15 @@ impl Builder<'_, '_> {
         let owned_state = callable_fields::template(&function);
         let owned_factory = owning_factory::template(&function);
         let forward = forwarding::bound(&function).map(|bound| bound.index);
+        if registration::template(&function) {
+            for bound in bounds {
+                callable_fields::specialize_type(
+                    &mut function.return_type,
+                    &bound.generic_name,
+                    bindings.get(bound.generic_index, span)?,
+                );
+            }
+        }
         if forward.is_some() {
             function.return_type = Type::Closure(bindings.get(bounds[0].generic_index, span)?);
         }
@@ -1010,6 +1027,9 @@ impl Builder<'_, '_> {
                 lending_captures: Vec::new(),
             });
             self.closures.forward_results.insert(id, parameter);
+        }
+        if registration::template(&template.function) {
+            typed.callable_contract = None;
         }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
@@ -1251,7 +1271,14 @@ fn ordinary_aggregate_inputs<'a>(
         ([value], None)
             if matches!(
                 function.values[value.0 as usize],
-                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
             ) =>
         {
             None

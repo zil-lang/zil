@@ -28,6 +28,12 @@ impl Check<'_, '_, '_> {
                     .locals
                     .get(name)
                     .ok_or_else(|| error(span, "unknown generic place"))?;
+                if consts::binding(self.source_definition, name, local.id) {
+                    return Err(error(
+                        span,
+                        "const binding is a value, not addressable storage",
+                    ));
+                }
                 if use_alias {
                     self.resource_description_use(local.description_roots.as_deref(), state, span)?;
                 }

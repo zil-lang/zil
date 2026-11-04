@@ -76,9 +76,25 @@ impl Builder<'_> {
             Type::U16 => self.push(CtTypeNode::Primitive(S::U16)),
             Type::I32 => self.push(CtTypeNode::Primitive(S::I32)),
             Type::I64 => self.push(CtTypeNode::Primitive(S::I64)),
+            Type::F32 => self.push(CtTypeNode::Primitive(S::F32)),
+            Type::F64 => self.push(CtTypeNode::Primitive(S::F64)),
+            Type::U64 => self.push(CtTypeNode::Primitive(S::U64)),
+            Type::Usize => self.push(CtTypeNode::Primitive(S::Usize)),
             Type::ByteBuffer => self.push(CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)),
             Type::ForeignHandle => self.push(CtTypeNode::Builtin(CtBuiltinType::ForeignHandle)),
             Type::CWideString => self.push(CtTypeNode::Builtin(CtBuiltinType::CWideString)),
+            Type::Enum { name, variants } if name == "@anonymous-sum:v1" => {
+                let members = variants
+                    .iter()
+                    .map(|(_, fields)| {
+                        let [member] = fields.as_slice() else {
+                            return Err(reject("malformed checked anonymous sum"));
+                        };
+                        self.ty(member)
+                    })
+                    .collect::<CompileResult<Vec<_>>>()?;
+                self.push(CtTypeNode::AnonymousSum(members))
+            }
             Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. } => {
                 let symbol = self.nominal(name)?;
                 self.push(CtTypeNode::Nominal {
@@ -166,9 +182,13 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::Named(_) | Type::Opaque { .. } | Type::Closure(_) | Type::Unsupported(_) => {
-                Err(reject("type has no completed CT shape"))
-            }
+            Type::Named(_)
+            | Type::Opaque { .. }
+            | Type::Closure(_)
+            | Type::Unsupported(_)
+            | Type::Registration { .. }
+            | Type::TaskI32
+            | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }
     }
 }
@@ -178,6 +198,7 @@ pub(super) fn from_checked_type(
     snapshot: &ShapeSnapshot,
     index: &SourceIndex,
     max_nodes: usize,
+    budget: &mut zil_ct::CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
     let mut builder = Builder {
         snapshot,
@@ -186,8 +207,17 @@ pub(super) fn from_checked_type(
         left: max_nodes,
     };
     let root = builder.ty(ty)?;
-    Ok(CtTypeRef {
+    let value = CtTypeRef {
         nodes: builder.nodes,
         root,
-    })
+    };
+    if value
+        .nodes
+        .iter()
+        .any(|n| matches!(n, CtTypeNode::AnonymousSum(_)))
+    {
+        zil_ct::canonicalize_anonymous_type(&value, budget)
+    } else {
+        Ok(value)
+    }
 }

@@ -401,6 +401,7 @@ fn body(
                         }
                     }
                     InstructionKind::WithForeignCallback { body, .. }
+                    | InstructionKind::WithSyncCell { body, .. }
                     | InstructionKind::WithScopedThread { body, .. } => {
                         let target = closure_entry(module, &f.values[body.0 as usize])?;
                         generated = apply(

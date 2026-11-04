@@ -771,6 +771,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::Desc(inner)
             | Type::Address { inner, .. }
             | Type::Opaque { hidden: inner, .. }
+            | Type::Registration { environment: inner }
             | Type::OwnedStore { element: inner }
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner } => core_shape(v, inner, span, depth + 1)?,
@@ -805,9 +806,15 @@ pub(crate) fn member_owner_type_cost(
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
+            | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}

@@ -268,6 +268,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),
@@ -702,5 +703,177 @@ fn life_and_scoped_thread_identity_fields_match_the_extended_reference() {
         }
         equal(&changed);
         assert_ne!(raw.fingerprint(), changed.fingerprint());
+    }
+}
+
+#[test]
+fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
+    let mut input = module(false);
+    let address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::I32),
+    };
+    for ty in [
+        Type::U64,
+        Type::Usize,
+        Type::F32,
+        Type::F64,
+        Type::TaskI32,
+        Type::Registration {
+            environment: Box::new(Type::Closure(ClosureId(17))),
+        },
+        Type::SyncCell(SyncCellKind::MutexI32),
+        Type::SyncCell(SyncCellKind::AtomicI32),
+        Type::BorrowedFunctionPointer {
+            parameters: vec![address.clone()],
+            result: Box::new(address),
+            life: FunctionLifeContract {
+                binder_count: 1,
+                parameter_lives: vec![Some(0)],
+                result_life: Some(0),
+            },
+        },
+    ] {
+        input.functions[0].return_type = ty;
+        equal(&input);
+    }
+    let path = vec![
+        VariantProjection {
+            variant: 3,
+            index: 5,
+        },
+        VariantProjection {
+            variant: 7,
+            index: 11,
+        },
+    ];
+    for kind in [
+        InstructionKind::Constant(Constant::U64(u64::MAX)),
+        InstructionKind::Constant(Constant::Usize(1_u64 << 63)),
+        InstructionKind::Constant(Constant::F32(0x7fc0_1234)),
+        InstructionKind::Constant(Constant::F64(0x8000_0000_0000_0000)),
+        InstructionKind::ConvertNumber {
+            value: ValueId(17),
+            target: Type::F64,
+        },
+        InstructionKind::WithSyncCell {
+            kind: SyncCellKind::AtomicI32,
+            initial: ValueId(13),
+            body: ValueId(19),
+        },
+        InstructionKind::SyncI32 {
+            op: SyncI32Op::FetchAdd,
+            address: ValueId(23),
+            value: Some(ValueId(29)),
+            ordering: AtomicOrdering::AcqRel,
+        },
+        InstructionKind::TaskStart {
+            worker: FunctionId(31),
+            argument: ValueId(37),
+        },
+        InstructionKind::RegistrationStart {
+            register: FunctionId(97),
+            close: FunctionId(101),
+            callback: ValueId(103),
+            region: 107,
+        },
+        InstructionKind::RegistrationValid {
+            registration: ValueId(109),
+        },
+        InstructionKind::RegistrationClose {
+            registration: ValueId(113),
+        },
+        InstructionKind::TaskYield,
+        InstructionKind::TaskValid { task: ValueId(41) },
+        InstructionKind::TaskPoll { task: ValueId(43) },
+        InstructionKind::TaskRequestCancel { task: ValueId(47) },
+        InstructionKind::TaskPollClose { task: ValueId(53) },
+        InstructionKind::TaskFinishDestroy { task: ValueId(59) },
+        InstructionKind::BorrowVariantLocal {
+            local: LocalId(61),
+            path: path.clone(),
+            mutable: true,
+        },
+        InstructionKind::VariantTagAddress {
+            address: ValueId(67),
+            path: path.clone(),
+        },
+        InstructionKind::BorrowVariantAddress {
+            address: ValueId(71),
+            path,
+            mutable: false,
+        },
+        InstructionKind::DescribeAddress {
+            address: ValueId(89),
+        },
+        InstructionKind::BorrowFieldLocal {
+            local: LocalId(73),
+            path: vec![79, 83],
+            mutable: true,
+        },
+    ]
+    .into_iter()
+    .chain(cases::terminal_instructions(false))
+    .chain(cases::terminal_instructions(true))
+    {
+        input.functions[0].blocks[0].instructions.push(Instruction {
+            result: None,
+            span: Span::default(),
+            kind,
+        });
+        equal(&input);
+    }
+}
+
+#[test]
+fn terminal37_higher_rank_and_suspend_fields_match_independent_reference() {
+    let mut input = module(false);
+    input.functions[0].call_kind = CallKind::Suspend;
+    input.functions[0].callable_contract = Some(contract(false));
+    input.functions[0].callable_contract.as_mut().unwrap().roles[0].life =
+        Some(FunctionLifeContract {
+            binder_count: 2,
+            parameter_lives: vec![Some(0), None, Some(1)],
+            result_life: Some(0),
+        });
+    input.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(131)),
+        span: Span::default(),
+        kind: InstructionKind::SuspendCall {
+            function: FunctionId(137),
+            arguments: vec![ValueId(139), ValueId(149)],
+        },
+    });
+    equal(&input);
+    assert!(std::panic::catch_unwind(|| legacy::bytes_v31(&input)).is_err());
+    for change in 0..7 {
+        let mut changed = input.clone();
+        let f = &mut changed.functions[0];
+        if change == 0 {
+            f.call_kind = CallKind::Direct;
+        } else if change <= 4 {
+            let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
+            match change {
+                1 => role.life = None,
+                2 => role.life.as_mut().unwrap().binder_count += 1,
+                3 => role.life.as_mut().unwrap().parameter_lives.swap(0, 2),
+                _ => role.life.as_mut().unwrap().result_life = Some(1),
+            }
+        } else {
+            let InstructionKind::SuspendCall {
+                function,
+                arguments,
+            } = &mut f.blocks[0].instructions.last_mut().unwrap().kind
+            else {
+                unreachable!()
+            };
+            if change == 5 {
+                function.0 += 1;
+            } else {
+                arguments.swap(0, 1);
+            }
+        }
+        equal(&changed);
+        assert_ne!(input.fingerprint(), changed.fingerprint());
     }
 }

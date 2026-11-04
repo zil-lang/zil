@@ -99,6 +99,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
+                    || ty.is_shared_sync_cell_address()
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
@@ -112,7 +113,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -187,8 +188,10 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             let concrete_closure = callable_parameter_type(ty, &module.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
+                && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !resource_head_address(ty)
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_value_type(ty, &module.resources)
@@ -225,6 +228,19 @@ fn resource_head_address(ty: &Type) -> bool {
 }
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}) && resources.iter().any(|r|r.payload==**p && r.teardown.is_none()))
+    {
+        return true;
+    }
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
+        && resources.iter().any(|r| {
+            r.name == zil_ir::TASK_I32_RESOURCE_NAME
+                && r.payload == Type::TaskI32
+                && r.teardown.is_none()
+        })
+    {
+        return true;
+    }
     if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
         if matches!(payload.as_ref(), Type::OwnedStore { .. })
         && resources.iter().any(|r| r.payload == **payload && r.teardown.is_none()))
@@ -355,6 +371,16 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
             alignment: 8,
         },
         ScalarLayout {
+            ty: Type::F32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::F64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
             ty: Type::U8,
             size: 1,
             alignment: 1,
@@ -472,6 +498,7 @@ mod tests {
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -536,6 +563,8 @@ mod tests {
                 (1, 1),
                 (4, 4),
                 (8, 8),
+                (4, 4),
+                (8, 8),
                 (1, 1),
                 (2, 2),
                 (8, 8),
@@ -578,6 +607,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

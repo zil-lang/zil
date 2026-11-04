@@ -143,7 +143,12 @@ fn mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses(
         "fn forward<T:Copy,life a>(p:&'a mut T)->&'a mut T{return p}fn result()->i64{var x:i64=40;return *forward(&mut x)}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     reject(
         "fn local<life a>(p:&'a mut i64)->&'a mut i64{let q:&'a mut i64=p;return q}fn main(){}",

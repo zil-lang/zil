@@ -11,6 +11,7 @@ fn function(
     environment: Option<ClosureId>,
 ) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
         name: format!("scoped_{id}"),

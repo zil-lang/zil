@@ -59,3 +59,35 @@ pub fn decode(bytes:&[u8], at:i64)->Scalar {
     while i<end { value=value*64+i32(bytes[i])-128; i+=1 }
     return Scalar{status:1,value:value,next:end}
 }
+
+// A Unicode scalar excludes surrogate code points; zero denotes invalid input.
+pub fn encoded_len(value:i32)->i64 {
+    if value<0 || value>1114111 || (value>=55296 && value<=57343) { return 0 }
+    if value<128 { return 1 }
+    if value<2048 { return 2 }
+    if value<65536 { return 3 }
+    return 4
+}
+
+// Returns written bytes, -1 for a non-scalar or -2 for insufficient output.
+// Both failures leave every output byte unchanged.
+pub fn encode(value:i32, output:&mut [u8])->i64 {
+    let width=encoded_len(value)
+    if width==0 { return -1 }
+    if output.len()<width { return -2 }
+    if width==1 { output[0]=u8(value) }
+    else if width==2 {
+        output[0]=u8(192+value/64)
+        output[1]=u8(128+value%64)
+    } else if width==3 {
+        output[0]=u8(224+value/4096)
+        output[1]=u8(128+(value/64)%64)
+        output[2]=u8(128+value%64)
+    } else {
+        output[0]=u8(240+value/262144)
+        output[1]=u8(128+(value/4096)%64)
+        output[2]=u8(128+(value/64)%64)
+        output[3]=u8(128+value%64)
+    }
+    return width
+}

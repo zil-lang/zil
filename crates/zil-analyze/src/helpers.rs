@@ -610,6 +610,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         {
             continue;
         }
+        if registration::factory(module, function, budget)? {
+            checked[index] = true;
+            continue;
+        }
         budget.spend(
             function.parameters.len().saturating_add(1),
             "helper parameter envelope and candidate table",

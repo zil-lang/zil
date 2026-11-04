@@ -1267,6 +1267,7 @@ fn scoped_wrapper_checks_actual_argument_aliases_and_keeps_disjoint_borrowing() 
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

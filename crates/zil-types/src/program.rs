@@ -276,6 +276,7 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
+    let mut task_interfaces = Vec::new();
     let mut resources = Vec::new();
     let mut root_functions = Vec::new();
     for module in &program.modules {
@@ -285,6 +286,7 @@ pub(super) fn check_resolved_program_with_reuse(
         let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
+        let mut task_exports = Vec::new();
         for f in core.functions.iter().filter(|f| {
             f.callable_parameters.is_empty()
                 && f.type_parameters.is_empty()
@@ -367,11 +369,40 @@ pub(super) fn check_resolved_program_with_reuse(
                 root_functions.push(export.clone());
             }
             if signature.public {
-                exports.push(export);
+                if tasks::suspends(&typed) {
+                    if !signature.scalar_thread_worker()
+                        || signature.parameters.as_slice() != [Type::I32]
+                    {
+                        return Err(vec![error(
+                            "E-TASK-WORKER",
+                            f.span,
+                            "public scalar task requires exact ordinary fn(i32)->i32",
+                        )]);
+                    }
+                    closure_state
+                        .snapshot(f.name.len().saturating_add(1), f.span)
+                        .map_err(|e| vec![e])?;
+                    task_exports.push(TaskExport {
+                        name: f.name.clone(),
+                        worker: id,
+                        parameter: export.parameters[0].clone(),
+                        result: (export.result_mode, export.result.clone()),
+                        abi_version: 1,
+                    });
+                } else {
+                    exports.push(export);
+                }
             }
             functions.push(typed);
         }
         exports.sort_by(|a, b| a.name.cmp(&b.name));
+        task_exports.sort_by(|a, b| a.name.cmp(&b.name));
+        if !task_exports.is_empty() {
+            task_interfaces.push(TaskInterface {
+                module: core.module_id,
+                exports: task_exports,
+            });
+        }
         interfaces.push(ScalarInterface {
             callable_returns: None,
             callable_contracts: None,
@@ -408,6 +439,9 @@ pub(super) fn check_resolved_program_with_reuse(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resources, &mut remaining).map_err(|e| vec![e])?;
+    registration::add_definitions(&functions, &mut resources, &mut remaining)
+        .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
         &functions,
@@ -439,6 +473,7 @@ pub(super) fn check_resolved_program_with_reuse(
         )?;
     }
     Ok(TypedProgram {
+        task_interfaces,
         module,
         interfaces,
         root_functions,
@@ -584,8 +619,24 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::U8 => bytes.push(15),
         Type::I32 => bytes.push(2),
         Type::I64 => bytes.push(3),
+        Type::F32 => bytes.push(28),
+        Type::F64 => bytes.push(29),
+        Type::U64 => bytes.push(23),
+        Type::Usize => bytes.push(24),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
+        Type::Registration { environment } => {
+            bytes.push(32);
+            type_identity(bytes, environment, closures);
+        }
+        Type::TaskI32 => bytes.push(33),
+        Type::SyncCell(kind) => bytes.extend_from_slice(&[
+            30,
+            match kind {
+                SyncCellKind::MutexI32 => 0,
+                SyncCellKind::AtomicI32 => 1,
+            },
+        ]),
         Type::OwnedStore { element } => {
             bytes.push(22);
             type_identity(bytes, element, closures);

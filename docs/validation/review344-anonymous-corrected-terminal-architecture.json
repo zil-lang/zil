@@ -1,0 +1,106 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "8c17d9aa16001e35b11ac17e6a96d58bf2d2ef26",
+  "implementation_commit": "e2f6773f71badd8d312b53cdff9cf3332f8a61a8",
+  "base": "f01e61bcc242f39418758be0e836fff748c42f0c",
+  "scope": "Anonymous tagged Copy source sums and CT Type-valued structural sums, with corrected repeated generic-key accounting. This is the isolated schema2 Type stage; incomplete CT3 value consumers are absent.",
+  "identity": {
+    "production_rust_count": 308,
+    "production_rust_sha256": "f2973b7bb3e4fce300c768a3d742fcc737e7fa1ad2f5836ddb85c63091bf331c",
+    "algorithm": "crates/*/src/**/*.rs sorted by Python Path component order; UTF-8 relative path + NUL + exact bytes + NUL.",
+    "verification": "Independently recomputed all308 exact Git production blobs and matched every six fixture/four harness-source hash in the committed author receipt.",
+    "inputs": {
+      "tests/language-readiness/terminal/344/anonymous/aliases.zil": "c168a00d5bace9d9a33a5a2ed874cb261eb0ca7b108cec74ffdc5dfab99ead9e",
+      "tests/language-readiness/terminal/344/anonymous/basic.zil": "01fb4b568282c73c422d0a793ab2cdfcf2ad0241d12ad0baec3b43e23d9916b0",
+      "tests/language-readiness/terminal/344/anonymous/ct-types.zil": "c4782062af8579d6a3f09a3aecb679228652f0f037be189a9a79317b05dd5703",
+      "tests/language-readiness/terminal/344/anonymous/float-enum.zil": "3b91a1a9f0142739c1109192e60d99e54ba690ff35c6b9b217ce37919d2877ad",
+      "tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil": "526a0d1ce7b705e57d8f8d85ec80e3094fa47ad37fed8c5d1a97eddbff3d5768",
+      "tests/language-readiness/terminal/344/anonymous/phantom.zil": "2d0db2340184c0e227fb64cd59146d5b89c43e9744dea4db97f39768e0a5b419"
+    },
+    "harness_sources": {
+      "crates/zil-driver/tests/aggregates.rs": "11848e6cb0e06f16e69aa29b05785ce6a889e6d8bc6fc125ff468d9003fcfb4a",
+      "crates/zil-expand/src/generic_type_keys.rs": "0539bbe94381a9c5db52a2f5966bc11ba5d6613f78126afa7e82f2bba1c12ae3",
+      "crates/zil-ct/src/anonymous_type.rs": "0060c25e4d21bb6c6a4fbceac9765a89874f25d0bce122ef44ff607eab798f9f",
+      "crates/zil-ct/src/ct_artifact.rs": "acb9afd29d4470723c3bd70c4b34ee42a12750928e33da4e26979209b5279b1f"
+    }
+  },
+  "retained_harnesses": {
+    "/tmp/zil-terminal-review/aggregates-anonymous344-corrected": "3497a700f8be6806aad38e3daa755274069abd9044d00176a66b1403d1b00f8a",
+    "/tmp/zil-terminal-review/expand-anonymous344-corrected": "369868d46b520f5826bb9ea3e9a4ed2a162e159a96342373b00068c16091def5"
+  },
+  "binding": "Copied before target reuse and independently SHA-verified against the exact source receipt. Previous CT/IR binaries retain their f01 identities and earlier independent4/19 replays, not relabelled as new executions here.",
+  "independent_execution": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/aggregates-anonymous344-corrected anonymous_sum_ --test-threads=1 --nocapture",
+      "passed": 11,
+      "failed": 0,
+      "filtered": 74,
+      "seconds": 1.94
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/expand-anonymous344-corrected nested_complete_key_layout_and_exact_work_boundary --test-threads=1 --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 9,
+      "seconds": 0.0
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/aggregates-anonymous344-corrected ieee_float_ --test-threads=1 --nocapture",
+      "passed": 10,
+      "failed": 0,
+      "filtered": 75,
+      "seconds": 2.06
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/aggregates-anonymous344-corrected terminal340_ --test-threads=1 --nocapture",
+      "passed": 4,
+      "failed": 0,
+      "filtered": 81,
+      "seconds": 0.81
+    }
+  ],
+  "resolved_finding": {
+    "prior_review": "docs/validation/review344-anonymous-terminal-architecture.json",
+    "prior_status": "ChangesRequested",
+    "resolution": "All new generic full-key construction uses type_key_bounded with the current request Budget. Unification and integer-pattern metadata carry that ledger through recursive calls. The new recursive allocation-free planner pays each node, rendered bytes, parent copies, temporary string/vector growth and full flattened/nested Union comparisons before the private renderer. Array-length inspection also avoids allocation during planning. Source search found one paid external production renderer caller; all other calls are its prepaid recursive implementation.",
+    "scope_of_resolution": "The concrete new Union-sort accounting omission identified in f01 is closed; this is not a universal compile-cost bound or speed claim."
+  },
+  "source_review": [
+    "Checked-size arithmetic and depth bounds reject before rendered string construction; nested unions inside nominal arguments, tuples, arrays and function signatures contribute their own full comparison cost.",
+    "The request feature is discovered during the existing bounded AST type walk. Requests without Union retain the legacy fee path, while every complete-key construction in a Union request prepays its own actual repeated work.",
+    "Full identity, independent canonical Analyze/Verify checks and CT/runtime recanonicalization reviewed at f01 are unchanged. The new native source has eight long-common-prefix nominal members nested in generic Box, tuple and outer Sum; exact complete identities survive all stages."
+  ],
+  "budgets": {
+    "nested_key_unit": 7041,
+    "generic_common_prefix_source": 709861,
+    "prior_anonymous_source": 8558,
+    "float_source": 2189,
+    "unsigned_source": 9050
+  },
+  "budget_controls": "Unit N-1 fails before rendering, N and fresh N pass; actual source N/N-1 with warm/fresh sessions agree and leave active query count0. No default limit or global stack increase.",
+  "native_evidence": "Anonymous11 includes nine actual source variants across Clang/LLVM API O0/O2,36 executions. Inherited float/UInt native, cast traps and C ABI checks also replayed through their existing targets.",
+  "limitations": [
+    "CT artifact structural Sum values are a separate incomplete schema3 stage.",
+    "Anonymous owning cleanup, generalized borrow/partial-move composition and wider reliability obligations remain open.",
+    "Integration must extend full-type planners/remappers for newer public BFP/life and associated-constant source forms present only on other branches.",
+    "Author Clippy not independently rerun. No full-workspace, native-Windows, Rust cost comparison or terminal-language acceptance."
+  ],
+  "build_construction_supplement": {
+    "basis": "Author disclosed cross-worktree Cargo mtime reuse hazard after the isolated candidate. Reviewer read and hashed the actual logs; changed-node tests independently executed in the retained candidate.",
+    "logs_sha256": {
+      "/tmp/key-typefix344.log": "e67387ae684b813105eeed779517831df481f491515e1dd9efeca55b62e6fd0c",
+      "/tmp/key-source344.log": "b06df21c41ef3116d986028459198fd5cd3d0d7155c2ab716b7987224030938c",
+      "/tmp/key-unit344c.log": "0def6c9fa2480798b094facd863dd5beb7fff2e3cb06b626e42af00661731a98",
+      "/tmp/ct3-check344.log": "49fb9556381d0d99186e6933cb82979d4249dbc85bbd977ea5c339010151bdb3",
+      "/tmp/ct3-fresh-check344.log": "4596a864579801a16d4396dc5d8069a0496c48347581a2c96c7a5b0a23d08f45"
+    },
+    "observed": [
+      "First fresh isolated worktree check rebuilds base/IR/syntax/Expand at zil-344-typefix and exposes two missing Budget caller compile errors.",
+      "First successful isolated source harness build explicitly compiles all driver dependencies from zil-344-typefix and runs anonymous11 including long-prefixN709861.",
+      "Final corrected key-unit build explicitly recompiles zil-expand at zil-344-typefix and runs N7041.",
+      "Final aggregate rebuild/replay after final array inspection correction was streamed tool output, not a retained log file; no invented final log path. Exact final harness identity and reviewer replays remain in this receipt.",
+      "Later primary344 CT3 pass reused stale schema2 metadata and is discarded. Refreshing source mtimes exposes expected missing MakeAnonymousSum compiler errors. Neither log is CT3 acceptance."
+    ]
+  }
+}

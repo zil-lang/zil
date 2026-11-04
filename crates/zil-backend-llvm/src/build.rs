@@ -73,11 +73,12 @@ pub struct CodegenSummary {
     pub actual_units: usize,
     pub jobs: usize,
     pub fallback: Option<String>,
+    pub task_abis: Vec<crate::TaskAbiArtifact>,
 }
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"object_cache\":{},\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"task_abis\":[{}]}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.object_cache.to_json(),
@@ -86,7 +87,12 @@ impl CodegenSummary {
             self.jobs,
             self.fallback
                 .as_ref()
-                .map_or_else(|| "null".into(), |s| zil_base::json_string(s))
+                .map_or_else(|| "null".into(), |s| zil_base::json_string(s)),
+            self.task_abis
+                .iter()
+                .map(crate::TaskAbiArtifact::to_json)
+                .collect::<Vec<_>>()
+                .join(",")
         )
     }
 }
@@ -242,7 +248,7 @@ pub fn build_view_with_cancellation_and_stable_names(
             None,
         )]);
     }
-    let (mut machine, collected_closed) =
+    let (mut machine, collected_closed, mut task_work) =
         crate::emit::lower_view_with_closed_scalar_policy_and_jobs(
             verified,
             lir,
@@ -253,6 +259,7 @@ pub fn build_view_with_cancellation_and_stable_names(
                 && options.codegen.units >= 2,
             options.codegen.jobs,
         )?;
+    let mut task_abis = crate::task_abi::derive(verified, &machine, &mut task_work)?;
     // The opt-in O2 strategy contracts strict checked-add chains before
     // scalar evaluation. Each nonempty plan validates its complete unchanged
     // input before mutation. Ordinary O2 skips both passes.
@@ -397,6 +404,7 @@ pub fn build_view_with_cancellation_and_stable_names(
         ..PendingObjectCache::default()
     };
     let actual_units = plan.units.len().max(1);
+    crate::task_abi::bind_codegen(&mut task_abis, &plan.units, options, &mut task_work)?;
     let mut codegen = CodegenSummary {
         backend: options.backend,
         object_reports: Vec::new(),
@@ -405,6 +413,7 @@ pub fn build_view_with_cancellation_and_stable_names(
         actual_units,
         jobs: options.codegen.jobs.min(actual_units),
         fallback: plan.fallback.map(str::to_owned),
+        task_abis,
     };
     let windows = lir.target.triple == "x86_64-pc-windows-msvc";
     if windows != options.windows.is_some() {

@@ -1,0 +1,41 @@
+{
+  "status": "PassLimitedTransportDesign",
+  "reviewer": "/root/terminal_architecture",
+  "public_commit": "1bcc9dea68cb6134b889a30e53d253c9157acc1d",
+  "normative_commit": "648dd4b8e044bd0af58937604edecdaf1fda6f15",
+  "spec_sha256": "2f8fe49feb4701b7f2012bb87a1a5ae3bf775a53ec8ef55201f80be5cd8205cf",
+  "normative_sha256": "11ba8e742c0cbc83984b7cbebe9af4aa45fd07dc03f6fe0509a66ecdd9223b21",
+  "scope": "Read-only review of joint Typed/Wire37 transport and \u00a712.1.2 semantics. No compiler feature, native child execution or terminal acceptance is implied.",
+  "independent_work": [
+    "Inspected exact public schema, fingerprint and Wire field/tag encodings, decoding quotas and retained unit source controls.",
+    "Independently recomputed every normative file hash and the manifest hash from exact Git blobs; the public commit contains the same normative files."
+  ],
+  "findings_closed": [
+    "FunctionLifeContract declaration matches the canonical argument/result binder relation and its comment permits environment-bearing callbacks with separate fixed Hold.",
+    "Any resume(local|transfer) clause selects Suspend and conflicts with an explicit Direct upper bound; unimplemented Transfer must reject.",
+    "task_await may adapt an actual Direct static target while preserving its ordinary body; the await operation still requires a Suspend execution root."
+  ],
+  "contract_review": [
+    "Direct0/Suspend1 selection is raw untrusted metadata. Explicit Suspend with a pure body remains Suspend; actual CFG/callee/indirect/cleanup effects are independently reconstructed.",
+    "Typed domain V37 and Wire37 include the function CallKind byte and SuspendCall opcode125. Callable contract5 retains role.life after callable kind; minimum Wire role record and bounded binder/parameter allocations agree.",
+    "Inputs initialize once; Pending resumes the same distinct child instance. Argument loans persist through cancellation/draining. Ready transfers once and does not authorize destruction of a frame borrowed by its result.",
+    "PendingExit preserves actual result/exit responsibilities and creation-order drain. Direct AutoDrop cannot suspend or substitute abort for general close. TaskI32 external ABI1 is unchanged."
+  ],
+  "author_validation": {
+    "IR_library_passed": 61,
+    "failed": 0,
+    "independently_executed": false,
+    "retained_source_controls": [
+      "CallKind identity/roundtrip/unknown tag",
+      "SuspendCall opcode/roundtrip/truncation/huge argument count",
+      "callee identity and ordered argument/count fingerprint differences",
+      "role.life relation transport and fingerprint mutations"
+    ]
+  },
+  "pending_consumers": [
+    "Types, Analyze and Verify must each reject non-None invocation life until the complete342 consumers are integrated; decoding alone grants no semantics.",
+    "Incremental typing and cache/interface identities must include selected call kind or reject unsupported lanes. Scalar exports must exclude declared Suspend even when no Yield occurs.",
+    "Actual source lowering, independent effect checks, child-frame ownership/loans and native Pending/cancellation/draining implementation remain to be verified.",
+    "Root remains on its existing public version until compatible actual consumers are integrated. No full workspace, Windows, general waker, owning Task result or full-language acceptance."
+  ]
+}

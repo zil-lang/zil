@@ -113,7 +113,7 @@ pub(super) fn plan(
     }
     let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
     if !plans.is_empty() || abi.functions.values().any(|s| s.large()) {
-        work.checked_sub(256).ok_or_else(|| {
+        work = work.checked_sub(256).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
                 "Copy helper emission budget exceeded",
@@ -122,13 +122,14 @@ pub(super) fn plan(
         })?;
     }
     Ok(super::large_copy_abi::Plans {
+        remaining_work: work,
         values: plans,
         functions: abi.functions,
         indirect: abi.indirect,
     })
 }
 
-fn reserve_enum_metadata(
+pub(super) fn reserve_enum_metadata(
     ty: &Type,
     work: &mut usize,
     depth: usize,
@@ -184,6 +185,9 @@ fn reserve_enum_metadata(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::Registration {
+            environment: element,
+        }
         | Type::OwnedStore { element }
         | Type::Address { inner: element, .. }
         | Type::Managed(element)
@@ -323,6 +327,8 @@ fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
             let bytes = u64::from(*bits).div_ceil(8);
             (bytes, bytes.next_power_of_two().min(8) as u32)
         }
+        m::Ty::F32 => (4, 4),
+        m::Ty::F64 => (8, 8),
         m::Ty::Ptr => (8, 8),
         m::Ty::Array(length, element) => {
             let (bytes, align) = layout(element)?;

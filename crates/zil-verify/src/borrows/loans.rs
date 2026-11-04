@@ -219,7 +219,10 @@ fn reconstruct(
                             | InstructionKind::OwnedStoreBorrow { .. }
                             | InstructionKind::OwnedStoreBorrowMut { .. }
                             | InstructionKind::BorrowOwnedArrayElement { .. }
-                            | InstructionKind::BorrowPackageField { .. } => {
+                            | InstructionKind::BorrowPackageField { .. }
+                            | InstructionKind::BorrowVariantLocal { .. }
+                            | InstructionKind::BorrowFieldLocal { .. }
+                            | InstructionKind::BorrowPlaceLocal { .. } => {
                                 row.insert(id);
                             }
                             InstructionKind::BorrowCapture { .. }
@@ -227,6 +230,10 @@ fn reconstruct(
                                 if matches!(f.values[id], Type::Address { .. }) =>
                             {
                                 row.insert(id);
+                            }
+                            InstructionKind::BorrowVariantAddress { address, .. } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
                             InstructionKind::ReborrowAddress { address, .. } => {
                                 row.insert(id);
@@ -553,7 +560,8 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::MakePackage { fields: elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::WithForeignCallback { body, .. }
-        | InstructionKind::WithScopedThread { body, .. } => (Some(body), &[]),
+        | InstructionKind::WithScopedThread { body, .. }
+        | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
@@ -857,6 +865,7 @@ pub(super) fn check(
                         };
                     (&flow.values[body.0 as usize], arguments)
                 }
+                InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
@@ -885,6 +894,7 @@ pub(super) fn check(
                 InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::WithScopedThread { .. }
+                    | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
@@ -938,11 +948,13 @@ pub(super) fn check(
                         let stable = match root {
                             Root::Local(_) => ty == Some(&Type::I32),
                             Root::Parameter(_) => {
-                                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                    || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             Root::Capture(_) => {
                                 ty == Some(&Type::I32)
-                                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                    || (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                        || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             _ => false,
                         };
@@ -1040,6 +1052,61 @@ pub(super) fn check(
                 InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
+                InstructionKind::BorrowPlaceLocal {
+                    local,
+                    path,
+                    mutable,
+                } => {
+                    let root = super::roots::mixed_root(f, *local, path, false, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::PlaceTagLocal { local, path } => {
+                    let root = super::roots::mixed_root(f, *local, path, true, budget)?;
+                    access.check(&empty, &[root], false, budget)?;
+                }
+                InstructionKind::TakeTupleField { local, path }
+                | InstructionKind::TakeVariantField { local, path } => {
+                    let root = super::roots::mixed_root(f, *local, path, false, budget)?;
+                    access.check(&empty, &[root], true, budget)?;
+                }
+                InstructionKind::BorrowFieldLocal {
+                    local,
+                    path,
+                    mutable,
+                } => {
+                    let root = super::roots::inline_field_root(f, *local, path, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::VariantTagAddress { address, path }
+                | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                    let borrowed = matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowVariantAddress { mutable: true, .. }
+                    );
+                    let roots = super::roots::address_roots(
+                        f,
+                        *address,
+                        path,
+                        &facts.values[address.0 as usize],
+                        budget,
+                    )?;
+                    access.check(&flow.values[address.0 as usize], &roots, borrowed, budget)?;
+                }
+                InstructionKind::BorrowVariantLocal {
+                    local,
+                    path,
+                    mutable,
+                } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root = super::roots::variant_root(f, *local, path, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::VariantTagLocal { local, path } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root = super::roots::variant_root(f, *local, path, budget)?;
+                    access.check(&empty, &[root], false, budget)?;
+                }
                 InstructionKind::BorrowPackageField {
                     local,
                     index,
@@ -1053,6 +1120,10 @@ pub(super) fn check(
                     access.check(&empty, &[root], false, budget)?;
                 }
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropTuple { local }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackTuple { local, .. }
+                | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }
@@ -1085,13 +1156,22 @@ pub(super) fn check(
                         access.check(&positions, &flow.roots[*loan], *mutable, budget)?;
                     }
                 }
-                InstructionKind::ReadAddress { address }
+                InstructionKind::TaskValid { task } => {
+                    access.check(&empty, &facts.values[task.0 as usize], false, budget)?;
+                }
+                InstructionKind::TaskPoll { task: address }
+                | InstructionKind::TaskRequestCancel { task: address }
+                | InstructionKind::TaskPollClose { task: address }
+                | InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress { address, .. } => {
                     let write = matches!(
                         instruction.kind,
-                        InstructionKind::WriteAddress { .. }
+                        InstructionKind::TaskPoll { .. }
+                            | InstructionKind::TaskRequestCancel { .. }
+                            | InstructionKind::TaskPollClose { .. }
+                            | InstructionKind::WriteAddress { .. }
                             | InstructionKind::ReborrowAddress { mutable: true, .. }
                     );
                     access.check(
@@ -1144,6 +1224,7 @@ pub(super) fn check(
                 InstructionKind::TakeLocal { local } => {
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
+                        || crate::sums::owned(&f.locals[local.0 as usize].ty)
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))

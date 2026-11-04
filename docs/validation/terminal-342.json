@@ -201,6 +201,60 @@
       "first_independent_failure_reproduced": true
     }
   },
+  "mutable_nested_product": {
+    "status": "AuthorScopedPass",
+    "base_commit": "13677ef8c",
+    "scope": "Actual mutable nested finite Product AddressField; stored borrowed leaves remain in progress",
+    "production_files": 351,
+    "production_sha256": "262fad55300f48b1d9c034bcc4148ef390afdba33a0d70435204577b854486f5",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "fixture": "tests/language-readiness/terminal/342/nested_product.zil",
+    "fixture_sha256": "2164f8bd6ad4266c8f3588eb0f0473dd14de967bbba404fde4faacef7fb8d9e8",
+    "test_file": "tests/language-readiness/terminal/342/resource_head.rs",
+    "test_sha256": "03afdf507d6e9af64a9b0ac8f5acb9bcb5e645b5f759140ab5c05363e42fef2b",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "4cb36d18692b87be01512e130c6dcdcd56efbdb32b5b3b8fef86c64d2a94290f",
+    "native": {
+      "runs": 4,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "exit": 0,
+      "stderr": ""
+    },
+    "controls": [
+      "actual nested std.string.String and string.clear(&mut session.text)",
+      "raw+decoded Wire shared head mode forgeries rejected in both kernels",
+      "shared source cannot request mutable child",
+      "live view blocks begin and parent replacement"
+    ],
+    "ten_existing_driver_targets": [
+      68,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "old_recorded_phase_n_unchanged": true,
+    "clippy": "cross_function_borrows with llvm-api -D warnings Pass",
+    "full_original_ui_input": "Requires combined root UInt/library loader; not claimed run by342",
+    "logs": {
+      "342-nested-product-first.log": "f36f5848387b640678b4c373f1efdb52e0735d3838727478dd8336e1ab6b0c97",
+      "342-nested-product-complete.log": "717eada0c6bf2540c0a6ef7c3598012c80b00763a133d594b127a2974d0b94f8",
+      "342-nested-product-clippy.log": "428f12c918c35fc0a58a04249565e15da60186d58bef501d3aca78487ed21937"
+    },
+    "independent_review": "PassLimitedDelta 8808a1fa6; HRTB accounting remains separately open"
+  },
   "higher_rank_callbacks": {
     "status": "AuthorScopedPassWithTwoLegacyWireFixtureMismatches",
     "scope": "Finite explicit invocation-local HRTB Fn/FnMut/FnOnce; fixed environment Hold separate; general stored-borrow/State/lending/dyn remain in progress",
@@ -393,60 +447,6 @@
     ],
     "formal_full_suite": "NotRunByImplementationAuthor"
   },
-  "mutable_nested_product": {
-    "status": "AuthorScopedPass",
-    "base_commit": "13677ef8c",
-    "scope": "Actual mutable nested finite Product AddressField; stored borrowed leaves remain in progress",
-    "production_files": 351,
-    "production_sha256": "262fad55300f48b1d9c034bcc4148ef390afdba33a0d70435204577b854486f5",
-    "production_recipe": "same as higher_rank_callbacks.production_binding",
-    "fixture": "tests/language-readiness/terminal/342/nested_product.zil",
-    "fixture_sha256": "2164f8bd6ad4266c8f3588eb0f0473dd14de967bbba404fde4faacef7fb8d9e8",
-    "test_file": "tests/language-readiness/terminal/342/resource_head.rs",
-    "test_sha256": "03afdf507d6e9af64a9b0ac8f5acb9bcb5e645b5f759140ab5c05363e42fef2b",
-    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
-    "harness_sha256": "4cb36d18692b87be01512e130c6dcdcd56efbdb32b5b3b8fef86c64d2a94290f",
-    "native": {
-      "runs": 4,
-      "backends": [
-        "Clang",
-        "LlvmApi"
-      ],
-      "optimizations": [
-        "O0",
-        "O2"
-      ],
-      "exit": 0,
-      "stderr": ""
-    },
-    "controls": [
-      "actual nested std.string.String and string.clear(&mut session.text)",
-      "raw+decoded Wire shared head mode forgeries rejected in both kernels",
-      "shared source cannot request mutable child",
-      "live view blocks begin and parent replacement"
-    ],
-    "ten_existing_driver_targets": [
-      68,
-      35,
-      10,
-      9,
-      7,
-      18,
-      14,
-      10,
-      37,
-      4
-    ],
-    "old_recorded_phase_n_unchanged": true,
-    "clippy": "cross_function_borrows with llvm-api -D warnings Pass",
-    "full_original_ui_input": "Requires combined root UInt/library loader; not claimed run by342",
-    "logs": {
-      "342-nested-product-first.log": "f36f5848387b640678b4c373f1efdb52e0735d3838727478dd8336e1ab6b0c97",
-      "342-nested-product-complete.log": "717eada0c6bf2540c0a6ef7c3598012c80b00763a133d594b127a2974d0b94f8",
-      "342-nested-product-clippy.log": "428f12c918c35fc0a58a04249565e15da60186d58bef501d3aca78487ed21937"
-    },
-    "independent_review": "PassLimited8808a1fa6 exact00c7dcafb"
-  },
   "higher_rank_signature_fee_correction": {
     "status": "AuthorScopedPass",
     "base_commit": "00c7dcafb",
@@ -571,5 +571,45 @@
     },
     "independent_review": "Pending exact small identity-fee followup; ebcc recursive fee correction separately PassLimited254de49db",
     "formal_full_suite": "NotRunByImplementationAuthor"
+  },
+  "root_wire37_combination": {
+    "status": "ScopedPass",
+    "parents": [
+      "46e2e6c2952f4b32ac03b5088ca4d2a44f390baa",
+      "ebcc159b5475ff05018a1a72951a5d8e33000b5f"
+    ],
+    "scope": "Actual HRTB consumers with Wire37 static child, SyncCell, Registration, stack frame reductions and mutable nested Product/UI",
+    "driver_targets": {
+      "cross_function_borrows": 70,
+      "generic_regressions": 59,
+      "impl187_borrowed_bytes": 25,
+      "impl236_zui_core": 16
+    },
+    "verify_shared_product": {
+      "passed": 5,
+      "store_exact_n": [
+        16195,
+        18987
+      ],
+      "raw_wire_n_minus_one_fresh": true
+    },
+    "integration_changes": [
+      "Single remaining ledger through closure finish, task/registration definitions, lending and export role.life identity",
+      "HRTB actual parameter Window root accepted; capture roots remain distinct",
+      "ClosedEnvironment bounds filter before HRTB selection; recursive dispatch helpers retained",
+      "Root Wire37 assertion replaces author Wire36 assertion; source semantics unchanged"
+    ],
+    "failures_retained": [
+      "Initial compile missed remaining_work accessor required by existing Registration; restored accessor, finish still returns final ledger",
+      "Initial cross 69/1 was historical schema36 assertion under actual37; migrated explicit version expectation"
+    ],
+    "logs": {
+      "root37-hrtb-check2.log": "153459f1cec50d8101a9098a75b5dba1d45fd602e762e27ef25acb80670cc35c",
+      "root37-hrtb-combined.log": "cbfc50199a6656fbabf71bb9bd7f789bafceeb640cf7870a5ddc25f299498f65",
+      "root37-hrtb-combined2.log": "75f1cc11895beefd4d16fe75775742b38c868f808a96aa389f122eff70f3966e",
+      "root37-hrtb-shared-product.log": "05f94fb92a61e88a4a8adee56af885a214a6b467effc9611b044a2dec6e2d77c"
+    },
+    "full_workspace": "NotRun",
+    "next": "Author interface-fee exact project controls, merge-specific Window/ClosedEnvironment controls and independent review remain separate"
   }
 }

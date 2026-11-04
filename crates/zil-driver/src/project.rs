@@ -87,6 +87,7 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
                     token.text(&source.text),
                     "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
                 )
+                || token.text(&source.text) == "const"
         })
 }
 
@@ -616,11 +617,12 @@ impl CompilationSession {
                 }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
-                for (module, map) in zil_expand::expand_program_with_limits(
+                for (module, map) in zil_expand::expand_program_with_limits_target(
                     &project.modules,
                     syntax,
                     &runtime_imports,
                     &options.limits,
+                    &options.target,
                 )? {
                     modules.push(module);
                     maps.push(map);
@@ -827,6 +829,9 @@ impl CompilationSession {
         artifacts.dump_lazy(report, options, "typed", |_| format!("{:#?}", typed.module))?;
         artifacts.dump_lazy(report, options, "interfaces", |_| {
             format!("{:#?}", typed.interfaces)
+        })?;
+        artifacts.dump_lazy(report, options, "task-interfaces", |_| {
+            format!("{:#?}", typed.task_interfaces)
         })?;
         if options.stop_after == Stage::Types {
             return Ok(());

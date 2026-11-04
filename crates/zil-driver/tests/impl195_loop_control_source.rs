@@ -265,22 +265,22 @@ fn original_preflight_helper_programs_now_execute_with_their_exact_inputs() {
 }
 
 #[test]
-fn both_original_held_lending_inputs_reach_the_real_borrow_conflict() {
+fn both_original_held_lending_inputs_reject_definition_side_alias_reuse() {
     reject(
         "14-helper-continue-held-lending-negative",
         r#"fn make()->impl FnMut()->&i32{var value=0;return move()=>{value+=1;return &value}}fn bad<F:FnMut()->&i32>(f:&mut F,n:i32)->i32{let held=f();var total=0;var i=0;while i<n{i+=1;if i==1{continue};let later=f();total+=*held+*later}return total}fn main()->i32{var f=make();return bad(&mut f,2)}
 "#,
-        Phase::Verify,
+        Phase::Expand,
         ResultCategory::SafeReject,
-        "E-BORROW-CONFLICT",
+        "E-GENERIC-ARGUMENT",
     );
     reject(
         "15-helper-existing-held-lending-negative",
         r#"fn make()->impl FnMut()->&i32{var value=0;return move()=>{value+=1;return &value}}fn bad<F:FnMut()->&i32>(f:&mut F,n:i32)->i32{let held=f();var total=0;var i=0;while i<n{let later=f();total+=*held+*later;i+=1}return total}fn main()->i32{var f=make();return bad(&mut f,2)}
 "#,
-        Phase::Verify,
+        Phase::Expand,
         ResultCategory::SafeReject,
-        "E-BORROW-CONFLICT",
+        "E-GENERIC-ARGUMENT",
     );
 }
 

@@ -53,6 +53,14 @@ impl Graph {
                 bindings.push((name.clone(), value, pattern.span));
             }
             CorePatternKind::Wildcard => {}
+            CorePatternKind::Reference {
+                mutable,
+                pattern: inner,
+            } => {
+                let address = self.pattern_variable(pattern.span)?;
+                self.address(address, value, Some(*mutable), pattern.span)?;
+                self.pattern_constraints(inner, address, names, bindings, depth + 1)?;
+            }
             CorePatternKind::Bool(_) => self.bind(value, &Type::Bool, pattern.span)?,
             CorePatternKind::Integer(text) => {
                 self.spend_count(text.len(), pattern.span)?;
@@ -79,6 +87,31 @@ impl Graph {
                 variant,
                 fields,
             } => {
+                if variant == enums::TYPE_MEMBER {
+                    let expected = self.ty(value)?.ok_or_else(|| {
+                        error(
+                            "E-ANONYMOUS-SUM",
+                            pattern.span,
+                            "member pattern requires an already known anonymous sum",
+                        )
+                    })?;
+                    self.reserve_type(&expected, 0, pattern.span)?;
+                    self.reserve_type(&expected, 0, pattern.span)?;
+                    let (_, types) = enums::pattern_variant(ty, variant, &expected, pattern.span)?;
+                    if fields.len() != types.len() {
+                        return Err(error(
+                            "E-MATCH-ARITY",
+                            pattern.span,
+                            "member pattern requires one payload",
+                        ));
+                    }
+                    for (field, ty) in fields.iter().zip(types) {
+                        let variable = self.pattern_variable(field.span)?;
+                        self.bind(variable, ty, field.span)?;
+                        self.pattern_constraints(field, variable, names, bindings, depth + 1)?;
+                    }
+                    return Ok(());
+                }
                 self.bind(value, ty, pattern.span)?;
                 let Type::Enum { variants, .. } = ty else {
                     return Err(error(

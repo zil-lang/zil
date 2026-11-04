@@ -1,8 +1,8 @@
 type Number = i64
 type Row = Cell<Number>
-type Maybe = Option<Row>
+type Maybe = LegacyOption<Row>
 
-enum Option<T> { None, Some(T) }
+enum LegacyOption<T> { None, Some(T) }
 struct Cell<T> { value: T; }
 
 fn next(index: Number) -> Maybe {

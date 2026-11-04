@@ -189,16 +189,38 @@ fn sharing_does_not_add_owned_reads_retention_or_escape() {
             "copy-child",
             "fn bad(p:&Root){let child=p.child}fn main(){}".to_owned(),
         ),
-        (
-            "copy-owner",
-            "fn bad(p:&Root){let owner=p.child.owner}fn main(){}".to_owned(),
-        ),
     ] {
         let report = compile(label, &source(&body), Limits::default());
         assert_ne!(report.status, ResultCategory::Success, "{label}");
         assert_ne!(report.status, ResultCategory::ResourceLimit, "{label}");
         assert!(!report.artifacts.contains_key("executable"));
     }
+    let text = source("fn bad(p:&Root){let owner=p.child.owner}fn main(){}");
+    let report = compile("borrowed-owner-descriptor", &text, Limits::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let raw = typed("borrowed-owner-descriptor", &text);
+    let body = raw.functions.iter().find(|f| f.name == "bad").unwrap();
+    assert!(
+        body.values
+            .iter()
+            .any(|ty| matches!(ty, zil_ir::Type::Desc(_)))
+    );
+    assert!(
+        !body
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                zil_ir::InstructionKind::TakeLocal { .. }
+                    | zil_ir::InstructionKind::TakePackageField { .. }
+            ))
+    );
 }
 
 // Original 224 input retained; 315 now admits this synchronous signature.

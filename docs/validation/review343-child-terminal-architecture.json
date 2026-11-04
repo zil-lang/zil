@@ -1,0 +1,118 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "1371ed1d49fa8c8f8d73c1a41a3c22325875064b",
+  "author_receipt_commit": "d9ad16075338a1e15adafad40b62b0698ad7c5f8",
+  "scope": "Wire37 actual static scalar SuspendCall continuations and nested literal frames on Linux x64; one active direct Await child per parent.",
+  "identity": {
+    "production_files": 350,
+    "production_sha256": "94f74ef89d9bc31a90719abb28163ef7d091d0c055baf83d4dda1382125ced24",
+    "recipe": "Lexically sorted tracked crates/**/src/**/*.rs, all Cargo.toml, Cargo.lock, lib/**/*.zil and crates/*/build.rs; SHA256 path UTF-8 + NUL + exact Git bytes + NUL. Independently computed from1371.",
+    "selected_sha256": {
+      "tests/language-readiness/terminal/343/task-child.zil": "1254cd8b44cbd00a7a73bc239e449d8ce04f5ba1985098856a27a242c2f19a58",
+      "tests/language-readiness/terminal/343/task-child-export.zil": "d1d18c9de9ad6a7517ac6dd74ca4258c1c8f21a6a507411d9a680822f5cb4151",
+      "tests/language-readiness/terminal/343/task-child-export-caller.c": "89b5c77a797b34e9865213765411a6b7440efd49964afc08bd0bda16621799f6",
+      "tests/language-readiness/terminal/343/task-observer.c": "60db744913fdbcf06893e7079963636cff97f8e0c532285bd9c68afd46b5660f",
+      "tests/language-readiness/terminal/343/task-export-caller.c": "a13c9e0b32c28cfdeacfff42bde5b0aeb5fb607b175ee4a15acf7f3bbc230d1a",
+      "crates/zil-driver/tests/generic_regressions.rs": "5a7c2918f3f41a039e1b0324da6ad4c4ffb4ba62a597d2c613a55dda63e7b779"
+    },
+    "runtime_C_matches_exact_Git_before_and_after": true,
+    "construction": "Author froze clean1371 and reports the retained final source build/full55 replay; reviewer copied and hash-checked both retained binaries before later target reuse. Exact Git/source identity is recorded without claiming an independent rebuild."
+  },
+  "harnesses": [
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/child343-generic",
+      "sha256": "c7f4bf6de7c67f89b3b52f80db6c9df839d9bce1e34f98297c4fbffd2379335f"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/child343-backend",
+      "sha256": "12ea12d30123f407cbd5803271bc9dc819be450f5be9552491798586d909be24"
+    }
+  ],
+  "independent_execution": {
+    "generic": {
+      "filter": "child343 --test-threads=1 --nocapture",
+      "passed": 6,
+      "failed": 0,
+      "filtered": 49,
+      "seconds": 4.23,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-child343.log",
+      "log_sha256": "0262a877672e1b0c39f34dbb920066bc06e6505bc80d68d8f6af61182192f150"
+    },
+    "backend": {
+      "filter": "child343 --test-threads=1 --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "filtered": 146,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-child343-backend.log",
+      "log_sha256": "c70735691555c366e4ec5aef0dd98948f1c0c016a31445f4a3cb08e541f72fda"
+    },
+    "Analyze_N": 23553,
+    "Verify_N": 133651,
+    "actual_frame_planner_N": 6786,
+    "N_minus_one_ResourceLimit_and_fresh_N_accept": true
+  },
+  "native_replay": {
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": false,
+    "resume_cancellation_success_runs": 44,
+    "parent_allocation_cleanup_success_runs": 12,
+    "exported_child_SABI_primary_success_runs": 4,
+    "exported_child_SABI_warm_changed_cache_runs": 4,
+    "allocation_failure_runs": 16,
+    "observations": [
+      "Eight Pending yields across branch/backedge child/grandchild sites then Ready26 exactly once; cancellation before first poll and after each tested yield; cancellation after Ready leaves Complete.",
+      "Child init and argument evaluation stay outside the saved Await poll PC; repeated Pending resumes the same embedded frame.",
+      "Default/explicit close while descendants are pending observes exactly one parent allocation and free (AF); failure observes A and defined exit10.",
+      "Actual external five-entry C caller, nested literal C sizeof/alignof/offsetof, actual LLVM target DataLayout, warm object cache hit and changed child code/layout miss."
+    ]
+  },
+  "source_review": [
+    "Both kernels reconstruct the complete actual scalar child graph and its acyclicity independently; no producer no-external or synchronous-close flag grants authority. Actual operations exclude ownership, addresses, external calls, arbitrary callback bodies and teardown.",
+    "CallKind preserves explicit selected Suspend even for a pure body. Direct selection contradicting reachable Yield/SuspendCall rejects; ordinary Call/FunctionRef/ForeignFunctionRef/scoped thread entry cannot invoke Suspend. Await may adapt a Direct target, and the ordinary Direct machine body is retained.",
+    "Frame planning allocates a distinct physical embedded child structure and active flag per static site, including repeated uses of the same worker. Recursive type occurrence/identity reservations precede cloning/hash/rendering; duplicate worker machines reject.",
+    "Resume dispatch contains only actual saved PCs: entry, Yield continuation and Await poll. Helper Ready/tag/destroy blocks have no independent dispatch edge, preserving poll-result dominance.",
+    "Ready extraction is followed by child close/finish and active-flag clearing before continuation; the scalar result is spilled by the normal machine-value rewriting. Child init cannot run again while Pending.",
+    "Close first requests cancellation for all active descendants, then closes/destroys active direct children and marks the parent Closed. Static site order is sufficient only because sequential Await admits at most one active direct child per parent. General concurrent sibling creation order remains open.",
+    "Selected pure Suspend enables task runtime/import generation even without TaskStart or Yield. Non-None generic role life is explicitly rejected in Types/Analyze/Verify in this branch; transport support alone does not admit HRTB.",
+    "Core call_kind participates in actual Types incremental identity and selected Suspend exports use TaskInterface rather than ordinary scalar export authority."
+  ],
+  "boundary_replay": {
+    "source_negative_neighbors": 13,
+    "raw_mutations": 9,
+    "raw_paths": [
+      "Analyze",
+      "raw Verify",
+      "Wire decode then Verify"
+    ],
+    "examples": [
+      "Direct header forged over yielding/awaiting worker",
+      "ordinary Call substituted for SuspendCall",
+      "recursive/absent/wrong-profile child target",
+      "missing/extra input and forged result type"
+    ],
+    "other": [
+      "selected pure Suspend scalar-export forgery",
+      "same-body/source-fingerprint Core call_kind cache mutation",
+      "unsupported generic role life rejection"
+    ]
+  },
+  "integration_obligations": [
+    "Merge complete corrected342 HRTB consumers before removing the deliberate non-None role-life guards.",
+    "Retain root newer scalar types, Signature/CallKind identity, SyncCell body provenance and Registration code-leaf restrictions when merging37.",
+    "Re-run actual combined HRTB/code-pointer/Registration/Suspend and native controls at the integrated head; this review binds only1371."
+  ],
+  "limitations": [
+    "No independent full55 target, full workspace or Clippy replay.",
+    "Scalar i32 child/result lane only; no general Task<T>/Poll<T>, owning spill/partial/result responsibility, PendingExit, concurrent siblings, asynchronous close Pending, waker ownership or late-entry races.",
+    "Native child/frame depth profile64; no default request limits increased.",
+    "No native Windows, general Mutex<T>/Guard/CAS/Transfer completion, Rust comparison or terminal language/product completion."
+  ]
+}

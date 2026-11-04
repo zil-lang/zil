@@ -11,8 +11,32 @@ pub(super) struct Normalized {
 pub(super) fn reserved_declaration_name(name: &str) -> bool {
     matches!(
         name,
-        "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+        "u8" | "u16"
+            | "u64"
+            | "usize"
+            | "i32"
+            | "i64"
+            | "f32"
+            | "f64"
+            | "bool"
+            | "void"
+            | "c_handle"
+            | "c_wstr"
     )
+}
+
+pub(super) fn normalize_with_origins<'a>(
+    module: &Module,
+    budget: Budget<'a>,
+    origins: Option<&mut super::origins::Origins>,
+) -> R<(Option<Normalized>, Budget<'a>)> {
+    let (normalized, mut budget) = normalize_with_budget(module, budget)?;
+    if normalized.is_some()
+        && let Some(origins) = origins
+    {
+        origins.aliases(module, &mut budget)?;
+    }
+    Ok((normalized, budget))
 }
 
 pub(super) fn normalize_with_budget<'a>(
@@ -260,6 +284,10 @@ impl Resolver<'_, '_> {
                     || matches!(
                         path[0].as_str(),
                         "u8" | "u16"
+                            | "u64"
+                            | "usize"
+                            | "f32"
+                            | "f64"
                             | "i32"
                             | "i64"
                             | "bool"
@@ -303,6 +331,49 @@ impl Resolver<'_, '_> {
             TypeKind::Tuple(ts) => {
                 for t in ts {
                     self.target(t, variables, depth + 1)?;
+                }
+            }
+            TypeKind::Union(ts) => {
+                for t in ts.iter_mut() {
+                    self.target(t, variables, depth + 1)?;
+                }
+                fn flatten<'a>(t: &'a TypeRef, out: &mut Vec<&'a TypeRef>) {
+                    if let TypeKind::Union(parts) = &grouped(t).kind {
+                        for part in parts {
+                            flatten(part, out);
+                        }
+                    } else {
+                        out.push(t);
+                    }
+                }
+                // All resolved targets have just passed the bounded source walk.
+                // Prepay full key construction and comparisons before allocating keys.
+                for t in ts.iter() {
+                    for _ in 0..ts.len().saturating_add(2) {
+                        self.budget.ty(t)?;
+                    }
+                }
+                let mut members = Vec::new();
+                for t in ts.iter() {
+                    flatten(t, &mut members);
+                }
+                let mut keys = members
+                    .iter()
+                    .map(|t| type_key(t, &mut self.budget))
+                    .collect::<R<Vec<_>>>()?;
+                let work = keys
+                    .iter()
+                    .fold(0usize, |n, key| n.saturating_add(key.len()))
+                    .saturating_mul(keys.len().saturating_add(1));
+                self.budget.identity_work(work, ty.span)?;
+                keys.sort();
+                if keys.len() < 2 || keys.windows(2).any(|v| v[0] == v[1]) {
+                    return Err(Diagnostic::error(
+                        Phase::Expand,
+                        "E-ANONYMOUS-SUM",
+                        Some(ty.span),
+                        "anonymous sum repeats a resolved member type",
+                    ));
                 }
             }
             TypeKind::Array { element, length } => {
@@ -466,6 +537,23 @@ impl Visitor<'_, '_, '_> {
                 self.pattern(pattern, types, values, depth + 1)?
             }
             PatternKind::Constructor { path, arguments } => {
+                if path.len() == 1
+                    && !types.contains(&path[0])
+                    && let Some(alias) = self.resolver.resolved.get(&path[0])
+                {
+                    if !alias.parameters.is_empty() {
+                        return Err(error(
+                            p.span,
+                            "member pattern requires a concrete type alias",
+                        ));
+                    }
+                    self.resolver.budget.ty_depth(&alias.target, depth)?;
+                    let marker = format!("$alias_pattern_{}", self.pattern_types.len());
+                    self.resolver.budget.text(&marker, p.span)?;
+                    self.pattern_types
+                        .insert(marker.clone(), alias.target.clone());
+                    path[0] = marker;
+                }
                 if path.len() == 2
                     && !types.contains(&path[0])
                     && let Some(alias) = self.resolver.resolved.get(&path[0])
@@ -604,6 +692,14 @@ impl Visitor<'_, '_, '_> {
                         }
                         VariantFields::Unit => {}
                     }
+                }
+            }
+            ItemKind::TypeAlias(alias) => {
+                for bound in &mut alias.bounds {
+                    self.ty(bound, &types, depth + 1)?;
+                }
+                if let Some(value) = &mut alias.value {
+                    self.ty(value, &types, depth + 1)?;
                 }
             }
             ItemKind::Trait(t) => {

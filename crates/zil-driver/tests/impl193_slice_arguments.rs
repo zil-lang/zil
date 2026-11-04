@@ -285,12 +285,18 @@ fn helper_actual_capture_and_slice_backing_are_instantiated_together() {
 
 #[test]
 fn new_parameters_do_not_open_captures_lending_nested_or_noncopy_shapes() {
+    check(
+        "borrowed-result",
+        "fn main(){let f=(p:&[i32])=>p;}",
+        ResultCategory::Success,
+        Phase::Verify,
+        "",
+    );
     for (name, text) in [
         (
             "capture",
             "fn main()->i32{let a=[1,2];let p=&a[..];let f=()=>p[0];return f()}",
         ),
-        ("borrowed-result", "fn main(){let f=(p:&[i32])=>p;}"),
         (
             "helper-borrowed-result",
             "fn apply<F:Fn()->i32>(f:&F,p:&[i32])->&[i32]{f();return p}fn main(){let a=[1];let f=()=>0;apply(&f,&a[..]);}",

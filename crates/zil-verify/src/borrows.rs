@@ -14,7 +14,7 @@ type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
-        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. }))
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn has_sources(
@@ -404,6 +404,12 @@ fn check(
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::BorrowPackageField { local, .. }
+            | InstructionKind::BorrowVariantLocal { local, .. }
+            | InstructionKind::BorrowFieldLocal { local, .. }
+            | InstructionKind::BorrowPlaceLocal { local, .. }
+            | InstructionKind::PlaceTagLocal { local, .. }
+            | InstructionKind::TakeTupleField { local, .. }
+            | InstructionKind::TakeVariantField { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -434,6 +440,8 @@ fn check(
             }
             let invalidated = match instruction.kind {
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -625,7 +633,7 @@ fn reconstruct(
                         match &instruction.kind {
                             InstructionKind::DescribeLocal { local }
                                 if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
-                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. })) =>
+                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
                             {
                                 row.push(Root::Local(*local));
                             }
@@ -666,6 +674,25 @@ fn reconstruct(
                             InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                                 row.push(Root::Local(*local));
                             }
+                            InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                                row.push(roots::mixed_root(f, *local, path, false, budget)?);
+                            }
+                            InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                                row.push(roots::inline_field_root(f, *local, path, budget)?);
+                            }
+                            InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                                row = roots::address_roots(
+                                    f,
+                                    *address,
+                                    path,
+                                    &values[address.0 as usize],
+                                    budget,
+                                )?;
+                            }
+                            InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                                budget.spend(path.len().saturating_add(1))?;
+                                row.push(roots::variant_root(f, *local, path, budget)?);
+                            }
                             InstructionKind::BorrowPackageField { local, index, .. } => {
                                 row.push(field_root(f, *local, *index, budget)?);
                             }
@@ -678,9 +705,18 @@ fn reconstruct(
                                     roots_join(&mut row, captures, budget)?;
                                 }
                             }
+                            InstructionKind::AddressField { address, index } => {
+                                let precise = roots::inline_address_field(
+                                    f,
+                                    *address,
+                                    *index,
+                                    &values[address.0 as usize],
+                                    budget,
+                                )?;
+                                roots_join(&mut row, &precise, budget)?;
+                            }
                             InstructionKind::DescribeAddress { address }
                             | InstructionKind::ReborrowAddress { address, .. }
-                            | InstructionKind::AddressField { address, .. }
                             | InstructionKind::AddressSlice { address, .. }
                             | InstructionKind::AddressIndex { address, .. } => {
                                 roots_join(&mut row, &values[address.0 as usize], budget)?;
@@ -875,8 +911,10 @@ fn reconstruct_module(
                         budget.spend(roots.len())?;
                         let incoming: Vec<_> = roots
                             .iter()
-                            .copied()
-                            .filter(|root| matches!(root, Root::Parameter(_)))
+                            .filter_map(|root| match root.coarse() {
+                                HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                _ => None,
+                            })
                             .collect();
                         changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                     }
@@ -1099,7 +1137,7 @@ pub(super) fn check_module(
                 }
                 if let Some(bound) = &function.reference_return_bound {
                     budget.spend(roots.len().saturating_mul(bound.len().saturating_add(1)))?;
-                    if roots.iter().any(|root|!matches!(root,Root::Parameter(index) if bound.binary_search(index).is_ok())) {
+                    if roots.iter().any(|root|!matches!(root.coarse(),HoldRoot::Parameter(index) if bound.binary_search(&index).is_ok())) {
                         return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
                     }
                 }
@@ -1119,7 +1157,10 @@ pub(super) fn check_module(
                         };
                         lending_sources.insert(*index);
                     }
-                } else if roots.iter().any(|root| !matches!(root, Root::Parameter(_))) {
+                } else if roots
+                    .iter()
+                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(_)))
+                {
                     return Err(reject(
                         "E-BORROW-ESCAPE",
                         Some(function.span),
@@ -1247,6 +1288,92 @@ pub(super) fn check_module(
     Ok(())
 }
 
+fn check_callback_return(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    d: &ClosureDefinition,
+    life: Option<&FunctionLifeContract>,
+    budget: &mut Budget,
+) -> Check<()> {
+    borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
+    if let Some(life) = life {
+        budget.spend(
+            (life.binder_count as usize)
+                .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                .saturating_add(2),
+        )?;
+        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
+    }
+    if !matches!(d.result, Type::Address { .. }) {
+        return Ok(());
+    }
+    let f = &module.functions[d.function.0 as usize];
+    budget.spend(f.blocks.len())?;
+    for (block, live) in f
+        .blocks
+        .iter()
+        .zip(&graphs[d.function.0 as usize].reachable)
+    {
+        if *live && let Terminator::Return(Some(v)) = block.terminator {
+            let origins = &facts[d.function.0 as usize].values[v.0 as usize];
+            budget.spend(origins.len())?;
+            let mutable = matches!(d.result, Type::Address { mutable: true, .. });
+            if origins.is_empty()
+                || origins.iter().any(|root| {
+                    // Only an actual parameter projection qualifies. A captured
+                    // target carried by a parameter is not invocation storage.
+                    let index = match root {
+                        Root::Parameter(index) | Root::Window(HoldRoot::Parameter(index), ..) => {
+                            index
+                        }
+                        _ => return true,
+                    };
+                    !d.parameters
+                        .get(*index as usize)
+                        .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
+                        || life.is_some_and(|life| {
+                            life.parameter_lives[*index as usize] != life.result_life
+                        })
+                })
+            {
+                return Err(reject(
+                    "E-VERIFY-CALLABLE-LIFE",
+                    Some(f.span),
+                    "actual callback return is outside the current invocation input relation",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+fn check_callback_returns(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(module.closures.len().saturating_add(module.functions.len()))?;
+    for d in &module.closures {
+        budget.spend(d.parameters.len())?;
+        if d.lending_captures.is_empty() && borrowed_fp::invocation(&d.parameters, &d.result) {
+            check_callback_return(module, graphs, facts, d, None, budget)?;
+        }
+    }
+    for f in &module.functions {
+        if let Some(c) = &f.callable_contract {
+            budget.spend(c.roles.len())?;
+            for role in &c.roles {
+                if let Some(life) = &role.life {
+                    let d = closures::definition(module, role.closure, Some(f.span))?;
+                    check_callback_return(module, graphs, facts, d, Some(life), budget)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod frontier_tests {
     use super::*;
@@ -1313,6 +1440,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
@@ -1381,8 +1509,10 @@ mod frontier_tests {
                             budget.spend(roots.len())?;
                             let incoming: Vec<_> = roots
                                 .iter()
-                                .copied()
-                                .filter(|root| matches!(root, Root::Parameter(_)))
+                                .filter_map(|root| match root.coarse() {
+                                    HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                    _ => None,
+                                })
                                 .collect();
                             changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                         }
@@ -1502,85 +1632,4 @@ mod frontier_tests {
             .unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
-}
-
-fn check_callback_return(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    facts: &[Facts],
-    d: &ClosureDefinition,
-    life: Option<&FunctionLifeContract>,
-    budget: &mut Budget,
-) -> Check<()> {
-    borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
-    if let Some(life) = life {
-        budget.spend(
-            (life.binder_count as usize)
-                .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                .saturating_add(2),
-        )?;
-        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
-    }
-    if !matches!(d.result, Type::Address { .. }) {
-        return Ok(());
-    }
-    let f = &module.functions[d.function.0 as usize];
-    budget.spend(f.blocks.len())?;
-    for (block, live) in f
-        .blocks
-        .iter()
-        .zip(&graphs[d.function.0 as usize].reachable)
-    {
-        if *live && let Terminator::Return(Some(v)) = block.terminator {
-            let origins = &facts[d.function.0 as usize].values[v.0 as usize];
-            budget.spend(origins.len())?;
-            let mutable = matches!(d.result, Type::Address { mutable: true, .. });
-            if origins.is_empty()
-                || origins.iter().any(|root| {
-                    let Root::Parameter(index) = root else {
-                        return true;
-                    };
-                    !d.parameters
-                        .get(*index as usize)
-                        .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
-                        || life.is_some_and(|life| {
-                            life.parameter_lives[*index as usize] != life.result_life
-                        })
-                })
-            {
-                return Err(reject(
-                    "E-VERIFY-CALLABLE-LIFE",
-                    Some(f.span),
-                    "actual callback return is outside the current invocation input relation",
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-fn check_callback_returns(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    facts: &[Facts],
-    budget: &mut Budget,
-) -> Check<()> {
-    budget.spend(module.closures.len().saturating_add(module.functions.len()))?;
-    for d in &module.closures {
-        budget.spend(d.parameters.len())?;
-        if d.lending_captures.is_empty() && borrowed_fp::invocation(&d.parameters, &d.result) {
-            check_callback_return(module, graphs, facts, d, None, budget)?;
-        }
-    }
-    for f in &module.functions {
-        if let Some(c) = &f.callable_contract {
-            budget.spend(c.roles.len())?;
-            for role in &c.roles {
-                if let Some(life) = &role.life {
-                    let d = closures::definition(module, role.closure, Some(f.span))?;
-                    check_callback_return(module, graphs, facts, d, Some(life), budget)?;
-                }
-            }
-        }
-    }
-    Ok(())
 }

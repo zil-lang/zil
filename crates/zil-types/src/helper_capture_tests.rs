@@ -66,6 +66,7 @@ fn fixture(
         .enumerate()
         .map(|(index, kind)| CoreCallableParameter {
             life: None,
+            closed_environment: false,
             index: index as u32,
             generic_index: index as u32,
             generic_name: format!("Role{index}"),
@@ -75,6 +76,7 @@ fn fixture(
         })
         .collect();
     let function = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(0),
         name: "raw_capture_origins".into(),

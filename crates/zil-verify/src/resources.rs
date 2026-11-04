@@ -47,6 +47,9 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -103,6 +106,12 @@ pub(super) fn check_type_for(
     };
     if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
         return dynamic_store::check_carrier(module, ty, span, budget);
+    }
+    if matches!(inner.as_ref(), Type::Registration { .. }) {
+        return registration::carrier(module, ty, span, budget);
+    }
+    if inner.as_ref() == &Type::TaskI32 {
+        return tasks::carrier(module, ty, span, budget);
     }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
@@ -161,6 +170,44 @@ pub(super) fn check_definitions(
                     "Store definition must be unique",
                 ));
             }
+            continue;
+        }
+        if matches!(resource.payload, Type::Registration { .. })
+            || resource.name.starts_with(registration::PREFIX)
+        {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-REGISTRATION",
+                    None,
+                    "registration definition must be unique",
+                ));
+            }
+            registration::carrier(
+                module,
+                &Type::Managed(Box::new(resource.payload.clone())),
+                None,
+                budget,
+            )?;
+            continue;
+        }
+        if resource.payload == Type::TaskI32 || resource.name == TASK_I32_RESOURCE_NAME {
+            if resource.name != TASK_I32_RESOURCE_NAME
+                || resource.payload != Type::TaskI32
+                || resource.teardown.is_some()
+                || !names.insert(&resource.name)
+            {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "task definition must be unique and sealed without user teardown",
+                ));
+            }
+            tasks::carrier(
+                module,
+                &Type::Managed(Box::new(Type::TaskI32)),
+                None,
+                budget,
+            )?;
             continue;
         }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
@@ -352,7 +399,7 @@ impl Slots {
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
             ) || (managed
-                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned_enum(ty))))
+                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
                     if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
@@ -916,7 +963,10 @@ impl Transfer<'_> {
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
             }
             match &instruction.kind {
-                InstructionKind::MakeVariant { fields, .. } if result.is_some() => {
+                InstructionKind::MakeOwnedTuple { fields }
+                | InstructionKind::MakeVariant { fields, .. }
+                    if result.is_some() =>
+                {
                     budget.spend(fields.len())?;
                     for &value in fields {
                         self.consume(state, value, span, validate)?;
@@ -924,7 +974,11 @@ impl Transfer<'_> {
                     fresh_result = Some(INPUT);
                 }
                 InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. } => {
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. } => {
                     if let Some(debt) = slots.managed_local[local.0 as usize]
                         && validate
                         && state.debt[debt] != LIVE
@@ -935,7 +989,29 @@ impl Transfer<'_> {
                         ));
                     }
                 }
-                InstructionKind::UnpackVariant { local, fields, .. } => {
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    let parent = slots.managed_local[local.0 as usize].ok_or_else(|| {
+                        bad(span, "selective source is not an actual owning local")
+                    })?;
+                    if validate {
+                        if state.debt[parent] != LIVE {
+                            return Err(bad(span, "selective source responsibility is not live"));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::Local(*local),
+                            span,
+                            budget,
+                        )?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
+                }
+                InstructionKind::UnpackVariant { local, fields, .. }
+                | InstructionKind::UnpackTuple { local, fields } => {
                     let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");
                     budget.spend(fields.len())?;
                     // Check every destination before changing any debt. Copy
@@ -1056,9 +1132,14 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
+                InstructionKind::RegistrationStart { callback, .. } => {
+                    self.consume(state, *callback, span, validate)?;
+                    fresh_result = Some(FRESH);
+                }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => fresh_result = Some(FRESH),
                 InstructionKind::MakePackage { fields } => {
                     let output = instruction.result.expect("checked Package result");
                     budget.spend(fields.len())?;
@@ -1301,6 +1382,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
@@ -1573,6 +1655,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
@@ -1712,15 +1795,15 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     // Even registration failure consumes and cleans the prepared body.
                     let (callbacks, body) = match &instruction.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             ([Some(callback), Some(body)], body)
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
-                            ([None, Some(body)], body)
-                        }
+                        InstructionKind::WithScopedThread { body, .. }
+                        | InstructionKind::WithSyncCell { body, .. } => ([None, Some(body)], body),
                         _ => unreachable!(),
                     };
                     for callee in callbacks.into_iter().flatten() {
@@ -1796,6 +1879,10 @@ impl Transfer<'_> {
                         // never a callee-private Created origin.
                         fresh_result = Some(INPUT);
                     }
+                }
+                InstructionKind::RegistrationClose { registration: task }
+                | InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, span, validate)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -2179,6 +2266,7 @@ fn effect_dependents(
                     InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::CallClosure { callee, .. } => {
                         let ty = function.values.get(callee.0 as usize).ok_or_else(|| {
                             bad(instruction.span, "resource effect closure value is absent")

@@ -64,55 +64,60 @@ fn terminal342_shared_storage_head_cannot_launder_a_write() {
 
 #[test]
 fn terminal342_actual_head_modes_are_independent_on_raw_and_wire_paths() {
-    let module = typed(
+    for source in [
         "package Text{manages data:ByteBuffer}fn mutate(p:&mut Text){bytes_truncate(p.data,0)}fn result()->i64{return 42}",
-    );
-    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
-    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
-    let mut changed = module.clone();
-    let function = changed
-        .functions
-        .iter_mut()
-        .find(|f| f.name == "mutate")
-        .unwrap();
-    for ty in function
-        .locals
-        .iter_mut()
-        .map(|l| &mut l.ty)
-        .chain(function.values.iter_mut())
-    {
-        if let zil_ir::Type::Address { mutable, .. } = ty {
-            *mutable = false;
+        "package Text{manages data:ByteBuffer}fn mutate(p:&mut Text){let data=p.data;let body=(cell:&MutexI32)->i32=>{bytes_truncate(data,0);return 0};mutex_scope(0,body)}fn result()->i64{return 42}",
+        "package Text{manages data:ByteBuffer}fn mutate(p:&mut Text){let data=p.data;let body=(cell:&AtomicI32)->i32=>{bytes_truncate(data,0);return 0};atomic_scope(0,body)}fn result()->i64{return 42}",
+    ] {
+        let module = typed(source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+        let mut changed = module.clone();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "mutate")
+            .unwrap();
+        for ty in function
+            .locals
+            .iter_mut()
+            .map(|l| &mut l.ty)
+            .chain(function.values.iter_mut())
+        {
+            if let zil_ir::Type::Address { mutable, .. } = ty {
+                *mutable = false;
+            }
         }
-    }
-    for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let InstructionKind::ReborrowAddress { mutable, .. } = &mut instruction.kind {
-            *mutable = false;
+        for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let InstructionKind::ReborrowAddress { mutable, .. } = &mut instruction.kind {
+                *mutable = false;
+            }
         }
+        assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
+        let mut candidate = plan;
+        candidate.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        let error = zil_verify::verify_module(
+            changed.clone(),
+            candidate,
+            &changed.target,
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
+            "{error:?}"
+        );
+        let error = zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default())
+            .unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
+            "{error:?}"
+        );
     }
-    assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
-    let mut candidate = plan;
-    candidate.module_fingerprint = changed.fingerprint();
-    let wire =
-        zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default()).unwrap();
-    let error = zil_verify::verify_module(
-        changed.clone(),
-        candidate,
-        &changed.target,
-        &Limits::default(),
-    )
-    .unwrap_err();
-    assert!(
-        error.iter().any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
-        "{error:?}"
-    );
-    let error =
-        zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).unwrap_err();
-    assert!(
-        error.iter().any(|d| d.code == "E-VERIFY-HEAD-PERMISSION"),
-        "{error:?}"
-    );
 }
 
 #[test]
@@ -291,6 +296,8 @@ fn terminal342_head_module_cache_rechecks_current_body_and_actual_caller() {
 #[test]
 fn terminal342_head_calls_substitute_real_storage_separation_in_both_kernels() {
     for source in [
+        "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let body=(cell:&MutexI32)->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};let r=mutex_scope(0,body);return i64(r.1)}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
+        "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let body=(cell:&AtomicI32)->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};let r=atomic_scope(0,body);return i64(r.1)}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
         "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let view=bytes_view(b);bytes_truncate(a,0);return view.len()}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
         "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn worker(value:i32)->i32{return value}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let body=()->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};let r=thread_scope(worker,0,body);return i64(r.2)}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
         r#"extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),scoped_callback_register());effects(ffi);};extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_callback_close());effects(ffi);};package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{var callback=(value:i32)->i32=>value;let body=()->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};unsafe{let r=c_with_callback(reg,close,&mut callback,body);return i64(r.1)}}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}"#,

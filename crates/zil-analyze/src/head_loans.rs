@@ -195,7 +195,8 @@ fn invocation<'a>(
             arguments,
             locals.get(callee),
         )),
-        InstructionKind::WithScopedThread { body, .. }
+        InstructionKind::WithSyncCell { body, .. }
+        | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithForeignCallback { body, .. } => Some((
             entry(module, &f.values[body.0 as usize])?,
             &[],

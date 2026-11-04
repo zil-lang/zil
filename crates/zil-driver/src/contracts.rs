@@ -31,6 +31,7 @@ pub(super) fn publish(
                 .get(export.function.0 as usize)
                 .ok_or_else(fail)?;
             if function.environment.is_some()
+                || verified.is_suspend(export.function)
                 || function.return_type != export.result
                 || function.reference_return_bound != export.reference_return_bound
                 || function.result_mode != export.result_mode

@@ -120,6 +120,44 @@ fn write_inst(s: &mut String, i: &Inst) {
             }
             Ok(())
         }
+        Op::AtomicLoad {
+            ty,
+            ptr,
+            align,
+            ordering,
+        } => {
+            write!(
+                s,
+                "load atomic {ty}, ptr {ptr} {}, align {align}",
+                ordering.spelling()
+            )
+        }
+        Op::AtomicStore {
+            arg,
+            ptr,
+            align,
+            ordering,
+        } => {
+            write!(
+                s,
+                "store atomic {arg}, ptr {ptr} {}, align {align}",
+                ordering.spelling()
+            )
+        }
+        Op::AtomicRmw {
+            operation,
+            arg,
+            ptr,
+            align,
+            ordering,
+        } => {
+            write!(
+                s,
+                "atomicrmw {} ptr {ptr}, {arg} {}, align {align}",
+                operation.spelling(),
+                ordering.spelling()
+            )
+        }
         Op::Binary {
             opcode,
             ty,

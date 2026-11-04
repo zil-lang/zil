@@ -916,6 +916,9 @@ pub(super) fn check_module(
         {
             continue;
         }
+        if registration::factory(module, f, budget)? {
+            continue;
+        }
         let claim = f.callable_contract.as_ref().ok_or_else(|| {
             bad(
                 f,

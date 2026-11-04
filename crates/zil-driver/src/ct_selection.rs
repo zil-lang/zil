@@ -155,7 +155,15 @@ pub(super) fn select(
         budget.copy(cost, module.span)?;
         budget.copy(cost, module.span)?;
     }
-    let context = Context::freeze(sources, modules, imports, root, fingerprint, &mut budget)?;
+    let context = Context::freeze(
+        sources,
+        modules,
+        imports,
+        root,
+        fingerprint,
+        &mut budget,
+        target,
+    )?;
     let mut output: Vec<_> = modules.iter().map(|module| (*module).clone()).collect();
     let mut trace = Vec::new();
     let mut generations = Vec::new();
@@ -221,6 +229,7 @@ impl materialize::Materializer<'_, '_> {
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 id: NodeId(u32::MAX - 8),
                 name: "$selection219".into(),

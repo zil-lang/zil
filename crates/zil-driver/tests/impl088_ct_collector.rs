@@ -56,6 +56,7 @@ fn program() -> CoreProgram {
                 enums: vec![],
                 unsupported: vec![],
                 functions: vec![CoreFunction {
+                    call_kind: None,
                     life: None,
                     id: NodeId(1),
                     span: span(),
@@ -181,6 +182,7 @@ fn collector_bounds_retained_and_returned_callable_contracts() {
         if retained {
             f.callable_parameters = vec![CoreCallableParameter {
                 life: None,
+                closed_environment: false,
                 index: 0,
                 generic_index: 0,
                 generic_name: "F".into(),

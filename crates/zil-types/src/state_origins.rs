@@ -636,7 +636,8 @@ impl MoveWalk<'_, '_> {
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Try(operand)
-            | CoreExprKind::IntegerConvert { value: operand, .. } => {
+            | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::NumericConvert { value: operand, .. } => {
                 self.expr(operand, Access::Move, depth + 1)?
             }
             CoreExprKind::Binary { left, right, .. }
@@ -1092,6 +1093,7 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
             index: state.index,
             generic_index: binding.generic_index,
             generic_name: binding.generic_name.clone(),
+            closed_environment: false,
             kind: binding.kind,
             parameters: binding.parameters.clone(),
             result: binding.result.clone(),
@@ -2191,7 +2193,8 @@ impl Walk<'_, '_> {
                 self.capture = previous;
                 Shape::None
             }
-            CoreExprKind::IntegerConvert { value, .. } => {
+            CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. } => {
                 self.expr(value, depth + 1)?;
                 Shape::None
             }

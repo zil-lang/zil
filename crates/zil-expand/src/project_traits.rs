@@ -42,7 +42,7 @@ pub(super) fn method_owners(
             continue;
         }
         match &item.kind {
-            s::ItemKind::Trait(t) if t.bounds.is_empty() => {
+            s::ItemKind::Trait(t) => {
                 budget.text(&t.name, item.span)?;
                 traits.insert(t.name.as_str(), item.span.file);
             }

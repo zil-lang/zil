@@ -6,7 +6,7 @@
 |---|---|
 | `seed/data/mod.zil` | 目录模块；编译期生成记录、8 元素数组和权重数组 |
 | `ops.zil` | 数值变换、数组元素共享投影、跨函数返回共享引用 |
-| `main.zil` | 用户泛型 `Option<T>`、`Result<E,T>`、`Row<T>`；模式条件和循环；函数指针数组与未注解的 `apply`；可变闭包与独立副本 |
+| `main.zil` | 用户泛型 `LegacyOption<T>`、`Result<E,T>`、`Row<T>`；模式条件和循环；函数指针数组与未注解的 `apply`；可变闭包与独立副本 |
 | `main.rs`、`ops.rs`、`seed/…/*.rs` | 相同操作顺序的 Rust 行为对照，使用标准 `Option`/`Result`、`const fn` 和 Copy 闭包 |
 
 Rust 标准 `Result<T,E>` 的参数顺序与此例自行声明的 ZIL `Result<E,T>` 不同，成功值与错误值的含义一致。Rust 对照在 `apply` 的可调用参数上显式标注函数指针类型。

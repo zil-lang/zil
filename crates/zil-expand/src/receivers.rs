@@ -75,6 +75,7 @@ impl Expander<'_> {
                             index: role.index as u32,
                             generic_index: role.generic_index,
                             generic_name: role.generic_name,
+                            closed_environment: role.closed_environment,
                             kind: role.kind,
                             parameters,
                             result,
@@ -235,7 +236,15 @@ impl Expander<'_> {
                 }
             }
         };
+        let call_kind = match tasks::selection(f, &mut self.callable_work) {
+            Ok(selection) => selection,
+            Err(error) => {
+                self.diagnostics.push(error);
+                None
+            }
+        };
         self.functions.push(CoreFunction {
+            call_kind,
             life,
             callable_return,
             type_parameters,
