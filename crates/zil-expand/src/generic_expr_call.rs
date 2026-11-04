@@ -824,7 +824,7 @@ impl Engine<'_> {
             ));
         }
         let Some(target) =
-            crate::foreign::bare_name(&argument.value).filter(|name| !env.contains_key(*name))
+            crate::foreign::bare_name(&argument.value).filter(|name| !env.contains_key(name))
         else {
             return Err(crate::foreign::callback_error(
                 e.span,
