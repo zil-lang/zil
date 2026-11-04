@@ -87,6 +87,8 @@ File/Buffer 工厂成功在指定局部或返回槽构造管理头。`let b=a` �
 
 资源参数 `r: R` / `r: Ref<R>` 是描述入口；`give r: R` 是接收完整载体的参数，调用处写 `take(give r)`。工厂直接产生的 create 结果可直接进入拥有结果槽，不能为了省写而把一个既有 Desc 反向猜成拥有者。返回既有载体用 `return give r` 并满足 `result(give)`；新资源返回满足 `result(create)`。普通不可 Copy Value 与完整 `package` 按值移动，不要求额外 `give`，也不隐式退化为描述；`give` 不接受普通 Value 作为另一个可选移动拼写。
 
+`Managed`为保留的内建类型构造器，用户声明不得重绑。`Managed<R>`在类型位置显式命名R的既有拥有载体，R须解析为真实已登记资源的完整payload；它不构造值、不把Desc/Ref升级为责任，也不授予Copy、StoreElement、Transfer或Share。裸R的默认描述语义不变；重复Managed包装和非资源实参拒绝。作为普通泛型Type实参时保留完整Managed实际类型，所有实例键、返回/参数模式、Enum载荷与清理据此核验；显式give/create仍须证明真实来源。`manages R`继续是字段位置的既有拥有标记，泛型字段代换不得丢失该标记或从裸R猜测拥有。Task与普通Poll等载体使用同一完整T，例如`Task<Managed<R>>`与`Poll<Managed<R>>`，不因标准库名字改变实参类别。
+
 消费接收者 `give self: Self` 用 `(give r).method(...)` 或 `R.method(give r, ...)`，不把普通 `r.method(...)` 静默改成载体转交。普通 Value 的 `self: Self` 仍按普通 Copy/Move 规则调用；资源类型的 `self: Self` 是该资源默认描述模式，拥有模式必须写 `give self`。`self: Ref<Self>` 始终明确为描述。
 
 `close` / `destroy` 通过借入管理路由履行原载体的责任，不等于 `give`。成功清理、部分失败、移出和存活是不同状态。给出责任后，原有 Desc 是否仍可访问由实际存储、来源和当前资格决定；真实头地址或旧记录借用不能靠移动自动修复。
