@@ -1,7 +1,7 @@
 //! Independent Verify control for a returned parent environment. The checked
 //! candidate is frozen; this test never asks Analyze for proof.
-#[path = "../../zil-ir/test-support/schema37_fixture.rs"]
-mod schema37_fixture;
+#[path = "../../zil-ir/test-support/schema39_fixture.rs"]
+mod schema39_fixture;
 
 use zil_base::{Limits, TargetProfile};
 
@@ -12,15 +12,15 @@ fn returned_parent_capture_old_position_window_is_checked_with_or_without_a_cons
     for (name, frozen) in [
         (
             "no_call_edge",
-            include_bytes!("../../../tests/impl254/v37/parent_valid_no_call_edge.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v39/parent_valid_no_call_edge.wire").as_slice(),
         ),
         (
             "with_call_edge",
-            include_bytes!("../../../tests/impl254/v37/parent_valid_with_call_edge.wire")
+            include_bytes!("../../../tests/impl254/v39/parent_valid_with_call_edge.wire")
                 .as_slice(),
         ),
     ] {
-        let migrated = schema37_fixture::migrate(frozen, &limits);
+        let migrated = schema39_fixture::migrate(frozen, &limits);
         let (valid, plan) = zil_ir::wire::decode_module_candidate(&migrated, &limits).unwrap();
         for stale in [false, true] {
             let mut typed = valid.clone();

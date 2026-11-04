@@ -1,6 +1,6 @@
-//! Exact archived223 bytes plus a structurally migrated schema37 fixture.
-#[path = "../../zil-ir/test-support/schema37_fixture.rs"]
-mod schema37_fixture;
+//! Exact archived223 bytes plus a structurally migrated schema39 fixture.
+#[path = "../../zil-ir/test-support/schema39_fixture.rs"]
+mod schema39_fixture;
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
@@ -8,13 +8,18 @@ const ORIGINAL: &[u8] = include_bytes!("review223_fixtures/mutable-product-origi
 const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schema29.wire");
 const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
 const SCHEMA32: &[u8] = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
-const SCHEMA37: &[u8] = include_bytes!("review223_fixtures/v37/mutable-product.wire");
+const OLD_SCHEMA37: &[u8] = include_bytes!("review223_fixtures/v37/mutable-product.wire");
+const SCHEMA39: &[u8] = include_bytes!("review223_fixtures/v39/mutable-product.wire");
 
 #[test]
-fn frozen_schema27_29_30_and32_wire_are_rejected_as_old_transports() {
+fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
     for (wire, hash) in [
+        (
+            OLD_SCHEMA37,
+            "c0272fcd49c137ed00ca6344b6aa93b0359210a242706838275760618e9f4b82",
+        ),
         (
             ORIGINAL,
             "5ba4b35d45093a324e31ab8971d92788a1e9c18b57cbdc17fdd317c7d2f59de9",
@@ -46,17 +51,17 @@ fn frozen_schema27_29_30_and32_wire_are_rejected_as_old_transports() {
     }
 }
 
-// The reproducible offline adapter adds explicit Direct/None-life fields to
-// structurally decoded v34 records. Production has no legacy codec.
+// The offline test writer adds empty inventories and absent storage relations to
+// structurally decoded v37 records. Production has no legacy codec.
 fn current_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 37);
-    assert_eq!(zil_base::SCHEMA_VERSION, 37);
-    let migrated = schema37_fixture::migrate(SCHEMA37, limits);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 39);
+    assert_eq!(zil_base::SCHEMA_VERSION, 39);
+    let migrated = schema39_fixture::migrate(SCHEMA39, limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, limits).unwrap();
-    assert_eq!(module.schema_version, 37);
-    assert_eq!(plan.schema_version, 37);
+    assert_eq!(module.schema_version, 39);
+    assert_eq!(plan.schema_version, 39);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
     assert_eq!(plan.module_fingerprint, module.fingerprint());
     assert!(

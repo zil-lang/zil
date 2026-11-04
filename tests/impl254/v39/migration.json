@@ -1,0 +1,26 @@
+{
+  "decoder_commit": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "status": "UntrustedStructuralTranscode",
+  "fields_added": [
+    "empty life_declarations/life_instances/dyn_declarations/dyn_interfaces/dyn_vtables",
+    "TypedFunction.storage_life=None",
+    "ClosureDefinition.storage_life=None"
+  ],
+  "adapter_source_sha256": "654f661c8158914d05fb9a265e280ca247fb5ebce89c384753df378595a76eb5",
+  "writer_source_sha256": "f4c81c0f26c9aebd7e137951d586aff020bea9caeaa389dae5407b9b3d24bca3",
+  "inputs": {
+    "control_callback_i32_argument.wire": "1c7b77913f49af56604f253330e9f2d35ea390e137ec34124560ecdd55874379",
+    "escape_callback_argument.wire": "b5467355c7cc4e9738479d0d14a7eb5bbbee54f7a17f4c69a13f18c3e9a008db",
+    "loan_revival.wire": "63d3455f490b74f77a2051ee9bdd887ad002ac5dcc6ccc547196304eb2affeb4",
+    "parent_valid_no_call_edge.wire": "2ef36af5885ddec799a225d32b83d2ea9c6235c8f9e53215d3fa583c8e0c697f",
+    "parent_valid_with_call_edge.wire": "c960b22f3a0aa0e863bab6e506fbd82ddb8a04e3a460ce0b9d5b88cd7725994c"
+  },
+  "outputs": {
+    "control_callback_i32_argument.wire": "2bde13282bc9719b97f524698a585df332a1f87f8308e5d972c500d379ad4829",
+    "escape_callback_argument.wire": "2c1013331a5272e1d5908948b5611ed0900ecca604358dcbbdb99a3011522040",
+    "loan_revival.wire": "64b337f51be1997d6eee0b0a30cda9e22a81971d266eafc9cbeeb3316d34fcd7",
+    "parent_valid_no_call_edge.wire": "90a4895d0ae2339ce58399c71d88de69f10f663fcc23f23c2e1d067c7a729801",
+    "parent_valid_with_call_edge.wire": "5dfb5d2de4a891f0de41e56286933fb01dc1e8d0d3a71285b28d8238173c36fa"
+  },
+  "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"
+}
