@@ -1,5 +1,9 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-04：G8.4.2 共同42限定交付
+
+实际同线程异步登记、晚通知排空与 Task 取消责任已贯通两核和原生；跨 helper 的 Store 实例失效修复同批接受。默认4641/0、reference4529/0、完整text-reference70/0、双配置严格Clippy及release消费者145命令通过。原297步费用回归恢复旧预算，原10项全量失败及修复留证。此次有可重放的异步关闭和合法拥有组合表达增量；同语义Rust运行/RSS、编译、维护成本和产品净突破未测，完整语言/B0/ZUI与原产品条件保持。精确源码69a756a及范围见[共同验收](validation/G8.4.2-common42-acceptance.json)。
+
 ## 2026-11-04：G10.1 共同41限定交付
 
 实际来源、拥有替换、qualified callable、CT life类与CAS由独立核和非作者复核支持；原默认栈崩溃修复没有扩大栈或预算。完整默认4617/0、reference4505/0、text-reference70/0以及release consumer209的145命令通过。已观测源码表达与编译可靠性增量；运行/RSS、编译和维护的Rust同语义比较及可重复产品净突破未测。完整语言/B0/ZUI及原product-gates条件保持；一般借用、外层Fixed、完整CT上下文和异步组合继续施工。精确源码318875及原失败/范围见[共同验收](validation/G10.1-common41-acceptance.json)。

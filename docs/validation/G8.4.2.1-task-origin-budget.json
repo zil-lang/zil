@@ -1,0 +1,138 @@
+{
+  "task": "G8.4.2.1",
+  "author": "g8_3",
+  "status": "AuthorLimitedPass; independent g10_1_review pending",
+  "baseline": "bcfeb475eac0f21f6c51c3ebd17bfa3ab6a2f8d7",
+  "production_commit": "4f0326d6f029ce6d4fd8b78e623d0cf83bd20c5a",
+  "design_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "diagnosis": "All LIVE Direct owning cleanup entered the new Task origin classifier, which recursively charged ordinary Store/Record/Package types even when there was no new Task root anywhere. Two real Store request boundaries acquired the same +297 Analyze work.",
+  "before": {
+    "independent_log": "/workspace/.zil-env/G8.4.2-G1.3.2-review-tmp/store32.log",
+    "local_store_analyze": 20051,
+    "helper_store_analyze": 24028,
+    "verify": "Not measured before the failed Analyze assertion; no inferred pre-fix Verify fee."
+  },
+  "fix": {
+    "private_enable": "Each kernel derives task_origin_roots from its own existing complete paid actual type traversal. It is not serialized or supplied by Source/Types/raw producer flags.",
+    "inventory": [
+      "every function result/local/value, including unused functions and unreachable blocks",
+      "actual embedded conversion/OwnedStoreNew types",
+      "all resource payloads",
+      "all actual closure captures/parameters/results",
+      "nested Task/Managed/Desc/Address/ErrorUnion/aggregate/storage structure"
+    ],
+    "verify_opaque": "The independent bounded shape walk additionally descends actual Opaque.hidden. It grants no Opaque admission. Named spellings are not interpreted as Task types.",
+    "fast_path": "After validating actual local/value endpoint, needs_proof/require_origin avoid new classification when no new Task root exists. Relevant roots keep full original actual origin and worker graph work.",
+    "legacy": "Legacy TaskStart NoExternal constructor entry and whole-instruction inventory are unchanged and never gated by this bit.",
+    "limits_and_assertions": "No default limit or original exact N assertion changed."
+  },
+  "checks": {
+    "impl180_store_mut": {
+      "passed": 32,
+      "failed": 0,
+      "includes_G1_3_2_borrowed_closure_and_saved_descriptor_raw_wire_neighbors": true
+    },
+    "restored_exact_requests": {
+      "local": {
+        "Analyze": 19754,
+        "Verify": 54842
+      },
+      "helper": {
+        "Analyze": 23731,
+        "Verify": 63080
+      },
+      "Nminus1": "ResourceLimit in the relevant phase",
+      "cold_warm_fresh_retry": "Pass"
+    },
+    "async_registration": {
+      "passed": 6,
+      "failed": 0,
+      "exact_Analyze": 6012,
+      "exact_Verify": 7928,
+      "legacy_NoExternal_raw_Wire_and_actual_Task_Direct_Tuple_proof_negatives": "Pass",
+      "native56": "Existing replay only, no new coverage total."
+    },
+    "unused_Task_owner_source": {
+      "passed": 1,
+      "failed": 0,
+      "negative": "Actual unused Direct function Task parameter gets no invented worker origin; Analyze reports exact UnknownOrigin proof error.",
+      "nearest_positive": "Explicit finish source passes Analyze and Verify under the existing runtime CLOSED guard."
+    },
+    "inventory_library_components": {
+      "passed": 2,
+      "failed": 0,
+      "scope": "Raw inventory/type-shape only, not accepted source or module evidence. Includes unused resource/capture roots, nested ErrorUnion/Managed, Opaque.hidden and a Named-spelling negative."
+    },
+    "public42_unused_roles_and_unauthorized_candidates": {
+      "passed": 1,
+      "failed": 0
+    },
+    "sync_registration_raw_wire_budgets": {
+      "passed": 1,
+      "failed": 0,
+      "Analyze": 15589,
+      "Verify": 27650,
+      "historical_Async_receipt_Analyze": 15739,
+      "historical_Async_receipt_Verify": 27876,
+      "historical_receipts_unchanged": true
+    },
+    "unique_Rust_tests": 43,
+    "affected_all_targets_strict_clippy": "Pass",
+    "final_two_kernel_strict_lib_clippy": "Pass",
+    "fmt": "Pass",
+    "diff_check": "Pass"
+  },
+  "scope": "No public schema/norm/root Cargo edit, no main merge, no formal full suite or acceptance. Exclusive target343 reused, workspace TMPDIR, -j2/locked/offline.",
+  "logs": {
+    "store32": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/store32.log",
+      "sha256": "aeb3b30b7b335f2465a4afffc2eee5fe2ce097044cd3544790ad2ba6449cc620"
+    },
+    "async6": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/async6.log",
+      "sha256": "9eb5506c6d3318dd7a4ee8d086335dd340fabb7d6b8e52f71b0ec1838e2f59ee"
+    },
+    "sync_registration": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/sync-registration.log",
+      "sha256": "ba6f6e9684b087f6d0d65de7f9af0879a9766f2be583c3c5e558649fc512103d"
+    },
+    "inventory_components": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/inventory.log",
+      "sha256": "bf24153cb44f8ca2efeafbd5b274524a06ac764d68f6f8ea16d05f5c86e99698"
+    },
+    "final_exact": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/final-exact.log",
+      "sha256": "d6678d65cadd4867344055ec8f89c16bb2b15adbbec9cc9b0541b04ef25c088c"
+    },
+    "final_unused": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/final-unused.log",
+      "sha256": "a557cc2072957e2175e65c39f247c07880ffe7e374438347735117e58da807bc"
+    },
+    "public42": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/public42.log",
+      "sha256": "26baf590dffd5b7f7f638f836a69e07e02f4ea3f5075e1f1e72e955bee35bfdc"
+    },
+    "affected_all_targets_clippy": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/clippy.log",
+      "sha256": "c83562cc8841e9ae11f0315229b3fc8024f17922b5d8d046853b075143ba58ee"
+    },
+    "final_two_kernel_clippy": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/final-clippy.log",
+      "sha256": "a61e1c889648cd2dff1e433b7f27331e0e7c4f1276c49133c58240a4e5de47a0"
+    },
+    "fmt": {
+      "path": "/workspace/.zil-env/G8.4.2.1-tmp/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "source_sha256": {
+    "crates/zil-analyze/src/budget.rs": "f09563a3eb53f0251b84548bf5a23a181553cd7b890afa647168dff425babb0f",
+    "crates/zil-analyze/src/tasks/drop_sync.rs": "9e5f01bcb446678c50b30a2800c8c7e03ce209be3b12609050029132a6307fdc",
+    "crates/zil-verify/src/lib.rs": "5809025421232a970d10571887ab31d59fd1d4ad2579da11e797b68005496af5",
+    "crates/zil-verify/src/tasks/drop_sync.rs": "e79d6787455fa21d39ddeca8f6c4358e835ada5948b190019234e5548cc58265",
+    "crates/zil-driver/tests/impl180_store_mut.rs": "04fb7894d7b29a35b05328600635c49464a5f7561071491a78d3290d67b8c7b7",
+    "crates/zil-driver/tests/generic_regressions.rs": "60989f9c3f81114332297b4dc402b20e1401259d2b09bd4086b7b67e0151d5d5",
+    "crates/zil-verify/src/tests.rs": "5895a0a8eceb1dbce10e78eea7223b42a878b7cfe7e9c0c04ebaff8a526285ee"
+  },
+  "unmeasured": "Runtime/RSS/Rust comparative costs are unmeasured; observed improvement is removal of unnecessary logical compile work, not a broader product performance claim."
+}

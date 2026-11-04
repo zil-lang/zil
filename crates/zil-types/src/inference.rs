@@ -723,6 +723,7 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
     CoreModule {
         life_declarations: core.life_declarations.clone(),
         life_instances: core.life_instances.clone(),
+        closure_life_contexts: core.closure_life_contexts.clone(),
         dyn_declarations: core.dyn_declarations.clone(),
         dyn_interfaces: core.dyn_interfaces.clone(),
         dyn_vtables: core.dyn_vtables.clone(),

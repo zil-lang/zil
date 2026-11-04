@@ -298,6 +298,8 @@ struct Budget {
     remaining: usize,
     sums: bool,
     tasks: bool,
+    // Independent paid raw-type inventory; this only enables a proof, not permission.
+    task_origin_roots: bool,
     registrations: bool,
     async_registrations: bool,
     replacements: bool,
@@ -325,6 +327,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             sums: false,
             tasks: false,
+            task_origin_roots: false,
             registrations: false,
             async_registrations: false,
             replacements: false,
@@ -1012,6 +1015,7 @@ fn check_type_shape(
     let mut anonymous = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
+        budget.task_origin_roots |= matches!(ty, Type::Task { .. });
         tasks::require_closed_context(ty, None)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
@@ -1116,6 +1120,9 @@ fn check_type_shape(
                         ));
                     }
                 }
+            }
+            Type::Opaque { hidden, .. } => {
+                pending.push((hidden, depth + 1, context));
             }
             Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
