@@ -280,3 +280,64 @@ This is a bounded same-thread StrongClose milestone, not task343 completion.
 Owned Suspend child frames, PendingExit responsibility, stable waker roots,
 asynchronous no-future/drain, general Mutex<T>/Guard/Transfer/Share and native
 Windows remain continuation work under the parent task.
+
+### Static Suspend children and the owning continuation framework
+
+The next proposed public transport is `CallKind { Direct=0, Suspend=1 }`, an
+optional source declaration on CoreFunction, a concrete raw selection on
+TypedFunction, and opcode 125 `SuspendCall { function, arguments: Vec<ValueId> }`.
+Its actual SSA result is produced only after the child reaches Ready. Existing
+Call, scalar function pointers, borrowed function pointers and foreign callback
+entries remain Direct boundaries. Neither a declaration nor TaskStart supplies
+an effect or no-external-users proof. TaskStart of a non-yielding Direct worker
+still creates a task adapter while preserving the worker's ordinary Direct body.
+
+Unannotated source selects the actual reachable effect; `effects(direct)` is an
+explicit upper bound which rejects any reachable Yield/SuspendCall/Suspend
+callee or cleanup. `effects(suspend); resume(local)` explicitly selects Suspend
+even for an empty/effect-free implementation. Each kernel reconstructs effects
+including actual indirect targets or their complete admitted upper bound. An
+ordinary Call to a Suspend-selected function rejects. `task_await(f, args...)`
+is the source execution root for a static SuspendCall; unused declarations are
+checked. This proposal does not add unchecked producer effect/noExternal bits.
+
+The private frame plan is based on actual parameter/result types, initialized
+responsibility slots, child instance slots and continuation PCs. The first
+executable child lane may use i32 parameters/results, but shares that plan with
+the following owning lane. Await evaluates/commits arguments and initializes a
+child once; Pending repolls the same instance without recomputation. A loop may
+reuse a site only after the previous child is settled. Distinct live instances
+are never deduplicated by worker/type. Acyclic static children have explicit
+stable embedded storage; recursive execution needs an explicit BoxTask/arena.
+
+Ready moves the actual result once. Other poll alternatives never expose its
+payload. General `Poll<T>` must be a fixed nominal ordinary enum with only
+Ready owning T; i32 ABI1 is a compatibility wrapper, not an owning-result ABI.
+A result borrowing a child frame must retain the child/root through its loan;
+the initial lane rejects such signatures. All return RHS moves/loans are checked
+when evaluated, before recording PendingExit.
+
+PendingExit preserves Normal/Error/Cancel/Panic and actual payload responsibility
+while children drain. Cancellation first notifies every live child, then drains
+in creation order; body error has priority and unobserved child errors use that
+order. poll_close may return Pending repeatedly with stable child/result/loan
+responsibilities intact. Closed requires children, results, loans and external
+users/wakers plus actual backend no-future/drain all settled. A Direct default
+Drop is valid only for an already Closed owner or an independently rebuilt graph
+whose close always completes synchronously; an abort on Pending does not provide
+general cleanup. An explicit close-driving root or parent must retain the owner.
+
+Initial public bytes add one validated function-kind byte to typed Wire and
+fingerprints, and target/count/argument IDs for opcode 125. Root owns the common
+schema/Wire version transition. Existing scalar TaskInterface ABI1 semantics and
+packed poll wrappers remain unchanged; actual child layout/cleanup enters the
+backend artifact and codegen identity. General owning external SABI needs a
+separate complete mode/layout/version descriptor and symbols before export.
+
+Required source controls cover child Pending-to-Ready, branch/backedge awaits,
+two live child instances, once-only argument initialization and result movement,
+parent cancellation at each phase and after Ready, and actual owned Drop/failure.
+Raw/decoded-Wire controls alter CallKind, ordinary-call a Suspend target, duplicate
+Ready ownership, or destroy a live child. Budget and cache identity controls must
+cover actual nested child layouts and expanded live-instance work. No capability
+or acceptance is claimed by this proposal before implementation and replay.
