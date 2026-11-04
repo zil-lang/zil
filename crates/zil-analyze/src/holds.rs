@@ -1508,7 +1508,26 @@ fn infer_with_private(
             budget.spend(1, "owned callback window function lookup")?;
             budget.owned_callback_window_functions[f.id.0 as usize]
         };
-    let mut pattern_windows = budget.owning_address_captures;
+    let replacement_definitions = if budget.replacement_functions.is_empty() {
+        None
+    } else {
+        budget.lookup(
+            budget.replacement_functions.len(),
+            "replacement Hold function lookup",
+        )?;
+        if budget.replacement_functions.contains(&f.id) {
+            Some(crate::place_replacements::Definitions::new(
+                module, f, budget,
+            )?)
+        } else {
+            None
+        }
+    };
+    let replacement_schedule = replacement_definitions
+        .as_ref()
+        .map(|definitions| definitions.schedule(f, reachable, budget))
+        .transpose()?;
+    let mut pattern_windows = budget.owning_address_captures || replacement_schedule.is_some();
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
@@ -1531,12 +1550,16 @@ fn infer_with_private(
         }
     }
 
-    let address_afters = if store_windows || callback_windows || scoped || pattern_windows {
+    let address_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, false, &schedule.uses, budget)?
+    } else if store_windows || callback_windows || scoped || pattern_windows {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
     };
-    let capture_afters = if budget.address_capture {
+    let capture_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, true, &schedule.uses, budget)?
+    } else if budget.address_capture {
         resources::capture_afters(f, reachable, budget)?
     } else {
         Vec::new()

@@ -35,6 +35,7 @@ mod scoped_thread;
 mod scopes;
 mod stored_borrows;
 mod stored_flow;
+mod place_replacements;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
