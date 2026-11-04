@@ -40,6 +40,7 @@ pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
     infer_shared_program_for_ct,
 };
+mod reference_patterns;
 mod resource_effects;
 mod resources;
 mod retained;
@@ -2979,8 +2980,12 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         Type::I64 => i64::try_from(value)
             .map(Constant::I64)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),
-        Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u64")),
-        Type::Usize => u64::try_from(value).map(Constant::Usize).map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit usize")),
+        Type::U64 => u64::try_from(value)
+            .map(Constant::U64)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u64")),
+        Type::Usize => u64::try_from(value)
+            .map(Constant::Usize)
+            .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit usize")),
         _ => unreachable!(),
     }
 }

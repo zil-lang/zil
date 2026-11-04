@@ -1279,6 +1279,7 @@ fn check_function(
                 InstructionKind::Load(local)
                 | InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1452,6 +1453,7 @@ fn check_instruction(
         }
         InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. } => {
             let limits = budget.limits.clone();
@@ -2584,6 +2586,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::RegisterDefer { .. }

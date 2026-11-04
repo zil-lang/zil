@@ -207,6 +207,32 @@ pub(super) fn check_instruction(
                 Ok(Some(ty.clone()))
             }
         }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            if path.is_empty() || path.len() > limits.max_call_depth {
+                return Err(bad(
+                    span,
+                    "payload borrow requires a nonempty bounded Enum path",
+                ));
+            }
+            let ty = projected_type(f, *local, path, span, budget)?;
+            resources::charge_payload(ty, budget)?;
+            if (!ty.is_copy_value() && !matches!(ty, Type::Package { .. }))
+                || (*mutable && !f.locals[local.0 as usize].mutable)
+            {
+                return Err(bad(
+                    span,
+                    "payload borrow requires finite Copy and actual mutable authority",
+                ));
+            }
+            Ok(Some(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(ty.clone()),
+            }))
+        }
         InstructionKind::UnpackVariant {
             local,
             variant,
@@ -903,7 +929,8 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::VariantTagLocal { local, path }
-                | InstructionKind::ReadVariantLocal { local, path } => {
+                | InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                     self.selected(
                         state,
                         *local,
@@ -913,6 +940,63 @@ impl Flow<'_> {
                         instruction.span,
                         budget,
                     )?;
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowVariantLocal { mutable: true, .. }
+                    ) {
+                        let ty =
+                            projected_type(self.f, *local, path, Some(instruction.span), budget)?;
+                        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+                            fn forget(
+                                at: &mut Content,
+                                path: &[VariantProjection],
+                                ty: &Type,
+                                budget: &mut Budget,
+                            ) -> Check<()> {
+                                if path.is_empty() {
+                                    *at = content(ty, None, &mut Vec::new(), false, budget)?;
+                                    return Ok(());
+                                }
+                                let Content::Sum(vs, _) = at else {
+                                    return Err(bad(None, "mutable payload path crosses non-Enum"));
+                                };
+                                if let Some(fs) = vs.get_mut(&path[0].variant) {
+                                    let child = fs
+                                        .get_mut(path[0].index as usize)
+                                        .ok_or_else(|| bad(None, "mutable payload field absent"))?;
+                                    forget(child, &path[1..], ty, budget)?;
+                                }
+                                Ok(())
+                            }
+                            state.locals[local.0 as usize].cost(budget)?;
+                            forget(
+                                Arc::make_mut(&mut state.locals[local.0 as usize]),
+                                path,
+                                ty,
+                                budget,
+                            )?;
+                            let prefix = path
+                                .iter()
+                                .map(|p| (p.variant, p.index))
+                                .collect::<Vec<_>>();
+                            budget.spend(
+                                prefix
+                                    .len()
+                                    .saturating_add(state.facts.len())
+                                    .saturating_add(state.observations.len()),
+                            )?;
+                            state.facts.retain(|(root, observed, _)| {
+                                *root != *local || !observed.starts_with(&prefix)
+                            });
+                            state.observations.retain(|v| {
+                                self.observers[v.0 as usize].as_ref().is_none_or(
+                                    |(root, observed)| {
+                                        *root != *local || !observed.starts_with(&prefix)
+                                    },
+                                )
+                            });
+                        }
+                    }
                     if matches!(instruction.kind, InstructionKind::VariantTagLocal { .. }) {
                         budget.spend(state.observations.len().saturating_add(1))?;
                         state
