@@ -1319,6 +1319,8 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>return unsupported("partial inline ownership consumer is under implementation",Some(instruction.span)),
+
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }

@@ -412,6 +412,9 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::MakeOwnedTuple{fields}=>(None,None,fields),
+        InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>(None,None,&[]),
+
         InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {

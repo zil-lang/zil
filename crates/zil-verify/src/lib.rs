@@ -1415,6 +1415,8 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>return Err(unsupported("partial inline ownership consumer is under implementation",span)),
+
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -2609,6 +2611,9 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::MakeOwnedTuple{fields}=>([None,None],fields),
+        InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>([None,None],&[]),
+
         InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)

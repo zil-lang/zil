@@ -998,6 +998,7 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::MakeOwnedTuple{..}|InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>return Err(vec![Diagnostic::unsupported(Phase::Analyze,"partial inline ownership consumer is under implementation",Some(instruction.span))]),
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {
                         budget.addressed_sums = true;
                         if local.0 as usize >= function.locals.len() {
