@@ -35,6 +35,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
+    pub(super) head_descriptions: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -63,6 +64,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             borrowed_function_pointers: false,
+            head_descriptions: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -302,7 +304,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         }
     } else if crate::dynamic_store::is_carrier(ty)
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-        || ty.is_shared_resource_head_address()
+        || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer
@@ -974,6 +976,9 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,

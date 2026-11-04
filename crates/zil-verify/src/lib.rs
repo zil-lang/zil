@@ -59,6 +59,7 @@ mod dynamic_store;
 mod error_scope_tests;
 mod errors;
 mod foreign;
+mod head_access;
 #[cfg(test)]
 mod helper_tests;
 mod helpers;
@@ -242,6 +243,7 @@ struct Budget {
     scoped_functions: Option<Vec<bool>>,
     shared_thread_functions: Option<Vec<bool>>,
     borrowed_function_pointers: bool,
+    head_descriptions: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -256,6 +258,7 @@ impl Budget {
             scoped_functions: None,
             shared_thread_functions: None,
             borrowed_function_pointers: false,
+            head_descriptions: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -653,6 +656,7 @@ fn check_module(
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
+    head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok((fingerprint, budget.sums))
 }
@@ -906,7 +910,7 @@ fn check_function_signature_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. } if resources::head_address(ty) => {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
@@ -946,7 +950,7 @@ fn check_local_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. } if resources::head_address(ty) => {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -1069,7 +1073,7 @@ fn check_function(
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&function.values)
-                .any(Type::is_package_address)
+                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner)))
         {
             return Err(unsupported(
                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
@@ -1705,8 +1709,11 @@ fn check_instruction(
                 closures::definition(module, *id, span)?;
             } else if !*mutable && matches!(field, Type::Package { .. }) {
                 packages::check_shared_product_type(module, field, span, budget)?;
-            } else if !*mutable
-                && matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+            } else if matches!(field, Type::Managed(_))
+                && resources::head_address(&Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(field.clone()),
+                })
             {
                 resources::check_type_for(module, field, span, budget)?;
             } else {
@@ -2428,6 +2435,25 @@ fn check_instruction(
             }
             Some(ty.clone())
         }
+        InstructionKind::DescribeAddress { address } => {
+            budget.head_descriptions = true;
+            let ty = value_type(function, *address, span)?;
+            if !resources::head_address(ty) {
+                return Err(reject(
+                    "E-VERIFY-RESOURCE",
+                    span,
+                    "DescribeAddress requires an actual finite resource head address",
+                ));
+            }
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
+            };
+            resources::check_type_for(module, inner, span, budget)?;
+            let Type::Managed(payload) = inner.as_ref() else {
+                unreachable!()
+            };
+            Some(Type::Desc(payload.clone()))
+        }
         InstructionKind::DescribeLocal { local } => {
             let Type::Managed(inner) = local_type(function, *local, span)? else {
                 return Err(reject(
@@ -2678,6 +2704,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferBorrow { buffer, .. } => ([Some(*buffer), None], &[]),
         InstructionKind::Unary { operand, .. } => ([Some(*operand), None], &[]),
         InstructionKind::ReadDesc { desc: address, .. }
+        | InstructionKind::DescribeAddress { address }
         | InstructionKind::ReadAddress { address }
         | InstructionKind::SliceLength { address }
         | InstructionKind::ReborrowAddress { address, .. }

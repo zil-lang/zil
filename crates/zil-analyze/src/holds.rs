@@ -990,6 +990,33 @@ fn store_window_transition(
     }
     budget.spend(live.len(), "captured Store live windows")?;
     for place in live {
+        if budget.head_descriptions
+            && matches!(place,resources::Place::Value(id) if instruction.result==Some(*id))
+        {
+            continue;
+        }
+        if budget.head_descriptions {
+            let ty = match place {
+                resources::Place::Value(v) => Some(&f.values[v.0 as usize]),
+                resources::Place::Local(l) => Some(&f.locals[l.0 as usize].ty),
+                _ => None,
+            };
+            if (matches!(ty, Some(Type::Desc(_)))
+                || ty.is_some_and(|ty| resources::head_address(ty) || ty.is_package_address()))
+                && matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferReserve { .. }
+                        | InstructionKind::ByteBufferPush { .. }
+                        | InstructionKind::ByteBufferTruncate { .. }
+                        | InstructionKind::ByteBufferBorrow { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                )
+            {
+                continue;
+            }
+        }
         let held = match place {
             resources::Place::Value(value) => values.get(value.0 as usize),
             resources::Place::Local(local) => {
@@ -1019,6 +1046,7 @@ fn store_window_transition(
                     "Store transition invalidates a live element window",
                 ));
             }
+            if budget.head_descriptions { return Err(window_conflict(instruction,&format!("owned storage transition invalidates a live address window in {}",f.name))); }
             return Err(bad(if callback_windows {
                 "owned storage transition invalidates a live address window"
             } else {
@@ -1126,12 +1154,13 @@ fn infer_with_private(
             }
         }
     }
-    let callback_windows = if budget.owned_callback_window_functions.is_empty() {
-        false
-    } else {
-        budget.spend(1, "owned callback window function lookup")?;
-        budget.owned_callback_window_functions[f.id.0 as usize]
-    };
+    let callback_windows = budget.head_descriptions
+        || if budget.owned_callback_window_functions.is_empty() {
+            false
+        } else {
+            budget.spend(1, "owned callback window function lookup")?;
+            budget.owned_callback_window_functions[f.id.0 as usize]
+        };
     let address_afters = if store_windows || callback_windows || scoped {
         resources::address_afters(f, reachable, budget)?
     } else {
@@ -1323,7 +1352,8 @@ fn infer_with_private(
                             }
                         }
                     }
-                    InstructionKind::ReborrowAddress { address, .. }
+                    InstructionKind::DescribeAddress { address }
+                    | InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::AddressSlice { address, .. }
                     | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. } => {
