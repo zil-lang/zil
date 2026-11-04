@@ -71,9 +71,10 @@ impl Expander<'_> {
 
     pub(super) fn dyn_type_ref(&mut self, ty: &s::TypeRef) -> Type {
         let catalog = self.dynamic_catalog.filter(|catalog| !catalog.is_empty());
-        let storage = self
-            .storage_catalog
-            .filter(|catalog| !catalog.pointers.is_empty());
+        let storage = self.storage_catalog.filter(|catalog| {
+            !catalog.pointers.is_empty()
+                || catalog.borrowed_signatures && !catalog.instances.is_empty()
+        });
         if catalog.is_none() && storage.is_none() {
             return self.type_ref(ty);
         }

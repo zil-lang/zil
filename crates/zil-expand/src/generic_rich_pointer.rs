@@ -4,6 +4,10 @@ use super::*;
 use zil_ir::{StorageBase, Type};
 
 pub(crate) fn key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<Option<String>> {
+    if let TypeKind::Group(inner) = &ty.kind {
+        budget.node(ty.span, 0)?;
+        return key(inner, budget);
+    }
     if !matches!(ty.kind, TypeKind::ForLifetime { .. }) {
         return Ok(None);
     }
@@ -231,17 +235,22 @@ impl Engine<'_> {
         let mut owned = ty.clone();
         let mut scope = Vec::new();
         let mut inner = ty;
-        while let TypeKind::ForLifetime {
-            lifetime,
-            inner: next,
-        } = &inner.kind
-        {
+        loop {
             self.budget.node(inner.span, depth)?;
-            self.budget.text(lifetime, inner.span)?;
-            scope.push(lifetime.clone());
-            inner = next;
+            match &inner.kind {
+                TypeKind::Group(next) => inner = next,
+                TypeKind::ForLifetime {
+                    lifetime,
+                    inner: next,
+                } => {
+                    self.budget.text(lifetime, inner.span)?;
+                    scope.push(lifetime.clone());
+                    inner = next;
+                }
+                _ => break,
+            }
         }
-        let Some((params, result)) = function_parts(&mut owned) else {
+        let Some((params, result)) = function_parts(&mut owned, &mut self.budget, depth)? else {
             return Err(unsupported(
                 ty.span,
                 "rich source code requires function parameters",
@@ -343,12 +352,88 @@ impl Engine<'_> {
     }
 }
 
-fn function_parts(ty: &mut TypeRef) -> Option<(&mut Vec<TypeRef>, &mut Box<TypeRef>)> {
+fn function_parts<'a>(
+    ty: &'a mut TypeRef,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<Option<(&'a mut Vec<TypeRef>, &'a mut Box<TypeRef>)>> {
+    budget.node(ty.span, depth)?;
     match &mut ty.kind {
-        TypeKind::ForLifetime { inner, .. } => function_parts(inner),
-        TypeKind::Function { params, result } => Some((params, result)),
-        _ => None,
+        TypeKind::ForLifetime { inner, .. } | TypeKind::Group(inner) => {
+            function_parts(inner, budget, depth + 1)
+        }
+        TypeKind::Function { params, result } => Ok(Some((params, result))),
+        _ => Ok(None),
     }
+}
+
+/// A nested scoped signature must never reach the contextless recursive type
+/// renderer. Constructors without a contextual adapter fail before fallback.
+pub(crate) fn reject_unhandled(
+    ty: &TypeRef,
+    budget: &mut Budget<'_>,
+    instances: &[crate::stored_types::Instance],
+) -> R<()> {
+    use crate::ct_selection::Visitor;
+    struct Check<'a, 's, 'l> {
+        budget: &'a mut Budget<'l>,
+        instances: &'s [crate::stored_types::Instance],
+        forall: bool,
+    }
+    impl Visitor for Check<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(value, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, TypeKind::ForLifetime { .. })
+                && key(ty, self.budget).map_err(|e| vec![e])?.is_some()
+            {
+                return Err(vec![unsupported(
+                    ty.span,
+                    "rich Code inside this constructor needs its contextual signature adapter",
+                )]);
+            }
+            if self.forall
+                && let TypeKind::Named { path, args } = &ty.kind
+                && path.len() == 1
+                && args.is_empty()
+            {
+                // An actual substituted qualified type can already have lost
+                // its source life-argument spelling. The real catalogue, never
+                // a generated-name prefix, identifies that boundary.
+                for instance in self.instances {
+                    self.node(ty.span, depth)?;
+                    if let Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                        && let Type::Record { name, .. } = storage.as_ref()
+                    {
+                        self.text(name, ty.span)?;
+                        self.text(&path[0], ty.span)?;
+                        if name == &path[0] {
+                            return Err(vec![unsupported(
+                                ty.span,
+                                "qualified type in a legacy Code signature needs its actual Fixed context",
+                            )]);
+                        }
+                    }
+                }
+            }
+            let old = self.forall;
+            self.forall |= matches!(ty.kind, TypeKind::ForLifetime { .. });
+            let result = crate::ct_selection::walk_type(self, ty, depth);
+            self.forall = old;
+            result
+        }
+    }
+    Check {
+        budget,
+        instances,
+        forall: false,
+    }
+    .ty(ty, 0)
+    .map_err(|mut e| e.remove(0))
 }
 
 #[allow(clippy::too_many_arguments)]

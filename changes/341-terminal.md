@@ -328,3 +328,16 @@ CT invocation metadata and native Code execution remain separate validation; no
 closure/role authority, retained-root proof, performance or task completion claim
 is inferred. Safety/data identity and source usability have the limited evidence
 above; runtime/maintenance/compile-cost comparisons remain unmeasured.
+
+The grouped successor closes the reviewed composition seam: grouped Code aliases
+and ordinary record fields use the prepared complete signature, including its
+actual nominal/class rows. Containers without an adapter reject explicitly
+before a contextless flat fallback, including unused tuple/array aliases.
+An actual registered qualified nominal in a legacy forall header also rejects
+until its genuine Fixed context exists; this uses the actual catalogue, never
+a generated-name prefix. Cross-edit alpha controls now explicitly use the stable
+naming API and compare the nominal declaration inventories as well as raw types.
+Full Expand44/0 and targeted Clippy pass. Rich work is9712 (9703 belongs to38ca);
+grouped const5396 and stored common-prefix1636919 are unchanged. Exact executable/
+source binding is in terminal341-rich-code-grouped-source40.json. This remains
+Source→Core and raw-helper evidence; downstream execution and rich roles stay open.
