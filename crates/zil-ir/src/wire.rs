@@ -1080,7 +1080,7 @@ impl<'a> Writer<'a> {
                 self.u8(97)?;
                 self.u8(*op as u8)?;
                 self.u32(address.0)?;
-                self.bool(value.is_some())?;
+                self.boolean(value.is_some())?;
                 if let Some(value) = value {
                     self.u32(value.0)?;
                 }
@@ -2785,7 +2785,7 @@ impl<'a> Reader<'a> {
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown cell operation")),
                 },
                 address: ValueId(self.u32()?),
-                value: if self.bool()? {
+                value: if self.boolean()? {
                     Some(ValueId(self.u32()?))
                 } else {
                     None
