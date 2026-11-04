@@ -1020,7 +1020,10 @@ fn step(
         InstructionKind::Store { local, value } => {
             state.locals[local.0 as usize] = copy_payload(val(*value)?, b)?
         }
-        InstructionKind::StorageLive(l) | InstructionKind::StorageDead(l) => {
+        InstructionKind::StorageLive(l)
+        | InstructionKind::StorageDead(l)
+        | InstructionKind::TakeLocal { local: l }
+        | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default()
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
@@ -1537,6 +1540,8 @@ fn windows(
                 }
                 InstructionKind::Store { local, .. }
                 | InstructionKind::StorageDead(local)
+                | InstructionKind::TakeLocal { local }
+                | InstructionKind::DropClosure { local }
                 | InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     b.spend(1)?;
@@ -1613,16 +1618,28 @@ fn windows(
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
-                | InstructionKind::CallClosureShared { arguments, .. } => {
+                | InstructionKind::CallClosureShared { arguments, .. }
+                | InstructionKind::CallClosureMut { arguments, .. }
+                | InstructionKind::CallClosureOnce { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
                     match &i.kind {
                         InstructionKind::CallClosureBorrowed { callee, .. } => {
                             let p = pointer(*callee)?;
                             permission_work(p, b)?;
                             b.spend(1)?;
-                            all.push((p.clone(), false));
+                            all.push((
+                                p.clone(),
+                                matches!(
+                                    i.kind,
+                                    InstructionKind::CallClosureBorrowed {
+                                        kind: CallableKind::FnMut,
+                                        ..
+                                    }
+                                ),
+                            ));
                         }
-                        InstructionKind::CallClosureShared { callee, .. } => {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
                             b.spend(2)?;
                             all.push((
                                 Permission {
@@ -1633,7 +1650,7 @@ fn windows(
                                     }],
                                     loans: vec![],
                                 },
-                                false,
+                                matches!(i.kind, InstructionKind::CallClosureMut { .. }),
                             ));
                         }
                         _ => {}
@@ -1649,7 +1666,16 @@ fn windows(
                         for (_, p) in &actual.leaves {
                             permission_work(p, b)?;
                             b.spend(1)?;
-                            all.push((p.clone(), false));
+                            all.push((
+                                p.clone(),
+                                matches!(
+                                    i.kind,
+                                    InstructionKind::CallClosureBorrowed {
+                                        kind: CallableKind::FnMut,
+                                        ..
+                                    }
+                                ),
+                            ));
                         }
                         if let Some((_, shape)) = addressed(vt(f, *argument)?) {
                             for slot in &shape.slots {

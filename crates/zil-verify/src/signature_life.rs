@@ -156,7 +156,9 @@ fn relation_inner(
                 }
             }
             t => {
-                if !t.is_copy_value() {
+                if !(t.is_copy_value()
+                    || allow_callback && !output && matches!(t, Type::Closure(_)))
+                {
                     return Err(invalid());
                 }
             }

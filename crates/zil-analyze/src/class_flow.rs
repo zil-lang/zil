@@ -386,7 +386,9 @@ fn check_with(
                 }
                 InstructionKind::CallClosureBorrowed { .. }
                 | InstructionKind::CallClosure { .. }
-                | InstructionKind::CallClosureShared { .. } => {
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
+                | InstructionKind::CallClosureOnce { .. } => {
                     if let Some(life) = super::stored_callables::role(f, &i.kind, b)? {
                         let (_, arguments) = super::stored_callables::called(module, f, &i.kind)
                             .ok_or_else(|| bad("role call has no actual qualified closure"))?;

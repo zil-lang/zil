@@ -1,5 +1,5 @@
-//! First qualified callback lane. Capture-free metadata is checked from the
-//! actual definition; role selection still uses actual parameter positions.
+//! Qualified callbacks with inline scalar environments. Metadata is checked
+//! against the actual definition and receiver; roles use parameter positions.
 use super::*;
 
 pub(super) fn scalar(t: &Type) -> bool {
@@ -19,11 +19,7 @@ pub(super) fn scalar(t: &Type) -> bool {
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module.closures.get(id.0 as usize).is_some_and(|d| {
-        d.kind == zil_ir::CallableKind::Fn
-            && d.captures.is_empty()
-            && d.lending_captures.is_empty()
-            && d.storage_life.is_none()
-            && scalar(&d.result)
+        d.lending_captures.is_empty() && d.storage_life.is_none() && scalar(&d.result)
     })
 }
 pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
@@ -37,10 +33,11 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
-        if !finite(module, d.id) {
+        b.spend(d.captures.len(), "qualified scalar capture inventory")?;
+        if !finite(module, d.id) || !d.captures.iter().all(scalar) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "qualified callbacks require actual capture-free Fn scalar entries",
+                "qualified callbacks require actual inline scalar environments and results",
                 None,
             )]);
         }
@@ -77,13 +74,47 @@ pub(super) fn called<'a>(
     let (id, args) = match kind {
         InstructionKind::CallClosureBorrowed {
             callee,
-            kind: zil_ir::CallableKind::Fn,
+            kind,
             arguments,
         } => {
-            let Type::Address { inner, .. } = f.values.get(callee.0 as usize)? else {
+            let Type::Address { mutable, inner } = f.values.get(callee.0 as usize)? else {
                 return None;
             };
             let Type::Closure(id) = inner.as_ref() else {
+                return None;
+            };
+            let d = module.closures.get(id.0 as usize)?;
+            if !matches!(
+                (d.kind, kind),
+                (zil_ir::CallableKind::Fn, zil_ir::CallableKind::Fn)
+                    | (
+                        zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut,
+                        zil_ir::CallableKind::FnMut
+                    )
+            ) || (*kind == zil_ir::CallableKind::FnMut && !mutable)
+            {
+                return None;
+            }
+            (*id, arguments.as_slice())
+        }
+        InstructionKind::CallClosureMut { callee, arguments } => {
+            let local = f.locals.get(callee.0 as usize)?;
+            let Type::Closure(id) = &local.ty else {
+                return None;
+            };
+            let d = module.closures.get(id.0 as usize)?;
+            if !local.mutable
+                || !matches!(
+                    d.kind,
+                    zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+                )
+            {
+                return None;
+            }
+            (*id, arguments.as_slice())
+        }
+        InstructionKind::CallClosureOnce { callee, arguments } => {
+            let Type::Closure(id) = f.values.get(callee.0 as usize)? else {
                 return None;
             };
             (*id, arguments.as_slice())
@@ -92,12 +123,18 @@ pub(super) fn called<'a>(
             let Type::Closure(id) = &f.locals.get(callee.0 as usize)?.ty else {
                 return None;
             };
+            if module.closures.get(id.0 as usize)?.kind != zil_ir::CallableKind::Fn {
+                return None;
+            }
             (*id, arguments.as_slice())
         }
         InstructionKind::CallClosure { callee, arguments } => {
             let Type::Closure(id) = f.values.get(callee.0 as usize)? else {
                 return None;
             };
+            if module.closures.get(id.0 as usize)?.kind != zil_ir::CallableKind::Fn {
+                return None;
+            }
             (*id, arguments.as_slice())
         }
         _ => return None,
@@ -108,8 +145,16 @@ pub(super) fn called<'a>(
 pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instruction) -> bool {
     match &i.kind {
         InstructionKind::MakeClosure { closure, captures } => {
-            finite(module, *closure) && captures.is_empty()
+            finite(module, *closure)
+                && module.closures[closure.0 as usize].captures.len() == captures.len()
         }
+        InstructionKind::ReadCapture { .. } | InstructionKind::WriteCapture { .. } => {
+            f.environment.is_some_and(|id| finite(module, id))
+        }
+        InstructionKind::TakeLocal { local } | InstructionKind::DropClosure { local } => f
+            .locals
+            .get(local.0 as usize)
+            .is_some_and(|l| value(module, &l.ty)),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -120,7 +165,16 @@ pub(super) fn types(
     b: &mut Budget,
 ) -> CompileResult<()> {
     if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
-        if !captures.is_empty()
+        let d = module
+            .closures
+            .get(closure.0 as usize)
+            .ok_or_else(|| bad("qualified environment definition is absent"))?;
+        b.spend(captures.len(), "qualified environment operands")?;
+        if captures.len() != d.captures.len()
+            || d.captures
+                .iter()
+                .zip(captures)
+                .any(|(t, v)| f.values.get(v.0 as usize) != Some(t))
             || i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&Type::Closure(*closure))
         {
             return Err(bad(
@@ -128,6 +182,48 @@ pub(super) fn types(
             ));
         }
         return Ok(());
+    }
+    match &i.kind {
+        InstructionKind::ReadCapture { index } | InstructionKind::WriteCapture { index, .. } => {
+            let d = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .ok_or_else(|| bad("qualified capture access lacks actual environment"))?;
+            let t = d
+                .captures
+                .get(*index as usize)
+                .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
+            if let InstructionKind::WriteCapture { value, .. } = &i.kind {
+                if d.kind == zil_ir::CallableKind::Fn
+                    || i.result.is_some()
+                    || f.values.get(value.0 as usize) != Some(t)
+                {
+                    return Err(bad(
+                        "qualified capture write requires exclusive environment and exact field",
+                    ));
+                }
+            } else if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(t) {
+                return Err(bad(
+                    "qualified capture read result differs from actual field",
+                ));
+            }
+            return Ok(());
+        }
+        InstructionKind::TakeLocal { local } => {
+            if i.result.and_then(|v| f.values.get(v.0 as usize))
+                != f.locals.get(local.0 as usize).map(|l| &l.ty)
+            {
+                return Err(bad("qualified environment move changes actual type"));
+            }
+            return Ok(());
+        }
+        InstructionKind::DropClosure { .. } => {
+            if i.result.is_some() {
+                return Err(bad("qualified environment cleanup fabricates result"));
+            }
+            return Ok(());
+        }
+        _ => {}
     }
     let (d, args) = called(module, f, &i.kind)
         .ok_or_else(|| bad("qualified callback call mode/entry is unsupported"))?;
@@ -160,9 +256,11 @@ pub(super) fn role<'a>(
         return Ok(None);
     };
     let local = match kind {
-        InstructionKind::CallClosureShared { callee, .. } => *callee,
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => *callee,
         InstructionKind::CallClosureBorrowed { callee, .. }
-        | InstructionKind::CallClosure { callee, .. } => {
+        | InstructionKind::CallClosure { callee, .. }
+        | InstructionKind::CallClosureOnce { callee, .. } => {
             let mut current = *callee;
             let mut answer = None;
             b.spend(f.values.len(), "callback receiver chain bound")?;
@@ -181,7 +279,8 @@ pub(super) fn role<'a>(
                     }
                 }
                 match found {
-                    Some(InstructionKind::Load(local)) => {
+                    Some(InstructionKind::Load(local))
+                    | Some(InstructionKind::TakeLocal { local }) => {
                         answer = Some(*local);
                         break;
                     }
@@ -203,12 +302,23 @@ pub(super) fn role<'a>(
         .iter()
         .position(|p| *p == local)
         .ok_or_else(|| bad("callback role receiver is not an actual declared parameter"))?;
-    contract
+    let role = contract
         .roles
         .iter()
         .find(|r| r.parameter as usize == position)
-        .map(|r| r.life.as_ref())
-        .ok_or_else(|| bad("callback receiver has no exact parameter role"))
+        .ok_or_else(|| bad("callback receiver has no exact parameter role"))?;
+    let mode = match kind {
+        InstructionKind::CallClosureBorrowed { kind, .. } => *kind,
+        InstructionKind::CallClosureMut { .. } => zil_ir::CallableKind::FnMut,
+        InstructionKind::CallClosureOnce { .. } => zil_ir::CallableKind::FnOnce,
+        _ => zil_ir::CallableKind::Fn,
+    };
+    if mode != role.kind {
+        return Err(bad(
+            "qualified call mode differs from its actual declared role",
+        ));
+    }
+    Ok(role.life.as_ref())
 }
 
 pub(super) fn roles(
@@ -227,8 +337,10 @@ pub(super) fn roles(
         if let Some(contract) = &f.callable_contract {
             b.spend(contract.roles.len(), "distinct qualified callback roles")?;
             for role in &contract.roles {
-                if role.kind != zil_ir::CallableKind::Fn || !finite(module, role.closure) {
-                    return Err(bad("qualified role requires actual capture-free Fn entry"));
+                if !finite(module, role.closure) {
+                    return Err(bad(
+                        "qualified role requires actual finite environment entry",
+                    ));
                 }
                 let d = &module.closures[role.closure.0 as usize];
                 b.spend(d.parameters.len(), "qualified role signature presence")?;

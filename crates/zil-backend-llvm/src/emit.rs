@@ -758,8 +758,21 @@ fn bind_lir(
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
         let qualified_signature = verified.uses_stored_borrows()
-            && closure.kind == CallableKind::Fn
-            && closure.captures.is_empty()
+            && closure.captures.iter().all(|t| {
+                matches!(
+                    t,
+                    Type::Unit
+                        | Type::Bool
+                        | Type::I32
+                        | Type::I64
+                        | Type::U64
+                        | Type::Usize
+                        | Type::U8
+                        | Type::U16
+                        | Type::F32
+                        | Type::F64
+                )
+            })
             && closure.lending_captures.is_empty()
             && closure.storage_life.is_none()
             && matches!(

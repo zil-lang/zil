@@ -1,0 +1,25 @@
+{
+  "goal": "G3.3",
+  "baseline": "54e618a07c99126203d44d28b6f03a302e65c266",
+  "classification": "AuthorLimitedCheckpoint",
+  "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+  "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target342-40 cargo test -j2 -p zil-driver --test generics g3_3_ --features llvm-api -- --nocapture",
+  "result": {
+    "passed": 2,
+    "failed": 0,
+    "filtered": 33,
+    "native_profiles": "Fn/FnMut/FnOnce role x Clang/LLVM API x O0/O2, 12 executions, result42, no fallback",
+    "independent_controls": "5 source-derived mutations rejected by Analyze, raw Verify, Wire Verify: shared write, capture type/arity/index, wrong role class; 3 source mutability/mode negatives; unused repeated FnOnce rejected in Expand"
+  },
+  "representation": "Existing inline scalar capture environment and actual local/SSA receiver. No allocation or ABI/schema change; scalar fields carry no cleanup debt.",
+  "prior_failures": [
+    "native initially stopped at prepaid ReadCapture fence, then LLVM finite closure admission; corrected consumers pass",
+    "one local compile typo called nonexistent Lower Budget::spend; replaced with paid existing borrowed shape walk",
+    "raw/Wire rerun interrupted by disk full; root freed idle build caches, unchanged rerun passed"
+  ],
+  "unfinished": [
+    "Actual enclosing Fixed-to-capture semantic context",
+    "address/owning captures, environment lending and general state cleanup",
+    "Independent review/common acceptance/product Rust comparison"
+  ]
+}
