@@ -173,10 +173,12 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
             zil_analyze::analyze(&raw, &limits).is_err(),
             "Analyze case {case}"
         );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
         for wire in [false, true] {
             let input = if wire {
                 zil_ir::wire::decode_module_candidate(
-                    &zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap(),
+                    &zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap(),
                     &limits,
                 )
                 .unwrap()
@@ -184,10 +186,35 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
             } else {
                 raw.clone()
             };
-            assert!(
-                zil_verify::verify_module(input, plan.clone(), &target, &limits).is_err(),
-                "Verify case {case} wire={wire}"
+            let errors =
+                zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
+            assert_ne!(
+                errors[0].code, "E-VERIFY-PLAN-IDENTITY",
+                "case {case} wire={wire}: {errors:?}"
             );
+            eprintln!(
+                "general raw case={case} wire={wire}: {} {}",
+                errors[0].code, errors[0].message
+            );
+            let expected = [
+                "E-VERIFY-TASK",
+                "E-VERIFY-TASK",
+                "E-UNSUPPORTED",
+                "E-VERIFY-TASK",
+                "E-VERIFY-TYPE",
+                "E-VERIFY-TASK",
+            ][case];
+            assert_eq!(
+                errors[0].code, expected,
+                "case {case} wire={wire}: {errors:?}"
+            );
+            if case == 2 {
+                assert!(
+                    errors[0]
+                        .message
+                        .contains("general owning task result lowering")
+                );
+            }
         }
     }
 }
@@ -211,6 +238,76 @@ fn general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result() {
         report.to_json()
     );
     assert!(report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"));
+    // Build an actual benign plan on the same source-derived CFG/SSA inventory:
+    // only the TaskCreate target and input are changed to a closed scalar
+    // neighbor. Rebind that untrusted plan to the original borrowed candidate.
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(original, &limits).unwrap().core;
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    assert!(
+        zil_analyze::analyze(&raw, &limits)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-TASK-ABI")
+    );
+    let mut benign = raw.clone();
+    let safe = benign
+        .functions
+        .iter()
+        .find(|f| f.name == "safe")
+        .unwrap()
+        .id;
+    let factory = benign
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "escape")
+        .unwrap();
+    let scalar = factory
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(
+                i.kind,
+                zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(_))
+            )
+            .then_some(i.result)
+            .flatten()
+        })
+        .unwrap();
+    let creation = factory
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, zil_ir::InstructionKind::TaskCreate { .. }))
+        .unwrap();
+    creation.kind = zil_ir::InstructionKind::TaskCreate {
+        worker: safe,
+        arguments: vec![scalar],
+    };
+    let mut claim = zil_analyze::analyze(&benign, &limits).unwrap();
+    zil_verify::verify_module(benign, claim.clone(), &target, &limits).unwrap();
+    claim.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    for wire in [false, true] {
+        let (input, claim) = if wire {
+            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+        } else {
+            (raw.clone(), claim.clone())
+        };
+        let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].code, "E-VERIFY-TASK",
+            "source PC0 wire={wire}: {errors:?}"
+        );
+        assert!(
+            errors[0]
+                .message
+                .contains("closed scalar profile independently"),
+            "{errors:?}"
+        );
+    }
 }
 #[test]
 fn general_task343_native_creation_failure_and_default_cleanup() {
