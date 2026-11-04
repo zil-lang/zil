@@ -276,6 +276,7 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let mut functions = Vec::new();
     let mut interfaces = Vec::new();
+    let mut task_interfaces = Vec::new();
     let mut resources = Vec::new();
     let mut root_functions = Vec::new();
     for module in &program.modules {
@@ -285,6 +286,7 @@ pub(super) fn check_resolved_program_with_reuse(
         let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let imports = imports_for(module, &signatures_by_module)?;
         let mut exports = Vec::new();
+        let mut task_exports = Vec::new();
         for f in core.functions.iter().filter(|f| {
             f.callable_parameters.is_empty()
                 && f.type_parameters.is_empty()
@@ -368,17 +370,39 @@ pub(super) fn check_resolved_program_with_reuse(
             }
             if signature.public {
                 if tasks::suspends(&typed) {
-                    return Err(vec![error(
-                        "E-TASK-DIRECT-EXPORT",
-                        f.span,
-                        "Suspend export requires a separate SABI descriptor",
-                    )]);
+                    if !signature.scalar_thread_worker()
+                        || signature.parameters.as_slice() != [Type::I32]
+                    {
+                        return Err(vec![error(
+                            "E-TASK-WORKER",
+                            f.span,
+                            "public scalar task requires exact ordinary fn(i32)->i32",
+                        )]);
+                    }
+                    closure_state
+                        .snapshot(f.name.len().saturating_add(1), f.span)
+                        .map_err(|e| vec![e])?;
+                    task_exports.push(TaskExport {
+                        name: f.name.clone(),
+                        worker: id,
+                        parameter: export.parameters[0].clone(),
+                        result: (export.result_mode, export.result.clone()),
+                        abi_version: 1,
+                    });
+                } else {
+                    exports.push(export);
                 }
-                exports.push(export);
             }
             functions.push(typed);
         }
         exports.sort_by(|a, b| a.name.cmp(&b.name));
+        task_exports.sort_by(|a, b| a.name.cmp(&b.name));
+        if !task_exports.is_empty() {
+            task_interfaces.push(TaskInterface {
+                module: core.module_id,
+                exports: task_exports,
+            });
+        }
         interfaces.push(ScalarInterface {
             callable_returns: None,
             callable_contracts: None,
@@ -443,6 +467,7 @@ pub(super) fn check_resolved_program_with_reuse(
             interface_fingerprint(&interface.exports, target, &module.closures);
     }
     Ok(TypedProgram {
+        task_interfaces,
         module,
         interfaces,
         root_functions,

@@ -34,6 +34,23 @@ impl AnalysisSession {
         module: &TypedModule,
         limits: &Limits,
     ) -> CompileResult<CandidatePlan> {
+        self.analyze_input(module, None, limits)
+    }
+
+    pub fn analyze_program(
+        &mut self,
+        program: &TypedProgram,
+        limits: &Limits,
+    ) -> CompileResult<CandidatePlan> {
+        self.analyze_input(&program.module, Some(program), limits)
+    }
+
+    fn analyze_input(
+        &mut self,
+        module: &TypedModule,
+        program: Option<&TypedProgram>,
+        limits: &Limits,
+    ) -> CompileResult<CandidatePlan> {
         let mut next = BTreeMap::new();
         let mut stats = AnalysisStats::default();
         let mut reuse = Reuse {
@@ -41,7 +58,14 @@ impl AnalysisSession {
             next: &mut next,
             stats: &mut stats,
         };
-        let result = analyze_budgeted(module, limits, &mut Budget::new(limits), Some(&mut reuse));
+        let mut budget = Budget::new(limits);
+        let result =
+            analyze_budgeted(module, limits, &mut budget, Some(&mut reuse)).and_then(|plan| {
+                if let Some(program) = program {
+                    tasks::interfaces(program, &mut budget)?;
+                }
+                Ok(plan)
+            });
         // A later resource/effect error must not publish partially computed
         // initialization queries. The previous complete epoch remains intact.
         if result.is_ok() {

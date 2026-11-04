@@ -4,11 +4,11 @@ use super::*;
 use std::sync::OnceLock;
 use zil_db::{ArtifactCache, CacheRead, QueryKey};
 use zil_ir::{
-    CandidatePlan, FunctionId, PassingMode, ScalarFunction, ScalarInterface, TypedModule,
-    TypedProgram,
+    CandidatePlan, FunctionId, PassingMode, ScalarFunction, ScalarInterface, TaskExport,
+    TaskInterface, TypedModule, TypedProgram,
 };
 
-const MAGIC: &[u8; 8] = b"ZILSEM03";
+const MAGIC: &[u8; 8] = b"ZILSEM04";
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
 pub(super) struct Store {
@@ -31,11 +31,11 @@ impl Store {
         {
             return None;
         }
-        let root = options.semantic_cache.as_ref()?.join("semantic-v3");
+        let root = options.semantic_cache.as_ref()?.join("semantic-v4");
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v3\0".to_vec();
+        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec();
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
         Some(Self {
@@ -218,6 +218,20 @@ fn encode(program: &TypedProgram, candidate: &CandidatePlan, limits: &Limits) ->
     for function in &program.root_functions {
         out.signature(function, &program.module)?;
     }
+    out.number(program.task_interfaces.len())?;
+    for interface in &program.task_interfaces {
+        out.number(interface.module.0 as usize)?;
+        out.number(interface.exports.len())?;
+        for export in &interface.exports {
+            if export.parameter.1 != zil_ir::Type::I32 || export.result.1 != zil_ir::Type::I32 {
+                return None;
+            }
+            out.text(&export.name)?;
+            out.number(export.worker.0 as usize)?;
+            out.number(export.abi_version as usize)?;
+            out.put(&[mode(export.parameter.0), mode(export.result.0)])?;
+        }
+    }
     Some(out.bytes)
 }
 
@@ -373,11 +387,29 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)
     for _ in 0..n {
         root_functions.push(input.signature(&module, limits)?);
     }
+    let n = input.count(limits.max_nodes, 8)?;
+    let mut task_interfaces = Vec::with_capacity(n);
+    for _ in 0..n {
+        let module = ModuleId(u32::try_from(input.number()?).ok()?);
+        let count = input.count(limits.max_functions, 14)?;
+        let mut exports = Vec::with_capacity(count);
+        for _ in 0..count {
+            exports.push(TaskExport {
+                name: input.text()?,
+                worker: FunctionId(u32::try_from(input.number()?).ok()?),
+                abi_version: u32::try_from(input.number()?).ok()?,
+                parameter: (read_mode(input.take(1)?[0])?, zil_ir::Type::I32),
+                result: (read_mode(input.take(1)?[0])?, zil_ir::Type::I32),
+            });
+        }
+        task_interfaces.push(TaskInterface { module, exports });
+    }
     if !input.bytes.is_empty() {
         return None;
     }
     Some((
         TypedProgram {
+            task_interfaces,
             module,
             interfaces,
             root_functions,
@@ -495,6 +527,16 @@ fn charge_type(
 fn metadata_budget(program: &TypedProgram, limits: &Limits) -> Option<()> {
     let mut nodes = limits.max_nodes.checked_sub(program.interfaces.len())?;
     let mut bytes = limits.max_source_bytes;
+    nodes = nodes.checked_sub(program.task_interfaces.len())?;
+    for interface in &program.task_interfaces {
+        for export in &interface.exports {
+            nodes = nodes.checked_sub(3)?;
+            bytes = bytes.checked_sub(export.name.len().saturating_add(14))?;
+            if export.parameter.1 != zil_ir::Type::I32 || export.result.1 != zil_ir::Type::I32 {
+                return None;
+            }
+        }
+    }
     let mut uses = BTreeMap::<FunctionId, usize>::new();
     for signature in program
         .interfaces

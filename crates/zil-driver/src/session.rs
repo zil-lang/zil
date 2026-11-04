@@ -796,9 +796,12 @@ impl CompilationSession {
                 report,
                 observer,
                 || {
-                    analysis
-                        .analyze(typed.module(), &options.limits)
-                        .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
+                    (if let Some(program) = typed.program() {
+                        analysis.analyze_program(program, &options.limits)
+                    } else {
+                        analysis.analyze(typed.module(), &options.limits)
+                    })
+                    .map(|candidate| RawSnapshot::Candidate(Arc::new(candidate)))
                 },
             );
             self.analysis = if queried.is_ok() {
@@ -840,6 +843,7 @@ impl CompilationSession {
             artifacts.dump_lazy(report, options, "verified-interfaces", |report| {
                 format!("{:#?}", report.scalar_interfaces)
             })?;
+            artifacts.dump_lazy(report, options, "verified-task-interfaces", |_| format!("{:#?}", verified.task_interfaces()))?;
         }
         artifacts.dump_lazy(report, options, "verified", |_| {
             format!(
@@ -957,6 +961,7 @@ impl CompilationSession {
             .map_err(|error| infra("E-ARTIFACT-IO", error.to_string()))?;
         report.phase = Phase::Link;
         artifacts.dump(report, options, "llvm", &llvm)?;
+        artifacts.dump_lazy(report, options, "task-abi", |_| format!("[{}]", artifact.codegen.task_abis.iter().map(zil_backend_llvm::TaskAbiArtifact::to_json).collect::<Vec<_>>().join(",")))?;
         artifacts.validate()?;
         let mut artifact = publication.commit(artifact, &options.cancellation)?;
         // Only complete successful requests populate the machine cache. The

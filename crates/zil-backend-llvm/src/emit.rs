@@ -7,6 +7,7 @@ mod dynamic_store;
 mod enums;
 mod large_copy_abi;
 pub use enums::ct_layout_of_checked_type;
+pub(crate) use tasks::export_name as task_export_name;
 mod errors;
 mod foreign;
 mod owned_sums;
@@ -93,6 +94,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy(
         closed_scalar_collection,
         1,
     )
+    .map(|(machine, collected, _)| (machine, collected))
 }
 
 pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
@@ -102,7 +104,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     incremental_scalar_policy: bool,
     closed_scalar_collection: bool,
     jobs: usize,
-) -> CompileResult<(m::Module, bool)> {
+) -> CompileResult<(m::Module, bool, usize)> {
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
     let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
@@ -125,6 +127,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?;
     let summaries = incremental_scalar_policy.then(|| scalar_summaries::plan(&functions));
     let collected = (closed_scalar_collection
+        && verified.task_interfaces().is_empty()
         && options.entry == EntryPoint::Main
         && lir.target.triple == "x86_64-unknown-linux-gnu")
         .then(|| {
@@ -433,6 +436,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             items,
         },
         collected.is_some(),
+        task_meter.remaining(),
     ))
 }
 
@@ -527,6 +531,9 @@ fn lower_function_batch(
         for mut item in emitted {
             if task_worker && let m::Item::Function(machine) = &item {
                 body.extend(tasks::lower_worker(function.id, machine, task_meter)?);
+                if verified.is_task_export(function.id) {
+                    body.extend(tasks::exports(function.id, task_meter)?);
+                }
                 if verified.is_suspend(function.id) {
                     continue;
                 }

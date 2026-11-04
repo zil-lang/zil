@@ -556,3 +556,82 @@ pub(super) fn loans(
     }
     Ok(())
 }
+
+/// Semantic export candidates consume the same request balance as the module.
+/// Neither an export label nor its parameter modes establish a frame profile.
+pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> CompileResult<()> {
+    if program.task_interfaces.is_empty() && !budget.tasks {
+        return Ok(());
+    }
+    let module = &program.module;
+    budget.spend(program.task_interfaces.len(), "task semantic interfaces")?;
+    let mut modules = BTreeSet::new();
+    let mut workers = BTreeSet::new();
+    for interface in &program.task_interfaces {
+        budget.spend(
+            modules
+                .len()
+                .saturating_add(interface.exports.len())
+                .saturating_add(1),
+            "task interface identities",
+        )?;
+        if !modules.insert(interface.module) {
+            return Err(bad("duplicate task interface module"));
+        }
+        let mut names = BTreeSet::new();
+        for export in &interface.exports {
+            budget.spend(
+                export
+                    .name
+                    .len()
+                    .saturating_add(names.len())
+                    .saturating_add(workers.len())
+                    .saturating_add(1),
+                "task export identity",
+            )?;
+            if export.abi_version != 1
+                || export.parameter != (PassingMode::Infer, Type::I32)
+                || export.result != (PassingMode::Infer, Type::I32)
+                || export.name.is_empty()
+                || !names.insert(export.name.as_str())
+                || !workers.insert(export.worker)
+            {
+                return Err(bad(
+                    "task export differs from the unique scalar SABI v1 contract",
+                ));
+            }
+            worker(module, export.worker, budget, zil_base::Span::default())?;
+            let f = &module.functions[export.worker.0 as usize];
+            let mut actual_yield = false;
+            for b in &f.blocks {
+                for i in &b.instructions {
+                    budget.spend(1, "exported worker actual suspension")?;
+                    actual_yield |= matches!(i.kind, InstructionKind::TaskYield);
+                }
+            }
+            if !actual_yield {
+                return Err(bad("task export must name an actual Suspend worker"));
+            }
+        }
+    }
+    // Existing scalar metadata is not authority for a new execution root.
+    for interface in &program.interfaces {
+        for export in &interface.exports {
+            budget.spend(1, "scalar Suspend export exclusion")?;
+            let Some(f) = module.functions.get(export.function.0 as usize) else {
+                continue;
+            };
+            for b in &f.blocks {
+                for i in &b.instructions {
+                    budget.spend(1, "scalar export actual suspension")?;
+                    if matches!(i.kind, InstructionKind::TaskYield) {
+                        return Err(bad(
+                            "Suspend worker cannot be exported as ordinary Direct scalar ABI",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
