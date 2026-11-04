@@ -1372,3 +1372,70 @@ fn owned_child343_actual_frame_result_width_and_kernel_work_boundaries() {
     }
     assert!(growth[1] > growth[0] + 4096, "{growth:?}");
 }
+
+#[test]
+fn owned_child343_unit_completion_and_recoverable_argument_error() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let unit = include_str!("task-unit-child.zil");
+            let mut cases = vec![
+                (
+                    "argument-error".to_owned(),
+                    include_str!("task-child-argument-error.zil").to_owned(),
+                    b"AB".as_slice(),
+                ),
+                (
+                    "copy-error".to_owned(),
+                    include_str!("task-copy-error-result.zil").to_owned(),
+                    b"PPABR".as_slice(),
+                ),
+            ];
+            for (polls, expected) in [b"BA".as_slice(), b"AB", b"AB", b"AB", b"AB", b"AB"]
+                .iter()
+                .enumerate()
+            {
+                cases.push((
+                    format!("unit-{polls}"),
+                    unit.replace("// POLLS", &"task_poll(&mut task);".repeat(polls)),
+                    *expected,
+                ));
+            }
+            for (case, text, expected) in cases {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-unit-error-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{case}: {}",
+                    report.to_json()
+                );
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(actual.status.code(), Some(0), "{case}: {actual:?}");
+                assert_eq!(actual.stdout, expected, "{case}: {actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
