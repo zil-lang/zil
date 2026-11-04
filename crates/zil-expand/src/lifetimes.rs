@@ -79,7 +79,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
-                self.mutable_life = only_life(f) || !self.impl_scope && copy_life(f);
+                self.mutable_life =
+                    only_life(f) || !self.impl_scope && (copy_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -330,6 +331,21 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
     types == 1 && lives > 0
 }
 
+/// Ordinary helper lifetime formals stay in the function's rigid source
+/// domain; higher-rank callable formals retain their separate invocation scope.
+pub(super) fn callable_life(function: &s::Function) -> bool {
+    let mut lives = 0;
+    let mut callables = 0;
+    for p in &function.generics {
+        match &p.kind {
+            s::GenericParamKind::Lifetime=>lives+=1,
+            s::GenericParamKind::Type(bounds) if bounds.iter().any(|bound|matches!(&generics::callable::bound_inner(bound).kind,s::TypeKind::Named {path,..} if matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce"))))=>callables+=1,
+            _=>return false,
+        }
+    }
+    lives > 0 && (1..=2).contains(&callables)
+}
+
 fn failure(span: Span, text: &str) -> Diagnostic {
     Diagnostic::error(Phase::Expand, "E-LIFE-DECLARATION", Some(span), text)
 }
@@ -372,8 +388,8 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
-    let mutable_life = only_life(function) || copy_life(function);
-    if !(mutable_life || copy_life(function)) || !function.where_clause.is_empty() {
+    let mutable_life = only_life(function) || copy_life(function) || callable_life(function);
+    if !mutable_life || !function.where_clause.is_empty() {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "life with type/callable/const parameters or where clauses is not implemented",

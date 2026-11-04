@@ -604,7 +604,7 @@ impl<'a> Engine<'a> {
             };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
-                if matches!(&item.kind, ItemKind::Function(f) if super::lifetimes::copy_life(f))
+                if matches!(&item.kind, ItemKind::Function(f) if (super::lifetimes::copy_life(f) || super::lifetimes::callable_life(f)))
                     && matches!(parameter.kind, GenericParamKind::Lifetime)
                 {
                     continue;
@@ -798,7 +798,7 @@ impl<'a> Engine<'a> {
             }
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
-                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
+                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| matches!(p.kind,GenericParamKind::Lifetime) || bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.enqueue(
@@ -1322,6 +1322,10 @@ impl<'a> Engine<'a> {
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
+                            if let Some(code) = rich_pointer::role_code(bound, &mut self.budget)? {
+                                self.prepare_rich_pointer(&code, 0)?;
+                                continue;
+                            }
                             let bound = callable::bound_inner_mut(bound);
                             if let TypeKind::Named { path, args } = &mut bound.kind
                                 && path.len() == 1

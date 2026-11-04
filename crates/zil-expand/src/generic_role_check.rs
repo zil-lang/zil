@@ -1,0 +1,448 @@
+//! Declaration-local symbolic class checking. These keys never enter generic
+//! instance caches, and class equations never supply actual target permissions.
+use super::*;
+
+fn push(out: &mut String, value: &str, budget: &mut Budget<'_>, span: Span) -> R<()> {
+    budget.identity_work(value.len().saturating_mul(2).saturating_add(1), span)?;
+    out.push_str(value);
+    Ok(())
+}
+fn number(out: &mut String, value: usize, budget: &mut Budget<'_>, span: Span) -> R<()> {
+    budget.identity_work(
+        if value == 0 {
+            1
+        } else {
+            value.ilog10() as usize + 1
+        },
+        span,
+    )?;
+    push(out, &value.to_string(), budget, span)
+}
+fn declared(name: &str, source: &Function, budget: &mut Budget<'_>, span: Span) -> R<usize> {
+    for (ordinal, formal) in source.generics.iter().enumerate() {
+        budget.node(span, 0)?;
+        if matches!(formal.kind, GenericParamKind::Lifetime) {
+            budget.text(&formal.name, span)?;
+            budget.text(name, span)?;
+            if formal.name == name {
+                return Ok(ordinal);
+            }
+        }
+    }
+    Err(error(
+        span,
+        "qualified class has no declared source lifetime binder",
+    ))
+}
+#[derive(Clone, Copy)]
+pub(super) struct Scope<'a> {
+    pub(super) source: &'a Function,
+    active: bool,
+}
+impl<'a> Scope<'a> {
+    pub(super) fn new(source: &'a Function, budget: &mut Budget<'_>) -> R<Self> {
+        budget.identity_work(source.generics.len(), source.span)?;
+        let has_life = source
+            .generics
+            .iter()
+            .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+        if has_life {
+            for formal in &source.generics {
+                budget.node(formal.span, 0)?;
+                if let GenericParamKind::Type(bounds) = &formal.kind {
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            source,
+            active: has_life && crate::lifetimes::callable_life(source),
+        })
+    }
+}
+pub(super) fn key(ty: &TypeRef, scope: Scope<'_>, budget: &mut Budget<'_>) -> R<String> {
+    if !scope.active {
+        return type_key(ty, budget);
+    }
+    let source = scope.source;
+    fn render(
+        ty: &TypeRef,
+        source: &Function,
+        budget: &mut Budget<'_>,
+        out: &mut String,
+        depth: usize,
+    ) -> R<()> {
+        budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Group(inner) => render(inner, source, budget, out, depth + 1),
+            TypeKind::Reference { mutable, inner, .. } => {
+                push(out, if *mutable { "M[" } else { "R[" }, budget, ty.span)?;
+                render(inner, source, budget, out, depth + 1)?;
+                push(out, "]", budget, ty.span)
+            }
+            TypeKind::Named { path, args } => {
+                push(out, "N", budget, ty.span)?;
+                number(out, path.len(), budget, ty.span)?;
+                for name in path {
+                    number(out, name.len(), budget, ty.span)?;
+                    push(out, ":", budget, ty.span)?;
+                    push(out, name, budget, ty.span)?;
+                }
+                push(out, "<", budget, ty.span)?;
+                for arg in args {
+                    budget.node(ty.span, depth)?;
+                    match arg {
+                        GenericArg::Lifetime(name) => {
+                            push(out, "L", budget, ty.span)?;
+                            let ordinal = declared(name, source, budget, ty.span)?;
+                            number(out, ordinal, budget, ty.span)?;
+                        }
+                        GenericArg::Type(inner) => {
+                            push(out, "T", budget, ty.span)?;
+                            render(inner, source, budget, out, depth + 1)?;
+                        }
+                        GenericArg::Const(value) => {
+                            budget.const_expression_depth(value, depth + 1)?;
+                            let key = consts::key(value)?;
+                            push(out, "C", budget, ty.span)?;
+                            number(out, key.len(), budget, ty.span)?;
+                            push(out, &key, budget, ty.span)?;
+                        }
+                    }
+                    push(out, ";", budget, ty.span)?;
+                }
+                push(out, ">", budget, ty.span)
+            }
+            TypeKind::Tuple(fields) => {
+                push(out, "(", budget, ty.span)?;
+                for field in fields {
+                    render(field, source, budget, out, depth + 1)?;
+                    push(out, ",", budget, ty.span)?;
+                }
+                push(out, ")", budget, ty.span)
+            }
+            TypeKind::Error { error: err, result } => {
+                push(out, "E[", budget, ty.span)?;
+                render(err, source, budget, out, depth + 1)?;
+                push(out, "|", budget, ty.span)?;
+                render(result, source, budget, out, depth + 1)?;
+                push(out, "]", budget, ty.span)
+            }
+            _ => {
+                let key = type_key(ty, budget)?;
+                push(out, "X", budget, ty.span)?;
+                number(out, key.len(), budget, ty.span)?;
+                push(out, &key, budget, ty.span)
+            }
+        }
+    }
+    let mut out = String::new();
+    render(ty, source, budget, &mut out, 0)?;
+    Ok(out)
+}
+pub(super) fn same(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    scope: Scope<'_>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    if key(actual, scope, budget)? == key(expected, scope, budget)? {
+        Ok(())
+    } else {
+        Err(error(
+            span,
+            "generic body types and declared qualified classes must agree before instantiation",
+        ))
+    }
+}
+pub(super) fn same_return(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    scope: Scope<'_>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    if !scope.active {
+        return super::same_return(actual, expected, span, budget);
+    }
+    let actual_key = key(actual, scope, budget)?;
+    if actual_key == key(expected, scope, budget)? {
+        return Ok(());
+    }
+    if let TypeKind::Error { error: err, result } = &group(expected).kind {
+        if (actual_key == key(err, scope, budget)?) != (actual_key == key(result, scope, budget)?) {
+            return Ok(());
+        }
+    }
+    same(actual, expected, span, scope, budget)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Rigid {
+    Declared(usize),
+    Elided(usize),
+}
+pub(super) struct Frame {
+    names: Vec<String>,
+    bindings: Vec<Option<Rigid>>,
+}
+impl Frame {
+    pub(super) fn new(
+        generic: &str,
+        source: &Function,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<Self>> {
+        for formal in &source.generics {
+            budget.node(span, 0)?;
+            budget.text(&formal.name, span)?;
+            budget.text(generic, span)?;
+            if formal.name != generic {
+                continue;
+            }
+            let GenericParamKind::Type(bounds) = &formal.kind else {
+                return Ok(None);
+            };
+            for bound in bounds {
+                budget.node(span, 0)?;
+                let Some(code) = rich_pointer::role_code(bound, budget)? else {
+                    continue;
+                };
+                let mut inner = &code;
+                let mut names = Vec::new();
+                loop {
+                    budget.node(inner.span, 0)?;
+                    match &inner.kind {
+                        TypeKind::Group(next) => inner = next,
+                        TypeKind::ForLifetime {
+                            lifetime,
+                            inner: next,
+                        } => {
+                            budget.text(lifetime, span)?;
+                            names.push(lifetime.clone());
+                            inner = next;
+                        }
+                        _ => break,
+                    }
+                }
+                for _ in &names {
+                    budget.node(span, 0)?;
+                }
+                return Ok(Some(Self {
+                    bindings: vec![None; names.len()],
+                    names,
+                }));
+            }
+        }
+        Ok(None)
+    }
+    fn variable(&self, name: &str, budget: &mut Budget<'_>, span: Span) -> R<usize> {
+        for (index, candidate) in self.names.iter().enumerate().rev() {
+            budget.node(span, 0)?;
+            budget.text(name, span)?;
+            budget.text(candidate, span)?;
+            if candidate == name {
+                return Ok(index);
+            }
+        }
+        Err(error(span, "role lifetime has no invocation binder"))
+    }
+    fn bind(&mut self, name: &str, actual: Rigid, budget: &mut Budget<'_>, span: Span) -> R<()> {
+        let index = self.variable(name, budget, span)?;
+        if let Some(prior) = self.bindings[index] {
+            if prior != actual {
+                return Err(error(
+                    span,
+                    "role invocation cannot equate distinct declared lifetime classes",
+                ));
+            }
+        } else {
+            self.bindings[index] = Some(actual)
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn argument(
+        &mut self,
+        expected: &TypeRef,
+        actual: &TypeRef,
+        expression: &Expr,
+        state: &State,
+        source: &Function,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<()> {
+        budget.node(expected.span, depth)?;
+        budget.node(actual.span, depth)?;
+        if let TypeKind::Group(inner) = &expected.kind {
+            return self.argument(inner, actual, expression, state, source, budget, depth + 1);
+        }
+        if let TypeKind::Group(inner) = &actual.kind {
+            return self.argument(
+                expected,
+                inner,
+                expression,
+                state,
+                source,
+                budget,
+                depth + 1,
+            );
+        }
+        match (&expected.kind, &actual.kind) {
+            (
+                TypeKind::Reference {
+                    lifetime: Some(name),
+                    inner: want,
+                    ..
+                },
+                TypeKind::Reference {
+                    lifetime,
+                    inner: have,
+                    ..
+                },
+            ) => {
+                let rigid = if let Some(name) = lifetime {
+                    Rigid::Declared(declared(name, source, budget, actual.span)?)
+                } else {
+                    let mut expression = expression;
+                    while let ExprKind::Group(inner) = &expression.kind {
+                        budget.node(expression.span, depth)?;
+                        expression = inner;
+                    }
+                    let ExprKind::Name(name) = &expression.kind else {
+                        return Err(unsupported(
+                            expression.span,
+                            "elided rich role input needs its actual source place context",
+                        ));
+                    };
+                    budget.text(name, expression.span)?;
+                    let local = state
+                        .locals
+                        .get(name)
+                        .ok_or_else(|| error(expression.span, "role input local is absent"))?;
+                    Rigid::Elided(local.id)
+                };
+                self.bind(name, rigid, budget, actual.span)?;
+                self.argument(want, have, expression, state, source, budget, depth + 1)
+            }
+            (TypeKind::Named { args: want, .. }, TypeKind::Named { args: have, .. }) => {
+                if want.len() != have.len() {
+                    return Err(error(actual.span, "role nominal actual arity differs"));
+                }
+                for (want, have) in want.iter().zip(have) {
+                    budget.node(actual.span, depth)?;
+                    match (want, have) {
+                        (GenericArg::Lifetime(name), GenericArg::Lifetime(actual_name)) => {
+                            let actual = Rigid::Declared(declared(
+                                actual_name,
+                                source,
+                                budget,
+                                actual.span,
+                            )?);
+                            self.bind(name, actual, budget, expected.span)?;
+                        }
+                        (GenericArg::Type(want), GenericArg::Type(have)) => {
+                            self.argument(want, have, expression, state, source, budget, depth + 1)?
+                        }
+                        (GenericArg::Const(_), GenericArg::Const(_)) => {}
+                        _ => return Err(error(actual.span, "role nominal actual kind differs")),
+                    }
+                }
+                Ok(())
+            }
+            (TypeKind::Tuple(want), TypeKind::Tuple(have)) if want.len() == have.len() => {
+                for (want, have) in want.iter().zip(have) {
+                    self.argument(want, have, expression, state, source, budget, depth + 1)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+    pub(super) fn substitute(
+        &self,
+        ty: &TypeRef,
+        source: &Function,
+        budget: &mut Budget<'_>,
+    ) -> R<TypeRef> {
+        budget.ty(ty)?;
+        let mut ty = ty.clone();
+        fn label(
+            frame: &Frame,
+            name: &str,
+            source: &Function,
+            budget: &mut Budget<'_>,
+            span: Span,
+        ) -> R<Option<String>> {
+            let index = frame.variable(name, budget, span)?;
+            match frame.bindings[index] {
+                Some(Rigid::Declared(ordinal)) => {
+                    let name = &source.generics[ordinal].name;
+                    budget.text(name, span)?;
+                    Ok(Some(name.clone()))
+                }
+                Some(Rigid::Elided(_)) => Ok(None),
+                None => Err(error(span, "role result class has no actual input binding")),
+            }
+        }
+        fn walk(
+            frame: &Frame,
+            ty: &mut TypeRef,
+            source: &Function,
+            budget: &mut Budget<'_>,
+            depth: usize,
+        ) -> R<()> {
+            budget.node(ty.span, depth)?;
+            match &mut ty.kind {
+                TypeKind::Reference {
+                    lifetime, inner, ..
+                } => {
+                    if let Some(name) = lifetime {
+                        *lifetime = label(frame, name, source, budget, ty.span)?;
+                    }
+                    walk(frame, inner, source, budget, depth + 1)
+                }
+                TypeKind::Named { args, .. } => {
+                    for arg in args {
+                        budget.node(ty.span, depth)?;
+                        match arg {
+                            GenericArg::Lifetime(name) => {
+                                *name=label(frame,name,source,budget,ty.span)?.ok_or_else(||unsupported(ty.span,"qualified role class requires a declared actual lifetime"))?;
+                            }
+                            GenericArg::Type(inner) => {
+                                walk(frame, inner, source, budget, depth + 1)?
+                            }
+                            GenericArg::Const(_) => {}
+                        }
+                    }
+                    Ok(())
+                }
+                TypeKind::Group(inner) => walk(frame, inner, source, budget, depth + 1),
+                TypeKind::Tuple(fields) => {
+                    for field in fields {
+                        walk(frame, field, source, budget, depth + 1)?;
+                    }
+                    Ok(())
+                }
+                TypeKind::ForLifetime { .. }
+                | TypeKind::Function { .. }
+                | TypeKind::ForeignFunction { .. }
+                | TypeKind::Error { .. }
+                | TypeKind::Array { .. }
+                | TypeKind::Optional(_)
+                | TypeKind::Union(_)
+                | TypeKind::Impl(_)
+                | TypeKind::Dyn { .. } => Err(unsupported(
+                    ty.span,
+                    "rich role substitution needs this constructor's scoped adapter",
+                )),
+                _ => Ok(()),
+            }
+        }
+        walk(self, &mut ty, source, budget, 0)?;
+        Ok(ty)
+    }
+}

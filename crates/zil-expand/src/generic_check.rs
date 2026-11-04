@@ -6,6 +6,8 @@ use loop_control::BlockFlow;
 mod deferred;
 #[path = "generic_factory.rs"]
 mod factory;
+#[path = "generic_role_check.rs"]
+mod role_check;
 #[path = "generic_scoped.rs"]
 mod scoped;
 
@@ -50,6 +52,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         pattern_types,
         traits,
     } = tables;
+    let class_scope = role_check::Scope::new(source_definition.unwrap_or(function), budget)?;
     // Validate every written signature even if the template remains unused.
     // Layout keys compare ordinary types. Retained life declarations are
     // separately checked against actual parameter origins below.
@@ -70,7 +73,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         if !parameter_names.insert(&p.name) {
             return Err(error(p.span, "duplicate generic function parameter"));
         }
-        type_key(&p.ty, budget)?;
+        role_check::key(&p.ty, class_scope, budget)?;
         if matches!(&group(&p.ty).kind, TypeKind::Reference { inner, .. }
             if matches!(group(inner).kind, TypeKind::Reference { .. }))
         {
@@ -93,7 +96,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         if owned_factory {
             budget.ty(t)?;
         } else {
-            type_key(t, budget)?;
+            role_check::key(t, class_scope, budget)?;
         }
         super::super::foreign::callback_type_tree(t, &variables, budget, 0)?;
     }
@@ -114,6 +117,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         .as_ref()
         .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        class_scope,
         higher_rank,
         variables,
         definition_bound_context,
@@ -164,7 +168,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
-    if super::super::lifetimes::copy_life(function) {
+    if super::super::lifetimes::copy_life(function)
+        || super::super::lifetimes::callable_life(function)
+    {
         let mut remaining = check.budget.remaining_limits();
         let life =
             super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
@@ -177,7 +183,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .chain(function.return_type.iter())
         {
             check.budget.node(ty.span, 0)?;
-            if let TypeKind::Reference { inner, .. } = &group(ty).kind {
+            if super::super::lifetimes::copy_life(function)
+                && let TypeKind::Reference { inner, .. } = &group(ty).kind
+            {
                 let pointee = match &group(inner).kind {
                     TypeKind::Array {
                         element,
@@ -401,7 +409,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     match &function.body {
         FunctionBody::Block(body) => {
             if check.block(body, &mut state)?.fallthrough {
-                same(&unit(body.span), &check.result, body.span, check.budget)?;
+                role_check::same(
+                    &unit(body.span),
+                    &check.result,
+                    body.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             }
         }
         FunctionBody::Expression(value) => {
@@ -412,9 +426,21 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             } else if check.callable.is_some()
                 || matches!(group(&result).kind, TypeKind::Error { .. })
             {
-                same_return(&actual, &result, value.span, check.budget)?;
+                role_check::same_return(
+                    &actual,
+                    &result,
+                    value.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             } else {
-                same(&actual, &result, value.span, check.budget)?;
+                role_check::same(
+                    &actual,
+                    &result,
+                    value.span,
+                    check.class_scope,
+                    check.budget,
+                )?;
             }
         }
         FunctionBody::Declaration => {
@@ -769,6 +795,7 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    class_scope: role_check::Scope<'s>,
     source_definition: &'s Function,
     definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
     variables: BTreeSet<String>,
@@ -998,7 +1025,7 @@ impl Check<'_, '_, '_> {
             .return_type
             .as_ref()
             .expect("mixed complete result");
-        same(owner, result, result.span, self.budget)?;
+        role_check::same(owner, result, result.span, self.class_scope, self.budget)?;
         let TypeKind::Named { path, args } = &group(owner).kind else {
             return Err(unsupported(
                 owner.span,
@@ -1604,7 +1631,8 @@ impl Check<'_, '_, '_> {
             ));
         }
         if let Some((error_type, _)) = stores::success(&expected)
-            && type_key(&actual, self.budget)? == type_key(error_type, self.budget)?
+            && role_check::key(&actual, self.class_scope, self.budget)?
+                == role_check::key(error_type, self.class_scope, self.budget)?
         {
             // This return injects the Copy error and owns zero success Stores.
             return Ok(actual);
@@ -2330,7 +2358,7 @@ impl Check<'_, '_, '_> {
             ));
         }
         let end = self.expr(right, state, Some(&ty), false)?;
-        same(&end, &ty, right.span, self.budget)?;
+        role_check::same(&end, &ty, right.span, self.class_scope, self.budget)?;
 
         let mut iteration = self.clone_loop_state(state, span)?;
         self.budget.text(name, pattern.span)?;
@@ -2538,7 +2566,13 @@ impl Check<'_, '_, '_> {
                     let GenericParamKind::Const(actual_domain) = &binder.kind else {
                         unreachable!()
                     };
-                    same(actual_domain, domain, object.span, self.budget)?;
+                    role_check::same(
+                        actual_domain,
+                        domain,
+                        object.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
                     if state.locals.get(name).is_none_or(|local| {
                         local.id != self.source_definition.params.len() + ordinal
                     }) {
@@ -2577,7 +2611,13 @@ impl Check<'_, '_, '_> {
             TypeKind::Reference { mutable, .. } => {
                 if matches!(group(actual).kind, TypeKind::Reference { .. }) {
                     let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
-                    same(&actual, &expected, object.span, self.budget)?;
+                    role_check::same(
+                        &actual,
+                        &expected,
+                        object.span,
+                        self.class_scope,
+                        self.budget,
+                    )?;
                 } else {
                     let (place, writable) = self.place(object, state)?;
                     if *mutable && !writable {
@@ -2586,7 +2626,7 @@ impl Check<'_, '_, '_> {
                             "mutable trait receiver requires a writable place",
                         ));
                     }
-                    same(&place, host, object.span, self.budget)?;
+                    role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
                 }
             }
             _ => {
@@ -2597,7 +2637,13 @@ impl Check<'_, '_, '_> {
                     ));
                 }
                 let consumed = self.expr(object, state, Some(&expected), false)?;
-                same(&consumed, &expected, object.span, self.budget)?;
+                role_check::same(
+                    &consumed,
+                    &expected,
+                    object.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
             }
         }
         for (index, (argument, parameter)) in arguments.iter().zip(&method.params[1..]).enumerate()
@@ -2647,7 +2693,13 @@ impl Check<'_, '_, '_> {
                 index + 1,
             )?;
             if variables.is_empty() {
-                same(&actual, &expected, argument.span, self.budget)?;
+                role_check::same(
+                    &actual,
+                    &expected,
+                    argument.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
             } else {
                 unify_argument(
                     &expected,
@@ -2774,8 +2826,8 @@ impl Check<'_, '_, '_> {
     ) -> R<TypeRef> {
         self.budget.ty(ty)?;
         let actual = self.expr(value, state, Some(ty), borrowing)?;
-        let actual_key = type_key(&actual, self.budget)?;
-        if actual_key != type_key(ty, self.budget)? {
+        let actual_key = role_check::key(&actual, self.class_scope, self.budget)?;
+        if actual_key != role_check::key(ty, self.class_scope, self.budget)? {
             let TypeKind::Union(members) = &group(ty).kind else {
                 return Err(error(
                     value.span,
@@ -2784,7 +2836,7 @@ impl Check<'_, '_, '_> {
             };
             let mut found = false;
             for member in members {
-                if actual_key == type_key(member, self.budget)? {
+                if actual_key == role_check::key(member, self.class_scope, self.budget)? {
                     if found {
                         return Err(error(value.span, "ascribed sum member is ambiguous"));
                     }
@@ -3057,7 +3109,7 @@ impl Check<'_, '_, '_> {
                         };
                         self.expr(&local, state, Some(&want), false)?
                     };
-                    same(&actual, &want, field.span, self.budget)?;
+                    role_check::same(&actual, &want, field.span, self.class_scope, self.budget)?;
                 }
                 if seen.len() != declaration.fields.len() {
                     return Err(error(e.span, "missing generic record field"));
@@ -3091,7 +3143,13 @@ impl Check<'_, '_, '_> {
                 for value in values {
                     let actual = self.expr(value, state, element.as_ref(), borrowing)?;
                     if let Some(element) = &element {
-                        same(&actual, element, value.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            element,
+                            value.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     } else {
                         element = Some(actual);
                     }
@@ -3281,7 +3339,7 @@ impl Check<'_, '_, '_> {
                 if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
                     return Err(needs_bound());
                 }
-                same(&rhs, &lhs, e.span, self.budget)?;
+                role_check::same(&rhs, &lhs, e.span, self.class_scope, self.budget)?;
                 let valid = match op {
                     BinaryOp::And | BinaryOp::Or => boolean(&lhs),
                     BinaryOp::Equal | BinaryOp::NotEqual => {
@@ -3369,7 +3427,13 @@ impl Check<'_, '_, '_> {
                             named("i64", e.span)
                         };
                         let actual = self.expr(&arguments[1].value, state, Some(&wanted), false)?;
-                        same(&actual, &wanted, arguments[1].span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            &wanted,
+                            arguments[1].span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     if matches!(name, "store_at" | "store_at_mut") {
                         self.alias_borrow(&arguments[0].value, state, name == "store_at_mut")?;
@@ -3399,7 +3463,13 @@ impl Check<'_, '_, '_> {
                         // it does not consume the carrier in this expression.
                         let actual =
                             self.expr(&argument.value, state, Some(parameter), index == 0)?;
-                        same(&actual, parameter, argument.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            parameter,
+                            argument.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     let name = super::super::foreign::bare_name(callee).expect("byte primitive");
                     if name != "bytes_new" {
@@ -3574,7 +3644,18 @@ impl Check<'_, '_, '_> {
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
-                    let (kind, mode, parameters, result, factory_local) = if let Some(bound) = bound
+                    let mut role_frame = if let Some(bound) = bound {
+                        role_check::Frame::new(
+                            &bound.generic_name,
+                            self.class_scope.source,
+                            self.budget,
+                            e.span,
+                        )?
+                    } else {
+                        None
+                    };
+                    let (kind, mode, parameters, mut result, factory_local) = if let Some(bound) =
+                        bound
                     {
                         for parameter in &bound.parameters {
                             self.budget.ty(parameter)?;
@@ -3678,10 +3759,47 @@ impl Check<'_, '_, '_> {
                             &argument.value,
                             state,
                             parameter,
-                            Some(parameter),
+                            if role_frame.is_some() {
+                                None
+                            } else {
+                                Some(parameter)
+                            },
                             index,
                         )?;
-                        same(&actual, parameter, argument.span, self.budget)?;
+                        if let Some(frame) = &mut role_frame {
+                            frame.argument(
+                                parameter,
+                                &actual,
+                                &argument.value,
+                                state,
+                                self.class_scope.source,
+                                self.budget,
+                                0,
+                            )?;
+                            let parameter = frame.substitute(
+                                parameter,
+                                self.class_scope.source,
+                                self.budget,
+                            )?;
+                            role_check::same(
+                                &actual,
+                                &parameter,
+                                argument.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
+                        } else {
+                            role_check::same(
+                                &actual,
+                                parameter,
+                                argument.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
+                        }
+                    }
+                    if let Some(frame) = role_frame {
+                        result = frame.substitute(&result, self.class_scope.source, self.budget)?;
                     }
                     return Ok(result);
                 }
@@ -3750,7 +3868,13 @@ impl Check<'_, '_, '_> {
                             Some(&parameter.ty),
                             index,
                         )?;
-                        same(&actual, &parameter.ty, argument.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            &parameter.ty,
+                            argument.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     return if let Some(result) = &function.return_type {
                         self.budget.ty(result)?;
@@ -3800,7 +3924,13 @@ impl Check<'_, '_, '_> {
                             let GenericParamKind::Const(domain) = &binder.kind else {
                                 unreachable!()
                             };
-                            same(domain, wanted, e.span, self.budget)?;
+                            role_check::same(
+                                domain,
+                                wanted,
+                                e.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                             if state
                                 .locals
                                 .get(name)
@@ -4015,10 +4145,16 @@ impl Check<'_, '_, '_> {
                         }
                         for (actual, expected) in parameters.iter().zip(&callee.parameters) {
                             let expected = substituted_type(expected, &found, self.budget)?;
-                            same(actual, &expected, e.span, self.budget)?;
+                            role_check::same(
+                                actual,
+                                &expected,
+                                e.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                         }
                         let expected = substituted_type(&callee.result, &found, self.budget)?;
-                        same(result, &expected, e.span, self.budget)?;
+                        role_check::same(result, &expected, e.span, self.class_scope, self.budget)?;
                     }
                 }
                 let origin = self.traits.function_origin(function, self.budget)?;
@@ -4077,7 +4213,13 @@ impl Check<'_, '_, '_> {
                         "propagation requires an error-returning helper",
                     ));
                 };
-                same(actual_error, expected_error, e.span, self.budget)?;
+                role_check::same(
+                    actual_error,
+                    expected_error,
+                    e.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
                 Ok(result.as_ref().clone())
             }
             ExprKind::If {
@@ -4087,7 +4229,13 @@ impl Check<'_, '_, '_> {
             } => {
                 let condition_type =
                     self.expr(condition, state, Some(&named("bool", e.span)), false)?;
-                same(&condition_type, &named("bool", e.span), e.span, self.budget)?;
+                role_check::same(
+                    &condition_type,
+                    &named("bool", e.span),
+                    e.span,
+                    self.class_scope,
+                    self.budget,
+                )?;
                 let mut a = self.clone_state(state)?;
                 let mut b = self.clone_state(state)?;
                 let lhs = self.expr(then_value, &mut a, expected, borrowing)?;
@@ -4103,7 +4251,7 @@ impl Check<'_, '_, '_> {
                 {
                     self.factory_same_result(&lhs, &rhs, e.span)?;
                 } else {
-                    same(&lhs, &rhs, e.span, self.budget)?;
+                    role_check::same(&lhs, &rhs, e.span, self.class_scope, self.budget)?;
                 }
                 self.join_states(state, &[&a, &b], e.span)?;
                 self.alias_result_join(aliases_a, aliases_b, e.span)?;
@@ -4159,7 +4307,7 @@ impl Check<'_, '_, '_> {
                     ..
                 } = &e.kind
                 {
-                    same(base, group(owner), e.span, self.budget)?;
+                    role_check::same(base, group(owner), e.span, self.class_scope, self.budget)?;
                 }
                 let TypeKind::Named { path, args } = &base.kind else {
                     return Err(needs_bound());
@@ -4388,7 +4536,13 @@ impl Check<'_, '_, '_> {
             }
             let actual =
                 self.argument(&argument.value, state, parameter, Some(parameter), index)?;
-            same(&actual, parameter, argument.span, self.budget)?;
+            role_check::same(
+                &actual,
+                parameter,
+                argument.span,
+                self.class_scope,
+                self.budget,
+            )?;
         }
         Ok(Some(bound.result))
     }
@@ -4500,9 +4654,21 @@ impl Check<'_, '_, '_> {
                     )?;
                     if let Some(ty) = ty {
                         if matches!(group(ty).kind, TypeKind::Error { .. }) {
-                            same_return(&actual, ty, statement.span, self.budget)?;
+                            role_check::same_return(
+                                &actual,
+                                ty,
+                                statement.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                         } else {
-                            same(&actual, ty, statement.span, self.budget)?;
+                            role_check::same(
+                                &actual,
+                                ty,
+                                statement.span,
+                                self.class_scope,
+                                self.budget,
+                            )?;
                         }
                     }
                     self.bind_local(state, n.clone(), ty.clone().unwrap_or(actual))?;
@@ -4571,7 +4737,13 @@ impl Check<'_, '_, '_> {
                     // every field, including those discarded by the pattern.
                     let actual = self.expr(value, state, ty.as_ref(), false)?;
                     if let Some(expected) = ty {
-                        same(&actual, expected, statement.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     copy::require(
                         &actual,
@@ -4658,7 +4830,7 @@ impl Check<'_, '_, '_> {
                     let resource_replacement =
                         self.resource_description_replacement(whole, value, state)?;
                     let actual = self.expr(value, state, Some(&ty), false)?;
-                    same(&actual, &ty, value.span, self.budget)?;
+                    role_check::same(&actual, &ty, value.span, self.class_scope, self.budget)?;
                     let life_origins = if self.life_allowed.is_some()
                         && matches!(group(&ty).kind, TypeKind::Reference { .. })
                     {
@@ -4749,9 +4921,21 @@ impl Check<'_, '_, '_> {
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
                     {
-                        same_return(&actual, &expected, statement.span, self.budget)?;
+                        role_check::same_return(
+                            &actual,
+                            &expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     } else {
-                        same(&actual, &expected, statement.span, self.budget)?;
+                        role_check::same(
+                            &actual,
+                            &expected,
+                            statement.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
                     }
                     flow.fallthrough = false;
                     flow.returns = true;
@@ -4794,10 +4978,11 @@ impl Check<'_, '_, '_> {
                         Some(&named("bool", condition.span)),
                         false,
                     )?;
-                    same(
+                    role_check::same(
                         &actual,
                         &named("bool", condition.span),
                         condition.span,
+                        self.class_scope,
                         self.budget,
                     )?;
                     let mut a = self.clone_state(state)?;
@@ -4842,10 +5027,11 @@ impl Check<'_, '_, '_> {
                         Some(&named("bool", condition.span)),
                         false,
                     )?;
-                    same(
+                    role_check::same(
                         &actual,
                         &named("bool", condition.span),
                         condition.span,
+                        self.class_scope,
                         self.budget,
                     )?;
                     self.loop_invariant(&entry, state, condition.span)?;
