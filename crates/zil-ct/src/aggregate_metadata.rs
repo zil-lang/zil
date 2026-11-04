@@ -121,10 +121,150 @@ pub fn preflight_aggregate_metadata(
     Ok((w.nodes, limits.max_analysis_steps - w.work))
 }
 
+/// Bound every Core metadata copy. This is transport cost only, never a source
+/// identity, class equation, capture or CT execution certificate.
+pub fn preflight_core_metadata(
+    core: &CoreModule,
+    limits: &Limits,
+) -> CompileResult<(usize, usize)> {
+    let (nodes, work) = preflight_aggregate_metadata(core, limits)?;
+    let mut w = Walk {
+        limits,
+        nodes,
+        work: limits.max_analysis_steps - work,
+    };
+    fn path(w: &mut Walk<'_>, length: usize) -> CompileResult<()> {
+        if length > w.limits.max_call_depth {
+            return Err(quota(None));
+        }
+        for _ in 0..length {
+            w.node(1, None)?;
+        }
+        Ok(())
+    }
+    fn position(w: &mut Walk<'_>, value: &CoreClosureHeaderPosition) -> CompileResult<()> {
+        match value {
+            CoreClosureHeaderPosition::Borrow(position) => path(w, position.path.len()),
+            CoreClosureHeaderPosition::Class(position) => path(w, position.path.len()),
+        }
+    }
+    for context in &core.closure_life_contexts {
+        w.node(0, None)?;
+        w.text(&context.identity.package, Span::default())?;
+        for part in context
+            .identity
+            .module_path
+            .iter()
+            .chain(&context.identity.declaration_path)
+        {
+            w.node(1, None)?;
+            w.text(part, Span::default())?;
+        }
+        path(&mut w, context.identity.generation_path.len())?;
+        for parameter in &context.parameters {
+            w.node(1, None)?;
+            if !matches!(parameter, LifeParameterKind::Lifetime) {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "closure context requires the finite life-only Definition profile",
+                    None,
+                )]);
+            }
+        }
+        for binding in &context.signature.bindings {
+            w.node(1, None)?;
+            path(&mut w, binding.position.path.len())?;
+        }
+        for binding in &context.signature.classes {
+            w.node(1, None)?;
+            path(&mut w, binding.position.path.len())?;
+        }
+        for _ in &context.named_fixed {
+            w.node(1, None)?;
+        }
+        for input in &context.inputs {
+            w.node(1, None)?;
+            position(&mut w, &input.position)?;
+        }
+    }
+    Ok((w.nodes, limits.max_analysis_steps - w.work))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use zil_base::{Fingerprint, ModuleId, NodeId, SCHEMA_VERSION, TargetProfile};
+    #[test]
+    fn raw_closure_context_copy_is_bounded_before_ct_snapshot() {
+        let mut module = core();
+        module.closure_life_contexts.push(CoreClosureLifeContext {
+            creator: NodeId(0),
+            expression: NodeId(1),
+            declaration: LifeDeclarationId {
+                module: ModuleId(7),
+                declaration: NodeId(0),
+                compiler: false,
+            },
+            identity: LifeDeclarationIdentity {
+                package: "x".repeat(4096),
+                module_path: vec!["m".into()],
+                declaration_path: vec!["f".into()],
+                generation_path: vec![],
+            },
+            parameters: vec![LifeParameterKind::Lifetime],
+            occurrence: 0,
+            signature: StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 0,
+                bindings: vec![],
+                classes: vec![],
+            },
+            named_fixed: vec![],
+            inputs: vec![],
+        });
+        let limits = Limits::default();
+        let (nodes, work) = preflight_core_metadata(&module, &limits).unwrap();
+        assert!(work >= 4096 && nodes > 0);
+        assert!(
+            preflight_core_metadata(
+                &module,
+                &Limits {
+                    max_analysis_steps: work - 1,
+                    ..limits.clone()
+                }
+            )
+            .is_err()
+        );
+        preflight_core_metadata(
+            &module,
+            &Limits {
+                max_analysis_steps: work,
+                max_nodes: nodes,
+                ..limits.clone()
+            },
+        )
+        .unwrap();
+        let error = crate::evaluate_source_constants(
+            &module,
+            &TargetProfile::host_llvm(),
+            &Limits {
+                max_analysis_steps: 64,
+                ..limits.clone()
+            },
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .all(|error| error.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        module.closure_life_contexts[0].identity.generation_path =
+            vec![0; limits.max_call_depth + 1];
+        assert!(preflight_core_metadata(&module, &limits).is_err());
+        module.closure_life_contexts.clear();
+        assert_eq!(preflight_core_metadata(&module, &limits).unwrap(), (5, 14));
+    }
+
     fn core() -> CoreModule {
         CoreModule {
             dyn_declarations: Vec::new(),

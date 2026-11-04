@@ -25,6 +25,12 @@ fn closure_transport_markers_do_not_change_syntax_value_equality() {
         panic!();
     };
     assert_eq!(context.raw_index(), None);
+    assert_eq!(std::mem::size_of::<ClosureContextMarker>(), 4);
+    assert_eq!(ClosureContextMarker::untrusted(u32::MAX).raw_index(), None);
+    assert_eq!(
+        ClosureContextMarker::untrusted(u32::MAX - 1).raw_index(),
+        Some(u32::MAX - 1)
+    );
     *context = ClosureContextMarker::untrusted(19);
     assert_eq!(context.raw_index(), Some(19));
     assert_eq!(parsed, transported);

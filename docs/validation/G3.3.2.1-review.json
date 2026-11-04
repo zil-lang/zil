@@ -1,0 +1,125 @@
+{
+  "task": "G3.3.2.1 Lower/Core publication",
+  "reviewer": "g4_4; not author of this Lower/Core change",
+  "status": "LimitedPass",
+  "head_at_static_read": "b68170aa967977eb9f6706d20f358c5e9103fa79",
+  "scope": "Root Lower/Core and sentinel transport only. Excludes reviewer-authored Driver lineage fragment. Typed guard remains closed, Wire remains42.",
+  "lower_wip_sha256": "2377ea4f69661d1d619b04d3d6d22d567c8a4a5c5b9b512fc8e8cee1e3d7be3f",
+  "static_pass": [
+    "Actual creator id is minted before lowering its body; current_function restored after emission, without a new early return after replacement.",
+    "Outer Closure CoreExpr id is minted after its body and recorded directly.",
+    "Actual output source_item_ordinal goes through Origins::in_module; same owned Products Ledger consumes the marker with exact Origin/creator/expr.",
+    "Project-wide finish happens only after every output module; missing/duplicate/reused/orphan markers fail closed.",
+    "Anonymous header sources remain None; source generic full ordinals only in checked life-only Definition profile.",
+    "Serial source/lower/bind/finish budget is maintained through actual remaining allowance; signature/context vectors move rather than gratuitously clone at binding.",
+    "Core-only table supplies Types alignment data; complete final Typed relation and actual environment remain independent runtime proof inputs. Query keys/dependencies bind deterministic source constructions; no new Wire identity is claimed."
+  ],
+  "issues_reported": [
+    {
+      "id": "R1",
+      "issue": "Inference/CT metadata clone paths initially lacked new-context preflight or a closed guard.",
+      "paths": [
+        "Types inference core.clone/copy_module_metadata",
+        "Driver CT single/Collector",
+        "CT public evaluate source metadata clone and unchanged fast path"
+      ],
+      "revision": "Closed in frozen root code: inference early Unsupported before snapshot; CT/Driver metadata clones paid by preflight_core_metadata; unchanged fast path excludes context; selected runtime creator cannot execute in pure CT query and unselected creator context rows retire with omitted functions. Actual huge-string public CT entry and overdepth preflight test independently replayed."
+    },
+    {
+      "id": "R2",
+      "issue": "u32::MAX sentinel should never be a valid producer ledger slot.",
+      "severity": "Minor contract guard, not a demonstrated unsafe acceptance; practical source limits exclude billions of rows.",
+      "revision": "Producer still uses u32::try_from(len), so MAX not explicitly excluded at slot allocation. MAX becomes absent and finish rejects orphan, not an unsafe acceptance; practical live limits exclude billions of rows. Nonblocking contract tightening recommended."
+    }
+  ],
+  "validation": {
+    "mode": "Independent execution of root-frozen focused harnesses, static frozen-source review and standalone rustc layout probes; no Cargo rebuild/full gate.",
+    "artifact_binding": "Root supplied frozen paths zil_expand-f102b30535c7baef/zil_ct-06d11309bb052277/formatting-7af8d408eb57249f at b681. Root states binaries preceded rustfmt-only edits. Reviewer logs preserved before root resumed public43 writes; no pre-retirement executable byte hash/copy was captured, so mutable cache is not claimed as a byte-pinned delivery or reused for later-source approval. Frozen source hashes are obtained from exact Git object.",
+    "focused_tests": {
+      "passed": 8,
+      "failed": 0,
+      "checks": [
+        {
+          "log": "/workspace/.zil-env/G3.3.2.1-review-tmp/lower-core.log",
+          "sha256": "47fac7542deeeab6c05aa581e9647ada3be7003b4e927e820a2fad54a74c909e",
+          "passed": 2,
+          "failed": 0
+        },
+        {
+          "log": "/workspace/.zil-env/G3.3.2.1-review-tmp/raw-core-metadata.log",
+          "sha256": "671a71c8502a03ef252d1149b4d824ac449020ab8ff0247f21dcc64074cb95ed",
+          "passed": 1,
+          "failed": 0
+        },
+        {
+          "log": "/workspace/.zil-env/G3.3.2.1-review-tmp/syntax-formatting.log",
+          "sha256": "130b1a6caaec3f20f8d1902766654260f6b04f17d08ef1bd57b542dc91b2ced6",
+          "passed": 5,
+          "failed": 0
+        }
+      ]
+    },
+    "budget": {
+      "scope": "Actual Source->Core Expand request, no Types/native acceptance",
+      "N": 6080,
+      "checks": [
+        "N-1 ResourceLimit",
+        "fresh/retry N succeeds"
+      ]
+    },
+    "raw_metadata": [
+      "4KiB identity package with public CT max_analysis_steps64 produces ResourceLimit before clone.",
+      "Exact preflight work/node budget succeeds; N-1 fails.",
+      "generation path beyond max_call_depth rejected.",
+      "Empty context retains aggregate-only (5nodes,14work) in fixture."
+    ],
+    "ct_retirement": "Static review only: Collector preflights complete borrowed metadata before copy; selected context creator is Unsupported, omitted creator rows retire with omitted pure-query functions. No additional dynamic Driver retirement case executed by reviewer.",
+    "syntax_layout": {
+      "kind": "Host Rust internal layout, not ZIL target ABI/native behavior",
+      "common42": "Expr=200 ExprKind=176 alignExpr=8",
+      "new_core_only": "Expr=200 ExprKind=176 alignExpr=8 Marker=4",
+      "assertions": [
+        "Marker4bytes",
+        "default and MAX absent",
+        "MAX-1 retains raw index"
+      ],
+      "old_rlib_at_run": "target-public40/debug/deps/libzil_syntax-a60f79a891aadf73.rlib",
+      "new_rlib_at_run": "target-public43/debug/deps/libzil_syntax-a60f79a891aadf73.rlib",
+      "probe_sources": {
+        "sizes-common.rs": "d394ac53b91be159fec26737aff16915cc0d0f70c2d3baa142263df02ef42c37",
+        "sizes-new.rs": "132eb577cdd8eecfd234cea3dfc5f167cf72b0cc0c105ef0f355269a71b1b055"
+      },
+      "logs": {
+        "sizes-common.log": "6c410e8148ca1c8747dd0cf42a88103c7cd329a3eb04b57a6fbfecc4b573207d",
+        "sizes-new.log": "10f88c822f67785c0dc31773cf0d32b93e535d36b92e129adf9195b4a0ac4b48"
+      }
+    },
+    "native_runs": 0,
+    "wide_builds": 0,
+    "full_dependency_clippy": "Not claimed; author reports pending producer style warnings.",
+    "tmpdir": "/workspace/.zil-env/G3.3.2.1-review-tmp"
+  },
+  "excluded": [
+    "Reviewer Driver Original/Unavailable implementation is not independently approved by this report.",
+    "Actual Source->Typed capture formation, generic F P/R adaptation, full instance vectors and Source/native completion remain outside Lower/Core Limited scope."
+  ],
+  "head": "b68170aa967977eb9f6706d20f358c5e9103fa79",
+  "root_source_sha": "14deb0f35",
+  "excluded_merge": "6f4163c7f Driver lineage is reviewer-authored and explicitly excluded from independent approval.",
+  "freeze_clean_at_run": true,
+  "later_root_followup": "Root regained public43 write lease and merged producer guard/style95faa after the review runs. This report does not bind/approve that later composite or its N.",
+  "frozen_source_sha256": {
+    "crates/zil-expand/src/closure_context_lower.rs": "2377ea4f69661d1d619b04d3d6d22d567c8a4a5c5b9b512fc8e8cee1e3d7be3f",
+    "crates/zil-expand/src/lib.rs": "1703579da3cff5c03c33d8224c8d0cca0dc68abf66b917ea2b7bc68cbf9012e7",
+    "crates/zil-expand/src/receivers.rs": "e3b6a3435f5d59236a58d488a9b7367a69c1d56ace4897973e57dc4a4b6f5748",
+    "crates/zil-syntax/src/ast.rs": "293d58444116430683cc605b655b5e2b72eb75b4e763c99b5591a846fc08826e",
+    "crates/zil-syntax/tests/formatting.rs": "a83ec2e6cce24ddd459a8c7012a6c1423b5e2eb2b89d1758451206875fc8130f",
+    "crates/zil-ct/src/aggregate_metadata.rs": "85e2982785bc6b798c8677b299cd9e2b650f2dfaf6684cd39fcf29b0363147a5",
+    "crates/zil-ct/src/source.rs": "37fc9a6c1e867847d1b74f3281813aaa27f5f5237de10c27485bd91c93b2a0b2",
+    "crates/zil-driver/src/ct_program.rs": "0f21baff3160b9f6c2ca6d11221000de48d12a8dd10b70356fe065f32ea10e0f",
+    "crates/zil-types/src/inference.rs": "8df7a7cc32d2f8aa5c71e8a994a4aa554c4adff7e02a286b124f663cc7517428",
+    "crates/zil-ir/src/closure_context.rs": "12f53c2a380815d6f541459be6e7a6fc5b638b3f5daf04214758c7d78c95bc5d"
+  },
+  "cache_assessment": "Core context retained in bounded copies; inference/Types remain closed until actual formation. Query digest is construction identity from full query key and ordered dependencies, not content checksum. Existing contextual signature/scalar function-cache fences remain; no Typed source identity or Wire43 preservation claim.",
+  "mutations": "Only independent review JSON/log/probe files; no root/author source or Cargo cache mutation."
+}

@@ -131,13 +131,28 @@ pub(super) fn check_resolved_program_with_reuse(
     // not conceal a receiver error in this module or a later dependency.
     names::check_modules(program.modules.iter().map(|m| &m.core), limits).map_err(|e| vec![e])?;
     let mut signatures_by_module = BTreeMap::new();
+    let mut has_source_contexts = false;
     for (core, exports, offset) in header_inputs {
+        has_source_contexts |= !core.closure_life_contexts.is_empty();
         let table = signatures(core, limits, offset, Some(&exports))?;
         signatures_by_module.insert(core.module_id, table);
     }
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
     let mut closure_state = closures::State::new(count, limits);
+    if has_source_contexts {
+        closure_state
+            .snapshot(program.modules.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        for module in &program.modules {
+            closure_state
+                .install_source_contexts(
+                    &module.core,
+                    &signatures_by_module[&module.core.module_id],
+                )
+                .map_err(|e| vec![e])?;
+        }
+    }
     if program
         .modules
         .iter()
