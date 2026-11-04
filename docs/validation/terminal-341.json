@@ -114,7 +114,7 @@
       "work": 16238,
       "nodes": 4034
     },
-    "generic_method_substitution": "Actual original source exit4 before\u21920 after; type growth counts0/1/2/4/7, call order and before/between placement (80 native profiles), generic impl/default and forwarded const sources (12 further profiles). Definition-only Self/equation/const rewriting preserves/composes original call-site node origins; concrete substitution anchors actual member/callee Box nodes and rekeys only afterward. Later const-call lowering removes type-argument Expr structure after frame binding, without reusing ordinals. Source/member/function/callee/receiver spans may coincide; actual source\u2192raw/Wire\u2192Clang+LLVM API O0/O2 passes."
+    "generic_method_substitution": "Actual original source exit4 before→0 after; type growth counts0/1/2/4/7, call order and before/between placement (80 native profiles), generic impl/default and forwarded const sources (12 further profiles). Definition-only Self/equation/const rewriting preserves/composes original call-site node origins; concrete substitution anchors actual member/callee Box nodes and rekeys only afterward. Later const-call lowering removes type-argument Expr structure after frame binding, without reusing ordinals. Source/member/function/callee/receiver spans may coincide; actual source→raw/Wire→Clang+LLVM API O0/O2 passes."
   },
   "remaining": [
     "General verified CT expression arguments and const inference",
@@ -664,6 +664,32 @@
     "corrected_native_sha256": "d3ab1c7f42525583ae4b1272472c20e75abc59d9092685452d80b3a0503ae450",
     "call_site_identity": "Original member/callee node in one owned AST; no offset, Span, name or post-substitution ordinal coincidence. Ephemeral node anchors exist only across transformations that preserve these method-site root Boxes; missing sites reject. Published per-body ordinals are freshly derived afterward.",
     "definition_identity": "Source-node origin map is assigned before definition-only Self/equation rewriting, composed when const definition checking clones the body, and borrowed directly by Check. No synthetic receiver-child identity is invented.",
-    "new_walks": "All original/cloned/current AST maps, sparse-anchor maps and queue remaps prepay actual traversal/entry work; limits unchanged."
+    "new_walks": "All original/cloned/current AST maps, sparse-anchor maps and queue remaps prepay actual traversal/entry work; limits unchanged.",
+    "independent_review": {
+      "review_commit": "d556e0ece",
+      "status": "PassLimited",
+      "exact_tests_passed": 20,
+      "binding": "Exact e5b3e9ae6 production/test/harness hashes match; growth92 and shared-Span raw/Wire/native pass; original source independently exits0; root integration replay separate."
+    }
+  },
+  "dyn_wip": {
+    "status": "WIP, no ordinary dyn or terminal acceptance",
+    "public_patch": "/workspace/.zil-env/terminal-20261104/dyn39-public/dyn39-public.patch",
+    "public_patch_sha256": "0be98fd837f657ca8d183b8d0a74901014a5f786e212a4d341acb3e18d378727",
+    "external_checks": {
+      "combined_ir": "rustc compiled, zero warnings/errors",
+      "syntax_existing_unit_target": "1 Pass",
+      "raw_transport_probe": "2 Pass, encode/decode nodes91;90 ResourceLimit; raw tables/ops/contracts, unknown claims and scalar bits preserved; truncation/oldWire reject"
+    },
+    "private_catalog": "Actual trait/inherited applications + MemberId providers; committed witnesses before payload; declared default/impl origins; unknown trait/Self/argument formation rejects; unmet conditional recipe publishes no table; ordinary dyn method syntax preserved for consumer. Existing Expand unit tests2 Pass.",
+    "open": [
+      "public root publication",
+      "explicit finite binding consumers",
+      "concrete generic coercion requests and helpers/function IDs",
+      "stable package/logical module context bridge",
+      "full context-aware semantic keys",
+      "joint dyn CT graph",
+      "Types/Analyze/independent Verify/Lower/Clang/LLVM API/source/raw/Wire/native/budget/cache controls"
+    ]
   }
 }

@@ -1,7 +1,8 @@
 # Ordinary dyn interface and static vtable contract
 
-Status: proposed public seam for root coordination after receiver-method
-checkpoint 0cb5e8da6. This file does not claim dyn implementation or acceptance.
+Status: WIP private catalog and external public39 handoff after the corrected
+receiver-method checkpoint e5b3e9ae6 (independent review d556e0ece). This file
+does not claim dyn implementation or acceptance.
 Authority is the current main-tree design §§9.4, 15.3, 18.1 and the explicit
 parent dispatch to341/342. Root owns public AST/IR/Wire/version publication;
 341 owns trait resolution, exact static providers and vtable candidates;342 owns
@@ -10,10 +11,14 @@ separate consumers before source promotion.
 
 ## Public data
 
-Use dense module-local `DynInterfaceId`, `DynVtableId` and `DynSlotId` values as
+Use dense module-local `DynInterfaceId`/`DynVtableId` plus slot ordinals as
 references into explicit untrusted tables. An ID, fingerprint, trait spelling or
 producer witness flag grants no authority. Declaration identity is actual
 module plus registered declaration/member identity; spans remain diagnostics.
+The published candidate uses the shared LifeDeclarationId/Identity namespace;
+stable identity must come from actual package/logical-module/declaration context.
+Raw module/index numbers remain relocation only. Export/cache Type keys must
+resolve the full bounded declaration/interface/nominal-instance context.
 Canonical actuals retain the complete ordered type/const/life binder sequence,
 phantom arguments, nominal declaration identity, unsigned constant bits and the
 selected target width. Do not use a host usize or a nominal display string as an
@@ -39,9 +44,10 @@ actual-argument representation.
   invocation Call/read/write roots, result source/lending relation, Cleanup,
   Resume and structural thread requirements. Missing required declarations stay
   missing and reject; absence does not mean an empty set.
-- A finite projection table using actual bases/field or active variant paths,
-  shared with the342 PlaceProjection/storage contract. Contract paths are
-  structural data, not arbitrary strings or source names.
+- Shared RetainedLifeShape including nested class-once retained maps, nominal
+  phantom occurrences and typed ports. ContractProjection distinguishes actual
+  Place paths, terminal RetainedPort access substitution and bind-only terminal
+  RetainedClass. Neither retained selector grants a physical byte path.
 
 Life domains must reuse342's explicit `Fixed` versus `Invocation` shapes.
 Environment Hold/storage requirements are fixed for the dyn value's lifetime.
@@ -63,11 +69,10 @@ identity. Target ABI/pointer width participate in publication/cache identity.
 The existing `TypeKind::Dyn {path,args}` supports the first ordinary surface:
 `fn use(p:&dyn Measure)->usize { return p.length() }`, with explicit borrowed
 coercion from an actual `&Point` (and the mutable counterpart). This first source
-lane exposes closed ordinary receiver slots. A public dyn signature with an
-open associated item or generic method slot needs an explicit source binding /
-finite slot declaration surface: the present AST has no associated-equality or
-method-slot-set payload. Root must publish that surface against the normative
-syntax before it is accepted. Inferring a hidden ABI-changing slot set from a
+lane exposes closed ordinary receiver slots. The external public39 patch adds
+an explicit direct dyn alias RHS block with type/const equations and finite
+`fn pick::<i32>;` method applications, without bodies. Root publication and
+ordinary semantic consumers are still required. Inferring a slot set from a
 callee's body, or treating an unrestricted generic method as one vtable entry,
 is not an acceptable replacement. Private candidate records can already retain
 those full fields while the ordinary source lane is constructed.
@@ -85,7 +90,7 @@ Construction requires an explicit borrowed or owning storage operation. Proposed
 public operations are `MakeDynBorrow {interface,vtable,source,mutable}` and
 `CallDynSlot {callee,interface,slot,arguments}` with fully checked typed variants;
 owned construction additionally transfers one actual environment responsibility
-and its real cleanup route.The joint representation keeps `Type::Dyn {interface}` an unsized pointee,
+and its real cleanup route. The joint representation keeps `Type::Dyn {interface}` an unsized pointee,
 like Slice. `MakeDynBorrow` returns `Address<Dyn>` whose actual machine value is
 (environment address, static vtable address), never an address of a temporary
 pair. This ordinary stored Address is covered by342 BorrowedStorage, with no dyn
@@ -93,7 +98,11 @@ wrapper exception or second loan model. Interface fixed environment dependencies
 use canonical numbered ports; each vtable explicitly maps ports to the concrete
 Self's actual StoragePosition rows. Ports are contract substitution positions,
 not Place projections, private-field universal paths or raw GEP permissions.
-Both kernels rebuild actual receiver and port roots and validate the common
+Each slot has an explicit receiver descriptor at full signature position0;
+nonreceiver parameter vectors contain no self-reference to the enclosing
+interface. CallDynSlot.arguments excludes receiver0: the one callee is evaluated
+before those arguments and supplies its actual receiver. Both kernels rebuild
+actual receiver and port roots and validate the common
 Fixed relation. Root reserves Type wire36 and opcodes131/132 for Dyn,
 MakeDynBorrow and CallDynSlot, alongside existing Task/Storage allocations. No implicit allocation, RC, lock or global runtime registry is introduced.
 Borrowed storage cannot call a consuming Self slot. Shared storage cannot acquire
@@ -143,3 +152,35 @@ construction/argument preparation cleanup. Both backends O0/O2 must run actual
 source and independent verified raw controls. Record work/node/instance N/N-1,
 cold/warm/fresh/persisted cache identity and failed-Build nonpublication. Public
 ABI/product acceptance remains open until those consumers and controls exist.
+
+## Actual WIP handoff
+
+The external public patch is
+`/workspace/.zil-env/terminal-20261104/dyn39-public/dyn39-public.patch`, SHA256
+`0be98fd837f657ca8d183b8d0a74901014a5f786e212a4d341acb3e18d378727`, based on
+the exact342 common39 runtime/inventory package. All10 files dry-run apply
+cleanly. Composed IR compiled with rustc without warnings. The parser's existing
+unit target passes1/0 for the binding rows, function-body disambiguation and
+body/let rejection. The separate raw transport probe passes2/0, exercises
+tables/131/132/contracts/unknown claims, changed const bits, truncation/oldWire
+rejection and exact encode/decode node N91 with90 rejection. These checks do not
+prove any dyn permission or native behavior.
+
+Private generic_trait_dyn inventories actual trait applications, inherited
+members and concrete static provider recipes with declaration/member Origins.
+Every provider reads a committed solver witness first. Defaults retain their
+trait context; overrides retain their impl context. Paid lookup walks compare
+full ordered keys. Ordinary source call hints preserve dyn member syntax for
+the later actual dynamic consumer. Two focused existing Expand unit controls
+cover inherited/default/override origins and unknown trait/Self/argument
+obligations; failed conditional candidates publish no vtable. Dyn requests also
+check monomorphic impl formation rather than skipping unused unknown Self.
+
+This catalog is WIP: it emits no executable public vtable or call yet. Generic
+concrete coercion requests, explicit binding consumption, helpers/function-ID
+publication, contextual semantic keys, joint CT support and all downstream
+source/safety/native consumers remain open. Driver ProjectSources.paths owns
+logical module paths while the current Expand entry lacks package/logical
+context; an explicit stable context bridge is required. Do not invent it from
+generated spellings, spans or raw numeric module IDs. Root is composing the
+atomic common39/CT4/dyn39 base before these consumers continue.

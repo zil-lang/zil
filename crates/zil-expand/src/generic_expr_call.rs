@@ -39,6 +39,13 @@ impl Engine<'_> {
             }
             if let Some(actual) = hint {
                 let actual = self.original_type(&actual)?;
+                trait_signature = self.products.dynamic.method(
+                    &self.traits,
+                    projection_shape(&actual),
+                    member,
+                    &mut self.budget,
+                    callee.span,
+                )?;
                 if let Some(host) = trait_bounds::plain(projection_shape(&actual))
                     && let Some((target, signature)) =
                         self.traits
@@ -57,6 +64,7 @@ impl Engine<'_> {
                 }
                 if trait_signature.is_none()
                     && !self.traits.recipes.is_empty()
+                    && !dynamic::is_interface(projection_shape(&actual))
                     && let Some((target, signature, witness)) = self.traits.recipe_method(
                         projection_shape(&actual),
                         member,

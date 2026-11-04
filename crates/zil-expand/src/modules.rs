@@ -292,8 +292,7 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
-    let mut origins = budget
-        .has_generic_methods()
+    let mut origins = (budget.has_generic_methods() || budget.has_dynamic())
         .then(generics::origins::Origins::default);
     let mut index = Index {
         symbols: BTreeMap::new(),
