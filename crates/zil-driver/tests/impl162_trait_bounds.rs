@@ -15,6 +15,41 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/associated-constants.zil"),
+        "trait C{const N:i32=7;}struct P{}impl C for P{}fn get<T:C>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:i32;}fn unused<T:C>()->i32{return T.N+1}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;}fn main()->i32{return P.N-7}",
+        "trait C{const N:i32;}struct Box<T:Copy>{value:T}impl<T:Copy> C for Box<T>{const N:i32=7;}fn get<T:Copy>(x:T)->i32{return Box::<T>.N}fn main()->i32{return get(true)-7}",
+        "trait C{type Item:Copy;const N:Self.Item;}struct P{}impl C for P{type Item=i32;const N:i32=7;}fn get<T:C>()->T.Item{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:f64=7.0f64;}struct P{}impl C for P{}fn get<T:C>()->f64{return T.N}fn main()->i32{return i32(get::<P>())-7}",
+        "trait C{const N:i32;}struct P{N:i32}impl C for P{const N:i32=1;}fn get<T:C>(T:P)->i32{return T.N}fn main()->i32{return get::<P>(P{N:7})-7}",
+    ] {
+        let report=check(text);
+        assert_eq!(report.status,ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+    for text in [
+        "trait C{const N:i32;}struct P{}impl C for P{}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:bool=true;}fn main(){}",
+        "trait C{const N:i32=true;}struct P{}impl C for P{const N:i32=7;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=true;}fn main(){}",
+        "trait C{const N:i32;const N:i32;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;const N:i32=8;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const M:i32=7;}fn main(){}",
+        "trait C{const N:Missing;}fn main(){}",
+        "struct Box<T:Copy>{value:T}resource R{n:i32}trait C{const N:Box<R>;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;}fn get<T:C>()->i32{let T=true;return T.N}fn main(){}",
+        "trait C{const N:bool;}fn bad<T:C>()->i32{return T.N+1}fn main(){}",
+        "trait C{const N:i32;}fn bad<T>()->i32{return T.N}fn main(){}",
+        "trait A{const N:i32;}trait B{const N:i32;}fn bad<T:A+B>()->i32{return T.N}fn main(){}",
+    ] {
+        let report=check(text);
+        assert_ne!(report.status,ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+}
+
+#[test]
 fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
     for text in [
         include_str!(

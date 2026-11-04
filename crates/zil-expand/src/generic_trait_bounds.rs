@@ -4,6 +4,8 @@
 use super::*;
 #[path = "generic_trait_associated.rs"]
 pub(super) mod associated;
+#[path = "generic_trait_constants.rs"]
+pub(super) mod constants;
 #[path = "generic_trait_solver.rs"]
 mod solver;
 #[path = "generic_trait_super.rs"]
@@ -20,6 +22,7 @@ pub(super) struct Index<'a> {
     pub(super) has_defaults: bool,
     has_supertraits: bool,
     pub(super) has_associated: bool,
+    pub(super) has_constants: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
@@ -115,6 +118,7 @@ impl<'a> Index<'a> {
         let mut has_defaults = false;
         let mut has_supertraits = false;
         let mut has_associated = false;
+        let mut has_constants = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -144,6 +148,12 @@ impl<'a> Index<'a> {
                 ItemKind::Trait(declaration) => {
                     let (defaults, associated) = trait_defaults::features(declaration, budget)?;
                     has_associated |= associated;
+                    if associated {
+                        for member in &declaration.members {
+                            budget.node(member.span, 0)?;
+                            has_constants |= matches!(member.kind, ItemKind::Const(_));
+                        }
+                    }
                     has_defaults |= defaults;
                     has_supertraits |= !declaration.bounds.is_empty();
                     has_instances |= !declaration.generics.is_empty()
@@ -173,6 +183,7 @@ impl<'a> Index<'a> {
             has_defaults,
             has_supertraits,
             has_associated,
+            has_constants,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
@@ -237,6 +248,10 @@ impl<'a> Index<'a> {
                         )?;
                     }
                     for member in &declaration.members {
+                        if let ItemKind::Const(constant) = &member.kind
+                            && let Some(ty) = &constant.ty {
+                            index.store_types(ty, &bounds, &variables, budget, callable::StoreCallbacks::None)?;
+                        }
                         if let ItemKind::Function(method) = &member.kind {
                             for parameter in &method.params {
                                 index.store_types(
@@ -409,7 +424,7 @@ impl<'a> Index<'a> {
         }
         for member in &declaration.members {
             budget.node(member.span, 0)?;
-            if matches!(member.kind, ItemKind::TypeAlias(_)) {
+            if matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_)) {
                 continue;
             }
             let ItemKind::Function(method) = &member.kind else {

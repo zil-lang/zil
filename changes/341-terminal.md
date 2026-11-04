@@ -180,3 +180,12 @@ records, whereas literal requires Scalar/Text. A concrete scalar field provides
 the nearest valid generic Syntax producer. This checkpoint adds evidence and
 unsigned const handling; it does not relax CT definition checking or change
 public IR, Wire or syntax.
+
+Associated constants will preserve the same host, actual trait application and
+member identity as associated types. Symbolic uses obtain only the declared
+type; concrete values may be read only after all selected impl premises pass.
+Declaration/default and impl equations must be checked even when unused or
+overridden. Scalar closed values form the first concrete checkpoint; general
+verified CT equations remain a separate obligation until they enter the existing
+CT executor. Value shadowing, missing/duplicate equations, ambiguous trait
+instances, bad unused defaults and active expansion cycles are retained controls.

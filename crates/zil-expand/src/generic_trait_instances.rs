@@ -214,6 +214,7 @@ pub(crate) fn validate_declaration(
         let member_name = match &member.kind {
             ItemKind::Function(f) => Some(f.name.as_str()),
             ItemKind::TypeAlias(a) => Some(a.name.as_str()),
+            ItemKind::Const(c) => Some(c.name.as_str()),
             _ => None,
         };
         if let Some(name) = member_name {
@@ -238,6 +239,14 @@ pub(crate) fn validate_declaration(
             continue;
         }
         let ItemKind::Function(method) = &member.kind else {
+            if let ItemKind::Const(constant) = &member.kind {
+                if !member.attributes.is_empty() {
+                    return Err(unsupported(member.span, "associated constant attributes"));
+                }
+                let ty = constant.ty.as_ref().ok_or_else(|| error(member.span, "associated constant requires a declared type"))?;
+                known_type(ty, &variables, nominals, budget, 0)?;
+                continue;
+            }
             return Err(unsupported(
                 member.span,
                 "associated trait items require their solver",
@@ -298,8 +307,12 @@ pub(crate) fn known_type(
                         | "bool"
                         | "u8"
                         | "u16"
+                        | "u64"
+                        | "usize"
                         | "i32"
                         | "i64"
+                        | "f32"
+                        | "f64"
                         | "c_handle"
                         | "c_wstr"
                         | "ByteBuffer"

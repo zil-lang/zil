@@ -6,7 +6,8 @@ impl<'a> Engine<'a> {
         if self.traits.recipes.is_empty() {
             return Ok(());
         }
-        for (recipe, item) in self.traits.recipes.iter().enumerate() {
+        for recipe in 0..self.traits.recipes.len() {
+            let item = self.traits.recipes[recipe];
             self.budget.item(item)?;
             let ItemKind::Impl(implementation) = &item.kind else {
                 unreachable!()
@@ -233,6 +234,7 @@ impl<'a> Engine<'a> {
                 return Err(unsupported(item.span, "unexecuted generic impl attribute"));
             }
             let mut seen = BTreeSet::new();
+            self.validate_impl_constants(implementation, &reference, &parameters, &bounds, &equations)?;
             for parameter in &parameters {
                 self.budget.node(parameter.span, 0)?;
                 self.budget.text(&parameter.name, parameter.span)?;
@@ -250,7 +252,7 @@ impl<'a> Engine<'a> {
             let mut methods = BTreeSet::new();
             for (ordinal, member) in implementation.members.iter().enumerate() {
                 self.budget.item(member)?;
-                if matches!(member.kind, ItemKind::TypeAlias(_)) {
+                if matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_)) {
                     continue;
                 }
                 let ItemKind::Function(method) = &member.kind else {

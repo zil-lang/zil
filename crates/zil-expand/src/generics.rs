@@ -445,6 +445,7 @@ impl<'a> Engine<'a> {
         }
         engine.validate_impl_recipes()?;
         engine.validate_trait_defaults(module)?;
+        engine.validate_trait_constants(module)?;
         if engine.nominal_binder_collision {
             return Ok(engine);
         }
@@ -1251,7 +1252,7 @@ impl<'a> Engine<'a> {
                 }
                 if self.traits.has_associated {
                     i.members
-                        .retain(|member| !matches!(member.kind, ItemKind::TypeAlias(_)));
+                        .retain(|member| !matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_)));
                 }
             }
             _ => {}
@@ -1700,6 +1701,20 @@ impl<'a> Engine<'a> {
         depth: usize,
     ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
+        if self.traits.has_constants
+            && let ExprKind::Member { object, member: MemberName::Name(member) } = &e.kind
+            && trait_bounds::constants::host_name(object).is_some_and(|name| !env.contains_key(name))
+            && let Some(host) = trait_bounds::constants::host_expression(object, &self.nominals, &mut self.budget)?
+            && let Some(value) = self.traits.recipe_constant(&host, member, &trait_bounds::Bounds::new(), &BTreeSet::new(), &mut self.budget, e.span)?
+        {
+            *e = value;
+        }
+        if trait_bounds::constants::parts(e).is_some() {
+            let (value, mut ty) = self.traits.constant_value(e, &mut self.budget)?;
+            *e = value;
+            self.ty(&mut ty, depth + 1)?;
+            return self.expr_expected(e, env, Some(&ty), depth + 1);
+        }
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
@@ -3208,6 +3223,10 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
                 visitor.ty(value);
             }
         }
+        ItemKind::Const(constant) => {
+            if let Some(ty) = &mut constant.ty { visitor.ty(ty); }
+            if let Some(value) = &mut constant.value { visitor.expr(value); }
+        }
         _ => {}
     }
     Ok(())
@@ -3406,6 +3425,16 @@ impl Substitution<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
+        if let ExprKind::Member { object, member: MemberName::Name(member) } = &e.kind
+            && let ExprKind::Name(subject) = &object.kind
+            && self.substitutions.get(subject).is_some_and(trait_bounds::constants::subject)
+            && let Some(value) = self.substitutions.get(&trait_bounds::constants::key(subject, member)).and_then(consts::expression)
+        {
+            let span = e.span;
+            *e = value.clone();
+            e.span = span;
+            return;
+        }
         if self.substitutions.contains_key("Self")
             && let ExprKind::ReceiverMember(member) = &e.kind
         {
@@ -3418,6 +3447,7 @@ impl Substitution<'_> {
             };
         }
         if let ExprKind::Name(name) = &e.kind
+            && !self.substitutions.get(name).is_some_and(trait_bounds::constants::subject)
             && let Some(value) = self.substitutions.get(name).and_then(consts::expression)
         {
             let span = e.span;

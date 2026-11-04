@@ -689,6 +689,16 @@ impl<'a> Budget<'a> {
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
         self.node(e.span, depth)?;
+        if let ExprKind::Member { object, member: MemberName::Name(member) } = &e.kind
+            && let ExprKind::Name(subject) = &object.kind
+            && let Some(substitutions) = subs
+            && substitutions.get(subject).is_some_and(trait_bounds::constants::subject)
+        {
+            self.text(subject, e.span)?; self.text(member, e.span)?; self.text("\0constant:.", e.span)?;
+            if let Some(value) = substitutions.get(&trait_bounds::constants::key(subject, member)).and_then(consts::expression) {
+                return self.expr(value, depth, None);
+            }
+        }
         if let ExprKind::Name(name) = &e.kind
             && let Some(value) = subs
                 .and_then(|substitutions| substitutions.get(name))
