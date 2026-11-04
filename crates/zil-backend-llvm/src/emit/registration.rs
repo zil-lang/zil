@@ -674,6 +674,7 @@ pub(super) fn reserve_function(
                 if matches!(
                     p.as_ref(),
                     Type::Registration { .. }
+                        | Type::Task { .. }
                         | Type::TaskI32
                         | Type::ByteBuffer
                         | Type::OwnedStore { .. }
@@ -728,6 +729,7 @@ pub(super) fn reserve_function(
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ByteBuffer
+            | Type::Task { .. }
             | Type::TaskI32
             | Type::SyncCell(_) => {}
         }

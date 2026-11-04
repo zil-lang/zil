@@ -232,10 +232,11 @@ fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     {
         return true;
     }
-    if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
         && resources.iter().any(|r| {
-            r.name == zil_ir::TASK_I32_RESOURCE_NAME
-                && r.payload == Type::TaskI32
+            (r.name == zil_ir::TASK_I32_RESOURCE_NAME
+                || r.name.starts_with(zil_ir::TASK_RESOURCE_NAME_PREFIX))
+                && matches!(r.payload, Type::TaskI32 | Type::Task { .. })
                 && r.teardown.is_none()
         })
     {

@@ -88,6 +88,8 @@ fn task_name(name: &str) -> bool {
     matches!(
         name,
         "TaskI32"
+            | "Task"
+            | "task_create"
             | "task_start"
             | "task_yield"
             | "task_await"
@@ -1646,6 +1648,15 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
+            if let [s::GenericArg::Type(result)] = args.as_slice() {
+                Type::Desc(Box::new(Type::Task {
+                    result: Box::new(type_ref(result)),
+                }))
+            } else {
+                Type::Unsupported("Task requires one complete result type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Registration"] => {
             if let [s::GenericArg::Type(environment)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Registration {

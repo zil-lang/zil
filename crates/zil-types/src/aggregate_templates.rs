@@ -343,7 +343,8 @@ impl Index {
                     self.check_links(a, span, left)?;
                 }
             }
-            CoreAggregateTypeRecipe::Registration {
+            CoreAggregateTypeRecipe::Task { result: element }
+            | CoreAggregateTypeRecipe::Registration {
                 environment: element,
             }
             | CoreAggregateTypeRecipe::Store { element } => {
@@ -382,7 +383,8 @@ fn validate_recipe(
             ));
         }
         CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
-        CoreAggregateTypeRecipe::Registration {
+        CoreAggregateTypeRecipe::Task { result: element }
+        | CoreAggregateTypeRecipe::Registration {
             environment: element,
         }
         | CoreAggregateTypeRecipe::Store { element } => {
@@ -620,6 +622,7 @@ fn contextual_free(
             Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
+            | Type::Task { result: t }
             | Type::Registration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
@@ -725,6 +728,7 @@ pub(super) fn rebind_type(
             Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
+            | Type::Task { result: t }
             | Type::Registration { environment: t }
             | Type::OwnedStore { element: t }
             | Type::Array { element: t, .. }
