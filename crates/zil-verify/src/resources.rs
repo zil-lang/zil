@@ -48,6 +48,25 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         tasks::require_closed_context(ty, None)?;
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                budget.spend(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_add(1),
+                )?;
+                for r in &life.slots {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.retained {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.nominal_arguments {
+                    budget.spend(r.path.len())?;
+                }
+                pending.push(storage);
+            }
             Type::Task {
                 result: element, ..
             }
@@ -82,10 +101,17 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                     pending.extend(fields);
                 }
             }
-            Type::FunctionPointer { parameters, result }
-            | Type::BorrowedFunctionPointer {
-                parameters, result, ..
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.spend(super::signature_life::work(life))?;
+                budget.spend(parameters.len().saturating_mul(2))?;
+                pending.extend(parameters);
+                pending.push(result);
             }
+            Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);
