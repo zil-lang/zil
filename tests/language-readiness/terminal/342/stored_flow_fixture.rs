@@ -1173,3 +1173,179 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     arguments.push(ValueId(if alias { 2 } else { 4 }));
     m
 }
+
+/// Untrusted existing-public-Typed model, not a Source producer witness.
+/// Parameter and actual capture share Tag's retained class; the captured
+/// outer Address is a separate anonymous Fixed class.
+#[allow(dead_code)]
+pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedModule {
+    let mut m = module();
+    let tag = address(storage(), false);
+    let i64ref = address(Type::I64, false);
+    let class = |base, binder| SignatureLifeClassBinding {
+        position: SignatureLifeClass {
+            base,
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+        },
+        binder,
+    };
+    let life = StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 1,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(StorageBase::Capture(0), vec![], StorageBinder::Fixed(1)),
+        ],
+        classes: vec![
+            class(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            class(StorageBase::Capture(0), StorageBinder::Fixed(0)),
+        ],
+    };
+    let mut entry = function(
+        0,
+        vec![tag.clone()],
+        Type::I64,
+        vec![
+            tag.clone(),
+            i64ref.clone(),
+            Type::I64,
+            tag.clone(),
+            i64ref,
+            Type::I64,
+            Type::I64,
+        ],
+        vec![
+            instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+            instruction(
+                Some(1),
+                InstructionKind::LoadStoredBorrow {
+                    storage: ValueId(0),
+                    path: vec![PlaceProjection::Field(0)],
+                    mode: StoredBorrowLoad::CopyShared,
+                },
+            ),
+            instruction(
+                Some(2),
+                InstructionKind::ReadAddress {
+                    address: ValueId(1),
+                },
+            ),
+            instruction(Some(3), InstructionKind::Load(LocalId(0))),
+            instruction(
+                Some(4),
+                InstructionKind::LoadStoredBorrow {
+                    storage: ValueId(3),
+                    path: vec![PlaceProjection::Field(0)],
+                    mode: StoredBorrowLoad::CopyShared,
+                },
+            ),
+            instruction(
+                Some(5),
+                InstructionKind::ReadAddress {
+                    address: ValueId(4),
+                },
+            ),
+            instruction(
+                Some(6),
+                InstructionKind::Binary {
+                    op: BinaryOp::Add,
+                    left: ValueId(2),
+                    right: ValueId(5),
+                },
+            ),
+        ],
+        6,
+    );
+    entry.storage_life = Some(life.clone());
+    entry.environment = Some(ClosureId(0));
+    let mut caller = function(
+        1,
+        vec![tag.clone(), tag.clone()],
+        Type::I64,
+        vec![tag.clone(), tag, Type::Closure(ClosureId(0)), Type::I64],
+        vec![
+            instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(
+                Some(2),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(0)],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(2),
+                    value: ValueId(2),
+                },
+            ),
+            instruction(
+                Some(3),
+                match kind {
+                    CallableKind::Fn => InstructionKind::CallClosureShared {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                    CallableKind::FnMut => InstructionKind::CallClosureMut {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                    CallableKind::FnOnce => InstructionKind::CallClosureOnce {
+                        callee: ValueId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                },
+            ),
+        ],
+        3,
+    );
+    if kind == CallableKind::FnOnce {
+        // Keep one real owner of the non-Copy environment; no duplicate Store.
+        caller.blocks[0].instructions.remove(3);
+    }
+    caller.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "environment".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: kind == CallableKind::FnMut,
+        span: s(),
+    });
+    caller.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 2,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(1),
+            ),
+        ],
+        classes: vec![
+            class(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            class(StorageBase::Parameter(1), StorageBinder::Fixed(1)),
+        ],
+    });
+    m.functions = vec![entry, caller];
+    m.closures = vec![ClosureDefinition {
+        storage_life: Some(life),
+        id: ClosureId(0),
+        function: FunctionId(0),
+        captures: vec![address(storage(), false)],
+        parameters: vec![address(storage(), false)],
+        result: Type::I64,
+        kind,
+        lending_captures: vec![],
+    }];
+    m
+}
