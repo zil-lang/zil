@@ -3841,3 +3841,80 @@ fn registration343_source_library_preserves_actual_returned_environment() {
         report.to_json()
     );
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_native_static_frames_resume_and_cancel() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let prefix = original.split("fn main").next().unwrap();
+    let mut sources = vec![original.to_owned()];
+    for after in 0..=8 {
+        sources.push(format!(
+            "{prefix}
+fn main()->i32 {{
+    var task=task_start(worker,7)
+    if !task_valid(task) {{return 10}}
+    var count=0
+    while count<{after} {{
+        let (status,value)=task_poll(&mut task)
+        if status!=0 || value!=0 {{return 11}}
+        count=count+1
+    }}
+    task_request_cancel(&mut task)
+    task_request_cancel(&mut task)
+    let (status,value)=task_poll(&mut task)
+    if status!=3 || value!=0 {{return 12}}
+    if !task_poll_close(&mut task) {{return 13}}
+    task_finish_destroy(give task)
+    return 0
+}}"
+        ));
+    }
+    sources.push("fn plain(x:i32)->i32=>x+1
+fn empty(x:i32)->i32 contract {effects(suspend);resume(local)} {return x+2}
+fn worker(x:i32)->i32 {let a=task_await(plain,x);return task_await(empty,a)}
+fn main()->i32 {var t=task_start(worker,7);let direct=plain(7);let (s,v)=task_poll(&mut t);if s!=1 || v!=10 || direct!=8{return 1} if !task_poll_close(&mut t){return 2} task_finish_destroy(give t);return 0}".to_owned());
+    for (case, text) in sources.iter().enumerate() {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-child-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "case {case}: {}",
+                    report.to_json()
+                );
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "case {case} {backend:?} {optimization:?}: {actual:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}

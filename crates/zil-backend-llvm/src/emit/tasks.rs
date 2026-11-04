@@ -293,13 +293,166 @@ fn rewrite(
     }
     Ok(())
 }
-pub(super) fn lower_worker(
-    id: FunctionId,
-    machine: &m::Function,
-    meter: &Meter,
-) -> CompileResult<Vec<m::Item>> {
+const AWAIT_MARKER: &str = "zil.task.await.marker.";
+fn awaited(op: &m::Op) -> Option<FunctionId> {
+    let m::Op::Call {
+        callee: m::Val::Global(name),
+        ..
+    } = op
+    else {
+        return None;
+    };
+    name.strip_prefix(AWAIT_MARKER)?
+        .parse::<u32>()
+        .ok()
+        .map(FunctionId)
+}
+struct ChildFrame {
+    worker: FunctionId,
+    frame: u32,
+    active: u32,
+}
+struct FramePlan {
+    fields: Vec<m::Ty>,
+    slots: BTreeMap<String, Slot>,
+    children: Vec<ChildFrame>,
+}
+fn split_await(
+    mut current: m::Block,
+    instruction: &m::Inst,
+    child: &ChildFrame,
+    site: usize,
+    pieces: &mut Vec<m::Block>,
+    resumes: &mut BTreeSet<usize>,
+) -> m::Block {
+    let m::Op::Call { args, .. } = &instruction.op else {
+        unreachable!("actual await marker is a call")
+    };
+    let prefix = format!("task.await.{site}");
+    let pointer = format!("task.child.{site}.frame");
+    let active = format!("task.child.{site}.active");
+    let polled = format!("{prefix}.poll");
+    let mut arguments = vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))];
+    arguments.extend(args.iter().cloned());
+    call(
+        &mut current.instructions,
+        None,
+        m::Ty::Void,
+        m::global(name(child.worker, "init_into")),
+        arguments,
+    );
+    store(
+        &mut current.instructions,
+        m::Ty::Int(1),
+        m::val(true),
+        loc(&active),
+    );
+    branch(&mut current.instructions, &polled);
+    pieces.push(current);
+    // Only this PC is saved on Pending; the argument/initialization block is
+    // never entered again when a later poll resumes the same child instance.
+    let poll_pc = pieces.len();
+    resumes.insert(poll_pc);
+    let mut poll = vec![];
+    call(
+        &mut poll,
+        Some(&format!("{prefix}.answer")),
+        result_ty(),
+        m::global(name(child.worker, "poll")),
+        vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
+    );
+    push(
+        &mut poll,
+        Some(&format!("{prefix}.tag")),
+        m::Op::Extract {
+            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
+            index: 0,
+        },
+    );
+    compare(
+        &mut poll,
+        &format!("{prefix}.is.ready"),
+        m::Ty::Int(32),
+        loc(format!("{prefix}.tag")),
+        m::val(1),
+        "eq",
+    );
+    cond(
+        &mut poll,
+        &format!("{prefix}.is.ready"),
+        &format!("{prefix}.ready"),
+        &format!("{prefix}.not.ready"),
+    );
+    pieces.push(block(&polled, poll));
+    let mut pending_check = vec![];
+    compare(
+        &mut pending_check,
+        &format!("{prefix}.is.pending"),
+        m::Ty::Int(32),
+        loc(format!("{prefix}.tag")),
+        m::val(0),
+        "eq",
+    );
+    cond(
+        &mut pending_check,
+        &format!("{prefix}.is.pending"),
+        &format!("{prefix}.pending"),
+        "task.trap",
+    );
+    pieces.push(block(&format!("{prefix}.not.ready"), pending_check));
+    let mut pending = vec![];
+    store(
+        &mut pending,
+        m::Ty::Int(32),
+        m::val(poll_pc),
+        loc("task.pc"),
+    );
+    store(&mut pending, m::Ty::Int(32), m::val(0), loc("task.state"));
+    poll_result(&mut pending, 0, m::val(0), &format!("{prefix}.pending"));
+    pieces.push(block(&format!("{prefix}.pending"), pending));
+    let mut ready = vec![];
+    push(
+        &mut ready,
+        instruction.result.as_deref(),
+        m::Op::Extract {
+            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
+            index: 1,
+        },
+    );
+    call(
+        &mut ready,
+        Some(&format!("{prefix}.closed")),
+        m::Ty::Int(1),
+        m::global(name(child.worker, "poll_close")),
+        vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
+    );
+    // The first child lane independently admits only no-external scalar
+    // workers: close is synchronous. General owning/Pending close will retain
+    // this moved result in the parent's PendingExit responsibility instead.
+    cond(
+        &mut ready,
+        &format!("{prefix}.closed"),
+        &format!("{prefix}.destroy"),
+        "task.trap",
+    );
+    pieces.push(block(&format!("{prefix}.ready"), ready));
+    let mut destroy = vec![];
+    call(
+        &mut destroy,
+        None,
+        m::Ty::Void,
+        m::global(name(child.worker, "finish_into")),
+        vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
+    );
+    store(&mut destroy, m::Ty::Int(1), m::val(false), loc(active));
+    branch(&mut destroy, &format!("{prefix}.after"));
+    pieces.push(block(&format!("{prefix}.destroy"), destroy));
+    block(&format!("{prefix}.after"), vec![])
+}
+fn own_frame(machine: &m::Function, meter: &Meter) -> CompileResult<FramePlan> {
     meter.spend(2048usize.saturating_add(machine.signature.params.len().saturating_mul(16)))?;
     let mut fields = header();
+    fields[RESULT as usize] = machine.signature.result.clone();
     let mut slots = BTreeMap::new();
     for p in &machine.signature.params {
         let n = p.name.clone().expect("scalar worker parameters are named");
@@ -352,10 +505,150 @@ pub(super) fn lower_worker(
         }
     }
     meter.spend(slots.len().saturating_mul(16))?;
+    Ok(FramePlan {
+        fields,
+        slots,
+        children: vec![],
+    })
+}
+fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<()> {
+    meter.spend(8)?;
+    if depth > 64 {
+        return invalid(
+            "E-CODEGEN-TASK",
+            "embedded task frame type depth exceeds profile",
+            None,
+        );
+    }
+    match ty {
+        m::Ty::Struct(fields) => {
+            meter.spend(fields.len())?;
+            for field in fields {
+                reserve_frame_type(field, meter, depth + 1)?;
+            }
+        }
+        m::Ty::Int(_) | m::Ty::Ptr => {}
+        _ => {
+            return invalid(
+                "E-CODEGEN-TASK",
+                "embedded task frame has an unsupported physical type",
+                None,
+            );
+        }
+    }
+    Ok(())
+}
+fn plan_frame(
+    id: FunctionId,
+    machines: &BTreeMap<FunctionId, m::Function>,
+    plans: &mut BTreeMap<FunctionId, FramePlan>,
+    path: &mut BTreeSet<FunctionId>,
+    meter: &Meter,
+) -> CompileResult<()> {
+    meter.spend(plans.len().saturating_add(path.len()).saturating_add(1))?;
+    if plans.contains_key(&id) {
+        return Ok(());
+    }
+    if path.len() >= 64 || !path.insert(id) {
+        return invalid(
+            "E-CODEGEN-TASK",
+            "static Suspend child graph is recursive or exceeds depth profile",
+            None,
+        );
+    }
+    let machine = machines.get(&id).ok_or_else(|| {
+        vec![Diagnostic::error(
+            Phase::Codegen,
+            "E-CODEGEN-TASK",
+            None,
+            "actual Suspend child machine is absent",
+        )]
+    })?;
+    let mut plan = own_frame(machine, meter)?;
+    for block in machine.blocks.as_ref().expect("task machine definition") {
+        for instruction in &block.instructions {
+            meter.spend(1)?;
+            if let Some(worker) = awaited(&instruction.op) {
+                plan_frame(worker, machines, plans, path, meter)?;
+                let child = &plans[&worker];
+                for field in &child.fields {
+                    reserve_frame_type(field, meter, 0)?;
+                }
+                let frame = plan.fields.len() as u32;
+                plan.fields.push(m::Ty::Struct(child.fields.clone()));
+                let active = plan.fields.len() as u32;
+                plan.fields.push(m::Ty::Int(1));
+                plan.children.push(ChildFrame {
+                    worker,
+                    frame,
+                    active,
+                });
+            }
+        }
+    }
+    path.remove(&id);
+    plans.insert(id, plan);
+    Ok(())
+}
+pub(super) fn lower_workers(
+    machines: Vec<(FunctionId, m::Function)>,
+    functions: &BTreeMap<FunctionId, &TypedFunction>,
+    verified: &VerifiedModule,
+    meter: &Meter,
+) -> CompileResult<Vec<m::Item>> {
+    if machines.is_empty() {
+        return Ok(vec![]);
+    }
+    meter.spend(machines.len().saturating_mul(4))?;
+    let mut actual = BTreeMap::new();
+    for (id, machine) in machines {
+        meter.spend(actual.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
+        if actual.insert(id, machine).is_some() {
+            return invalid(
+                "E-CODEGEN-TASK",
+                "duplicate actual task worker machine",
+                None,
+            );
+        }
+    }
+    let machines = actual;
+    let mut plans = BTreeMap::new();
+    let mut path = BTreeSet::new();
+    for &id in machines.keys() {
+        plan_frame(id, &machines, &mut plans, &mut path, meter)?;
+    }
+    let mut items = vec![];
+    for (id, mut machine) in machines {
+        let plan = plans.remove(&id).expect("actual frame was planned");
+        items.extend(lower_worker(id, &machine, plan, meter)?);
+        if verified.is_task_export(id) {
+            items.extend(exports(id, meter)?);
+        }
+        if !verified.is_suspend(id) {
+            scalar_locals::promote(functions[&id], &mut machine);
+            items.push(m::Item::Function(machine));
+        }
+    }
+    Ok(items)
+}
+fn lower_worker(
+    id: FunctionId,
+    machine: &m::Function,
+    plan: FramePlan,
+    meter: &Meter,
+) -> CompileResult<Vec<m::Item>> {
     let frame_name = format!("zil_task_frame_{}", id.0);
-    let frame_fields = fields;
+    let FramePlan {
+        fields: frame_fields,
+        slots,
+        children,
+    } = plan;
     let frame = m::Ty::Named(frame_name.clone());
+    let original = machine.blocks.as_ref().expect("scalar worker definition");
+    meter.spend(children.len().saturating_mul(4096))?;
+    let mut child_site = 0;
     let mut pieces: Vec<m::Block> = vec![];
+    let mut resumes = BTreeSet::from([0]);
     for b in original {
         let mut current = block(&b.name, vec![]);
         for i in &b.instructions {
@@ -363,6 +656,7 @@ pub(super) fn lower_worker(
                 let next = format!("task.resume.{}", pieces.len());
                 // The resume pc is its exact position in the final block table.
                 let pc = pieces.len() + 1;
+                resumes.insert(pc);
                 store(
                     &mut current.instructions,
                     m::Ty::Int(32),
@@ -383,6 +677,9 @@ pub(super) fn lower_worker(
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
+            } else if awaited(&i.op).is_some() {
+                current = split_await(current, i, &children[child_site], child_site, &mut pieces, &mut resumes);
+                child_site += 1;
             } else {
                 current.instructions.push(i.clone());
             }
@@ -406,6 +703,22 @@ pub(super) fn lower_worker(
             &frame,
             loc("frame"),
             slot.index,
+        );
+    }
+    for (site, child) in children.iter().enumerate() {
+        gep(
+            &mut setup,
+            &format!("task.child.{site}.frame"),
+            &frame,
+            loc("frame"),
+            child.frame,
+        );
+        gep(
+            &mut setup,
+            &format!("task.child.{site}.active"),
+            &frame,
+            loc("frame"),
+            child.active,
         );
     }
     load(
@@ -443,7 +756,8 @@ pub(super) fn lower_worker(
     load(&mut v, "task.saved.pc", m::Ty::Int(32), loc("task.pc"));
     branch(&mut v, "task.select.0");
     poll.push(block("task.dispatch", v));
-    for (index, piece) in pieces.iter().enumerate() {
+    for (choice, &index) in resumes.iter().enumerate() {
+        let piece = &pieces[index];
         let mut v = vec![];
         compare(
             &mut v,
@@ -453,13 +767,13 @@ pub(super) fn lower_worker(
             m::val(index),
             "eq",
         );
-        let no = if index + 1 == pieces.len() {
+        let no = if choice + 1 == resumes.len() {
             "task.trap".into()
         } else {
-            format!("task.select.{}", index + 1)
+            format!("task.select.{}", choice + 1)
         };
         cond(&mut v, &format!("task.pc.is.{index}"), &piece.name, &no);
-        poll.push(block(&format!("task.select.{index}"), v));
+        poll.push(block(&format!("task.select.{choice}"), v));
     }
     let mut serial = 0;
     for mut piece in pieces {
@@ -603,7 +917,8 @@ pub(super) fn lower_worker(
     );
     cond(&mut init, "allocated", "init", "return");
     let mut initialize = vec![];
-    for (index, operation) in ["poll", "request_cancel", "poll_close", "finish_destroy"]
+    store(&mut initialize, frame.clone(), m::Val::Zero, loc("frame"));
+    for (index, operation) in ["poll", "request_cancel", "poll_close", "finish_into"]
         .iter()
         .enumerate()
     {
@@ -627,7 +942,39 @@ pub(super) fn lower_worker(
             loc(pointer),
         );
     }
-    branch(&mut initialize, "return");
+    push(&mut initialize, None, m::Op::Return(None));
+    let mut into_parameters = vec![m::Param::new(m::Ty::Ptr, "frame")];
+    into_parameters.extend(machine.signature.params.clone());
+    items.push(function(
+        name(id, "init_into"),
+        m::Ty::Void,
+        into_parameters,
+        vec![block("entry", initialize)],
+    ));
+    let mut commit = vec![];
+    let mut arguments = vec![m::Arg::new(m::Ty::Ptr, loc("frame"))];
+    arguments.extend(
+        machine
+            .signature
+            .params
+            .iter()
+            .map(|p| m::Arg::new(p.ty.clone(), loc(p.name.clone().unwrap()))),
+    );
+    call(
+        &mut commit,
+        None,
+        m::Ty::Void,
+        m::global(name(id, "init_into")),
+        arguments,
+    );
+    gep(&mut commit, "owner.destroy", &frame, loc("frame"), 3);
+    store(
+        &mut commit,
+        m::Ty::Ptr,
+        m::global(name(id, "finish_destroy")),
+        loc("owner.destroy"),
+    );
+    branch(&mut commit, "return");
     let mut returned = vec![];
     ret(&mut returned, m::Ty::Ptr, loc("frame"));
     items.push(function(
@@ -636,19 +983,46 @@ pub(super) fn lower_worker(
         machine.signature.params.clone(),
         vec![
             block("entry", init),
-            block("init", initialize),
+            block("init", commit),
             block("return", returned),
         ],
     ));
     let mut cancel = vec![];
     gep(&mut cancel, "cancel", &frame, loc("frame"), CANCEL);
     store(&mut cancel, m::Ty::Int(1), m::val(true), loc("cancel"));
+    let mut cancel_blocks = vec![];
+    let mut label = "entry".to_owned();
+    for (site, child) in children.iter().enumerate() {
+        let pointer = format!("child.{site}.frame");
+        let active = format!("child.{site}.active");
+        let is_active = format!("child.{site}.is.active");
+        let notify = format!("child.{site}.notify");
+        let next = format!("child.{site}.next");
+        gep(&mut cancel, &pointer, &frame, loc("frame"), child.frame);
+        gep(&mut cancel, &active, &frame, loc("frame"), child.active);
+        load(&mut cancel, &is_active, m::Ty::Int(1), loc(active));
+        cond(&mut cancel, &is_active, &notify, &next);
+        cancel_blocks.push(block(&label, cancel));
+        let mut notified = vec![];
+        call(
+            &mut notified,
+            None,
+            m::Ty::Void,
+            m::global(name(child.worker, "request_cancel")),
+            vec![m::Arg::new(m::Ty::Ptr, loc(pointer))],
+        );
+        branch(&mut notified, &next);
+        cancel_blocks.push(block(&notify, notified));
+        label = next;
+        cancel = vec![];
+    }
     push(&mut cancel, None, m::Op::Return(None));
+    cancel_blocks.push(block(&label, cancel));
     items.push(function(
         name(id, "request_cancel"),
         m::Ty::Void,
         vec![m::Param::new(m::Ty::Ptr, "frame")],
-        vec![block("entry", cancel)],
+        cancel_blocks,
     ));
     let mut close = vec![];
     gep(&mut close, "state", &frame, loc("frame"), STATE);
@@ -662,19 +1036,86 @@ pub(super) fn lower_worker(
         "eq",
     );
     cond(&mut close, "active", "pending", "close");
+    let mut close_blocks = vec![block("entry", close)];
     let mut closed = vec![];
+    // Notify every active child before starting the creation-order drain.
+    call(
+        &mut closed,
+        None,
+        m::Ty::Void,
+        m::global(name(id, "request_cancel")),
+        vec![m::Arg::new(m::Ty::Ptr, loc("frame"))],
+    );
+    let mut label = "close".to_owned();
+    for (site, child) in children.iter().enumerate() {
+        let pointer = format!("child.{site}.frame");
+        let active = format!("child.{site}.active");
+        let is_active = format!("child.{site}.is.active");
+        let drain = format!("child.{site}.drain");
+        let destroy = format!("child.{site}.destroy");
+        let next = format!("child.{site}.next");
+        gep(&mut closed, &pointer, &frame, loc("frame"), child.frame);
+        gep(&mut closed, &active, &frame, loc("frame"), child.active);
+        load(&mut closed, &is_active, m::Ty::Int(1), loc(&active));
+        cond(&mut closed, &is_active, &drain, &next);
+        close_blocks.push(block(&label, closed));
+        let mut drained = vec![];
+        let answer = format!("child.{site}.closed");
+        call(
+            &mut drained,
+            Some(&answer),
+            m::Ty::Int(1),
+            m::global(name(child.worker, "poll_close")),
+            vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
+        );
+        cond(&mut drained, &answer, &destroy, "pending");
+        close_blocks.push(block(&drain, drained));
+        let mut destroyed = vec![];
+        call(
+            &mut destroyed,
+            None,
+            m::Ty::Void,
+            m::global(name(child.worker, "finish_into")),
+            vec![m::Arg::new(m::Ty::Ptr, loc(pointer))],
+        );
+        store(&mut destroyed, m::Ty::Int(1), m::val(false), loc(active));
+        branch(&mut destroyed, &next);
+        close_blocks.push(block(&destroy, destroyed));
+        label = next;
+        closed = vec![];
+    }
     store(&mut closed, m::Ty::Int(32), m::val(3), loc("state"));
     ret(&mut closed, m::Ty::Int(1), m::val(true));
+    close_blocks.push(block(&label, closed));
     let mut pending = vec![];
     ret(&mut pending, m::Ty::Int(1), m::val(false));
+    close_blocks.push(block("pending", pending));
     items.push(function(
         name(id, "poll_close"),
         m::Ty::Int(1),
         vec![m::Param::new(m::Ty::Ptr, "frame")],
+        close_blocks,
+    ));
+    let mut into_destroy = vec![];
+    gep(&mut into_destroy, "state", &frame, loc("frame"), STATE);
+    load(&mut into_destroy, "current", m::Ty::Int(32), loc("state"));
+    compare(
+        &mut into_destroy,
+        "closed",
+        m::Ty::Int(32),
+        loc("current"),
+        m::val(3),
+        "eq",
+    );
+    cond(&mut into_destroy, "closed", "done", "task.trap");
+    items.push(function(
+        name(id, "finish_into"),
+        m::Ty::Void,
+        vec![m::Param::new(m::Ty::Ptr, "frame")],
         vec![
-            block("entry", close),
-            block("close", closed),
-            block("pending", pending),
+            block("entry", into_destroy),
+            block("done", vec![inst(None, m::Op::Return(None))]),
+            trap_block(),
         ],
     ));
     let mut destroy = vec![];
@@ -910,6 +1351,33 @@ pub(super) fn runtime(lir: &LirView<'_>, enabled: bool, meter: &Meter) -> Compil
 }
 impl FunctionEmitter<'_> {
     pub(super) fn task_instruction(&mut self, i: &Instruction) -> CompileResult<()> {
+        if let InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } = &i.kind
+        {
+            let output = result(i)?;
+            let args = arguments
+                .iter()
+                .map(|id| {
+                    Ok(m::Arg::new(
+                        llvm_type(&self.function.values[id.0 as usize])?,
+                        m::val(value(*id)),
+                    ))
+                })
+                .collect::<CompileResult<Vec<_>>>()?;
+            self.event(m::Event::Instruction(inst(
+                Some(&m::name(value(output))),
+                m::Op::Call {
+                    result: llvm_type(&self.function.values[output.0 as usize])?,
+                    result_attrs: vec![],
+                    callee: m::global(format!("{AWAIT_MARKER}{}", function.0)),
+                    args,
+                    vararg: None,
+                },
+            )));
+            return Ok(());
+        }
         if matches!(i.kind, InstructionKind::TaskYield) {
             self.event(m::Event::Instruction(inst(
                 None,

@@ -108,6 +108,27 @@ fn layout(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<(u64, u32)
         }
     })
 }
+// Embedded child structures make one outer field recursively large. Reserve
+// every actual hash node and rendered byte before Hash/Display visits it.
+fn reserve_field_identity(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<()> {
+    spend(left, 8)?;
+    if depth > 64 {
+        return Err(bad("task field identity exceeds supported depth"));
+    }
+    match t {
+        m::Ty::Ptr => spend(left, 3),
+        m::Ty::Int(1 | 8) => spend(left, 2),
+        m::Ty::Int(16 | 32 | 64) => spend(left, 3),
+        m::Ty::Struct(fields) => {
+            spend(left, fields.len().saturating_mul(2).saturating_add(4))?;
+            for field in fields {
+                reserve_field_identity(field, left, depth + 1)?;
+            }
+            Ok(())
+        }
+        _ => Err(bad("task field identity contains unsupported physical type")),
+    }
+}
 pub(crate) fn derive(
     verified: &VerifiedModule,
     machine: &m::Module,
@@ -157,7 +178,8 @@ pub(crate) fn derive(
             for (index, t) in fields.iter().enumerate() {
                 let (s, a) = layout(t, left, 0)?;
                 size = align(size, a)?;
-                spend(left, 16)?; // scalar type rendering and bounded field metadata
+                spend(left, 16)?;
+                reserve_field_identity(t, left, 0)?;
                 t.hash(&mut hash);
                 size.hash(&mut hash);
                 s.hash(&mut hash);

@@ -98,6 +98,7 @@ fn mixed(f: &mut CoreFunction, kind: CallableKind) {
         }],
     }];
     f.callable_parameters = vec![CoreCallableParameter {
+        life: None,
         closed_environment: false,
         index: 0,
         generic_index: 0,

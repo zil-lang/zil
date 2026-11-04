@@ -292,9 +292,10 @@ entries remain Direct boundaries. Neither a declaration nor TaskStart supplies
 an effect or no-external-users proof. TaskStart of a non-yielding Direct worker
 still creates a task adapter while preserving the worker's ordinary Direct body.
 
-Unannotated source selects the actual reachable effect; `effects(direct)` is an
-explicit upper bound which rejects any reachable Yield/SuspendCall/Suspend
-callee or cleanup. `effects(suspend); resume(local)` explicitly selects Suspend
+Unannotated source selects the actual reachable effect. An explicit `effects`
+clause without `suspend` selects Direct and rejects any reachable
+Yield/SuspendCall/Suspend callee or cleanup; no new `direct` effect keyword is
+introduced. `effects(suspend); resume(local)` explicitly selects Suspend
 even for an empty/effect-free implementation. Each kernel reconstructs effects
 including actual indirect targets or their complete admitted upper bound. An
 ordinary Call to a Suspend-selected function rejects. `task_await(f, args...)`

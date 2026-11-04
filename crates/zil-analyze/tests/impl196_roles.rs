@@ -31,6 +31,7 @@ fn event(parameter: u32) -> CallEvent {
 }
 fn role(parameter: u32) -> CallableRole {
     CallableRole {
+        life: None,
         parameter,
         closure: ClosureId(0),
         kind: CallableKind::Fn,
@@ -48,6 +49,7 @@ fn trace(parameters: &[u32]) -> CallableTrace {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
