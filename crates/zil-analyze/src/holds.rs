@@ -1601,229 +1601,248 @@ fn infer_with_private(
                     )?;
                 }
                 let mut found = Roots::new();
-                match &instruction.kind {
-                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
-                    {
-                        found.insert(Root::Local(*local));
+                if let Some((definition, arguments)) =
+                    super::borrowed_fp::invocation_call(module, f, &instruction.kind)
+                {
+                    for root in &summaries[definition.function.0 as usize] {
+                        budget.spend(1, "invocation callback result substitution")?;
+                        let Root::Parameter(index) = root else {
+                            return Err(bad("invocation result has a non-input summary"));
+                        };
+                        let actual = arguments
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("invocation callback input absent"))?;
+                        extend(&mut found, &values[actual.0 as usize], budget)?;
                     }
-                    InstructionKind::DescribePackageField { local, index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        let root = match &f.locals[local.0 as usize].ty {
+                } else {
+                    match &instruction.kind {
+                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                        {
+                            found.insert(Root::Local(*local));
+                        }
+                        InstructionKind::DescribePackageField { local, index }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                        {
+                            let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
                                 .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))) => Root::Field(*local, *index),
                             _ => Root::Local(*local),
                         };
-                        found.insert(root);
-                    }
-                    InstructionKind::ProjectOwnedArrayField { local, .. }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        // Array element slots are independently owned, but the
-                        // initial window profile keeps a conservative whole
-                        // array storage origin across element replacement.
-                        found.insert(Root::Local(*local));
-                    }
-                    InstructionKind::DescribeCapture { index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        found.insert(Root::Capture(*index));
-                    }
-                    InstructionKind::ByteBufferBorrow { buffer, .. }
-                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
-                        let source = values
-                            .get(buffer.0 as usize)
-                            .ok_or_else(|| bad("ByteBuffer source outside table"))?;
-                        extend(&mut found, source, budget)?;
-                    }
-                    InstructionKind::BorrowOwnedArrayElement { local, .. } => {
-                        found.insert(Root::Local(*local));
-                    }
-                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
-                        found.insert(inline_root(f, *local, path, budget)?);
-                    }
-                    InstructionKind::BorrowVariantAddress { address, path, .. } => {
-                        for root in &values[address.0 as usize] {
-                            found.insert(address_root(f, *address, path, *root, budget)?);
+                            found.insert(root);
                         }
-                    }
-                    InstructionKind::BorrowVariantLocal { local, path, .. } => {
-                        budget.spend(path.len().saturating_add(1), "payload borrow root")?;
-                        found.insert(variant_root(f, *local, path, budget)?);
-                    }
-                    InstructionKind::BorrowPackageField { local, index, .. } => {
-                        // The checked instruction borrows this actual inline
-                        // field. Keep sibling fields separate for private
-                        // windows; exporting the Hold still retains the parent.
-                        found.insert(Root::Field(*local, *index));
-                    }
-                    InstructionKind::BorrowLocal { local }
-                    | InstructionKind::BorrowLocalMut { local } => {
-                        found.insert(Root::Local(*local));
-                        if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
-                            && let Some(held) = state.get(local)
+                        InstructionKind::ProjectOwnedArrayField { local, .. }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
-                            if budget.address_capture {
-                                for root in held {
-                                    budget.lookup(
-                                        found.len(),
-                                        "captured environment retained dependency",
-                                    )?;
-                                    found.insert(root.retained());
-                                }
-                            } else {
-                                extend(&mut found, held, budget)?;
-                            }
+                            // Array element slots are independently owned, but the
+                            // initial window profile keeps a conservative whole
+                            // array storage origin across element replacement.
+                            found.insert(Root::Local(*local));
                         }
-                    }
-                    InstructionKind::AddressField { address, index } => {
-                        for root in &values[address.0 as usize] {
-                            budget.lookup(found.len(), "inline field root insertion")?;
-                            found.insert(inline_address_field_root(
-                                f, *address, *index, *root, budget,
-                            )?);
-                        }
-                    }
-                    InstructionKind::DescribeAddress { address }
-                    | InstructionKind::ReborrowAddress { address, .. }
-                    | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressIndex { address, .. } => {
-                        let source = values
-                            .get(address.0 as usize)
-                            .ok_or_else(|| bad("projection address outside table"))?;
-                        extend(&mut found, source, budget)?;
-                    }
-                    InstructionKind::BorrowCapture { index, .. }
-                    | InstructionKind::ReadCapture { index } => {
-                        let ty = instruction
-                            .result
-                            .and_then(|id| f.values.get(id.0 as usize));
-                        if matches!(ty, Some(Type::Address { .. })) || ty.is_some_and(tracked_desc)
+                        InstructionKind::DescribeCapture { index }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
                             found.insert(Root::Capture(*index));
                         }
-                    }
-                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                        budget.lookup(state.len(), "Hold load lookup")?;
-                        if let Some(source) = state.get(local) {
-                            budget.spend(source.len(), "Hold load")?;
-                            found = source.clone();
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                            let source = values
+                                .get(buffer.0 as usize)
+                                .ok_or_else(|| bad("ByteBuffer source outside table"))?;
+                            extend(&mut found, source, budget)?;
                         }
-                        if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
-                            state.remove(local);
+                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                            found.insert(Root::Local(*local));
                         }
-                    }
-                    InstructionKind::Store { local, value } => {
-                        let source = values
-                            .get(value.0 as usize)
-                            .ok_or_else(|| bad("Hold value outside table"))?;
-                        budget.lookup(state.len(), "Hold store lookup")?;
-                        budget.spend(source.len(), "Hold store")?;
-                        if source.is_empty() {
-                            state.remove(local);
-                        } else {
-                            state.insert(*local, source.clone());
+                        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                            found.insert(inline_root(f, *local, path, budget)?);
                         }
-                    }
-                    InstructionKind::UnpackVariant { local, fields, .. }
-                    | InstructionKind::UnpackTuple { local, fields } => {
-                        budget.spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
-                        state.remove(local);
-                        for local in fields {
-                            state.remove(local);
-                        }
-                    }
-                    InstructionKind::DropTuple { local }
-                    | InstructionKind::DropEnum { local }
-                    | InstructionKind::StorageLive(local)
-                    | InstructionKind::StorageDead(local)
-                    | InstructionKind::BindPackageCapture { local, .. }
-                    | InstructionKind::EndPackageCapture { local, .. }
-                    | InstructionKind::DropManaged { local }
-                    | InstructionKind::DropClosure { local } => {
-                        budget.lookup(state.len(), "Hold storage lookup")?;
-                        state.remove(local);
-                    }
-                    InstructionKind::CallClosureShared { callee, .. }
-                    | InstructionKind::CallClosureMut { callee, .. }
-                        if instruction.result.is_some_and(|value| {
-                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                        }) =>
-                    {
-                        found.insert(Root::Local(*callee));
-                    }
-                    InstructionKind::CallClosureBorrowed { callee, .. }
-                        if instruction.result.is_some_and(|value| {
-                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                        }) =>
-                    {
-                        let actual = values
-                            .get(callee.0 as usize)
-                            .ok_or_else(|| bad("lending callee outside value table"))?;
-                        extend(&mut found, actual, budget)?;
-                    }
-                    InstructionKind::CallIndirect { callee, arguments } => {
-                        let ty = f
-                            .values
-                            .get(callee.0 as usize)
-                            .ok_or_else(|| bad("indirect callee outside value table"))?;
-                        for index in super::borrowed_fp::allowed(ty, budget)? {
-                            let argument = arguments
-                                .get(index)
-                                .ok_or_else(|| bad("indirect result parameter absent"))?;
-                            let actual = values
-                                .get(argument.0 as usize)
-                                .ok_or_else(|| bad("indirect argument outside value table"))?;
-                            extend(&mut found, actual, budget)?;
-                        }
-                    }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } if instruction.result.is_some_and(|value| {
-                        matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                    }) =>
-                    {
-                        let incoming = summaries
-                            .get(function.0 as usize)
-                            .ok_or_else(|| bad("call refers to an absent function"))?;
-                        for root in incoming {
-                            budget.spend(1, "call result Hold substitution")?;
-                            let Root::Parameter(index) = root else {
-                                return Err(bad("call summary has a non-parameter root"));
-                            };
-                            let argument = arguments
-                                .get(*index as usize)
-                                .ok_or_else(|| bad("call summary parameter is absent"))?;
-                            let actual = values
-                                .get(argument.0 as usize)
-                                .ok_or_else(|| bad("call argument outside value table"))?;
-                            extend(&mut found, actual, budget)?;
-                        }
-                    }
-                    InstructionKind::MakeClosure { captures, .. } => {
-                        for value in captures {
-                            budget.spend(1, "Hold capture operand")?;
-                            let ty = f
-                                .values
-                                .get(value.0 as usize)
-                                .ok_or_else(|| bad("Hold capture outside table"))?;
-                            if matches!(ty, Type::Address { .. }) || captured_address(ty, budget)? {
-                                let source = values
-                                    .get(value.0 as usize)
-                                    .ok_or_else(|| bad("Hold capture outside table"))?;
-                                extend(&mut found, source, budget)?;
+                        InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                            for root in &values[address.0 as usize] {
+                                found.insert(address_root(f, *address, path, *root, budget)?);
                             }
                         }
+                        InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                            budget.spend(path.len().saturating_add(1), "payload borrow root")?;
+                            found.insert(variant_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowPackageField { local, index, .. } => {
+                            // The checked instruction borrows this actual inline
+                            // field. Keep sibling fields separate for private
+                            // windows; exporting the Hold still retains the parent.
+                            found.insert(Root::Field(*local, *index));
+                        }
+                        InstructionKind::BorrowLocal { local }
+                        | InstructionKind::BorrowLocalMut { local } => {
+                            found.insert(Root::Local(*local));
+                            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                                && let Some(held) = state.get(local)
+                            {
+                                if budget.address_capture {
+                                    for root in held {
+                                        budget.lookup(
+                                            found.len(),
+                                            "captured environment retained dependency",
+                                        )?;
+                                        found.insert(root.retained());
+                                    }
+                                } else {
+                                    extend(&mut found, held, budget)?;
+                                }
+                            }
+                        }
+                        InstructionKind::AddressField { address, index } => {
+                            for root in &values[address.0 as usize] {
+                                budget.lookup(found.len(), "inline field root insertion")?;
+                                found.insert(inline_address_field_root(
+                                    f, *address, *index, *root, budget,
+                                )?);
+                            }
+                        }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::ReborrowAddress { address, .. }
+                        | InstructionKind::AddressSlice { address, .. }
+                        | InstructionKind::AddressIndex { address, .. } => {
+                            let source = values
+                                .get(address.0 as usize)
+                                .ok_or_else(|| bad("projection address outside table"))?;
+                            extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::BorrowCapture { index, .. }
+                        | InstructionKind::ReadCapture { index } => {
+                            let ty = instruction
+                                .result
+                                .and_then(|id| f.values.get(id.0 as usize));
+                            if matches!(ty, Some(Type::Address { .. }))
+                                || ty.is_some_and(tracked_desc)
+                            {
+                                found.insert(Root::Capture(*index));
+                            }
+                        }
+                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                            budget.lookup(state.len(), "Hold load lookup")?;
+                            if let Some(source) = state.get(local) {
+                                budget.spend(source.len(), "Hold load")?;
+                                found = source.clone();
+                            }
+                            if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
+                                state.remove(local);
+                            }
+                        }
+                        InstructionKind::Store { local, value } => {
+                            let source = values
+                                .get(value.0 as usize)
+                                .ok_or_else(|| bad("Hold value outside table"))?;
+                            budget.lookup(state.len(), "Hold store lookup")?;
+                            budget.spend(source.len(), "Hold store")?;
+                            if source.is_empty() {
+                                state.remove(local);
+                            } else {
+                                state.insert(*local, source.clone());
+                            }
+                        }
+                        InstructionKind::UnpackVariant { local, fields, .. }
+                        | InstructionKind::UnpackTuple { local, fields } => {
+                            budget
+                                .spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
+                            state.remove(local);
+                            for local in fields {
+                                state.remove(local);
+                            }
+                        }
+                        InstructionKind::DropTuple { local }
+                        | InstructionKind::DropEnum { local }
+                        | InstructionKind::StorageLive(local)
+                        | InstructionKind::StorageDead(local)
+                        | InstructionKind::BindPackageCapture { local, .. }
+                        | InstructionKind::EndPackageCapture { local, .. }
+                        | InstructionKind::DropManaged { local }
+                        | InstructionKind::DropClosure { local } => {
+                            budget.lookup(state.len(), "Hold storage lookup")?;
+                            state.remove(local);
+                        }
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. }
+                            if instruction.result.is_some_and(|value| {
+                                matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                            }) =>
+                        {
+                            found.insert(Root::Local(*callee));
+                        }
+                        InstructionKind::CallClosureBorrowed { callee, .. }
+                            if instruction.result.is_some_and(|value| {
+                                matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                            }) =>
+                        {
+                            let actual = values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("lending callee outside value table"))?;
+                            extend(&mut found, actual, budget)?;
+                        }
+                        InstructionKind::CallIndirect { callee, arguments } => {
+                            let ty = f
+                                .values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("indirect callee outside value table"))?;
+                            for index in super::borrowed_fp::allowed(ty, budget)? {
+                                let argument = arguments
+                                    .get(index)
+                                    .ok_or_else(|| bad("indirect result parameter absent"))?;
+                                let actual = values
+                                    .get(argument.0 as usize)
+                                    .ok_or_else(|| bad("indirect argument outside value table"))?;
+                                extend(&mut found, actual, budget)?;
+                            }
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if instruction.result.is_some_and(|value| {
+                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                        }) =>
+                        {
+                            let incoming = summaries
+                                .get(function.0 as usize)
+                                .ok_or_else(|| bad("call refers to an absent function"))?;
+                            for root in incoming {
+                                budget.spend(1, "call result Hold substitution")?;
+                                let Root::Parameter(index) = root else {
+                                    return Err(bad("call summary has a non-parameter root"));
+                                };
+                                let argument = arguments
+                                    .get(*index as usize)
+                                    .ok_or_else(|| bad("call summary parameter is absent"))?;
+                                let actual = values
+                                    .get(argument.0 as usize)
+                                    .ok_or_else(|| bad("call argument outside value table"))?;
+                                extend(&mut found, actual, budget)?;
+                            }
+                        }
+                        InstructionKind::MakeClosure { captures, .. } => {
+                            for value in captures {
+                                budget.spend(1, "Hold capture operand")?;
+                                let ty = f
+                                    .values
+                                    .get(value.0 as usize)
+                                    .ok_or_else(|| bad("Hold capture outside table"))?;
+                                if matches!(ty, Type::Address { .. })
+                                    || captured_address(ty, budget)?
+                                {
+                                    let source = values
+                                        .get(value.0 as usize)
+                                        .ok_or_else(|| bad("Hold capture outside table"))?;
+                                    extend(&mut found, source, budget)?;
+                                }
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
                 if let Some(result) = instruction.result {
                     let value = values
@@ -3049,9 +3068,12 @@ fn infer_module_inner(
             }
             for instruction in &block.instructions {
                 budget.spend(1, "return frontier instruction")?;
-                if let InstructionKind::Call {
-                    function: callee, ..
-                } = instruction.kind
+                let callee = match instruction.kind {
+                    InstructionKind::Call { function, .. } => Some(function),
+                    _ => super::borrowed_fp::invocation_call(module, function, &instruction.kind)
+                        .map(|(d, _)| d.function),
+                };
+                if let Some(callee) = callee
                     && instruction.result.is_some_and(|value| {
                         matches!(
                             function.values.get(value.0 as usize),

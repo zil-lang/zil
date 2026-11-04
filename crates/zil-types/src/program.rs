@@ -436,12 +436,11 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
-    let mut task_work = closure_state.remaining_work();
-    let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
+    let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resources, &mut task_work).map_err(|e| vec![e])?;
-    registration::add_definitions(&functions, &mut resources, &mut task_work)
+    tasks::add_definition(&functions, &mut resources, &mut remaining).map_err(|e| vec![e])?;
+    registration::add_definitions(&functions, &mut resources, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
@@ -462,11 +461,16 @@ pub(super) fn check_resolved_program_with_reuse(
         closures,
         unsupported: Vec::new(),
     };
-    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint =
-            interface_fingerprint(&interface.exports, target, &module.closures);
+        interface.signature_fingerprint = interface_fingerprint(
+            &interface.exports,
+            target,
+            &module.closures,
+            &module.functions,
+            &mut remaining,
+        )?;
     }
     Ok(TypedProgram {
         task_interfaces,
@@ -513,7 +517,9 @@ fn interface_fingerprint(
     exports: &[ScalarFunction],
     target: &TargetProfile,
     closures: &[ClosureDefinition],
-) -> Fingerprint {
+    functions: &[TypedFunction],
+    remaining: &mut usize,
+) -> CompileResult<Fingerprint> {
     let mut bytes = b"ZIL-SCALAR-INTERFACE-2\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
@@ -553,7 +559,58 @@ fn interface_fingerprint(
             }
         }
     }
-    Fingerprint::of(&bytes)
+    let exhausted = || {
+        vec![Diagnostic::limit(
+            Phase::Types,
+            "export relation identity work exceeded",
+            None,
+        )]
+    };
+    *remaining = remaining.checked_sub(exports.len()).ok_or_else(exhausted)?;
+    for export in exports {
+        if let Some(contract) = &functions[export.function.0 as usize].callable_contract {
+            *remaining = remaining
+                .checked_sub(contract.roles.len())
+                .ok_or_else(exhausted)?;
+            for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    // Reserve appended bytes and their subsequent hash pass.
+                    // One tag uses at most one presence byte and four index bytes.
+                    let tags = life
+                        .parameter_lives
+                        .len()
+                        .checked_add(1)
+                        .and_then(|n| n.checked_mul(5))
+                        .ok_or_else(exhausted)?;
+                    let serialized = b"HRTB-CALL-1\0"
+                        .len()
+                        .checked_add(8 + 4 + 4 + 8)
+                        .and_then(|n| n.checked_add(export.name.len()))
+                        .and_then(|n| n.checked_add(tags))
+                        .and_then(|n| n.checked_mul(2))
+                        .ok_or_else(exhausted)?;
+                    *remaining = remaining.checked_sub(serialized).ok_or_else(exhausted)?;
+                    bytes.extend_from_slice(b"HRTB-CALL-1\0");
+                    bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
+                    bytes.extend_from_slice(export.name.as_bytes());
+                    bytes.extend_from_slice(&role.parameter.to_le_bytes());
+                    bytes.extend_from_slice(&life.binder_count.to_le_bytes());
+                    bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
+                    for tag in life
+                        .parameter_lives
+                        .iter()
+                        .chain(std::iter::once(&life.result_life))
+                    {
+                        bytes.push(u8::from(tag.is_some()));
+                        if let Some(tag) = tag {
+                            bytes.extend_from_slice(&tag.to_le_bytes());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(Fingerprint::of(&bytes))
 }
 fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition]) {
     match ty {

@@ -346,7 +346,7 @@ impl Engine<'_> {
                     let ItemKind::Function(function) = &template.kind else {
                         return Err(error(e.span, "aggregate template is not a callable"));
                     };
-                    if let Some(callable) = callable::template(function)? {
+                    if let Some(callable) = callable::template(function, &mut self.budget)? {
                         if explicit.is_some() {
                             return Err(unsupported(
                                 e.span,
