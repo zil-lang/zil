@@ -6,7 +6,55 @@ pub(super) struct Prepared {
     pub(super) id: ReservationId,
     pub(super) scope_depth: usize,
 }
-fn selected<'a>(ty: &'a Type, member: &str) -> Option<(u32, &'a Type)> {
+#[cfg(test)]
+thread_local! { static PLANNED_FIELDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
+fn lookup_work(scopes: usize, locals: usize, bytes: usize, span: Span) -> R<usize> {
+    let levels = locals.checked_ilog2().map_or(1, |n| n as usize + 2);
+    scopes
+        .checked_mul(levels)
+        .and_then(|n| n.checked_mul(12))
+        .and_then(|n| n.checked_mul(bytes.saturating_add(1)))
+        .ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "replacement lexical lookup fee overflow",
+                Some(span),
+            )
+        })
+}
+fn selected<'a>(
+    ty: &'a Type,
+    member: &str,
+    state: &mut closures::State,
+    span: Span,
+) -> R<Option<(u32, &'a Type)>> {
+    match ty {
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
+            // Pay for the planning walk before inspecting variable-width names.
+            state.snapshot(fields.len(), span)?;
+            let mut width = fields.len();
+            for (name, _) in fields {
+                #[cfg(test)]
+                PLANNED_FIELDS.with(|n| n.set(n.get() + 1));
+                width = width
+                    .checked_add(name.len())
+                    .and_then(|n| n.checked_add(member.len().saturating_add(1)))
+                    .ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "replacement field selection fee overflow",
+                            Some(span),
+                        )
+                    })?;
+            }
+            state.snapshot(width, span)?;
+        }
+        Type::Tuple(_) => state.snapshot(member.len().saturating_add(1), span)?,
+        _ => return Ok(None),
+    }
+    Ok(selected_paid(ty, member))
+}
+fn selected_paid<'a>(ty: &'a Type, member: &str) -> Option<(u32, &'a Type)> {
     match ty {
         Type::Tuple(fields) => member
             .parse::<usize>()
@@ -81,10 +129,12 @@ impl Builder<'_, '_> {
             return Ok(false);
         };
         self.closures.snapshot(
-            self.scopes.len().saturating_mul(
-                (self.function.locals.len().saturating_add(1).ilog2() as usize + 1)
-                    .saturating_mul(name.len().saturating_add(1)),
-            ),
+            lookup_work(
+                self.scopes.len(),
+                self.function.locals.len(),
+                name.len(),
+                address_root.span,
+            )?,
             address_root.span,
         )?;
         let Some(local) = self.lookup(name) else {
@@ -108,15 +158,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(fields.len(), target.span)?;
         let mut path = Vec::with_capacity(fields.len());
         for (member, _, span) in fields.iter().rev() {
-            let width = match at {
-                Type::Package { fields, .. } | Type::Record { fields, .. } => fields
-                    .iter()
-                    .fold(fields.len(), |n, (name, _)| n.saturating_add(name.len())),
-                Type::Tuple(_) => member.len().saturating_add(1),
-                _ => return Ok(false),
-            };
-            self.closures.snapshot(width, *span)?;
-            let Some((index, next)) = selected(at, member) else {
+            let Some((index, next)) = selected(at, member, self.closures, *span)? else {
                 return Ok(false);
             };
             path.push(PlaceProjection::Field(index));
@@ -210,5 +252,76 @@ impl Builder<'_, '_> {
         self.prepared_replacements.truncate(floor);
         result?;
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn field_planner_stops_before_a_wide_scan_when_caller_work_is_low() {
+        let fields = (0..256)
+            .map(|i| {
+                (
+                    format!("{}{:04}", "long_common_prefix_".repeat(32), i),
+                    Type::I32,
+                )
+            })
+            .collect::<Vec<_>>();
+        let ty = Type::Record {
+            name: "Wide".into(),
+            fields,
+        };
+        let limits = Limits::default();
+        let mut state = closures::State::new(0, &limits);
+        state
+            .snapshot(limits.max_analysis_steps - 3, Span::default())
+            .unwrap();
+        PLANNED_FIELDS.with(|n| n.set(0));
+        let error = selected(&ty, "last", &mut state, Span::default()).unwrap_err();
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        assert_eq!(
+            PLANNED_FIELDS.with(|n| n.get()),
+            0,
+            "unpaid planning scan happened before rejection"
+        );
+        assert_eq!(state.remaining_work(), 3);
+    }
+    #[test]
+    fn long_prefix_field_selection_and_lexical_lookup_have_exact_fresh_boundaries() {
+        let fields = (0..64)
+            .map(|i| (format!("{}{:04}", "same_prefix_".repeat(16), i), Type::I32))
+            .collect::<Vec<_>>();
+        let member = fields.last().unwrap().0.clone();
+        let field_work = fields.len() * 2
+            + fields
+                .iter()
+                .map(|(name, _)| name.len() + member.len() + 1)
+                .sum::<usize>();
+        let lexical_work = lookup_work(4, 256, member.len(), Span::default()).unwrap();
+        assert!(lexical_work >= 4 * 8 * 12 * (member.len() + 1));
+        let ty = Type::Record {
+            name: "Wide".into(),
+            fields,
+        };
+        let boundary = field_work + lexical_work;
+        let limits = Limits::default();
+        for (work, success) in [(boundary, true), (boundary - 1, false), (boundary, true)] {
+            let mut state = closures::State::new(0, &limits);
+            state
+                .snapshot(limits.max_analysis_steps - work, Span::default())
+                .unwrap();
+            state.snapshot(lexical_work, Span::default()).unwrap();
+            let result = selected(&ty, &member, &mut state, Span::default());
+            if success {
+                assert_eq!(result.unwrap().unwrap().0, 63);
+                assert_eq!(state.remaining_work(), 0)
+            } else {
+                assert_eq!(
+                    result.unwrap_err().category,
+                    zil_base::ResultCategory::ResourceLimit
+                )
+            }
+        }
     }
 }

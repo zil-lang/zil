@@ -144,6 +144,57 @@ fn terminal340_owner_replacement_preparation_abort_and_pin_neighbors() {
 }
 
 #[test]
+fn terminal340_owner_replacement_wide_long_names_budget() {
+    let prefix = "common_replacement_prefix_".repeat(8);
+    let parameter = format!("{prefix}target");
+    let mut fields = String::new();
+    let mut locals = String::new();
+    for i in 0..64 {
+        fields.push_str(&format!("{prefix}field{i:04}:i32;"));
+        locals.push_str(&format!("let {prefix}local{i:04}={i};"));
+    }
+    let text = format!(
+        "resource R{{code:i32}}package P{{manages owner:R;{fields}}}fn replace({parameter}:&mut P){{{locals}{parameter}.owner=R{{code:66}}}}fn result()->i32{{return 42}}"
+    );
+    let input = source(&text);
+    let options = |work| CompileOptions {
+        stop_after: Stage::Types,
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let report = compile_source(&input, &options(mid));
+        match report.status {
+            ResultCategory::Success => hi = mid,
+            ResultCategory::ResourceLimit => lo = mid + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = zil_driver::CompilationSession::default();
+    for (work, expected) in [
+        (lo, ResultCategory::Success),
+        (lo - 1, ResultCategory::ResourceLimit),
+        (lo, ResultCategory::Success),
+    ] {
+        for report in [
+            compile_source(&input, &options(work)),
+            warm.compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!(
+        "340 replacement wide/long names source Types N={lo}; N-1 rejects; fresh/warm retry agrees"
+    );
+}
+
+#[test]
 fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
