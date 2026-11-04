@@ -454,6 +454,20 @@
       "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTy)|Scalar(Constant)> in complete declaration order including phantom/const",
       "transport": "CtTy::AnonymousSum tag16, CtValue::AnonymousSum{members,active,payload} tag16, MakeAnonymousSum opcode37",
       "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
+    },
+    "terminal_suspend_child_343": {
+      "authority": "_zil_design.md §12.1.2",
+      "state": "ContractToImplement",
+      "schema_version": 37,
+      "wire_version": 37,
+      "fingerprint": "TypedV37; retains invocation-local role.life and callable contract5 from36; type identityV35 and TaskI32 external ABI1 unchanged",
+      "Core": "CoreFunction.call_kind:Option<CallKind>; source effect upper-bound or body-derived selection",
+      "Typed": "TypedFunction.call_kind:CallKind Direct0|Suspend1; independently reconstructed effects must fit the selected interface",
+      "instruction": {
+        "125": "SuspendCall{function:FunctionId,arguments:Vec<ValueId>}; actual SSA result only at Ready"
+      },
+      "responsibility": "Inputs initialized once; actual distinct stable child instance survives Pending, argument loans and partial/owned cleanup. Creation-order PendingExit drain; Direct Drop cannot suspend. No implicit recursion heap. Full actual layout/callee/Drop/effect identities prepaid and cache-bound.",
+      "selection": "Explicit effects containing suspend or any resume(local|transfer) selects Suspend; explicit effects without suspend selects Direct and conflicts with resume. No effects clause derives from body. Transfer unsupported until separately checked; static Direct targets use adapters and retain ordinary bodies."
     }
   },
   "schemas": [

@@ -95,6 +95,7 @@ fn contract(flow: bool) -> CallableParameterContract {
             .into_iter()
             .enumerate()
             .map(|(i, kind)| CallableRole {
+                life: None,
                 parameter: i as u32,
                 closure: ClosureId(i as u32 + 2),
                 kind,
@@ -267,6 +268,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),

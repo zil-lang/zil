@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 35;
+pub const WIRE_VERSION: u32 = 37;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -648,6 +648,31 @@ impl<'a> Writer<'a> {
             self.u32(role.parameter)?;
             self.u32(role.closure.0)?;
             self.u8(callable_kind_tag(role.kind))?;
+            self.boolean(role.life.is_some())?;
+            if let Some(life) = &role.life {
+                metadata = flow_count(
+                    metadata,
+                    life.binder_count as usize,
+                    self.limits.max_analysis_steps,
+                )?;
+                metadata = flow_count(
+                    metadata,
+                    life.parameter_lives.len(),
+                    self.limits.max_analysis_steps,
+                )?;
+                self.count(life.binder_count as usize, self.limits.max_locals)?;
+                self.count(life.parameter_lives.len(), self.limits.max_locals)?;
+                for tag in &life.parameter_lives {
+                    self.boolean(tag.is_some())?;
+                    if let Some(tag) = tag {
+                        self.u32(*tag)?;
+                    }
+                }
+                self.boolean(life.result_life.is_some())?;
+                if let Some(tag) = life.result_life {
+                    self.u32(tag)?;
+                }
+            }
             for indices in [&role.hold, &role.call, &role.writes] {
                 metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
                 self.count(indices.len(), self.limits.max_locals)?;
@@ -712,6 +737,7 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.u8(function.call_kind as u8)?;
         self.boolean(function.reference_return_bound.is_some())?;
         if let Some(bound) = &function.reference_return_bound {
             self.count(bound.len(), self.limits.max_locals)?;
@@ -1095,6 +1121,17 @@ impl<'a> Writer<'a> {
                 self.u8(99)?;
                 self.u32(worker.0)?;
                 self.u32(argument.0)?;
+            }
+            InstructionKind::SuspendCall {
+                function,
+                arguments,
+            } => {
+                self.u8(125)?;
+                self.u32(function.0)?;
+                self.count(arguments.len(), self.limits.max_values)?;
+                for argument in arguments {
+                    self.u32(argument.0)?;
+                }
             }
             InstructionKind::TaskYield => self.u8(100)?,
             InstructionKind::TaskValid { task } => {
@@ -2150,13 +2187,43 @@ impl<'a> Reader<'a> {
         Ok(calls)
     }
     fn callable_contract(&mut self) -> WireResult<CallableParameterContract> {
-        let count = self.count(self.limits.max_locals, 22)?;
+        let count = self.count(self.limits.max_locals, 23)?;
         let mut roles = Vec::with_capacity(count);
         let mut metadata = 0usize;
         for _ in 0..count {
             let parameter = self.u32()?;
             let closure = ClosureId(self.u32()?);
             let kind = self.callable_kind()?;
+            let life = if self.boolean()? {
+                let binder_count = self.count(self.limits.max_locals, 0)? as u32;
+                metadata = flow_count(
+                    metadata,
+                    binder_count as usize,
+                    self.limits.max_analysis_steps,
+                )?;
+                let count = self.count(self.limits.max_locals, 1)?;
+                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
+                let mut parameter_lives = Vec::with_capacity(count);
+                for _ in 0..count {
+                    parameter_lives.push(if self.boolean()? {
+                        Some(self.u32()?)
+                    } else {
+                        None
+                    });
+                }
+                let result_life = if self.boolean()? {
+                    Some(self.u32()?)
+                } else {
+                    None
+                };
+                Some(FunctionLifeContract {
+                    binder_count,
+                    parameter_lives,
+                    result_life,
+                })
+            } else {
+                None
+            };
             let mut fields = Vec::with_capacity(3);
             for _ in 0..3 {
                 let count = self.count(self.limits.max_locals, 4)?;
@@ -2176,6 +2243,7 @@ impl<'a> Reader<'a> {
                 _ => return Err(malformed("E-WIRE-TAG", "unknown callable cleanup")),
             };
             roles.push(CallableRole {
+                life,
                 parameter,
                 closure,
                 kind,
@@ -2235,6 +2303,11 @@ impl<'a> Reader<'a> {
     }
 
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let call_kind = match self.u8()? {
+            0 => CallKind::Direct,
+            1 => CallKind::Suspend,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown function call kind")),
+        };
         let reference_return_bound = if self.boolean()? {
             Some(self.callable_indices()?)
         } else {
@@ -2347,6 +2420,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            call_kind,
             reference_return_bound,
             callable_return_contract,
             callable_contract,
@@ -2856,6 +2930,18 @@ impl<'a> Reader<'a> {
                 worker: FunctionId(self.u32()?),
                 argument: ValueId(self.u32()?),
             },
+            125 => {
+                let function = FunctionId(self.u32()?);
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut arguments = Vec::with_capacity(count);
+                for _ in 0..count {
+                    arguments.push(ValueId(self.u32()?));
+                }
+                InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                }
+            }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {
                 task: ValueId(self.u32()?),
