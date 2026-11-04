@@ -16,6 +16,7 @@ impl<'a> Engine<'a> {
                 && implementation.where_clause.is_empty()
                 && trait_bounds::plain(&implementation.target).is_some()
                 && !self.traits.has_associated
+                && !self.traits.has_generic_methods
             {
                 continue;
             }
@@ -117,7 +118,7 @@ impl<'a> Engine<'a> {
             )?;
             self.traits
                 .reference_arguments(&reference, &bounds, &variables, &mut self.budget)?;
-            let equations = if self.traits.has_associated {
+            let equations = if self.traits.has_associated || self.traits.has_generic_methods {
                 self.traits.add_subject_bounds(
                     &implementation.target,
                     std::slice::from_ref(application),
@@ -281,12 +282,6 @@ impl<'a> Engine<'a> {
                 if !methods.insert(method.name.as_str()) {
                     return Err(error(member.span, "duplicate impl method"));
                 }
-                if !method.generics.is_empty() || !method.where_clause.is_empty() {
-                    return Err(unsupported(
-                        member.span,
-                        "generic impl method requires method specialization",
-                    ));
-                }
                 let mut required = None;
                 for candidate in &declaration.members {
                     self.budget.node(candidate.span, 0)?;
@@ -323,20 +318,36 @@ impl<'a> Engine<'a> {
                     self.budget.ty(&receiver.ty)?;
                     function.params.insert(0, receiver.clone());
                 }
-                for parameter in &mut signature.params {
+                if signature.generics.is_empty() && signature.where_clause.is_empty() {
+                    for parameter in &mut signature.params {
+                        self.budget
+                            .substituted_type(&parameter.ty, &substitutions)?;
+                        Substitution {
+                            substitutions: &substitutions,
+                        }
+                        .ty(&mut parameter.ty);
+                    }
+                    if let Some(result) = &mut signature.return_type {
+                        self.budget.substituted_type(result, &substitutions)?;
+                        Substitution {
+                            substitutions: &substitutions,
+                        }
+                        .ty(result);
+                    }
+                } else {
+                    let mut required_signature = Item {
+                        span: required.span,
+                        public: false,
+                        attributes: vec![],
+                        kind: ItemKind::Function(signature),
+                    };
                     self.budget
-                        .substituted_type(&parameter.ty, &substitutions)?;
-                    Substitution {
-                        substitutions: &substitutions,
-                    }
-                    .ty(&mut parameter.ty);
-                }
-                if let Some(result) = &mut signature.return_type {
-                    self.budget.substituted_type(result, &substitutions)?;
-                    Substitution {
-                        substitutions: &substitutions,
-                    }
-                    .ty(result);
+                        .substituted_item(&required_signature, &substitutions)?;
+                    substitute_item(&mut required_signature, &substitutions)?;
+                    let ItemKind::Function(required_function) = required_signature.kind else {
+                        unreachable!()
+                    };
+                    signature = required_function;
                 }
                 let mut checked = Item {
                     kind: ItemKind::Function(function),
@@ -367,6 +378,7 @@ impl<'a> Engine<'a> {
                 let ItemKind::Function(mut function) = checked.kind else {
                     unreachable!()
                 };
+                function = trait_methods::align(function, &signature, &mut self.budget)?;
                 if function.params.len() != signature.params.len() {
                     return Err(error(
                         member.span,
@@ -422,7 +434,22 @@ impl<'a> Engine<'a> {
                         }
                     }
                 }
+                let own_parameters = std::mem::take(&mut function.generics);
                 function.generics = parameters.clone();
+                function.generics.extend(own_parameters);
+                let method_bounds = if method.generics.is_empty() && method.where_clause.is_empty()
+                {
+                    None
+                } else {
+                    let mut method_bounds = self.traits.bounds(&function, &mut self.budget)?;
+                    trait_methods::extend_bounds(
+                        &mut method_bounds,
+                        &bounds,
+                        &mut self.budget,
+                        member.span,
+                    )?;
+                    Some(method_bounds)
+                };
                 self.budget.text(&method.name, member.span)?;
                 self.budget
                     .text("$impl_definition_00000000000000000000_", member.span)?;
@@ -431,9 +458,14 @@ impl<'a> Engine<'a> {
                     self.impl_definitions.len(),
                     method.name
                 );
+                let checked = consts::definition(&function, &mut self.budget)?;
                 check::validate_parametric_with_bounds(
-                    &function,
+                    &checked,
                     check::ParametricTables {
+                        source_definition: Some(&function),
+                        definition_equations: (self.traits.has_generic_methods
+                            && !equations.is_empty())
+                        .then_some(&equations),
                         nominals: &self.nominals,
                         enums: &self.enums,
                         signatures: &self.signatures,
@@ -444,7 +476,10 @@ impl<'a> Engine<'a> {
                     &mut helper_graph::Dependencies::default(),
                     &mut self.budget,
                     &mut self.trait_calls,
-                    Some(bounds.clone()),
+                    Some(match method_bounds {
+                        Some(bounds) => bounds,
+                        None => bounds.clone(),
+                    }),
                 )?;
                 self.impl_definitions
                     .insert((recipe, ordinal), function.name);
@@ -555,7 +590,8 @@ impl<'a> Engine<'a> {
         implementation.generics.clear();
         implementation.where_clause.clear();
         self.realized_impls.insert(key);
-        self.pending.push_back(instance);
+        let origin=self.template_origin(witness.item)?;
+        self.enqueue(instance,origin)?;
         Ok(())
     }
 

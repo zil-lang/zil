@@ -832,7 +832,13 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                let target = trait_instances::method_name_with(
+                    &reference,
+                    &method.name,
+                    !method.generics.is_empty(),
+                    budget,
+                    span,
+                )?;
                 if method.name != name && target != name {
                     continue;
                 }
@@ -1189,5 +1195,44 @@ impl Index<'_> {
             )?);
         }
         Ok(selected)
+    }
+}
+
+impl Index<'_> {
+    pub(crate) fn check_where(
+        &self,
+        clauses: &[BoundClause],
+        substitutions: &BTreeMap<String, TypeRef>,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let mut active = BTreeSet::new();
+        for clause in clauses {
+            budget.node(clause.span, 0)?;
+            if clause.lifetime_bound.is_some() {
+                return Err(unsupported(
+                    clause.span,
+                    "generic method lifetime where relation",
+                ));
+            }
+            let BoundSubject::Type(subject) = &clause.subject else {
+                return Err(unsupported(clause.span, "generic method where subject"));
+            };
+            let subject = substituted(subject, substitutions, budget)?;
+            for bound in &clause.bounds {
+                let bound = substituted(bound, substitutions, budget)?;
+                self.prove_premise(
+                    &subject,
+                    &bound,
+                    available,
+                    variables,
+                    budget,
+                    &mut active,
+                    0,
+                )?;
+            }
+        }
+        Ok(())
     }
 }

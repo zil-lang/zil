@@ -28,11 +28,7 @@ impl Check<'_, '_, '_> {
                     .locals
                     .get(name)
                     .ok_or_else(|| error(span, "unknown generic place"))?;
-                if self
-                    .signatures
-                    .get(self.definition)
-                    .is_some_and(|function| consts::binding(function, name, local.id))
-                {
+                if consts::binding(self.source_definition, name, local.id) {
                     return Err(error(
                         span,
                         "const binding is a value, not addressable storage",

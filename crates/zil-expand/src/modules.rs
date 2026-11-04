@@ -292,6 +292,7 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
+    let mut origins=budget.has_generic_methods().then(generics::origins::Origins::default);
     let mut index = Index {
         symbols: BTreeMap::new(),
         imports: BTreeMap::new(),
@@ -374,21 +375,23 @@ fn normalize(
             module: module.id,
             budget: &mut budget,
         };
-        for source_item in &module.items {
+        for (ordinal,source_item) in module.items.iter().enumerate() {
             if matches!(source_item.kind, ItemKind::Import(_)) {
                 continue;
             }
             let mut item = source_item.clone();
             visitor.item(&mut item, &Names::new(), true, 0)?;
+            if let Some(origins)=&mut origins {visitor.budget.node(item.span,0)?;origins.entries.push(generics::origins::Origin::source(module.id,ordinal,item.span)?);}
             combined.items.push(item);
         }
     }
     let mut has_trait_instances = false;
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            let (defaults, associated) = generics::trait_defaults::features(t, &mut budget)?;
+            let (defaults, associated, methods) =
+                generics::trait_defaults::features_with_methods(t, &mut budget)?;
             has_trait_instances |=
-                defaults || associated || !t.generics.is_empty() || !t.bounds.is_empty();
+                defaults || associated || methods || !t.generics.is_empty() || !t.bounds.is_empty();
         }
         has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
@@ -400,6 +403,7 @@ fn normalize(
     } else {
         limits.clone()
     };
+    products.origins=origins;
     let specialized = match generics::specialize_products(&combined, &instance_limits, products)
         .map_err(|mut e| e.remove(0))?
     {
@@ -426,15 +430,23 @@ fn normalize(
         })
         .collect::<Vec<_>>();
     let mut has_project_trait_impl = false;
-    for item in &specialized.items {
+    let mut positions=Vec::new();
+    for (ordinal,item) in specialized.items.iter().enumerate() {
         budget.item(item)?;
-        let position = *files.get(&item.span.file).ok_or_else(|| {
+        let position=if let Some(origins)=&products.origins {
+            budget.node(item.span,0)?;
+            let owner=origins.get(ordinal,item.span)?.declaration.module;
+            let mut position=None;
+            for (index,module) in modules.iter().enumerate(){budget.node(item.span,0)?;if module.id==owner{position=Some(index);break}}
+            position.ok_or_else(||error("E-MODULE-ID",item.span,"explicit declaration owner absent"))?
+        }else{*files.get(&item.span.file).ok_or_else(|| {
             error(
                 "E-MODULE-ID",
                 item.span,
                 "instantiated declaration lost its definition source",
             )
-        })?;
+        })?};
+        if products.origins.is_some(){budget.node(item.span,0)?;positions.push(position);}
         has_project_trait_impl |= project_traits::is_external_impl(item, modules[position].id);
         if let ItemKind::Function(f) = &item.kind {
             // An instance stays in its template's defining module. Publicness
@@ -454,8 +466,8 @@ fn normalize(
     // All source identities, budget visits and project-method checks above
     // retain their original order. No fallible check depends on the copies;
     // transfer each declaration only after those checks have succeeded.
-    for item in specialized.items {
-        let position = files[&item.span.file];
+    for (ordinal,item) in specialized.items.into_iter().enumerate() {
+        let position=if products.origins.is_some(){positions[ordinal]}else{files[&item.span.file]};
         output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
