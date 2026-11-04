@@ -166,3 +166,28 @@ the original path and fees. Alias sorting remains a separate paid operation;
 it is not a transferable credit for a later key construction. Retain real
 long-common-prefix members nested inside generic/tuple/sum types and exact
 warm/fresh N/N-1 controls, alongside inherited float/UInt budget neighbors.
+
+### CT artifact value sums and nominal arguments (schema 3)
+
+Root publishes the schema3 contract separately from the reviewed Type-stage
+candidate. Add structural CtTy/CtValue AnonymousSum forms and exact injection
+with the existing CT tag/field consumers. Descriptors preserve every inactive
+member and select active payload by complete identity, never a schema-table ID
+or runtime-layout coincidence. Source inference defaults uncontextual literals
+normally; no numeric trial injection is introduced.
+
+Both nominal schema tables retain ordered Type and Scalar instance arguments,
+including phantom arguments. Source production binds the actual declaration and
+all arguments; independent CT admission checks well-formed pure arguments,
+acyclic identity graphs, canonical sums and unique full nominal instance keys.
+The execution/value validator checks the active descriptor and payload; each
+AST/runtime bridge reconstructs the full sum and maps by complete active member
+Type. Raw type/value metadata supplies no nominal, syntax or runtime authority.
+
+Schema/domain3 explicitly invalidates previous v2 artifacts and values. Preserve
+v2 frozen bytes as rejection controls rather than changing their contents or
+calling a header edit an authenticated migration. Charge constructor/schema
+argument walks, complete-key comparisons, every generated descriptor/copy and
+materialization on the passed request ledgers before allocation; generated AST
+still goes through ordinary Types/Analyze/Verify. Keep the completed Type-stage
+receipts separate from these initially incomplete value consumers.
