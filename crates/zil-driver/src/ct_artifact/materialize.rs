@@ -2276,6 +2276,95 @@ mod scoped_tests {
         )
     }
     #[test]
+    fn g231_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/341/associated-constant-self.zil"
+        );
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-shared.zil", text);
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let shared = parsed.module.items[0].span;
+        for item in &mut parsed.module.items {
+            item.span = shared;
+            match &mut item.kind {
+                s::ItemKind::Function(f) => f.span = shared,
+                s::ItemKind::Trait(t) => {
+                    for member in &mut t.members {
+                        member.span = shared;
+                        if let s::ItemKind::Const(c) = &mut member.kind {
+                            if let Some(ty) = &mut c.ty {
+                                ty.span = shared;
+                            }
+                            if let Some(value) = &mut c.value {
+                                value.span = shared;
+                            }
+                        }
+                    }
+                }
+                s::ItemKind::Impl(i) => {
+                    for member in &mut i.members {
+                        member.span = shared;
+                        if let s::ItemKind::Const(c) = &mut member.kind {
+                            if let Some(ty) = &mut c.ty {
+                                ty.span = shared;
+                            }
+                            if let Some(value) = &mut c.value {
+                                value.span = shared;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        let parsed = Arc::new(parsed);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let materialized = materialize(
+            std::slice::from_ref(&source),
+            std::slice::from_ref(&parsed),
+            &[&parsed.module],
+            &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &target,
+            &limits,
+            None,
+            true,
+        )
+        .unwrap();
+        let core = zil_expand::expand(&source, &materialized.modules[0]).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let verified =
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        let lir = zil_lower::lower(&verified).unwrap();
+        for optimization in [
+            zil_backend_llvm::Optimization::O0,
+            zil_backend_llvm::Optimization::O2,
+        ] {
+            let dir = std::env::temp_dir().join(format!(
+                "g231-shared-{}-{:?}",
+                std::process::id(),
+                optimization
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+            options.backend = zil_backend_llvm::NativeBackend::Clang;
+            options.optimization = optimization;
+            let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+            let output = std::process::Command::new(&artifact.executable)
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
         check_shared_scope_spans(
             "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",

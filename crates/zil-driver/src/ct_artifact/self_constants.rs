@@ -4,6 +4,10 @@ use super::*;
 use zil_expand::associated_constants::{Equation, Plan, Source};
 use zil_expand::ct_selection::Visitor;
 
+fn unsupported(message: &str, span: Span) -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(Phase::Ct, message, Some(span))]
+}
+
 fn members(module: &s::Module, item: usize) -> CompileResult<&[s::Item]> {
     match module.items.get(item).map(|i| &i.kind) {
         Some(s::ItemKind::Trait(t)) => Ok(&t.members),
@@ -43,12 +47,12 @@ fn self_member(value: &s::Expr) -> Option<&str> {
 struct Rewrite<'a, 'b> {
     replacements: &'a [(String, s::Expr)],
     budget: &'b mut zil_ct::CtExecutionBudget,
-    max_depth: usize,
+    selected: Limits,
 }
 impl Rewrite<'_, '_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.budget.reserve_analysis_work(1)?;
-        if depth > self.max_depth {
+        if depth > self.selected.max_call_depth {
             return Err(vec![Diagnostic::limit(
                 Phase::Ct,
                 "Self equation substitution depth exhausted",
@@ -120,24 +124,29 @@ impl Rewrite<'_, '_> {
                 self.expression(else_value, depth + 1)
             }
             s::ExprKind::MetaBlock(block) => self.block(block, depth + 1),
-            _ => Err(runtime(
+            _ => Err(unsupported(
                 "Self-dependent equation syntax needs a later scalar CT substitution consumer",
                 value.span,
             )),
         }
     }
     fn limits(&self) -> Limits {
-        Limits {
-            max_call_depth: self.max_depth,
-            max_nodes: self.budget.remaining().max_generated_nodes as usize,
-            max_analysis_steps: self.budget.remaining().max_analysis_work as usize,
-            ..Limits::default()
-        }
+        let mut limits = self.selected.clone();
+        limits.max_call_depth = limits
+            .max_call_depth
+            .min(self.budget.remaining().max_call_depth as usize);
+        limits.max_nodes = limits
+            .max_nodes
+            .min(self.budget.remaining().max_generated_nodes as usize);
+        limits.max_analysis_steps = limits
+            .max_analysis_steps
+            .min(self.budget.remaining().max_analysis_work as usize);
+        limits
     }
     fn condition(&mut self, c: &mut s::Condition, depth: usize) -> CompileResult<()> {
         match c {
             s::Condition::Expression(e) => self.expression(e, depth),
-            s::Condition::Let { .. } => Err(runtime(
+            s::Condition::Let { .. } => Err(unsupported(
                 "Self equation patterns need a later substitution consumer",
                 Span::default(),
             )),
@@ -148,7 +157,7 @@ impl Rewrite<'_, '_> {
         match &mut stmt.kind {
             s::StmtKind::Binding { pattern, value, .. } => {
                 if !matches!(&pattern.kind,s::PatternKind::Name(n) if n!="Self") {
-                    return Err(runtime(
+                    return Err(unsupported(
                         "Self equation bindings require unshadowed scalar names",
                         stmt.span,
                     ));
@@ -181,7 +190,7 @@ impl Rewrite<'_, '_> {
                     None => Ok(()),
                 }
             }
-            _ => Err(runtime(
+            _ => Err(unsupported(
                 "Self equation statement is outside the pure scalar substitution profile",
                 stmt.span,
             )),
@@ -197,6 +206,64 @@ impl Rewrite<'_, '_> {
 }
 
 impl Materializer<'_, '_> {
+    fn temporary_mark(&self) -> (u64, usize) {
+        (
+            self.environment.budget.live_temporary_bytes(),
+            self.environment.budget.usage().queries.capacity(),
+        )
+    }
+    fn release_equation_temporary(&mut self, mark: (u64, usize), keep: u64) {
+        let query_bytes = self
+            .environment
+            .budget
+            .usage()
+            .queries
+            .capacity()
+            .saturating_sub(mark.1) as u64
+            * std::mem::size_of::<CtQueryDependency>() as u64;
+        let added = self
+            .environment
+            .budget
+            .live_temporary_bytes()
+            .saturating_sub(mark.0);
+        self.environment
+            .budget
+            .release_temporary_bytes(added.saturating_sub(keep).saturating_sub(query_bytes));
+    }
+    fn equation_input(
+        &mut self,
+        module: ModuleId,
+        fields: &[u64],
+        span: Span,
+    ) -> CompileResult<CtInputTable> {
+        let bytes = fields
+            .len()
+            .checked_mul(8)
+            .and_then(|n| n.checked_add(96))
+            .ok_or_else(|| category("Self job identity size overflow", span))?;
+        self.environment
+            .budget
+            .reserve_analysis_work(bytes as u64)?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(bytes as u64)?;
+        let mut identity = Vec::with_capacity(bytes);
+        identity.extend_from_slice(b"zil/self-associated-equation/v1\0");
+        identity.extend_from_slice(&self.environment.request_fingerprint().0);
+        identity.extend_from_slice(&module.0.to_le_bytes());
+        identity.extend_from_slice(&self.environment.target_width().to_le_bytes());
+        for field in fields {
+            identity.extend_from_slice(&field.to_le_bytes());
+        }
+        let invocation_fingerprint = Fingerprint::of(&identity);
+        self.environment
+            .budget
+            .release_temporary_bytes(bytes as u64);
+        Ok(CtInputTable {
+            invocation_fingerprint,
+            tokens: Vec::new(),
+        })
+    }
     fn self_owner(
         &mut self,
         module: ModuleId,
@@ -259,14 +326,14 @@ impl Materializer<'_, '_> {
         Ok(None)
     }
     fn scalar_expression(&mut self, value: zil_ir::Constant, span: Span) -> CompileResult<s::Expr> {
+        if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_)) {
+            return float_expression(&value, &mut self.environment.budget, span);
+        }
         self.environment.budget.reserve_analysis_work(26)?;
         self.environment.budget.reserve_temporary_bytes(26)?;
         self.environment.budget.reserve_generated_nodes(1)?;
         let kind = match value {
             zil_ir::Constant::Bool(v) => s::ExprKind::Literal(s::Literal::Bool(v)),
-            zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_) => {
-                return float_expression(&value, &mut self.environment.budget, span);
-            }
             zil_ir::Constant::U8(v) => s::ExprKind::Literal(s::Literal::Integer(format!("{v}u8"))),
             zil_ir::Constant::U16(v) => {
                 s::ExprKind::Literal(s::Literal::Integer(format!("{v}u16")))
@@ -293,6 +360,7 @@ impl Materializer<'_, '_> {
         Ok(s::Expr { span, kind })
     }
     fn symbolic_equation(&mut self, module: &s::Module, equation: &Equation) -> CompileResult<()> {
+        let mark = self.temporary_mark();
         let c = constant(module, equation.source)?;
         let value = c
             .value
@@ -303,7 +371,11 @@ impl Materializer<'_, '_> {
         let mut parameters = Vec::new();
         for ordinal in &equation.dependencies {
             self.environment.budget.reserve_analysis_work(32)?;
-            self.environment.budget.reserve_temporary_bytes(128)?;
+            self.environment.budget.reserve_temporary_bytes(
+                (std::mem::size_of::<(String, s::Expr)>()
+                    + std::mem::size_of::<(String, CtTy)>()
+                    + 128) as u64,
+            )?;
             let dependency = constant(
                 module,
                 Source {
@@ -336,10 +408,11 @@ impl Materializer<'_, '_> {
             ));
             parameters.push((name, expected));
         }
+        let selected = self.environment.remaining_limits_for_input();
         Rewrite {
             replacements: &replacements,
             budget: &mut self.environment.budget,
-            max_depth: self.max_depth,
+            selected,
         }
         .expression(&mut expression, 0)?;
         let expected = associated_constants::scalar(
@@ -349,7 +422,16 @@ impl Materializer<'_, '_> {
         )?
         .ok_or_else(|| category("Self receiving scalar absent", value.span))?;
         let owner = self.self_owner(module.id, equation.source, value.span)?;
-        let input = self.environment.empty_input(value.span)?;
+        let input = self.equation_input(
+            module.id,
+            &[
+                0,
+                equation.trait_item as u64,
+                equation.source.item as u64,
+                equation.source.member as u64,
+            ],
+            value.span,
+        )?;
         self.environment.verify_expression(
             Entry::Expression {
                 module: module.id,
@@ -364,14 +446,13 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_analysis_work(self.self_constant_sources.len() as u64 + 1)?;
-        self.environment
-            .budget
-            .reserve_temporary_bytes(std::mem::size_of::<(ModuleId, usize, usize)>() as u64)?;
+        self.environment.budget.reserve_temporary_bytes(128)?;
         self.self_constant_sources.insert((
             module.id,
             equation.source.item,
             equation.source.member,
         ));
+        self.release_equation_temporary(mark, 128);
         Ok(())
     }
     fn actual_equation(
@@ -380,34 +461,155 @@ impl Materializer<'_, '_> {
         source: Source,
         receiving: &s::TypeRef,
         replacements: &[(String, s::Expr)],
+        identity: &[u64],
     ) -> CompileResult<s::Expr> {
+        let mark = self.temporary_mark();
         let value = constant(module, source)?
             .value
             .as_ref()
             .ok_or_else(|| category("effective equation has no value", module.span))?;
         let mut expression = self.equation_copy(value)?;
+        let selected = self.environment.remaining_limits_for_input();
         Rewrite {
             replacements,
             budget: &mut self.environment.budget,
-            max_depth: self.max_depth,
+            selected,
         }
         .expression(&mut expression, 0)?;
         let expected =
             associated_constants::scalar(receiving, &mut self.environment.budget, self.max_depth)?
                 .ok_or_else(|| category("effective equation scalar absent", value.span))?;
         let owner = self.self_owner(module.id, source, value.span)?;
-        let result = self.expression_value(module.id, &owner, &expression, Some(expected))?;
+        let input = self.equation_input(module.id, identity, value.span)?;
+        self.environment
+            .budget
+            .reserve_analysis_work(self.sources.len() as u64 * 2)?;
+        self.environment.budget.reserve_temporary_bytes(
+            self.sources.len() as u64
+                * (std::mem::size_of::<&s::Module>()
+                    + std::mem::size_of::<compiler::SourceModule<'_>>()) as u64,
+        )?;
+        let result = self.environment.evaluate(
+            Entry::Expression {
+                module: module.id,
+                expression: &expression,
+                definition: owner.clone(),
+                lexical_owner: Some(owner),
+                expected: Some(expected),
+                parameters: &[],
+            },
+            &input,
+            None,
+            &[],
+            value.span,
+        )?;
         let CtValue::Scalar(result) = result else {
             return Err(category(
                 "effective equation result category differs",
                 value.span,
             ));
         };
-        self.scalar_expression(result, value.span)
+        let result = self.scalar_expression(result, value.span)?;
+        self.release_equation_temporary(mark, 26);
+        Ok(result)
+    }
+    fn reject_external_self_defaults(&mut self, module: &s::Module) -> CompileResult<()> {
+        for item in &module.items {
+            self.environment.budget.reserve_analysis_work(1)?;
+            let s::ItemKind::Impl(implementation) = &item.kind else {
+                continue;
+            };
+            let Some(mut application) = implementation.trait_type.as_ref() else {
+                continue;
+            };
+            while let s::TypeKind::Group(inner) = &application.kind {
+                self.environment.budget.reserve_analysis_work(1)?;
+                application = inner;
+            }
+            let s::TypeKind::Named { path, .. } = &application.kind else {
+                continue;
+            };
+            let [alias, trait_name] = path.as_slice() else {
+                continue;
+            };
+            let mut target = None;
+            for import_item in &module.items {
+                self.environment.budget.reserve_analysis_work(1)?;
+                let s::ItemKind::Import(import) = &import_item.kind else {
+                    continue;
+                };
+                let Some(name) = import.alias.as_ref().or_else(|| import.path.last()) else {
+                    continue;
+                };
+                self.environment
+                    .budget
+                    .reserve_analysis_work(alias.len().min(name.len()) as u64 + 1)?;
+                if name != alias || import.syntax {
+                    continue;
+                }
+                for (key, id) in self.paths {
+                    self.environment.budget.reserve_analysis_work(
+                        key.iter().map(|p| p.len() as u64 + 1).sum::<u64>()
+                            + import.path.iter().map(|p| p.len() as u64 + 1).sum::<u64>()
+                            + 1,
+                    )?;
+                    if key == &import.path {
+                        target = Some(*id);
+                        break;
+                    }
+                }
+                break;
+            }
+            let Some(target) = target else { continue };
+            self.environment
+                .budget
+                .reserve_analysis_work(self.parsed.len() as u64)?;
+            let original = self
+                .parsed
+                .iter()
+                .find(|p| p.module.id == target)
+                .ok_or_else(|| category("external constant trait module is absent", item.span))?;
+            for candidate in &original.module.items {
+                self.environment.budget.reserve_analysis_work(1)?;
+                let s::ItemKind::Trait(declaration) = &candidate.kind else {
+                    continue;
+                };
+                self.environment.budget.reserve_analysis_work(
+                    declaration.name.len().min(trait_name.len()) as u64 + 1,
+                )?;
+                if declaration.name != *trait_name {
+                    continue;
+                }
+                for member in &declaration.members {
+                    self.environment.budget.reserve_analysis_work(1)?;
+                    let s::ItemKind::Const(constant) = &member.kind else {
+                        continue;
+                    };
+                    let Some(value) = &constant.value else {
+                        continue;
+                    };
+                    let mut dependencies = associated_constants::Dependencies {
+                        parameters: &declaration.generics,
+                        budget: &mut self.environment.budget,
+                        symbolic: false,
+                        self_dependent: false,
+                    };
+                    dependencies.expression(value, 0)?;
+                    if dependencies.self_dependent {
+                        return Err(unsupported(
+                            "Self-dependent default with an impl in another module needs a complete cross-module constant witness bridge",
+                            item.span,
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
     pub(super) fn self_constants(&mut self, module: &mut s::Module) -> CompileResult<()> {
         // This prepass runs before any item deletion/generation. Its immutable
         // input and all Source ordinals remain fixed until every job completes.
+        self.reject_external_self_defaults(module)?;
         let mut found = false;
         for item in &module.items {
             self.environment.budget.reserve_analysis_work(1)?;
@@ -451,7 +653,7 @@ impl Materializer<'_, '_> {
             .budget
             .reserve_analysis_work(cost.work.saturating_mul(2) as u64)?;
         if original.module != *module {
-            return Err(runtime(
+            return Err(unsupported(
                 "Self-dependent constants require aligned original module ordinals",
                 module.span,
             ));
@@ -476,6 +678,16 @@ impl Materializer<'_, '_> {
                 _ => {}
             }
         }
+        let temporary = self.temporary_mark();
+        let sources_before = self.self_constant_sources.len();
+        let planning_bytes = cost
+            .nodes
+            .saturating_mul(std::mem::size_of::<s::Item>())
+            .saturating_mul(8)
+            .saturating_add(cost.work.saturating_mul(4));
+        self.environment
+            .budget
+            .reserve_temporary_bytes(planning_bytes as u64)?;
         let before = self.environment.remaining_limits_for_input();
         let plan = zil_expand::associated_constants::prepare(
             module,
@@ -496,6 +708,7 @@ impl Materializer<'_, '_> {
             self.symbolic_equation(module, equation)?;
         }
         let mut updates = Vec::new();
+        let mut output_bytes = 0u64;
         for instance in &plan.instances {
             let declarations = members(module, instance.trait_item)?;
             let mut ordinals = Vec::new();
@@ -584,8 +797,20 @@ impl Materializer<'_, '_> {
                     .ty
                     .as_ref()
                     .ok_or_else(|| category("effective receiving type absent", module.span))?;
-                    values[current] =
-                        Some(self.actual_equation(module, source, receiving, &replacements)?);
+                    values[current] = Some(self.actual_equation(
+                        module,
+                        source,
+                        receiving,
+                        &replacements,
+                        &[
+                            1,
+                            instance.item as u64,
+                            instance.trait_item as u64,
+                            ordinals[current] as u64,
+                            source.item as u64,
+                            source.member as u64,
+                        ],
+                    )?);
                     states[current] = 2;
                     stack.pop();
                 }
@@ -598,7 +823,20 @@ impl Materializer<'_, '_> {
                     .ty
                     .as_ref()
                     .ok_or_else(|| category("default check receiving type absent", module.span))?;
-                self.actual_equation(module, *source, receiving, &replacements)?;
+                self.actual_equation(
+                    module,
+                    *source,
+                    receiving,
+                    &replacements,
+                    &[
+                        2,
+                        instance.item as u64,
+                        instance.trait_item as u64,
+                        source.member as u64,
+                        source.item as u64,
+                        source.member as u64,
+                    ],
+                )?;
             }
             for (index, source) in instance.effective.iter().enumerate() {
                 self.environment.budget.reserve_analysis_work(1)?;
@@ -629,6 +867,7 @@ impl Materializer<'_, '_> {
                     unreachable!("plan constant")
                 };
                 c.value = Some(value);
+                output_bytes = output_bytes.saturating_add(26);
             } else {
                 // Find the exact already committed instance, not a same name.
                 self.environment
@@ -653,6 +892,9 @@ impl Materializer<'_, '_> {
                 self.environment.budget.reserve_temporary_bytes(
                     (cost.work + cost.nodes * std::mem::size_of::<s::Item>()) as u64,
                 )?;
+                output_bytes = output_bytes.saturating_add(
+                    (cost.work + cost.nodes * std::mem::size_of::<s::Item>()) as u64,
+                );
                 let mut emitted = original.clone();
                 let s::ItemKind::Const(c) = &mut emitted.kind else {
                     unreachable!("trait constant")
@@ -664,6 +906,15 @@ impl Materializer<'_, '_> {
                 i.members.push(emitted);
             }
         }
+        self.release_equation_temporary(
+            temporary,
+            output_bytes.saturating_add(
+                self.self_constant_sources
+                    .len()
+                    .saturating_sub(sources_before) as u64
+                    * 128,
+            ),
+        );
         Ok(())
     }
     fn effective_replacements(

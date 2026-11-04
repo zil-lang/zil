@@ -168,14 +168,20 @@ fn prepare_inner(module: &Module, width: u16, limits: &Limits) -> R<Plan> {
                     "Self-dependent constants in generic or inherited traits require a later instance bridge",
                 ));
             }
-            let required = declaration
-                .members
-                .iter()
-                .find_map(|m| match &m.kind {
-                    ItemKind::Const(r) if r.name == c.name => r.ty.as_ref(),
-                    _ => None,
-                })
-                .ok_or_else(|| error(member.span, "constant declaration is absent"))?;
+            let mut required = None;
+            for candidate in &declaration.members {
+                engine.budget.node(candidate.span, 0)?;
+                if let ItemKind::Const(declared) = &candidate.kind {
+                    engine.budget.text(&declared.name, candidate.span)?;
+                    engine.budget.text(&c.name, member.span)?;
+                    if declared.name == c.name {
+                        required = declared.ty.as_ref();
+                        break;
+                    }
+                }
+            }
+            let required =
+                required.ok_or_else(|| error(member.span, "constant declaration is absent"))?;
             engine.budget.ty(required)?;
             if !scalar(required) {
                 return Err(unsupported(

@@ -75,8 +75,16 @@ impl Dependencies<'_, '_> {
     }
 }
 impl Visitor for Dependencies<'_, '_> {
-    fn node(&mut self, _span: Span, _depth: usize) -> CompileResult<()> {
-        self.budget.reserve_analysis_work(1)
+    fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+        self.budget.reserve_analysis_work(1)?;
+        if depth > self.budget.remaining().max_call_depth as usize {
+            return Err(vec![Diagnostic::limit(
+                Phase::Ct,
+                "associated equation dependency depth exhausted",
+                Some(span),
+            )]);
+        }
+        Ok(())
     }
     fn text(&mut self, text: &str, _span: Span) -> CompileResult<()> {
         self.budget.reserve_analysis_work(text.len() as u64)
