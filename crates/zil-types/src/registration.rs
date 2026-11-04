@@ -94,6 +94,7 @@ pub(super) fn add_definitions(
             let mut pending = vec![root];
             while let Some(t) = pending.pop() {
                 spend(left, 1)?;
+                tasks::require_closed_context(t, f.span)?;
                 match t {
                     Type::Registration { environment } => {
                         let Type::Closure(id) = environment.as_ref() else {
@@ -106,7 +107,7 @@ pub(super) fn add_definitions(
                         found.insert(*id, t.clone());
                     }
                     Type::BorrowedStorage { storage: t, .. }
-                    | Type::Task { result: t }
+                    | Type::Task { result: t, .. }
                     | Type::Managed(t)
                     | Type::Desc(t)
                     | Type::Address { inner: t, .. }
