@@ -248,6 +248,7 @@ fn model() -> (m::Module, LirModule) {
                 temporary: 0,
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
+                replacements: BTreeMap::new(),
                 partial_sums: BTreeMap::new(),
                 safe_divisors: None,
                 copy_values: &BTreeMap::new(),

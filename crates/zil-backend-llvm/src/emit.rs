@@ -16,6 +16,7 @@ mod packages;
 mod parallel_lowering;
 mod partial_places;
 mod registration;
+mod replacements;
 mod resource_closures;
 mod resources;
 mod scalar_leaf;
@@ -568,6 +569,7 @@ fn lower_function_batch(
             }
         }
         tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
+        replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
         let emitted = FunctionEmitter {
             task_ownership: verified.task_ownership(function.id),
             function,
@@ -581,6 +583,7 @@ fn lower_function_batch(
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
+            replacements: BTreeMap::new(),
             partial_sums: BTreeMap::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
             copy_values: copy_plans
@@ -1211,6 +1214,7 @@ struct FunctionEmitter<'a> {
     // Only locals with field ownership/update operations need field flags.
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
+    replacements: BTreeMap<zil_ir::ReservationId, &'a InstructionKind>,
     partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
     copy_values: &'a copy_aggregates::Plan,
@@ -1288,6 +1292,10 @@ impl FunctionEmitter<'_> {
             .flat_map(|block| &block.instructions)
         {
             match instruction.kind {
+                InstructionKind::ReservePlaceLocal { reservation, .. }
+                | InstructionKind::ReservePlaceAddress { reservation, .. } => {
+                    self.replacements.insert(reservation, &instruction.kind);
+                }
                 InstructionKind::Binary {
                     op: BinaryOp::Divide | BinaryOp::Remainder,
                     right,
@@ -1532,12 +1540,9 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::ReservePlaceLocal { .. }
             | InstructionKind::ReservePlaceAddress { .. }
-            | InstructionKind::CommitPlaceReplace { .. }
-            | InstructionKind::AbortPlaceReservation { .. } => {
-                return unsupported(
-                    "unverified owning-place replacement consumer",
-                    Some(instruction.span),
-                );
+            | InstructionKind::AbortPlaceReservation { .. } => {}
+            InstructionKind::CommitPlaceReplace { reservation, value } => {
+                self.commit_replacement(*reservation, *value, instruction)?;
             }
             InstructionKind::RegistrationStart { .. }
             | InstructionKind::RegistrationValid { .. }
