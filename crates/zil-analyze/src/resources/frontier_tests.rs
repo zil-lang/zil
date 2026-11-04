@@ -411,6 +411,7 @@ fn public_helper_contract_cuts_the_private_effect_dependency() {
     let mut module = fixture(&[vec![(1, false)], vec![]], &[0, 1]);
     module.functions[1].callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: CallableKind::Fn,

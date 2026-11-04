@@ -236,6 +236,7 @@ fn fixture(
     }
     helper.f.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: requested,

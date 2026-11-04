@@ -31,6 +31,7 @@ fn event(parameter: u32) -> CallEvent {
 }
 fn role(parameter: u32) -> CallableRole {
     CallableRole {
+        life: None,
         parameter,
         closure: ClosureId(0),
         kind: CallableKind::Fn,

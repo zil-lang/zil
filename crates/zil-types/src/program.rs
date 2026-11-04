@@ -405,7 +405,7 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
-    let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
+    let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
@@ -427,11 +427,15 @@ pub(super) fn check_resolved_program_with_reuse(
         closures,
         unsupported: Vec::new(),
     };
-    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint =
-            interface_fingerprint(&interface.exports, target, &module.closures);
+        interface.signature_fingerprint = interface_fingerprint(
+            &interface.exports,
+            target,
+            &module.closures,
+            &module.functions,
+        );
     }
     Ok(TypedProgram {
         module,
@@ -477,6 +481,7 @@ fn interface_fingerprint(
     exports: &[ScalarFunction],
     target: &TargetProfile,
     closures: &[ClosureDefinition],
+    functions: &[TypedFunction],
 ) -> Fingerprint {
     let mut bytes = b"ZIL-SCALAR-INTERFACE-2\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
@@ -514,6 +519,30 @@ fn interface_fingerprint(
             bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());
             for index in bound {
                 bytes.extend_from_slice(&index.to_le_bytes());
+            }
+        }
+    }
+    for export in exports {
+        if let Some(contract) = &functions[export.function.0 as usize].callable_contract {
+            for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    bytes.extend_from_slice(b"HRTB-CALL-1\0");
+                    bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
+                    bytes.extend_from_slice(export.name.as_bytes());
+                    bytes.extend_from_slice(&role.parameter.to_le_bytes());
+                    bytes.extend_from_slice(&life.binder_count.to_le_bytes());
+                    bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
+                    for tag in life
+                        .parameter_lives
+                        .iter()
+                        .chain(std::iter::once(&life.result_life))
+                    {
+                        bytes.push(u8::from(tag.is_some()));
+                        if let Some(tag) = tag {
+                            bytes.extend_from_slice(&tag.to_le_bytes());
+                        }
+                    }
+                }
             }
         }
     }

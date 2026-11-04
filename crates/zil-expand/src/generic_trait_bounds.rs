@@ -252,7 +252,7 @@ impl<'a> Index<'a> {
         Ok(reference)
     }
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
-        let callable = callable::template(function)?;
+        let callable = callable::template(function, budget)?;
         self.parameter_bounds_except(&function.generics, budget, callable.as_ref())
     }
 
