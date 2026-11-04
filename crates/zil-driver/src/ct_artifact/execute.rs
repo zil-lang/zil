@@ -1855,7 +1855,7 @@ mod tests {
                 .any(|d| d.message.contains("actual lexical source owner")),
             "{errors:?}"
         );
-        let (expected, _) = compiler::compile_scoped(CompileRequest {
+        let (expected, source_bindings) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: target.pointer_width,
             modules: &modules,
             source_fingerprint: sources[0].fingerprint(),
@@ -1882,6 +1882,55 @@ mod tests {
                 .source
                 .parameter,
             1
+        );
+        // Private legacy attribution is checked against its own authenticated
+        // schema before the result is split into independently reified children.
+        let capture_budget = environment.budget.remaining();
+        let capture = |bindings: &[compiler::SourceLifeBinding], work: u64| {
+            let mut meter = zil_ct::CtExecutionBudget::new(CtDeclaredBudget {
+                max_analysis_work: work,
+                ..capture_budget
+            });
+            meter.reserve_temporary_bytes(37).unwrap();
+            let result = value_context::ValueContext::capture(
+                &expected,
+                bindings,
+                Some(invocation.clone()),
+                &mut meter,
+            );
+            let used = meter.usage().analysis_work;
+            if result.is_ok() {
+                let allocated = meter.live_temporary_bytes() - 37;
+                meter.release_temporary_bytes(allocated);
+            }
+            assert_eq!(meter.live_temporary_bytes(), 37);
+            (result, used)
+        };
+        let (_, capture_work) = capture(&source_bindings, capture_budget.max_analysis_work);
+        for (work, good) in [
+            (capture_work, true),
+            (capture_work - 1, false),
+            (capture_work, true),
+        ] {
+            let (result, _) = capture(&source_bindings, work);
+            assert_eq!(result.is_ok(), good);
+            if !good {
+                assert_eq!(result.err().unwrap()[0].code, "E-RESOURCE-LIMIT");
+            }
+        }
+        for attack in 0..4 {
+            let mut bindings = source_bindings.clone();
+            match attack {
+                0 => bindings[0].schema = u32::MAX,
+                1 => bindings[0].enumeration = true,
+                2 => bindings[0].parameters[0] = 2,
+                _ => bindings[0].definition.declaration = zil_base::NodeId(sibling_ordinal),
+            }
+            let (result, _) = capture(&bindings, capture_budget.max_analysis_work);
+            assert_eq!(result.err().unwrap()[0].code, "E-CT-ARTIFACT");
+        }
+        eprintln!(
+            "CT5 actual-source owner {definition_ordinal} schema capture N={capture_work}/N-1/fresh"
         );
         let authority = FrozenAuthority {
             source_fingerprint: sources[0].fingerprint(),

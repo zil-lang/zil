@@ -7662,3 +7662,75 @@ fn ct5_member_own_life_context_reaches_native() {
         report.to_json()
     );
 }
+
+#[test]
+fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    let wrong = text.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let repeated = text.replace("(Pair::<'a,'b>{n:scalar(i32,20)},Pair::<'b,'a>{n:scalar(i32,0)}).0", "(Pair::<'a,'b>{n:scalar(i32,0)},(Pair::<'b,'a>{n:scalar(i32,0)},Pair::<'a,'b>{n:scalar(i32,20)})).1.1");
+    let report = compile_source(&source(&repeated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", &repeated)], "main", b"42\n");
+    use zil_driver::CompilationSession;
+    for current in [text, repeated.as_str()] {
+        let input = source(current);
+        let options = |work| CompileOptions {
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let middle = (low + high) / 2;
+            let report = compile_source(&input, &options(middle));
+            match report.status {
+                ResultCategory::Success => high = middle,
+                ResultCategory::ResourceLimit => low = middle + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        assert_eq!(
+            warm.compile_source(&input, &options(low)).status,
+            ResultCategory::Success
+        );
+        for (work, expected) in [
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(work)),
+                CompilationSession::default().compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("G4.4.1 joint CT schema whole Source N={low}/N-1/warm/fresh");
+    }
+}
