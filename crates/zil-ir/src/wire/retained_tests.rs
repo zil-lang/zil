@@ -599,19 +599,22 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
             .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
     );
     let mut huge = value.clone();
-    if let CtValue::Type(ty) = &mut huge {
-        if let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[4] {
-            life.binder_count = u32::MAX;
-        }
-    }
+    let CtValue::Type(ty) = &mut huge else {
+        panic!("expected fixture Type");
+    };
+    let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[4] else {
+        panic!("expected fixture stored type");
+    };
+    life.binder_count = u32::MAX;
     assert!(ct_wire::encode_value(&huge, &Limits::default()).is_err());
     let mut deep = value;
-    if let CtValue::Type(ty) = &mut deep {
-        if let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[4] {
-            life.slots[0].path =
-                vec![PlaceProjection::Field(0); Limits::default().max_call_depth + 1];
-        }
-    }
+    let CtValue::Type(ty) = &mut deep else {
+        panic!("expected fixture Type");
+    };
+    let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[4] else {
+        panic!("expected fixture stored type");
+    };
+    life.slots[0].path = vec![PlaceProjection::Field(0); Limits::default().max_call_depth + 1];
     assert!(ct_wire::encode_value(&deep, &Limits::default()).is_err());
     for life_path in [
         LifeTypeProjection::Pointee,
@@ -633,12 +636,13 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
             ],
             root: CtTypeNodeId(1),
         });
-        if let CtValue::Type(ty) = &mut long {
-            if let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[1] {
-                life.nominal_arguments[0].path =
-                    vec![life_path; Limits::default().max_call_depth + 1];
-            }
-        }
+        let CtValue::Type(ty) = &mut long else {
+            panic!("expected fixture Type");
+        };
+        let CtTypeNode::BorrowedStorage { life, .. } = &mut ty.nodes[1] else {
+            panic!("expected fixture stored type");
+        };
+        life.nominal_arguments[0].path = vec![life_path; Limits::default().max_call_depth + 1];
         assert!(ct_wire::encode_value(&long, &Limits::default()).is_err());
     }
 
@@ -837,12 +841,14 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
             .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
     );
     let mut too_long = program.clone();
-    if let Some(context) = &mut too_long.record_schemas[0].life_context {
-        if let CtTypeNode::BorrowedStorage { life, .. } = &mut context.nodes[4] {
-            life.nominal_arguments[0].path =
-                vec![LifeTypeProjection::AssociatedType(0); limits.max_call_depth + 1];
-        }
-    }
+    let Some(context) = &mut too_long.record_schemas[0].life_context else {
+        panic!("expected fixture Type");
+    };
+    let CtTypeNode::BorrowedStorage { life, .. } = &mut context.nodes[4] else {
+        panic!("expected fixture stored type");
+    };
+    life.nominal_arguments[0].path =
+        vec![LifeTypeProjection::AssociatedType(0); limits.max_call_depth + 1];
     let bytes = ct_wire::encode_program(&too_long, &wide).unwrap();
     assert_eq!(
         ct_wire::decode_program(&bytes, &limits).unwrap_err(),

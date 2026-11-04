@@ -221,9 +221,9 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 37);
-    assert_eq!(wire::WIRE_VERSION, 37);
-    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 2);
+    assert_eq!(SCHEMA_VERSION, 39);
+    assert_eq!(wire::WIRE_VERSION, 39);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 4);
     let limits = Limits::default();
     let mut raw = candidate();
     raw.functions[0].foreign = Some(ForeignDeclaration {
