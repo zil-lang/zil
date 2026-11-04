@@ -533,8 +533,8 @@ const PROGRAM_MAGIC: &[u8; 8] = b"ZILCTP01";
 const VALUE_MAGIC: &[u8; 8] = b"ZILCTV01";
 const REGISTRY_MAGIC: &[u8; 8] = b"ZILCTR01";
 const FUNCTION_MAGIC: &[u8; 8] = b"ZILCTF01";
-const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v1";
-const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v1";
+const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v3";
+const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v3";
 fn fingerprint(domain: &[u8], body: &[u8]) -> Fingerprint {
     let mut hash = FingerprintBuilder::new();
     hash.update(domain);
@@ -1237,10 +1237,33 @@ impl Wire for CtSyntaxCategory {
     }
 }
 
+impl Wire for CtSchemaArgument {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        e.descend(|e| match self {
+            Self::Type(ty) => {
+                0u8.encode(e)?;
+                ty.encode(e)
+            }
+            Self::Scalar(value) => {
+                1u8.encode(e)?;
+                value.encode(e)
+            }
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        d.descend(|d| match u8::decode(d)? {
+            0 => Ok(Self::Type(CtTy::decode(d)?)),
+            1 => Ok(Self::Scalar(Constant::decode(d)?)),
+            _ => Err(WireError::UnknownTag),
+        })
+    }
+}
+
 impl Wire for CtRecordSchema {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             self.name.encode(e)?;
+            self.arguments.encode(e)?;
             self.fields.encode(e)?;
             self.origin.encode(e)?;
             Ok(())
@@ -1250,6 +1273,7 @@ impl Wire for CtRecordSchema {
         d.descend(|d| {
             Ok(Self {
                 name: <CtSymbolId as Wire>::decode(d)?,
+                arguments: <Vec<CtSchemaArgument> as Wire>::decode(d)?,
                 fields: <Vec<CtTy> as Wire>::decode(d)?,
                 origin: <CtSchemaOrigin as Wire>::decode(d)?,
             })
@@ -1261,6 +1285,7 @@ impl Wire for CtEnumSchema {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             self.name.encode(e)?;
+            self.arguments.encode(e)?;
             self.variants.encode(e)?;
             self.origin.encode(e)?;
             Ok(())
@@ -1270,6 +1295,7 @@ impl Wire for CtEnumSchema {
         d.descend(|d| {
             Ok(Self {
                 name: <CtSymbolId as Wire>::decode(d)?,
+                arguments: <Vec<CtSchemaArgument> as Wire>::decode(d)?,
                 variants: <Vec<Vec<CtTy>> as Wire>::decode(d)?,
                 origin: <CtSchemaOrigin as Wire>::decode(d)?,
             })
@@ -2512,6 +2538,16 @@ impl Wire for CtInstructionKind {
                     left.encode(e)?;
                     right.encode(e)?;
                 }
+                Self::MakeAnonymousSum {
+                    members,
+                    active,
+                    payload,
+                } => {
+                    37u8.encode(e)?;
+                    members.encode(e)?;
+                    active.encode(e)?;
+                    payload.encode(e)?;
+                }
                 Self::MakeTuple(v0) => {
                     9u8.encode(e)?;
                     v0.encode(e)?;
@@ -2685,6 +2721,11 @@ impl Wire for CtInstructionKind {
             5 => Ok(Self::Store {
                 local: <CtLocalId as Wire>::decode(d)?,
                 value: <CtValueId as Wire>::decode(d)?,
+            }),
+            37 => Ok(Self::MakeAnonymousSum {
+                members: Vec::<CtTy>::decode(d)?,
+                active: u32::decode(d)?,
+                payload: CtValueId::decode(d)?,
             }),
             36 => Ok(Self::ConvertNumber {
                 value: <CtValueId as Wire>::decode(d)?,
@@ -3069,8 +3110,13 @@ impl Wire for CtTy {
                         CtTy::FieldInfo => 8u8.encode(e)?,
                         CtTy::ImplInfo => 9u8.encode(e)?,
                         CtTy::LayoutInfo => 10u8.encode(e)?,
-                        CtTy::Tuple(items) => {
-                            11u8.encode(e)?;
+                        CtTy::Tuple(items) | CtTy::AnonymousSum(items) => {
+                            (if matches!(ty, CtTy::AnonymousSum(_)) {
+                                16u8
+                            } else {
+                                11u8
+                            })
+                            .encode(e)?;
                             if items.len() > e.nodes_left {
                                 return Err(WireError::Limit);
                             }
@@ -3105,6 +3151,7 @@ impl Wire for CtTy {
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         enum Kind {
             Tuple,
+            AnonymousSum,
             Array,
             List,
         }
@@ -3120,6 +3167,7 @@ impl Wire for CtTy {
                 let frame = frames.pop().ok_or(WireError::NonCanonical)?;
                 let value = match frame.kind {
                     Kind::Tuple => CtTy::Tuple(frame.items),
+                    Kind::AnonymousSum => CtTy::AnonymousSum(frame.items),
                     Kind::Array => {
                         let length = u32::decode(d)?;
                         d.allocation(std::mem::size_of::<CtTy>())?;
@@ -3157,7 +3205,7 @@ impl Wire for CtTy {
                 return root.ok_or(WireError::NonCanonical);
             }
             if let Some(frame) = frames.last_mut() {
-                if matches!(frame.kind, Kind::Tuple) {
+                if matches!(frame.kind, Kind::Tuple | Kind::AnonymousSum) {
                     d.nodes(1)?;
                 }
                 frame.left -= 1;
@@ -3177,6 +3225,11 @@ impl Wire for CtTy {
                 8 => Some(CtTy::FieldInfo),
                 9 => Some(CtTy::ImplInfo),
                 10 => Some(CtTy::LayoutInfo),
+                16 => {
+                    let n = u32::decode(d)? as usize;
+                    nested = Some((Kind::AnonymousSum, n));
+                    None
+                }
                 11 => {
                     let n = u32::decode(d)? as usize;
                     nested = Some((Kind::Tuple, n));
@@ -3195,7 +3248,7 @@ impl Wire for CtTy {
                 _ => return Err(WireError::UnknownTag),
             };
             if let Some((kind, n)) = nested {
-                if n > d.nodes_left && matches!(kind, Kind::Tuple) {
+                if n > d.nodes_left && matches!(kind, Kind::Tuple | Kind::AnonymousSum) {
                     return Err(WireError::Limit);
                 }
                 let allocation = n
@@ -3297,6 +3350,17 @@ impl Wire for CtValue {
                             10u8.encode(e)?;
                             v.encode(e)?;
                         }
+                        CtValue::AnonymousSum {
+                            members,
+                            active,
+                            payload,
+                        } => {
+                            16u8.encode(e)?;
+                            members.encode(e)?;
+                            active.encode(e)?;
+                            e.nodes(1)?;
+                            pending.push_encode(e, Task::Value(payload))?;
+                        }
                         CtValue::Tuple(v) => {
                             11u8.encode(e)?;
                             collection = Some(v.as_slice());
@@ -3346,6 +3410,9 @@ impl Wire for CtValue {
             List,
             Record(CtRecordSchemaId),
             Variant(CtEnumSchemaId, u32),
+            // Box this new descriptor so legacy continuation frames retain
+            // their previous inline size and allocation accounting.
+            AnonymousSum(Box<(Vec<CtTy>, u32)>),
         }
         struct Frame {
             kind: Kind,
@@ -3358,6 +3425,21 @@ impl Wire for CtValue {
             if frames.last().is_some_and(|f| f.left == 0) {
                 let frame = frames.pop().ok_or(WireError::NonCanonical)?;
                 let value = match frame.kind {
+                    Kind::AnonymousSum(descriptor) => {
+                        let (members, active) = *descriptor;
+                        d.allocation(std::mem::size_of::<CtValue>())?;
+                        CtValue::AnonymousSum {
+                            members,
+                            active,
+                            payload: Box::new(
+                                frame
+                                    .items
+                                    .into_iter()
+                                    .next()
+                                    .ok_or(WireError::NonCanonical)?,
+                            ),
+                        }
+                    }
                     Kind::Tuple => CtValue::Tuple(frame.items),
                     Kind::Array => CtValue::Array(frame.items),
                     Kind::List => CtValue::List(frame.items),
@@ -3389,6 +3471,7 @@ impl Wire for CtValue {
             d.enter()?;
             let tag = u8::decode(d)?;
             let mut nested = None;
+            let mut fixed_one = false;
             let value = match tag {
                 0 => Some(CtValue::Scalar(Constant::decode(d)?)),
                 1 => Some(CtValue::Text(String::decode(d)?)),
@@ -3401,6 +3484,14 @@ impl Wire for CtValue {
                 8 => Some(CtValue::FieldInfo(CtFieldInfo::decode(d)?)),
                 9 => Some(CtValue::ImplInfo(CtImplInfo::decode(d)?)),
                 10 => Some(CtValue::LayoutInfo(CtLayoutInfo::decode(d)?)),
+                16 => {
+                    let members = Vec::<CtTy>::decode(d)?;
+                    let active = u32::decode(d)?;
+                    d.allocation(std::mem::size_of::<(Vec<CtTy>, u32)>())?;
+                    nested = Some(Kind::AnonymousSum(Box::new((members, active))));
+                    fixed_one = true;
+                    None
+                }
                 11 => {
                     nested = Some(Kind::Tuple);
                     None
@@ -3427,7 +3518,11 @@ impl Wire for CtValue {
                 _ => return Err(WireError::UnknownTag),
             };
             if let Some(kind) = nested {
-                let n = u32::decode(d)? as usize;
+                let n = if fixed_one {
+                    1
+                } else {
+                    u32::decode(d)? as usize
+                };
                 if n > d.nodes_left {
                     return Err(WireError::Limit);
                 }

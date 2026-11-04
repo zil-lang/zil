@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 2;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v2";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v2";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v2";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 3;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v3";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v3";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v3";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -76,23 +76,39 @@ pub enum CtTy {
     ImplInfo,
     LayoutInfo,
     Tuple(Vec<CtTy>),
-    Array { element: Box<CtTy>, length: u32 },
+    Array {
+        element: Box<CtTy>,
+        length: u32,
+    },
     List(Box<CtTy>),
     Record(CtRecordSchemaId),
     Enum(CtEnumSchemaId),
+    /// Strictly canonical complete structural member identities. Record/Enum
+    /// references resolve their public nominal symbol and ordered arguments;
+    /// numeric schema IDs and payload layout are not member identities.
+    AnonymousSum(Vec<CtTy>),
 }
 
 /// Public user schemas are pure data. Built-in query result schemas are not
 /// constructible through MakeRecord/MakeVariant; verifier checks their origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtSchemaArgument {
+    Type(CtTy),
+    Scalar(Constant),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtRecordSchema {
     pub name: CtSymbolId,
+    /// Complete actual arguments in declaration parameter order, including
+    /// phantom arguments. Data alone grants no declaration access or bounds.
+    pub arguments: Vec<CtSchemaArgument>,
     pub fields: Vec<CtTy>,
     pub origin: CtSchemaOrigin,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtEnumSchema {
     pub name: CtSymbolId,
+    pub arguments: Vec<CtSchemaArgument>,
     pub variants: Vec<Vec<CtTy>>,
     pub origin: CtSchemaOrigin,
 }
@@ -359,6 +375,13 @@ pub enum CtValue {
         tag: u32,
         fields: Vec<CtValue>,
     },
+    /// Retains inactive member identities; only the matching active member
+    /// supplies a payload. Raw values confer no nominal/syntax authority.
+    AnonymousSum {
+        members: Vec<CtTy>,
+        active: u32,
+        payload: Box<CtValue>,
+    },
 }
 /// Only scalar/text literals are raw constants. Type, Syntax, Ident, and query
 /// descriptors must be produced by independently checked instructions.
@@ -507,6 +530,14 @@ pub enum CtInstructionKind {
         schema: CtEnumSchemaId,
         tag: u32,
         fields: Vec<CtValueId>,
+    },
+    /// Exact-type injection after independent member canonicality validation.
+    /// VariantTag/VariantField also consume this structural one-field sum;
+    /// extraction must match the real active tag and field zero.
+    MakeAnonymousSum {
+        members: Vec<CtTy>,
+        active: u32,
+        payload: CtValueId,
     },
     Length(CtValueId),
     VariantTag(CtValueId),
