@@ -12,6 +12,7 @@ mod address_sums;
 mod borrowed_fp;
 mod budget;
 mod callable_fields;
+mod class_flow;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -34,7 +35,9 @@ mod resources;
 mod retained;
 mod scoped_thread;
 mod scopes;
+mod signature_life;
 mod stored_borrows;
+mod stored_callables;
 mod stored_flow;
 #[cfg(test)]
 mod sum_tests;
@@ -117,6 +120,10 @@ fn analyze_budgeted(
         });
     }
     if budget.stored_borrows {
+        if !module.closures.is_empty() {
+            stored_callables::definitions(module, budget)?;
+            helpers::check(module, budget)?;
+        }
         for f in &module.functions {
             stored_flow::header(f, budget)?;
         }

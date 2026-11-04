@@ -21,7 +21,32 @@ impl Identity<'_, '_> {
         if count > self.limits.max_nodes || count as u64 > self.raw.budget.max_generated_nodes {
             return Err(limit(None, "CT4 metadata node quota exceeded"));
         }
-        self.reserve(count.saturating_mul(64))?;
+        self.reserve(
+            count
+                .saturating_mul(64)
+                .saturating_add(ty.ambient_classes.len().saturating_mul(32)),
+        )?;
+        let mut previous = None;
+        for row in &ty.ambient_classes {
+            let key = (row.owner, row.class);
+            if previous.is_some_and(|old| old >= key) {
+                return Err(reject(
+                    None,
+                    "ambient mapping order or duplicate is invalid",
+                ));
+            }
+            previous = Some(key);
+            if !matches!(ty.nodes.get(row.owner.0 as usize),Some(CtTypeNode::BorrowedStorage{life,..}) if row.class<life.binder_count)
+            {
+                return Err(reject(
+                    None,
+                    "ambient class mapping does not select an actual Fixed class",
+                ));
+            }
+            if row.source.scope.0 as usize >= self.raw.ambient_life_scopes.len() {
+                return Err(reject(None, "ambient mapping has no scope inventory row"));
+            }
+        }
         let mut widths: Vec<usize> = Vec::new();
         for (index, node) in ty.nodes.iter().enumerate() {
             let ids = self.scoped_children(node)?;
@@ -59,17 +84,45 @@ impl Identity<'_, '_> {
                     let node = &ty.nodes[id.0 as usize];
                     let owner = match node {
                         CtTypeNode::BorrowedStorage { storage, life } => {
-                            if !allow_fixed {
+                            if !allow_fixed && ty.ambient_classes.is_empty() {
                                 return Err(reject(
                                     None,
                                     "fixed metadata argument requires one joint schema context",
                                 ));
                             }
                             self.scoped_phantom_shape(ty, id, *storage, life)?;
+                            self.meter.charge(ty.ambient_classes.len(), None)?;
+                            let rows = ty
+                                .ambient_classes
+                                .iter()
+                                .filter(|row| row.owner == id)
+                                .count();
+                            if rows != life.binder_count as usize {
+                                return Err(reject(
+                                    None,
+                                    "free Fixed classes lack complete ambient mappings",
+                                ));
+                            }
+                            self.meter
+                                .charge(rows.saturating_mul(ty.ambient_classes.len()), None)?;
+                            for class in 0..life.binder_count {
+                                if ty
+                                    .ambient_classes
+                                    .iter()
+                                    .filter(|row| row.owner == id && row.class == class)
+                                    .count()
+                                    != 1
+                                {
+                                    return Err(reject(
+                                        None,
+                                        "ambient class mapping missing or repeated",
+                                    ));
+                                }
+                            }
                             Some((true, life.binder_count))
                         }
                         CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                            Some((false, life.binder_count))
+                            Some((false, life.invocation_binder_count))
                         }
                         _ => None,
                     };
@@ -162,7 +215,16 @@ impl Identity<'_, '_> {
                             life,
                         } => self.graph_life(&ty.nodes, parameters, *result, life, &mut key)?,
                         CtTypeNode::BorrowedStorage { life, .. } => {
-                            self.scoped_storage_key(&mut key, life)?
+                            self.scoped_storage_key(&mut key, life)?;
+                            self.number(&mut key, u64::from(life.binder_count))?;
+                            self.meter.charge(ty.ambient_classes.len(), None)?;
+                            for row in &ty.ambient_classes {
+                                if row.owner == id {
+                                    self.number(&mut key, u64::from(row.class))?;
+                                    self.number(&mut key, u64::from(row.source.scope.0))?;
+                                    self.number(&mut key, u64::from(row.source.parameter))?;
+                                }
+                            }
                         }
                         CtTypeNode::Array { length, .. } => {
                             self.number(&mut key, u64::from(*length))?

@@ -186,18 +186,6 @@ impl Work<'_> {
     }
 }
 
-fn shape_bytes(shape: &StorageLifeShape) -> u64 {
-    let slots = shape.slots.iter().fold(0u64, |n, row| {
-        n.saturating_add(32 + row.path.len() as u64 * 16)
-    });
-    let retained = shape.retained.iter().fold(0u64, |n, row| {
-        n.saturating_add(32 + row.path.len() as u64 * 16)
-    });
-    let nominal = shape.nominal_arguments.iter().fold(0u64, |n, row| {
-        n.saturating_add(48 + row.path.len() as u64 * 16)
-    });
-    slots.saturating_add(retained).saturating_add(nominal)
-}
 fn physical_remap(node: &mut CtTypeNode, offset: u32) -> CompileResult<()> {
     let map = |id: &mut CtTypeNodeId| -> CompileResult<()> {
         id.0 = id.0.checked_add(offset).ok_or_else(bound)?;
@@ -281,6 +269,14 @@ fn run(
     let mut outputs: Vec<Built> = Vec::new();
     let mut scopes: Vec<Owner> = Vec::new();
     let mut tokens = 0usize;
+    let mut ambient_tokens: Vec<(usize, u32, CtAmbientLifeReference)> = Vec::new();
+    work.pay(reference.ambient_classes.len() as u64, 0)?;
+    for row in &reference.ambient_classes {
+        if !matches!(reference.nodes.get(row.owner.0 as usize),Some(CtTypeNode::BorrowedStorage{life,..}) if row.class<life.binder_count)
+        {
+            return Err(bad("ambient class mapping has no actual Fixed owner/class"));
+        }
+    }
     while let Some(task) = tasks.pop() {
         work.pay(1, 0)?;
         match task {
@@ -295,8 +291,11 @@ fn run(
                         phantom_shape(reference, id, *storage, life, work)?;
                         Some((true, life.binder_count))
                     }
-                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        Some((false, life.binder_count))
+                    CtTypeNode::BorrowedFunctionPointer {
+                        life, parameters, ..
+                    } => {
+                        flat_life(life, parameters.len(), work.budget)?;
+                        Some((false, life.invocation_binder_count))
                     }
                     _ => None,
                 };
@@ -312,6 +311,35 @@ fn run(
                     });
                     token
                 });
+                if let CtTypeNode::BorrowedStorage { life, .. } = node {
+                    work.pay(reference.ambient_classes.len() as u64, 0)?;
+                    let rows = reference
+                        .ambient_classes
+                        .iter()
+                        .filter(|row| row.owner == id)
+                        .count();
+                    if rows != life.binder_count as usize {
+                        return Err(bad("free Fixed classes require complete ambient mappings"));
+                    }
+                    work.pay(
+                        (rows as u64).saturating_mul(reference.ambient_classes.len() as u64),
+                        rows as u64
+                            * std::mem::size_of::<(usize, u32, CtAmbientLifeReference)>() as u64,
+                    )?;
+                    for class in 0..life.binder_count {
+                        let mut matching = reference
+                            .ambient_classes
+                            .iter()
+                            .filter(|row| row.owner == id && row.class == class);
+                        let row = matching
+                            .next()
+                            .ok_or_else(|| bad("ambient class mapping is missing"))?;
+                        if matching.next().is_some() {
+                            return Err(bad("ambient class mapping is duplicated"));
+                        }
+                        ambient_tokens.push((token.expect("Fixed owner token"), class, row.source));
+                    }
+                }
                 let width = edge_width(node);
                 work.pay(width as u64, width as u64 * 128)?;
                 let mut ids = children(node);
@@ -402,10 +430,24 @@ fn run(
                             }
                         }
                     }
-                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        work.life(&mut key, life)?
+                    CtTypeNode::BorrowedFunctionPointer {
+                        life, parameters, ..
+                    } => {
+                        let life = flat_life(life, parameters.len(), work.budget)?;
+                        work.life(&mut key, &life)?
                     }
-                    CtTypeNode::BorrowedStorage { life, .. } => work.storage(&mut key, life)?,
+                    CtTypeNode::BorrowedStorage { life, .. } => {
+                        work.storage(&mut key, life)?;
+                        work.number(&mut key, u64::from(life.binder_count))?;
+                        work.pay(ambient_tokens.len() as u64, 0)?;
+                        for (owner, class, source) in &ambient_tokens {
+                            if Some(*owner) == token {
+                                work.number(&mut key, u64::from(*class))?;
+                                work.number(&mut key, u64::from(source.scope.0))?;
+                                work.number(&mut key, u64::from(source.parameter))?;
+                            }
+                        }
+                    }
                     CtTypeNode::Array { length, .. } => {
                         work.number(&mut key, u64::from(*length))?
                     }
@@ -428,7 +470,7 @@ fn run(
                 let dynamic = match node {
                     CtTypeNode::BorrowedStorage { life, .. } => work.shape_copy(life)?,
                     CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        let bytes = life.parameter_lives.len() as u64 * 8;
+                        let bytes = life_bytes(life);
                         work.pay(bytes, bytes)?;
                         bytes
                     }
@@ -506,9 +548,27 @@ fn run(
         }
         nodes.push(pending.node);
     }
+    work.pay(
+        ambient_tokens.len() as u64,
+        ambient_tokens.len() as u64 * std::mem::size_of::<CtAmbientClassBinding>() as u64,
+    )?;
+    let mut ambient_classes = ambient_tokens
+        .into_iter()
+        .map(|(token, class, source)| CtAmbientClassBinding {
+            owner: owners[token],
+            class,
+            source,
+        })
+        .collect::<Vec<_>>();
+    work.pay(
+        (ambient_classes.len() as u64).saturating_mul(ambient_classes.len() as u64),
+        0,
+    )?;
+    ambient_classes.sort_by_key(|row| (row.owner, row.class));
     let ty = CtTypeRef {
         root: CtTypeNodeId(u32::try_from(nodes.len() - 1).map_err(|_| bound())?),
         nodes,
+        ambient_classes,
     };
     let key = if keep_key { built.key } else { Vec::new() };
     // The returned value/key remain live after scratch is released.
@@ -527,24 +587,7 @@ fn edge_width(node: &CtTypeNode) -> usize {
     }
 }
 pub(super) fn retained_bytes(ty: &CtTypeRef) -> u64 {
-    ty.nodes.iter().fold(
-        32u64.saturating_add(ty.nodes.len() as u64 * std::mem::size_of::<CtTypeNode>() as u64),
-        |n, node| {
-            n.saturating_add(match node {
-                CtTypeNode::BorrowedStorage { life, .. } => shape_bytes(life),
-                CtTypeNode::BorrowedFunctionPointer {
-                    parameters, life, ..
-                } => parameters.len() as u64 * 4 + life.parameter_lives.len() as u64 * 8,
-                CtTypeNode::FunctionPointer { parameters, .. }
-                | CtTypeNode::ForeignCallback { parameters, .. } => parameters.len() as u64 * 4,
-                CtTypeNode::Nominal { arguments, .. } => {
-                    arguments.len() as u64 * std::mem::size_of::<CtTypeArgument>() as u64
-                }
-                CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.len() as u64 * 4,
-                _ => 0,
-            })
-        },
-    )
+    super::retained_bytes(ty)
 }
 
 #[cfg(test)]
@@ -583,17 +626,19 @@ mod tests {
             nodes.push(CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(base + 1)],
                 result: CtTypeNodeId(base + 1),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 1,
                     parameter_lives: vec![Some(0)],
                     result_life: Some(0),
-                },
+                })
+                .unwrap(),
             });
         }
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         CtTypeRef {
             root: CtTypeNodeId(6),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]

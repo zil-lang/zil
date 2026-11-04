@@ -561,11 +561,23 @@ pub(super) fn hint_type(
         } => {
             *work = work
                 .checked_sub(
-                    (life.binder_count as usize)
-                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                    life.bindings
+                        .len()
+                        .saturating_mul(2)
+                        .saturating_add(life.classes.len().saturating_mul(2))
                         .saturating_add(2),
                 )
                 .ok_or_else(limit)?;
+            for row in &life.bindings {
+                *work = work
+                    .checked_sub(row.position.path.len())
+                    .ok_or_else(limit)?;
+            }
+            for row in &life.classes {
+                *work = work
+                    .checked_sub(row.position.path.len())
+                    .ok_or_else(limit)?;
+            }
             if parameters.len() > limits.max_locals {
                 return Err(limit());
             }
@@ -3207,6 +3219,7 @@ mod tests {
                 },
                 binder: StorageBinder::Fixed(0),
             }],
+            classes: Vec::new(),
         });
         let (result, usage) =
             evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();

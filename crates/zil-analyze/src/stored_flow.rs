@@ -256,7 +256,7 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
     Ok(ty)
 }
 
-fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<()> {
+pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<()> {
     fee(b, 1)?;
     let mut pending = vec![(ty, 0usize)];
     while let Some((ty, depth)) = pending.pop() {
@@ -552,185 +552,101 @@ fn binding(
     let c = f
         .storage_life
         .as_ref()
-        .ok_or_else(|| failure("stored signature has no relation"))?;
-    fee(b, c.bindings.len())?;
-    let mut found = None;
-    for row in &c.bindings {
+        .ok_or_else(|| failure("stored signature lacks complete relation"))?;
+    if path.is_empty() {
+        fee(b, c.bindings.len())?;
+        return super::signature_life::outer(c, base)
+            .ok_or_else(|| failure("signature omits actual outer borrow"));
+    }
+    let ty = match base {
+        StorageBase::Parameter(i) => f
+            .parameters
+            .get(i as usize)
+            .and_then(|l| f.locals.get(l.0 as usize))
+            .map(|l| &l.ty),
+        StorageBase::Result => Some(&f.return_type),
+        StorageBase::Capture(_) => None,
+    }
+    .ok_or_else(|| failure("stored relation base is absent"))?;
+    let ((_, shape), pointee) = if let Some(q) = carrier(ty) {
+        (q, false)
+    } else {
+        (
+            pointed_carrier(ty)
+                .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
+            true,
+        )
+    };
+    fee(b, shape.slots.len())?;
+    let mut local = None;
+    for slot in &shape.slots {
         fee(
             b,
-            row.position
-                .path
-                .len()
-                .saturating_add(path.len())
-                .saturating_add(1),
+            slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if row.position.base == base
-            && row.position.path.len() == path.len()
-            && row
-                .position
-                .path
-                .iter()
-                .zip(path)
-                .all(|(a, b)| *a == ContractProjection::Place(*b))
-            && found.replace(row.binder).is_some()
-        {
-            return Err(failure("duplicate signature position"));
+        if slot.path == path && local.replace(slot.binder).is_some() {
+            return Err(failure("duplicate actual stored leaf"));
         }
     }
-    found.ok_or_else(|| failure("signature omits actual borrowed position"))
+    let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    fee(b, c.classes.len())?;
+    for row in &c.classes {
+        fee(b, row.position.path.len().saturating_add(1))?;
+        if row.position.base == base
+            && row.position.class == local
+            && if pointee {
+                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            } else {
+                row.position.path.is_empty()
+            }
+        {
+            return Ok(row.binder);
+        }
+    }
+    Err(failure("signature omits actual qualified local class"))
 }
 
 pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
-            return Err(failure("signature parameter outside actual locals"));
+            return Err(failure("signature parameter outside actual local table"));
         }
     }
     let Some(c) = &f.storage_life else {
         for ty in f
             .parameters
             .iter()
-            .map(|l| &f.locals[l.0 as usize].ty)
+            .map(|p| &f.locals[p.0 as usize].ty)
             .chain(std::iter::once(&f.return_type))
         {
             fee(b, 1)?;
-            if carrier(ty).is_some() || pointed_carrier(ty).is_some() {
-                return Err(failure("stored signature requires its complete relation"));
+            if f.environment.is_none() && (carrier(ty).is_some() || pointed_carrier(ty).is_some()) {
+                return Err(failure("stored signature requires complete class relation"));
             }
         }
         return Ok(());
     };
+    super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
-    if c.fixed_binder_count > 1
-        || f.parameters
-            .iter()
-            .filter(|p| {
-                carrier(&f.locals[p.0 as usize].ty)
-                    .or_else(|| pointed_carrier(&f.locals[p.0 as usize].ty))
-                    .is_some()
-            })
-            .count()
-            > 1
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "multiple retained input classes require invariant actual class substitution",
-            Some(f.span),
-        )]);
-    }
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(failure(
-            "stored relation contradicts another signature profile",
+            "stored signature contradicts another active profile",
         ));
     }
-    fee(b, c.bindings.len())?;
-    let mut expected = 0usize;
-    let mut fixed = BTreeSet::new();
-    let mut invocation = BTreeSet::new();
-    let mut grounded = BTreeSet::new();
-    for (ordinal, ty) in f
-        .parameters
-        .iter()
-        .map(|l| &f.locals[l.0 as usize].ty)
-        .chain(std::iter::once(&f.return_type))
-        .enumerate()
-    {
-        let input = ordinal < f.parameters.len();
-        let base = if input {
-            StorageBase::Parameter(ordinal as u32)
-        } else {
-            StorageBase::Result
-        };
-        let mut positions = Vec::new();
-        if matches!(ty, Type::Address { .. }) {
-            fee(b, 1)?;
-            positions.push(Vec::new());
-        }
-        if let Some((_, life)) = carrier(ty).or_else(|| pointed_carrier(ty)) {
-            let mut classes = BTreeMap::new();
-            for slot in &life.slots {
-                fee(b, slot.path.len().saturating_add(1))?;
-                let upper = binding(f, base, &slot.path, b)?;
-                ordered(b, classes.len(), 0)?;
-                if let Some(previous) = classes.insert(slot.binder, upper)
-                    && previous != upper
-                {
-                    return Err(failure("one stored fixed class is rebound inconsistently"));
-                }
-                if input {
-                    let StorageBinder::Fixed(class) = upper else {
-                        return Err(failure(
-                            "input retained class was freshened to invocation scope",
-                        ));
-                    };
-                    ordered(b, grounded.len(), 0)?;
-                    grounded.insert(class);
-                }
-                positions.push(slot.path.clone());
-            }
-        }
-        for path in positions {
-            expected = expected
-                .checked_add(1)
-                .ok_or_else(|| failure("signature position count overflow"))?;
-            let row = c
-                .bindings
-                .get(expected - 1)
-                .ok_or_else(|| failure("stored signature omits actual position"))?;
-            fee(
-                b,
-                row.position
-                    .path
-                    .len()
-                    .saturating_add(path.len())
-                    .saturating_add(1),
-            )?;
-            if row.position.base != base
-                || row.position.path.len() != path.len()
-                || !row
-                    .position
-                    .path
-                    .iter()
-                    .zip(&path)
-                    .all(|(x, y)| *x == ContractProjection::Place(*y))
-            {
-                return Err(failure(
-                    "stored signature rows are not in actual canonical position order",
-                ));
-            }
-            let upper = binding(f, base, &path, b)?;
-            if input && path.is_empty() && matches!(upper, StorageBinder::Fixed(_)) {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "meeting a new input borrow with an existing fixed class requires actual upper-bound substitution",
-                    Some(f.span),
-                )]);
-            }
-            let (set, index, limit) = match upper {
-                StorageBinder::Fixed(i) => (&mut fixed, i, c.fixed_binder_count),
-                StorageBinder::Invocation(i) => (&mut invocation, i, c.invocation_binder_count),
-            };
-            if index >= limit {
-                return Err(failure("signature binder outside declared domain"));
-            }
-            ordered(b, set.len(), 0)?;
-            if set.insert(index) && index as usize != set.len() - 1 {
-                return Err(failure(
-                    "signature binders are not dense by first occurrence",
-                ));
-            }
-        }
+    let mut parameters = Vec::with_capacity(f.parameters.len());
+    for p in &f.parameters {
+        let ty = &f.locals[p.0 as usize].ty;
+        b.type_work(ty, true, "stored signature type clone and relation")?;
+        parameters.push(ty.clone());
     }
-    if expected != c.bindings.len()
-        || fixed.len() != c.fixed_binder_count as usize
-        || invocation.len() != c.invocation_binder_count as usize
-        || fixed != grounded
-    {
-        return Err(failure(
-            "signature has missing/extra positions, unused classes or ungrounded Fixed classes",
-        ));
-    }
+    b.type_work(&f.return_type, true, "stored signature result relation")?;
+    super::signature_life::function_relation(
+        &parameters,
+        &f.return_type,
+        c,
+        f.callable_contract.is_some(),
+    )?;
     Ok(())
 }
 
@@ -845,7 +761,8 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(storage, &mut Vec::new(), &mut actual, b)?;
-    if actual.len() != life.slots.len() || actual.is_empty() {
+    if actual.len() != life.slots.len() || (actual.is_empty() && life.nominal_arguments.is_empty())
+    {
         return Err(failure("physical stored slot coverage is incomplete"));
     }
     let mut seen = BTreeSet::new();
@@ -1248,6 +1165,9 @@ fn transfer(
                 ));
             }
         }
+        _ if super::stored_callables::instruction(module, f, i) => {}
+        InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
+            if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::WriteAddress { address, .. } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("write base is not an actual Address"));
@@ -1260,6 +1180,7 @@ fn transfer(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
@@ -1684,6 +1605,70 @@ fn windows(
                     address,
                     mutable: true,
                 } => use_permission(pointer(*address)?, true, &current, loans, apart, b)?,
+                InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosure { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. }
+                | InstructionKind::CallClosureShared { arguments, .. } => {
+                    let mut all: Vec<(Permission, bool)> = Vec::new();
+                    match &i.kind {
+                        InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            let mut p = Permission::default();
+                            union(&mut p, pointer(*callee)?, b)?;
+                            fee(b, 1)?;
+                            all.push((p, false));
+                        }
+                        InstructionKind::CallClosureShared { callee, .. } => {
+                            fee(b, 2)?;
+                            all.push((
+                                Permission {
+                                    targets: BTreeSet::from([Target {
+                                        base: HoldRoot::Local(*callee),
+                                        stored: vec![],
+                                        place: vec![],
+                                    }]),
+                                    loans: Loans::new(),
+                                },
+                                false,
+                            ));
+                        }
+                        _ => {}
+                    }
+
+                    for argument in arguments {
+                        let actual = &values[argument.0 as usize];
+                        if let Type::Address { mutable, .. } = value_type(f, *argument)? {
+                            let mut p = Permission::default();
+                            union(&mut p, &actual.pointer, b)?;
+                            fee(b, 1)?;
+                            all.push((p, *mutable));
+                        }
+                        for leaf in actual.slots.values() {
+                            let mut p = Permission::default();
+                            union(&mut p, leaf, b)?;
+                            fee(b, 1)?;
+                            all.push((p, false));
+                        }
+                        if let Some((_, shape)) = pointed_carrier(value_type(f, *argument)?) {
+                            for slot in &shape.slots {
+                                let p = select(&state, &actual.pointer, &slot.path, b)?;
+                                fee(b, 1)?;
+                                all.push((p, false));
+                            }
+                        }
+                    }
+                    for (index, (permission, write)) in all.iter().enumerate() {
+                        use_permission(permission, *write, &current, loans, apart, b)?;
+                        for (other, other_write) in &all[..index] {
+                            if *write || *other_write {
+                                for a in &permission.targets {
+                                    for z in &other.targets {
+                                        separate(a, z, apart, b)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 InstructionKind::Call {
                     function,
                     arguments,
@@ -1954,8 +1939,9 @@ pub(super) fn derive(
         returns(f, facts, b)?;
         for (ty, roots) in f.values.iter().zip(&facts.values) {
             fee(b, 1)?;
-            if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. }) && roots.is_empty()
-            {
+            let needs_target = matches!(ty, Type::Address { .. })
+                || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
+            if needs_target && roots.is_empty() {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
                 ));
@@ -1970,17 +1956,16 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    if !module.resources.is_empty() || !module.closures.is_empty() {
+    if !module.resources.is_empty() {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "owned/closure storage integration requires the common retained carrier consumer",
             None,
         )]);
     }
+    super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         if f.foreign.is_some()
-            || f.environment.is_some()
-            || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -1990,6 +1975,15 @@ pub(super) fn infer(
                 Some(f.span),
             )]);
         }
+        if let Some(id) = f.environment {
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| failure("callback function environment is absent"))?;
+            if !super::stored_callables::finite(module, id) || d.function != f.id {
+                return Err(failure("callback function is not the actual finite entry"));
+            }
+        }
         for ty in f
             .locals
             .iter()
@@ -1998,7 +1992,8 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
-            if !(carrier(ty).is_some()
+            if !(super::stored_callables::value(module, ty)
+                || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value())
@@ -2011,7 +2006,9 @@ pub(super) fn infer(
             }
         }
         actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
+    super::stored_callables::roles(module, graphs, b)?;
     let facts = derive(module, graphs, b)?;
     let mut result = Vec::new();
     fee(b, facts.len())?;
@@ -2066,6 +2063,45 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            if !super::class_flow::pointer_instruction(f, i)
+                && !super::stored_callables::instruction(module, f, i)
+                && !matches!(
+                    &i.kind,
+                    InstructionKind::Constant(_)
+                        | InstructionKind::Load(_)
+                        | InstructionKind::Store { .. }
+                        | InstructionKind::StorageLive(_)
+                        | InstructionKind::StorageDead(_)
+                        | InstructionKind::BorrowLocal { .. }
+                        | InstructionKind::BorrowLocalMut { .. }
+                        | InstructionKind::ReborrowAddress { .. }
+                        | InstructionKind::AddressField { .. }
+                        | InstructionKind::AddressIndex { .. }
+                        | InstructionKind::AddressSlice { .. }
+                        | InstructionKind::ReadAddress { .. }
+                        | InstructionKind::WriteAddress { .. }
+                        | InstructionKind::SliceLength { .. }
+                        | InstructionKind::MakeAggregate { .. }
+                        | InstructionKind::ExtractField { .. }
+                        | InstructionKind::Call { .. }
+                        | InstructionKind::Unary { .. }
+                        | InstructionKind::Binary { .. }
+                        | InstructionKind::ConvertInteger { .. }
+                        | InstructionKind::ConvertNumber { .. }
+                        | InstructionKind::ScopeEnter { .. }
+                        | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::LoadStoredBorrow {
+                            mode: StoredBorrowLoad::CopyShared,
+                            ..
+                        }
+                )
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "instruction is outside the actual stored profile, including in unreachable blocks",
+                    Some(i.span),
+                )]);
+            }
             if let Some(v) = i.result {
                 let slot = definitions
                     .get_mut(v.0 as usize)
@@ -2090,7 +2126,31 @@ fn actual_instructions(
                 }
                 Ok(())
             };
+            if super::class_flow::pointer_instruction(f, i) {
+                super::class_flow::pointer_types(module, f, i, b)?;
+            }
+            if super::stored_callables::instruction(module, f, i) {
+                super::stored_callables::types(module, f, i, b)?;
+            }
             match &i.kind {
+                InstructionKind::ExtractField { aggregate, index } => {
+                    let ty = value_type(f, *aggregate)?;
+                    b.type_work(ty, false, "stored profile ordinary Copy field extraction")?;
+                    let child = match ty {
+                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                        Type::Tuple(fields) => fields.get(*index as usize),
+                        _ => None,
+                    }
+                    .ok_or_else(|| failure("Copy extraction has no actual inline field"))?;
+                    if !ty.is_copy_value() || !super::stored_callables::scalar(child) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
+                            Some(i.span),
+                        )]);
+                    }
+                    result(child, b)?;
+                }
                 InstructionKind::ConvertInteger { value, target }
                 | InstructionKind::ConvertNumber { value, target } => {
                     if !value_type(f, *value)?.is_numeric() || !target.is_numeric() {
@@ -2417,6 +2477,196 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn qualified_role_proofs_share_the_actual_request_allowance() {
+        let m = fixture::qualified_two_fn_roles(false);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if super::super::analyze(&m, &limit(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = super::super::analyze(&m, &limit(low - 1)).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        println!("342 qualified Fn role Analyze N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn qualified_callback_arguments_keep_simultaneous_exclusive_windows() {
+        super::super::analyze(
+            &fixture::qualified_fn_exclusive_call(false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(
+            &fixture::qualified_fn_exclusive_call(true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live access overlaps")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn the_same_closure_is_checked_under_each_actual_parameter_role() {
+        super::super::analyze(&fixture::qualified_two_fn_roles(false), &Limits::default()).unwrap();
+        let error =
+            super::super::analyze(&fixture::qualified_two_fn_roles(true), &Limits::default())
+                .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn qualified_fn_roles_use_actual_entry_and_fresh_argument_class_equations() {
+        super::super::analyze(
+            &fixture::qualified_fn_role(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        for m in [
+            fixture::qualified_fn_role(true, false),
+            fixture::qualified_fn_role(false, true),
+        ] {
+            let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+            assert!(
+                error
+                    .iter()
+                    .any(|d| d.message.contains("actual retained classes")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
+    fn a_pointer_fixed_class_without_enclosing_context_is_not_fresh_per_call() {
+        super::super::analyze(
+            &fixture::phantom_class_calls(true, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(&fixture::unbound_fixed_pointer(), &Limits::default())
+            .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn rich_indirect_actual_exclusive_windows_are_simultaneous() {
+        super::super::analyze(
+            &fixture::rich_marker_exclusive_call(false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(
+            &fixture::rich_marker_exclusive_call(true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live access overlaps")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn rich_class_equations_share_the_request_budget_and_fresh_boundary() {
+        let m = fixture::rich_marker_pointer(false, false);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if super::super::analyze(&m, &limit(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = super::super::analyze(&m, &limit(low - 1)).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        println!("342 rich class Analyze N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn rich_pointer_proves_target_implication_and_actual_outer_to_class_equations() {
+        super::super::analyze(
+            &fixture::rich_marker_pointer(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(true, false),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{bad:?}"
+        );
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(false, true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("entail actual target")),
+            "{bad:?}"
+        );
+    }
+    #[test]
+    fn a_fresh_phantom_class_is_instantiated_once_and_retained_between_actual_calls() {
+        for indirect in [false, true] {
+            super::super::analyze(
+                &fixture::phantom_class_calls(indirect, false),
+                &Limits::default(),
+            )
+            .unwrap();
+            let error = super::super::analyze(
+                &fixture::phantom_class_calls(indirect, true),
+                &Limits::default(),
+            )
+            .unwrap_err();
+            assert!(
+                error
+                    .iter()
+                    .any(|d| d.message.contains("actual retained classes")),
+                "{error:?}"
+            );
+        }
     }
     #[test]
     fn actual_shared_field_survives_carrier_end_and_two_forwarding_helpers() {

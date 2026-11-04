@@ -1,4 +1,4 @@
-// Independent Vec-based TypedV39 reference for the retained legacy cases.
+// Independent Vec-based TypedV40 reference for the retained legacy cases.
 // New nonempty life/dyn inventories and storage instructions are tested separately.
 // Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
@@ -34,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V39\0"
+        b"ZIL-TYPED-MODULE-V40\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -149,18 +149,7 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
             life,
         } => {
             b.push(31);
-            encode_u32(b, life.binder_count);
-            encode_len(b, life.parameter_lives.len());
-            for index in &life.parameter_lives {
-                b.push(u8::from(index.is_some()));
-                if let Some(index) = index {
-                    encode_u32(b, *index);
-                }
-            }
-            b.push(u8::from(life.result_life.is_some()));
-            if let Some(index) = life.result_life {
-                encode_u32(b, index);
-            }
+            encode_closed_relation(b, life);
             encode_len(b, parameters.len());
             for ty in parameters {
                 encode_type(b, ty);
@@ -1241,7 +1230,7 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-6\0".to_vec();
     encode_callable_contract(&mut bytes, contract, true);
     Fingerprint::of(&bytes)
 }
@@ -1285,18 +1274,7 @@ fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract, curr
         if current {
             b.push(u8::from(role.life.is_some()));
             if let Some(life) = &role.life {
-                encode_u32(b, life.binder_count);
-                encode_len(b, life.parameter_lives.len());
-                for tag in &life.parameter_lives {
-                    b.push(u8::from(tag.is_some()));
-                    if let Some(tag) = tag {
-                        encode_u32(b, *tag);
-                    }
-                }
-                b.push(u8::from(life.result_life.is_some()));
-                if let Some(tag) = life.result_life {
-                    encode_u32(b, tag);
-                }
+                encode_closed_relation(b, life);
             }
         } else {
             assert!(
@@ -1360,4 +1338,45 @@ fn encode_callable_exit(b: &mut Vec<u8>, exit: CallableExit) {
         CallableExit::Return => 0,
         CallableExit::Trap => 1,
     });
+}
+
+// Independent Vec encoding for the closed raw relations exercised by this
+// historical oracle. Rich contextual rows are covered separately, never erased.
+fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
+    assert!(
+        life.classes.is_empty(),
+        "contextual classes need the rich oracle"
+    );
+    encode_u32(bytes, life.fixed_binder_count);
+    encode_u32(bytes, life.invocation_binder_count);
+    encode_len(bytes, life.bindings.len());
+    for row in &life.bindings {
+        assert!(
+            row.position.path.is_empty(),
+            "projected rows need the rich oracle"
+        );
+        match row.position.base {
+            StorageBase::Parameter(index) => {
+                bytes.push(0);
+                encode_u32(bytes, index);
+            }
+            StorageBase::Capture(index) => {
+                bytes.push(1);
+                encode_u32(bytes, index);
+            }
+            StorageBase::Result => bytes.push(2),
+        }
+        encode_len(bytes, 0);
+        match row.binder {
+            StorageBinder::Fixed(index) => {
+                bytes.push(0);
+                encode_u32(bytes, index);
+            }
+            StorageBinder::Invocation(index) => {
+                bytes.push(1);
+                encode_u32(bytes, index);
+            }
+        }
+    }
+    encode_len(bytes, 0);
 }

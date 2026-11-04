@@ -19,9 +19,27 @@ pub enum CtSymbolUsage {
     DefinitionName,
 }
 
+/// Source facts only. These do not grant construction, borrowing or Copy rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CtScopeParameterKind {
+    Type,
+    Scalar(CtScalarTy),
+    Lifetime,
+}
+
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
+        None
+    }
+    fn scope_parameter_kind(
+        &self,
+        _scope: &CtAmbientLifeScope,
+        _ordinal: usize,
+    ) -> Option<CtScopeParameterKind> {
+        None
+    }
     fn source_fingerprint(&self) -> Fingerprint;
     fn snapshot(&self) -> &CtSnapshotRequest;
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool;
@@ -133,8 +151,12 @@ pub fn verify_ct_artifact_metered(
                             CtInstructionKind::TypeConstruct {
                                 constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
                                 ..
-                            } => (life.binder_count as usize)
-                                .saturating_add(life.parameter_lives.len().saturating_mul(2)),
+                            } => life
+                                .bindings
+                                .len()
+                                .saturating_mul(8)
+                                .saturating_add(life.classes.len().saturating_mul(16))
+                                .saturating_add(2),
                             _ => 0,
                         })
                     },
@@ -142,7 +164,42 @@ pub fn verify_ct_artifact_metered(
         },
     );
     meter.charge(initial_work.max(1), None)?;
+    for instruction in raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+    {
+        if let CtInstructionKind::TypeConstruct {
+            constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
+            arguments,
+        } = &instruction.kind
+        {
+            meter.charge(
+                arguments
+                    .len()
+                    .saturating_add(life.bindings.len())
+                    .saturating_add(life.classes.len()),
+                Some(instruction.span),
+            )?;
+            for row in &life.bindings {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            for row in &life.classes {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            if life.to_flat(arguments.len().saturating_sub(1)).is_none() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "rich CT5 borrowed signature construction is not yet implemented",
+                    Some(instruction.span),
+                )]);
+            }
+        }
+    }
+
     preflight(&raw, limits)?;
+    check_ambient_metadata(&raw, limits, authority, meter)?;
     check_type_metadata(&raw, limits, meter)?;
     for instruction in raw
         .functions
@@ -593,6 +650,181 @@ fn check_ty(
             }
             _ => {}
         }
+    }
+    Ok(())
+}
+
+fn check_ambient_metadata(
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    authority: &impl CtArtifactAuthority,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    let count = raw.ambient_life_scopes.len();
+    if count > limits.max_nodes || count as u64 > raw.budget.max_generated_nodes {
+        return Err(limit(None, "CT ambient scope inventory exceeds quota"));
+    }
+    meter.charge(count.saturating_mul(8).saturating_add(1), None)?;
+    if count as u64 > raw.budget.max_temporary_bytes {
+        return Err(limit(None, "CT ambient inventory scratch exceeds quota"));
+    }
+    let mut seen = vec![false; count];
+    for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
+        meter.charge(
+            scope
+                .binder_site
+                .len()
+                .saturating_add(count)
+                .saturating_add(32),
+            None,
+        )?;
+        if !matches!(scope.instance, CtScopeInstance::Definition) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT5 full specialization scope validation is not yet implemented",
+                None,
+            )]);
+        }
+        if scope.binder_site.len() > limits.max_call_depth {
+            return Err(limit(None, "CT binder-site depth exceeds quota"));
+        }
+        for prior in &raw.ambient_life_scopes[..index] {
+            meter.charge(
+                prior
+                    .binder_site
+                    .len()
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+                None,
+            )?;
+            if prior == scope {
+                return Err(reject(None, "CT ambient scope is duplicated"));
+            }
+        }
+        let parameters = authority.scope_parameter_count(scope).ok_or_else(|| {
+            reject(
+                None,
+                "CT ambient scope is not an actual active source binder",
+            )
+        })?;
+        if parameters > limits.max_nodes {
+            return Err(limit(None, "CT ambient parameter inventory exceeds quota"));
+        }
+        meter.charge(
+            parameters.saturating_mul(
+                count
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+            ),
+            None,
+        )?;
+        let mut lifetime = false;
+        for ordinal in 0..parameters {
+            let kind = authority
+                .scope_parameter_kind(scope, ordinal)
+                .ok_or_else(|| {
+                    reject(None, "CT ambient source parameter inventory is incomplete")
+                })?;
+            lifetime |= kind == CtScopeParameterKind::Lifetime;
+        }
+        if !lifetime {
+            return Err(reject(None, "CT ambient scope has no lifetime parameter"));
+        }
+    }
+    fn graph(
+        graph: &CtTypeRef,
+        raw: &CtArtifactProgram,
+        authority: &impl CtArtifactAuthority,
+        meter: &mut CtVerificationMeter,
+        seen: &mut [bool],
+        next: &mut usize,
+    ) -> Check<()> {
+        meter.charge(graph.ambient_classes.len().saturating_mul(32), None)?;
+        let mut previous = None;
+        for row in &graph.ambient_classes {
+            let key = (row.owner, row.class);
+            if previous.is_some_and(|old| old >= key) {
+                return Err(reject(
+                    None,
+                    "CT ambient class mappings repeat or are not ordered",
+                ));
+            }
+            previous = Some(key);
+            let index = row.source.scope.0 as usize;
+            let scope = raw
+                .ambient_life_scopes
+                .get(index)
+                .ok_or_else(|| reject(None, "CT ambient scope reference is outside inventory"))?;
+            meter.charge(
+                raw.ambient_life_scopes
+                    .len()
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32),
+                None,
+            )?;
+            if authority.scope_parameter_kind(scope, row.source.parameter as usize)
+                != Some(CtScopeParameterKind::Lifetime)
+            {
+                return Err(reject(
+                    None,
+                    "CT ambient reference does not name an actual lifetime ordinal",
+                ));
+            }
+            if !seen[index] {
+                if index != *next {
+                    return Err(reject(
+                        None,
+                        "CT ambient scope table is not in first actual use order",
+                    ));
+                }
+                seen[index] = true;
+                *next += 1;
+            }
+        }
+        Ok(())
+    }
+    let mut next = 0;
+    for (arguments, context) in raw
+        .record_schemas
+        .iter()
+        .map(|s| (&s.arguments, &s.life_context))
+        .chain(
+            raw.enum_schemas
+                .iter()
+                .map(|s| (&s.arguments, &s.life_context)),
+        )
+    {
+        meter.charge(arguments.len().saturating_add(1), None)?;
+        if let Some(context) = context {
+            graph(context, raw, authority, meter, &mut seen, &mut next)?;
+        }
+        for argument in arguments {
+            if let CtSchemaArgument::Type(value) = argument {
+                graph(value, raw, authority, meter, &mut seen, &mut next)?;
+            }
+        }
+    }
+    for template in &raw.templates {
+        meter.charge(template.syntax.nodes.len(), None)?;
+        for node in &template.syntax.nodes {
+            if let CtSyntaxNode::Token(CtToken {
+                name:
+                    Some(CtIdent {
+                        member_owner_type: Some(value),
+                        ..
+                    }),
+                ..
+            }) = node
+            {
+                graph(value, raw, authority, meter, &mut seen, &mut next)?;
+            }
+        }
+    }
+    if next != count {
+        return Err(reject(
+            None,
+            "CT ambient scope inventory contains unused rows",
+        ));
     }
     Ok(())
 }
@@ -1431,6 +1663,11 @@ fn check_instruction(
                             .all(|id| value(*id).ok() == Some(&CtTy::Type))
                 }
                 T::BorrowedFunctionPointer { life } => {
+                    let life =
+                        life.to_flat(arguments.len().saturating_sub(1))
+                            .ok_or_else(|| {
+                                reject(span, "rich borrowed constructor was not admitted")
+                            })?;
                     let mut dense = 0;
                     let canonical = life.parameter_lives.iter().flatten().all(|tag| {
                         if *tag > dense || *tag >= life.binder_count {
@@ -1717,6 +1954,7 @@ mod tests {
     fn raw() -> CtArtifactProgram {
         let span = Span::default();
         CtArtifactProgram {
+            ambient_life_scopes: Vec::new(),
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
             target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,

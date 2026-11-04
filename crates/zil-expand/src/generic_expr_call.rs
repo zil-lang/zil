@@ -99,6 +99,7 @@ impl Engine<'_> {
             matches!(
                 *name,
                 "task_create"
+                    | "task_await"
                     | "task_poll"
                     | "task_poll_close"
                     | "task_request_cancel"
@@ -107,7 +108,7 @@ impl Engine<'_> {
             )
         }) {
             let name = name.to_owned();
-            if name == "task_create" {
+            if matches!(name.as_str(), "task_create" | "task_await") {
                 let Some(first) = arguments.first() else {
                     return Err(error(e.span, "task_create requires a static worker"));
                 };
@@ -128,10 +129,28 @@ impl Engine<'_> {
                 for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
                     self.expr_expected(&mut argument.value, env, Some(&parameter.ty), depth + 1)?;
                 }
-                let result = signature
+                let mut result = signature
                     .return_type
                     .clone()
                     .unwrap_or_else(|| named("void", e.span));
+                let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
+                    && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));
+                if owning_result
+                    && !matches!(&result.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
+                {
+                    self.budget.ty(&result)?;
+                    result = TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Named {
+                            path: vec!["Managed".into()],
+                            args: vec![GenericArg::Type(result)],
+                        },
+                    };
+                }
+                if name == "task_await" {
+                    self.ty(&mut result, depth + 1)?;
+                    return Ok(Some(Some(result)));
+                }
                 let mut result = TypeRef {
                     span: e.span,
                     kind: TypeKind::Error {
@@ -502,11 +521,10 @@ impl Engine<'_> {
                         if function.params.len() != actual.len() {
                             return Err(error(e.span, "callable helper arity mismatch"));
                         }
-                        if function
-                            .generics
-                            .iter()
-                            .any(|p| !callable.contains_generic(&p.name))
-                        {
+                        if function.generics.iter().any(|p| {
+                            !matches!(p.kind, GenericParamKind::Lifetime)
+                                && !callable.contains_generic(&p.name)
+                        }) {
                             let variables: BTreeSet<_> =
                                 type_parameters(function).map(|p| p.name.clone()).collect();
                             let mut found = if contextual_constraints {
@@ -560,7 +578,10 @@ impl Engine<'_> {
                             let types = function
                                 .generics
                                 .iter()
-                                .filter(|p| !callable.contains_generic(&p.name))
+                                .filter(|p| {
+                                    !matches!(p.kind, GenericParamKind::Lifetime)
+                                        && !callable.contains_generic(&p.name)
+                                })
                                 .map(|p| {
                                     found.get(&p.name).cloned().ok_or_else(|| {
                                         error(

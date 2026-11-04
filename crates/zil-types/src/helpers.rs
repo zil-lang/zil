@@ -123,6 +123,11 @@ pub(super) fn validate_template(
                 .chain(std::iter::once(&bound.result))
             {
                 prepay(ty, function.span)?;
+                if !life.classes.is_empty() {
+                    // The full actual qualified signature is consumed again
+                    // by boundary/slot and recursive pointee eligibility.
+                    prepay(ty, function.span)?;
+                }
             }
             borrowed_fp::relation(&bound.parameters, &bound.result, life, function.span)?;
         }
@@ -285,6 +290,17 @@ pub(super) fn validate_template(
         if old {
             continue;
         }
+        if function.storage_life.is_some()
+            && matches!(&p.ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+        {
+            // The helper retains its own ordinary input relation separately
+            // from each callback role. Pay before recursive eligibility; the
+            // actual body and callers still enter both independent kernels.
+            prepay(&p.ty, p.span)?;
+            if stored::shared_address(&p.ty) {
+                continue;
+            }
+        }
         if !owned_state
             && matches!(p.mode, PassingMode::Infer | PassingMode::Move)
             && matches!(
@@ -321,8 +337,7 @@ pub(super) fn install_single(
     let span = core.functions[0].span;
     reserve_signatures(signatures, state, limits, span)?;
     for (name, ty) in enums {
-        let work = inference::type_snapshot_work(ty, span, limits)?;
-        state.snapshot(work.saturating_mul(2).saturating_add(name.len()), span)?;
+        state.snapshot_type(ty, 2, name.len(), span)?;
     }
     let context = Rc::new(Context {
         module: core.module_id,
@@ -336,14 +351,13 @@ pub(super) fn install_single(
 pub(super) fn reserve_signatures(
     signatures: &BTreeMap<String, Signature>,
     state: &mut closures::State,
-    limits: &Limits,
+    _limits: &Limits,
     span: Span,
 ) -> R<()> {
     state.snapshot(signatures.len(), span)?;
     for (name, signature) in signatures {
-        let work = inference::signature_snapshot_work(name, signature, span, limits)?;
         // One bounded borrowed walk and one ensuing deep table clone.
-        state.snapshot(work.saturating_mul(2), span)?;
+        state.snapshot_signature(name, signature, span)?;
     }
     Ok(())
 }
@@ -389,13 +403,17 @@ pub(super) fn install(
             || !function.type_parameters.is_empty()
             || !function.state_parameters.is_empty()
         {
+            state.snapshot(function.callable_parameters.len(), function.span)?;
+            for bound in &function.callable_parameters {
+                if let Some(life) = &bound.life {
+                    state.snapshot(borrowed_fp::metadata_work(life), function.span)?;
+                }
+            }
             validate_template(function, &mut |ty, span| {
-                let work = inference::type_snapshot_work(ty, span, limits)?;
-                state.snapshot(work.saturating_mul(2), span)
+                state.snapshot_type(ty, 2, 0, span)
             })?;
             store_templates::validate_header(function)?;
-            let (snapshot_work, store_shapes) = inference::helper_snapshot_work(function, limits)?;
-            state.snapshot(snapshot_work.saturating_mul(2), function.span)?;
+            let (snapshot_work, store_shapes) = state.snapshot_helper(function, 2)?;
             // New State declaration bodies are constrained even when no
             // concrete instance is requested. No concrete ClosureId is needed
             // for lexical origins, mode checks or the bounded Once paths.
@@ -689,9 +707,11 @@ impl Builder<'_, '_> {
                 .iter()
                 .chain(std::iter::once(&bound.result))
             {
-                let work = inference::type_snapshot_work(ty, span, self.limits)?;
-                self.closures.snapshot(work.saturating_mul(2), span)?;
+                self.closures.snapshot_type(ty, 2, 0, span)?;
             }
+            borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
+                self.closures.snapshot(work, span)
+            })?;
             borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
         }
         if owned_state {
@@ -938,9 +958,7 @@ impl Builder<'_, '_> {
                 let mut call = Vec::new();
                 let mut writes = Vec::new();
                 for index in 0..capture_count {
-                    let capture = &self.closures.pending[closure.0 as usize].captures[index];
-                    let work = inference::type_snapshot_work(&capture.ty, span, self.limits)?;
-                    self.closures.snapshot(work.saturating_mul(2), span)?;
+                    self.closures.snapshot_capture(closure, index, span)?;
                     let ty =
                         self.closures.pending[closure.0 as usize].captures[index].stored_type();
                     if matches!(ty, Type::Address { .. }) {
@@ -1031,11 +1049,14 @@ impl Builder<'_, '_> {
         if registration::template(&template.function) {
             typed.callable_contract = None;
         }
+        if let Some(life) = &typed.storage_life {
+            borrowed_fp::charge_contract(life, |work| self.closures.snapshot(work, span), 1)?;
+        }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
-                storage_life: None,
+                storage_life: typed.storage_life.clone(),
                 reference_return_bound: None,
                 name: function.name,
                 function: id,

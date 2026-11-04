@@ -14,6 +14,7 @@ fn source(count: u32) -> LirModule {
         layouts: vec![],
         functions: (0..count)
             .map(|id| zil_ir::TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,

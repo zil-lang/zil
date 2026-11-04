@@ -40,6 +40,7 @@ pub(super) struct Environment<'a> {
     pub ct_only: Vec<CtSymbolId>,
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
+    source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
 }
 
 impl<'a> Environment<'a> {
@@ -156,9 +157,21 @@ impl<'a> Environment<'a> {
             ct_only: Vec::new(),
             source_fingerprint: fingerprint,
             target,
+            source_origins: None,
         })
     }
 
+    pub(super) fn bind_source_origins(
+        &mut self,
+        origins: Option<&[zil_expand::source_context::ModuleDeclarationOrigins]>,
+    ) -> CompileResult<()> {
+        if let Some(origins) = origins {
+            let bytes = super::invocation_context::origins_cost(origins, &mut self.budget)?;
+            self.budget.reserve_temporary_bytes(bytes)?;
+            self.source_origins = Some(Arc::new(origins.to_vec()));
+        }
+        Ok(())
+    }
     fn remaining_limits(&self) -> Limits {
         let remaining = self.budget.remaining();
         let mut limits = self.limits.clone();
@@ -256,6 +269,7 @@ impl<'a> Environment<'a> {
             index: &self.index,
             expected_functions: &expected.functions,
             expected_artifact: &expected,
+            invocation_context: None,
         };
         let clone_charge = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(clone_charge)?;
@@ -304,6 +318,40 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
     ) -> CompileResult<EvaluatedData> {
+        let before = self.budget.live_temporary_bytes();
+        let query_capacity = self.budget.usage().queries.capacity();
+        let result =
+            self.evaluate_data_inner(entry, input_tokens, input, arguments, span, retain_context);
+        if result.is_err() {
+            let keep = (self
+                .budget
+                .usage()
+                .queries
+                .capacity()
+                .saturating_sub(query_capacity) as u64)
+                .saturating_mul(std::mem::size_of::<CtQueryDependency>() as u64);
+            let added = self.budget.live_temporary_bytes().saturating_sub(before);
+            self.budget
+                .release_temporary_bytes(added.saturating_sub(keep));
+        }
+        result
+    }
+    fn evaluate_data_inner(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+        retain_context: bool,
+    ) -> CompileResult<EvaluatedData> {
+        let invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
+            &entry,
+            self.parsed,
+            &self.index,
+            self.source_origins.as_ref(),
+            &mut self.budget,
+        )?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
@@ -341,6 +389,7 @@ impl<'a> Environment<'a> {
             index: &self.index,
             expected_functions: &expected.functions,
             expected_artifact: &expected,
+            invocation_context: invocation_context.as_deref(),
         };
         let mut meter =
             zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
@@ -349,6 +398,10 @@ impl<'a> Environment<'a> {
         self.budget.reserve_analysis_work(meter.spent())?;
         let verified = result?;
         let reader = FrozenReadView {
+            record_schemas: &expected.record_schemas,
+            enum_schemas: &expected.enum_schemas,
+            ambient_life_scopes: &expected.ambient_life_scopes,
+            invocation_context: invocation_context.as_deref(),
             index: &self.index,
             sources: self.sources,
             syntax: &syntax,
@@ -378,6 +431,7 @@ impl<'a> Environment<'a> {
                     errors
                 },
             )?;
+        self.budget.release_usage_receipt(&_usage);
         self.budget.release_temporary_bytes(copied_bytes);
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;
@@ -394,11 +448,18 @@ impl<'a> Environment<'a> {
             Some(value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings,
+                invocation_context.clone(),
                 &mut self.budget,
             )?)
         } else {
             None
         };
+        if context.is_none()
+            && let Some(invocation_context) = invocation_context
+        {
+            self.budget
+                .release_temporary_bytes(invocation_context.bytes);
+        }
         Ok(EvaluatedData { value, context })
     }
 
@@ -446,6 +507,10 @@ impl<'a> Environment<'a> {
     pub(super) fn type_syntax(&mut self, ty: &CtTypeRef) -> CompileResult<CtSyntaxTree> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &self.index,
             sources: self.sources,
             syntax: &syntax,
@@ -505,6 +570,7 @@ mod tests {
         let argument = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let result = environment
             .evaluate(
@@ -562,9 +628,14 @@ mod tests {
                 arguments: Vec::new(),
             }],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let mut reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -659,9 +730,14 @@ mod tests {
                 arguments: Vec::new(),
             }],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -721,6 +797,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -736,6 +816,7 @@ mod tests {
         let arg = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let applied = reader
             .type_apply(&requester, &nominal, &[arg], &mut budget)
@@ -780,6 +861,7 @@ mod tests {
         let resource = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         assert!(
             reader
@@ -829,6 +911,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -844,6 +930,7 @@ mod tests {
         let i32_type = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let applied = reader
             .type_apply(&requester, &outer, &[i32_type], &mut budget)
@@ -871,6 +958,7 @@ mod tests {
                 &[CtValue::Type(CtTypeRef {
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
+                    ambient_classes: Vec::new(),
                 })],
                 &mut budget,
             )
@@ -882,6 +970,7 @@ mod tests {
         let bool_type = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let other = reader
             .type_apply(&requester, &outer, &[bool_type], &mut budget)
@@ -945,6 +1034,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -960,10 +1053,12 @@ mod tests {
         let i32_value = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let owner = reader
             .type_apply(
@@ -1026,6 +1121,10 @@ mod tests {
         };
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1063,6 +1162,10 @@ mod tests {
         };
         token.text = "y".into();
         let changed_reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             input: Some(&changed),
             ..reader
         };
@@ -1127,6 +1230,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1142,6 +1249,7 @@ mod tests {
         let arg = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let ty = reader
             .type_apply(&requester, &nominal, &[arg], &mut budget)
@@ -1248,6 +1356,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1265,6 +1377,7 @@ mod tests {
             CtTypeRef {
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
+                ambient_classes: Vec::new()
             }
         );
         assert_eq!(
@@ -1272,6 +1385,7 @@ mod tests {
             CtTypeRef {
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                 root: CtTypeNodeId(0),
+                ambient_classes: Vec::new()
             }
         );
         for (alias, expected) in [
@@ -1299,6 +1413,7 @@ mod tests {
                 &[CtValue::Type(CtTypeRef {
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
+                    ambient_classes: Vec::new(),
                 })],
                 &mut budget,
             )
@@ -1321,6 +1436,7 @@ mod tests {
         let arg = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let aliased = reader
             .type_apply(&requester, &entry, std::slice::from_ref(&arg), &mut budget)
@@ -1339,6 +1455,7 @@ mod tests {
                 &[CtValue::Type(CtTypeRef {
                     nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                     root: CtTypeNodeId(0),
+                    ambient_classes: Vec::new(),
                 })],
                 &mut budget,
             )
@@ -1350,10 +1467,12 @@ mod tests {
         let i32_value = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let bool_value = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::Bool)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let aliased = reader
             .type_apply(
@@ -1407,6 +1526,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1428,6 +1551,7 @@ mod tests {
                     CtTypeNode::Tuple(vec![CtTypeNodeId(0), CtTypeNodeId(1)])
                 ],
                 root: CtTypeNodeId(2),
+                ambient_classes: Vec::new()
             }
         );
     }
@@ -1471,6 +1595,10 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1486,6 +1614,7 @@ mod tests {
         let i32_type = CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         let aliased = reader
             .type_apply(
@@ -1512,6 +1641,315 @@ mod tests {
             2,
             "equal child nodes must share one canonical DAG identity"
         );
+    }
+    #[test]
+    fn ct5_failure_after_successful_scope_freeze_releases_invocation_bytes() {
+        let sources = vec![SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "scope-failure.zil",
+            "struct Phantom<life a>{n:i32} fn failing<life a>()->i32{return #(missing())}",
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(parsed[0].diagnostics.is_empty());
+        let syntax = vec![&parsed[0].module];
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let (origins, _) = zil_expand::source_context::capture_original(
+            &sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[Vec::new()],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        environment.bind_source_origins(origins.as_deref()).unwrap();
+        environment.budget.reserve_temporary_bytes(37).unwrap();
+        let before = environment.budget.live_temporary_bytes();
+        let symbol = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(1),
+            generation_path: None,
+        };
+        let context = super::super::invocation_context::FrozenInvocationContext::freeze(
+            &Entry::Function(symbol.clone()),
+            &parsed,
+            &environment.index,
+            environment.source_origins.as_ref(),
+            &mut environment.budget,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(context.bytes > 0);
+        environment.budget.release_temporary_bytes(context.bytes);
+        drop(context);
+        let zil_syntax::ast::ItemKind::Function(function) = &parsed[0].module.items[1].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::FunctionBody::Block(block) = &function.body else {
+            unreachable!()
+        };
+        let zil_syntax::ast::StmtKind::Return(Some(expression)) = &block.statements[0].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::ExprKind::MetaEval(expression) = &expression.kind else {
+            unreachable!()
+        };
+        let input = environment.empty_input(expression.span).unwrap();
+        let result = environment.evaluate_data(
+            Entry::Expression {
+                module: ModuleId(0),
+                expression,
+                definition: symbol,
+                expected: None,
+                parameters: &[],
+            },
+            &input,
+            None,
+            &[],
+            expression.span,
+        );
+        assert!(result.is_err());
+        assert_eq!(environment.budget.live_temporary_bytes(), before);
+    }
+    #[test]
+    fn ct5_actual_definition_scope_raw_wire_and_independent_budget_controls() {
+        let sources = vec![SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "scope-raw.zil",
+            "struct Phantom<life a>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<T:Copy,life a,life b>(p:&'a i32)->i32{let value:Phantom<'a>=#(Phantom::<'a>{n:scalar(i32,42)});return value.n} fn second<T:Copy,life a,life b>(p:&'a i32)->i32{return 0}",
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(
+            parsed[0].diagnostics.is_empty(),
+            "{:?}",
+            parsed[0].diagnostics
+        );
+        let syntax = vec![&parsed[0].module];
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let (origins, _) = zil_expand::source_context::capture_original(
+            &sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let origins = Arc::new(origins.unwrap());
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &[Vec::new()],
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        let definition = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(2),
+            generation_path: None,
+        };
+        let zil_syntax::ast::ItemKind::Function(function) = &parsed[0].module.items[2].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::FunctionBody::Block(block) = &function.body else {
+            unreachable!()
+        };
+        let zil_syntax::ast::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
+            unreachable!()
+        };
+        let invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
+            &Entry::Function(definition.clone()),
+            &parsed,
+            &environment.index,
+            Some(&origins),
+            &mut environment.budget,
+        )
+        .unwrap()
+        .unwrap();
+        let input = environment.empty_input(expression.span).unwrap();
+        let modules = environment.index.modules(&sources, &syntax);
+        let (expected, _) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: target.pointer_width,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: Entry::Expression {
+                module: ModuleId(0),
+                expression,
+                definition,
+                expected: None,
+                parameters: &[],
+            },
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .unwrap();
+        assert_eq!(expected.ambient_life_scopes.len(), 1);
+        assert_eq!(
+            expected.record_schemas[0]
+                .life_context
+                .as_ref()
+                .unwrap()
+                .ambient_classes[0]
+                .source
+                .parameter,
+            1
+        );
+        let authority = FrozenAuthority {
+            source_fingerprint: sources[0].fingerprint(),
+            snapshot: &environment.snapshot,
+            input: &input,
+            index: &environment.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: Some(&invocation),
+        };
+        let encode = |raw: &CtArtifactProgram| {
+            zil_ir::ct_wire::decode_program(
+                &zil_ir::ct_wire::encode_program(raw, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+        };
+        let mut meter = zil_verify::CtVerificationMeter::new(limits.max_analysis_steps as u64);
+        let verified = zil_verify::verify_ct_artifact_metered(
+            encode(&expected),
+            &limits,
+            &authority,
+            &mut meter,
+        )
+        .unwrap();
+        let exact = meter.spent();
+        for work in [exact, exact - 1, exact] {
+            let mut meter = zil_verify::CtVerificationMeter::new(work);
+            let result = zil_verify::verify_ct_artifact_metered(
+                expected.clone(),
+                &limits,
+                &authority,
+                &mut meter,
+            );
+            if work == exact {
+                assert!(result.is_ok());
+            } else {
+                assert_eq!(result.unwrap_err()[0].code, "E-RESOURCE-LIMIT");
+            }
+        }
+        for attack in 0..10 {
+            let mut raw = expected.clone();
+            match attack {
+                0 => raw.ambient_life_scopes[0].declaration.declaration = zil_base::NodeId(3),
+                1 => {
+                    raw.record_schemas[0]
+                        .life_context
+                        .as_mut()
+                        .unwrap()
+                        .ambient_classes[0]
+                        .source
+                        .parameter = 0
+                }
+                2 => {
+                    raw.record_schemas[0]
+                        .life_context
+                        .as_mut()
+                        .unwrap()
+                        .ambient_classes[0]
+                        .source
+                        .parameter = 99
+                }
+                3 => raw.record_schemas[0]
+                    .life_context
+                    .as_mut()
+                    .unwrap()
+                    .ambient_classes
+                    .clear(),
+                4 => {
+                    let graph = raw.record_schemas[0].life_context.as_mut().unwrap();
+                    graph.ambient_classes.push(graph.ambient_classes[0].clone());
+                }
+                5 => {
+                    raw.record_schemas[0]
+                        .life_context
+                        .as_mut()
+                        .unwrap()
+                        .ambient_classes[0]
+                        .owner = CtTypeNodeId(0)
+                }
+                6 => raw
+                    .ambient_life_scopes
+                    .push(raw.ambient_life_scopes[0].clone()),
+                7 => raw.ambient_life_scopes[0].binder_site.push(0),
+                8 => {
+                    raw.record_schemas[0]
+                        .life_context
+                        .as_mut()
+                        .unwrap()
+                        .ambient_classes[0]
+                        .source
+                        .scope = CtAmbientScopeId(1)
+                }
+                _ => raw.ambient_life_scopes[0].declaration.declaration = zil_base::NodeId(0),
+            }
+            for candidate in [raw.clone(), encode(&raw)] {
+                let errors =
+                    zil_verify::verify_ct_artifact(candidate, &limits, &authority).unwrap_err();
+                assert!(
+                    errors.iter().all(|error| !error
+                        .message
+                        .contains("source or frozen snapshot is not authenticated")),
+                    "attack {attack}: {errors:?}"
+                );
+            }
+        }
+        let reader = FrozenReadView {
+            record_schemas: &expected.record_schemas,
+            enum_schemas: &expected.enum_schemas,
+            ambient_life_scopes: &expected.ambient_life_scopes,
+            invocation_context: Some(&invocation),
+            index: &environment.index,
+            sources: &sources,
+            syntax: &syntax,
+            shape: environment.shape.as_ref(),
+            impl_index: environment.impl_index.as_ref(),
+            shape_failure: None,
+            input: None,
+            limits: &limits,
+            target: &target,
+            snapshot: &environment.snapshot,
+        };
+        let (value, usage) =
+            zil_ct::evaluate_ct_artifact(&verified, &[], &reader, &mut environment.budget).unwrap();
+        assert!(matches!(value, CtValue::Record { .. }));
+        environment.budget.release_value(&value);
+        environment.budget.release_usage_receipt(&usage);
+        eprintln!("CT5 actual-source raw/Wire independent work boundary {exact}");
     }
 }
 

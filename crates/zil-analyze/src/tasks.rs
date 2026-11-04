@@ -1,5 +1,6 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod owned;
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -79,6 +80,48 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn has_await(blocks: &[BasicBlock], budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(
+        blocks.len().saturating_mul(2),
+        "task lane classification blocks",
+    )?;
+    for block in blocks {
+        budget.spend(
+            block.instructions.len(),
+            "task lane classification instructions",
+        )?;
+        if block
+            .instructions
+            .iter()
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+fn matching_resources(
+    resources: &[ResourceDefinition],
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<usize> {
+    budget.spend(
+        resources.len().saturating_mul(2),
+        "task resource comparison rows",
+    )?;
+    let mut count = 0usize;
+    for resource in resources {
+        if std::mem::discriminant(&resource.payload) != std::mem::discriminant(payload) {
+            continue;
+        }
+        budget.type_work(&resource.payload, false, "actual task resource equality")?;
+        budget.type_work(payload, false, "query task resource equality")?;
+        if resource.payload == *payload {
+            count = count.saturating_add(1);
+        }
+    }
+    Ok(count)
+}
 fn worker_one(
     module: &TypedModule,
     id: FunctionId,
@@ -92,11 +135,36 @@ fn worker_one(
     budget.spend(
         f.locals
             .len()
-            .saturating_add(f.values.len())
+            .saturating_mul(2)
+            .saturating_add(f.values.len().saturating_mul(2))
             .saturating_add(module.resources.len())
             .saturating_add(1),
         "task worker real scalar profile",
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
+        || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+        || f.return_type != Type::I32
+        || f.parameters.len() != 1
+        || f.parameters
+            .first()
+            .and_then(|p| f.locals.get(p.0 as usize))
+            .is_none_or(|l| l.ty != Type::I32)
+        || f.locals.iter().any(|l| {
+            matches!(
+                l.ty,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.values.iter().any(|t| {
+            matches!(
+                t,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || has_await(&f.blocks, budget)?
+    {
+        return owned::profile(module, f, budget, Some(span));
+    }
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.callable_contract.is_some()
@@ -232,7 +300,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 false,
                 "canonical general Task definition identity",
             )?;
-            if matches!(&r.payload,Type::Task{result,..} if **result!=Type::I32) {
+            if let Type::Task { result, .. } = &r.payload
+                && !owned::result_type(result, budget)?
+            {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
                     "general owning task result lowering is not yet admitted by this frame profile",
@@ -243,15 +313,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let Type::Task { .. } = &r.payload else {
                 return Err(bad("general Task canonical name has another payload"));
             };
-            budget.spend(module.resources.len(), "general Task uniqueness")?;
+            let expected_name = format!("{TASK_RESOURCE_NAME_PREFIX}{}", r.payload.fingerprint());
+            budget.spend(
+                r.name.len().saturating_add(expected_name.len()),
+                "task canonical name comparison",
+            )?;
             if r.teardown.is_some()
-                || r.name != format!("{TASK_RESOURCE_NAME_PREFIX}{}", r.payload.fingerprint())
-                || module
-                    .resources
-                    .iter()
-                    .filter(|other| other.payload == r.payload)
-                    .count()
-                    != 1
+                || r.name != expected_name
+                || matching_resources(&module.resources, &r.payload, budget)? != 1
             {
                 return Err(bad(
                     "general Task definition must be actual canonical unique sealed payload",
@@ -351,7 +420,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             return Err(fail(i.span, "task_create input count differs"));
                         }
                         for (v, p) in arguments.iter().zip(&target.parameters) {
-                            if ty(*v)? != &target.locals[p.0 as usize].ty {
+                            let actual = ty(*v)?;
+                            let wanted = &target.locals[p.0 as usize].ty;
+                            budget.type_work(actual, false, "task initial actual input")?;
+                            budget.type_work(wanted, false, "task initial signature input")?;
+                            if actual != wanted {
                                 return Err(fail(i.span, "task_create actual input type differs"));
                             }
                         }
@@ -369,6 +442,19 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         worker: id,
                         argument,
                     } => {
+                        let target = module
+                            .functions
+                            .get(id.0 as usize)
+                            .ok_or_else(|| fail(i.span, "task worker absent"))?;
+                        if target.parameters.len() != 1
+                            || target.locals[target.parameters[0].0 as usize].ty != Type::I32
+                            || target.return_type != Type::I32
+                        {
+                            return Err(fail(
+                                i.span,
+                                "legacy task_start requires an actual i32 worker signature",
+                            ));
+                        }
                         if ty(argument)? != &Type::I32 {
                             return Err(fail(i.span, "task payload must be i32"));
                         }
@@ -380,17 +466,27 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         ref arguments,
                     } => {
                         suspend[index] = true;
-                        budget.spend(arguments.len().saturating_add(1), "child call inputs")?;
-                        if arguments.len() != 1
-                            || arguments.iter().any(|v| ty(*v).ok() != Some(&Type::I32))
-                        {
-                            return Err(fail(
-                                i.span,
-                                "static child call requires exact actual i32 input",
-                            ));
+                        budget
+                            .spend(arguments.len().saturating_add(1), "actual child arguments")?;
+                        let target = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| fail(i.span, "child absent"))?;
+                        if arguments.len() != target.parameters.len() {
+                            return Err(fail(i.span, "child argument count differs"));
+                        }
+                        for (argument, parameter) in arguments.iter().zip(&target.parameters) {
+                            let actual = ty(*argument)?;
+                            let wanted = &target.locals[parameter.0 as usize].ty;
+                            budget.type_work(actual, false, "actual child input")?;
+                            budget.type_work(wanted, false, "child signature input")?;
+                            if actual != wanted {
+                                return Err(fail(i.span, "child input type differs"));
+                            }
                         }
                         worker(module, function, budget, i.span)?;
-                        Some(Type::I32)
+                        budget.type_work(&target.return_type, false, "actual child result")?;
+                        Some(target.return_type.clone())
                     }
                     InstructionKind::TaskYield => {
                         suspend[index] = true;
@@ -857,3 +953,6 @@ pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Compile
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod budget_tests;

@@ -353,6 +353,26 @@ fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
 }
 
 #[test]
+fn ordinary_package_address_call_inside_closure_keeps_contextual_signature() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn bump(p:&mut P,n:i32){p.n+=n}fn result()->i32{let f=()->i32=>{var p=P{r:R{n:1},n:20};bump(&mut p,22);return p.n};return f()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let denied = text.replace("bump(&mut p,22)", "bump(&p,22)");
+    let report = compile_source(&source(&denied), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn recovery317_component_source_and_nearest_rejections() {
     let report =
@@ -4180,7 +4200,7 @@ fn child343_source_and_raw_effect_boundaries() {
 
 #[test]
 fn child343_life_transport_is_not_silently_admitted() {
-    use zil_ir::FunctionLifeContract;
+    use zil_ir::{FunctionLifeContract, StorageLifeContract};
     let src = source(
         "fn apply<F:Fn(i32)->i32>(f:F,x:i32)->i32 {return f(x)} fn main()->i32 {let f=(x:i32)->i32=>x+1;return apply(f,7)}",
     );
@@ -4190,11 +4210,12 @@ fn child343_life_transport_is_not_silently_admitted() {
     let limits = Limits::default();
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
-    let relation = FunctionLifeContract {
+    let relation = StorageLifeContract::from_flat(FunctionLifeContract {
         binder_count: 0,
         parameter_lives: vec![None],
         result_life: None,
-    };
+    })
+    .unwrap();
     let mut header = core.clone();
     header
         .functions

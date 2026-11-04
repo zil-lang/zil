@@ -735,7 +735,7 @@ pub(super) fn function(
 ) -> R<CtFunction> {
     let d = c.declarations[declaration];
     let (parameters, result) = c.header(declaration)?;
-    let definition = c.symbol(d.module, d.item.span)?;
+    let definition = c.item_symbol(d.module, d.item)?;
     let mut b = Builder::new(c, id, d.module, definition, result, d.function.span)?;
     for (parameter, ty) in d.function.params.iter().zip(parameters) {
         let local = b.bind(&parameter.name, ty.clone(), false, parameter.span)?;

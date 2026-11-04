@@ -6,8 +6,136 @@ mod fixture {
     include!("stored_flow_fixture.rs");
 }
 
+#[test]
+fn terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/342/stored_view.zil");
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    let temp = Temp::new();
+    for backend in backends {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let report = zil_driver::compile_path(
+                &path,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join("stored-view")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            execute(&report.artifacts["executable"], 42);
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            if let Some(retained) = std::env::var_os("ZIL342_RETAIN_NATIVE") {
+                let retained = PathBuf::from(retained);
+                fs::create_dir_all(&retained).unwrap();
+                let stem = format!("view-{backend:?}-{optimization:?}");
+                fs::write(retained.join(format!("{stem}.ll")), &llvm).unwrap();
+                fs::copy(
+                    &report.artifacts["executable"],
+                    retained.join(format!("{stem}.bin")),
+                )
+                .unwrap();
+                fs::write(retained.join(format!("{stem}.json")), report.to_json()).unwrap();
+                for key in ["typed", "core", "lir", "typed_ir", "core_ir", "lir_ir"] {
+                    if let Some(artifact) = report.artifacts.get(key) {
+                        fs::copy(artifact, retained.join(format!("{stem}-{key}.txt"))).unwrap();
+                    }
+                }
+            }
+            assert!(
+                llvm.contains("{ ptr }")
+                    && llvm.contains("getelementptr")
+                    && llvm.contains("load ptr, ptr"),
+                "{llvm}"
+            );
+        }
+    }
+}
+
 fn candidate(module: &TypedModule) -> CandidatePlan {
     zil_analyze::analyze(module, &Limits::default()).unwrap()
+}
+
+#[test]
+fn terminal342_phantom_nominal_classes_preserve_metadata_without_target_roots() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/342");
+    let positive = dir.join("phantom_stored_metadata.zil");
+    let negative = dir.join("phantom_stored_metadata_escape.zil");
+    let report = zil_driver::compile_path(&positive, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let error = zil_driver::compile_path(&negative, &CompileOptions::default());
+    assert_eq!(
+        error.status,
+        ResultCategory::SafeReject,
+        "{}",
+        error.to_json()
+    );
+    assert!(
+        error
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.message.contains("activation-local")),
+        "{}",
+        error.to_json()
+    );
+    let raw = fixture::phantom();
+    let plan = accept(&raw);
+    assert!(plan.functions[0].holds[1].roots.is_empty());
+    let mut forged = plan.clone();
+    forged.functions[0].holds[1]
+        .roots
+        .push(HoldRoot::Parameter(0));
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &forged, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(raw.clone(), forged, &raw.target, &Limits::default()).is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &raw.target, &Limits::default()).is_err());
+    let mut escaped = raw.clone();
+    escaped.functions[0].return_type = fixture::address(Type::I32, false);
+    escaped.functions[0].reference_return_bound = Some(vec![0]);
+    escaped.functions[0].values[4] = fixture::address(Type::I32, false);
+    escaped.functions[0].blocks[0].instructions[5].kind = InstructionKind::ReborrowAddress {
+        address: ValueId(3),
+        mutable: false,
+    };
+    escaped.functions[1].values[2] = fixture::address(Type::I32, false);
+    escaped.functions[1].values.push(Type::I32);
+    escaped.functions[1].blocks[0]
+        .instructions
+        .push(fixture::instruction(
+            Some(3),
+            InstructionKind::ReadAddress {
+                address: ValueId(2),
+            },
+        ));
+    escaped.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    let mut claim = plan;
+    claim.functions[1].holds.push(zil_ir::ValueHold {
+        value: ValueId(3),
+        roots: vec![],
+    });
+    reject(
+        &escaped,
+        claim,
+        "nominal phantom class cannot turn its activation-local field into input target permission",
+    );
 }
 fn accept(module: &TypedModule) -> CandidatePlan {
     let plan = candidate(module);
@@ -59,6 +187,36 @@ fn reject(module: &TypedModule, mut plan: CandidatePlan, text: &str) {
 fn terminal342_physical_shared_targets_survive_carrier_end_and_forward_calls() {
     let module = fixture::module();
     let plan = accept(&module);
+    let verified = zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    let llvm = zil_backend_llvm::emit(&verified, &lir).unwrap();
+    assert!(llvm.contains("getelementptr") && llvm.contains("load ptr, ptr"));
+    let mut erased = lir.clone();
+    erased.functions[1].storage_life = None;
+    assert!(
+        zil_backend_llvm::emit(&verified, &erased)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-CODEGEN-UNBOUND-LIR")
+    );
+    let mut replaced = lir;
+    replaced.functions[1].blocks[0].instructions[1].kind = InstructionKind::LoadStoredBorrow {
+        storage: ValueId(0),
+        path: vec![zil_ir::PlaceProjection::Field(1)],
+        mode: zil_ir::StoredBorrowLoad::CopyShared,
+    };
+    assert!(
+        zil_backend_llvm::emit(&verified, &replaced)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-CODEGEN-UNBOUND-LIR")
+    );
     assert_eq!(
         plan.functions[3].holds[4].roots,
         vec![HoldRoot::Local(LocalId(0))]
@@ -104,8 +262,15 @@ fn terminal342_physical_stored_actual_roots_modes_and_complete_inventory_are_ind
         "duplicate stable declaration identity",
     );
     let mut changed = original.clone();
-    changed.functions[1].storage_life.as_mut().unwrap().bindings[2].binder =
-        zil_ir::StorageBinder::Invocation(0);
+    changed.functions[1]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .bindings
+        .iter_mut()
+        .find(|row| row.position.base == zil_ir::StorageBase::Result)
+        .expect("actual read result relation")
+        .binder = zil_ir::StorageBinder::Invocation(0);
     reject(
         &changed,
         plan.clone(),
@@ -255,4 +420,45 @@ fn terminal342_physical_stored_current_cfg_is_reproved_and_work_has_fresh_bounda
         forged,
         "cached symbolic role cannot replace actual activation-local escape proof",
     );
+}
+
+#[test]
+fn terminal342_unreachable_instructions_cannot_extend_the_stored_native_comparison_profile() {
+    let original = fixture::module();
+    let mut plan = accept(&original);
+    let bad = fixture::unimplemented_unreachable();
+    let error = zil_analyze::analyze(&bad, &Limits::default()).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("including in unreachable")),
+        "{error:?}"
+    );
+    plan.functions[3].blocks.push(zil_ir::BlockPlan {
+        block: zil_ir::BlockId(1),
+        initialized_in: vec![],
+        initialized_out: vec![],
+    });
+    for value in [6, 7] {
+        plan.functions[3].holds.push(zil_ir::ValueHold {
+            value: ValueId(value),
+            roots: vec![],
+        });
+    }
+    plan.functions[4].blocks[0].initialized_in = (0..64).map(LocalId).collect();
+    plan.functions[4].blocks[0].initialized_out = (0..64).map(LocalId).collect();
+    plan.functions[4].holds[0].roots.clear();
+    plan.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &plan, &Limits::default()).unwrap();
+    for errors in [
+        zil_verify::verify_module(bad.clone(), plan, &bad.target, &Limits::default()).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("including unreachable")),
+            "{errors:?}"
+        );
+    }
 }

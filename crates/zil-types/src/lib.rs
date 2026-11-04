@@ -8,6 +8,7 @@ mod addresses;
 mod aggregate_templates;
 mod aggregates;
 mod borrowed_fp;
+mod borrowed_fp_qualified;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
@@ -24,6 +25,7 @@ mod functions;
 mod helpers;
 mod incremental;
 mod inference;
+mod interface_identity;
 pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod lifetimes;
@@ -62,6 +64,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
@@ -132,14 +135,30 @@ fn signatures(
         if f.storage_life.is_some()
             && (f.foreign.is_some()
                 || !f.type_parameters.is_empty()
-                || !f.callable_parameters.is_empty()
                 || !f.state_parameters.is_empty()
                 || f.callable_return.is_some())
         {
             return Err(vec![unsupported(
                 f.span,
-                "stored-borrow generic, foreign or callable signature requires its definition consumer",
+                "stored-borrow generic, foreign or returned callable signature requires its definition consumer",
             )]);
+        }
+        if let Some(life) = &f.storage_life {
+            borrowed_fp::charge_contract(
+                life,
+                |cost| {
+                    foreign_work = foreign_work.checked_sub(cost).ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "complete static signature budget exceeded",
+                            Some(f.span),
+                        )
+                    })?;
+                    Ok(())
+                },
+                1,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
         if let Some(life) = &f.life {
             foreign_work = foreign_work
@@ -197,25 +216,11 @@ fn signatures(
             }
         }
         if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
-            let work = inference::type_snapshot_work(
-                ty,
-                span,
-                &Limits {
-                    max_analysis_steps: foreign_work,
-                    ..limits.clone()
-                },
-            )?;
-            foreign_work = foreign_work
-                .checked_sub(work.saturating_mul(2))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "ordinary Sum helper parameter qualification budget exceeded",
-                        Some(span),
-                    )
-                })?;
-            Ok(())
+            inference::charge_type_snapshot(ty, span, limits, &mut foreign_work, 2)
         }) {
+            if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                return Err(vec![diagnostic]);
+            }
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = store_templates::validate_header(f) {
@@ -232,6 +237,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
@@ -601,10 +607,7 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<Self> {
         closures.block(f.span)?;
         if let Some(contract) = &f.storage_life {
-            let work = contract.bindings.iter().fold(1usize, |n, row| {
-                n.saturating_add(row.position.path.len()).saturating_add(1)
-            });
-            closures.snapshot(work, f.span)?;
+            borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
         let first_closure = closures.pending.len();
         let mut b = Self {
@@ -697,7 +700,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(b)
     }
-    fn resolve_callee(&self, callee: &CoreExpr) -> R<&Signature> {
+    fn resolve_callee(&self, callee: &CoreExpr) -> R<&'a Signature> {
         match &callee.kind {
             CoreExprKind::Name(name) => {
                 if self.lookup(name).is_some() {
@@ -2399,8 +2402,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         ) = expected
         {
             if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                if !life.classes.is_empty() {
+                    self.closures.snapshot_type(
+                        expected.expect("matched borrowed pointer"),
+                        2,
+                        0,
+                        span,
+                    )?;
+                }
                 self.closures
                     .snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.closures.snapshot(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(

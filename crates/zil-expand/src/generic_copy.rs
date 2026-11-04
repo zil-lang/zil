@@ -190,7 +190,9 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             TypeKind::ForLifetime { .. } => {
                 // A retained invocation relation belongs to a Copy code pointer;
                 // its address parameters are signature metadata, never fields.
-                type_keys::prepay(ty, self.budget)?;
+                if rich_pointer::key(ty, self.budget)?.is_none() {
+                    type_keys::prepay(ty, self.budget)?;
+                }
                 match super::super::lifetimes::pointer_type(ty) {
                     zil_ir::Type::BorrowedFunctionPointer { .. }
                     | zil_ir::Type::FunctionPointer { .. } => Ok(true),

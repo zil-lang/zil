@@ -1196,10 +1196,6 @@ impl Resolver<'_> {
             } => {
                 tasks::require_closed_context(ty, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                let result = match result {
-                    Type::Desc(p) => Type::Managed(p),
-                    t => t,
-                };
                 Type::Task {
                     result: Box::new(result),
                     retained_life: retained_life.clone(),
@@ -1412,6 +1408,14 @@ impl Resolver<'_> {
                     .map(|ty| self.ty(ty, depth + 1, span))
                     .collect::<R<Vec<_>>>()?;
                 let result = Box::new(self.ty(result, depth + 1, span)?);
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    borrowed_fp::metadata_work(life),
+                    span,
+                )?;
+                borrowed_fp::qualified_inputs(life, &parameters, &result, |work| {
+                    aggregate_templates::spend(&mut self.remaining, work, span)
+                })?;
                 borrowed_fp::relation(&parameters, &result, life, span)?;
                 Type::BorrowedFunctionPointer {
                     parameters,
@@ -2178,7 +2182,21 @@ impl Builder<'_, '_> {
                 "instance method value requires an explicit closure",
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
+        let before = self.closures.remaining_work();
+        let mut remaining = before;
+        let owned_tuple_place = (|| -> R<bool> {
+            let Some(ty) = self.borrowed_task_hint(object, &mut remaining, 0)? else {
+                return Ok(false);
+            };
+            if !matches!(ty, Type::Tuple(_)) {
+                return Ok(false);
+            }
+            inference::charge_type_snapshot(ty, e.span, self.limits, &mut remaining, 2)?;
+            Ok(owned_shapes::tuple(ty))
+        })();
+        self.closures.snapshot(before - remaining, e.span)?;
+        if owned_tuple_place?
+            || matches!(self.known_type(object), Some(Type::Address { .. }))
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
@@ -2829,10 +2847,6 @@ impl Resolver<'_> {
             )),
             CoreAggregateTypeRecipe::Task { result } => {
                 let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
-                let result = match result {
-                    Type::Desc(p) => Type::Managed(p),
-                    t => t,
-                };
                 Ok(Type::Desc(Box::new(Type::Task {
                     result: Box::new(result),
                     retained_life: tasks::empty_context(),

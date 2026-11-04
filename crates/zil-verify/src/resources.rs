@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
 mod replacements;
+pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -48,6 +49,25 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         tasks::require_closed_context(ty, None)?;
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                budget.spend(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_add(1),
+                )?;
+                for r in &life.slots {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.retained {
+                    budget.spend(r.path.len())?;
+                }
+                for r in &life.nominal_arguments {
+                    budget.spend(r.path.len())?;
+                }
+                pending.push(storage);
+            }
             Type::Task {
                 result: element, ..
             }
@@ -82,10 +102,17 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                     pending.extend(fields);
                 }
             }
-            Type::FunctionPointer { parameters, result }
-            | Type::BorrowedFunctionPointer {
-                parameters, result, ..
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                crate::signature_life::charge(life, budget)?;
+                budget.spend(parameters.len().saturating_mul(2))?;
+                pending.extend(parameters);
+                pending.push(result);
             }
+            Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);
@@ -935,6 +962,19 @@ impl Transfer<'_> {
                     .saturating_add(1),
             )?;
             let span = instruction.span;
+            let task_before = if validate {
+                task_frames::begin(f, state, budget)?
+            } else {
+                None
+            };
+            if validate
+                && matches!(
+                    instruction.kind,
+                    InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
+                )
+            {
+                task_frames::capture(f, b, i, state, budget)?;
+            }
             if validate {
                 for operand in instruction_operands(&instruction.kind) {
                     if let Some(row) = slots.desc_value[operand.0 as usize] {
@@ -1153,6 +1193,31 @@ impl Transfer<'_> {
                             span,
                             budget,
                         )?;
+                    }
+                }
+                InstructionKind::TaskPoll { .. } => {
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
+                    }
+                }
+                InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                } => {
+                    budget.spend(arguments.len())?;
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(
+                            if self.module.functions[function.0 as usize].result_mode
+                                == PassingMode::Create
+                            {
+                                FRESH
+                            } else {
+                                INPUT
+                            },
+                        );
                     }
                 }
                 InstructionKind::TaskCreate { arguments, .. } => {
@@ -2074,6 +2139,9 @@ impl Transfer<'_> {
                     }
                 }
             }
+            if validate {
+                task_frames::finish(f, b, i, task_before, state, budget)?;
+            }
         }
         if let Terminator::Return(value) = f.blocks[b].terminator {
             if let Some(value) = value {
@@ -2221,6 +2289,9 @@ fn run_function_data(
         if let Some(index) = slots.desc_local[local.0 as usize] {
             initial.desc[index].insert(Root::Parameter(p as u32));
         }
+    }
+    if validate {
+        task_frames::start(f, &slots, &initial, budget)?;
     }
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];

@@ -42,6 +42,16 @@ pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId))
 }
 impl Budget<'_> {
     pub(super) fn metadata(&mut self, graph: &CtTypeRef, span: Span) -> R<()> {
+        self.work(graph.ambient_classes.len(), span)?;
+        Self::take(
+            &mut self.bytes,
+            graph
+                .ambient_classes
+                .len()
+                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+            span,
+            "CT ambient mapping copy bytes exhausted",
+        )?;
         self.work(graph.nodes.len(), span)?;
         for node in &graph.nodes {
             self.node(span)?;
@@ -66,16 +76,74 @@ impl Budget<'_> {
                 "CT metadata copy bytes exhausted",
             )?;
             if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
-                self.work(life.parameter_lives.len(), span)?;
-                Self::take(
-                    &mut self.bytes,
-                    life.parameter_lives.len().saturating_mul(8),
-                    span,
-                    "CT lifetime metadata bytes exhausted",
-                )?;
+                self.signature_metadata(life, span)?;
             }
         }
         Ok(())
+    }
+    pub(super) fn rich_relation(
+        &mut self,
+        life: zil_ir::FunctionLifeContract,
+        span: Span,
+    ) -> R<zil_ir::StorageLifeContract> {
+        self.work(life.parameter_lives.len().saturating_add(1), span)?;
+        Self::take(
+            &mut self.bytes,
+            life.parameter_lives
+                .len()
+                .saturating_add(1)
+                .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>()),
+            span,
+            "CT relation embedding bytes exhausted",
+        )?;
+        zil_ir::StorageLifeContract::from_flat(life)
+            .ok_or_else(|| error(span, "CT relation parameter identity overflow"))
+    }
+    pub(super) fn signature_metadata(
+        &mut self,
+        life: &zil_ir::StorageLifeContract,
+        span: Span,
+    ) -> R<()> {
+        self.work(
+            life.bindings
+                .len()
+                .saturating_add(life.classes.len())
+                .saturating_add(2),
+            span,
+        )?;
+        let mut bytes = life
+            .bindings
+            .len()
+            .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>())
+            .saturating_add(
+                life.classes
+                    .len()
+                    .saturating_mul(std::mem::size_of::<zil_ir::SignatureLifeClassBinding>()),
+            );
+        for row in &life.bindings {
+            self.work(row.position.path.len(), span)?;
+            bytes = bytes.saturating_add(
+                row.position
+                    .path
+                    .len()
+                    .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>()),
+            );
+        }
+        for row in &life.classes {
+            self.work(row.position.path.len(), span)?;
+            bytes = bytes.saturating_add(
+                row.position
+                    .path
+                    .len()
+                    .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()),
+            );
+        }
+        Self::take(
+            &mut self.bytes,
+            bytes,
+            span,
+            "CT rich signature copy bytes exhausted",
+        )
     }
     fn storage_metadata(&mut self, life: &zil_ir::StorageLifeShape, span: Span) -> R<()> {
         self.work(
@@ -213,7 +281,14 @@ impl Compiler<'_> {
     ) -> R<CtTypeRef> {
         let mut nodes = Vec::new();
         let root = self.meta_source(module, ty, depth, &mut nodes)?;
-        self.meta_normalize(CtTypeRef { nodes, root }, ty.span)
+        self.meta_normalize(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            ty.span,
+        )
     }
     fn meta_source(
         &mut self,
@@ -325,7 +400,7 @@ impl Compiler<'_> {
                     }
                 }
                 CtTypeNode::Nominal {
-                    symbol: self.symbol(owner, item.span)?,
+                    symbol: self.item_symbol(owner, item)?,
                     arguments,
                 }
             }
@@ -456,7 +531,7 @@ impl Compiler<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life,
+                        life: self.budget.rich_relation(life, span)?,
                     }
                 }
             }
@@ -507,6 +582,10 @@ impl Compiler<'_> {
             CtTy::Scalar(s) => CtTypeNode::Primitive(*s),
             CtTy::Record(id) => {
                 let schema = &self.records[id.0 as usize];
+                if let Some(context) = &schema.life_context {
+                    self.budget.metadata(context, span)?;
+                    return Ok(context.clone());
+                }
                 self.budget
                     .work(schema.arguments.len().saturating_add(1), span)?;
                 for argument in &schema.arguments {
@@ -519,6 +598,10 @@ impl Compiler<'_> {
             }
             CtTy::Enum(id) => {
                 let schema = &self.enums[id.0 as usize];
+                if let Some(context) = &schema.life_context {
+                    self.budget.metadata(context, span)?;
+                    return Ok(context.clone());
+                }
                 self.budget
                     .work(schema.arguments.len().saturating_add(1), span)?;
                 for argument in &schema.arguments {
@@ -560,7 +643,14 @@ impl Compiler<'_> {
             }
         };
         let root = self.meta_push(&mut nodes, node, span)?;
-        self.meta_normalize(CtTypeRef { nodes, root }, span)
+        self.meta_normalize(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            span,
+        )
     }
     fn meta_nominal_node(
         &mut self,

@@ -27,6 +27,10 @@ fn phase(message: &str) -> Vec<Diagnostic> {
 }
 
 pub(super) struct FrozenReadView<'a> {
+    pub invocation_context: Option<&'a super::invocation_context::FrozenInvocationContext>,
+    pub record_schemas: &'a [CtRecordSchema],
+    pub enum_schemas: &'a [CtEnumSchema],
+    pub ambient_life_scopes: &'a [CtAmbientLifeScope],
     pub index: &'a SourceIndex,
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
@@ -275,6 +279,7 @@ impl FrozenReadView<'_> {
                 result,
                 life,
             } => {
+                let life = super::scope_metadata::closed_signature(life, parameters.len(), budget)?;
                 budget.reserve_analysis_work(
                     (life.binder_count as u64)
                         .saturating_mul(8)
@@ -651,12 +656,12 @@ impl FrozenReadView<'_> {
     }
     fn wire_budget(&self, budget: &CtExecutionBudget) -> WireBudget {
         let remaining = budget.remaining();
+        let available = remaining
+            .max_temporary_bytes
+            .saturating_sub(budget.live_temporary_bytes());
         let cap = |value: u64| usize::try_from(value).unwrap_or(usize::MAX);
         WireBudget {
-            bytes: self
-                .limits
-                .max_source_bytes
-                .min(cap(remaining.max_temporary_bytes)),
+            bytes: self.limits.max_source_bytes.min(cap(available)),
             nodes: self
                 .limits
                 .max_nodes
@@ -665,10 +670,7 @@ impl FrozenReadView<'_> {
                 .limits
                 .max_analysis_steps
                 .min(cap(remaining.max_analysis_work)),
-            allocation: self
-                .limits
-                .max_source_bytes
-                .min(cap(remaining.max_temporary_bytes)),
+            allocation: self.limits.max_source_bytes.min(cap(available)),
             max_depth: self
                 .limits
                 .max_call_depth
@@ -708,6 +710,26 @@ impl FrozenReadView<'_> {
         value: &CtValue,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Fingerprint> {
+        if let Some(context) = self
+            .invocation_context
+            .filter(|context| context.has_scopes())
+        {
+            return super::contextual_key::contextual_value_key(
+                value,
+                self.record_schemas,
+                self.enum_schemas,
+                self.ambient_life_scopes,
+                context,
+                self.limits,
+                budget,
+            );
+        }
+        if !self.ambient_life_scopes.is_empty() {
+            return Err(error(
+                "E-CT-CONTEXT",
+                "contextual value has no authentic invocation witness",
+            ));
+        }
         let mut wire = self.wire_budget(budget);
         let before = wire;
         let result = ct_wire::value_fingerprint_with_usage(value, self.limits, &mut wire);
@@ -1091,6 +1113,7 @@ impl FrozenReadView<'_> {
                 Ok(CtTypeRef {
                     nodes: owner_type.nodes.clone(),
                     root: *root,
+                    ambient_classes: owner_type.ambient_classes.clone(),
                 })
             }
             CoreAggregateTypeRecipe::Concrete(ty) => {
@@ -1487,7 +1510,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life,
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 }
             }
@@ -1531,7 +1554,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life,
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 } else {
                     CtTypeNode::FunctionPointer { parameters, result }
@@ -1730,7 +1753,14 @@ impl FrozenReadView<'_> {
                 "checked generic field instance differs from source lineage",
             ));
         }
-        Self::compact_type_ref(CtTypeRef { nodes, root }, budget)
+        Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )
     }
     fn matches_checked_type(
         &self,
@@ -1864,11 +1894,8 @@ impl FrozenReadView<'_> {
                     life: actual,
                 },
             ) if parameters.len() == ids.len() => {
-                budget.reserve_analysis_work(
-                    (life.parameter_lives.len() as u64)
-                        .saturating_mul(2)
-                        .saturating_add(life.binder_count as u64),
-                )?;
+                super::scope_metadata::signature_cost(life, budget)?;
+                super::scope_metadata::signature_cost(actual, budget)?;
                 if life != actual {
                     return Ok(false);
                 }
@@ -2012,7 +2039,14 @@ impl FrozenReadView<'_> {
             budget,
             0,
         )?;
-        let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let value = Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )?;
         let next_alias = match value.nodes.get(value.root.0 as usize) {
             Some(CtTypeNode::Nominal { symbol, .. })
                 if matches!(
@@ -2038,6 +2072,13 @@ impl FrozenReadView<'_> {
         Ok(value)
     }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        if !ty.ambient_classes.is_empty() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "authenticated CT5 compaction requires contextual relocation",
+                None,
+            )]);
+        }
         for node in &ty.nodes {
             budget.reserve_analysis_work(1)?;
             if matches!(node, CtTypeNode::BorrowedStorage { .. })
@@ -2255,6 +2296,7 @@ impl FrozenReadView<'_> {
         let value = CtTypeRef {
             root: remap[ty.root.0 as usize],
             nodes,
+            ambient_classes: Vec::new(),
         };
         if value
             .nodes
@@ -2439,6 +2481,7 @@ impl CtReadView for FrozenReadView<'_> {
                 arguments: Vec::new(),
             }],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         };
         if matches!(&item.kind, ItemKind::TypeAlias(alias) if alias.generics.is_empty()) {
             return self.alias_value(requester, symbol, &handle, budget);
@@ -2599,7 +2642,14 @@ impl CtReadView for FrozenReadView<'_> {
             symbol: nominal.clone(),
             arguments,
         });
-        let applied = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let applied = Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )?;
         if matches!(&item.kind, ItemKind::TypeAlias(_)) {
             return self.alias_value(requester, nominal, &applied, budget);
         }

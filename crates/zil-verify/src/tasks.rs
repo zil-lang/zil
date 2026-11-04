@@ -1,5 +1,6 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod owned;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -81,7 +82,9 @@ pub(super) fn carrier(
     };
     require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
-    if matches!(payload.as_ref(),Type::Task{result, ..} if **result!=Type::I32) {
+    if let Type::Task { result, .. } = payload.as_ref()
+        && !owned::result_type(result, budget)?
+    {
         return Err(unsupported(
             "general owning task result lowering is not yet admitted by this frame profile",
             span,
@@ -92,18 +95,8 @@ pub(super) fn carrier(
         Type::Task { .. } => format!("{TASK_RESOURCE_NAME_PREFIX}{}", payload.fingerprint()),
         _ => return Err(reject("E-VERIFY-TASK", span, "task payload absent")),
     };
-    budget.spend(module.resources.len().saturating_mul(2))?;
     if !module.target.is_supported_x64_llvm()
-        || module
-            .resources
-            .iter()
-            .filter(|r| r.payload == **payload)
-            .count()
-            != 1
-        || !module
-            .resources
-            .iter()
-            .any(|r| r.name == name && r.payload == **payload && r.teardown.is_none())
+        || !canonical_resource(&module.resources, payload, &name, budget)?
     {
         return Err(reject(
             "E-VERIFY-TASK",
@@ -141,7 +134,11 @@ pub(super) fn instruction(
                 return Err(bad());
             }
             for (v, p) in arguments.iter().zip(&target.parameters) {
-                if value_type(f, *v, span)? != local_type(target, *p, span)? {
+                let actual = value_type(f, *v, span)?;
+                let wanted = local_type(target, *p, span)?;
+                resources::charge_payload(actual, budget)?;
+                resources::charge_payload(wanted, budget)?;
+                if actual != wanted {
                     return Err(bad());
                 }
             }
@@ -158,6 +155,13 @@ pub(super) fn instruction(
             ty
         }
         InstructionKind::TaskStart { worker, argument } => {
+            let target = module.functions.get(worker.0 as usize).ok_or_else(bad)?;
+            if target.parameters.len() != 1
+                || local_type(target, target.parameters[0], span)? != &Type::I32
+                || target.return_type != Type::I32
+            {
+                return Err(bad());
+            }
             if value_type(f, argument, span)? != &Type::I32 {
                 return Err(bad());
             }
@@ -173,13 +177,24 @@ pub(super) fn instruction(
             ref arguments,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
-            if arguments.len() != 1 || value_type(f, arguments[0], span)? != &Type::I32 {
+            let target = module.functions.get(function.0 as usize).ok_or_else(bad)?;
+            if arguments.len() != target.parameters.len() {
                 return Err(bad());
+            }
+            for (argument, parameter) in arguments.iter().zip(&target.parameters) {
+                let actual = value_type(f, *argument, span)?;
+                let wanted = local_type(target, *parameter, span)?;
+                resources::charge_payload(actual, budget)?;
+                resources::charge_payload(wanted, budget)?;
+                if actual != wanted {
+                    return Err(bad());
+                }
             }
             profile(module, function, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(function);
-            Type::I32
+            resources::charge_payload(&target.return_type, budget)?;
+            target.return_type.clone()
         }
         InstructionKind::TaskYield => {
             profile(module, f.id, budget, span)?;
@@ -238,6 +253,43 @@ pub(super) fn instruction(
         _ => unreachable!(),
     }))
 }
+fn has_await(blocks: &[BasicBlock], budget: &mut Budget) -> Check<bool> {
+    budget.spend(blocks.len().saturating_mul(2))?;
+    for block in blocks {
+        budget.spend(block.instructions.len())?;
+        if block
+            .instructions
+            .iter()
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+fn canonical_resource(
+    resources: &[ResourceDefinition],
+    payload: &Type,
+    name: &str,
+    budget: &mut Budget,
+) -> Check<bool> {
+    budget.spend(resources.len().saturating_mul(2))?;
+    let mut count = 0usize;
+    let mut canonical = false;
+    for resource in resources {
+        if std::mem::discriminant(&resource.payload) != std::mem::discriminant(payload) {
+            continue;
+        }
+        resources::charge_payload(&resource.payload, budget)?;
+        resources::charge_payload(payload, budget)?;
+        if resource.payload == *payload {
+            count = count.saturating_add(1);
+            budget.spend(resource.name.len().saturating_add(name.len()))?;
+            canonical |= resource.name == name && resource.teardown.is_none();
+        }
+    }
+    Ok(count == 1 && canonical)
+}
 fn profile_one(
     module: &TypedModule,
     id: FunctionId,
@@ -251,10 +303,35 @@ fn profile_one(
     budget.spend(
         f.locals
             .len()
-            .saturating_add(f.values.len())
+            .saturating_mul(2)
+            .saturating_add(f.values.len().saturating_mul(2))
             .saturating_add(module.resources.len())
             .saturating_add(1),
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
+        || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+        || f.return_type != Type::I32
+        || f.parameters.len() != 1
+        || f.parameters
+            .first()
+            .and_then(|p| f.locals.get(p.0 as usize))
+            .is_none_or(|l| l.ty != Type::I32)
+        || f.locals.iter().any(|l| {
+            matches!(
+                l.ty,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.values.iter().any(|t| {
+            matches!(
+                t,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || has_await(&f.blocks, budget)?
+    {
+        return owned::profile(module, f, budget, span);
+    }
     let scalar = |t: &Type| {
         matches!(
             t,
@@ -571,3 +648,6 @@ pub(super) fn interface_fingerprint(
     }
     Ok(hash.digest())
 }
+
+#[cfg(test)]
+mod budget_tests;

@@ -58,6 +58,9 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     }
     let use_sum_extension = verified.uses_owned_sum_extension();
     let mut sum_budget = owned_sums::Budget::new(verified.limits());
+    // Reserve the complete new callable relation before LIR retains/clones it.
+    // This budget is also consumed by ordinary owning/stored lowering below.
+    sum_budget.callable_metadata(module)?;
     for closure in &module.closures {
         for ty in &closure.captures {
             if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
@@ -103,6 +106,32 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         let owning_signature = (owning_result || owning_parameters)
             && complete_parameters
             && (closure.result.is_copy_value() || owning_result);
+        let qualified_signature = verified.uses_stored_borrows()
+            && closure.kind == CallableKind::Fn
+            && closure.captures.is_empty()
+            && closure.lending_captures.is_empty()
+            && closure.storage_life.is_none()
+            && matches!(
+                closure.result,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            );
+        if qualified_signature {
+            for ty in &closure.parameters {
+                if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+                {
+                    sum_budget.borrowed(ty, 0)?;
+                }
+            }
+        }
         let invocation_signature = closure.lending_captures.is_empty()
             && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
             && closure
@@ -134,7 +163,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                        && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -147,6 +177,11 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
     }
     for function in &module.functions {
+        if verified.uses_stored_borrows()
+            && let Some(life) = &function.storage_life
+        {
+            sum_budget.stored_contract(life)?;
+        }
         if !forwarded_callable_signature(function) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
@@ -154,7 +189,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 Some(function.span),
             )]);
         }
-        let old_return = function.return_type.is_copy_value()
+        let old_return = sum_budget.borrowed(&function.return_type, 0)?
+            || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
@@ -180,7 +216,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
         for id in &function.parameters {
             let ty = &function.locals[id.0 as usize].ty;
-            let old = ty.is_copy_value()
+            let old = sum_budget.borrowed(ty, 0)?
+                || ty.is_copy_value()
                 || ty.is_scalar_or_address()
                 || resource_type(ty, &module.resources)
                 || package_value_type(ty, &module.resources)
@@ -211,7 +248,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             .chain(function.values.iter())
         {
             let concrete_closure = callable_parameter_type(ty, &module.closures);
-            if !ty.is_copy_value()
+            if !sum_budget.borrowed(ty, 0)?
+                && !ty.is_copy_value()
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())

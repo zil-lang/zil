@@ -119,6 +119,12 @@ pub(super) fn signature_snapshot_work(
     limits: &Limits,
 ) -> R<usize> {
     let mut budget = Budget::new(limits);
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |cost| budget.work(cost, span), 1)?;
+    }
+    if let Some(life) = &signature.life {
+        budget.work(life.parameter_lives.len().saturating_add(1), span)?;
+    }
     budget.work(name.len().saturating_add(signature.parameters.len()), span)?;
     for ty in &signature.parameters {
         validate_type(ty, 0, span, &mut budget)?;
@@ -199,6 +205,9 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
         // raw mixed State/callable headers. Its complete cost also bounds the
         // ensuing eligibility traversal; reserve that second use explicitly.
         budget.work(before - budget.work, span)?;
+        borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
+            budget.work(work, span)
+        })?;
         borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
     }
     Ok(())
@@ -536,6 +545,9 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.storage_life {
+            borrowed_fp::charge_contract(life, |cost| budget.work(cost, function.span), 1)?;
+        }
         if let Some(life) = &function.life {
             budget.work(
                 life.binders
@@ -643,6 +655,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
@@ -909,6 +922,9 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(parameter, depth + 1, span, budget)?;
             }
             validate_type(result, depth + 1, span, budget)?;
+            borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                budget.work(work, span)
+            })?;
             borrowed_fp::relation(parameters, result, life, span)?;
         }
         Type::Named(name) => {
@@ -959,12 +975,16 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
+    }
     // Repeated uses must reserve the complete shape before cloning a signature.
     // Reuse the existing finite ordinary ABI shapes, including owned error
     // alternatives. This does not grant a closure capture or callable ABI.
     budget.work(signature.parameters.len(), span)?;
     let admitted = |ty: &Type| {
         ty.is_copy_value()
+            || ty.is_scalar_or_address()
             || closures::signature_parameter(ty)
             || resources::supported(ty)
             || errors::owned(ty)
@@ -1991,6 +2011,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !stored::shared_address(ty)
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()
@@ -2459,13 +2480,37 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         match term {
             Term::Scalar(variable) => Ok(*variable),
             Term::Function(signature) => {
-                for ty in signature
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&signature.result))
-                {
-                    validate_type(ty, 0, span, self.budget)?;
+                if signature.storage_life.is_some() {
+                    for ty in &signature.parameters {
+                        charge_type_snapshot(
+                            ty,
+                            span,
+                            self.budget.limits,
+                            &mut self.budget.work,
+                            4,
+                        )?;
+                    }
+                    charge_type_snapshot(
+                        &signature.result,
+                        span,
+                        self.budget.limits,
+                        &mut self.budget.work,
+                        5,
+                    )?;
+                    borrowed_fp::static_pointer_slots(signature, |work| {
+                        self.budget.work(work, span)
+                    })?;
+                } else {
+                    for ty in signature
+                        .parameters
+                        .iter()
+                        .chain(std::iter::once(&signature.result))
+                    {
+                        validate_type(ty, 0, span, self.budget)?;
+                    }
                 }
+                self.budget
+                    .work(borrowed_fp::pointer_work(signature), span)?;
                 let ty = signature.pointer_type().ok_or_else(|| unsupported(span,
                     "function pointers require pure Copy parameters and result; indirect address contracts are not implemented"))?;
                 let variable = self.fresh(VALUE, false, span)?;
@@ -2571,6 +2616,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     mutable: wanted,
                     inner,
                 } if (inner.is_address_pointee()
+                    || stored::shared_address(ty)
                     || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
                     || ty.is_exclusive_task_head_address()
@@ -3825,7 +3871,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
-            if name == "task_create" {
+            if matches!(name, "task_create" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -3859,7 +3905,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &mut self.budget.work,
                     4,
                 )?;
-                return self.known_term(&tasks::create_type(&signature.result), span);
+                return self.known_term(
+                    &if name == "task_await" {
+                        signature.result.clone()
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
             }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
@@ -4954,6 +5007,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         else {
             unreachable!("expression dispatcher variant");
         };
+        for parameter in parameters {
+            if let Some(ty) = &parameter.ty {
+                self.graph.annotation_context(ty, 0, parameter.span)?;
+            }
+        }
+        if let Some(ty) = return_type {
+            self.graph.annotation_context(ty, 0, span)?;
+        }
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)

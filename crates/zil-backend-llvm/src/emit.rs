@@ -28,6 +28,7 @@ mod scoped_thread;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
+mod stored_borrows;
 mod tasks;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -108,9 +109,22 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     closed_scalar_collection: bool,
     jobs: usize,
 ) -> CompileResult<(m::Module, bool, usize)> {
+    let mut remaining_work = verified.limits().max_analysis_steps;
+    stored_borrows::reserve_callable_metadata(
+        verified.module(),
+        verified.limits(),
+        &mut remaining_work,
+    )?;
+    if verified.uses_stored_borrows() {
+        stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
+    }
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
-    let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
+    let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
+    if verified.uses_stored_borrows() {
+        stored_borrows::reserve_emission(lir, verified.limits(), &mut copy_plans.remaining_work)?;
+    }
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
+    let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
     let functions = lir
         .functions
         .iter()
@@ -240,6 +254,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    text.append(task_cleanup_helpers);
     if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
     }
@@ -546,7 +561,15 @@ fn lower_function_batch(
         if verified.uses_retained_registration() {
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
+        if verified.uses_scalar_tasks() {
+            task_meter.spend(verified.task_worker_ids().len().saturating_add(1))?;
+            if verified.task_worker_ids().contains(&function.id) {
+                tasks::reserve_copy_frame(function, task_meter, verified.limits())?;
+            }
+        }
+        tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
         let emitted = FunctionEmitter {
+            task_ownership: verified.task_ownership(function.id),
             function,
             target: lir.target,
             functions,
@@ -731,6 +754,24 @@ fn bind_lir(
                 ty.is_copy_value()
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
+        let qualified_signature = verified.uses_stored_borrows()
+            && closure.kind == CallableKind::Fn
+            && closure.captures.is_empty()
+            && closure.lending_captures.is_empty()
+            && closure.storage_life.is_none()
+            && matches!(
+                closure.result,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            );
         let invocation_signature = closure.lending_captures.is_empty()
             && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
             && closure
@@ -762,7 +803,8 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                        && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -778,6 +820,7 @@ fn bind_lir(
             );
         }
         if !(function.return_type.is_copy_value()
+            || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
@@ -789,6 +832,7 @@ fn bind_lir(
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
+                    || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
                     || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
@@ -808,6 +852,7 @@ fn bind_lir(
         {
             let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
+                && !stored_borrows::representation_type(ty)
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !drop_plan::sum_address(ty, lir.resources)
@@ -1152,6 +1197,7 @@ fn entry_wrapper(
 }
 
 struct FunctionEmitter<'a> {
+    task_ownership: Option<&'a zil_verify::TaskOwnership>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
@@ -1385,8 +1431,24 @@ impl FunctionEmitter<'_> {
         )));
         for block in &self.function.blocks {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
-            for instruction in &block.instructions {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                if let Some(actions) = self
+                    .task_ownership
+                    .and_then(|p| p.actions_at(block.id, index))
+                {
+                    for &action in actions.before() {
+                        self.event(tasks::owner_marker(action));
+                    }
+                }
                 self.instruction(instruction)?;
+                if let Some(actions) = self
+                    .task_ownership
+                    .and_then(|p| p.actions_at(block.id, index))
+                {
+                    for &action in actions.after() {
+                        self.event(tasks::owner_marker(action));
+                    }
+                }
             }
             self.terminator(&block.terminator)?;
         }
@@ -1456,8 +1518,12 @@ impl FunctionEmitter<'_> {
                     Some(instruction.span),
                 );
             }
-            InstructionKind::LoadStoredBorrow { .. }
-            | InstructionKind::StoreStoredBorrow { .. } => {
+            InstructionKind::LoadStoredBorrow {
+                storage,
+                path,
+                mode,
+            } => self.stored_load(instruction, *storage, path, *mode)?,
+            InstructionKind::StoreStoredBorrow { .. } => {
                 return invalid(
                     "E-CODEGEN-STORAGE",
                     "stored-borrow instruction consumer is not yet implemented",
@@ -3005,6 +3071,13 @@ impl FunctionEmitter<'_> {
     fn terminator(&mut self, terminator: &Terminator) -> CompileResult<()> {
         match terminator {
             Terminator::Return(value) => {
+                if let Some(index) =
+                    value.and_then(|v| self.task_ownership.and_then(|p| p.owner_for_value(v)))
+                {
+                    self.event(tasks::owner_marker(zil_verify::TaskOwnerAction::Unlink(
+                        index,
+                    )));
+                }
                 if let Some(slot) = &self.abi().result {
                     let bytes = slot.bytes;
                     let returned = value.ok_or_else(|| {
@@ -3237,6 +3310,7 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
+        Type::BorrowedStorage { storage, .. } => llvm_type(storage),
         Type::Registration { .. } | Type::Task { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
@@ -3286,6 +3360,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -3345,6 +3420,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
 }
 fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> CompileResult<u32> {
     match ty {
+        Type::BorrowedStorage { storage, .. } => alignment(storage, closures),
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
@@ -3364,6 +3440,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }

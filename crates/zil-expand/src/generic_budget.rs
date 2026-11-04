@@ -93,6 +93,9 @@ impl<'a> Budget<'a> {
     pub(crate) fn has_borrowed_keys(&self) -> bool {
         self.borrowed_keys
     }
+    pub(crate) fn note_borrowed_keys(&mut self) {
+        self.borrowed_keys = true;
+    }
     pub(crate) fn has_anonymous_sums(&self) -> bool {
         self.anonymous_sums
     }

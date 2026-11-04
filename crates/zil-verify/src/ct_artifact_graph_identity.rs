@@ -10,7 +10,7 @@ impl Identity<'_, '_> {
             return Err(limit(None, "nominal type graph exceeds node quota"));
         }
         self.reserve(count.saturating_mul(64))?;
-        if ty.nodes.iter().any(|n|matches!(n,CtTypeNode::BorrowedStorage {..})||matches!(n,CtTypeNode::Nominal {arguments,..}if arguments.iter().any(|a|matches!(a,CtTypeArgument::Lifetime(_))))) {
+        if !ty.ambient_classes.is_empty() || ty.nodes.iter().any(|n|matches!(n,CtTypeNode::BorrowedStorage {..})||matches!(n,CtTypeNode::Nominal {arguments,..}if arguments.iter().any(|a|matches!(a,CtTypeArgument::Lifetime(_))))) {
             return self.scoped_graph(ty,false);
         }
 
@@ -183,9 +183,29 @@ impl Identity<'_, '_> {
         nodes: &[CtTypeNode],
         parameters: &[CtTypeNodeId],
         result: CtTypeNodeId,
-        life: &zil_ir::FunctionLifeContract,
+        life: &zil_ir::StorageLifeContract,
         out: &mut Vec<u8>,
     ) -> Check<()> {
+        self.reserve(
+            parameters
+                .len()
+                .saturating_mul(16)
+                .saturating_add(life.bindings.len().saturating_mul(64))
+                .saturating_add(life.classes.len().saturating_mul(96)),
+        )?;
+        for row in &life.bindings {
+            self.reserve(row.position.path.len().saturating_mul(16))?;
+        }
+        for row in &life.classes {
+            self.reserve(row.position.path.len().saturating_mul(16))?;
+        }
+        let life = life.to_flat(parameters.len()).ok_or_else(|| {
+            vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "rich CT5 graph signature consumer is not yet implemented",
+                None,
+            )]
+        })?;
         self.reserve(
             life.parameter_lives
                 .len()

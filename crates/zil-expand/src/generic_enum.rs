@@ -227,7 +227,9 @@ fn shape(
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
-            let arity = if variables.contains(name)
+            let arity = if name == "Managed" {
+                1
+            } else if variables.contains(name)
                 || matches!(
                     name.as_str(),
                     "u8" | "u16"
@@ -241,7 +243,8 @@ fn shape(
                         | "void"
                         | "c_handle"
                         | "c_wstr"
-                ) {
+                )
+            {
                 0
             } else {
                 params(
@@ -314,6 +317,15 @@ fn layout(
             ) && args.is_empty()
             {
                 return Ok(());
+            }
+            if name == "Managed" {
+                let [GenericArg::Type(payload)] = args.as_slice() else {
+                    return Err(error(
+                        ty.span,
+                        "Managed requires one complete resource argument",
+                    ));
+                };
+                return layout(payload, variables, nominals, active, budget, depth + 1);
             }
             let item = nominals
                 .get(name)
@@ -476,7 +488,25 @@ impl Engine<'_> {
                             error(argument.span, "enum payload type cannot be inferred")
                         })?,
                 };
-                let actual = self.original_type(&actual)?;
+                let mut actual = self.original_type(&actual)?;
+                if matches!(
+                    argument.value.kind,
+                    ExprKind::Unary {
+                        op: UnaryOp::Give,
+                        ..
+                    }
+                ) && let TypeKind::Named { path, args } = &grouped(&hint).kind
+                    && path.as_slice() == ["Managed"]
+                    && let [GenericArg::Type(resource)] = args.as_slice()
+                    && type_key(resource, &mut self.budget)? == type_key(&actual, &mut self.budget)?
+                {
+                    // Source `give` supplies a value, while its earlier AST
+                    // hint may still spell the nominal resource. Preserve the
+                    // explicit complete type context. Types and both kernels
+                    // still require an actual owning operand, not a Desc.
+                    self.budget.ty(&hint)?;
+                    actual = hint;
+                }
                 unify(field, &actual, &vars, &mut found, span, &mut self.budget)?;
             }
         }

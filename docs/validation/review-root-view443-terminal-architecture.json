@@ -1,0 +1,51 @@
+{
+  "status": "PassLimitedViewSourceTypesAndInterfaceWithAccountingFollowup",
+  "source": "443297a82fccc4ffc13577b791bf5dc3e15557ee",
+  "principal_production": "573080f7759f33b0833a19963ab62f0138244f37",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root443-view-source-binding.json",
+    "sha256": "4ec42dd4a0ec9445851f499df3c23db7b5e4bc9e7be327eb530a0a89d27bd00c"
+  },
+  "manifest_files_independently_matched": 1065,
+  "method": "Read-only review of the actual Types producer/interface implementation and exact retained root-built generics executable replay; no independent rebuild. All1065 author-manifest paths independently matched exact Git blobs.",
+  "replay": {
+    "harness": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root443-view-generics",
+      "sha256": "8856ac5d1c64bb6ec9a7fbb8da004a27944f7484f2e11b1f52ea72244bf7672b"
+    },
+    "selector": "terminal_stored",
+    "result": "3 passed,0 failed,25 filtered",
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root443-view-generics.log",
+      "sha256": "22f76cd2f989331f860d398984adbaa53cddaaddc1ede383312605db8c2ea60e"
+    }
+  },
+  "checks": [
+    "Actual View source, alpha rename and caller-before-callee relay reach current Analyze/Verify. Local escape and mutation of the live actual target reject at a permission kernel.",
+    "Three modules with same-spelled View/make/read helpers preserve actual second-parameter relation in the second provider.",
+    "Raw Core physical field mismatch and duplicate nominal identity reject; repeated aggregate normalization preserves inventory.",
+    "Changing the exported untrusted storage relation changes interface identity; this is identity evidence, not proof that the forged relation is semantically admissible.",
+    "Types exact work668,667 ResourceLimit and fresh668 equality replayed."
+  ],
+  "source_review": [
+    "Ordinary single/project public entry performs current inference and aggregate Resolver. The scalar shortcut excludes inventories and non-scalar headers.",
+    "Resolver requires the qualified instance to match the actual inventory, checks real aggregate fields, reconstructs physical storage and validates exact shared leaf coverage, canonical nominal-first classes and the supported finite pointee shape before private shared_value use.",
+    "Actual target, slot and returned-parent provenance remains independently rebuilt by Analyze/Verify; the Types classifier grants no kernel capability.",
+    "Interface encoding now includes complete life declarations/instances and each exported storage_life; standalone structural BorrowedStorage fingerprints are not substituted for the complete context.",
+    "New STORAGE-LIFE-CONTRACT-1 and LIFE-INVENTORY-V39 domains are included in the backed-up40 migration contract."
+  ],
+  "open_followup": {
+    "kind": "per-use cost-planner prepayment",
+    "locations": [
+      "crates/zil-types/src/lib.rs Builder::new",
+      "crates/zil-types/src/program.rs export storage_life snapshot",
+      "crates/zil-types/src/program.rs interface_fingerprint storage_life encoding"
+    ],
+    "finding": "Each newly introduced bindings.iter().fold scans every row before debiting the current ledger. Reserve the row count before the cost scan, then reserve copy/encoding work, or use a live-ledger bounded planner. Root notified; no View permission bypass demonstrated."
+  },
+  "limits": [
+    "Source/Types/current kernels only; no View LLVM/native execution acceptance at this source.",
+    "Types inventory does not itself fully qualify arbitrary borrowed metadata Type actuals. The source producer and both independent kernel closed-Copy guards retain that boundary.",
+    "No general mutable stored leaves, multiple fixed carriers/classes, opaque Task/dyn retained ports, rich40 callable or complete language claim."
+  ]
+}

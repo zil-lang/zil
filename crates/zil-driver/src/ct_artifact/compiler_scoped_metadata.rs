@@ -8,78 +8,65 @@ impl<'a> Compiler<'a> {
         definition: &CtSymbolId,
         span: Span,
     ) -> R<Option<SourceLifeScope>> {
-        // Existing expression queries in nongeneric definitions acquire no new
-        // declaration scan or fee. The full authentication below is needed only
-        // when an actual lexical lifetime domain can be consumed.
-        if definition.generation_path.is_none()
-            && let Some(item) = self.modules[module]
-                .syntax
-                .items
-                .get(definition.declaration.0 as usize)
+        self.budget.work(1, span)?;
+        if definition.generation_path.is_some()
+            || self.modules[module].source.module_id != definition.module
         {
-            let function = match &item.kind {
-                s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => Some(f),
-                _ => None,
-            };
-            if let Some(function) = function {
-                if function.generics.is_empty() {
-                    return Ok(None);
-                }
-                self.budget.work(function.generics.len(), span)?;
-                if !function
-                    .generics
-                    .iter()
-                    .any(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
-                {
-                    return Ok(None);
-                }
-            } else {
-                return Ok(None);
-            }
+            return Err(error(
+                span,
+                "CT lexical owner has no original declaration lineage",
+            ));
         }
-        for index in 0..self.declarations.len() {
-            self.budget.work(1, span)?;
-            let declaration = self.declarations[index];
-            if self.symbol(declaration.module, declaration.item.span)? != *definition {
-                continue;
-            }
-            if span.file != declaration.item.span.file
-                || span.start < declaration.item.span.start
-                || span.end > declaration.item.span.end
-            {
-                return Err(error(
+        let Some(item) = self.modules[module]
+            .syntax
+            .items
+            .get(definition.declaration.0 as usize)
+        else {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT member scope requires its actual binder inventory",
+                Some(span),
+            )]);
+        };
+        let function = match &item.kind {
+            s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => function,
+            _ => return Ok(None),
+        };
+        self.budget.work(function.generics.len(), span)?;
+        let mut binders = Vec::new();
+        for (ordinal, parameter) in function.generics.iter().enumerate() {
+            self.budget.node(parameter.span)?;
+            if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                self.budget.text(&parameter.name, parameter.span)?;
+                Budget::take(
+                    &mut self.budget.bytes,
+                    64,
                     span,
-                    "scoped query is outside its real source definition",
+                    "CT lexical scope binding bytes exhausted",
+                )?;
+                binders.push((
+                    parameter.name.clone(),
+                    u32::try_from(ordinal)
+                        .map_err(|_| error(span, "source binder ordinal overflow"))?,
                 ));
             }
-            let mut binders = Vec::new();
-            for (ordinal, parameter) in declaration.function.generics.iter().enumerate() {
-                self.budget.node(parameter.span)?;
-                if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
-                    self.budget.text(&parameter.name, parameter.span)?;
-                    Budget::take(
-                        &mut self.budget.bytes,
-                        64,
-                        span,
-                        "CT lexical scope binding bytes exhausted",
-                    )?;
-                    binders.push((
-                        parameter.name.clone(),
-                        u32::try_from(ordinal)
-                            .map_err(|_| error(span, "source binder ordinal overflow"))?,
-                    ));
-                }
-            }
-            if binders.is_empty() {
-                return Ok(None);
-            }
-            return Ok(Some(SourceLifeScope {
-                definition: definition.clone(),
-                span: declaration.item.span,
-                binders,
-            }));
         }
-        Ok(None)
+        if binders.is_empty() {
+            return Ok(None);
+        }
+        // Spans can diagnose a mismatch only after the actual ordinal selected
+        // the original declaration. Equal/shared spans do not select an owner.
+        if span.file != item.span.file || span.start < item.span.start || span.end > item.span.end {
+            return Err(error(
+                span,
+                "scoped query is outside its actual original definition",
+            ));
+        }
+        Ok(Some(SourceLifeScope {
+            definition: definition.clone(),
+            span: item.span,
+            binders,
+        }))
     }
     pub(super) fn source_scoped_nominal(
         &mut self,
@@ -127,7 +114,22 @@ impl<'a> Compiler<'a> {
         let mut nodes = Vec::new();
         let mut arguments = Vec::with_capacity(args.len());
         let mut rows = Vec::with_capacity(args.len());
-        let symbol = self.symbol(owner, item.span)?;
+        self.budget
+            .work(self.modules[owner].syntax.items.len(), span)?;
+        let ordinal = self.modules[owner]
+            .syntax
+            .items
+            .iter()
+            .position(|actual| std::ptr::eq(actual, item))
+            .ok_or_else(|| error(span, "scoped nominal is not an actual original item"))?;
+        let symbol = CtSymbolId {
+            module: self.modules[owner].source.module_id,
+            declaration: zil_base::NodeId(
+                u32::try_from(ordinal)
+                    .map_err(|_| error(span, "nominal original ordinal overflow"))?,
+            ),
+            generation_path: None,
+        };
         for (ordinal, (parameter, arg)) in parameters.iter().zip(args).enumerate() {
             self.budget.node(span)?;
             Budget::take(
@@ -253,7 +255,67 @@ impl<'a> Compiler<'a> {
                 nominal_arguments: rows,
             },
         });
-        let context = self.meta_normalize(CtTypeRef { nodes, root: fixed }, span)?;
+        let definition = self
+            .source_life_scope
+            .as_ref()
+            .ok_or_else(|| error(span, "ambient nominal lost actual definition"))?
+            .definition
+            .clone();
+        let scope = CtAmbientLifeScope {
+            declaration: definition,
+            binder_site: Vec::new(),
+            instance: CtScopeInstance::Definition,
+        };
+        self.budget
+            .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;
+        let scope_id = if let Some(index) = self
+            .ambient_life_scopes
+            .iter()
+            .position(|old| old == &scope)
+        {
+            index
+        } else {
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtAmbientLifeScope>(),
+                span,
+                "CT ambient scope table bytes exhausted",
+            )?;
+            self.ambient_life_scopes.push(scope);
+            self.ambient_life_scopes.len() - 1
+        };
+        let scope_id = CtAmbientScopeId(
+            u32::try_from(scope_id).map_err(|_| error(span, "CT ambient scope ID overflow"))?,
+        );
+        self.budget.work(actual_parameters.len(), span)?;
+        Budget::take(
+            &mut self.budget.bytes,
+            actual_parameters
+                .len()
+                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+            span,
+            "CT ambient mapping bytes exhausted",
+        )?;
+        let ambient_classes = actual_parameters
+            .iter()
+            .enumerate()
+            .map(|(class, parameter)| CtAmbientClassBinding {
+                owner: fixed,
+                class: class as u32,
+                source: CtAmbientLifeReference {
+                    scope: scope_id,
+                    parameter: *parameter,
+                },
+            })
+            .collect();
+        let context = self.meta_normalize(
+            CtTypeRef {
+                nodes,
+                root: fixed,
+                ambient_classes,
+            },
+            span,
+        )?;
         self.budget.metadata(&context, span)?;
         let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
         else {
@@ -294,5 +356,126 @@ impl<'a> Compiler<'a> {
             depth + 1,
             span,
         )
+    }
+    pub(super) fn registered_scoped_data_type(&mut self, graph: &CtTypeRef, span: Span) -> R<CtTy> {
+        for (enumeration, count) in [(false, self.records.len()), (true, self.enums.len())] {
+            for id in 0..count {
+                self.budget.work(1, span)?;
+                let context = if enumeration {
+                    self.enums[id].life_context.as_ref()
+                } else {
+                    self.records[id].life_context.as_ref()
+                };
+                if let Some(context) = context {
+                    self.budget.metadata(context, span)?;
+                    self.budget.metadata(graph, span)?;
+                    if context == graph {
+                        self.budget.work(self.source_life_bindings.len(), span)?;
+                        if !self
+                            .source_life_bindings
+                            .iter()
+                            .any(|b| b.enumeration == enumeration && b.schema as usize == id)
+                        {
+                            return Err(error(
+                                span,
+                                "scoped data type has no authentic source binding",
+                            ));
+                        }
+                        return Ok(if enumeration {
+                            CtTy::Enum(CtEnumSchemaId(id as u32))
+                        } else {
+                            CtTy::Record(CtRecordSchemaId(id as u32))
+                        });
+                    }
+                }
+            }
+        }
+        Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "scoped type extraction needs its registered joint value context",
+            Some(span),
+        )])
+    }
+    pub(super) fn copy_registered_scoped_data(
+        &mut self,
+        graph: &CtTypeRef,
+        depth: usize,
+        span: Span,
+    ) -> R<()> {
+        self.budget.depth(depth, span)?;
+        let ty = self.registered_scoped_data_type(graph, span)?;
+        for old in &self.active_copy_metadata {
+            self.budget.metadata(old, span)?;
+            self.budget.metadata(graph, span)?;
+            if old == graph {
+                return Err(error(
+                    span,
+                    "recursive scoped Copy data has no finite layout",
+                ));
+            }
+        }
+        self.budget.metadata(graph, span)?;
+        self.active_copy_metadata.push(graph.clone());
+        let result = (|| {
+            let count = match ty {
+                CtTy::Record(id) => self.records[id.0 as usize].fields.len(),
+                CtTy::Enum(id) => {
+                    let variants = &self.enums[id.0 as usize].variants;
+                    self.budget.work(variants.len(), span)?;
+                    variants.iter().try_fold(0usize, |n, fields| {
+                        n.checked_add(fields.len())
+                            .ok_or_else(|| error(span, "scoped field count overflow"))
+                    })?
+                }
+                _ => unreachable!(),
+            };
+            self.budget.work(count, span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                count.saturating_mul(std::mem::size_of::<&CtTy>()),
+                span,
+                "CT scoped field traversal bytes exhausted",
+            )?;
+            let mut fields = Vec::with_capacity(count);
+            match ty {
+                CtTy::Record(id) => fields.extend(self.records[id.0 as usize].fields.iter()),
+                CtTy::Enum(id) => {
+                    fields.extend(self.enums[id.0 as usize].variants.iter().flatten())
+                }
+                _ => unreachable!(),
+            }
+            for ty in &fields {
+                self.budget.copy_ty(ty, depth + 1, span)?;
+            }
+            let fields = fields.into_iter().cloned().collect::<Vec<_>>();
+            for ty in fields {
+                self.scoped_field_copy(&ty, depth + 1, span)?;
+            }
+            Ok(())
+        })();
+        self.active_copy_metadata.pop();
+        result
+    }
+    fn scoped_field_copy(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
+        self.budget.depth(depth, span)?;
+        self.budget.node(span)?;
+        match ty {
+            CtTy::Scalar(_) => Ok(()),
+            CtTy::Tuple(fields) => {
+                for field in fields {
+                    self.scoped_field_copy(field, depth + 1, span)?;
+                }
+                Ok(())
+            }
+            CtTy::Array { element, .. } => self.scoped_field_copy(element, depth + 1, span),
+            CtTy::Record(_) | CtTy::Enum(_) => {
+                let graph = self.metadata_data(ty, span, depth + 1)?;
+                self.metadata_copy(&graph, depth + 1, span)
+            }
+            _ => Err(error(
+                span,
+                "CT-only field metadata does not establish ordinary Copy qualification",
+            )),
+        }
     }
 }

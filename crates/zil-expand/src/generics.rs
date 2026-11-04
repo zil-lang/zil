@@ -32,6 +32,8 @@ pub(super) mod origins;
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
 pub(super) mod record_enums;
+#[path = "generic_rich_pointer.rs"]
+pub(super) mod rich_pointer;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -251,15 +253,18 @@ fn specialize_products_prepared<'a>(
             aliases::normalize_with_origins(&normalized, names_budget, products.origins.as_mut())
                 .map_err(|e| vec![e])?;
         return match aliased {
-            Some(aliased) => specialize_with_budget(
-                &aliased.module,
-                limits,
-                &aliased.pattern_types,
-                budget,
-                products,
-                has_associated,
-                has_generic_methods,
-            ),
+            Some(mut aliased) => {
+                products.rich_aliases.append(&mut aliased.rich_aliases);
+                specialize_with_budget(
+                    &aliased.module,
+                    limits,
+                    &aliased.pattern_types,
+                    budget,
+                    products,
+                    has_associated,
+                    has_generic_methods,
+                )
+            }
             None => specialize_with_budget(
                 &normalized,
                 limits,
@@ -276,7 +281,8 @@ fn specialize_products_prepared<'a>(
     let (normalized, names_budget) =
         aliases::normalize_with_origins(module, names_budget, products.origins.as_mut())
             .map_err(|e| vec![e])?;
-    if let Some(normalized) = normalized {
+    if let Some(mut normalized) = normalized {
+        products.rich_aliases.append(&mut normalized.rich_aliases);
         if normalized.pattern_types.is_empty()
             && normalized
                 .module
@@ -293,6 +299,7 @@ fn specialize_products_prepared<'a>(
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
             && !names_budget.needs_source_identity()
+            && !names_budget.has_borrowed_keys()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -318,6 +325,7 @@ fn specialize_products_prepared<'a>(
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
         && !names_budget.needs_source_identity()
+        && !names_budget.has_borrowed_keys()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -594,11 +602,15 @@ impl<'a> Engine<'a> {
             } else {
                 None
             };
+            let allow_source_life = if let ItemKind::Function(f) = &item.kind {
+                engine.budget.identity_work(f.generics.len(), f.span)?;
+                super::lifetimes::copy_life(f) || callable.is_some()
+            } else {
+                false
+            };
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
-                if matches!(&item.kind, ItemKind::Function(f) if super::lifetimes::copy_life(f))
-                    && matches!(parameter.kind, GenericParamKind::Lifetime)
-                {
+                if allow_source_life && matches!(parameter.kind, GenericParamKind::Lifetime) {
                     continue;
                 }
                 if matches!(parameter.kind, GenericParamKind::Lifetime)
@@ -769,7 +781,15 @@ impl<'a> Engine<'a> {
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
+        self.products.borrowed_signatures = self.budget.has_borrowed_keys();
+        self.products.storage.borrowed_signatures = self.products.borrowed_signatures;
         self.collect_products(module)?;
+        // Aliases are checked even when they have no runtime use. These are
+        // complete paid originals retained by alias normalization, not bodies
+        // recovered from a convenient concrete instantiation.
+        for ty in std::mem::take(&mut products.rich_aliases) {
+            self.prepare_rich_pointer(&ty, 0)?;
+        }
         let mut result = Module {
             id: module.id,
             span: module.span,
@@ -782,7 +802,7 @@ impl<'a> Engine<'a> {
             }
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
-                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
+                    if callable::template(f, &mut self.budget)?.is_some_and(|bounds| f.generics.iter().all(|p| matches!(p.kind,GenericParamKind::Lifetime) || bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
                 self.enqueue(
@@ -1052,12 +1072,11 @@ impl<'a> Engine<'a> {
             self.resolved_method_calls.insert(generated.clone(), calls);
         }
         self.budget.item(&instance)?;
-        // Original generic enums retain their existing Copy payload profile,
-        // even though ordinary monomorphic enums now admit owners. Inspect the
-        // actual substituted fields while the real template identity exists.
+        // Inspect complete substituted value fields while their ordinary
+        // template identity exists. Explicit Managed arguments remain owning
+        // values; this never grants Copy or manufactures a resource header.
         if let ItemKind::Enum(e) = &instance.kind
             && template != options::TEMPLATE
-            && template != options::TASK_POLL
         {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {
@@ -1065,12 +1084,24 @@ impl<'a> Engine<'a> {
                         if field.manages {
                             return Err(unsupported(field.span, "owned generic enum payload"));
                         }
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 } else if let VariantFields::Record(fields) = &variant.fields {
                     for field in fields {
                         self.budget.node(field.span, 0)?;
-                        copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        if !stores::explicit_managed_value(
+                            &field.ty,
+                            &self.nominals,
+                            &mut self.budget,
+                        )? {
+                            copy::concrete_storage(&field.ty, &self.nominals, &mut self.budget)?;
+                        }
                     }
                 }
             }
@@ -1116,6 +1147,11 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if matches!(ty.kind, TypeKind::ForLifetime { .. })
+            && self.prepare_rich_pointer(ty, depth + 1)?
+        {
+            return Ok(());
+        }
         if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
             *ty = self.traits.normalize_associated(
                 ty,
@@ -1292,6 +1328,10 @@ impl<'a> Engine<'a> {
                 for parameter in &mut f.generics {
                     if let GenericParamKind::Type(bounds) = &mut parameter.kind {
                         for bound in bounds {
+                            if let Some(code) = rich_pointer::role_code(bound, &mut self.budget)? {
+                                self.prepare_rich_pointer(&code, 0)?;
+                                continue;
+                            }
                             let bound = callable::bound_inner_mut(bound);
                             if let TypeKind::Named { path, args } = &mut bound.kind
                                 && path.len() == 1
@@ -2450,6 +2490,9 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    if let Some(key) = rich_pointer::key(ty, budget)? {
+        return Ok(key);
+    }
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
     if budget.has_anonymous_sums()

@@ -218,7 +218,7 @@ impl Budget {
                 parameters,
                 result,
             } => {
-                self.spend(super::borrowed_fp::work(life), context)?;
+                crate::signature_life::charge(life, self)?;
                 for parameter in parameters {
                     self.type_work(parameter, copy_check, context)?;
                 }
@@ -866,10 +866,12 @@ pub(super) fn preflight(
                     life,
                 } => {
                     budget.borrowed_function_pointers = true;
-                    budget.input(
-                        super::borrowed_fp::work(life),
-                        "borrowed function pointer relation",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
+                    // Bound the complete raw signature before recursive eligibility.
+                    for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                        super::stored_flow::shape_work(ty, limits, budget)?;
+                    }
+                    super::borrowed_fp::signature_work(parameters, result, budget)?;
                     super::borrowed_fp::relation(parameters, result, life)?;
                     pending.push((result, depth + 1, store_element, None, false, child));
                     for parameter in parameters {
@@ -1059,6 +1061,17 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if budget.stored_borrows && super::stored_callables::finite(module, closure.id) {
+                let actual = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if matches!(actual, Type::BorrowedStorage { .. }) {
+                    super::stored_flow::qualification(module, actual, limits, budget)?;
+                    continue;
+                }
+            }
             if ty.is_shared_sync_cell_address() {
                 continue;
             }
@@ -1151,10 +1164,7 @@ pub(super) fn preflight(
             )?;
             for role in &contract.roles {
                 if let Some(life) = &role.life {
-                    budget.input(
-                        crate::borrowed_fp::work(life),
-                        "higher-rank callable metadata",
-                    )?;
+                    crate::signature_life::charge(life, budget)?;
                     budget.borrowed_function_pointers = true;
                     budget.invocation_callbacks = true;
                 }

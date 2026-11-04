@@ -511,6 +511,9 @@ impl Materializer<'_, '_> {
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
             CtTypeNode::BorrowedStorage { storage, .. } => {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
                 if !self.data_source_scopes.iter().any(|s| s.owner == id) {
                     return Err(category(
                         "stored-borrow Type has no genuine scoped source handle",
@@ -612,15 +615,11 @@ impl Materializer<'_, '_> {
                                         .ok_or_else(|| {
                                             runtime("source lifetime definition is absent", span)
                                         })?;
-                                    if this
-                                        .environment
-                                        .index
-                                        .symbol_at(definition.module, item.span)
-                                        .as_ref()
-                                        != Some(definition)
+                                    if definition.generation_path.is_some()
+                                        || !this.environment.index.contains(definition)
                                     {
                                         return Err(runtime(
-                                            "source lifetime owner differs from its frozen declaration",
+                                            "source lifetime owner is not an actual original declaration",
                                             span,
                                         ));
                                     }
@@ -674,7 +673,7 @@ impl Materializer<'_, '_> {
                                     span,
                                 ));
                             };
-                            if binder >= life.binder_count {
+                            if binder >= life.invocation_binder_count {
                                 return Err(runtime(
                                     "lifetime metadata ordinal exceeds its owner",
                                     span,
@@ -796,6 +795,11 @@ impl Materializer<'_, '_> {
                 result,
                 life,
             } => {
+                let life = super::scope_metadata::closed_signature(
+                    life,
+                    parameters.len(),
+                    &mut self.environment.budget,
+                )?;
                 self.environment.budget.reserve_analysis_work(
                     (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
                 )?;
@@ -1281,7 +1285,28 @@ impl Materializer<'_, '_> {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
-            let owner = self.owner(module, item.span, inherited)?;
+            let owner = if self.track_declarations && inherited.is_none() && !generated {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.environment.index.symbol_lookup_work())?;
+                let symbol =
+                    CtSymbolId {
+                        module,
+                        declaration: zil_base::NodeId(u32::try_from(ordinal).map_err(|_| {
+                            category("original declaration index overflow", item.span)
+                        })?),
+                        generation_path: None,
+                    };
+                if !self.environment.index.contains(&symbol) {
+                    return Err(category(
+                        "original declaration absent from frozen inventory",
+                        item.span,
+                    ));
+                }
+                symbol
+            } else {
+                self.owner(module, item.span, inherited)?
+            };
             if self.environment.ct_only.contains(&owner)
                 && matches!(
                     item.kind,
@@ -1958,6 +1983,7 @@ pub(crate) fn materialize(
         target,
         &capture_remaining,
     )?;
+    environment.bind_source_origins(declaration_origins.as_deref())?;
     environment.classify_definitions()?;
     let mut output = modules
         .iter()
@@ -2185,6 +2211,9 @@ mod data_value;
 mod scoped_tests {
     use super::*;
     fn run(text: &str) -> CompileResult<Materialized> {
+        run_limited(text, &Limits::default())
+    }
+    fn run_limited(text: &str, limits: &Limits) -> CompileResult<Materialized> {
         let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
         let parsed = Arc::new(zil_syntax::parse(&source));
         let syntax = &parsed.module;
@@ -2197,9 +2226,103 @@ mod scoped_tests {
             ModuleId(0),
             source.fingerprint(),
             &TargetProfile::host_llvm(),
-            &Limits::default(),
+            limits,
             None,
+            true,
         )
+    }
+    #[test]
+    fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "shared-scope-spans.zil",
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",
+        );
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let shared = parsed.module.span;
+        parsed.module.items[2].span = shared;
+        parsed.module.items[3].span = shared;
+        let parsed = Arc::new(parsed);
+        let sources = std::slice::from_ref(&source);
+        let syntax = [&parsed.module];
+        let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let output = materialize(
+            sources,
+            std::slice::from_ref(&parsed),
+            &syntax,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &target,
+            &limits,
+            None,
+            true,
+        )
+        .unwrap();
+        for (name, lifetime) in [("first", "left"), ("second", "right")] {
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == name => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(block) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                panic!("scoped value lost ascription")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual)if actual==lifetime));
+        }
+        let origins = output.declaration_origins.as_ref().unwrap();
+        let refs = output.modules.iter().collect::<Vec<_>>();
+        let expanded = zil_expand::expand_program_with_limits_target_context(
+            sources,
+            &refs,
+            &[vec![]],
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Aligned(origins),
+            },
+        )
+        .unwrap();
+        let core = zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: source.fingerprint(),
+            modules: expanded
+                .into_iter()
+                .map(|(module, _)| zil_ir::ProgramModule {
+                    core: module.core,
+                    imports: module.imports,
+                    exports: module.exports,
+                })
+                .collect(),
+        };
+        let typed = zil_types::check_program(&core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze_program(&typed, &limits).unwrap();
+        zil_verify::verify_shared_program_module(
+            Arc::new(typed),
+            Arc::new(candidate),
+            &target,
+            &limits,
+        )
+        .unwrap();
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
@@ -2249,12 +2372,113 @@ mod scoped_tests {
             assert!(output.usage.analysis_work > 0);
         }
         let collision = "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}";
-        let errors = run(collision).err().expect("ambient collision must reject");
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("different ambient lifetimes")),
-            "{errors:?}"
+        let output = run(collision).expect("CT5 preserves both full original lifetime ordinals");
+        assert!(output.declaration_origins.is_some());
+    }
+    #[test]
+    fn ct4_materialization_scope_work_is_exact_and_request_local() {
+        let original = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
         );
+        let long = format!("scope_{}", "x".repeat(512));
+        let renamed = original
+            .replace("life s", &format!("life {long}"))
+            .replace("'s", &format!("'{long}"));
+        let generic = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        );
+        for text in [original, renamed.as_str(), generic] {
+            let defaults = Limits::default();
+            let run = |work| {
+                run_limited(
+                    text,
+                    &Limits {
+                        max_analysis_steps: work,
+                        ..defaults.clone()
+                    },
+                )
+            };
+            assert!(run(defaults.max_analysis_steps).is_ok());
+            let (mut low, mut high) = (1, defaults.max_analysis_steps);
+            while low < high {
+                let middle = (low + high) / 2;
+                match run(middle) {
+                    Ok(_) => high = middle,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                    {
+                        low = middle + 1
+                    }
+                    Err(errors) => panic!("unexpected budget result {errors:?}"),
+                }
+            }
+            for (work, good) in [(low, true), (low - 1, false), (low, true)] {
+                let result = run(work);
+                assert_eq!(result.is_ok(), good);
+                if !good {
+                    assert!(
+                        result
+                            .err()
+                            .unwrap()
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                    );
+                }
+            }
+            eprintln!("344 authentic CT4 source materialization N={low}/N-1/fresh");
+        }
+    }
+    #[test]
+    fn ct4_materialization_preserves_joint_and_mixed_nominal_actuals() {
+        for text in [
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+        ] {
+            let output = run(text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(f) if f.name == "result" => Some(f),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            if text.contains("struct Pair") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="a"));
+                assert!(matches!(&args[1],s::GenericArg::Lifetime(name) if name=="b"));
+            } else if text.contains("#N:i32") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+                assert!(
+                    matches!(&args[1],s::GenericArg::Type(ty) if matches!(&ty.kind,s::TypeKind::Named {path,args} if path==&["i32"] && args.is_empty()))
+                );
+                assert!(
+                    matches!(&args[2],s::GenericArg::Const(value) if matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="7"))
+                );
+            } else {
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+            }
+        }
     }
 }
