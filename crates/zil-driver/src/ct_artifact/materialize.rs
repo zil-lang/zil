@@ -48,6 +48,80 @@ pub(crate) struct Materialized {
     pub previews: Vec<Preview>,
     pub required_imports: Vec<(ModuleId, CoreImport)>,
     pub usage: CtUsageReceipt,
+    /// Rows move with actual original items. No generated/member lineage is
+    /// inferred from the output's names, spans or new vector positions.
+    pub declaration_origins: Option<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>,
+    pub lineage_remaining: Option<Limits>,
+}
+impl Materialized {
+    pub(crate) fn retain_items(
+        &mut self,
+        index: usize,
+        mut keep: impl FnMut(&s::Item) -> bool,
+    ) -> CompileResult<()> {
+        let module = &mut self.modules[index];
+        let Some(origins) = &mut self.declaration_origins else {
+            module.items.retain(keep);
+            return Ok(());
+        };
+        let rows = origins
+            .get_mut(index)
+            .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+        if rows.module != module.id || rows.items.len() != module.items.len() {
+            return Err(category(
+                "declaration-origin placement differs before import removal",
+                module.span,
+            ));
+        }
+        let count = rows.items.len();
+        let remaining = self
+            .lineage_remaining
+            .as_mut()
+            .ok_or_else(|| category("declaration lineage ledger absent", module.span))?;
+        // The original rows are moved, not cloned; reserve the complete visit
+        // and destination vector before filtering either aligned collection.
+        remaining.max_analysis_steps =
+            remaining
+                .max_analysis_steps
+                .checked_sub(count)
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "declaration lineage move work exhausted",
+                        Some(module.span),
+                    )]
+                })?;
+        remaining.max_nodes = remaining.max_nodes.checked_sub(count).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "declaration lineage move nodes exhausted",
+                Some(module.span),
+            )]
+        })?;
+        self.usage.analysis_work = self
+            .usage
+            .analysis_work
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage work count overflow", module.span))?;
+        self.usage.generated_nodes = self
+            .usage
+            .generated_nodes
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage node count overflow", module.span))?;
+        let mut input = std::mem::take(&mut rows.items).into_iter();
+        let mut moved = Vec::with_capacity(count);
+        module.items.retain(|item| {
+            let row = input.next().expect("checked aligned declaration count");
+            if keep(item) {
+                moved.push(row);
+                true
+            } else {
+                false
+            }
+        });
+        rows.items = moved;
+        Ok(())
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Preview {
@@ -124,6 +198,8 @@ struct Materializer<'a, 'b> {
     required_imports: Vec<(ModuleId, CoreImport)>,
     runtime_scopes: Vec<BTreeSet<String>>,
     max_depth: usize,
+    track_declarations: bool,
+    declaration_lineage_preserved: bool,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -1088,13 +1164,14 @@ impl Materializer<'_, '_> {
         inherited: Option<&CtSymbolId>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<Option<Vec<usize>>> {
         self.depth(
             depth,
             items.first().map_or(Span::default(), |item| item.span),
         )?;
         let mut output = Vec::new();
-        for mut item in std::mem::take(items) {
+        let mut retained = self.track_declarations.then(Vec::new);
+        for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
@@ -1109,6 +1186,7 @@ impl Materializer<'_, '_> {
             }
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
+                    self.declaration_lineage_preserved = false;
                     let value = self.expression_value(
                         module,
                         &owner,
@@ -1123,7 +1201,7 @@ impl Materializer<'_, '_> {
                             item.span,
                         ));
                     };
-                    self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
+                    self.nested_items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
                     output.extend(generated_items);
                 }
                 s::ItemKind::Meta(s::MetaItem::If {
@@ -1131,21 +1209,52 @@ impl Materializer<'_, '_> {
                     else_items,
                     ..
                 }) => {
-                    self.items(module, then_items, Some(&owner), depth + 1, generated)?;
-                    self.items(module, else_items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, then_items, Some(&owner), depth + 1, generated)?;
+                    self.nested_items(module, else_items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 s::ItemKind::Meta(s::MetaItem::For { items, .. }) => {
-                    self.items(module, items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 _ => {
                     self.item(module, &mut item, &owner, depth + 1)?;
+                    if let Some(retained) = &mut retained {
+                        self.environment.budget.reserve_analysis_work(1)?;
+                        self.environment
+                            .budget
+                            .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
+                        retained.push(ordinal);
+                    }
                     output.push(item);
                 }
             }
         }
         *items = output;
+        Ok(retained)
+    }
+    fn nested_items(
+        &mut self,
+        module: ModuleId,
+        items: &mut Vec<s::Item>,
+        inherited: Option<&CtSymbolId>,
+        depth: usize,
+        generated: bool,
+    ) -> CompileResult<()> {
+        let original_count = items.len();
+        let retained = self.items(module, items, inherited, depth, generated)?;
+        if let Some(retained) = retained {
+            self.environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            if retained.into_iter().ne(0..original_count) {
+                // The current public ledger has top-level rows only. Member
+                // ordinals cannot be recovered after deleting nested items.
+                self.declaration_lineage_preserved = false;
+            }
+        }
         Ok(())
     }
     fn item(
@@ -1181,7 +1290,7 @@ impl Materializer<'_, '_> {
                         self.expr(module, e, owner, depth + 1)?;
                     }
                 }
-                self.items(module, &mut a.methods, Some(owner), depth + 1, false)?;
+                self.nested_items(module, &mut a.methods, Some(owner), depth + 1, false)?;
             }
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {
@@ -1215,11 +1324,11 @@ impl Materializer<'_, '_> {
             }
             s::ItemKind::Trait(t) => {
                 self.associated_constants(module, &mut t.members, &t.generics, owner)?;
-                self.items(module, &mut t.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut t.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Impl(i) => {
                 self.associated_constants(module, &mut i.members, &i.generics, owner)?;
-                self.items(module, &mut i.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut i.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}
         }
@@ -1717,7 +1826,22 @@ pub(crate) fn materialize(
     target: &TargetProfile,
     limits: &Limits,
     registry: Option<&CtLockedProviderRegistry>,
+    original_declarations: bool,
 ) -> CompileResult<Materialized> {
+    let (mut declaration_origins, capture_remaining) = if original_declarations {
+        zil_expand::source_context::capture_original(
+            sources,
+            modules,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root,
+                aliases: paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            limits,
+        )?
+    } else {
+        (None, limits.clone())
+    };
     let mut environment = Environment::new(
         sources,
         parsed,
@@ -1726,7 +1850,7 @@ pub(crate) fn materialize(
         root,
         fingerprint,
         target,
-        limits,
+        &capture_remaining,
     )?;
     environment.classify_definitions()?;
     let mut output = modules
@@ -1743,15 +1867,74 @@ pub(crate) fn materialize(
         required_imports: Vec::new(),
         runtime_scopes: Vec::new(),
         max_depth: limits.max_call_depth,
+        track_declarations: declaration_origins.is_some(),
+        declaration_lineage_preserved: true,
     };
-    for module in &mut output {
-        materializer.items(module.id, &mut module.items, None, 0, false)?;
+    for (index, module) in output.iter_mut().enumerate() {
+        let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
+        if !materializer.declaration_lineage_preserved {
+            declaration_origins = None;
+        }
+        if let Some(origins) = &mut declaration_origins {
+            let rows = origins
+                .get_mut(index)
+                .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+            if rows.module != module.id {
+                return Err(category(
+                    "declaration-origin module owner differs",
+                    module.span,
+                ));
+            }
+            let original_count = rows.items.len();
+            materializer
+                .environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            let mut retained = retained
+                .ok_or_else(|| category("retained declaration positions absent", module.span))?
+                .into_iter()
+                .peekable();
+            let mut moved = Vec::new();
+            for (ordinal, row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
+                if retained.peek() == Some(&ordinal) {
+                    materializer
+                        .environment
+                        .budget
+                        .reserve_temporary_bytes(std::mem::size_of_val(&row) as u64)?;
+                    moved.push(row);
+                    retained.next();
+                }
+            }
+            if retained.next().is_some() || moved.len() != module.items.len() {
+                return Err(category(
+                    "retained declaration positions differ from output",
+                    module.span,
+                ));
+            }
+            rows.items = moved;
+        }
     }
+    if !materializer.declaration_lineage_preserved {
+        declaration_origins = None;
+    }
+    let lineage_remaining =
+        original_declarations.then(|| materializer.environment.remaining_limits_for_input());
+    let mut usage = materializer.environment.budget.usage().clone();
+    usage.analysis_work = usage
+        .analysis_work
+        .checked_add((limits.max_analysis_steps - capture_remaining.max_analysis_steps) as u64)
+        .ok_or_else(|| category("declaration capture work count overflow", Span::default()))?;
+    usage.generated_nodes = usage
+        .generated_nodes
+        .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
+        .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
     Ok(Materialized {
         modules: output,
         previews: materializer.previews,
         required_imports: materializer.required_imports,
-        usage: environment.budget.usage().clone(),
+        usage,
+        declaration_origins,
+        lineage_remaining,
     })
 }
 

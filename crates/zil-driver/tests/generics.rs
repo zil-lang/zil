@@ -9,6 +9,57 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_retained_declaration_rows_survive_ct_removal() {
+    let scalar = "fn scalar(marker:Type,n:i32)->i32{return n}";
+    let view = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}";
+    let main = "fn main()->i32{return #(scalar(i32,0))}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-retained-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for (index, (text, expected)) in [
+        (format!("{scalar}{view}{main}"), 1),
+        (format!("import std.meta;{scalar}{view}{main}"), 2),
+        (format!("{view}{scalar}{main}"), 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                emit_dir: Some(directory.join(index.to_string())),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        assert!(dump.contains("life_declarations: ["), "{dump}");
+        let declaration = dump.split("life_declarations: [").nth(1).unwrap();
+        assert!(
+            declaration
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&format!("declaration:NodeId({expected},)")),
+            "{declaration}"
+        );
+        assert!(declaration.contains("\"View\""), "{declaration}");
+        assert!(!dump.contains("name: \"$module0_scalar\""), "{dump}");
+        if index == 1 {
+            assert!(dump.contains("imports: []"), "{dump}");
+        }
+    }
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
     let text = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}fn main(){}";
     let directory = std::env::temp_dir().join(format!(

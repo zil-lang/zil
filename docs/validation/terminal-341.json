@@ -114,7 +114,7 @@
       "work": 16238,
       "nodes": 4034
     },
-    "generic_method_substitution": "Actual original source exit4 before→0 after; type growth counts0/1/2/4/7, call order and before/between placement (80 native profiles), generic impl/default and forwarded const sources (12 further profiles). Definition-only Self/equation/const rewriting preserves/composes original call-site node origins; concrete substitution anchors actual member/callee Box nodes and rekeys only afterward. Later const-call lowering removes type-argument Expr structure after frame binding, without reusing ordinals. Source/member/function/callee/receiver spans may coincide; actual source→raw/Wire→Clang+LLVM API O0/O2 passes."
+    "generic_method_substitution": "Actual original source exit4 before\u21920 after; type growth counts0/1/2/4/7, call order and before/between placement (80 native profiles), generic impl/default and forwarded const sources (12 further profiles). Definition-only Self/equation/const rewriting preserves/composes original call-site node origins; concrete substitution anchors actual member/callee Box nodes and rekeys only afterward. Later const-call lowering removes type-argument Expr structure after frame binding, without reusing ordinals. Source/member/function/callee/receiver spans may coincide; actual source\u2192raw/Wire\u2192Clang+LLVM API O0/O2 passes."
   },
   "remaining": [
     "General verified CT expression arguments and const inference",
@@ -709,6 +709,29 @@
       "context-aware full type/interface keys",
       "actual Types/Analyze/Verify/Lower/Clang/LLVM API dynamic consumers",
       "combined raw/Wire/native/budget/cache validation"
+    ]
+  },
+  "retained_original_lineage_checkpoint": {
+    "status": "WIP frontend retained-original lineage; no dyn/safety/native acceptance",
+    "source_algorithm": "Python pathlib component-order sort of crates/*/src/**/*.rs; relative path+NUL+bytes+NUL",
+    "production_files": 373,
+    "production_sha256": "995ef5acbb40c4dc82149536aae2a93f58c8656404a4bf52592cae1a294c9c75",
+    "checks": {
+      "expand_source_context": 5,
+      "driver_declaration_filter": 3,
+      "source_variants": 3,
+      "capture_work": 698,
+      "capture_nodes": 33,
+      "namespace_work": 221,
+      "namespace_nodes": 5,
+      "limits": "unchanged; both exact N/N-1 controls pass"
+    },
+    "scope": "capture_original before CT; actual retained-position transport through CT-only removal and import pruning; Aligned uses original complete snapshot and continued remaining budget",
+    "open": [
+      "selection/generated item/member lineage",
+      "actual Dyn source metadata and dynamic instructions",
+      "independent Dyn safety/native consumers",
+      "CT4 phantom source composition with344 pending combined checkpoint"
     ]
   }
 }
