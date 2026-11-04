@@ -238,6 +238,7 @@ fn private_slots(f: &TypedFunction, budget: &mut Budget) -> CompileResult<()> {
                 | InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
                 | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::DropEnum { local } => Some(*local),
                 InstructionKind::CallClosureShared { callee, .. }

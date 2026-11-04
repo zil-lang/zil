@@ -1526,6 +1526,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if !inner.is_address_pointee()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
+                && !reference_patterns::sum_address(ty)
                 && !self.graph.symbolic_store_type(inner)
             {
                 return Err(unsupported(span, "nested reference signature"));
@@ -2079,6 +2080,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 } if (inner.is_address_pointee()
                     || ty.is_shared_resource_head_address()
                     || ty.is_package_address()
+                    || reference_patterns::sum_address(ty)
                     || self.graph.symbolic_store_type(inner))
                     && (*mutable || !wanted) =>
                 {

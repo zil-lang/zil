@@ -917,7 +917,8 @@ impl Transfer<'_> {
                 }
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
-                | InstructionKind::BorrowVariantLocal { local, .. } => {
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. } => {
                     if let Some(debt) = slots.managed_local[local.0 as usize]
                         && validate
                         && state.debt[debt] != LIVE

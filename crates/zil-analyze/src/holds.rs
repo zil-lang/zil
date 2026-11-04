@@ -9,6 +9,7 @@ enum Root {
     Local(LocalId),
     Field(LocalId, u32),
     Projection(LocalId, u32, u32),
+    Window(HoldRoot,u32,u32),
     Capture(u32),
     Parameter(u32),
     // A borrowed environment keeps these positions alive, but its pointer
@@ -16,6 +17,7 @@ enum Root {
     RetainedLocal(LocalId),
     RetainedField(LocalId, u32),
     RetainedProjection(LocalId, u32, u32),
+    RetainedWindow(HoldRoot,u32,u32),
     RetainedCapture(u32),
     RetainedParameter(u32),
 }
@@ -26,6 +28,7 @@ impl Root {
             Self::RetainedLocal(local) => Self::Local(local),
             Self::RetainedField(local, index) => Self::Field(local, index),
             Self::RetainedProjection(local, start, end) => Self::Projection(local, start, end),
+            Self::RetainedWindow(root,start,end)=>Self::Window(root,start,end),
             Self::RetainedCapture(index) => Self::Capture(index),
             Self::RetainedParameter(index) => Self::Parameter(index),
             root => root,
@@ -36,6 +39,7 @@ impl Root {
             Self::Local(local) => Self::RetainedLocal(local),
             Self::Field(local, index) => Self::RetainedField(local, index),
             Self::Projection(local, start, end) => Self::RetainedProjection(local, start, end),
+            Self::Window(root,start,end)=>Self::RetainedWindow(root,start,end),
             Self::Capture(index) => Self::RetainedCapture(index),
             Self::Parameter(index) => Self::RetainedParameter(index),
             _ => unreachable!(),
@@ -292,6 +296,9 @@ fn delegated(
 
 fn root_overlap(a: Root, b: Root) -> bool {
     match (a.position(), b.position()) {
+        (Root::Window(x,a,b),Root::Window(y,c,d))=>x==y && a<d && c<b,
+        (Root::Window(HoldRoot::Local(x),a,b),Root::Projection(y,c,d))|(Root::Projection(y,c,d),Root::Window(HoldRoot::Local(x),a,b))=>x==y && a<d && c<b,
+        (Root::Window(root,..),other)|(other,Root::Window(root,..))=>match(root,other){(HoldRoot::Local(x),Root::Local(y)|Root::Field(y,_)|Root::Projection(y,..))=>x==y,(HoldRoot::Parameter(x),Root::Parameter(y))=>x==y,(HoldRoot::Capture(x),Root::Capture(y))=>x==y,_=>false},
         (Root::Projection(x, a, b), Root::Projection(y, c, d)) => x == y && a < d && c < b,
         (Root::Projection(x, ..), Root::Local(y) | Root::Field(y, _))
         | (Root::Local(x) | Root::Field(x, _), Root::Projection(y, ..)) => x == y,
@@ -1401,6 +1408,10 @@ fn infer_with_private(
                     InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                         found.insert(Root::Local(*local));
                     }
+                    InstructionKind::BorrowFieldLocal{local,path,..}=>{found.insert(inline_root(f,*local,path,budget)?);}
+                    InstructionKind::BorrowVariantAddress{address,path,..}=>{
+                        for root in &values[address.0 as usize]{found.insert(address_root(f,*address,path,*root,budget)?);}
+                    }
                     InstructionKind::BorrowVariantLocal { local, path, .. } => {
                         budget.spend(path.len().saturating_add(1), "payload borrow root")?;
                         found.insert(variant_root(f, *local, path, budget)?);
@@ -1646,6 +1657,7 @@ fn infer_with_private(
                 | Root::RetainedLocal(local)
                 | Root::RetainedField(local, _)
                 | Root::RetainedProjection(local, ..) => HoldRoot::Local(local),
+                Root::Window(origin,..)|Root::RetainedWindow(origin,..)=>origin,
                 Root::Capture(index) | Root::RetainedCapture(index) => HoldRoot::Capture(index),
                 Root::Parameter(index) | Root::RetainedParameter(index) => {
                     HoldRoot::Parameter(index)
@@ -3263,4 +3275,18 @@ mod product_parameter_dependency_tests {
             vec![false, false]
         );
     }
+}
+
+fn inline_width(t:&Type,b:&mut Budget)->CompileResult<u32>{b.spend(1,"inline place interval")?;let mut n=1u32;let mut add=|t:&Type|->CompileResult<()>{n=n.checked_add(inline_width(t,b)?).ok_or_else(||vec![Diagnostic::limit(Phase::Analyze,"inline interval overflow",None)])?;Ok(())};match t{Type::Tuple(fs)=>for t in fs{add(t)?},Type::Record{fields,..}|Type::Package{fields,..}=>for(_,t)in fields{add(t)?},Type::Enum{variants,..}=>for(_,fs)in variants{for t in fs{add(t)?}},_=>{}}Ok(n)}
+fn inline_root(f:&TypedFunction,local:LocalId,path:&[u32],b:&mut Budget)->CompileResult<Root>{
+ let mut ty=&f.locals[local.0 as usize].ty;let mut at=0u32;for field in path{at=at.checked_add(1).ok_or_else(||bad("inline interval overflow"))?;
+  ty=match ty{Type::Tuple(fs)=>{for t in fs.iter().take(*field as usize){at=at.checked_add(inline_width(t,b)?).ok_or_else(||bad("inline interval overflow"))?;}fs.get(*field as usize)},Type::Record{fields,..}=>{for(_,t)in fields.iter().take(*field as usize){at=at.checked_add(inline_width(t,b)?).ok_or_else(||bad("inline interval overflow"))?;}fields.get(*field as usize).map(|(_,t)|t)},_=>None}.ok_or_else(||bad("inline field outside actual aggregate"))?;
+ }let end=at.checked_add(inline_width(ty,b)?).ok_or_else(||bad("inline interval overflow"))?;Ok(Root::Projection(local,at,end))
+}
+fn address_root(f:&TypedFunction,address:ValueId,path:&[VariantProjection],root:Root,b:&mut Budget)->CompileResult<Root>{
+ let Type::Address{inner,..}=&f.values[address.0 as usize]else{return Err(bad("payload source is not an address"))};let mut ty=inner.as_ref();let mut at=0u32;
+ for part in path{let Type::Enum{variants,..}=ty else{return Err(bad("payload interval crosses non-Enum"))};at=at.checked_add(1).ok_or_else(||bad("address interval overflow"))?;for(_,fs)in variants.iter().take(part.variant as usize){for t in fs{at=at.checked_add(inline_width(t,b)?).ok_or_else(||bad("address interval overflow"))?;}}
+  let fs=&variants.get(part.variant as usize).ok_or_else(||bad("payload tag outside Enum"))?.1;for t in fs.iter().take(part.index as usize){at=at.checked_add(inline_width(t,b)?).ok_or_else(||bad("address interval overflow"))?;}ty=fs.get(part.index as usize).ok_or_else(||bad("payload field outside Enum"))?;
+ }let end=at.checked_add(inline_width(ty,b)?).ok_or_else(||bad("address interval overflow"))?;
+ Ok(match root{Root::Local(l)=>Root::Projection(l,at,end),Root::Parameter(p)=>Root::Window(HoldRoot::Parameter(p),at,end),Root::Projection(l,offset,limit)=>{let a=offset.checked_add(at).ok_or_else(||bad("address interval overflow"))?;let z=offset.checked_add(end).ok_or_else(||bad("address interval overflow"))?;if z>limit{return Err(bad("payload escapes its actual parent interval"))}Root::Projection(l,a,z)},Root::Window(origin,offset,limit)=>{let a=offset.checked_add(at).ok_or_else(||bad("address interval overflow"))?;let z=offset.checked_add(end).ok_or_else(||bad("address interval overflow"))?;if z>limit{return Err(bad("payload escapes its actual parent interval"))}Root::Window(origin,a,z)},root=>root})
 }

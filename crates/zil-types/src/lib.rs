@@ -242,6 +242,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
+        || reference_patterns::sum_address(&f.return_type)
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
         || owned_shapes::enumeration(&f.return_type)
@@ -284,6 +285,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         }
         if !(p.ty.is_copy_value()
             || p.ty.is_scalar_or_address()
+            || reference_patterns::sum_address(&p.ty)
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
@@ -305,9 +307,9 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         ) && !(p.mode == PassingMode::Borrow
             && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
                 || p.ty.is_shared_resource_head_address()
-                || p.ty.is_shared_package_address()))
+                || p.ty.is_shared_package_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))

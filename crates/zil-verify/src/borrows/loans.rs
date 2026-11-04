@@ -185,7 +185,8 @@ fn reconstruct(
                         | InstructionKind::OwnedStoreBorrowMut { .. }
                         | InstructionKind::BorrowOwnedArrayElement { .. }
                         | InstructionKind::BorrowPackageField { .. }
-                        | InstructionKind::BorrowVariantLocal { .. } => {
+                        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -193,6 +194,9 @@ fn reconstruct(
                             if matches!(f.values[id], Type::Address { .. }) =>
                         {
                             row.insert(id);
+                        }
+                        InstructionKind::BorrowVariantAddress { address,.. } => {
+                            row.insert(id);join(&mut parents,&flow.values[address.0 as usize],budget)?;
                         }
                         InstructionKind::ReborrowAddress { address, .. } => {
                             row.insert(id);
@@ -970,6 +974,12 @@ pub(super) fn check(
                 }
                 InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
+                }
+                InstructionKind::BorrowFieldLocal{local,path,mutable}=>{let root=super::roots::inline_field_root(f,*local,path,budget)?;access.check(&empty,&[root],*mutable,budget)?;}
+                InstructionKind::VariantTagAddress { address,path } | InstructionKind::BorrowVariantAddress { address,path,.. }=>{
+                    let borrowed=matches!(instruction.kind,InstructionKind::BorrowVariantAddress{mutable:true,..});
+                    let roots=super::roots::address_roots(f,*address,path,&facts.values[address.0 as usize],budget)?;
+                    access.check(&flow.values[address.0 as usize],&roots,borrowed,budget)?;
                 }
                 InstructionKind::BorrowVariantLocal {
                     local,

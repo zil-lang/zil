@@ -526,6 +526,57 @@ fn terminal340_unsigned_native_wrapper_and_api_traps() {
     }
 }
 
+#[test]
+fn terminal340_addressed_sums_and_tuple_siblings_native() {
+    for text in [
+        "fn result()->i32{let(ref mut a,b)=(20,22);*a+=b;return *a}",
+        "fn result()->i32{let(ref mut a,b)=(1,42);return b}",
+        "enum E{Data(i32),None}fn inspect(value:&E)->i32{match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+        "enum E{Pair(i32,i32),None}fn mutate(value:&mut E)->i32{match *value{E.Pair(ref mut a,ref mut b)=>{*a+=*b;return *a},E.None()=>{return 0}}}fn result()->i32{var value=E.Pair(20,22);return mutate(&mut value)}",
+        "package P{manages bytes:ByteBuffer;n:i32}fn inspect(value:&Option<P>)->i32{match *value{Option.Some(ref p)=>{return p.n},Option.None()=>{return 0}}}fn result()->i32{let value:P?=Option.Some(P{bytes:bytes_new(),n:42});return inspect(&value)}",
+        "package P{manages bytes:ByteBuffer;n:i32}fn inspect(value:&Option<P>)->i32{match *value{Option.Some(_)=>{return 42},Option.None()=>{return 0}}}fn result()->i32{let value:P?=Option.Some(P{bytes:bytes_new(),n:1});return inspect(&value)}",
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{let value=E.Data(42);let p=select(&value);return *p}",
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{var value=E.Data(42);let p=select(&value);let n=*p;value=E.Data(1);return n}",
+        "fn result()->i32{var pair=(20,22);let(ref a,b)=pair;let f=()->i32=>*a;let n=f();pair=(1,2);return n+b}",
+        "enum E{Data(i32),None}fn worker(n:i32)->i32{return n}fn inspect(value:&mut E)->i32{let body=()->i32=>{*value=E.Data(42);return 0};thread_scope(worker,0,body);match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{var value=E.None;return inspect(&mut value)}",
+
+    ] { review329_native(&[("main",text)],42); }
+}
+
+#[test]
+fn terminal340_addressed_sums_raw_and_permission_neighbors() {
+    for text in [
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{var value=E.Data(42);let p=select(&value);value=E.Data(1);return *p}",
+        "enum E{Data(i32)}fn inspect(value:&E)->i32{match *value{E.Data(ref mut p)=>{return *p}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+        "fn result()->i32{var pair=(20,22);let(ref a,b)=pair;let f=()->i32=>*a;pair=(1,2);return f()+b}",
+        "fn result()->i32{var pair=(20,22);let(ref mut a,ref mut b)=pair;let whole=&pair;return *a+*b+whole.0}",
+    ] {
+        let report=compile_source(&source(text),&CompileOptions::default());
+        assert_ne!(report.status,ResultCategory::Success,"{text}\n{}",report.to_json());
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    let input=source("enum E{Data(i32),Other(i32)}fn inspect(value:&E)->i32{match *value{E.Data(ref p)=>{return *p},E.Other(_)=>{return 0}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}");
+    let ast=zil_syntax::parse(&input).into_result().unwrap();let core=zil_expand::expand(&input,&ast).unwrap();
+    let limits=Limits::default();let target=TargetProfile::default();let typed=zil_types::check(&core,&target,&limits).unwrap();let plan=zil_analyze::analyze(&typed,&limits).unwrap();
+    let bytes=zil_ir::wire::encode_module_candidate(&typed,&plan,&limits).unwrap();assert!(zil_verify::verify_module_bytes(&bytes,&target,&limits).is_ok());
+    for mode in 0..3 {
+        let mut raw=typed.clone();let f=raw.functions.iter_mut().find(|f|f.name=="inspect").unwrap();
+        if mode==0 {
+            let block=f.blocks.iter_mut().find(|b|matches!(b.terminator,zil_ir::Terminator::Branch{..})).unwrap();
+            let zil_ir::Terminator::Branch{then_block,else_block,..}=&mut block.terminator else{unreachable!()};*else_block=*then_block;
+        } else {
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::BorrowVariantAddress{..})).unwrap();
+            let InstructionKind::BorrowVariantAddress{path,..}=&mut i.kind else{unreachable!()};
+            if mode==1 {path[0].variant=1} else {path[0].index=1}
+        }
+        assert!(zil_analyze::analyze(&raw,&limits).is_err(),"Analyze accepted forged address proof {mode}");
+        let mut claim=plan.clone();claim.module_fingerprint=raw.fingerprint();
+        let error=zil_verify::verify_module(raw.clone(),claim.clone(),&target,&limits).unwrap_err();
+        assert!(error.iter().any(|d|d.code=="E-VERIFY-SUM-ADDRESS"),"{mode}: {error:?}");
+        let bytes=zil_ir::wire::encode_module_candidate(&raw,&claim,&limits).unwrap();assert!(zil_verify::verify_module_bytes(&bytes,&target,&limits).is_err());
+    }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

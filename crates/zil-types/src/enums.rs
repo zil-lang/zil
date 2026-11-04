@@ -494,7 +494,7 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
-        if arms
+        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..})))) || arms
             .iter()
             .any(|a| reference_patterns::has_reference(&a.pattern))
         {
