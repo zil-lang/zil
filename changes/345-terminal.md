@@ -9,3 +9,5 @@ stdlib模块按明确版本随编译器分发，std.string/std.utf8/std.text_edi
 std.store复用显式容量Store原语，新增有序remove：先完整准备suffix容量，失败前原输入保持；真正移出一个T并将suffix按原序恢复，所有拥有值按既有责任处理。不引入隐式扩容。实际带Drop消费者、活跃view反例与逐分配点失败验证后才接受。
 
 std.iter接同步Copy slice callback for_each/fold/any/all/position/find，依真实FnMut调用顺序和may合同；position/find返回卫生Option，空输入/提前退出/环境写入与相交回调反例必须执行。此源库段不替代一般Iterator关联类型或lending iterator终态。
+
+UTF8/String接续：普通库补充Unicode标量编码、值域与输出容量在写入前核验；非法标量或短输出保持原字节。String显式reserve、Unicode标量push/truncate及拥有substring复用真实资源头权限，保持UTF8不变量和失败前不改原值；输出字符串独立拥有，不延长输入借用。完整get/borrowed substring错误载荷及lending仍须真实语言消费者支持，不能以拥有副本冒充返回借用。
