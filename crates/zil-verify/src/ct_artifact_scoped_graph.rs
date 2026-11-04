@@ -14,6 +14,9 @@ enum Visit {
 }
 impl Identity<'_, '_> {
     pub(super) fn scoped_graph(&mut self, ty: &CtTypeRef, allow_fixed: bool) -> Check<Vec<u8>> {
+        if !ty.ambient_classes.is_empty() {
+            return Err(pending_scoped_identity());
+        }
         let count = ty.nodes.len();
         if count == 0 || ty.root.0 as usize != count - 1 {
             return Err(reject(None, "CT4 metadata root is not canonical"));
@@ -69,7 +72,7 @@ impl Identity<'_, '_> {
                             Some((true, life.binder_count))
                         }
                         CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                            Some((false, life.binder_count))
+                            Some((false, life.invocation_binder_count))
                         }
                         _ => None,
                     };
@@ -439,6 +442,12 @@ impl Identity<'_, '_> {
         arguments: &[CtSchemaArgument],
         context: &CtTypeRef,
     ) -> Check<()> {
+        if matches!(
+            context.nodes.get(context.root.0 as usize),
+            Some(CtTypeNode::BorrowedStorage { .. })
+        ) {
+            return Err(pending_scoped_identity());
+        }
         self.meter.charge(
             context
                 .nodes

@@ -91,7 +91,7 @@ mod stored_borrows;
 mod stored_flow;
 mod sums;
 mod tasks;
-pub use ct_artifact::{
+pub use ct_artifact::{CtScopeParameterKind,
     CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
     verify_ct_artifact, verify_ct_artifact_metered,
 };
