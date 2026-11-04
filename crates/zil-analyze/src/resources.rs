@@ -130,6 +130,7 @@ struct Effect {
     arguments: BTreeSet<u32>,
     borrowed_fields: BTreeSet<u32>,
     replacements: replacements::Effects,
+    invalidated_stores: BTreeSet<replacements::StoreInvalidation>,
 }
 type Shapes = BTreeMap<Place, Shape>;
 pub(super) type Live = BTreeSet<Place>;
@@ -3396,12 +3397,23 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
             .saturating_add(1),
         "resource effect convergence",
     )?;
+    budget.spend(
+        found
+            .invalidated_stores
+            .len()
+            .saturating_add(target.invalidated_stores.len()),
+        "Store instance invalidation convergence",
+    )?;
+    let old_invalidations = target.invalidated_stores.len();
+    target.invalidated_stores.extend(found.invalidated_stores);
     let before = (target.arguments.len(), target.borrowed_fields.len());
     target.arguments.extend(found.arguments);
     target.borrowed_fields.extend(found.borrowed_fields);
     let replacements_changed =
         replacements::grow(&mut target.replacements, &found.replacements, budget)?;
-    Ok(replacements_changed || before != (target.arguments.len(), target.borrowed_fields.len()))
+    Ok(replacements_changed
+        || old_invalidations != target.invalidated_stores.len()
+        || before != (target.arguments.len(), target.borrowed_fields.len()))
 }
 
 fn infer_effects(

@@ -59,3 +59,70 @@ fn independent_reserve_does_not_trust_a_forged_mutable_ssa_parent() {
         "{error:?}"
     );
 }
+
+#[test]
+fn replacement_nested_descriptor_boundary_checks_unused_address_and_value_edges() {
+    // Component representation test, not a source-level acceptance witness.
+    // Source nested transport is still independently closed by Analyze.
+    for address in [false, true] {
+        for description in [false, true] {
+            let mut module = fixture::module();
+            let captured = if description {
+                Type::Desc(Box::new(module.resources[0].payload.clone()))
+            } else {
+                Type::I32
+            };
+            module.closures = vec![ClosureDefinition {
+                storage_life: None,
+                lending_captures: vec![],
+                id: ClosureId(0),
+                function: FunctionId(0),
+                kind: CallableKind::Fn,
+                captures: vec![captured],
+                parameters: vec![],
+                result: Type::I32,
+            }];
+            let inner = Type::Closure(ClosureId(0));
+            let edge = if address {
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(inner),
+                }
+            } else {
+                inner
+            };
+            module.closures.push(ClosureDefinition {
+                storage_life: None,
+                lending_captures: vec![],
+                id: ClosureId(1),
+                function: FunctionId(0),
+                kind: CallableKind::Fn,
+                captures: vec![edge],
+                parameters: vec![],
+                result: Type::I32,
+            });
+            let limits = Limits::default();
+            let result = nested_descriptor_boundary(&module, &mut Budget::new(&limits));
+            if description {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .message
+                        .contains("transitive carrier bridge")
+                );
+            } else {
+                result.unwrap();
+            }
+            let low = Limits {
+                max_analysis_steps: 0,
+                ..limits
+            };
+            assert_eq!(
+                nested_descriptor_boundary(&module, &mut Budget::new(&low))
+                    .unwrap_err()
+                    .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
+    }
+}

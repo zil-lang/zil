@@ -1,0 +1,619 @@
+{
+  "status": "LimitedPassAuthor",
+  "source_test_commit": "b3b012e2229095f4d33567a7a113163ff246bf75",
+  "production_commit": "93656961ec4c39b4272a07879bb670c7b65ac071",
+  "baseline": "8d80f87ee320bc4837a7d57623460194c41b9254",
+  "author_target_stopped": true,
+  "source_sha256": {
+    "crates/zil-analyze/src/resources.rs": "92a61bb90de89e0b57dc9de26b24863a4b081f69cb0055b8590d3da6a7f99f40",
+    "crates/zil-analyze/src/resources/replacements.rs": "d23fff56e662437f30cb7193c089bfb49969dbd190e812ec89dfdd44d62dd276",
+    "crates/zil-verify/src/resources.rs": "8388906148c7409fd0105b468ed1b358e38911995d12e438212a6fde8d4d138b",
+    "crates/zil-verify/src/resources/replacements.rs": "57d5f3e847846f64211aea0a0b1cc7595af2424d138198627875af94241eb296",
+    "crates/zil-verify/src/resources/replacements/tests.rs": "9fb100baf6159a8e9a3e92b487eab0f5815566a3cd33e65551c01902988bcd10",
+    "crates/zil-verify/src/sums.rs": "5cf03b40075ea0db5e15becf733cf2f458a234787f7a772a4cc3a66f4765e486",
+    "crates/zil-verify/src/sums/replacements.rs": "8377efcac14578c06c06b31c73ba40c5726b1c416f993ccd8b95ebaaa328820b",
+    "crates/zil-driver/tests/impl180_store_mut.rs": "04fb7894d7b29a35b05328600635c49464a5f7561071491a78d3290d67b8c7b7"
+  },
+  "logs": {
+    "accepted-default32": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/accepted-default32.log",
+      "sha256": "adb7d27a2fc959bdfa97b4be9bb9d9f6dddafcb0b15601d0b1a7ab47fd474ab2",
+      "passed": 32
+    },
+    "accepted-api32": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/accepted-api32.log",
+      "sha256": "8bbd383a2171f8d87a15bef1acd6de04ba2cde0654950004596b7a8b52478934",
+      "passed": 32
+    },
+    "final-aggregates": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-aggregates.log",
+      "sha256": "15674c0b28a863340e05418e52aa88c6a27b210de9c792630a23d827f5a52fe4",
+      "passed": 8
+    },
+    "final-product": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-product.log",
+      "sha256": "2c1af70aa5aaf410a9fdb6ce939b77900f8e96d2baadb964eef98f9bf7c9165b",
+      "passed": 1
+    },
+    "final-components": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-components.log",
+      "sha256": "07ac85438cfffccc0b1aa66e763a3ff01cacfdf8a581d35ba21fc7be8cc5b1ef",
+      "passed": 16
+    },
+    "final-frontier": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-frontier.log",
+      "sha256": "a8549785d0120beffcc0e4f2fdf6166c3fc6d9f9fa514c50da85373b2f44c4f1",
+      "passed": 8
+    },
+    "final-clippy": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-clippy.log",
+      "sha256": "da617cec9cb409cc7d90040e129ad90b46ac0d3bfc0d87a5184fe72f43403805",
+      "passed": 0
+    },
+    "final-fmt": {
+      "path": "/workspace/.zil-env/G1.3.2-tmp/final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "passed": 0
+    }
+  },
+  "budgets": {
+    "previous": {
+      "Analyze": 19754,
+      "Verify": 54842
+    },
+    "new_call": {
+      "Analyze": 23731,
+      "Verify": 63080
+    },
+    "proof": "Both N and N-1 fixed; N-1 fails corresponding phase; fresh/warm/retry pass. No previous bound raised."
+  },
+  "R1": {
+    "before": "source-derived CallClosureBorrowed moved beyond relay accepted by both kernels at bd2",
+    "before_log": "/workspace/.zil-env/G1.3.2-tmp/carrier-probe.log",
+    "before_log_sha256": "ea9fb6e353934e37f00b5adf780642e4ef191e1abd01aa95a45eab703f3b676f",
+    "after": "same origin-preserving raw/Wire reaches Verify resource rejection; Address<Closure> scan only, ordinary element/Managed addresses retained",
+    "positive": "borrowed old Desc last use before relay, another Store same type, and Copy payload may-write same instance run natively"
+  },
+  "nested_boundary": {
+    "source": "Types accepts nested wrapper; Analyze explicitly Unsupported; not a language negative",
+    "verify": "whole-module prepaid Closure/Address<Closure> edge guard; dedicated component representation test only, not raw/Wire source acceptance"
+  },
+  "evidence_root": "/workspace/.zil-env/G1.3.2-tmp",
+  "machine_sources": [
+    {
+      "source_sha256": "20385f8e482a576c0b603c532dba2baa2659a2a725369673cba40baba3c30e95",
+      "stdout": "CABX",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-84",
+          "llvm_sha256": "d72eafb12a263adf76f7fe8f3dc3996394d1109363389262ae68bb70db85ae24"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-94",
+          "llvm_sha256": "d72eafb12a263adf76f7fe8f3dc3996394d1109363389262ae68bb70db85ae24"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-88",
+          "llvm_sha256": "d72eafb12a263adf76f7fe8f3dc3996394d1109363389262ae68bb70db85ae24"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-92",
+          "llvm_sha256": "d72eafb12a263adf76f7fe8f3dc3996394d1109363389262ae68bb70db85ae24"
+        }
+      ]
+    },
+    {
+      "source_sha256": "2458352fea3309029d6510338a27db936d9e7e20c5f012a26b8dd0c900f7c88b",
+      "stdout": "ACZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-91",
+          "llvm_sha256": "81579ad843dd8ea905687fc52950921d692871642a9f42623f1b225073e83fd9"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-95",
+          "llvm_sha256": "81579ad843dd8ea905687fc52950921d692871642a9f42623f1b225073e83fd9"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-83",
+          "llvm_sha256": "81579ad843dd8ea905687fc52950921d692871642a9f42623f1b225073e83fd9"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-89",
+          "llvm_sha256": "81579ad843dd8ea905687fc52950921d692871642a9f42623f1b225073e83fd9"
+        }
+      ]
+    },
+    {
+      "source_sha256": "3894531a79868d2b7b481d87cb0c262019dbcc56829ead52f14e5319886ba34b",
+      "stdout": "CXAB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-144",
+          "llvm_sha256": "a1317cfa084e4278851a707caf2adbaea4f5bb6edf68c8291a1fbc5d8884035e"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-134",
+          "llvm_sha256": "a1317cfa084e4278851a707caf2adbaea4f5bb6edf68c8291a1fbc5d8884035e"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-140",
+          "llvm_sha256": "a1317cfa084e4278851a707caf2adbaea4f5bb6edf68c8291a1fbc5d8884035e"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-124",
+          "llvm_sha256": "a1317cfa084e4278851a707caf2adbaea4f5bb6edf68c8291a1fbc5d8884035e"
+        }
+      ]
+    },
+    {
+      "source_sha256": "46ba1c03ef2246b2612659b0cae308e96d43f2737c69267cdb085e9293807ab1",
+      "stdout": "AZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-53",
+          "llvm_sha256": "fe624d120e777236762947e7815839d78f4bf418b80420837bac56856fca1eb1"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-47",
+          "llvm_sha256": "fe624d120e777236762947e7815839d78f4bf418b80420837bac56856fca1eb1"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-36",
+          "llvm_sha256": "fe624d120e777236762947e7815839d78f4bf418b80420837bac56856fca1eb1"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-41",
+          "llvm_sha256": "fe624d120e777236762947e7815839d78f4bf418b80420837bac56856fca1eb1"
+        }
+      ]
+    },
+    {
+      "source_sha256": "68d2a23882889e55af23b063f6ed3db03e1f3891d83586c59f5fb1a5a66b61e8",
+      "stdout": "AZDB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-139",
+          "llvm_sha256": "cd36bc63b2df3e17217c7ceca85c270b33add3e78d032352c61241469fe19aae"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-135",
+          "llvm_sha256": "cd36bc63b2df3e17217c7ceca85c270b33add3e78d032352c61241469fe19aae"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-126",
+          "llvm_sha256": "cd36bc63b2df3e17217c7ceca85c270b33add3e78d032352c61241469fe19aae"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-143",
+          "llvm_sha256": "cd36bc63b2df3e17217c7ceca85c270b33add3e78d032352c61241469fe19aae"
+        }
+      ]
+    },
+    {
+      "source_sha256": "6c3249f6c15683965160f223decbe7829ee571bb0cdcb4e58b07faa05ed845e4",
+      "stdout": "ZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-113",
+          "llvm_sha256": "02b002c749ac8fd494588b060431a2f5ae33eb1d57c1a44095ca5313677e2b83"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-106",
+          "llvm_sha256": "02b002c749ac8fd494588b060431a2f5ae33eb1d57c1a44095ca5313677e2b83"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-104",
+          "llvm_sha256": "02b002c749ac8fd494588b060431a2f5ae33eb1d57c1a44095ca5313677e2b83"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-97",
+          "llvm_sha256": "02b002c749ac8fd494588b060431a2f5ae33eb1d57c1a44095ca5313677e2b83"
+        }
+      ]
+    },
+    {
+      "source_sha256": "852fb207c511e0697c66ba70421f3f64282f11251ab3962b0a33c8a720dd3c08",
+      "stdout": "IRAZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-155",
+          "llvm_sha256": "c2a81a8825f968c14870c24fbc80698a9e1b498241c249c73494b51083773dc0"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-145",
+          "llvm_sha256": "c2a81a8825f968c14870c24fbc80698a9e1b498241c249c73494b51083773dc0"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-158",
+          "llvm_sha256": "c2a81a8825f968c14870c24fbc80698a9e1b498241c249c73494b51083773dc0"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-151",
+          "llvm_sha256": "c2a81a8825f968c14870c24fbc80698a9e1b498241c249c73494b51083773dc0"
+        }
+      ]
+    },
+    {
+      "source_sha256": "902ccbd25702a0d373429c3dbb234b1fd2b0d710af66ce9d1cd8642c557ee05b",
+      "stdout": "AZB",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-25",
+          "llvm_sha256": "d04bf5dc29a2cbe88b657d60cb80e9bfd5217ee1676acf2c4a2f05de5404b0ef"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-26",
+          "llvm_sha256": "d04bf5dc29a2cbe88b657d60cb80e9bfd5217ee1676acf2c4a2f05de5404b0ef"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-31",
+          "llvm_sha256": "d04bf5dc29a2cbe88b657d60cb80e9bfd5217ee1676acf2c4a2f05de5404b0ef"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-35",
+          "llvm_sha256": "d04bf5dc29a2cbe88b657d60cb80e9bfd5217ee1676acf2c4a2f05de5404b0ef"
+        }
+      ]
+    },
+    {
+      "source_sha256": "93c0e5d4a0d849f439416066b1994aa5dd45187eb280e635603a4f3eda663b37",
+      "stdout": "AZ",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-87",
+          "llvm_sha256": "0d05131b1636c31246952e8713dd86b7cc17eda53d3b8e84e5880113c2b60396"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-96",
+          "llvm_sha256": "0d05131b1636c31246952e8713dd86b7cc17eda53d3b8e84e5880113c2b60396"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-93",
+          "llvm_sha256": "0d05131b1636c31246952e8713dd86b7cc17eda53d3b8e84e5880113c2b60396"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-90",
+          "llvm_sha256": "0d05131b1636c31246952e8713dd86b7cc17eda53d3b8e84e5880113c2b60396"
+        }
+      ]
+    },
+    {
+      "source_sha256": "94d7bc585f732875707cbcc4bcbfe422b087c4448a06482b67c0dca3f7bc70e3",
+      "stdout": "XAB",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-103",
+          "llvm_sha256": "181ae70cd66a7511fee4391dfb6b7ce35599dedebcba5e9528ddd9e0fde2f46e"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-98",
+          "llvm_sha256": "181ae70cd66a7511fee4391dfb6b7ce35599dedebcba5e9528ddd9e0fde2f46e"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-114",
+          "llvm_sha256": "181ae70cd66a7511fee4391dfb6b7ce35599dedebcba5e9528ddd9e0fde2f46e"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-107",
+          "llvm_sha256": "181ae70cd66a7511fee4391dfb6b7ce35599dedebcba5e9528ddd9e0fde2f46e"
+        }
+      ]
+    },
+    {
+      "source_sha256": "9b1848cdb4b99b235e9c4b8a72fae3e6a1f1f3ad6cb0d8df9d9a823391d52720",
+      "stdout": "ACZB",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-102",
+          "llvm_sha256": "f58990fb3608aa9b054a8c47d052276ae40ae5ca475c1957a8b3d1f0b3c4226f"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-110",
+          "llvm_sha256": "f58990fb3608aa9b054a8c47d052276ae40ae5ca475c1957a8b3d1f0b3c4226f"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-105",
+          "llvm_sha256": "f58990fb3608aa9b054a8c47d052276ae40ae5ca475c1957a8b3d1f0b3c4226f"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-115",
+          "llvm_sha256": "f58990fb3608aa9b054a8c47d052276ae40ae5ca475c1957a8b3d1f0b3c4226f"
+        }
+      ]
+    },
+    {
+      "source_sha256": "9cbec6ebee97997d20ab52d74f67dec418ae4feb94a044803163b336102c1dc0",
+      "stdout": "AZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-86",
+          "llvm_sha256": "d59346279fe465bf1c9c408e6c1bef29b56077bcfd7dad446701c06235d1aa7e"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-77",
+          "llvm_sha256": "d59346279fe465bf1c9c408e6c1bef29b56077bcfd7dad446701c06235d1aa7e"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-74",
+          "llvm_sha256": "d59346279fe465bf1c9c408e6c1bef29b56077bcfd7dad446701c06235d1aa7e"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-82",
+          "llvm_sha256": "d59346279fe465bf1c9c408e6c1bef29b56077bcfd7dad446701c06235d1aa7e"
+        }
+      ]
+    },
+    {
+      "source_sha256": "a49902688686256e7dc6a2cb7a8fa03210e044b017fae9cf9ab92c57efcd1552",
+      "stdout": "ACZB",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-70",
+          "llvm_sha256": "b19a1b0cb1224bc34153c4b07b72ab9bf7cfd1859017d8958ec7c6f54c9048fa"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-80",
+          "llvm_sha256": "b19a1b0cb1224bc34153c4b07b72ab9bf7cfd1859017d8958ec7c6f54c9048fa"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-63",
+          "llvm_sha256": "b19a1b0cb1224bc34153c4b07b72ab9bf7cfd1859017d8958ec7c6f54c9048fa"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-75",
+          "llvm_sha256": "b19a1b0cb1224bc34153c4b07b72ab9bf7cfd1859017d8958ec7c6f54c9048fa"
+        }
+      ]
+    },
+    {
+      "source_sha256": "db0673031512c4d36034e4e04545ac76c03d40eab8ec22325e98f1012f3161d1",
+      "stdout": "AZ",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-73",
+          "llvm_sha256": "420d9916e4d5002dffc1642a14c009b03f9528c662fb0e1af2b351048525d039"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-81",
+          "llvm_sha256": "420d9916e4d5002dffc1642a14c009b03f9528c662fb0e1af2b351048525d039"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-68",
+          "llvm_sha256": "420d9916e4d5002dffc1642a14c009b03f9528c662fb0e1af2b351048525d039"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-78",
+          "llvm_sha256": "420d9916e4d5002dffc1642a14c009b03f9528c662fb0e1af2b351048525d039"
+        }
+      ]
+    },
+    {
+      "source_sha256": "e22b95d8ce7a99e7d55344f7afcf1446dc3778698ccacf7bfd31f6e4df79fb59",
+      "stdout": "ACZB",
+      "matrix": [
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-39",
+          "llvm_sha256": "da0c0ac9ea2441bfdcbc550054ae426c17a92e59166f217910374d8dc8a12754"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-66",
+          "llvm_sha256": "da0c0ac9ea2441bfdcbc550054ae426c17a92e59166f217910374d8dc8a12754"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-45",
+          "llvm_sha256": "da0c0ac9ea2441bfdcbc550054ae426c17a92e59166f217910374d8dc8a12754"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-54",
+          "llvm_sha256": "da0c0ac9ea2441bfdcbc550054ae426c17a92e59166f217910374d8dc8a12754"
+        }
+      ]
+    },
+    {
+      "source_sha256": "e352800af31eead4805915e8ca11019e5875a0898845e595aa36821ec4881768",
+      "stdout": "ABX",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-79",
+          "llvm_sha256": "4019f6d40b7b8ca7008b75122cf2b73a714aab45eb5fb54fdbc9e08ce7e81445"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-69",
+          "llvm_sha256": "4019f6d40b7b8ca7008b75122cf2b73a714aab45eb5fb54fdbc9e08ce7e81445"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-76",
+          "llvm_sha256": "4019f6d40b7b8ca7008b75122cf2b73a714aab45eb5fb54fdbc9e08ce7e81445"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-61",
+          "llvm_sha256": "4019f6d40b7b8ca7008b75122cf2b73a714aab45eb5fb54fdbc9e08ce7e81445"
+        }
+      ]
+    },
+    {
+      "source_sha256": "f54c0af19319a09d43d0090bae92affd80f03883b036712e8e8642babb2bdf31",
+      "stdout": "AZB",
+      "matrix": [
+        {
+          "backend": "llvm-api",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-28",
+          "llvm_sha256": "8735d0386391899487e9c1fd26374d076001c65d9e25e9ce3303d48536516a2c"
+        },
+        {
+          "backend": "llvm-api",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-34",
+          "llvm_sha256": "8735d0386391899487e9c1fd26374d076001c65d9e25e9ce3303d48536516a2c"
+        },
+        {
+          "backend": "clang",
+          "opt": "O2",
+          "dir": "store-mut180-2118983-23",
+          "llvm_sha256": "8735d0386391899487e9c1fd26374d076001c65d9e25e9ce3303d48536516a2c"
+        },
+        {
+          "backend": "clang",
+          "opt": "O0",
+          "dir": "store-mut180-2118983-17",
+          "llvm_sha256": "8735d0386391899487e9c1fd26374d076001c65d9e25e9ce3303d48536516a2c"
+        }
+      ]
+    }
+  ],
+  "commands": [
+    "cargo test --locked --offline -j2 -p zil-driver --test impl180_store_mut -- --nocapture",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test impl180_store_mut -- --nocapture",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test aggregates terminal340_owner_replacement_ -- --nocapture",
+    "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test impl238_product_replacement ordinary_local_product_mutable_helper_nearest_rejections -- --exact --nocapture",
+    "cargo test --locked --offline -j2 -p zil-analyze -p zil-verify --lib replacement",
+    "cargo test --locked --offline -j2 -p zil-verify --lib resources::frontier_tests",
+    "cargo clippy --locked --offline -j2 -p zil-analyze -p zil-verify --lib -- -D warnings",
+    "rustfmt --edition 2024 --check <eight source_sha256 files>"
+  ],
+  "remaining": [
+    "borrowed Store capture and indirect Store/element callable source admission remain Types Unsupported",
+    "resource Desc/window identity/helper-return escaped borrowed closure source admission remain Types Unsupported",
+    "owned capture/PackageView, public callable envelope and simultaneous sealed callback instance invalidation remain closed",
+    "nested descriptor-carrying callback transport remains independently Unsupported",
+    "general/nested/partial owning Store endpoints and direct rvalue projection producer remain outside this slice"
+  ],
+  "binaries_sha256": {
+    "impl180_store_mut-0ecbf88db537b83c": "3f93af6b730997815d1bf55da34b60508eae438e4391a77080406288f53f1643",
+    "impl180_store_mut-4ebd16ce64ec1cb7": "302585751527d19811b29d96eb854d32d535056dd695ac34eb0a31f090ab2660",
+    "aggregates-e68efd3bca6e242d": "9e02fd64b71b59fd972883020495da667d38700c0a1cd10f172ac7a1c4cd2f6c",
+    "impl238_product_replacement-0382e20fe120643a": "47eb55f23b6b2efb5fb241ac01d35fe8503c6fdf98351077365bbe75b2d5ecd9",
+    "zil_analyze-8dde3b1c204420d7": "ca33fcec439c7ef067994ab9eea8723c160aa19fb7e012e64822c7706f8818d5",
+    "zil_verify-e5c00ec0866c83e5": "c73ad45df36d8c18909060b0ea5edb02f879a9b07ed025ada32e4993db7d8b75"
+  }
+}
