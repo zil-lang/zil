@@ -86,3 +86,23 @@ source Poll<Unit>.Ready carries Unit, with no invented owning value or public
 ABI1 change. Unit arguments have no physical call argument. Pending/error tags
 never expose a source payload. Implicit owning-input cleanup runs on both Unit
 completion and ordinary error return before the child/parent can become Closed.
+
+### Integrated Task40 classification and canonical carrier fees
+
+The821f2c7fd correction is composed on public40 asd7ceea6a0. Both kernels
+reserve every lane-classification block/instruction visit and each canonical
+resource payload/name comparison from their current request. The new Verify
+component fixture was corrected to use its own Check<Diagnostic> API instead
+of Analyze's Vec<Diagnostic>; the initial compilation failure remains logged.
+The genuinely closed CT5 test artifact also now names its empty ambient table.
+
+Each independent kernel's two new controls pass: classifier N10/4160 for1×8
+and32×128; repeated carrier prefixes N680/8909 in Analyze and1418/17588 in
+Verify, with N−1/fresh and low remaining limits. The complete existing
+83-test generic_regressions target passes with LLVM API enabled, including
+actual Task Unit/Bool/Tuple/ErrorUnion and later-child preparation failure
+cleanup. The focused22-test general Task module also passed. Strict Analyze
+and Verify library/test Clippy passes. Structured ErrorUnion width0 now has
+Analyze30759/Verify94169/Codegen347523 boundaries; older metrics remain historical.
+No borrowed frame result, external Pending close, or asynchronous drain/waker
+consumer is claimed by these corrections.
