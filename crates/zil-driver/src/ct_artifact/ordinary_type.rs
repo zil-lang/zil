@@ -44,6 +44,8 @@ pub(super) fn checked_type(
                 CtScalarTy::I64 => Type::I64,
                 CtScalarTy::F32 => Type::F32,
                 CtScalarTy::F64 => Type::F64,
+                CtScalarTy::U64 => Type::U64,
+                CtScalarTy::Usize => Type::Usize,
             },
             CtTypeNode::Builtin(kind) => match kind {
                 CtBuiltinType::ByteBuffer => Type::ByteBuffer,

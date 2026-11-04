@@ -804,7 +804,7 @@ impl Builder<'_, '_> {
             let bound = self.expr(right, Some(&initial.ty), depth + 1)?;
             if !matches!(
                 initial.ty,
-                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
+                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
             ) {
                 return Err(error(span, "CT range requires target integers"));
             }
@@ -913,6 +913,8 @@ impl Builder<'_, '_> {
             CtTy::Scalar(CtScalarTy::U8) => Constant::U8(1),
             CtTy::Scalar(CtScalarTy::U16) => Constant::U16(1),
             CtTy::Scalar(CtScalarTy::I32) => Constant::I32(1),
+            CtTy::Scalar(CtScalarTy::U64) => Constant::U64(1),
+            CtTy::Scalar(CtScalarTy::Usize) => Constant::Usize(1),
             _ => Constant::I64(1),
         };
         let one = self.constant(CtConstant::Scalar(one), ty.clone(), span)?;

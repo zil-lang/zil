@@ -296,7 +296,12 @@
       "Option": "T? == sealed hygienic Option<T>, canonical None/Some full-T identity using actual Enum consumers; no new runtime permission",
       "compatibility": "Typed domainV35/Wire35; old versions reject. Raw variants grant no numeric/borrow permission; all consumers independently validate. Floating reserved tags28/29 are not admitted until their published contract/consumers.",
       "CtArtifactProgram.target_pointer_width": "u16 in canonical CTprogramWire/fingerprint; independent verifier accepts only32/64 and checks actual usize values against selected target, never hostdefault",
-      "BorrowVariantLocal": "Typed opcode106 {local,path:Vec<VariantProjection>,mutable}; real active Enum place only, actual parent loan and tag invalidation checked independently."
+      "BorrowVariantLocal": "Typed opcode106 {local,path:Vec<VariantProjection>,mutable}; real active Enum place only, actual parent loan and tag invalidation checked independently.",
+      "address_instructions": {
+        "107": "VariantTagAddress {address,path:Vec<VariantProjection>}; actual address and active prefixes",
+        "108": "BorrowVariantAddress {address,path,mutable}; actual parent provenance, mode and active-tag epochs",
+        "110": "BorrowFieldLocal {local,path:Vec<u32>,mutable}; real finite Copy Tuple/Record field, bounded nonempty path; no whole-parent reload"
+      }
     },
     "terminal_generic_loans_342": {
       "authority": "_zil_design.md §18.1 terminal342",
@@ -336,7 +341,8 @@
       "Typed": "ConvertNumber opcode98; target exact Type, independently guard float-to-int finite/integral/range before potentially poison conversion",
       "union": "Canonical hygienic tagged structural Sum via existing Enum, exact member identity/no conversion search, ordinary borrow/move/cleanup",
       "machine": "IEEE nofastmath/noimplicitFMA, gradualunderflow/signedzero; actual LLVMAPI andtext consumers; CT same target semantics",
-      "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening."
+      "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening.",
+      "generated_AST_bits": "Generated Literal::Float reserved @bits:f32:XXXXXXXX / @bits:f64:XXXXXXXXXXXXXXXX, canonical fixed-width hex and prepaid parse directly to raw Constant; ordinary source lexer cannot spell it. Same-format conversion preserves bits; actual CT arithmetic retains specified NaN policy."
     },
     "terminal_borrowed_function_pointer_342": {
       "authority": "_zil_design.md §18.1 higherranked342",
@@ -348,14 +354,15 @@
       "responsibility": "Independent target full signature/actualreturnroot subset check, actual mutable authority; each indirectcall fresh actualargs/parents/simultaneouswindows; no proof-bit or fixedenvironment capture",
       "ABI": "Thin Direct static codepointer; no foreign/env/teardown/Suspend authority",
       "CT": "CtTypeNode::BorrowedFunctionPointer {parameters:Vec<CtTypeNodeId>,result:CtTypeNodeId,life:FunctionLifeContract}, CT node tag14; bounded canonical DAG, lossless reflection/materialization.",
-      "elision": "Plain borrowed fn signature maps actual address inputs to one fresh upper-bound binder; explicit for-life can narrow; actual authority and simultaneous argument windows remain independent."
+      "elision": "Plain borrowed fn signature maps actual address inputs to one fresh upper-bound binder; explicit for-life can narrow; actual authority and simultaneous argument windows remain independent.",
+      "CT_constructor": "CtTypeConstructor::BorrowedFunctionPointer {life:FunctionLifeContract}, appended constructor tag10; existing TypeConstruct actual children and independent bounded relation validation"
     },
     "terminal_task_343": {
       "authority": "_zil_design.md §12.1.1",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
-      "Type": "TaskI32 tag33, sealed Managed/Desc owner; operations require exact exclusive AddressMut(Managed(TaskI32))",
+      "Type": "TaskI32 tag33, sealed Managed/Desc owner; valid reads actual Desc; poll/cancel/close require exclusive AddressMut(Managed(TaskI32)); finish consumes actual Managed via give/Take or fresh owning rvalue",
       "instructions": {
         "99": "TaskStart {worker,argument}",
         "100": "TaskYield",
@@ -365,13 +372,35 @@
         "104": "TaskPollClose {task}",
         "105": "TaskFinishDestroy {task}"
       },
-      "responsibility": "Actual persistent frame and five SABI entries; Ready once, sticky cancel, Closed before destroy. Independent reachable graph proves no external users for restricted default-close path, never a proof bit. Direct entry to Suspend rejected."
+      "responsibility": "Actual persistent frame and five SABI entries; Ready once, sticky cancel, Closed before destroy. Independent reachable graph proves no external users for restricted default-close path, never a proof bit. Direct entry to Suspend rejected.",
+      "source_signatures": [
+        "task_start(static fn(i32)->i32,i32)->Managed(TaskI32)",
+        "task_yield()->Unit",
+        "task_valid(Desc(TaskI32))->Bool",
+        "task_poll(&mut Managed(TaskI32))->(i32,i32)",
+        "task_request_cancel(&mut Managed(TaskI32))->Unit",
+        "task_poll_close(&mut Managed(TaskI32))->Bool",
+        "task_finish_destroy(give Managed(TaskI32))->Unit"
+      ]
     },
     "terminal_source_stdlib_345": {
       "authority": "_zil_design.md §15.1",
       "state": "ContractToImplement",
       "representation": "Ordinary bundled ZIL SourceUnits and exact reserved module bytes; ordinary compilation and request budget",
-      "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege"
+      "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege",
+      "registered_sources": [
+        "std.utf8",
+        "std.text_edit",
+        "std.string",
+        "std.store"
+      ]
+    },
+    "terminal_resource_head_projection_342": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "instruction": "DescribeAddress {address:ValueId}, opcode109",
+      "result": "Desc(payload) from actual Address<Managed(payload)>, no Managed copy",
+      "responsibility": "Independent actual roots, parent loan and shared/exclusive authority through locals/calls/returns/captures; may-write from shared input rejected; not generic authority for Task/Registration"
     }
   },
   "schemas": [

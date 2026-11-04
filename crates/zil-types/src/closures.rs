@@ -751,7 +751,9 @@ pub(super) const I64: u16 = 8;
 pub(super) const U8: u16 = 32;
 pub(super) const U16: u16 = 64;
 pub(super) const HANDLE: u16 = 128;
-pub(super) const INTEGER: u16 = U8 | U16 | I32 | I64;
+pub(super) const U64: u16 = 256;
+pub(super) const USIZE: u16 = 512;
+pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
 pub(super) const F32: u16 = 1024;
 pub(super) const F64: u16 = 2048;
 pub(super) const FLOAT: u16 = F32 | F64;
@@ -1032,6 +1034,8 @@ impl Graph {
             Type::I64 => I64,
             Type::F32 => F32,
             Type::F64 => F64,
+            Type::U64 => U64,
+            Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
             ty if *ty == Type::ByteBuffer
@@ -1521,6 +1525,8 @@ impl Graph {
             I64 => Some(Type::I64),
             F32 => Some(Type::F32),
             F64 => Some(Type::F64),
+            U64 => Some(Type::U64),
+            USIZE => Some(Type::Usize),
             AGGREGATE => {
                 if let Some(ty) = &node.concrete {
                     self.reserve_type(ty, depth, Span::default())?;
@@ -2860,7 +2866,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     !text.ends_with("u8")
                         && !text.ends_with("u16")
                         && !text.ends_with("i32")
-                        && !text.ends_with("i64"),
+                        && !text.ends_with("i64")
+                        && !text.ends_with("u64")
+                        && !text.ends_with("usize"),
                 );
                 if text.ends_with("u8") {
                     self.graph.bind(variable, &Type::U8, span)?;
@@ -2873,6 +2881,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 if text.ends_with("i64") {
                     self.graph.bind(variable, &Type::I64, span)?;
+                }
+                if text.ends_with("u64") {
+                    self.graph.bind(variable, &Type::U64, span)?;
+                }
+                if text.ends_with("usize") {
+                    self.graph.bind(variable, &Type::Usize, span)?;
                 }
                 Ok(LocalType::Scalar(variable))
             }

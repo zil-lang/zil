@@ -78,6 +78,8 @@ impl Builder<'_> {
             Type::I64 => self.push(CtTypeNode::Primitive(S::I64)),
             Type::F32 => self.push(CtTypeNode::Primitive(S::F32)),
             Type::F64 => self.push(CtTypeNode::Primitive(S::F64)),
+            Type::U64 => self.push(CtTypeNode::Primitive(S::U64)),
+            Type::Usize => self.push(CtTypeNode::Primitive(S::Usize)),
             Type::ByteBuffer => self.push(CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)),
             Type::ForeignHandle => self.push(CtTypeNode::Builtin(CtBuiltinType::ForeignHandle)),
             Type::CWideString => self.push(CtTypeNode::Builtin(CtBuiltinType::CWideString)),

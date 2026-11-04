@@ -10,6 +10,8 @@ pub(super) fn scalar(name: &str) -> Option<CtScalarTy> {
         "i64" => CtScalarTy::I64,
         "f32" => CtScalarTy::F32,
         "f64" => CtScalarTy::F64,
+        "u64" => CtScalarTy::U64,
+        "usize" => CtScalarTy::Usize,
         _ => return None,
     })
 }

@@ -132,7 +132,7 @@ impl FunctionEmitter<'_> {
         let converted = if target.is_float() {
             if source.is_integer() {
                 self.float_cast(
-                    if matches!(source, Type::U8 | Type::U16) {
+                    if matches!(source, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
                         "uitofp"
                     } else {
                         "sitofp"
@@ -192,6 +192,7 @@ impl FunctionEmitter<'_> {
             let (signed, bits) = match target {
                 Type::U8 => (false, 8),
                 Type::U16 => (false, 16),
+                Type::U64 | Type::Usize => (false, 64),
                 Type::I32 => (true, 32),
                 Type::I64 => (true, 64),
                 _ => {

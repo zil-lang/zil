@@ -22,7 +22,7 @@ impl Builder<'_, '_> {
         let integer = |v: &Value| {
             matches!(
                 v.ty,
-                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
+                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
             )
         };
         match module {

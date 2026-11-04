@@ -139,6 +139,8 @@ fn cells(ty: &Type, cap: usize) -> CompileResult<usize> {
         | Type::I32
         | Type::I64
         | Type::F32
+        | Type::U64
+        | Type::Usize
         | Type::F64 => Ok(1),
         Type::Tuple(fields) => fields
             .iter()
@@ -170,10 +172,11 @@ fn charge(steps: &mut u64, amount: usize, maximum: u64) -> CompileResult<()> {
 }
 fn index(value: &CompileTimeValue, length: usize) -> CompileResult<usize> {
     let value = match value.scalar() {
-        Constant::U8(v) => i64::from(*v),
-        Constant::U16(v) => i64::from(*v),
-        Constant::I32(v) => i64::from(*v),
-        Constant::I64(v) => *v,
+        Constant::U8(v) => i128::from(*v),
+        Constant::U16(v) => i128::from(*v),
+        Constant::I32(v) => i128::from(*v),
+        Constant::I64(v) => i128::from(*v),
+        Constant::U64(v) | Constant::Usize(v) => i128::from(*v),
         _ => unreachable!("verified integer index"),
     };
     usize::try_from(value)
@@ -268,14 +271,19 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
             let value = match &instruction.kind {
                 InstructionKind::Constant(value) => Some(CompileTimeValue::Scalar(value.clone())),
                 InstructionKind::ConvertInteger { value, target } => {
-                    Some(CompileTimeValue::Scalar(super::convert_integer(
+                    Some(CompileTimeValue::Scalar(super::convert_integer_target(
                         frame.value(*value).scalar(),
                         target,
+                        program.module().target.pointer_width,
                     )?))
                 }
-                InstructionKind::ConvertNumber { value, target } => Some(CompileTimeValue::Scalar(
-                    super::convert_number(frame.value(*value).scalar(), target)?,
-                )),
+                InstructionKind::ConvertNumber { value, target } => {
+                    Some(CompileTimeValue::Scalar(super::convert_number(
+                        frame.value(*value).scalar(),
+                        target,
+                        program.module().target.pointer_width,
+                    )?))
+                }
                 InstructionKind::Load(local) => Some(
                     frame.locals[local.0 as usize]
                         .as_ref()
@@ -326,14 +334,19 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                     frame.locals[local.0 as usize] = Some(frame.value(*value).clone());
                     None
                 }
-                InstructionKind::Unary { op, operand } => Some(CompileTimeValue::Scalar(
-                    crate::unary(*op, frame.value(*operand).scalar())?,
-                )),
+                InstructionKind::Unary { op, operand } => {
+                    Some(CompileTimeValue::Scalar(crate::unary_target(
+                        *op,
+                        frame.value(*operand).scalar(),
+                        program.module().target.pointer_width,
+                    )?))
+                }
                 InstructionKind::Binary { op, left, right } => {
-                    Some(CompileTimeValue::Scalar(crate::binary(
+                    Some(CompileTimeValue::Scalar(crate::binary_target(
                         *op,
                         frame.value(*left).scalar(),
                         frame.value(*right).scalar(),
+                        program.module().target.pointer_width,
                     )?))
                 }
                 InstructionKind::MakeAggregate { fields } => Some(CompileTimeValue::Aggregate(

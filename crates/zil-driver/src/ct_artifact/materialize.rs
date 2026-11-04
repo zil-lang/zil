@@ -440,6 +440,8 @@ impl Materializer<'_, '_> {
                     CtScalarTy::I64 => "i64",
                     CtScalarTy::F32 => "f32",
                     CtScalarTy::F64 => "f64",
+                    CtScalarTy::U64 => "u64",
+                    CtScalarTy::Usize => "usize",
                 },
                 Vec::new(),
             ),
@@ -507,6 +509,12 @@ impl Materializer<'_, '_> {
                                 }
                                 zil_ir::Constant::I32(value) => {
                                     s::Literal::Integer(value.to_string())
+                                }
+                                zil_ir::Constant::U64(value) => {
+                                    s::Literal::Integer(format!("{value}u64"))
+                                }
+                                zil_ir::Constant::Usize(value) => {
+                                    s::Literal::Integer(format!("{value}usize"))
                                 }
                                 zil_ir::Constant::I64(value) => {
                                     s::Literal::Integer(value.to_string())
@@ -1451,6 +1459,12 @@ impl Materializer<'_, '_> {
                     }
                     zil_ir::Constant::I32(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))
+                    }
+                    zil_ir::Constant::U64(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}u64")))
+                    }
+                    zil_ir::Constant::Usize(value) => {
+                        s::ExprKind::Literal(s::Literal::Integer(format!("{value}usize")))
                     }
                     zil_ir::Constant::I64(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))

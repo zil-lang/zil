@@ -312,7 +312,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
             name: "zil.return.format".into(),
             linkage: m::Linkage::Private,
             ty: m::Ty::array(6, m::Ty::Int(8)),
-            initializer: Some(m::Val::Bytes(vec![37, 108, 108, 100, 10, 0])),
+            initializer: Some(m::Val::Bytes(vec![37, 108, 108, if matches!(options.entry, EntryPoint::ReturnValue(id) if functions.get(&id).is_some_and(|f| matches!(f.return_type, Type::U64 | Type::Usize))) {117} else {100}, 10, 0])),
             constant: true,
             unnamed_addr: true,
             alignment: 0,
@@ -927,16 +927,18 @@ fn entry_wrapper(
         },
         EntryPoint::ReturnValue(_) => {
             match function.return_type {
-                Type::I64 => text.push(m::Event::Instruction(m::Inst::new(
-                    Some("entry.wide".into()),
-                    m::Op::Call {
-                        result: m::Ty::Int(64),
-                        result_attrs: vec![],
-                        callee: m::global(symbol.to_string()),
-                        args: vec![],
-                        vararg: None,
-                    },
-                ))),
+                Type::I64 | Type::U64 | Type::Usize => {
+                    text.push(m::Event::Instruction(m::Inst::new(
+                        Some("entry.wide".into()),
+                        m::Op::Call {
+                            result: m::Ty::Int(64),
+                            result_attrs: vec![],
+                            callee: m::global(symbol.to_string()),
+                            args: vec![],
+                            vararg: None,
+                        },
+                    )))
+                }
                 Type::U16 => text.append(m::Code::from(vec![
                     m::Event::Instruction(m::Inst::new(
                         Some("entry.result".into()),
@@ -1485,6 +1487,17 @@ impl FunctionEmitter<'_> {
                             right: m::val(*(value)),
                         },
                     ))),
+                    Constant::U64(value) | Constant::Usize(value) => {
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "add".into(),
+                                ty: m::Ty::Int(64),
+                                left: m::Val::Int(0),
+                                right: m::val(i128::from(*value)),
+                            },
+                        )))
+                    }
                     Constant::U8(value) => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
@@ -2271,7 +2284,7 @@ impl FunctionEmitter<'_> {
                             right: m::Val::Int(0),
                         },
                     )));
-                    if matches!(ty, Type::U8 | Type::U16) {
+                    if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
                         self.trap_if(&is_zero);
                     } else {
                         let minimum = match ty {
@@ -2323,7 +2336,7 @@ impl FunctionEmitter<'_> {
                     }
                 }
                 let op = match (
-                    matches!(ty, Type::U8 | Type::U16),
+                    matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize),
                     operation == BinaryOp::Divide,
                 ) {
                     (true, true) => "udiv",
@@ -2389,10 +2402,26 @@ impl FunctionEmitter<'_> {
                     let predicate = match operation {
                         BinaryOp::Equal => "eq",
                         BinaryOp::NotEqual => "ne",
-                        BinaryOp::Less if matches!(ty, Type::U8 | Type::U16) => "ult",
-                        BinaryOp::LessEqual if matches!(ty, Type::U8 | Type::U16) => "ule",
-                        BinaryOp::Greater if matches!(ty, Type::U8 | Type::U16) => "ugt",
-                        BinaryOp::GreaterEqual if matches!(ty, Type::U8 | Type::U16) => "uge",
+                        BinaryOp::Less
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ult"
+                        }
+                        BinaryOp::LessEqual
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ule"
+                        }
+                        BinaryOp::Greater
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "ugt"
+                        }
+                        BinaryOp::GreaterEqual
+                            if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) =>
+                        {
+                            "uge"
+                        }
                         BinaryOp::Less => "slt",
                         BinaryOp::LessEqual => "sle",
                         BinaryOp::Greater => "sgt",
@@ -2434,7 +2463,7 @@ impl FunctionEmitter<'_> {
                     Type::U8 => 8,
                     Type::U16 => 16,
                     Type::I32 => 32,
-                    Type::I64 => 64,
+                    Type::I64 | Type::U64 | Type::Usize => 64,
                     _ => return unsupported("LLVM non-integer shift lowering", Some(span)),
                 };
                 let invalid = self.temp();
@@ -2498,7 +2527,7 @@ impl FunctionEmitter<'_> {
                 )));
                 Ok(extended)
             }
-            Type::I64 => Ok(value(index)),
+            Type::I64 | Type::U64 | Type::Usize => Ok(value(index)),
             _ => unsupported(
                 "array index must have a verified integer type",
                 Some(self.function.span),
@@ -2516,6 +2545,87 @@ impl FunctionEmitter<'_> {
         let from = llvm_type(&source)?;
         let to = llvm_type(target)?;
         let input = value(input);
+        if matches!(source, Type::U64 | Type::Usize) || matches!(target, Type::U64 | Type::Usize) {
+            let shape = |ty: &Type| match ty {
+                Type::U8 => Some((8, false)),
+                Type::U16 => Some((16, false)),
+                Type::I32 => Some((32, true)),
+                Type::I64 => Some((64, true)),
+                Type::U64 | Type::Usize => Some((64, false)),
+                _ => None,
+            };
+            let Some((source_bits, source_signed)) = shape(&source) else {
+                return unsupported(
+                    "verified integer conversion source",
+                    Some(self.function.span),
+                );
+            };
+            let Some((target_bits, target_signed)) = shape(target) else {
+                return unsupported(
+                    "verified integer conversion target",
+                    Some(self.function.span),
+                );
+            };
+            if source_signed && !target_signed {
+                let invalid = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name(invalid.clone())),
+                    m::Op::Compare {
+                        predicate: "slt".into(),
+                        ty: from.clone(),
+                        left: m::val(input.clone()),
+                        right: m::Val::Int(0),
+                    },
+                )));
+                self.trap_if(&invalid);
+            }
+            if (target_signed
+                && (!source_signed && source_bits >= target_bits
+                    || source_signed && source_bits > target_bits))
+                || (!target_signed && source_bits > target_bits)
+            {
+                let maximum = (1i128 << (target_bits - u32::from(target_signed))) - 1;
+                let invalid = self.temp();
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(m::name(invalid.clone())),
+                    m::Op::Compare {
+                        predicate: if source_signed { "sgt" } else { "ugt" }.into(),
+                        ty: from.clone(),
+                        left: m::val(input.clone()),
+                        right: m::val(maximum),
+                    },
+                )));
+                self.trap_if(&invalid);
+            }
+            if source_bits == target_bits {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Binary {
+                        opcode: "add".into(),
+                        ty: to,
+                        left: m::val(input),
+                        right: m::Val::Int(0),
+                    },
+                )));
+            } else {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    Some(format!("v.{}", result.0)),
+                    m::Op::Cast {
+                        opcode: if source_bits > target_bits {
+                            "trunc"
+                        } else if source_signed {
+                            "sext"
+                        } else {
+                            "zext"
+                        }
+                        .into(),
+                        arg: m::Arg::new(from, m::val(input)),
+                        to,
+                    },
+                )));
+            }
+            return Ok(());
+        }
         let operation = match (&source, target) {
             (a, b) if a == b && a.is_integer() => {
                 self.event(m::Event::Instruction(m::Inst::new(
@@ -2604,7 +2714,7 @@ impl FunctionEmitter<'_> {
         right: &str,
         result: ValueId,
     ) -> CompileResult<()> {
-        let operation = if matches!(ty, Type::U8 | Type::U16) {
+        let operation = if matches!(ty, Type::U8 | Type::U16 | Type::U64 | Type::Usize) {
             match operation {
                 "sadd" => "uadd",
                 "ssub" => "usub",
@@ -2618,7 +2728,7 @@ impl FunctionEmitter<'_> {
             Type::U8 => 8,
             Type::U16 => 16,
             Type::I32 => 32,
-            Type::I64 => 64,
+            Type::I64 | Type::U64 | Type::Usize => 64,
             _ => return unsupported("checked non-integer arithmetic", Some(self.function.span)),
         };
         self.intrinsics.insert((operation, bits));
@@ -2913,7 +3023,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
-        Type::I64 => Ok("i64".into()),
+        Type::I64 | Type::U64 | Type::Usize => Ok("i64".into()),
         Type::F32 => Ok(m::Ty::F32),
         Type::F64 => Ok(m::Ty::F64),
         Type::U8 => Ok("i8".into()),
@@ -3008,7 +3118,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 | Type::F32 => Ok(4),
-        Type::I64 | Type::F64 => Ok(8),
+        Type::I64 | Type::U64 | Type::Usize | Type::F64 => Ok(8),
         Type::FunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()

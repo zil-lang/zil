@@ -437,6 +437,8 @@ impl<'a> Writer<'a> {
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
                 Type::I64 => self.u8(3)?,
+                Type::U64 => self.u8(26)?,
+                Type::Usize => self.u8(27)?,
                 Type::F32 => self.u8(28)?,
                 Type::F64 => self.u8(29)?,
                 Type::U8 => self.u8(18)?,
@@ -551,6 +553,14 @@ impl<'a> Writer<'a> {
             }
             Constant::I64(value) => {
                 self.u8(3)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::U64(value) => {
+                self.u8(9)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::Usize(value) => {
+                self.u8(10)?;
                 self.bytes(&value.to_le_bytes())
             }
             Constant::F32(bits) => {
@@ -1819,6 +1829,8 @@ impl<'a> Reader<'a> {
                 1 => Type::Bool,
                 2 => Type::I32,
                 3 => Type::I64,
+                26 => Type::U64,
+                27 => Type::Usize,
                 28 => Type::F32,
                 29 => Type::F64,
                 18 => Type::U8,
@@ -1937,6 +1949,12 @@ impl<'a> Reader<'a> {
                 self.take(8)?.try_into().expect("eight float64 bytes"),
             )),
             3 => Constant::I64(i64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            9 => Constant::U64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            10 => Constant::Usize(u64::from_le_bytes(
                 self.take(8)?.try_into().expect("checked length"),
             )),
             _ => return Err(malformed("E-WIRE-CONSTANT", "unknown wire constant tag")),
