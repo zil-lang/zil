@@ -1,0 +1,32 @@
+{
+  "status": "PassLimitedStrongCASMachineAdapters",
+  "source": "16ed316d046d8a92a7e98d18a0defe88ac8d3b75",
+  "author_receipt": "31debdc9a:docs/validation/terminal-343-cas-machine.json",
+  "binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/cas343-machine-binding.json",
+    "sha256": "825cbf24413cd7fbcb4743461432514c9366bc77f6aa4346b8b71018aab47c34"
+  },
+  "harness": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/cas343-machine-unit",
+    "sha256": "0de482a1afe17f60c4af611601b90b85befe8d0d8d6465224c973cfd4687df1d"
+  },
+  "replay": {
+    "selector": "strong_compare_exchange",
+    "result": "2 passed,0 failed,0 ignored,28 filtered",
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/cas343-machine-unit.log",
+      "sha256": "0f1a7751904e75d7c023cfdb6780209b58ff7d9753f47a90b68b84ad640bf6e8"
+    }
+  },
+  "method": "Read-only exact source review and independently replayed retained author-built LLVM API harness; no reviewer rebuild. Embedded C host is bound by the exact Rust source.",
+  "review": [
+    "Preflight requires exact integer expected/desired types, pointer operand, natural alignment and {integer,i1} result; call attributes reject. Actual operand inventory includes expected, desired and pointer.",
+    "The chosen C11 subset uses an explicit success/failure matrix, not ordinal order strength. All25 pairs are covered in both collecting and validation-only paths;16 invalid pairs reject before LLVM construction.",
+    "Native API sets process scope and strong cmpxchg explicitly. Text uses corresponding strong process-scope syntax. All9 admitted pairs test old-value success/failure and four actual pthreads contend through generated CAS in API/text O0/O2.",
+    "The added task_abi_identity arm accounts expected argument, result type, desired and pointer in source, but combined backend compilation/exact budget evidence was not available at this checkpoint and is not accepted by this review."
+  ],
+  "limits": [
+    "Machine-only evidence: no source operation, public Typed/Wire opcode, independent shared-address kernel admission or general Atomic/Mutex capability follows.",
+    "Only i32 native execution is evidenced; other natural integer widths have preflight support only. No native Windows or product/Rust performance claim."
+  ]
+}
