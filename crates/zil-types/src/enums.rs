@@ -594,7 +594,12 @@ impl Builder<'_, '_> {
                 bindings.push((name.clone(), value, ty.clone(), pattern.span))
             }
             CorePatternKind::Wildcard => {}
-            CorePatternKind::Reference { .. } => return Err(unsupported(pattern.span, "reference patterns require place-based lowering")),
+            CorePatternKind::Reference { .. } => {
+                return Err(unsupported(
+                    pattern.span,
+                    "reference patterns require place-based lowering",
+                ));
+            }
             CorePatternKind::Integer(text) => self.pattern_branch(
                 value,
                 integer(text, Some(ty), false, pattern.span)?,

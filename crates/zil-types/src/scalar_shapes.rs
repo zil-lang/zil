@@ -64,7 +64,14 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
     )
 }
 
