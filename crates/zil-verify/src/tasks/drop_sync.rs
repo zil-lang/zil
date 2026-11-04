@@ -225,6 +225,9 @@ fn require_origin(
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::TakeVariantField { local, .. }
+                    | InstructionKind::TakeTupleField { local, .. }
+                    | InstructionKind::BorrowPlaceLocal { local, .. }
                     | InstructionKind::ReadVariantLocal { local, .. } => {
                         budget.spend(locals[local.0 as usize].workers.len().saturating_add(1))?;
                         locals[local.0 as usize].clone()
@@ -238,6 +241,7 @@ fn require_origin(
                         callback: value, ..
                     }
                     | InstructionKind::ReadErrorUnion { value, .. }
+                    | InstructionKind::TakeErrorUnion { value, .. }
                     | InstructionKind::MakeErrorUnion { value, .. }
                     | InstructionKind::ReadVariant { value, .. } => {
                         budget.spend(values[value.0 as usize].workers.len().saturating_add(1))?;
