@@ -9,6 +9,8 @@ struct Visit<'a, 'm, A> {
     meter: &'m mut CtVerificationMeter,
     state: Vec<u8>,
     next: usize,
+    weights: Option<Vec<usize>>,
+    lookup_bound: usize,
 }
 impl<A: CtArtifactAuthority> Visit<'_, '_, A> {
     fn reference(&mut self, reference: CtAmbientLifeReference, depth: usize) -> Check<()> {
@@ -24,6 +26,14 @@ impl<A: CtArtifactAuthority> Visit<'_, '_, A> {
                 .saturating_add(scope.binder_site.len())
                 .saturating_add(32),
             None,
+        )?;
+        charge_lookup(
+            scope,
+            self.weights
+                .as_ref()
+                .map_or(0, |weights| weights[reference.scope.0 as usize]),
+            self.lookup_bound,
+            self.meter,
         )?;
         if self
             .authority
@@ -90,6 +100,20 @@ impl<A: CtArtifactAuthority> Visit<'_, '_, A> {
     }
 }
 
+fn charge_lookup(
+    scope: &CtAmbientLifeScope,
+    weight: usize,
+    bound: usize,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    let work = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+        weight.saturating_mul(bound)
+    } else {
+        32usize.saturating_mul(bound.saturating_sub(1))
+    };
+    meter.charge(work, None)
+}
+
 pub(super) fn check(
     raw: &CtArtifactProgram,
     limits: &Limits,
@@ -104,6 +128,22 @@ pub(super) fn check(
     if count as u64 > raw.budget.max_temporary_bytes {
         return Err(limit(None, "CT ambient inventory scratch exceeds quota"));
     }
+    // Source authority includes private scalar/Type instances that need no raw
+    // ambient row. The count is a work bound only, never scope authorization.
+    let lookup_bound = if count == 0 {
+        0
+    } else {
+        authority
+            .active_scope_count()
+            .unwrap_or_else(|| raw.functions.len().saturating_add(count).saturating_add(1))
+    };
+    if lookup_bound > limits.max_nodes {
+        return Err(limit(
+            None,
+            "CT authentic scope lookup inventory exceeds quota",
+        ));
+    }
+    let mut weights: Option<Vec<usize>> = None;
     for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
         meter.charge(
             scope
@@ -116,7 +156,31 @@ pub(super) fn check(
         if scope.binder_site.len() > limits.max_call_depth {
             return Err(limit(None, "CT binder-site depth exceeds quota"));
         }
-        for prior in &raw.ambient_life_scopes[..index] {
+        let weight = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+            if weights.is_none() {
+                let bytes = count.saturating_mul(std::mem::size_of::<usize>() + 1);
+                if bytes as u64 > raw.budget.max_temporary_bytes {
+                    return Err(limit(
+                        None,
+                        "CT scope comparison inventory scratch exhausted",
+                    ));
+                }
+                meter.charge(count, None)?;
+                weights = Some(vec![0; count]);
+            }
+            let weight = identity::scope_comparison_weight(
+                scope,
+                raw,
+                limits,
+                meter,
+                count.saturating_mul(std::mem::size_of::<usize>() + 1),
+            )?;
+            weights.as_mut().unwrap()[index] = weight;
+            weight
+        } else {
+            0
+        };
+        for (prior_index, prior) in raw.ambient_life_scopes[..index].iter().enumerate() {
             meter.charge(
                 prior
                     .binder_site
@@ -125,10 +189,20 @@ pub(super) fn check(
                     .saturating_add(32),
                 None,
             )?;
+            if prior.declaration == scope.declaration
+                && matches!(prior.instance, CtScopeInstance::Instantiated(_))
+                && matches!(scope.instance, CtScopeInstance::Instantiated(_))
+            {
+                meter.charge(
+                    weight.saturating_add(weights.as_ref().unwrap()[prior_index]),
+                    None,
+                )?;
+            }
             if prior == scope {
                 return Err(reject(None, "CT ambient scope is duplicated"));
             }
         }
+        charge_lookup(scope, weight, lookup_bound, meter)?;
         let parameters = authority.scope_parameter_count(scope).ok_or_else(|| {
             reject(
                 None,
@@ -160,6 +234,7 @@ pub(super) fn check(
         };
         let mut lifetime = false;
         for ordinal in 0..parameters {
+            charge_lookup(scope, weight, lookup_bound, meter)?;
             let kind = authority
                 .scope_parameter_kind(scope, ordinal)
                 .ok_or_else(|| {
@@ -199,6 +274,8 @@ pub(super) fn check(
         meter,
         state: vec![0; count],
         next: 0,
+        weights,
+        lookup_bound,
     };
     for (arguments, context) in raw
         .record_schemas
