@@ -1147,14 +1147,15 @@ impl<'a> Writer<'a> {
                 self.u32(local.0)?;
             }
             InstructionKind::TakeTupleField { local, path }
-            | InstructionKind::TakeVariantField { local, path } => {
-                self.u8(
-                    if matches!(&instruction.kind, InstructionKind::TakeTupleField { .. }) {
-                        117
-                    } else {
-                        118
-                    },
-                )?;
+            | InstructionKind::TakeVariantField { local, path }
+            | InstructionKind::BorrowPlaceLocal { local, path, .. }
+            | InstructionKind::PlaceTagLocal { local, path } => {
+                self.u8(match &instruction.kind {
+                    InstructionKind::TakeTupleField { .. } => 117,
+                    InstructionKind::TakeVariantField { .. } => 118,
+                    InstructionKind::BorrowPlaceLocal { .. } => 119,
+                    _ => 120,
+                })?;
                 self.u32(local.0)?;
                 self.count(path.len(), self.limits.max_call_depth)?;
                 for step in path {
@@ -1168,7 +1169,14 @@ impl<'a> Writer<'a> {
                             self.u32(part.variant)?;
                             self.u32(part.index)?;
                         }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
                     }
+                }
+                if let InstructionKind::BorrowPlaceLocal { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
                 }
             }
 
@@ -2505,9 +2513,11 @@ impl<'a> Reader<'a> {
             116 => InstructionKind::DropTuple {
                 local: LocalId(self.u32()?),
             },
-            tag @ (117 | 118) => {
+            tag @ (117 | 118 | 119 | 120) => {
                 let local = LocalId(self.u32()?);
-                let count = self.count(self.limits.max_call_depth, 5)?;
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
                 let mut path = Vec::with_capacity(count);
                 for _ in 0..count {
                     path.push(match self.u8()? {
@@ -2516,6 +2526,7 @@ impl<'a> Reader<'a> {
                             variant: self.u32()?,
                             index: self.u32()?,
                         }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
                         _ => {
                             return Err(malformed(
                                 "E-WIRE-TAG",
@@ -2524,10 +2535,15 @@ impl<'a> Reader<'a> {
                         }
                     });
                 }
-                if tag == 117 {
-                    InstructionKind::TakeTupleField { local, path }
-                } else {
-                    InstructionKind::TakeVariantField { local, path }
+                match tag {
+                    117 => InstructionKind::TakeTupleField { local, path },
+                    118 => InstructionKind::TakeVariantField { local, path },
+                    119 => InstructionKind::BorrowPlaceLocal {
+                        local,
+                        path,
+                        mutable: self.boolean()?,
+                    },
+                    _ => InstructionKind::PlaceTagLocal { local, path },
                 }
             }
             110 => {
