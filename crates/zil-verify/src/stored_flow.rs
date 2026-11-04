@@ -452,6 +452,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
+                    && !super::stored_owned::instruction(f, &i.kind)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -487,6 +488,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
                     ));
+                }
+                if super::stored_owned::instruction(f, &i.kind) {
+                    super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
@@ -1022,6 +1026,17 @@ fn seed_payload(
             ));
         }
     }
+    if matches!(ty, Type::Desc(_)) {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if super::stored_owned::description(ty) {
+            b.spend(1)?;
+            p.address.sources.push(Source {
+                base,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+    }
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -1160,6 +1175,28 @@ fn step(
         | InstructionKind::StorageDead(l)
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default()
+        }
+        InstructionKind::DescribeLocal { local } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::DescribeCapture { index } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Capture(*index),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::TakeCapture { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::ReadDesc { .. } => {}
+        InstructionKind::DropManaged { local } => {
+            state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TakeLocal { local } => {
             out = copy_payload(&state.locals[local.0 as usize], b)?;
@@ -2087,15 +2124,16 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    if !module.resources.is_empty() {
-        return Err(unsupported(
-            "owned/closure storage needs its common retained integration",
-            None,
-        ));
-    }
+    super::stored_owned::module(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
+        if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
+            return Err(unsupported(
+                "owning Fixed profile does not export descriptions",
+                Some(f.span),
+            ));
+        }
         if f.foreign.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
@@ -2122,11 +2160,16 @@ pub(super) fn check(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            if !module.resources.is_empty() {
+                super::stored_owned::value_type(ty, b)?;
+            }
             if !(super::stored_callables::value(module, ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
-                || ty.is_copy_value())
+                || ty.is_copy_value()
+                || super::stored_owned::owner(ty)
+                || super::stored_owned::description(ty))
             {
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",
@@ -2267,6 +2310,8 @@ mod tests {
                         locals[l.0 as usize].clone()
                     }
                     InstructionKind::ReadCapture { index } => vec![HoldRoot::Capture(*index)],
+                    InstructionKind::DescribeLocal { local } => vec![HoldRoot::Local(*local)],
+                    InstructionKind::DescribeCapture { index } => vec![HoldRoot::Capture(*index)],
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         let mut roots = vec![HoldRoot::Local(*local)];
@@ -2791,6 +2836,216 @@ mod tests {
                     .contains("no independently established source class")),
                 "{error:?}"
             );
+        }
+    }
+    #[test]
+    fn owning_fixed_true_once_has_real_description_roots_and_resource_check() {
+        for wrong in [false, true] {
+            for relay in [false, true] {
+                let mut m = fixture::captured_owned_fixed(wrong);
+                if relay {
+                    let f = &mut m.functions[1];
+                    let owner = f.values[5].clone();
+                    let id = f.values.len() as u32;
+                    f.values.push(owner.clone());
+                    let local = LocalId(f.locals.len() as u32);
+                    f.locals.push(LocalDecl {
+                        id: local,
+                        name: "mark".into(),
+                        ty: owner,
+                        mutable: false,
+                        span: f.span,
+                    });
+                    let at = f.blocks[0]
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+                        .unwrap();
+                    f.blocks[0].instructions.splice(
+                        at..at,
+                        [
+                            fixture::instruction(
+                                None,
+                                InstructionKind::Store {
+                                    local,
+                                    value: ValueId(5),
+                                },
+                            ),
+                            fixture::instruction(Some(id), InstructionKind::TakeLocal { local }),
+                        ],
+                    );
+                    if let InstructionKind::MakeClosure { captures, .. } =
+                        &mut f.blocks[0].instructions[at + 2].kind
+                    {
+                        captures[0] = ValueId(id);
+                    }
+                }
+                let c = captured_candidate(&m);
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+                for result in [
+                    super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                    super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+                ] {
+                    if wrong {
+                        let error = result.unwrap_err();
+                        assert!(
+                            error.iter().any(|d| d.message.contains("class equality")),
+                            "{error:?}"
+                        );
+                    } else {
+                        result.unwrap();
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
+        for case in 0..11 {
+            let mut m = fixture::captured_owned_fixed(false);
+            match case {
+                0 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(f.values[7].clone());
+                    f.blocks[0].instructions.insert(
+                        1,
+                        fixture::instruction(Some(id), InstructionKind::TakeCapture { index: 0 }),
+                    );
+                }
+                1 => {
+                    let f = &mut m.functions[1];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::I64);
+                    f.blocks[0].instructions.push(fixture::instruction(
+                        Some(id),
+                        InstructionKind::CallClosureOnce {
+                            callee: ValueId(2),
+                            arguments: vec![ValueId(0)],
+                        },
+                    ));
+                    f.blocks[0].terminator = Terminator::Return(Some(ValueId(id)));
+                }
+                2 | 3 => {
+                    let code = &mut m.functions[0].blocks[0].instructions;
+                    let drop = code
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                        .unwrap();
+                    let i = code.remove(drop);
+                    let at = code
+                        .iter()
+                        .position(|i| {
+                            if case == 2 {
+                                matches!(i.kind, InstructionKind::ReadDesc { .. })
+                            } else {
+                                matches!(i.kind, InstructionKind::DescribeLocal { .. })
+                            }
+                        })
+                        .unwrap();
+                    code.insert(at, i);
+                }
+                4 => {
+                    let f = &mut m.functions[1];
+                    if let InstructionKind::MakeManaged { fields } = &mut f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+                        .unwrap()
+                        .kind
+                    {
+                        fields[0] = ValueId(0);
+                    }
+                }
+                5 => {
+                    m.functions[0].values[8] = m.functions[0].values[7].clone();
+                }
+                6 => {
+                    let f = &mut m.functions[0];
+                    if let InstructionKind::ReadDesc { index, .. } = &mut f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+                        .unwrap()
+                        .kind
+                    {
+                        *index = 99;
+                    }
+                }
+                7 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::I32);
+                    f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                        .unwrap()
+                        .result = Some(ValueId(id));
+                }
+                8 => {
+                    m.resources.push(ResourceDefinition {
+                        name: "Other".into(),
+                        payload: Type::Record {
+                            name: "Other".into(),
+                            fields: vec![("n".into(), Type::I32)],
+                        },
+                        teardown: None,
+                    });
+                }
+                9 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::Address {
+                        mutable: false,
+                        inner: Box::new(f.values[7].clone()),
+                    });
+                    // A real well-typed but unused owner-head address must not
+                    // bypass the finite profile through Copy-value fallback.
+                    f.blocks[0].instructions.insert(
+                        2,
+                        fixture::instruction(
+                            Some(id),
+                            InstructionKind::BorrowLocal { local: LocalId(1) },
+                        ),
+                    );
+                }
+                _ => {
+                    m.closures[0].kind = zil_ir::CallableKind::Fn;
+                }
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                let error = result.unwrap_err();
+                if case <= 2 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case == 3 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-INITIALIZATION"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case <= 7 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
+                        "case{case}: {error:?}"
+                    );
+                } else {
+                    assert!(
+                        error
+                            .iter()
+                            .any(|d| d.category == zil_base::ResultCategory::Unsupported),
+                        "case{case}: {error:?}"
+                    );
+                }
+            }
         }
     }
     #[test]

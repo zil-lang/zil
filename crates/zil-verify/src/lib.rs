@@ -91,6 +91,7 @@ mod slices;
 mod stored_borrows;
 mod stored_callables;
 mod stored_flow;
+mod stored_owned;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
