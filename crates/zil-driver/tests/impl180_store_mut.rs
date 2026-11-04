@@ -323,13 +323,74 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
     let text =
         format!("{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner.code=90;return 0}}");
     native(&[("main", &text)], b"ZB", 0);
+    // The same exclusive owning assignment now produces a real replacement
+    // transaction. Store element state/cleanup integration is still unfinished;
+    // preserve that fence instead of calling the old overwrite-debt diagnostic
+    // a permanent language error. No executable may be produced for this case.
+    let replacement = format!(
+        "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"
+    );
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "replacement180.zil", &replacement);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let typed = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+    let instructions = typed
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .collect::<Vec<_>>();
+    assert!(
+        instructions
+            .iter()
+            .any(|i| matches!(i.kind, zil_ir::InstructionKind::OwnedStoreBorrowMut { .. }))
+    );
+    let reservations = instructions
+        .iter()
+        .filter_map(|i| match &i.kind {
+            zil_ir::InstructionKind::ReservePlaceAddress {
+                reservation, path, ..
+            } => {
+                assert_eq!(path, &[zil_ir::PlaceProjection::Field(0)]);
+                Some(*reservation)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(reservations.len(), 1);
+    let commits = instructions
+        .iter()
+        .filter_map(|i| match i.kind {
+            zil_ir::InstructionKind::CommitPlaceReplace { reservation, .. } => Some(reservation),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(commits, reservations);
+    let report = check(&replacement);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "Store element replacement state bridge is under construction"),
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(!report.artifacts.contains_key("executable"));
+    // Nearest actual permission error: a shared Store element cannot supply
+    // the exclusive parent required to prepare this owning replacement.
     rejected(
-        &format!(
-            "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"
-        ),
+        &replacement.replace("let v=store_at_mut(s,0)", "let v=store_at(s,0)"),
         ResultCategory::SafeReject,
-        Phase::Analyze,
-        "responsibility unpaid",
+        Phase::Types,
+        "E-ADDRESS-PERMISSION",
     );
     {
         let body = "let v=store_at_mut(s,0);let callback=()=>v.tag;return callback()";
