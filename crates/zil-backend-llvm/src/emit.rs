@@ -21,6 +21,7 @@ mod scoped_callback;
 #[cfg(test)]
 mod scoped_callback_tests;
 mod scoped_thread;
+mod tasks;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
@@ -281,6 +282,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     text.append(byte_buffer::runtime(lir)?);
     text.append(dynamic_store::runtime(lir, &closures)?);
     text.append(scoped_thread::runtime(lir)?);
+    text.append(tasks::runtime(lir)?);
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -468,11 +470,12 @@ fn lower_function_batch(
         if collected.is_some_and(|needed| !needed.contains(&function.id)) {
             continue;
         }
-        if let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
+        let task_worker = tasks::worker(lir.functions, function);
+        if !task_worker && let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
         }
-        if incremental_scalar_policy {
+        if incremental_scalar_policy && !task_worker {
             let leaf = if let Some(prepared) = prepared_leaves {
                 prepared[offset].map(|leaf| leaf.emit(&mut intrinsics))
             } else {
@@ -507,6 +510,10 @@ fn lower_function_batch(
         .into_items()
         .map_err(machine_error)?;
         for mut item in emitted {
+            if task_worker && let m::Item::Function(machine) = &item {
+                body.extend(tasks::lower_worker(function.id, machine)?);
+                if tasks::suspends(function) { continue; }
+            }
             if let m::Item::Function(machine) = &mut item {
                 scalar_locals::promote(function, machine);
             }
@@ -762,6 +769,7 @@ fn entry_wrapper(
             )]
         })?,
     };
+    if tasks::suspends(function) { return invalid("E-TASK-DIRECT-EXPORT", "Suspend function requires its SABI execution root", Some(function.span)); }
     if function.foreign.is_some() {
         return invalid(
             "E-CODEGEN-ENTRY",
@@ -1320,6 +1328,7 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::TaskStart { .. } | InstructionKind::TaskYield | InstructionKind::TaskValid { .. } | InstructionKind::TaskPoll { .. } | InstructionKind::TaskRequestCancel { .. } | InstructionKind::TaskPollClose { .. } | InstructionKind::TaskFinishDestroy { .. } => self.task_instruction(instruction)?,
             InstructionKind::OwnedStoreNew { .. }
             | InstructionKind::OwnedStoreReserve { .. }
             | InstructionKind::OwnedStorePush { .. }
@@ -2885,6 +2894,7 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
+        Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
@@ -2929,6 +2939,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {
             Ok("ptr".into())
@@ -2936,6 +2947,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
@@ -2943,6 +2955,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
@@ -2980,7 +2993,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
+        Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
@@ -2990,6 +3003,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {
             Ok(8)
@@ -2997,6 +3011,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
@@ -3004,6 +3019,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)

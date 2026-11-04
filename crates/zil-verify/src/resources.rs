@@ -98,6 +98,7 @@ pub(super) fn check_type_for(
     if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
         return dynamic_store::check_carrier(module, ty, span, budget);
     }
+    if inner.as_ref() == &Type::TaskI32 { return tasks::carrier(module, ty, span, budget); }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
@@ -155,6 +156,11 @@ pub(super) fn check_definitions(
                     "Store definition must be unique",
                 ));
             }
+            continue;
+        }
+        if resource.payload == Type::TaskI32 || resource.name == TASK_I32_RESOURCE_NAME {
+            if resource.name != TASK_I32_RESOURCE_NAME || resource.payload != Type::TaskI32 || resource.teardown.is_some() || !names.insert(&resource.name) { return Err(reject("E-VERIFY-TASK", None, "task definition must be unique and sealed without user teardown")); }
+            tasks::carrier(module, &Type::Managed(Box::new(Type::TaskI32)), None, budget)?;
             continue;
         }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
@@ -1050,7 +1056,8 @@ impl Transfer<'_> {
                 }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => fresh_result = Some(FRESH),
                 InstructionKind::MakePackage { fields } => {
                     let output = instruction.result.expect("checked Package result");
                     budget.spend(fields.len())?;
@@ -1751,6 +1758,7 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
+                InstructionKind::TaskFinishDestroy { task } => { self.consume(state, *task, span, validate)?; }
                 InstructionKind::Call {
                     function,
                     arguments,

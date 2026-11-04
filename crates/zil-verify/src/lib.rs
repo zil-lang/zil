@@ -76,6 +76,7 @@ mod retained;
 mod retained_tests;
 mod scoped_callback;
 mod scoped_thread;
+mod tasks;
 mod slices;
 mod sums;
 pub use ct_artifact::{
@@ -233,6 +234,7 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 struct Budget {
     remaining: usize,
     sums: bool,
+    tasks: bool,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -246,6 +248,7 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             sums: false,
+            tasks: false,
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -648,6 +651,7 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    tasks::module(module, &mut budget)?;
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
@@ -878,7 +882,7 @@ fn check_function_signature_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. } if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() => {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
@@ -919,7 +923,7 @@ fn check_local_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. } if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() => {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -1362,6 +1366,7 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::TaskStart { .. } | InstructionKind::TaskYield | InstructionKind::TaskValid { .. } | InstructionKind::TaskPoll { .. } | InstructionKind::TaskRequestCancel { .. } | InstructionKind::TaskPollClose { .. } | InstructionKind::TaskFinishDestroy { .. } => tasks::instruction(module, function, instruction, budget)?,
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -1576,6 +1581,8 @@ fn check_instruction(
                 closures::definition(module, *id, span)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
+            } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
+                tasks::carrier(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
             }
@@ -2543,6 +2550,9 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
+        InstructionKind::TaskValid { task } | InstructionKind::TaskPoll { task } | InstructionKind::TaskRequestCancel { task } | InstructionKind::TaskPollClose { task } | InstructionKind::TaskFinishDestroy { task } => ([Some(*task), None], &[]),
+        InstructionKind::TaskYield => ([None, None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }

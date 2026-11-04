@@ -247,7 +247,7 @@ impl Check<'_, '_, '_> {
         let TypeKind::Named { path, args } = &group(ty).kind else {
             return Ok(false);
         };
-        if path.as_slice() == ["ByteBuffer"] && args.is_empty() {
+        if matches!(path.as_slice(), [name] if name == "ByteBuffer" || name == "TaskI32") && args.is_empty() {
             return Ok(true);
         }
         let Some(Item {

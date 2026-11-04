@@ -2530,3 +2530,10 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
         }
     }
 }
+
+#[test]
+fn task343_source_to_persistent_native_frame() {
+    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+}

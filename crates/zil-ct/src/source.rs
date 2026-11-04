@@ -533,7 +533,8 @@ pub(super) fn hint_type(
         | Type::ForeignHandle
         | Type::CWideString
         | Type::Closure(_)
-        | Type::SyncCell(_) => Ok(false),
+        | Type::SyncCell(_)
+        | Type::TaskI32 => Ok(false),
     }
 }
 

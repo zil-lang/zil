@@ -1525,6 +1525,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if !inner.is_address_pointee()
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
                 && !self.graph.symbolic_store_type(inner)
             {
@@ -3002,7 +3003,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         }
                         return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
                     }
-                    if *op == UnaryOp::Borrow
+                    if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut)
                         && let CoreExprKind::Name(name) = &operand.kind
                         && let Some(Binding {
                             term: Term::Resource(variable, true),
@@ -3012,7 +3013,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         let variable = *variable;
                         self.graph.solve()?;
                         let payload = self.resolved(variable, span)?;
-                        if !matches!(payload, Type::Record { .. }) || !payload.is_copy_value() {
+                        let task_head = *op == UnaryOp::BorrowMut && payload == Type::TaskI32;
+                        if !task_head && (*op != UnaryOp::Borrow || !matches!(payload, Type::Record { .. }) || !payload.is_copy_value()) {
                             return Err(unsupported(
                                 span,
                                 "head borrow requires a finite user-resource payload",
@@ -3020,7 +3022,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         }
                         let head = self.fresh(VALUE, false, span)?;
                         self.bind(head, &Type::Managed(Box::new(payload)), span)?;
-                        return Ok(Term::Address(head, false));
+                        return Ok(Term::Address(head, *op == UnaryOp::BorrowMut));
                     }
                     if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
                         return Err(unsupported(
@@ -3192,6 +3194,23 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         self.bind_term(&term, &wanted, arguments[1].span)?;
                     }
                     return self.known_term(&dynamic_store::result_type(name, &element), span);
+                }
+                if let Some(name) = tasks::primitive(callee) {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    self.budget.work(12, span)?;
+                    let offset = usize::from(name == "task_start");
+                    let parameters = tasks::parameters(name);
+                    if arguments.len() != parameters.len() + offset { return Err(error("E-CALL-ARITY", span, "task primitive argument count mismatch")); }
+                    if offset != 0 {
+                        let Term::Function(signature) = self.expr(&arguments[0], depth + 1, false)? else { return Err(error("E-TASK-WORKER", span, "task worker must be a static function")); };
+                        if !signature.scalar_thread_worker() || signature.parameters.as_slice() != [Type::I32] { return Err(error("E-TASK-WORKER", span, "task worker requires fn(i32)->i32")); }
+                    }
+                    for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                        let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                        self.bind_term(&term, ty, argument.span)?;
+                    }
+                    return self.known_term(&tasks::result(name), span);
                 }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.budget.node(depth + 1, callee.span)?;

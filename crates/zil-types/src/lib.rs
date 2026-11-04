@@ -45,6 +45,7 @@ mod resources;
 mod retained;
 mod scalar_shapes;
 mod scoped_thread;
+mod tasks;
 mod state_origins;
 mod store_templates;
 mod tuple_bindings;
@@ -423,6 +424,7 @@ pub fn check(
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resource_definitions, limits).map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
@@ -1718,6 +1720,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 if let Some(name) = dynamic_store::primitive(callee) {
                     return self.dynamic_store_call(name, arguments, expected, e.span);
+                }
+                if let Some(name) = tasks::primitive(callee) {
+                    return self.task_call(name, arguments, expected, e.span);
                 }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     return self.byte_buffer_call(name, arguments, expected, e.span);
