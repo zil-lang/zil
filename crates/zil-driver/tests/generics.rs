@@ -9,6 +9,76 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_generic_methods_specialize_ordinary_calls() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+        "struct P{}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item{return x}}impl Echo for P{type Item=i32;}fn main()->i32{let p=P{};return p.echo::<bool>(7)-7}",
+        "struct Box<T:Copy>{value:T}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item;}impl<T:Copy> Echo for Box<T>{type Item=T;fn echo<U:Copy>(x:Self.Item)->Self.Item{return x}}fn main()->i32{let p=Box::<bool>{value:true};if p.echo::<i32>(true){return 0}return 1}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
+        "trait Item{type Value:Copy;}struct P{}impl Item for P{type Value=i32;}struct Host{}trait Echo{fn echo<T:Item>(self:&Self,x:T.Value)->T.Value;}impl Echo for Host{fn echo<U>(x:U.Value)->U.Value{return x}}fn main()->i32{let p=Host{};return p.echo::<P>(7)-7}",
+        "struct P{n:i32}trait Echo<T:Copy>{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo<bool> for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo::<i32>(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T{return x}}impl Echo for P{}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_generic_methods_reject_unused_invalid_contracts() {
+    for text in [
+        "trait Echo{fn bad<T:Copy>(self:&Self,x:T)->T{return x+1}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<#N:i32>(x:i32)->i32{return x}}fn main(){}",
+        "struct P{}trait Echo{fn echo<#N:usize>(self:&Self)->usize;}impl Echo for P{fn echo<#M:u64>()->usize{return 3usize}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x+1}}fn main(){}",
+        "trait Echo{fn bad<#N:i32>(self:&Self)->&i32{return &N}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    let output = std::env::temp_dir()
+        .join(format!(
+            "341-method-failed-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
+        .join("program");
+    let report = compile_source(
+        &source(
+            "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main(){}",
+        ),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(output.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.commands.is_empty());
+    assert!(!report.artifacts.contains_key("executable"));
+    assert!(!output.exists());
+}
+
+#[test]
 fn terminal341_unsigned_const_domains_keep_full_target_bits() {
     let positive =
         include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");

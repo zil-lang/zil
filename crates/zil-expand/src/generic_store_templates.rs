@@ -139,7 +139,8 @@ impl Engine<'_> {
             self.budget.text(template, span)?;
             self.budget.item(item)?;
             self.retained_stores.push(template.to_owned());
-            self.pending.push_back(item.clone());
+            let origin = self.template_origin(item)?;
+            self.enqueue(item.clone(), origin)?;
         }
         self.budget.text(template, span)?;
         self.budget.text(&parameter.name, span)?;
@@ -353,7 +354,8 @@ impl Engine<'_> {
             self.budget.text(template, span)?;
             self.budget.item(item)?;
             self.retained_stores.push(template.to_owned());
-            self.pending.push_back(item.clone());
+            let origin = self.template_origin(item)?;
+            self.enqueue(item.clone(), origin)?;
         }
         self.budget.node(callee.span, 0)?;
         self.budget.text(template, callee.span)?;

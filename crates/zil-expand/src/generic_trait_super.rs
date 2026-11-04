@@ -15,7 +15,19 @@ impl<'a> Index<'a> {
         host: Option<Host<'_>>,
         budget: &mut Budget<'_>,
     ) -> R<Vec<Bound>> {
-        let (_, declaration) = self.declarations[reference.key.name.as_str()];
+        let (item, declaration) = self.declarations[reference.key.name.as_str()];
+        let origin = self.origin(item, budget)?;
+        budget.with_origin(origin, |budget| {
+            self.inherited_inner(declaration, reference, host, budget)
+        })
+    }
+    fn inherited_inner(
+        &self,
+        declaration: &TraitDecl,
+        reference: &trait_instances::Reference,
+        host: Option<Host<'_>>,
+        budget: &mut Budget<'_>,
+    ) -> R<Vec<Bound>> {
         if declaration.bounds.is_empty() {
             return Ok(vec![]);
         }
@@ -160,6 +172,7 @@ impl<'a> Index<'a> {
     pub(super) fn validate_supertraits(&mut self, budget: &mut Budget<'_>) -> R<()> {
         // Even unused declarations must have a well-founded published closure.
         for (item, declaration) in self.declarations.values() {
+            budget.context.origin = self.origin(item, budget)?;
             if declaration.bounds.is_empty() {
                 continue;
             }

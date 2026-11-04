@@ -432,6 +432,7 @@ mod record_enum329_ledger {
             Budget::new(&limits),
             &mut engine,
             false, // This retained source fixture has no associated declarations.
+            false, // No generic methods in this retained source fixture.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

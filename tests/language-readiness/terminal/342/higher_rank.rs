@@ -876,3 +876,253 @@ fn terminal342_hrtb_raw_mixed_headers_preflight_before_recursive_relation() {
         );
     }
 }
+
+#[test]
+fn terminal342_hrtb_project_identity_uses_remaining_type_budget() {
+    let api = "pub fn invoke<F:for<life a> Fn(&'a i64)->&'a i64>(f:&F,p:&i64)->&i64{return f(p)}";
+    let main =
+        "import api;fn main()->i64{let n:i64=42;let f=(p:&i64)=>p;return *api.invoke(&f,&n)}";
+    let units = vec![
+        SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+        SourceUnit::new(FileId(1), ModuleId(1), "api.zil", api),
+    ];
+    let syntax = units
+        .iter()
+        .map(|u| zil_syntax::parse(u).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let imports = vec![
+        vec![zil_ir::CoreImport {
+            alias: "api".into(),
+            module: ModuleId(1),
+            span: syntax[0].items[0].span,
+        }],
+        vec![],
+    ];
+    let expanded = zil_expand::expand_program_with_limits(
+        &units,
+        &syntax.iter().collect::<Vec<_>>(),
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap();
+    let program = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: zil_base::Fingerprint::of(format!("{main}\n{api}").as_bytes()),
+        modules: expanded.into_iter().map(|(m, _)| m).collect(),
+    };
+    let n = hrtb_boundary(Phase::Types, |n| {
+        zil_types::check_program(
+            &program,
+            &TargetProfile::default(),
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    });
+    let typed =
+        zil_types::check_program(&program, &TargetProfile::default(), &Limits::default()).unwrap();
+    assert!(typed.module.functions.iter().any(|f| {
+        f.callable_contract
+            .as_ref()
+            .is_some_and(|c| c.roles.iter().any(|r| r.life.is_some()))
+    }));
+    let plan = zil_analyze::analyze(&typed.module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.module.clone(),
+        plan.clone(),
+        &typed.module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&typed.module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &typed.module.target, &Limits::default()).unwrap();
+    println!("342 HRTB project identity Types N={n}; N-1 ResourceLimit and fresh N identical");
+}
+
+#[test]
+fn terminal342_hrtb_inline_parameter_window_and_capture_field_stay_distinct() {
+    let prefix = "struct Pair{left:i64;right:i64}fn apply<F:for<life a> Fn(&'a Pair)->&'a i64>(f:&F,p:&Pair)->&i64{return f(p)}";
+    let direct = format!(
+        "{prefix}fn result()->i64{{let pair=Pair{{left:42,right:7}};let f=(p:&Pair)=>&p.left;return *apply(&f,&pair)}}"
+    );
+    let captured = format!(
+        "{prefix}fn result()->i64{{let pair=Pair{{left:42,right:7}};let outside=Pair{{left:7,right:9}};let f=(p:&Pair)=>{{let note=&outside.left;let seen=*note;return &p.left}};return *apply(&f,&pair)}}"
+    );
+    let temp = Temp::new();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for text in [&direct, &captured] {
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend: *backend,
+                        optimization,
+                        entry: Some("result".into()),
+                        output: Some(temp.0.join("window")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                execute(&report.artifacts["executable"], 42);
+            }
+        }
+    }
+    let invalid = captured.replace("return &p.left", "return &outside.left");
+    let report = compile_source(&source(&invalid), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let module = typed(&captured);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut changed = module.clone();
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.environment.is_some())
+        .unwrap();
+    let held = &plan.functions[f.id.0 as usize].holds;
+    let capture_field = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if matches!(i.kind, InstructionKind::AddressField { .. }) {
+                i.result.filter(|id| {
+                    held.iter().any(|h| {
+                        h.value == *id
+                            && h.roots
+                                .iter()
+                                .any(|r| matches!(r, zil_ir::HoldRoot::Capture(_)))
+                    })
+                })
+            } else {
+                None
+            }
+        })
+        .expect("actual capture-field address is present");
+    assert!(matches!(
+        f.values[capture_field.0 as usize],
+        zil_ir::Type::Address { .. }
+    ));
+    for b in &mut f.blocks {
+        if matches!(b.terminator, zil_ir::Terminator::Return(_)) {
+            b.terminator = zil_ir::Terminator::Return(Some(capture_field));
+        }
+    }
+    assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
+    let mut fake = plan;
+    fake.module_fingerprint = changed.fingerprint();
+    let errors = zil_verify::verify_module(
+        changed.clone(),
+        fake.clone(),
+        &changed.target,
+        &Limits::default(),
+    )
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-VERIFY-CALLABLE-LIFE"),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &fake, &Limits::default()).unwrap();
+    let errors =
+        zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-VERIFY-CALLABLE-LIFE"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn terminal342_hrtb_closed_environment_bound_order_retains_relation() {
+    let temp = Temp::new();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    let mut relations = vec![];
+    for bound in [
+        "ClosedEnvironment + for<life a> Fn(&'a i64)->&'a i64",
+        "for<life a> Fn(&'a i64)->&'a i64 + ClosedEnvironment",
+    ] {
+        let text = format!(
+            "fn apply<F:{bound}>(f:F,p:&i64)->&i64{{return f(p)}}fn result()->i64{{let n:i64=42;let offset:i64=7;let f=move(p:&i64)=>{{let seen=offset;return p}};return *apply(f,&n)}}"
+        );
+        let module = typed(&text);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let relation = module
+            .functions
+            .iter()
+            .find_map(|f| f.callable_contract.as_ref())
+            .unwrap()
+            .roles[0]
+            .life
+            .clone()
+            .expect("selected actual Fn bound retains HRTB relation");
+        assert_eq!(relation.binder_count, 1);
+        assert_eq!(relation.parameter_lives, vec![Some(0)]);
+        assert_eq!(relation.result_life, Some(0));
+        relations.push(relation);
+        let bytes =
+            zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(
+                    &source(&text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend: *backend,
+                        optimization,
+                        entry: Some("result".into()),
+                        output: Some(temp.0.join("closed")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                execute(&report.artifacts["executable"], 42);
+            }
+        }
+        let bad = text.replace(
+            "let f=move(p:&i64)=>{let seen=offset;return p}",
+            "let f=(p:&i64)=>{let seen=&offset;let value=*seen;return p}",
+        );
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.diagnostics.iter().any(|d| {
+            d.message == "retained callable environments cannot capture borrowed positions or descriptions"
+        }), "{}", report.to_json());
+    }
+    assert_eq!(relations[0], relations[1]);
+}

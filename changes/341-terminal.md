@@ -216,3 +216,48 @@ CT receiving contexts, aggregate/Type/Syntax associated values and generic
 methods remain active work. Safety and static/native behavior have the evidence
 above; Rust runtime/RSS, maintenance and compile-cost comparisons and the joint
 product gates remain unmeasured. Latest exact checkpoint review is pending.
+
+Generic methods will alpha-normalize type and const binders by owning declaration,
+member and parameter ordinals before any outer substitution. Lifetime binders
+retain their own function scope and ordered header positions. Original lexical
+spellings are retained in a private scope map for associated value references;
+source spans remain diagnostic data. Impl/default providers become private
+ordinary generic helpers, with every original definition checked before removal
+from runtime trait tables. Calls preserve exact trait actuals and Self, prove
+impl and method premises, and keep receiver argument zero. Impl methods cannot
+strengthen the required generic contract. Generic default delegation, cross-module
+same-spelled traits and outer/method binder shadowing are required real controls.
+
+The receiver-method checkpoint now specializes method type/const arguments into
+ordinary functions. A private ledger assigned from actual input module/item/
+member traversal survives aliases, helper insertion, instance queues and output
+placement. Scoped owner context is restored on every Result path around body and
+formal-premise checks; caller argument lookup stays in the caller's context.
+Captured actual trait references use declaration-local expression ordinals;
+impl-member captures have a separate recipe/member table, so synthetic function
+names cannot select their evidence. Canonical trait declaration symbols and
+ordered arguments identify keys; diagnostic Span no longer enters equality,
+ordering or method/default hashes. Compiler and source declaration ordinal
+spaces are distinct.
+
+Unused defaults, impl bodies, required signatures and method premises are checked
+before generic members leave runtime tables. Impl methods may omit/weaken direct
+premises and may spell an equivalent inline/where premise; inherited qualification
+is installed before associated projection checking. Actual source composes
+inferred/explicit calls, generic nominal impls, const usize slots, associated
+results/constants, default and nongeneric member delegation, mutable receivers,
+outer/method binder shadowing and private-module contexts. Raw repeated-Span
+receiver/member/function controls reach independent raw/Wire verification and
+native Clang/LLVM API O0/O2. The exact receiver-method fixture request boundaries
+are work69617/nodes10074, including N-1 and cold/warm/fresh/persisted cache controls.
+Existing source boundaries and the final executable/source binding are retained
+in the receipt. The targeted existing suites pass 23+58 with llvm-api enabled;
+Expand tests compile, and targeted Expand Clippy passes.
+
+This is a receiver-method checkpoint, not task completion. General life/lending
+method headers, static associated functions and type-qualified symbolic method
+calls, semantic implication beyond canonical direct premise subsets, remaining
+const/associated equation consumers and the full dyn boundary remain open.
+No runtime/RSS, maintenance-cost or compile-cost comparison or joint product-gate
+claim follows from these tests. Safety and static/native behavior have the
+bounded evidence above; independent checkpoint review is pending.

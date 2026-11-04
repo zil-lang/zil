@@ -16,6 +16,7 @@ struct CallArguments {
 }
 impl Engine<'_> {
     fn expr_call_method(&mut self, e: &mut Expr, env: &mut Env, depth: usize) -> R<CallMethod> {
+        self.method_call(e, env, depth)?;
         let ExprKind::Call { callee, .. } = &mut e.kind else {
             unreachable!("call dispatch")
         };
@@ -300,7 +301,7 @@ impl Engine<'_> {
                 },
             hints,
             actual,
-            contextual_constraints,
+            mut contextual_constraints,
             value_inferred,
             ..
         } = state;
@@ -321,7 +322,14 @@ impl Engine<'_> {
                         None
                     };
                     for (index, arg) in args.iter_mut().enumerate() {
-                        let parameter = declaration.and_then(|item| params(item).get(index));
+                        let parameter = declaration.and_then(|item| {
+                            params(item)
+                                .iter()
+                                .filter(|parameter| {
+                                    !matches!(parameter.kind, GenericParamKind::Lifetime)
+                                })
+                                .nth(index)
+                        });
                         if let GenericArg::Type(t) = arg
                             && !parameter
                                 .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
@@ -332,7 +340,20 @@ impl Engine<'_> {
                             types.push(consts::argument(arg, parameter, &mut self.budget)?);
                         }
                     }
-                    explicit = Some(types);
+                    let provider_prefix = if let ExprKind::Name(name) = &base.kind {
+                        self.provider(name, e.span)?
+                            && declaration.is_some_and(|item| {
+                                types.len()
+                                    < params(item)
+                                        .iter()
+                                        .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                                        .count()
+                            })
+                    } else {
+                        false
+                    };
+                    explicit = (!provider_prefix).then_some(types);
+                    contextual_constraints |= provider_prefix;
                     match &base.kind {
                         ExprKind::Name(n) if !env.contains_key(n) => Some(n.clone()),
                         _ => None,
@@ -505,7 +526,7 @@ impl Engine<'_> {
                                 &mut self.budget,
                             )?;
                         }
-                        type_parameters(function)
+                        consts::parameters(function)
                             .map(|p| {
                                 found.get(&p.name).cloned().ok_or_else(|| {
                                     error(

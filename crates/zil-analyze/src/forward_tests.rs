@@ -963,18 +963,21 @@ fn symbolic_copy_capability_is_not_obtained_by_hiding_f_in_an_old_state_value() 
     rejected(&m);
 }
 
-#[path = "../../zil-ir/test-support/schema35_fixture.rs"]
-mod schema35_fixture;
+#[path = "../../zil-ir/test-support/schema37_fixture.rs"]
+mod schema37_fixture;
 
 // Frozen old bytes remain immutable; only tests migrate unchanged candidate records.
-macro_rules! reviewed_fixture_v35 {
+macro_rules! reviewed_fixture_current {
     ($name:literal) => {{
         let historical = include_bytes!(concat!("../tests/impl253_fixtures/", $name));
         let errors =
             zil_ir::wire::decode_module_candidate(historical, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        schema35_fixture::migrate(
-            include_bytes!(concat!("../tests/impl253_fixtures/v34/", $name)),
+        let v34 = include_bytes!(concat!("../tests/impl253_fixtures/v34/", $name));
+        let errors = zil_ir::wire::decode_module_candidate(v34, &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].code, "E-WIRE-VERSION");
+        schema37_fixture::migrate(
+            include_bytes!(concat!("../tests/impl253_fixtures/v37/", $name)),
             &Limits::default(),
         )
     }};
@@ -982,24 +985,24 @@ macro_rules! reviewed_fixture_v35 {
 
 #[test]
 fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
-    // Structured Wire35 migrations of the frozen Wire32 counterexamples and controls;
+    // Structured Wire37 migrations of the frozen Wire32 counterexamples and controls;
     // the producer candidate in each file grants no authority.
     for (valid, bytes) in [
         (
             true,
-            reviewed_fixture_v35!("parent_valid_no_call_edge.wire"),
+            reviewed_fixture_current!("parent_valid_no_call_edge.wire"),
         ),
         (
             false,
-            reviewed_fixture_v35!("parent_stale_no_call_edge.wire"),
+            reviewed_fixture_current!("parent_stale_no_call_edge.wire"),
         ),
         (
             true,
-            reviewed_fixture_v35!("parent_valid_with_call_edge.wire"),
+            reviewed_fixture_current!("parent_valid_with_call_edge.wire"),
         ),
         (
             false,
-            reviewed_fixture_v35!("parent_stale_with_call_edge.wire"),
+            reviewed_fixture_current!("parent_stale_with_call_edge.wire"),
         ),
     ] {
         let module = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
@@ -1018,29 +1021,29 @@ fn reviewed_ordinary_arguments_and_symbolic_copy_authority_raw_wire() {
     for (valid, bytes) in [
         (
             false,
-            reviewed_fixture_v35!("escape_byvalue_symbolic_fn_call.wire"),
+            reviewed_fixture_current!("escape_byvalue_symbolic_fn_call.wire"),
         ),
         (
             false,
-            reviewed_fixture_v35!("escape_callback_argument.wire"),
+            reviewed_fixture_current!("escape_callback_argument.wire"),
         ),
         (
             true,
-            reviewed_fixture_v35!("control_shared_callback_i32_argument.wire"),
+            reviewed_fixture_current!("control_shared_callback_i32_argument.wire"),
         ),
         (
             true,
-            reviewed_fixture_v35!("control_concrete_copy_byvalue_call.wire"),
+            reviewed_fixture_current!("control_concrete_copy_byvalue_call.wire"),
         ),
         (
             false,
-            reviewed_fixture_v35!("escape_shared_callback_f_argument.wire"),
+            reviewed_fixture_current!("escape_shared_callback_f_argument.wire"),
         ),
         (
             false,
-            reviewed_fixture_v35!("escape_two_element_array.wire"),
+            reviewed_fixture_current!("escape_two_element_array.wire"),
         ),
-        (false, reviewed_fixture_v35!("escape_thin_store.wire")),
+        (false, reviewed_fixture_current!("escape_thin_store.wire")),
     ] {
         let module = zil_ir::wire::decode_module_candidate(&bytes, &Limits::default())
             .unwrap()

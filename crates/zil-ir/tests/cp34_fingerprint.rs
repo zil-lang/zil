@@ -824,3 +824,56 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
         equal(&input);
     }
 }
+
+#[test]
+fn terminal37_higher_rank_and_suspend_fields_match_independent_reference() {
+    let mut input = module(false);
+    input.functions[0].call_kind = CallKind::Suspend;
+    input.functions[0].callable_contract = Some(contract(false));
+    input.functions[0].callable_contract.as_mut().unwrap().roles[0].life =
+        Some(FunctionLifeContract {
+            binder_count: 2,
+            parameter_lives: vec![Some(0), None, Some(1)],
+            result_life: Some(0),
+        });
+    input.functions[0].blocks[0].instructions.push(Instruction {
+        result: Some(ValueId(131)),
+        span: Span::default(),
+        kind: InstructionKind::SuspendCall {
+            function: FunctionId(137),
+            arguments: vec![ValueId(139), ValueId(149)],
+        },
+    });
+    equal(&input);
+    assert!(std::panic::catch_unwind(|| legacy::bytes_v31(&input)).is_err());
+    for change in 0..7 {
+        let mut changed = input.clone();
+        let f = &mut changed.functions[0];
+        if change == 0 {
+            f.call_kind = CallKind::Direct;
+        } else if change <= 4 {
+            let role = &mut f.callable_contract.as_mut().unwrap().roles[0];
+            match change {
+                1 => role.life = None,
+                2 => role.life.as_mut().unwrap().binder_count += 1,
+                3 => role.life.as_mut().unwrap().parameter_lives.swap(0, 2),
+                _ => role.life.as_mut().unwrap().result_life = Some(1),
+            }
+        } else {
+            let InstructionKind::SuspendCall {
+                function,
+                arguments,
+            } = &mut f.blocks[0].instructions.last_mut().unwrap().kind
+            else {
+                unreachable!()
+            };
+            if change == 5 {
+                function.0 += 1;
+            } else {
+                arguments.swap(0, 1);
+            }
+        }
+        equal(&changed);
+        assert_ne!(input.fingerprint(), changed.fingerprint());
+    }
+}

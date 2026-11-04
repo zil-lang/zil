@@ -1,4 +1,4 @@
-// Vec-based current schema35 reference extended from the retained schema32 reference.
+// Independent Vec-based current TypedV37 reference; callable contract domain5.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +32,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V35\0"
+        b"ZIL-TYPED-MODULE-V37\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -255,6 +255,18 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     if v32 {
+        b.push(match f.call_kind {
+            CallKind::Direct => 0,
+            CallKind::Suspend => 1,
+        });
+    } else {
+        assert_eq!(
+            f.call_kind,
+            CallKind::Direct,
+            "schema31 cannot represent Suspend selection"
+        );
+    }
+    if v32 {
         b.push(u8::from(f.reference_return_bound.is_some()));
         if let Some(bound) = &f.reference_return_bound {
             encode_len(b, bound.len());
@@ -274,7 +286,7 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     }
     b.push(u8::from(f.callable_contract.is_some()));
     if let Some(contract) = &f.callable_contract {
-        encode_callable_contract(b, contract);
+        encode_callable_contract(b, contract, v32);
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
@@ -435,6 +447,18 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
                 encode_u32(b, value.0);
             }
             b.push(*ordering as u8);
+        }
+        InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } => {
+            assert!(v32, "schema31 cannot represent Suspend child calls");
+            b.push(125);
+            encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
         }
         InstructionKind::TaskStart { worker, argument } => {
             assert!(v32, "schema31 cannot represent tasks");
@@ -1166,8 +1190,8 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
-    encode_callable_contract(&mut bytes, contract);
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    encode_callable_contract(&mut bytes, contract, true);
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
@@ -1201,12 +1225,34 @@ fn callable_kind_tag(kind: CallableKind) -> u8 {
         CallableKind::FnOnce => 3,
     }
 }
-fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
+fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract, current: bool) {
     encode_len(b, c.roles.len());
     for role in &c.roles {
         encode_u32(b, role.parameter);
         encode_u32(b, role.closure.0);
         b.push(callable_kind_tag(role.kind));
+        if current {
+            b.push(u8::from(role.life.is_some()));
+            if let Some(life) = &role.life {
+                encode_u32(b, life.binder_count);
+                encode_len(b, life.parameter_lives.len());
+                for tag in &life.parameter_lives {
+                    b.push(u8::from(tag.is_some()));
+                    if let Some(tag) = tag {
+                        encode_u32(b, *tag);
+                    }
+                }
+                b.push(u8::from(life.result_life.is_some()));
+                if let Some(tag) = life.result_life {
+                    encode_u32(b, tag);
+                }
+            }
+        } else {
+            assert!(
+                role.life.is_none(),
+                "schema31 cannot represent invocation-local role life"
+            );
+        }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());
             for index in indices {
