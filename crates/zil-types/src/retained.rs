@@ -345,48 +345,7 @@ impl Dependencies<'_, '_> {
     fn expr(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
         self.node(depth, expression.span)?;
         match &expression.kind {
-            CoreExprKind::Call { callee, arguments } => {
-                let target = if let CoreExprKind::TypeApply { callee, .. } = &callee.kind {
-                    callee.as_ref()
-                } else {
-                    callee.as_ref()
-                };
-                let signature = match &target.kind {
-                    CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
-                    CoreExprKind::Member { object, member, .. } => {
-                        if let CoreExprKind::Name(alias) = &object.kind {
-                            if self.bound(alias) {
-                                None
-                            } else {
-                                self.imports.and_then(|imports| {
-                                    imports
-                                        .aliases
-                                        .get(alias)
-                                        .and_then(|module| imports.signatures.get(module))
-                                        .and_then(|table| table.get(member))
-                                })
-                            }
-                        } else {
-                            None
-                        }
-                    }
-                    _ => None,
-                };
-                if let Some(signature) = signature {
-                    if signature.callable_return.is_some() && signature.template.is_none() {
-                        self.found
-                            .factories
-                            .insert(signature.concrete_id(expression.span)?);
-                    }
-                    if let Some(key) = signature.template {
-                        self.found.helpers.insert(key);
-                    }
-                }
-                self.expr(callee, depth + 1)?;
-                for argument in arguments {
-                    self.expr(argument, depth + 1)?;
-                }
-            }
+            CoreExprKind::Call { .. } => self.expr_call(expression, depth),
             CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
@@ -394,68 +353,162 @@ impl Dependencies<'_, '_> {
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. }
-            | CoreExprKind::Member { object: value, .. } => self.expr(value, depth + 1)?,
+            | CoreExprKind::Member { object: value, .. } => self.expr(value, depth + 1),
             CoreExprKind::Binary { left, right, .. }
             | CoreExprKind::Index {
                 object: left,
                 index: right,
-            } => {
-                self.expr(left, depth + 1)?;
-                self.expr(right, depth + 1)?;
-            }
+            } => self.expr_pair(left, right, depth + 1),
             CoreExprKind::Tuple(fields) | CoreExprKind::Array(fields) => {
-                for field in fields {
-                    self.expr(field, depth + 1)?;
-                }
+                self.expr_list(fields, depth + 1)
             }
-            CoreExprKind::Slice { object, start, end } => {
-                self.expr(object, depth + 1)?;
-                for value in [start, end].into_iter().flatten() {
-                    self.expr(value, depth + 1)?;
-                }
-            }
-            CoreExprKind::Record { fields, .. } => {
-                for (_, field) in fields {
-                    self.expr(field, depth + 1)?;
-                }
-            }
-            CoreExprKind::RecordUpdate { base, fields, .. } => {
-                self.expr(base, depth + 1)?;
-                for (_, field) in fields {
-                    self.expr(field, depth + 1)?;
-                }
-            }
-            CoreExprKind::Sequence { bindings, value } => {
-                self.scopes.push(BTreeSet::new());
-                for (name, initializer) in bindings {
-                    self.expr(initializer, depth + 1)?;
-                    self.bind(name, expression.span)?;
-                }
-                self.expr(value, depth + 1)?;
-                self.scopes.pop();
-            }
-            CoreExprKind::Closure {
-                parameters, body, ..
-            } => {
-                self.scopes.push(BTreeSet::new());
-                for parameter in parameters {
-                    self.bind(&parameter.name, parameter.span)?;
-                }
-                self.block(body, depth + 1)?;
-                self.scopes.pop();
-            }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                self.expr(condition, depth + 1)?;
-                self.expr(then_value, depth + 1)?;
-                self.expr(else_value, depth + 1)?;
-            }
-            _ => {}
+            CoreExprKind::Slice { .. } => self.expr_slice(expression, depth),
+            CoreExprKind::Record { fields, .. } => self.expr_fields(fields, depth + 1),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(expression, depth),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(expression, depth),
+            CoreExprKind::Closure { .. } => self.expr_closure(expression, depth),
+            CoreExprKind::If { .. } => self.expr_if(expression, depth),
+            _ => Ok(()),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_pair(&mut self, first: &CoreExpr, second: &CoreExpr, depth: usize) -> R<()> {
+        self.expr(first, depth)?;
+        self.expr(second, depth)
+    }
+
+    #[inline(never)]
+    fn expr_list(&mut self, fields: &[CoreExpr], depth: usize) -> R<()> {
+        for field in fields {
+            self.expr(field, depth)?;
         }
         Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_fields(&mut self, fields: &[(String, CoreExpr)], depth: usize) -> R<()> {
+        for (_, field) in fields {
+            self.expr(field, depth)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_call(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::Call { callee, arguments } = &expression.kind else {
+            unreachable!("dependency call dispatcher")
+        };
+
+        let target = if let CoreExprKind::TypeApply { callee, .. } = &callee.kind {
+            callee.as_ref()
+        } else {
+            callee.as_ref()
+        };
+        let signature = match &target.kind {
+            CoreExprKind::Name(name) if !self.bound(name) => self.signatures.get(name),
+            CoreExprKind::Member { object, member, .. } => {
+                if let CoreExprKind::Name(alias) = &object.kind {
+                    if self.bound(alias) {
+                        None
+                    } else {
+                        self.imports.and_then(|imports| {
+                            imports
+                                .aliases
+                                .get(alias)
+                                .and_then(|module| imports.signatures.get(module))
+                                .and_then(|table| table.get(member))
+                        })
+                    }
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(signature) = signature {
+            if signature.callable_return.is_some() && signature.template.is_none() {
+                self.found
+                    .factories
+                    .insert(signature.concrete_id(expression.span)?);
+            }
+            if let Some(key) = signature.template {
+                self.found.helpers.insert(key);
+            }
+        }
+        self.expr(callee, depth + 1)?;
+        for argument in arguments {
+            self.expr(argument, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_slice(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::Slice { object, start, end } = &expression.kind else {
+            unreachable!("dependency slice dispatcher")
+        };
+        self.expr(object, depth + 1)?;
+        for value in [start, end].into_iter().flatten() {
+            self.expr(value, depth + 1)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_record_update(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::RecordUpdate { base, fields, .. } = &expression.kind else {
+            unreachable!("dependency record dispatcher")
+        };
+        self.expr(base, depth + 1)?;
+        self.expr_fields(fields, depth + 1)
+    }
+
+    #[inline(never)]
+    fn expr_sequence(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::Sequence { bindings, value } = &expression.kind else {
+            unreachable!("dependency sequence dispatcher")
+        };
+        self.scopes.push(BTreeSet::new());
+        for (name, initializer) in bindings {
+            self.expr(initializer, depth + 1)?;
+            self.bind(name, expression.span)?;
+        }
+        self.expr(value, depth + 1)?;
+        self.scopes.pop();
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_closure(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::Closure {
+            parameters, body, ..
+        } = &expression.kind
+        else {
+            unreachable!("dependency closure dispatcher")
+        };
+        self.scopes.push(BTreeSet::new());
+        for parameter in parameters {
+            self.bind(&parameter.name, parameter.span)?;
+        }
+        self.block(body, depth + 1)?;
+        self.scopes.pop();
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_if(&mut self, expression: &CoreExpr, depth: usize) -> R<()> {
+        let CoreExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &expression.kind
+        else {
+            unreachable!("dependency if dispatcher")
+        };
+        self.expr(condition, depth + 1)?;
+        self.expr(then_value, depth + 1)?;
+        self.expr(else_value, depth + 1)
     }
 }
 
