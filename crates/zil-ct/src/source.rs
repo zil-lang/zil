@@ -3,6 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
+#[path = "source_inventory.rs"]
+mod inventory;
 
 /// Evaluate the currently supported closed scalar `#(...)` expressions.
 /// A driver-supplied raw CFG producer extends calls/control flow through
@@ -53,6 +55,16 @@ impl<'a> SourceProgramContext<'a> {
         let mut ids = BTreeSet::new();
         for module in &program.modules {
             unconsumed_life_inventory(&module.core)?;
+            let (extra_nodes, extra_work) = inventory::inventory(
+                &module.core,
+                &Limits {
+                    max_nodes: limits.max_nodes.saturating_sub(nodes),
+                    max_analysis_steps: work,
+                    ..limits.clone()
+                },
+            )?;
+            nodes += extra_nodes;
+            work -= extra_work;
             if !module.core.aggregate_templates.is_empty()
                 || !module.core.aggregate_applications.is_empty()
             {
@@ -231,8 +243,13 @@ impl<'a> SourceProgramContext<'a> {
 // Bound every retained life byte/index before rebuilding Core or indexing headers.
 // This is a transport budget, not a proof of a source or runtime borrowing claim.
 fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult<(usize, usize)> {
+    let mut storage_nodes = 0;
+    let mut storage_work = limits.max_analysis_steps;
+    if let Some(storage) = &function.storage_life {
+        inventory::contract(storage, &mut storage_nodes, &mut storage_work, limits)?;
+    }
     let Some(life) = &function.life else {
-        return Ok((0, 0));
+        return Ok((storage_nodes, limits.max_analysis_steps - storage_work));
     };
     let limit = || {
         vec![Diagnostic::limit(
@@ -257,6 +274,14 @@ fn life_metadata_cost(function: &CoreFunction, limits: &Limits) -> CompileResult
     if nodes > limits.max_nodes || work > limits.max_analysis_steps {
         return Err(limit());
     }
+    let nodes = nodes
+        .checked_add(storage_nodes)
+        .filter(|n| *n <= limits.max_nodes)
+        .ok_or_else(limit)?;
+    let work = work
+        .checked_add(limits.max_analysis_steps - storage_work)
+        .filter(|n| *n <= limits.max_analysis_steps)
+        .ok_or_else(limit)?;
     Ok((nodes, work))
 }
 
@@ -460,11 +485,11 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
-        Type::BorrowedStorage { .. } => Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "stored-borrow CT header consumer is not yet implemented",
-            None,
-        )]),
+        Type::BorrowedStorage { storage, life } => {
+            inventory::shape(life, depth + 1, nodes, work, limits)?;
+            hint_type(storage, depth + 1, nodes, work, limits)?;
+            Ok(false)
+        }
         Type::Unit
         | Type::Bool
         | Type::U8
@@ -890,7 +915,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
-            storage_life: None,
+            storage_life: f.storage_life.clone(),
             call_kind: f.call_kind,
             life: f.life.clone(),
             callable_return: f.callable_return.clone(),
@@ -1138,6 +1163,16 @@ impl<'a> Walker<'a> {
     }
     fn declarations(&mut self) -> CompileResult<()> {
         let core = self.core;
+        let (extra_nodes, extra_work) = inventory::inventory(
+            core,
+            &Limits {
+                max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps: self.work_left,
+                ..self.limits.clone()
+            },
+        )?;
+        self.nodes += extra_nodes;
+        self.work_left -= extra_work;
         if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
             let metadata_limits = Limits {
                 max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
@@ -3112,6 +3147,96 @@ mod tests {
         })
     }
     #[test]
+    fn retained_inventory_transport_preserves_metadata_and_shared_budget() {
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let mut core = module(expr(CoreExprKind::Integer("7".into())), Type::I32);
+        let declaration = LifeDeclarationId {
+            module: ModuleId(0),
+            declaration: NodeId(42),
+            compiler: false,
+        };
+        let shape = StorageLifeShape {
+            binder_count: 1,
+            slots: vec![],
+            retained: vec![],
+            nominal_arguments: vec![NominalLifeArgument {
+                path: vec![],
+                declaration,
+                argument: 0,
+                binder: 0,
+            }],
+        };
+        let ty = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Phantom".into(),
+                fields: vec![],
+            }),
+            life: shape,
+        };
+        core.life_declarations.push(LifeNominalDeclaration {
+            id: declaration,
+            identity: LifeDeclarationIdentity {
+                package: "test".into(),
+                module_path: vec!["m".into()],
+                declaration_path: vec!["Phantom".into()],
+                generation_path: vec![1, 2],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![LifeParameterKind::Lifetime],
+        });
+        core.life_instances.push(LifeNominalInstance {
+            declaration,
+            ty: ty.clone(),
+            arguments: vec![LifeNominalActual::Lifetime(0)],
+        });
+        let span = core.functions[0].span;
+        core.functions[0].parameters.push(CoreParameter {
+            name: "phantom".into(),
+            ty,
+            mode: PassingMode::Infer,
+            span,
+        });
+        core.functions[0].storage_life = Some(StorageLifeContract {
+            fixed_binder_count: 1,
+            invocation_binder_count: 0,
+            bindings: vec![StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![ContractProjection::RetainedClass(0)],
+                },
+                binder: StorageBinder::Fixed(0),
+            }],
+        });
+        let (result, usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert_eq!(result.life_declarations, core.life_declarations);
+        assert_eq!(result.life_instances, core.life_instances);
+        assert_eq!(
+            result.functions[0].storage_life,
+            core.functions[0].storage_life
+        );
+        assert_eq!(result.functions[0].parameters, core.functions[0].parameters);
+        let exact = Limits {
+            max_nodes: usage.nodes,
+            ..limits.clone()
+        };
+        assert!(evaluate_source_constants(&core, &target, &exact).is_ok());
+        assert_eq!(
+            evaluate_source_constants(
+                &core,
+                &target,
+                &Limits {
+                    max_nodes: usage.nodes - 1,
+                    ..limits
+                }
+            )
+            .unwrap_err()[0]
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
+    #[test]
     fn scoped_foreign_roles_survive_source_normalization_with_conditional_budget() {
         let target = TargetProfile::default();
         let limits = Limits::default();
@@ -3745,9 +3870,7 @@ mod tests {
 // Closed39 bootstrap boundary before metadata snapshots. CT4 source consumers
 // replace this with a bounded traversal; ignored tables must not be cloned.
 fn unconsumed_life_inventory(core: &CoreModule) -> CompileResult<()> {
-    if !core.life_declarations.is_empty()
-        || !core.life_instances.is_empty()
-        || !core.dyn_declarations.is_empty()
+    if !core.dyn_declarations.is_empty()
         || !core.dyn_interfaces.is_empty()
         || !core.dyn_vtables.is_empty()
     {
