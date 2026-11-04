@@ -202,3 +202,25 @@ unimplemented semantic operations before cloning them. Captured Dyn environments
 do not satisfy ClosedEnvironment. The targeted Types check after this adapter
 has15 remaining Task retained-shape errors on d2ad18d81, all separately assigned;
 there is no successful Types build or dyn source acceptance at this checkpoint.
+
+Root5873c4aed publishes the contextual APIs and the snapshot namespace rule.
+Driver now calls those APIs with the complete original source request and its
+logical alias map. Unchanged parsed AST uses Original; selection/materialization
+uses Unavailable until an aligned numeric lineage producer exists. This never
+joins source spans or reconstructs original IDs from a transformed vector.
+
+Four direct context controls pass: complete alias groups distinguish two
+equal-byte modules from two aliases of one module; raw module-ID/source-vector /
+native-path relocation preserves the default namespace; explicit package mode
+keeps every module's canonical path, including entry; duplicate IDs/paths,
+empty components and an empty nonroot alias reject. Exact standalone snapshot
+namespace limits are work221/nodes5, with N-1 ResourceLimit. This is a naming
+context check, not a performance result or a type/permission proof.
+
+The actual Driver source control also passes: a life-only View factory reaches
+Core and carries its closed-snapshot identity independently of its native
+filename. A #if-transformed variant fails closed in Expand for missing lineage,
+executes no native command and publishes no executable. These are frontend and
+handoff controls. Genuine generated/filtered Aligned production, full dyn source
+tables/coercions/calls, contextual type keys, independent safety/native consumers
+and their raw/Wire/budget/cache controls remain unfinished.

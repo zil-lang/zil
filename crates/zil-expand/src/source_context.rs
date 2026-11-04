@@ -136,6 +136,15 @@ fn snapshot(
         .collect::<Vec<_>>();
     for (path, module) in aliases {
         budget.node(span, 0)?;
+        if path.is_empty() && *module != root {
+            return Err(bad(span, "empty logical alias belongs to a nonroot module"));
+        }
+        for part in path {
+            budget.node(span, 0)?;
+            if part.is_empty() {
+                return Err(bad(span, "logical module path contains an empty component"));
+            }
+        }
         lookup_work(positions.len(), budget, span)?;
         let index = *positions
             .get(module)
@@ -256,6 +265,15 @@ impl<'a> SourceIdentityContext<'a> {
                 let mut paths = BTreeSet::new();
                 for path in modules.values() {
                     budget.node(Span::default(), 0)?;
+                    for part in path {
+                        budget.node(Span::default(), 0)?;
+                        if part.is_empty() {
+                            return Err(bad(
+                                Span::default(),
+                                "canonical module path contains an empty component",
+                            ));
+                        }
+                    }
                     let repeats = 12usize
                         .saturating_mul(paths.len().checked_ilog2().map_or(1, |n| n as usize + 2));
                     for _ in 0..repeats {
@@ -314,6 +332,171 @@ impl ResolvedSourceIdentityContext<'_> {
                     .map(Vec::as_slice)
                     .ok_or_else(|| bad(span, "canonical logical module identity absent"))
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{FileId, Limits, ResultCategory};
+
+    fn source(id: u32, path: &str, text: &str) -> SourceUnit {
+        SourceUnit::new(FileId(id), ModuleId(id), path, text)
+    }
+    fn closed(
+        sources: &[SourceUnit],
+        root: u32,
+        aliases: &BTreeMap<Vec<String>, ModuleId>,
+        limits: &Limits,
+    ) -> R<String> {
+        SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(root),
+            aliases,
+            declarations: DeclarationPlacement::Original,
+        }
+        .resolve(sources, &mut Budget::new(limits))
+        .map(|resolved| resolved.package)
+    }
+    #[test]
+    fn snapshot_identity_preserves_actual_alias_equivalence_and_relocation() {
+        let sources = vec![
+            source(0, "/native/main.zil", "fn main(){}"),
+            source(1, "/native/a.zil", "struct N{}"),
+            source(2, "/native/b.zil", "struct N{}"),
+        ];
+        let aliases = BTreeMap::from([
+            (vec!["a".into()], ModuleId(1)),
+            (vec!["b".into()], ModuleId(2)),
+        ]);
+        let limits = Limits::default();
+        let key = closed(&sources, 0, &aliases, &limits).unwrap();
+        let relocated = vec![
+            source(82, "other/b", "struct N{}"),
+            source(73, "other/main", "fn main(){}"),
+            source(91, "other/a", "struct N{}"),
+        ];
+        let aliases2 = BTreeMap::from([
+            (vec!["a".into()], ModuleId(91)),
+            (vec!["b".into()], ModuleId(82)),
+        ]);
+        assert_eq!(key, closed(&relocated, 73, &aliases2, &limits).unwrap());
+        let one = vec![sources[0].clone(), sources[1].clone()];
+        let shared = BTreeMap::from([
+            (vec!["a".into()], ModuleId(1)),
+            (vec!["b".into()], ModuleId(1)),
+        ]);
+        assert_ne!(key, closed(&one, 0, &shared, &limits).unwrap());
+        let mut changed = sources.clone();
+        changed[2].text.push(' ');
+        assert_ne!(key, closed(&changed, 0, &aliases, &limits).unwrap());
+    }
+    #[test]
+    fn context_rejects_ambiguous_raw_module_identity() {
+        let sources = vec![source(0, "a", "a"), source(1, "b", "b")];
+        let limits = Limits::default();
+        for aliases in [
+            BTreeMap::from([(vec![], ModuleId(1))]),
+            BTreeMap::from([(vec!["".into()], ModuleId(1))]),
+        ] {
+            assert!(closed(&sources, 0, &aliases, &limits).is_err());
+        }
+        for modules in [
+            BTreeMap::from([(ModuleId(0), vec![]), (ModuleId(1), vec![])]),
+            BTreeMap::from([(ModuleId(0), vec![]), (ModuleId(1), vec!["".into()])]),
+        ] {
+            assert!(
+                SourceIdentityContext::Explicit {
+                    package: "p",
+                    modules: &modules,
+                    declarations: DeclarationPlacement::Original
+                }
+                .resolve(&sources, &mut Budget::new(&limits))
+                .is_err()
+            );
+        }
+        let aliases = BTreeMap::new();
+        let duplicate = vec![sources[0].clone(), sources[0].clone()];
+        assert!(closed(&duplicate, 0, &aliases, &limits).is_err());
+        let modules = BTreeMap::from([(ModuleId(0), vec![]), (ModuleId(1), vec!["b".into()])]);
+        assert!(
+            SourceIdentityContext::Explicit {
+                package: "p",
+                modules: &modules,
+                declarations: DeclarationPlacement::Original
+            }
+            .resolve(&duplicate, &mut Budget::new(&limits))
+            .is_err()
+        );
+    }
+    #[test]
+    fn explicit_identity_keeps_canonical_entry_path_across_edits() {
+        let sources = vec![source(5, "native/unused", "first")];
+        let modules = BTreeMap::from([(ModuleId(5), vec!["lib".into(), "reader".into()])]);
+        let limits = Limits::default();
+        let context = SourceIdentityContext::Explicit {
+            package: "library",
+            modules: &modules,
+            declarations: DeclarationPlacement::Original,
+        };
+        let mut budget = Budget::new(&limits);
+        let resolved = context.resolve(&sources, &mut budget).unwrap();
+        assert_eq!(
+            resolved
+                .module_path(ModuleId(5), &mut budget, Span::default())
+                .unwrap(),
+            &["lib".to_owned(), "reader".to_owned()]
+        );
+        let changed = vec![source(5, "somewhere else", "second")];
+        assert_eq!(
+            resolved.package,
+            context
+                .resolve(&changed, &mut Budget::new(&limits))
+                .unwrap()
+                .package
+        );
+    }
+    #[test]
+    fn snapshot_namespace_prepays_exact_work_and_nodes() {
+        let sources = vec![source(0, "not hashed", "fn main(){}")];
+        let aliases = BTreeMap::new();
+        for nodes in [false, true] {
+            let (mut low, mut high) = (0, 10000);
+            while low < high {
+                let middle = low + (high - low) / 2;
+                let mut limits = Limits::default();
+                if nodes {
+                    limits.max_nodes = middle
+                } else {
+                    limits.max_analysis_steps = middle
+                };
+                if closed(&sources, 0, &aliases, &limits).is_ok() {
+                    high = middle
+                } else {
+                    low = middle + 1
+                }
+            }
+            assert!(low > 0 && low < 10000);
+            let mut limits = Limits::default();
+            if nodes {
+                limits.max_nodes = low
+            } else {
+                limits.max_analysis_steps = low
+            };
+            assert!(closed(&sources, 0, &aliases, &limits).is_ok());
+            if nodes {
+                limits.max_nodes = low - 1
+            } else {
+                limits.max_analysis_steps = low - 1
+            };
+            assert_eq!(
+                closed(&sources, 0, &aliases, &limits).unwrap_err().category,
+                ResultCategory::ResourceLimit
+            );
+            println!(
+                "source-context {}={low}",
+                if nodes { "nodes" } else { "work" }
+            );
         }
     }
 }

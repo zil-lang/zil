@@ -617,12 +617,22 @@ impl CompilationSession {
                 }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
-                for (module, map) in zil_expand::expand_program_with_limits_target(
+                let context=zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root:project.root,
+                    aliases:&project.paths,
+                    declarations:if selected.is_some() || ct_result.is_some() {
+                        zil_expand::source_context::DeclarationPlacement::Unavailable
+                    } else {
+                        zil_expand::source_context::DeclarationPlacement::Original
+                    },
+                };
+                for (module, map) in zil_expand::expand_program_with_limits_target_context(
                     &project.modules,
                     syntax,
                     &runtime_imports,
                     &options.limits,
                     &options.target,
+                    context,
                 )? {
                     modules.push(module);
                     maps.push(map);
