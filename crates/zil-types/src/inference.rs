@@ -2011,6 +2011,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !stored::shared_address(ty)
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()
@@ -2615,6 +2616,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     mutable: wanted,
                     inner,
                 } if (inner.is_address_pointee()
+                    || stored::shared_address(ty)
                     || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
                     || ty.is_exclusive_task_head_address()
@@ -5005,6 +5007,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         else {
             unreachable!("expression dispatcher variant");
         };
+        for parameter in parameters {
+            if let Some(ty) = &parameter.ty {
+                self.graph.annotation_context(ty, 0, parameter.span)?;
+            }
+        }
+        if let Some(ty) = return_type {
+            self.graph.annotation_context(ty, 0, span)?;
+        }
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)

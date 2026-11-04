@@ -1517,3 +1517,47 @@ fn terminal_static_function_formation_prepays_wide_copy_result_types() {
     }
     assert!(boundaries[1] > boundaries[0]);
 }
+
+#[test]
+fn terminal_explicit_stored_closure_annotations_require_their_context() {
+    let closed = "struct Tag<life a>{n:i32} type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32;fn read<life a>(v:&Tag<'a>)->i32{return v.n}fn main()->i32{let callback=(code:Code)->i32=>42;return callback(read)}";
+    // The nested Code binder is closed at the Types annotation boundary.
+    // Its closure-body kernel consumer remains a separate construction slice.
+    let report = compile_source(
+        &source(closed),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+
+    for body in [
+        "let f=(p:&Tag<'s>)->i32=>p.n;return f(&v)",
+        "let f=()->Tag<'s> => v;return f().n",
+    ] {
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};{body}}} fn main()->i32{{let n=42;return apply(&n)}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("retained enclosing life context")),
+            "{}",
+            report.to_json()
+        );
+    }
+}

@@ -101,3 +101,34 @@ native executions in total, each stdout42 with no fallback. Each source retains
 the whole-request boundary12633 with N−1/warm/fresh controls. Two initial root
 test inputs used a comma-separated `for` binder spelling rejected by the parser;
 the preserved logs are test-input failures, not kernel or native observations.
+
+### Qualified closure inference preserves context boundaries
+
+A subsequent inspection found that the private inference Graph omitted the
+BorrowedStorage storage and metadata traversal. Its snapshots now pay the actual
+storage tree, slot/retained/nominal rows and selector paths, including nested
+depth checks. A pending-signature snapshot control exercises wide real shared
+field shapes with exact remaining work, N−1 and fresh retries. The earlier f6
+formation-use correction remains a narrower historical result.
+
+The private Graph now retains already-qualified shared value/address types;
+this introduces no public Copy predicate or raw permission. Explicit closure
+parameter/result annotations containing outer stored classes reject until the
+actual enclosing definition context exists. A nested Invocation-only Code
+annotation retains its own binder scope and passes Source→Types. Its current
+closure kernel fence is a separate consumer obligation, not a Types rejection.
+
+Ordinary callable helper instantiation preserves its complete own storage_life
+relation, including the actual &F outer row, in its exported signature after
+paying for that copy. The per-role relation is never copied into the closure
+definition. The mixed life+F Source producer and unused-definition proof remain
+under construction in341, independently of this Types preparation.
+
+At this correction, Types44/0, the complete existing generics32/0 and
+composed generic_regressions83/0 pass; strict Types library/test Clippy passes.
+The rich helper Source probe is preserved separately while its Expand producer
+is implemented. The first annotation-control probes met earlier inference
+fences, then exposed an invalid `>=>` test spelling; those logs remain retained.
+The final explicit parameter/result negatives reach the intended context guard.
+The original inferred/explicit static-code sources retain their eight native
+runs and whole-request N12633 controls.
