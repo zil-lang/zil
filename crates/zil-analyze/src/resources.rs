@@ -651,6 +651,30 @@ fn afters(
     shapes: &Shapes,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
+    afters_reserved(f, reachable, shapes, None, budget)
+}
+fn retained_uses(
+    live: &mut Live,
+    values: &[ValueId],
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(values.len(), "replacement retained operand scan")?;
+    for value in values {
+        budget.lookup(shapes.len().saturating_add(live.len()), "replacement retained operand liveness")?;
+        if shapes.get(&Place::Value(*value)).is_some_and(|shape| shape.description) {
+            live.insert(Place::Value(*value));
+        }
+    }
+    Ok(())
+}
+fn afters_reserved(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
     budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
     let mut entry = vec![Live::new(); f.blocks.len()];
     let mut exit = entry.clone();
@@ -673,8 +697,11 @@ fn afters(
             }
             budget.spend(live.len(), "description liveness exit clone")?;
             exit[b] = live.clone();
-            for instruction in block.instructions.iter().rev() {
+            for (position, instruction) in block.instructions.iter().enumerate().rev() {
                 reverse(&mut live, instruction, shapes, budget)?;
+                if let Some(reserved) = reserved {
+                    retained_uses(&mut live, &reserved[b][position], shapes, budget)?;
+                }
             }
             budget.spend(
                 live.len().saturating_add(entry[b].len()).saturating_add(1),
@@ -698,6 +725,9 @@ fn afters(
             budget.spend(live.len(), "description liveness history clone")?;
             rows[j] = live.clone();
             reverse(&mut live, i, shapes, budget)?;
+            if let Some(reserved) = reserved {
+                retained_uses(&mut live, &reserved[b][j], shapes, budget)?;
+            }
         }
         result.push(rows);
     }
@@ -713,7 +743,7 @@ pub(super) fn address_afters(
     reachable: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
-    address_afters_inner(f, reachable, false, budget)
+    address_afters_inner(f, reachable, false, None, budget)
 }
 
 // Capturing an address transports its last-use dependency into the actual
@@ -724,7 +754,7 @@ pub(super) fn capture_afters(
     reachable: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
-    address_afters_inner(f, reachable, true, budget)
+    address_afters_inner(f, reachable, true, None, budget)
 }
 
 pub(super) fn capture_carrier(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
@@ -743,10 +773,20 @@ pub(super) fn capture_carrier(ty: &Type, budget: &mut Budget) -> CompileResult<b
     Ok(budget.address_capture_closures.contains(id))
 }
 
+pub(super) fn reserved_address_afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    captures: bool,
+    reserved: &[Vec<Vec<ValueId>>],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    address_afters_inner(f, reachable, captures, Some(reserved), budget)
+}
 fn address_afters_inner(
     f: &TypedFunction,
     reachable: &[bool],
     captures: bool,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
     budget.spend(
@@ -781,7 +821,7 @@ fn address_afters_inner(
     if shapes.is_empty() || (captures && !has_capture) {
         return Ok(Vec::new());
     }
-    afters(f, reachable, &shapes, budget)
+    afters_reserved(f, reachable, &shapes, reserved, budget)
 }
 fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
     if fact.sources.is_empty() {
