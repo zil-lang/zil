@@ -1,6 +1,6 @@
 use super::*;
 use cfg::{Builder, Value};
-fn scalar_constant(c: &Constant) -> CtTy {
+pub(super) fn scalar_constant(c: &Constant) -> CtTy {
     CtTy::Scalar(match c {
         Constant::Unit => CtScalarTy::Unit,
         Constant::Bool(_) => CtScalarTy::Bool,
@@ -686,6 +686,9 @@ impl Builder<'_, '_> {
         .map(Some)
     }
     fn type_name(&mut self, path: &[String], span: Span, depth: usize) -> R<Value> {
+        if path.len() == 1 && let Some(graph) = self.compiler.metadata_binding(&path[0], span)? {
+            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+        }
         if path.len() == 1
             && let Some(ty) = self.compiler.binding(&path[0], span)?
         {
@@ -710,6 +713,9 @@ impl Builder<'_, '_> {
         match &ty.kind {
             s::TypeKind::Named { path, args } if args.is_empty() => {
                 if path.len() == 1 {
+                    if let Some(graph) = self.compiler.metadata_binding(&path[0], ty.span)? {
+                        return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+                    }
                     if let Some(actual) = self.compiler.binding(&path[0], ty.span)? {
                         return self.bound_type_value(&actual, ty.span, depth + 1);
                     }
@@ -1220,6 +1226,11 @@ impl Builder<'_, '_> {
 
     fn bound_type_value(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, span)?;
+        if !self.compiler.checking_generics && matches!(ty, CtTy::Record(_) | CtTy::Enum(_) | CtTy::AnonymousSum(_)) {
+            let graph = self.compiler.metadata_data(ty, span, depth + 1)?;
+            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+        }
+
         // Symbolic bodies are checked but never verified, published or run.
         if self.compiler.is_symbolic(ty) {
             return self.emit(

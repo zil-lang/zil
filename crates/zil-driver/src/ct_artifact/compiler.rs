@@ -725,3 +725,9 @@ pub(crate) fn uses_ct_domain(
 
 #[path = "compiler_metadata.rs"]
 pub(super) mod metadata;
+
+#[path = "compiler_data.rs"]
+mod data;
+
+#[path = "compiler_type_value.rs"]
+mod type_value;

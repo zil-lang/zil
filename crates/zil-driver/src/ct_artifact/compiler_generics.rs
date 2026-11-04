@@ -24,8 +24,15 @@ impl<'a> Compiler<'a> {
                     self.source_type_cost(inner, depth + 1)?;
                 }
             }
-            s::TypeKind::Group(inner) => self.source_type_cost(inner, depth + 1)?,
-            s::TypeKind::Tuple(fields) => {
+            s::TypeKind::Group(inner)
+            | s::TypeKind::ForLifetime { inner, .. }
+            | s::TypeKind::Reference { inner, .. } => self.source_type_cost(inner, depth + 1)?,
+            s::TypeKind::Function { params, result } => {
+                for parameter in params { self.source_type_cost(parameter, depth + 1)?; }
+                self.source_type_cost(result, depth + 1)?;
+            }
+
+            s::TypeKind::Tuple(fields) | s::TypeKind::Union(fields) => {
                 for field in fields {
                     self.source_type_cost(field, depth + 1)?;
                 }
@@ -393,11 +400,19 @@ impl<'a> Compiler<'a> {
                 {
                     return Err(error(pattern.span, "CT generic nominal type differs"));
                 }
-                let types = &self.record_arguments[id.0 as usize];
-                for ty in types {
-                    self.budget.copy_ty(ty, 0, pattern.span)?;
+                let schema_args = &self.records[id.0 as usize].arguments;
+                for argument in schema_args {
+                    self.budget.node(pattern.span)?;
+                    if let CtSchemaArgument::Type(graph) = argument { self.budget.metadata(graph, pattern.span)?; }
                 }
-                let types = types.clone();
+                let schema_args = schema_args.clone();
+                let mut types = Vec::new();
+                for argument in &schema_args {
+                    let CtSchemaArgument::Type(graph) = argument else {
+                        return Err(error(pattern.span, "CT generic scalar inference requires an exact scalar parameter"));
+                    };
+                    types.push(self.metadata_data_type(graph, depth + 1, pattern.span)?);
+                }
                 if args.len() != types.len() {
                     return Err(error(pattern.span, "CT generic nominal arity differs"));
                 }

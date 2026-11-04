@@ -2014,6 +2014,10 @@ impl Check<'_, '_, '_> {
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
+            ExprKind::Ascribed { ty, .. } => {
+                self.budget.ty(ty)?;
+                Ok(Some(ty.clone()))
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, state, depth + 1, default_integer)
             }
@@ -2714,6 +2718,7 @@ impl Check<'_, '_, '_> {
             ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
             | ExprKind::Group(_)
+            | ExprKind::Ascribed { .. }
             | ExprKind::MetaEval(_)
             | ExprKind::If { .. }
             | ExprKind::Unary {
@@ -2725,6 +2730,36 @@ impl Check<'_, '_, '_> {
         Ok(ty)
     }
 
+    fn expr_ascribed(
+        &mut self,
+        ty: &TypeRef,
+        value: &Expr,
+        state: &mut State,
+        borrowing: bool,
+    ) -> R<TypeRef> {
+        self.budget.ty(ty)?;
+        let actual = self.expr(value, state, Some(ty), borrowing)?;
+        let actual_key = type_key(&actual, self.budget)?;
+        if actual_key != type_key(ty, self.budget)? {
+            let TypeKind::Union(members) = &group(ty).kind else {
+                return Err(error(value.span, "ascribed value differs from its complete type"));
+            };
+            let mut found = false;
+            for member in members {
+                if actual_key == type_key(member, self.budget)? {
+                    if found {
+                        return Err(error(value.span, "ascribed sum member is ambiguous"));
+                    }
+                    found = true;
+                }
+            }
+            if !found {
+                return Err(error(value.span, "ascribed payload is not an exact sum member"));
+            }
+        }
+        self.budget.ty(ty)?;
+        Ok(ty.clone())
+    }
     fn expr_inner(
         &mut self,
         e: &Expr,
@@ -2879,6 +2914,7 @@ impl Check<'_, '_, '_> {
                 checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
+            ExprKind::Ascribed { ty, value } => self.expr_ascribed(ty, value, state, borrowing),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }

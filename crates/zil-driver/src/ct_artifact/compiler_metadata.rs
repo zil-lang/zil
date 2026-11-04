@@ -131,7 +131,7 @@ impl Compiler<'_> {
                 .ok_or_else(|| error(span, "CT metadata root overflow"))?,
         ))
     }
-    fn meta_normalize(&mut self, graph: CtTypeRef, span: Span) -> R<CtTypeRef> {
+    pub(super) fn meta_normalize(&mut self, graph: CtTypeRef, span: Span) -> R<CtTypeRef> {
         let mut meter = zil_ct::CtExecutionBudget::new(self.budget.declared());
         let result = zil_ct::canonicalize_anonymous_type(&graph, &mut meter);
         let usage = meter.usage();

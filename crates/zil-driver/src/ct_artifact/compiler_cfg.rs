@@ -247,6 +247,9 @@ impl<'c, 'a> Builder<'c, 'a> {
                 }
                 Ok(None)
             }
+            s::ExprKind::Ascribed { ty, .. } => {
+                self.compiler.ty(self.module, ty, depth + 1).map(Some)
+            }
             s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
                 self.operand_hint(inner, depth + 1)
             }
