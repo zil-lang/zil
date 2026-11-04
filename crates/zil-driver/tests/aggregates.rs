@@ -271,6 +271,108 @@ fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
 }
 
 #[test]
+fn terminal340_owner_replacement_error_arm_content_and_raw_neighbors() {
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arms.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_output(&[("main", text)], b"ABCD42\n");
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    // Make the two raw owning arms identical so a wrong arm cannot be
+    // dismissed only because its pointee has a different nominal type.
+    fn same_payload(ty: &mut Type) {
+        match ty {
+            Type::Package { name, fields } => {
+                if name.ends_with(":Failure") {
+                    *name = name.replace(":Failure", ":P");
+                }
+                for (_, field) in fields {
+                    same_payload(field);
+                }
+            }
+            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                same_payload(inner)
+            }
+            Type::ErrorUnion { error, result } => {
+                same_payload(error);
+                same_payload(result);
+            }
+            _ => {}
+        }
+    }
+    for f in &mut typed.functions {
+        same_payload(&mut f.return_type);
+        for local in &mut f.locals {
+            same_payload(&mut local.ty);
+        }
+        for ty in &mut f.values {
+            same_payload(ty);
+        }
+    }
+    for f in typed
+        .functions
+        .iter()
+        .filter(|f| matches!(f.name.as_str(), "make_ok" | "make_err"))
+    {
+        let Type::ErrorUnion { error, result } = &f.return_type else {
+            panic!("owning ErrorUnion")
+        };
+        assert_eq!(error, result, "raw counterexample requires equal arm Types");
+    }
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for name in ["work_ok", "work_err"] {
+        let mut raw = typed.clone();
+        let f = raw.functions.iter_mut().find(|f| f.name == name).unwrap();
+        let path = f
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find_map(|i| match &mut i.kind {
+                InstructionKind::BorrowPlaceLocal { path, .. }
+                    if matches!(path.first(), Some(zil_ir::PlaceProjection::ErrorArm(_))) =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            })
+            .unwrap();
+        let zil_ir::PlaceProjection::ErrorArm(arm) = &mut path[0] else {
+            unreachable!()
+        };
+        *arm = !*arm;
+        assert!(zil_analyze::analyze(&raw, &limits).is_err(), "{name}");
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let errors =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
     let input = source(
         "resource R{code:i32}package P{manages owner:R;n:i32}fn read(n:&i32)->i32{return *n}fn touch(p:&mut P)->i32{p.n=66;return p.n}fn replace(target:&mut P){target.owner=R{code:read(&target.n)}}fn result()->i32{var p=P{owner:R{code:65},n:66};replace(&mut p);return 42}",
