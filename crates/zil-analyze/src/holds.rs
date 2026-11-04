@@ -3647,7 +3647,10 @@ fn inline_address_field_root(
         return Err(bad("inline field base is not an address"));
     };
     b.type_work(inner, true, "inline address field shape")?;
-    if !inner.is_copy_value() || !matches!(inner.as_ref(), Type::Tuple(_) | Type::Record { .. }) {
+    if !matches!(
+        inner.as_ref(),
+        Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+    ) {
         return Ok(root);
     }
     fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
@@ -3736,4 +3739,152 @@ fn inline_address_field_root(
         }
         root => root,
     })
+}
+
+fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    use zil_ir::PlaceProjection;
+    fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "mixed inline root interval")?;
+        let mut n = 1u32;
+        let mut add = |t: &Type| -> CompileResult<()> {
+            n = n.checked_add(width(t, b)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "mixed interval overflow",
+                    None,
+                )]
+            })?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?;
+                }
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(n)
+    }
+    let mut ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("mixed root local absent"))?
+        .ty;
+    let mut start = 0u32;
+    for step in path {
+        b.spend(1, "mixed inline root interval")?;
+        start = start.checked_add(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Analyze,
+                "mixed interval overflow",
+                None,
+            )]
+        })?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(i), Type::Tuple(fs)) => {
+                for t in fs.iter().take(*i as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fs.get(*i as usize)
+            }
+            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+                for (_, t) in fields.iter().take(*i as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fields.get(*i as usize).map(|(_, t)| t)
+            }
+            (PlaceProjection::Variant(p), Type::Enum { variants, .. }) => {
+                for (_, fs) in variants.iter().take(p.variant as usize) {
+                    for t in fs {
+                        start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Analyze,
+                                "mixed interval overflow",
+                                None,
+                            )]
+                        })?;
+                    }
+                }
+                let fs = &variants
+                    .get(p.variant as usize)
+                    .ok_or_else(|| bad("mixed actual place route invalid"))?
+                    .1;
+                for t in fs.iter().take(p.index as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fs.get(p.index as usize)
+            }
+            (PlaceProjection::ErrorArm(e), Type::ErrorUnion { error, result }) => {
+                if !*e {
+                    start = start.checked_add(width(error, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                Some(if *e { error.as_ref() } else { result.as_ref() })
+            }
+            _ => None,
+        }
+        .ok_or_else(|| bad("mixed actual place route invalid"))?;
+    }
+    let length = if header {
+        if !matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+            return Err(bad("mixed actual place route invalid"));
+        }
+        1
+    } else {
+        width(ty, b)?
+    };
+    let end = start.checked_add(length).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Analyze,
+            "mixed interval overflow",
+            None,
+        )]
+    })?;
+    Ok(Root::Projection(local, start, end))
 }

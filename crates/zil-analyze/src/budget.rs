@@ -16,6 +16,7 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
     pub(super) helper_edges: usize,
@@ -45,6 +46,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
             helper_edges: limits.max_analysis_steps,
@@ -314,7 +316,7 @@ fn local_value(
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     if let Type::Address { inner, .. } = ty
-        && matches!(inner.as_ref(), Type::Enum { .. })
+        && matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..})
     {
         return super::resources::sums::admit(module, inner, budget).map(|_| false);
     }
@@ -425,7 +427,7 @@ pub(super) fn preflight(
         let root = ty as *const Type as usize;
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
-        let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Enum{..}))
+        let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
             && store_element.is_none()
             && capture_owner.is_none()
             && !resource_head;
@@ -1001,13 +1003,12 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
-                    InstructionKind::TakeTupleField { .. }
-                    | InstructionKind::TakeVariantField { .. } => {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "partial inline ownership consumer is under implementation",
-                            Some(instruction.span),
-                        )]);
+                    InstructionKind::TakeTupleField{local,path}|InstructionKind::TakeVariantField{local,path}|InstructionKind::BorrowPlaceLocal{local,path,..}|InstructionKind::PlaceTagLocal{local,path}=>{
+                        sum_function=true;budget.addressed_sums=true;
+                        if local.0 as usize>=function.locals.len(){return Err(bad("mixed local place outside table"));}
+                        count(0,path.len(),limits.max_call_depth,"mixed local path")?;
+                        budget.input(path.len().saturating_mul(3).saturating_add(1),"mixed local path preflight")?;
+                        if path.is_empty() && !matches!(instruction.kind,InstructionKind::PlaceTagLocal{..}){return Err(bad("mixed local path must be nonempty"));}
                     }
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {
                         budget.addressed_sums = true;
