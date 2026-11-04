@@ -9,22 +9,22 @@
 | ID | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
-| G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 实现待验 | P0 | root / g10_1_review | [C39][c39] / [C40][c40]修复已实现；由 root / g10_1_review 在 G10.1 复核。 |
-| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | root / g1_3 | [G1.3.1](https://github.com/zil-lang/zil/tree/8d80f87ee320bc4837a7d57623460194c41b9254) 已闭合局部 Store 元素字段替换并独审，已组合 PR36；跨 helper 的实例失效关系由 G1.3.2 继续。 |
+| G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
+| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / g10_1_review | 局部 Store 元素字段替换已[合入][e41]；G1.3.2 跨 helper 失效及借入闭包修正独审中。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
-| G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 实现待验 | P0 | root / g10_1_review | [C40][c40] 已有两核及原生检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | g8_4_front | G2.3.1 已复现 Self 依赖常量缺口并确定逐 impl 的核验/求值方案，正在接既有 CT 链；一般投影、蕴含和泛型组合仍缺。 |
+| G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
+| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | g8_4_front | G2.3.1 已打通有限Self依赖常量的真实CT求值，源码正反例通过；预算、缓存及机器结果继续验证，一般投影和泛型组合仍缺。 |
 | G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
-| G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 实现待验 | P0 | root / g10_1_review | [C39][c39] / [C40][c40] 已有 role 检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 标量捕获及[G3.3.1实际life类修复](https://github.com/zil-lang/zil/tree/99b03ae59768aedd4d5f79e045275c6e74d08252)已独审并组合；G3.3.2正在复核外层Fixed接口，尚无实现。 |
+| G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
+| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 标量捕获、Once责任及实际life类修复已[合入][e41]；G3.3.2 外层Fixed接口及真实地址锚正在准备，尚未实现。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
-| G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 实现待验 | P0 | root / g10_1_review | [C39][c39] 已有限定独审和原生检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 实现待验 | P0 | root / g10_1_review | [C40][c40] 已有上下文及原生检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root | 成员CT及[G4.4.1子值上下文修复](https://github.com/zil-lang/zil/tree/d1b7867ba21b38784d076eaa8337c3b0163e9be4)已独审并组合；完整实参向量/生成life仍缺。 |
+| G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 已合入 | — | — | [本批验收][e41]；CT4 全序号及原源重实体化已通过共同验收。 |
+| G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 已合入 | — | — | [本批验收][e41]；CT5 实际上下文、键与物理字节计费已通过共同验收。 |
+| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root / g4_4 | 成员CT和子值上下文修复已[合入][e41]；完整实参向量/生成life仍缺，与G3.3.2接口协调。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
 | G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有前端；实际消费者待接。 |
@@ -39,9 +39,9 @@
 | G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 待排期 | P1 | 待派 | 与 G8.4 联合实施；需证明关闭后 raw 入口静止。 |
 | G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 待排期 | P1 | 待派 | 依赖 G7.2、G7.3、G8.4、G8.6。 |
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
-| G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 实现待验 | P0 | root / g10_1_review | [Task 复核][task40]；由 root / g10_1_review 在 G10.1 复核，不覆盖通用 frame port/拥有 Sum。 |
-| G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 实现待验 | P0 | root | [源码交付及作者收据](https://github.com/zil-lang/zil/blob/e797559b51cef6ccc75377caf55270ea8fc7a927/docs/validation/G8.3-cas-source.json)；非作者限定复核11项通过，待共同回归合入。 |
-| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 实现待验 | P1 | root / g3_3 | [A源码及两核](https://github.com/zil-lang/zil/tree/3a3b7649d40b5f12eca6882d94fe0d5654732e94)已限定独审；[B机器消费者](https://github.com/zil-lang/zil/tree/43881a0965c490a7086bf12199b9e9247c3df99f)已冻结，真实Pending排空/晚通知/父子await通过作者检查，独审及共同全量待完成。 |
+| G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 已合入 | — | — | [本批验收][e41]；有限静态拥有 Task/child 已通过共同验收；通用 frame port/拥有 Sum 仍另列。 |
+| G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 已合入 | — | — | [本批验收][e41]；源码 CAS、两核/Wire、原生争用与错误次序控制已通过共同验收。 |
+| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 实现待验 | P1 | root | A源码/两核及B机器消费者均已独审；[G8.4.2组合](https://github.com/zil-lang/zil/tree/a5972e08b9fdea76ef44d881f811ca3a753bc061)限定复核通过，待完整双配置及release验收。 |
 | G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
 | G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.1、G6.2、G8.2、G8.4。 |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
@@ -51,7 +51,7 @@
 | G9.5 | 字体/文本布局、渲染呈现及输入到绘制的真实闭环 | 待排期 | P2 | 待派 | 与 G9.4 协调；需实际字体、呈现和输入链路。 |
 | G9.6 | 真实ZUI应用集成、资源失败/关闭及维护场景 | 待排期 | P2 | 待派 | 依赖 G9.3、G9.4、G9.5 及必要语言能力。 |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root | [PR36](https://github.com/zil-lang/zil/pull/36)候选318875：组合栈修复已独审，完整默认4617通过/0失败；reference全量正在运行，release消费者待复验。Clippy及工程检查通过；Actions因账单/额度未启动。 |
+| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | [本批验收][e41]；PR36 已合入 main；默认4617/0、reference4505/0、text70/0及release145命令通过。Actions因账单/额度未启动。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
@@ -66,3 +66,4 @@
 [task40]: https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/docs/validation/review343-task40-classifier-carrier-fee-correction.json
 [ui]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-345-ui.json
 [ui-review]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/review345-ui-terminal-architecture.json
+[e41]: https://github.com/zil-lang/zil/blob/ace4e70eb10fc86490da7e4c51fd1441b4a3d384/docs/validation/G10.1-common41-acceptance.json
