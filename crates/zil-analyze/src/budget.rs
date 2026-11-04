@@ -49,6 +49,7 @@ pub(super) struct Budget {
     pub(super) async_registrations: bool,
     pub(super) stored_borrows: bool,
     pub(super) capture_relations: bool,
+    pub(super) stored_owned_fixed: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -90,6 +91,7 @@ impl Budget {
             async_registrations: false,
             stored_borrows: false,
             capture_relations: false,
+            stored_owned_fixed: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -992,7 +994,10 @@ pub(super) fn preflight(
 
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
-                if !super::stored_callables::capture(ty) {
+                if !super::stored_callables::capture(ty)
+                    && !(closure.kind == zil_ir::CallableKind::FnOnce
+                        && super::stored_callables::owned_capture(ty, budget)?)
+                {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
                         "capture-grounded Fixed requires scalar/shared Address captures",
