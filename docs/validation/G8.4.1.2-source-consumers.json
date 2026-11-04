@@ -9,13 +9,15 @@
       "6e3d9a0e0689151c74c3db760d6d0d13b6a6270f",
       "05d8eadd1",
       "044cf3d1a",
-      "acfe5e4ecd2435ec2d55aca991317f7ec2f52b61"
+      "acfe5e4ecd2435ec2d55aca991317f7ec2f52b61",
+      "5a03eebfc"
     ],
     "local_cherry_picks": [
       "c5ae59cb0",
       "9b323fde0",
       "a0b493b88",
-      "fc79bf3e1"
+      "fc79bf3e1",
+      "df7af4aac32f19ef0930c7e2e066ba39cf414a0d"
     ],
     "interface": "Each kernel independently reconstructs actual Task<T> origins for LIVE whole/partial Direct cleanup, FnOnce remaining-environment cleanup and synchronous FFI callback consumers; sealed legacy TaskStart separately proves the complete NoExternal worker graph."
   },
@@ -99,5 +101,17 @@
     "verify": 27876,
     "n_minus_1": "ResourceLimit",
     "fresh_n": "Pass"
+  },
+  "post_checkpoint_origin_fix": {
+    "source_commit": "df7af4aac32f19ef0930c7e2e066ba39cf414a0d",
+    "change": "Independent origin forwarding for TakeErrorUnion/TakeVariantField/TakeTupleField/BorrowPlaceLocal; eight source lines, no schema change.",
+    "incremental_checks": {
+      "async_registration_g8412": "3 Pass; N6012/7928 unchanged",
+      "old_sync_registration_raw_wire_budgets": "1 Pass; N15739/27876 unchanged",
+      "old_sync_registration_source": "1 Pass",
+      "changed_kernel_strict_clippy": "Pass",
+      "fmt": "Pass"
+    },
+    "cache_handling": "After serial reuse of target341 for the common fe69 tree, Cargo initially selected stale IR artifacts. Rebuilt the unchanged A source inputs; only the subsequent successful run is counted."
   }
 }
