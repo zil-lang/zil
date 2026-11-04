@@ -212,7 +212,7 @@ impl Expander<'_> {
                     if life.is_some() {
                         lifetimes::signature_type(self, t)
                     } else {
-                        self.type_ref(t)
+                        self.dyn_type_ref(t)
                     }
                 })
             },
