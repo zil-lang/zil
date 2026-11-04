@@ -2907,6 +2907,7 @@ impl Wire for CtArtifactProgram {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             self.schema_version.encode(e)?;
+            self.target_pointer_width.encode(e)?;
             self.source_fingerprint.encode(e)?;
             self.functions.encode(e)?;
             self.entry.encode(e)?;
@@ -2924,6 +2925,7 @@ impl Wire for CtArtifactProgram {
         d.descend(|d| {
             Ok(Self {
                 schema_version: <u32 as Wire>::decode(d)?,
+                target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,
