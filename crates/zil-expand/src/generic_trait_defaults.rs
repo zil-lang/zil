@@ -259,11 +259,13 @@ impl Engine<'_> {
         no_new_borrows(member, &mut self.budget)?;
         self.check_default_reference_result(&function, &bounds)?;
         let mut calls = trait_instances::Calls::new();
-        let checked = consts::definition(&function, &mut self.budget)?;
+        let checked =
+            consts::definition(&function, &mut self.budget, self.traits.has_instances, None)?;
         check::validate_parametric_with_bounds(
             &checked,
             check::ParametricTables {
                 source_definition: Some(&function),
+                expression_origins: checked.source_ids.as_ref(),
                 definition_equations: None,
                 nominals: &self.nominals,
                 enums: &self.enums,
@@ -438,8 +440,28 @@ impl Engine<'_> {
             self.budget.ty(&implementation.target)?;
             substitutions.clear();
             substitutions.insert("Self".into(), implementation.target.clone());
+            let anchors = if self.traits.has_generic_methods {
+                let resolved = trait_instances::resolve_generic_calls(
+                    &calls,
+                    &substitutions,
+                    &mut self.budget,
+                    member.span,
+                )?;
+                Some(trait_instances::anchor_resolved_calls(
+                    &body,
+                    resolved,
+                    &mut self.budget,
+                )?)
+            } else {
+                None
+            };
             self.budget.substituted_item(&body, &substitutions)?;
             substitute_item(&mut body, &substitutions)?;
+            let remapped = anchors
+                .map(|anchors| {
+                    trait_instances::rekey_anchored_calls(&body, anchors, &mut self.budget)
+                })
+                .transpose()?;
             let helper =
                 self.default_body_name(&reference, &implementation.target, method, span)?;
             self.budget.item(&body)?;
@@ -474,13 +496,8 @@ impl Engine<'_> {
                 },
                 span: member.span,
             });
-            if self.traits.has_generic_methods {
-                let resolved = trait_instances::resolve_generic_calls(
-                    &calls,
-                    &substitutions,
-                    &mut self.budget,
-                    member.span,
-                )?;
+            if let Some(resolved) = remapped {
+                self.budget.text(&helper, member.span)?;
                 self.resolved_method_calls.insert(helper.clone(), resolved);
             }
             trait_instances::rename_default_receiver(&mut body, &mut self.budget)?;

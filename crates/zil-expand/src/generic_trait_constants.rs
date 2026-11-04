@@ -456,6 +456,7 @@ impl Engine<'_> {
                 &checked,
                 check::ParametricTables {
                     source_definition: Some(&checked),
+                    expression_origins: None,
                     definition_equations: (self.traits.has_generic_methods
                         && !equations.is_empty())
                     .then_some(equations),

@@ -225,16 +225,31 @@ pub(super) fn length_key(value: &Expr, found: &BTreeMap<String, TypeRef>) -> R<S
 
 /// Validate the body with immutable scalar parameters, never with a fortunate
 /// concrete value. The original function and call signature remain untouched.
+pub(super) struct Definition<'a> {
+    function: Cow<'a, Function>,
+    pub(super) source_ids: Option<BTreeMap<usize, usize>>,
+}
+impl std::ops::Deref for Definition<'_> {
+    type Target = Function;
+    fn deref(&self) -> &Function {
+        &self.function
+    }
+}
 pub(super) fn definition<'a>(
     function: &'a Function,
     budget: &mut Budget<'_>,
-) -> R<Cow<'a, Function>> {
+    track_calls: bool,
+    origins: Option<BTreeMap<usize, usize>>,
+) -> R<Definition<'a>> {
     if !function
         .generics
         .iter()
         .any(|p| matches!(p.kind, GenericParamKind::Const(_)))
     {
-        return Ok(Cow::Borrowed(function));
+        return Ok(Definition {
+            function: Cow::Borrowed(function),
+            source_ids: origins,
+        });
     }
     budget.const_function(function)?;
     // Charge the borrowed function before cloning it or any additional header.
@@ -362,6 +377,34 @@ pub(super) fn definition<'a>(
         }
     }
     let mut checked = function.clone();
+    // Clone preserves source structure here. Record node origins BEFORE the
+    // definition-only const substitution can insert Type-embedded expressions.
+    // Only receiver objects (owned Boxes) consume these keys across the move.
+    let source_ids = if track_calls {
+        let checked_ids = trait_instances::expression_ids(&checked.body, budget)?;
+        if let Some(origins) = origins {
+            let current_ids = trait_instances::expression_ids(&function.body, budget)?;
+            let mut by_ordinal = BTreeMap::new();
+            for (pointer, ordinal) in current_ids {
+                budget.node(function.span, 0)?;
+                if let Some(original) = origins.get(&pointer) {
+                    by_ordinal.insert(ordinal, *original);
+                }
+            }
+            let mut mapped = BTreeMap::new();
+            for (pointer, ordinal) in checked_ids {
+                budget.node(function.span, 0)?;
+                if let Some(original) = by_ordinal.get(&ordinal) {
+                    mapped.insert(pointer, *original);
+                }
+            }
+            Some(mapped)
+        } else {
+            Some(checked_ids)
+        }
+    } else {
+        None
+    };
     let mut substitutions = BTreeMap::new();
     for (ordinal, parameter) in function
         .generics
@@ -409,7 +452,10 @@ pub(super) fn definition<'a>(
     let ItemKind::Function(checked) = item.kind else {
         unreachable!()
     };
-    Ok(Cow::Owned(checked))
+    Ok(Definition {
+        function: Cow::Owned(checked),
+        source_ids,
+    })
 }
 
 pub(super) fn scoped_name<'a>(
