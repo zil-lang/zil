@@ -423,15 +423,17 @@
       "authority": "_zil_design.md §15.2",
       "state": "ContractToImplement",
       "Type": "existing structural Type::Tuple",
-      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1; bounded nonempty actual path",
+      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1 | ErrorArm(bool is_error) tag2; bounded actual mixed path",
       "instructions": {
         "114": "MakeOwnedTuple {fields:Vec<ValueId>}",
         "115": "UnpackTuple {local,fields:Vec<LocalId>}",
         "116": "DropTuple {local}",
         "117": "TakeTupleField {local,path:Vec<PlaceProjection>}",
-        "118": "TakeVariantField {local,path:Vec<PlaceProjection>}"
+        "118": "TakeVariantField {local,path}; actual Enum/ErrorUnion root, exact active initialized subtree",
+        "119": "BorrowPlaceLocal {local,path,mutable}; nonempty path, actual precise initialized child interval",
+        "120": "PlaceTagLocal {local,path}; empty allowed, final live Enum/ErrorUnion header; i32 Enum ordinal/ErrorUnion0success1error"
       },
-      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness"
+      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness; test all pattern discriminants before borrow/move, mixed ancestors checked and paid, partial live parent header grants no payload/whole replacement authority"
     },
     "terminal_higher_ranked_callable_342": {
       "authority": "_zil_design.md §18.1",
