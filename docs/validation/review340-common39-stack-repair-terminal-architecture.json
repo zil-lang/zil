@@ -1,0 +1,82 @@
+{
+  "status": "PassLimitedCommon39DefaultStackRepair",
+  "source": "f2597ea0af42bb16f1bc3353f71aa424642a282e",
+  "production_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-source-binding.json",
+    "sha256": "4199d6a839a2a44fb2277059559310e68b73d7d2dbd6292dba1fca717bcadc1f"
+  },
+  "production_files": 419,
+  "production_digest": "5f5f27f1210e5da07cd5f38c29ec859b338240b5e8c346b2d92294b1f3aa0d7b",
+  "test_files": 74,
+  "test_digest": "123572b4eb3ba446483393bb7e7cb57c2416713276857a94c93b2a6bc2b843e1",
+  "method": "Read-only independent production review and replay of exact SHA-bound author-built harnesses; no independent rebuild. Git production/test manifests independently reproduce author receipt.",
+  "replays": [
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-aggregates",
+        "sha256": "c998b3543355555eb63871cb6e7d54a2577a076b68f2ec97f3606bfdbc2cf8a1"
+      },
+      "selector": "nested_calls_reach_verify_or_resource_limit_on_default_worker_stack",
+      "result": "1 passed; unchanged five modes at depths32/64/96/112/124 Verify,126 Parse ResourceLimit; node2348/2347 and depth197/196 warm/fresh",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-nested.log",
+        "sha256": "38f1cc8c43646e97077b468b72d90dea4ce206b8ad1256144de6dfbcf805f695"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-aggregates",
+        "sha256": "c998b3543355555eb63871cb6e7d54a2577a076b68f2ec97f3606bfdbc2cf8a1"
+      },
+      "selector": "large_copy_enum_error_default_stack_api_reliability",
+      "result": "1 passed; Clang/LLVM API O0/O2 actual stdout30, no fallback",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-large.log",
+        "sha256": "a22ee0f87bb9f1c5b18612881c53c3c074399b536700a913317395c856aa33ee"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-aggregates",
+        "sha256": "c998b3543355555eb63871cb6e7d54a2577a076b68f2ec97f3606bfdbc2cf8a1"
+      },
+      "selector": "nested_conversions_with_unrelated_generic_methods_keep_default_stack",
+      "result": "1 passed; ordinary worker plus unrelated generic methods, bare numeric depths32/96/124 and grouped numeric32",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-method-stack.log",
+        "sha256": "5bdaf89b014d905dc9281a18dfc51ed9c1af6bced65b380925970432fb7ce6bf"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-generics",
+        "sha256": "b999ef4e8cbec2f148d350a3e58a9aba68841238289b30da7480e6962d5f2195"
+      },
+      "selector": "terminal341_generic_methods",
+      "result": "2 passed,0 failed",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-methods.log",
+        "sha256": "b76dab275db918846e3350438807275655d913e733b19ef9bbc147f6d209ad30"
+      }
+    },
+    {
+      "harness": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-expand",
+        "sha256": "c4f10bb771c33e19211da932c725db098e097a13047bf522851b7119591906c3"
+      },
+      "selector": "entire existing library harness",
+      "result": "21 passed,0 failed,0 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/stack39fix340-expand.log",
+        "sha256": "875b6995f775603000bf690867de3f944b0d05fd3e1757630ec77033a64f1647"
+      }
+    }
+  ],
+  "review": [
+    "Tiny numeric dispatch selects only the existing reserved bare/grouped numeric converter and calls its unchanged argument/body checker; other calls keep the original dispatch sequence.",
+    "The method feature/syntax guard excludes ordinary calls before allocating provider/witness frames; the selected method implementation is separately non-inlined.",
+    "The original stack test explicitly removes RUST_MIN_STACK and uses std::thread::spawn. No stack limit or language budget was raised."
+  ],
+  "history": "The earlier exact03fa conversion overflow and the failed method-guard-only attempt remain recorded. This corrects the identified common39 regression; the d2fe concrete capture result remains a distinct source/test review.",
+  "scope": "26 independently replayed tests. Author full aggregate143/0 and Clippy are author construction evidence, not independently replayed here. No full-workspace or terminal-language completion claim."
+}

@@ -282,6 +282,30 @@ fn link(
     }
     unsupported("unsupported complete Sum cleanup leaf", None)
 }
+
+/// Continuations share the actual ordinary leaf cleanup selection. This
+/// returns no second ownership rule and is called only for canonical slots
+/// carried by the immutable verified responsibility artifact.
+pub(super) fn task_leaf(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    meter: &tasks::Meter,
+) -> CompileResult<Option<String>> {
+    let mut bounded = limits.clone();
+    bounded.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&bounded);
+    let result = link(ty, resources, &mut budget, 0);
+    meter.spend(budget.spent())?;
+    match result? {
+        DropPlan::Empty => Ok(None),
+        DropPlan::Leaf(symbol) => Ok(Some(symbol)),
+        _ => unsupported(
+            "continuation canonical slot needs ordinary complete cleanup helper",
+            None,
+        ),
+    }
+}
 fn product_plan(
     ty: &Type,
     fields: &[&Type],
@@ -911,4 +935,74 @@ mod impl243_plan_tests {
         limits.max_analysis_steps = new_n;
         assert!(functions(&owning.as_view(), &limits, true, EntryPoint::None).is_ok());
     }
+}
+
+/// Whole SSA packages introduced by verified continuation transfers use the
+/// same complete ordinary cleanup recipe. Local partial fields have their own
+/// canonical debt slots, so this never drops an aggregate and its leaves twice.
+pub(super) fn task_helpers(
+    verified: &VerifiedModule,
+    meter: &tasks::Meter,
+) -> CompileResult<m::Code> {
+    if verified.task_worker_ids().is_empty() {
+        return Ok(m::Code::new());
+    }
+    let mut limits = verified.limits().clone();
+    limits.max_analysis_steps = meter.remaining();
+    let mut budget = Budget::new(&limits);
+    let result = (|| {
+        let mut found = BTreeMap::new();
+        for id in verified.task_worker_ids() {
+            budget.pay(0, 1)?;
+            let Some(ownership) = verified.task_ownership(*id) else {
+                continue;
+            };
+            for owner in ownership.owners() {
+                let ty = owner.ty();
+                budget.tree(ty, 0)?;
+                if !matches!(ty, Type::Package { .. }) || new_shape(ty) {
+                    continue;
+                }
+                budget.tree(ty, 0)?;
+                budget.pay(0, found.len().saturating_add(1))?;
+                let hash = key(ty);
+                if let Some(previous) = found.insert(hash, ty) {
+                    budget.tree(ty, 0)?;
+                    if previous != ty {
+                        return invalid(
+                            "E-CODEGEN-SUM-HASH",
+                            "distinct task SSA packages share a cleanup key",
+                            None,
+                        );
+                    }
+                }
+            }
+        }
+        let mut code = m::Code::new();
+        for ty in found.values() {
+            let p = plan(ty, &verified.module().resources, &mut budget, 0)?;
+            let mut emitter = Emitter {
+                code: m::Code::new(),
+                next: 0,
+            };
+            emitter.code.push(m::Event::Begin(m::Function {
+                name: symbol(ty),
+                linkage: m::Linkage::Internal,
+                signature: m::Signature::new(
+                    m::Ty::Void,
+                    vec![m::Param::new(m::Ty::Ptr, "payload")],
+                ),
+                attrs: vec![],
+                blocks: None,
+            }));
+            emitter.code.push(m::Event::Label("entry".into()));
+            emitter.emit(&p, "payload");
+            emitter.inst(None, m::Op::Return(None));
+            emitter.code.push(m::Event::End);
+            code.append(emitter.code);
+        }
+        Ok(code)
+    })();
+    meter.spend(budget.spent())?;
+    result
 }

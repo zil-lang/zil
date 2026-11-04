@@ -128,10 +128,24 @@ impl Engine<'_> {
                 for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
                     self.expr_expected(&mut argument.value, env, Some(&parameter.ty), depth + 1)?;
                 }
-                let result = signature
+                let mut result = signature
                     .return_type
                     .clone()
                     .unwrap_or_else(|| named("void", e.span));
+                let owning_result = signature.contract.iter().any(|clause| clause.name == "result"
+                    && matches!(clause.terms.as_slice(), [term] if term.type_args.is_empty() && term.arguments.is_empty() && term.index.is_none() && matches!(term.path.as_slice(), [mode] if mode == "give" || mode == "create")));
+                if owning_result
+                    && !matches!(&result.kind,TypeKind::Named{path,..} if path.as_slice()==["Managed"])
+                {
+                    self.budget.ty(&result)?;
+                    result = TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Named {
+                            path: vec!["Managed".into()],
+                            args: vec![GenericArg::Type(result)],
+                        },
+                    };
+                }
                 let mut result = TypeRef {
                     span: e.span,
                     kind: TypeKind::Error {
@@ -218,6 +232,26 @@ impl Engine<'_> {
         Ok(None)
     }
     pub(super) fn expr_call_normal(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        context: ExprExpectedContext<'_>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        // Reserved bare/grouped numeric names cannot select a trait member or
+        // another primitive family. Keep their recursive argument visit out
+        // of the ordinary call-state and Task-construction stack frames.
+        if let ExprKind::Call { callee, arguments } = &mut e.kind
+            && let Some(name) = crate::integer_conversion_name(callee)
+        {
+            return self
+                .expr_call_conversion(arguments, e.span, env, name, depth)
+                .map(|result| result.expect("numeric conversion handler"));
+        }
+        self.expr_call_selected(e, env, context, depth)
+    }
+    #[inline(never)]
+    fn expr_call_selected(
         &mut self,
         e: &mut Expr,
         env: &mut Env,

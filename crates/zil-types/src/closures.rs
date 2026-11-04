@@ -2108,6 +2108,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 format!("unknown value {name}"),
             ));
         };
+        if let Type::Address { inner, .. } = ty
+            && matches!(
+                inner.as_ref(),
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            )
+        {
+            owned_shapes::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
+        }
         if ty.is_package_address() {
             let Type::Address {
                 mutable: false,
@@ -2241,6 +2249,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             {
                 (inner.as_ref(), Some(*mutable))
             }
+            Type::Address { mutable, inner }
+                if matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
+            {
+                (inner.as_ref(), Some(*mutable))
+            }
             Type::Address {
                 mutable: false,
                 inner,
@@ -2292,6 +2308,32 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.captured_variables.insert(*local, value);
         Ok(value)
     }
+    fn pattern_needs_mutable(&mut self, pattern: &CorePattern, depth: usize) -> R<bool> {
+        self.visit(depth, pattern.span)?;
+        match &pattern.kind {
+            CorePatternKind::Reference { mutable, pattern } => {
+                Ok(*mutable || self.pattern_needs_mutable(pattern, depth + 1)?)
+            }
+            CorePatternKind::ErrorArm { pattern, .. } => {
+                self.pattern_needs_mutable(pattern, depth + 1)
+            }
+            CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
+                for field in fields {
+                    if self.pattern_needs_mutable(field, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn pattern_local(&self, variable: Variable, span: Span) -> R<LocalType> {
+        Ok(match self.graph.address_shape(variable, span)? {
+            Some((inner, Some(mutable))) => LocalType::Address(inner, mutable),
+            _ => LocalType::Scalar(variable),
+        })
+    }
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.visit(depth, block.span)?;
         self.scopes.push(BTreeMap::new());
@@ -2309,12 +2351,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         variable.bind(&mut self.graph, ty, statement.span)?;
                     }
                     let value = variable.scalar(statement.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(initializer, depth + 1)?;
+                    }
                     for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
+                        let value = self.pattern_local(variable, span)?;
                         if self
                             .scopes
                             .last_mut()
                             .expect("scope")
-                            .insert(name.clone(), LocalType::Scalar(variable))
+                            .insert(name.clone(), value)
                             .is_some()
                         {
                             return Err(error(
@@ -2419,13 +2465,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     then_body,
                     else_body,
                 } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(value, depth + 1)?;
+                    }
                     self.scopes.push(BTreeMap::new());
-                    for (name, variable, _) in self.graph.pattern_bind(pattern, value)? {
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                        let value = self.pattern_local(variable, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
-                            .insert(name, LocalType::Scalar(variable));
+                            .insert(name, value);
                     }
                     self.block(then_body, depth + 1)?;
                     self.scopes.pop();
@@ -2438,13 +2488,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     value,
                     body,
                 } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    if self.pattern_needs_mutable(pattern, depth + 1)? {
+                        self.mark_address_write(value, depth + 1)?;
+                    }
                     self.scopes.push(BTreeMap::new());
-                    for (name, variable, _) in self.graph.pattern_bind(pattern, value)? {
+                    for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
+                        let value = self.pattern_local(variable, span)?;
                         self.scopes
                             .last_mut()
                             .expect("pattern scope")
-                            .insert(name, LocalType::Scalar(variable));
+                            .insert(name, value);
                     }
                     self.block(body, depth + 1)?;
                     self.scopes.pop();
@@ -2469,14 +2523,20 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     self.scopes.pop();
                 }
                 CoreStatementKind::Match { value, arms } => {
-                    let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                    let variable = self.expr(value, depth + 1)?.scalar(value.span)?;
                     for arm in arms {
+                        if self.pattern_needs_mutable(&arm.pattern, depth + 1)? {
+                            self.mark_address_write(value, depth + 1)?;
+                        }
                         self.scopes.push(BTreeMap::new());
-                        for (name, variable, _) in self.graph.pattern_bind(&arm.pattern, value)? {
+                        for (name, variable, span) in
+                            self.graph.pattern_bind(&arm.pattern, variable)?
+                        {
+                            let value = self.pattern_local(variable, span)?;
                             self.scopes
                                 .last_mut()
                                 .expect("pattern scope")
-                                .insert(name, LocalType::Scalar(variable));
+                                .insert(name, value);
                         }
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();

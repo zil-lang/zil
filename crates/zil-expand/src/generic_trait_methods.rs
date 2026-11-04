@@ -751,6 +751,29 @@ impl Engine<'_> {
         let ExprKind::Call { callee, .. } = &expression.kind else {
             return Ok(());
         };
+        let member = match &callee.kind {
+            ExprKind::TypeApply { callee, .. } => &callee.kind,
+            kind => kind,
+        };
+        if !matches!(
+            member,
+            ExprKind::Member {
+                member: MemberName::Name(_) | MemberName::Constrained { .. },
+                ..
+            }
+        ) {
+            return Ok(());
+        }
+        self.method_call_selected(expression, env, depth)
+    }
+
+    // The provider/witness locals must not occupy ordinary recursive calls,
+    // including requests that contain unrelated generic method declarations.
+    #[inline(never)]
+    fn method_call_selected(&mut self, expression: &mut Expr, env: &Env, depth: usize) -> R<()> {
+        let ExprKind::Call { callee, .. } = &expression.kind else {
+            return Ok(());
+        };
         let (member_expr, explicit) = match &callee.kind {
             ExprKind::TypeApply { callee, arguments } => (callee.as_ref(), Some(arguments)),
             _ => (callee.as_ref(), None),

@@ -1,9 +1,40 @@
 //! Capture from actual original syntax before a transforming producer moves it.
 //! The resulting rows name declarations; they carry no safety authority.
 use super::*;
+use crate::ct_selection::Visitor;
 use crate::generics::origins::Origins;
 use zil_base::{CompileResult, Limits};
-use zil_syntax::ast::Module;
+use zil_syntax::ast::{self as s, Module};
+
+struct Discovery<'a, 'l>(&'a mut Budget<'l>);
+impl Visitor for Discovery<'_, '_> {
+    fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+        self.0.node(span, depth).map_err(|error| vec![error])
+    }
+    fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+        self.0.text(text, span).map_err(|error| vec![error])
+    }
+    fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        let parameters = match &item.kind {
+            s::ItemKind::Aggregate(aggregate) => aggregate.generics.as_slice(),
+            s::ItemKind::Enum(enumeration) => enumeration.generics.as_slice(),
+            _ => &[],
+        };
+        for parameter in parameters {
+            self.node(parameter.span, depth)?;
+            if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                self.0.note_source_identity();
+            }
+        }
+        crate::ct_selection::walk_item(self, item, depth)
+    }
+    fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+        if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
+            self.0.note_dynamic();
+        }
+        crate::ct_selection::walk_type(self, ty, depth)
+    }
+}
 
 pub(crate) fn capture_original_impl(
     sources: &[SourceUnit],
@@ -40,7 +71,9 @@ pub(crate) fn capture_original_impl(
                     return Err(bad(module.span, "original source/module owner differs"));
                 }
                 for item in &module.items {
-                    budget.item(item)?;
+                    Discovery(&mut budget)
+                        .item(item, 0)
+                        .map_err(|mut errors| errors.remove(0))?;
                 }
             }
             if !budget.needs_source_identity() && !budget.has_stored_lifetimes() {

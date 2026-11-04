@@ -133,6 +133,40 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
             .flat_map(|b| &b.instructions)
             .any(|i| matches!(i.kind, zil_ir::InstructionKind::LoadStoredBorrow { .. }))
     }));
+    let mut low = 1;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let tight = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        if zil_types::check(&core, &target, &tight).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let tight = Limits {
+        max_analysis_steps: high,
+        ..limits.clone()
+    };
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    assert_eq!(
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: high - 1,
+                ..limits.clone()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::ResourceLimit
+    );
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    eprintln!("stored source Types work N={high}; N-1 ResourceLimit; fresh N stable");
     let mut wrong = core.clone();
     wrong.aggregates[0].fields[0].ty = zil_ir::Type::I64;
     assert!(zil_types::check(&wrong, &target, &limits).is_err());
@@ -156,6 +190,78 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
         again, normalized,
         "normalization changes the actual stored identity"
     );
+    let mut exported = program.clone();
+    let make = exported.modules[0]
+        .core
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    let make_id = exported.modules[0].core.functions[make].id;
+    exported.modules[0].exports.push(make_id);
+    let first = zil_types::check_program(&exported, &target, &limits).unwrap();
+    let contract = exported.modules[0].core.functions[make]
+        .storage_life
+        .as_mut()
+        .unwrap();
+    contract.invocation_binder_count += 1;
+    contract.bindings.last_mut().unwrap().binder = zil_ir::StorageBinder::Invocation(1);
+    let altered = zil_types::check_program(&exported, &target, &limits).unwrap();
+    assert_ne!(
+        first.interfaces[0].signature_fingerprint, altered.interfaces[0].signature_fingerprint,
+        "an untrusted exported relation was erased from interface identity"
+    );
+}
+
+#[test]
+fn terminal341_retained_declaration_rows_survive_ct_removal() {
+    let scalar = "fn scalar(marker:Type,n:i32)->i32{return n}";
+    let view = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}";
+    let main = "fn main()->i32{return #(scalar(i32,0))}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-retained-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for (index, (text, expected)) in [
+        (format!("{scalar}{view}{main}"), 1),
+        (format!("import std.meta;{scalar}{view}{main}"), 2),
+        (format!("{view}{scalar}{main}"), 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                emit_dir: Some(directory.join(index.to_string())),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        assert!(dump.contains("life_declarations: ["), "{dump}");
+        let declaration = dump.split("life_declarations: [").nth(1).unwrap();
+        assert!(
+            declaration
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&format!("declaration:NodeId({expected},)")),
+            "{declaration}"
+        );
+        assert!(declaration.contains("\"View\""), "{declaration}");
+        assert!(!dump.contains("name: \"$module0_scalar\""), "{dump}");
+        if index == 1 {
+            assert!(dump.contains("imports: []"), "{dump}");
+        }
+    }
+    let _ = fs::remove_dir_all(directory);
 }
 
 #[test]

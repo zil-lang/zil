@@ -348,16 +348,83 @@
         "Two unlinked reservation inventory prototypes remain untracked outside delivered source; fences are not replacement functionality."
       ],
       "rust_goals": "Safety: invalid unused definitions now reject before erasure with actual source roots/modes. Runtime/memory: no new runtime op, ABI object or allocation. Expression/maintenance: ordinary last-use and disjoint sibling positives remain available, including address-return helper calls and fresh temporary conditions. Compile cost: two exact paid Expand boundaries plus source/raw request retries; no Rust performance comparison. Breakthrough: definition-time reference-pattern safety agrees with concrete independent kernels without relying on observed instantiations."
+    },
+    {
+      "name": "ordinary-captured-owning-address-and-derived-results",
+      "source_parent": "03faea4fb",
+      "result": "ScopedAuthorPassPendingIndependentReview",
+      "evidence": "Actual pointer captures of finite Tuple/Enum/ErrorUnion retain complete target identity and parent mode. Both inference layers preserve ref-mut pointer terms. Native selected paths and Drop markers run across Clang/API O0/O2, including actual Address function parameters, shared derived results that survive the local closure activation, disjoint sibling access, helper-returned children and last-use release. Independently reconstructed selected capture slots and actual Capture/Window return summaries substitute real target roots; SSA/loan ancestry remains separate from access footprints. Dead intermediate external capture windows are not reactivated as live whole-parent views when only the precise child survives. Independently live closure/input/other child windows remain active. Raw selected-slot rebound, mutable Fn capture and invalid slot index plus reordered parent TakeLocal reject Analyze, Verify and decoded Wire.",
+      "commands": [
+        "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture",
+        "cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes",
+        "cargo test -p zil-driver --features llvm-api --test impl184_lending",
+        "cargo clippy -p zil-analyze -p zil-verify --lib -- -D warnings",
+        "cargo test -p zil-analyze --lib sum_tests::",
+        "cargo test -p zil-verify --lib package_tests::sums",
+        "cargo test -p zil-verify --lib borrow"
+      ],
+      "gates": {
+        "terminal340": "50/0",
+        "new_capture_tests": "10/0",
+        "impl187_borrowed_bytes": "25/0",
+        "impl184_lending": "13/0",
+        "kernel_clippy_warnings": "Pass",
+        "full_workspace": "NotRun",
+        "full_aggregates": "Earlier WIP141/1; unchanged default-stack conversion regression independently reproduced on accepted03fa baseline. Exact full target held for separate stack fix; no full-pass claim.",
+        "types_clippy": "Blocked by preexisting shared Task hint.rs269 collapsible_if; no Types Clippy pass claimed.",
+        "analyze_sum": "26/0",
+        "verify_sum": "16/0",
+        "verify_borrow": "23/0"
+      },
+      "budgets": {
+        "source_full_request": 68065,
+        "analyze_raw": 66078,
+        "verify_raw": 68065,
+        "verify_decoded_wire": 68065,
+        "retry": "N/N-1/N succeeds/ResourceLimit/succeeds; source fresh/warm/fresh agree; default limits unchanged"
+      },
+      "original_source": "captured-owning-base-open.zil bytes retained. Its let-bound writing closure now reaches the ordinary FnMut E-CLOSURE-MUTABILITY rule. captured-owning-base.zil differs only by var f and executes with A42 newline. No invocation mutability rule weakened.",
+      "retained_executables": {
+        "aggregates": {
+          "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+          "sha256": "7b090b44c337c65b247069271e872ab3e1b50ec47a57eec908d096ea7f455017"
+        },
+        "impl187": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl187_borrowed_bytes-182a7c94849f47e8",
+          "sha256": "9a7919359fbdd236aebdc8306df43b1bdf1d1f284c83e404df8576b84db202d0"
+        },
+        "impl184": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl184_lending-3cc1146305c111e9",
+          "sha256": "80312aebf04407aa0f54fd8975e797e9d25cf7180ecce3e701fc0e8b20c558e5"
+        }
+      },
+      "source_binding": {
+        "algorithm": "Sorted unique git ls-files paths; feed UTF8(path), NUL, lowercase SHA256(file), LF into SHA256. Only root Cargo.lock.",
+        "production_selector": "(path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+        "production_count": 419,
+        "production_sha256": "7e9cca3b30683e494cb9381f93dea1f33a5c641a6b1159c5dfd158084b753eb6",
+        "test_selector": "All tracked terminal/340 paths plus exact driver aggregates.rs,impl187_borrowed_bytes.rs,impl030.rs,impl042.rs,impl260_member_owner.rs",
+        "test_count": 19,
+        "test_sha256": "d3c59d8223a74d0ba506424319c5d983a9da6a84553b1524fb7f93466d466790"
+      },
+      "limitations": [
+        "External owning-address lending through a callable parameter is explicitly Unsupported in both kernels. No symbolic carrier parameter is treated as its captured target; a complete ParameterCapture selector/substitution remains pending.",
+        "Transactional owning-place reservations121-124, selective Product-root/nested Package transfer, physical CT ErrorUnion values and unresolved anonymous generic precise refs remain open.",
+        "No full-workspace/formal performance or same-semantic Rust runtime/RSS/compile comparison.",
+        "Independent review pending at this candidate."
+      ],
+      "rust_goals": "Safety: real selected target/tag/mode/parent and independent raw/Wire forgeries, with source last-use/sibling controls. Runtime/memory: direct pointer environment fields and GEP payloads, no copied owners or new wrapper allocation; Rust timing/RSS not measured. Expression/maintenance: ordinary owning input addresses can be captured and yield shared child refs across local closure activation; callable-parameter generalization remains closed. Compile cost: all new slot/CFG/ancestry work prepaid on live kernel budgets and four exact retry boundaries; no Rust compile speed claim. Breakthrough: actual external owning aggregate storage now composes with local closures and returned references on both native implementations."
     }
   ],
   "remaining": [
-    "finite ordinary captured owning-base Address profile",
     "selective Product-root and nested consuming Package member patterns",
     "transactional actual owning-field replacement121-124",
     "physical CT ErrorUnion value construction/execution/patterns (coordinated344)",
     "remaining anonymous generic projected-ref expressiveness under unresolved member order",
-    "independent review of this combined root39 origin checkpoint",
-    "whole-language acceptance"
+    "whole-language acceptance",
+    "external owning-address lending callable-parameter slot substitution",
+    "independent review of ordinary captured-owning-address checkpoint",
+    "common39 unchanged nested-conversion default-stack regression (separate next fix)"
   ],
   "rust_goals": {
     "safety": "Typed and independent Wire verifier accept real inferred source; nearest nominal mismatch rejects. General safety is unfinished.",
@@ -385,7 +452,7 @@
     "ir_lib": 61,
     "independent_vec_fingerprint": 13,
     "focused_terminal340": 29,
-    "audit_fix": "Both independent main invalidators and both legacy106 endpoints invalidate Copy ErrorUnion tags while preserving missing children; retained source/raw/Wire success→error control rejects stale guard and repeated moved sibling",
+    "audit_fix": "Both independent main invalidators and both legacy106 endpoints invalidate Copy ErrorUnion tags while preserving missing children; retained source/raw/Wire success\u2192error control rejects stale guard and repeated moved sibling",
     "logs": {
       "root37-mixed-first.log": "49d245691a2f6a484b49f92e6cc9db7396211e2408cdea1bea30d6dd109fffa3",
       "root37-mixed-combined.log": "700ad11bea68fd9ecf7b4919909b59a75d15c1090dac49a913e560f4f471cd64",

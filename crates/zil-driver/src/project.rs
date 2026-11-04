@@ -575,6 +575,7 @@ impl CompilationSession {
                     Some(super::ct_artifact::materialize(
                         &project.modules, &parsed, selected_syntax, &project.paths, &imports,
                         project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
+                        selected.is_none(),
                     )?)
                 } else { None };
                 let mut runtime_imports = imports.clone();
@@ -599,20 +600,20 @@ impl CompilationSession {
                             }
                         }
                     }
-                    for (index, module) in result.modules.iter_mut().enumerate() {
-                        if !reachable.contains(&module.id) {
-                            module.items.clear();
+                    for index in 0..result.modules.len() {
+                        if !reachable.contains(&result.modules[index].id) {
+                            result.retain_items(index, |_| false)?;
                             runtime_imports[index].clear();
                             continue;
                         }
                         runtime_imports[index].retain(|import| reachable.contains(&import.module));
-                        module.items.retain(|item| match &item.kind {
+                        result.retain_items(index, |item| match &item.kind {
                             ast::ItemKind::Import(import) => {
                                 if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }
                                 project.paths.get(&import.path).is_none_or(|target| reachable.contains(target))
                             }
                             _ => true,
-                        });
+                        })?;
                     }
                 }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
@@ -620,7 +621,9 @@ impl CompilationSession {
                 let context=zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
                     root:project.root,
                     aliases:&project.paths,
-                    declarations:if selected.is_some() || ct_result.is_some() {
+                    declarations:if let Some(origins) = ct_result.as_ref().and_then(|result| result.declaration_origins.as_deref()) {
+                        zil_expand::source_context::DeclarationPlacement::Aligned(origins)
+                    } else if selected.is_some() || ct_result.is_some() {
                         zil_expand::source_context::DeclarationPlacement::Unavailable
                     } else {
                         zil_expand::source_context::DeclarationPlacement::Original
@@ -630,7 +633,7 @@ impl CompilationSession {
                     &project.modules,
                     syntax,
                     &runtime_imports,
-                    &options.limits,
+                    ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref()).unwrap_or(&options.limits),
                     &options.target,
                     context,
                 )? {

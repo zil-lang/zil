@@ -31,6 +31,7 @@ struct Flow {
     parents: Vec<Loans>,
     mutable: Vec<bool>,
     environment: Vec<bool>,
+    narrowed_lending: Vec<bool>,
     heads: Vec<bool>,
     roots: Vec<Roots>,
 }
@@ -109,6 +110,12 @@ fn reconstruct(
         parents: vec![Loans::new(); count],
         mutable: vec![false; count],
         environment: vec![false; count],
+        narrowed_lending: if budget.owning_address_captures {
+            budget.spend(count)?;
+            vec![false; count]
+        } else {
+            vec![]
+        },
         heads: if budget.head_descriptions {
             budget.spend(count)?;
             vec![false; count]
@@ -304,11 +311,44 @@ fn reconstruct(
                                     }
                                 }
                             }
-                            InstructionKind::CallClosureShared { .. }
-                            | InstructionKind::CallClosureMut { .. }
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
                             {
                                 row.insert(id);
+                                let Type::Closure(closure) = f.locals[callee.0 as usize].ty else {
+                                    return Err(reject(
+                                        "E-VERIFY-LENDING",
+                                        Some(instruction.span),
+                                        "lending local is not a closure",
+                                    ));
+                                };
+                                let definition =
+                                    closures::definition(module, closure, Some(instruction.span))?;
+                                budget.spend(definition.lending_captures.len())?;
+                                if definition.lending_captures.iter().any(|index| {
+                                    matches!(
+                                        definition.captures.get(*index as usize),
+                                        Some(Type::Address { .. })
+                                    )
+                                }) {
+                                    if !flow.narrowed_lending.is_empty() {
+                                        flow.narrowed_lending[id] = true;
+                                    }
+                                    lookup(budget, state.len())?;
+                                    if let Some(held) = state.get(callee) {
+                                        budget.spend(held.len())?;
+                                        for loan in held {
+                                            if overlaps(
+                                                &flow.roots[*loan],
+                                                &facts.values[id],
+                                                budget,
+                                            )? {
+                                                parents.insert(*loan);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             InstructionKind::CallClosureBorrowed { callee, .. }
                                 if matches!(f.values[id], Type::Address { .. }) =>
@@ -387,7 +427,20 @@ fn active(
     budget.spend(active.len())?;
     let descendants = active.clone();
     for loan in descendants {
-        join(&mut active, &flow.parents[loan], budget)?;
+        let narrowed = if flow.narrowed_lending.is_empty() {
+            false
+        } else {
+            budget.spend(flow.parents[loan].len().saturating_add(1))?;
+            flow.narrowed_lending[loan]
+                || flow.parents[loan]
+                    .iter()
+                    .any(|parent| flow.narrowed_lending[*parent])
+        };
+        // Actual child roots retain lifetime; dead intermediate external
+        // capture windows are provenance, not separately live access views.
+        if !narrowed {
+            join(&mut active, &flow.parents[loan], budget)?;
+        }
     }
     Ok(active)
 }
