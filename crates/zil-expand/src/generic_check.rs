@@ -2122,6 +2122,15 @@ impl Check<'_, '_, '_> {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
+            let reference = self.traits.method_reference(
+                &self.bounds,
+                variable,
+                name,
+                &method.name,
+                self.budget,
+                object.span,
+            )?;
+            self.budget.text(name, object.span)?;
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
@@ -2135,7 +2144,10 @@ impl Check<'_, '_, '_> {
                                 "method receiver lost its declaration-local expression identity",
                             )
                         })?,
-                    method.name.clone(),
+                    trait_instances::CallTarget {
+                        reference,
+                        member: name.to_owned(),
+                    },
                 );
         }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
