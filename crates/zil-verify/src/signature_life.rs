@@ -41,6 +41,25 @@ pub(super) fn relation(
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(invalid());
     }
+    let rows = c
+        .bindings
+        .len()
+        .checked_add(c.classes.len())
+        .ok_or_else(invalid)?;
+    let domains = (c.fixed_binder_count as usize)
+        .checked_add(c.invocation_binder_count as usize)
+        .ok_or_else(invalid)?;
+    if domains > rows || c.fixed_binder_count as usize > c.classes.len() {
+        return Err(invalid());
+    }
+    let input_classes = c
+        .classes
+        .iter()
+        .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
+        .count();
+    if c.fixed_binder_count as usize > input_classes {
+        return Err(invalid());
+    }
     let mut borrow = 0usize;
     let mut class = 0usize;
     let mut next = [0u32; 2];
@@ -186,4 +205,19 @@ pub(super) fn entails(required: &StorageLifeContract, supplied: &StorageLifeCont
         }
     }
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn impossible_fixed_domain_never_allocates_a_claimed_grounding_vector() {
+        let relation_data = StorageLifeContract {
+            fixed_binder_count: u32::MAX,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+        };
+        assert!(relation(&[], &Type::I32, &relation_data, None).is_err());
+    }
 }

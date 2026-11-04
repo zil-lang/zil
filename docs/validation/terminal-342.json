@@ -986,5 +986,28 @@
     },
     "independent_review": "Pending exact raw checkpoint",
     "formal_full_workspace": "NotRunByImplementationAuthor"
+  },
+  "rich40_domain_hardening": {
+    "pre_hardening_full_libraries": {
+      "source_base": "4ada5186d after root0e/072 fixture migrations",
+      "analyze": 133,
+      "verify": 351,
+      "log_sha256": "16b984f34b0c3fa47b555d7689b682f6036d88d1e0cdb0491383ad168b50bb04"
+    },
+    "signature_tests": {
+      "analyze": 2,
+      "verify": 1,
+      "log_sha256": "a58046bff57b7567cfc105c383c09f6c8b2cd492c6cc7eaec0349e6f22c4ec6a"
+    },
+    "clippy": {
+      "scope": "both kernel libraries/tests -D warnings",
+      "status": "Pass",
+      "log_sha256": "c6e2e2fb6a066a200201fedafd4c818707d5229cd1140074b2c07269ea7e12b4"
+    },
+    "source": {
+      "crates/zil-analyze/src/signature_life.rs": "58dcbc5309f4334e4a2594b3de340e51a15ed4284635e18848f78d954be11d1d",
+      "crates/zil-verify/src/signature_life.rs": "610f5dd899921cdc7029429d3d7d06c4183d545f23527ed111f1dacda37c8bc3"
+    },
+    "authority": "necessary structural bounds only; no target, roots, permissions or domain freshening"
   }
 }
