@@ -2588,3 +2588,339 @@ fn g10_1_8_nested_source_classes_keep_default_stack_and_compatibility() {
         );
     }
 }
+
+fn g3_3_2_source_core(text: &str) -> zil_ir::CoreModule {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &zil_base::Limits::default(),
+        &zil_base::TargetProfile::host_llvm(),
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core
+}
+
+#[test]
+fn g3_3_2_actual_source_forms_complete_capture_relations_in_three_modes() {
+    use zil_ir::{CallableKind, InstructionKind, StorageBase, StorageBinder, Type};
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let cases = [
+        (
+            CallableKind::Fn,
+            0,
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+            ),
+        ),
+        (
+            CallableKind::FnMut,
+            1,
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnmut-move-input-capture.zil"
+            ),
+        ),
+        (
+            CallableKind::FnOnce,
+            1,
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+            ),
+        ),
+    ];
+    for (kind, tag, text) in cases {
+        let core = g3_3_2_source_core(text);
+        assert_eq!(core.closure_life_contexts.len(), 1);
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let d = &typed.closures[0];
+        assert_eq!(d.kind, kind);
+        assert!(
+            matches!(&d.captures[tag], Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+        );
+        let c = d.storage_life.as_ref().unwrap();
+        assert_eq!((c.fixed_binder_count, c.invocation_binder_count), (2, 1));
+        assert_eq!(c.bindings[0].position.base, StorageBase::Parameter(0));
+        assert_eq!(c.bindings[0].binder, StorageBinder::Invocation(0));
+        assert_eq!(
+            c.bindings[1].position.base,
+            StorageBase::Capture(tag as u32)
+        );
+        assert_eq!(c.bindings[1].binder, StorageBinder::Fixed(1));
+        assert_eq!(c.classes.len(), 2);
+        assert_eq!(c.classes[0].binder, StorageBinder::Fixed(0));
+        assert_eq!(c.classes[1].position.base, StorageBase::Capture(tag as u32));
+        assert_eq!(c.classes[1].binder, StorageBinder::Fixed(0));
+        let entry = &typed.functions[d.function.0 as usize];
+        assert_eq!(entry.storage_life.as_ref(), Some(c));
+        if kind == CallableKind::FnMut {
+            assert_eq!(d.captures[0], Type::I32);
+            assert!(
+                entry
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::WriteCapture { index: 0, .. }))
+            );
+        }
+        if kind == CallableKind::FnOnce {
+            assert!(matches!(d.captures[0], Type::Managed(_)));
+            assert!(
+                entry
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::TakeCapture { index: 0 }))
+            );
+        }
+        // Original generic ordinal is independent from the final Fixed index.
+        let changed = text.replace("apply<life s>", "apply<life unused,life s>");
+        let core = g3_3_2_source_core(&changed);
+        assert_eq!(core.closure_life_contexts[0].named_fixed[0].parameter, 1);
+        let changed = zil_types::check(&core, &target, &limits).unwrap();
+        assert_eq!(changed.closures[0].storage_life.as_ref(), Some(c));
+    }
+    let original_mut = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnmut-input-capture.zil"
+    );
+    let error = zil_types::check(&g3_3_2_source_core(original_mut), &target, &limits).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.category == ResultCategory::Unsupported)
+    );
+}
+
+#[test]
+fn g3_3_2_raw_source_context_rows_are_consumed_from_actual_creators() {
+    use zil_ir::{CoreClosureHeaderPosition, StorageBinder};
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+    );
+    let core = g3_3_2_source_core(text);
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for mutation in 0..9 {
+        let mut bad = core.clone();
+        match mutation {
+            0 => bad
+                .closure_life_contexts
+                .push(bad.closure_life_contexts[0].clone()),
+            1 => bad.closure_life_contexts.clear(),
+            2 => bad.closure_life_contexts[0].creator.0 = u32::MAX,
+            3 => bad.closure_life_contexts[0].expression.0 = u32::MAX,
+            4 => bad.closure_life_contexts[0].named_fixed[0].parameter = u32::MAX,
+            5 => bad.closure_life_contexts[0].inputs[0].header_binder = StorageBinder::Fixed(999),
+            6 => {
+                let mut extra = bad.closure_life_contexts[0].clone();
+                extra.expression.0 = u32::MAX;
+                bad.closure_life_contexts.push(extra);
+            }
+            7 => bad.closure_life_contexts[0]
+                .inputs
+                .push(bad.closure_life_contexts[0].inputs[0].clone()),
+            _ => {
+                let input = &mut bad.closure_life_contexts[0].inputs[0];
+                match &mut input.position {
+                    CoreClosureHeaderPosition::Borrow(p) => p.base = zil_ir::StorageBase::Result,
+                    CoreClosureHeaderPosition::Class(p) => p.base = zil_ir::StorageBase::Result,
+                }
+            }
+        }
+        let error = zil_types::check(&bad, &target, &limits).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{mutation}: {error:?}"
+        );
+        eprintln!(
+            "G3.3.2 source-derived malformed context {mutation}: {}",
+            error[0].message
+        );
+    }
+    let apply = core
+        .functions
+        .iter()
+        .find(|f| f.id == core.closure_life_contexts[0].creator)
+        .unwrap();
+    let mut unused = core.clone();
+    unused.functions.retain(|f| f.id == apply.id); // definition is never invoked
+    zil_types::check(&unused, &target, &limits).unwrap();
+    // Same diagnostic spans do not merge distinct real declaration/expression IDs.
+    let doubled = format!(
+        "{text}{}",
+        text.split_once("fn apply")
+            .unwrap()
+            .1
+            .split_once("fn setup")
+            .unwrap()
+            .0
+            .replace("<life s>", "<life s>")
+            .replacen("(", "(", 1)
+    );
+    let _ = doubled; // The explicit second declaration below preserves valid syntax.
+    let extra = text
+        .split_once("fn apply")
+        .unwrap()
+        .1
+        .split_once("fn setup")
+        .unwrap()
+        .0;
+    let mut two = g3_3_2_source_core(&format!("{text}fn other{extra}"));
+    assert_eq!(two.closure_life_contexts.len(), 2);
+    for f in &mut two.functions {
+        f.span = zil_base::Span::default();
+    }
+    let typed = zil_types::check(&two, &target, &limits).unwrap();
+    assert_eq!(typed.closures.len(), 2);
+    assert_ne!(typed.closures[0].function, typed.closures[1].function);
+}
+
+#[test]
+fn g3_3_2_context_clone_preflight_and_warm_scalar_orphan_stay_closed() {
+    let limits = zil_base::Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+    );
+    let core = g3_3_2_source_core(text);
+    for mutation in 0..3 {
+        let mut huge = core.clone();
+        match mutation {
+            0 => huge.closure_life_contexts[0].identity.package = "x".repeat(4096),
+            1 => huge.closure_life_contexts[0].signature.fixed_binder_count = u32::MAX,
+            _ => {
+                huge.closure_life_contexts[0].inputs[0].position =
+                    zil_ir::CoreClosureHeaderPosition::Borrow(zil_ir::StoragePosition {
+                        base: zil_ir::StorageBase::Parameter(0),
+                        path: vec![
+                            zil_ir::ContractProjection::Place(
+                                zil_ir::PlaceProjection::Field(0)
+                            );
+                            129
+                        ],
+                    })
+            }
+        }
+        let tiny = zil_base::Limits {
+            max_analysis_steps: 128,
+            ..limits.clone()
+        };
+        let error = zil_types::infer_source_closures(&huge, &tiny).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit),
+            "{mutation}: {error:?}"
+        );
+    }
+    let scalar = g3_3_2_source_core("fn main()->i32{return 42}");
+    let mut program = zil_ir::CoreProgram {
+        root: scalar.module_id,
+        source_fingerprint: scalar.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core: scalar,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let mut session = zil_types::FunctionSession::default();
+    for _ in 0..2 {
+        let prepared = zil_types::infer_program_for_ct(&program, &limits)
+            .unwrap()
+            .into_prepared();
+        session
+            .check_prepared_program(&prepared, &target, &limits)
+            .unwrap();
+    }
+    let mut orphan = core.closure_life_contexts[0].clone();
+    orphan.creator = program.modules[0].core.functions[0].id;
+    orphan.expression.0 = u32::MAX;
+    program.modules[0].core.closure_life_contexts.push(orphan);
+    let prepared = zil_types::infer_program_for_ct(&program, &limits)
+        .unwrap()
+        .into_prepared();
+    let error = session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("no actual consumed expression")),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn g3_3_2_source_formation_request_budget_and_default_worker_are_reproducible() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+    );
+    let core = g3_3_2_source_core(text);
+    let target = zil_base::TargetProfile::host_llvm();
+    let limits = zil_base::Limits::default();
+    let expected = zil_types::check(&core, &target, &limits).unwrap();
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let probe = zil_base::Limits {
+            max_analysis_steps: mid,
+            ..limits.clone()
+        };
+        match zil_types::check(&core, &target, &probe) {
+            Ok(_) => high = mid,
+            Err(e)
+                if e.iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = mid + 1
+            }
+            Err(e) => panic!("{e:?}"),
+        }
+    }
+    for (n, ok) in [(low, true), (low - 1, false), (low, true)] {
+        let probe = zil_base::Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        if ok {
+            assert_eq!(zil_types::check(&core, &target, &probe).unwrap(), expected);
+        } else {
+            assert!(
+                zil_types::check(&core, &target, &probe)
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit)
+            );
+        }
+    }
+    eprintln!("G3.3.2 source-derived whole Types N={low}; N-1/fresh stable");
+    // Real shallow Source repeated constructors in the default thread; no
+    // custom stack or reduced Source depth. No native claim in this target.
+    let declarations = (0..32)
+        .map(|i| format!("let f{i}=(p:&Tag<'s>)->i32=>i32(*p.p+*seed.p);"))
+        .collect::<String>();
+    let repeated = format!(
+        "struct Tag<life s>{{p:&'s i64}} fn apply<life s>(seed:&Tag<'s>)->i32{{{declarations}return f31(seed)}}"
+    );
+    std::thread::spawn(move || {
+        let core = g3_3_2_source_core(&repeated);
+        let result = zil_types::check(
+            &core,
+            &zil_base::TargetProfile::host_llvm(),
+            &zil_base::Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(result.closures.len(), 32);
+    })
+    .join()
+    .unwrap();
+}
