@@ -12,6 +12,11 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
         }),
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw wire slice transport only"),
@@ -20,6 +25,7 @@ fn raw(start: Option<ValueId>, end: Option<ValueId>) -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),

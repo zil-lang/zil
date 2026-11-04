@@ -209,6 +209,11 @@ fn forbidden_ops_and_dependencies_survive_as_untrusted_data() {
 fn module_candidate() -> (TypedModule, CandidatePlan) {
     let span = Span::new(FileId(2), 4, 8);
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: Vec::new(),
         closures: vec![],
         schema_version: SCHEMA_VERSION,
@@ -216,6 +221,7 @@ fn module_candidate() -> (TypedModule, CandidatePlan) {
         source_fingerprint: Fingerprint::of(b"candidate"),
         target: TargetProfile::host_llvm(),
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,

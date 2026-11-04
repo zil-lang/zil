@@ -2612,7 +2612,7 @@ impl<'a> Reader<'a> {
             },
             Array,
             BorrowedStorage(StorageLifeShape),
-            TaskFrame(RetainedLifeShape),
+            RetainedFrame(RetainedLifeShape),
             Unary(u8),
             Address(bool),
             Opaque(NodeId),
@@ -2731,7 +2731,7 @@ impl<'a> Reader<'a> {
                     values.push(Type::BorrowedStorage { storage, life });
                     continue;
                 }
-                Task::TaskFrame(retained_life) => {
+                Task::RetainedFrame(retained_life) => {
                     let result = Box::new(values.pop().expect("read task result type"));
                     values.push(Type::Task {
                         result,
@@ -2796,7 +2796,7 @@ impl<'a> Reader<'a> {
                 33 => Type::TaskI32,
                 34 => {
                     let retained_life = self.retained_shape(depth)?;
-                    pending.push(Task::TaskFrame(retained_life));
+                    pending.push(Task::RetainedFrame(retained_life));
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
@@ -4242,3 +4242,6 @@ mod flow_tests;
 
 #[cfg(test)]
 mod owned_sum_tests;
+
+#[cfg(test)]
+mod retained_tests;

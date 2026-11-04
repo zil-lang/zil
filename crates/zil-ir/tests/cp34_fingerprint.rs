@@ -268,6 +268,7 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
@@ -312,6 +313,11 @@ fn module(flag: bool) -> TypedModule {
     })
     .collect();
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(19),
         source_fingerprint: Fingerprint::of(b"cp34-current-source"),
@@ -321,6 +327,7 @@ fn module(flag: bool) -> TypedModule {
             .into_iter()
             .enumerate()
             .map(|(i, kind)| ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(i as u32),
                 function: FunctionId(i as u32),
                 captures: all_types.clone(),

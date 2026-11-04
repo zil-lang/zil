@@ -1309,15 +1309,17 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 
 `StoreStoredBorrow`（130）要求真实独占storage、活的初始化祖先、精确叶类型/模式及同一不变上界；同时支持初始化叶替换和空槽refill。新Hold准备并核验后才结束旧权限/清理，所有相交call/result loan仍受保护。借入外部&mut载体在每条普通/错误返回须恢复声明的完整状态，或实际转入合法空enum分支；跨调用部分状态须另有真实状态协议，不能交还一个被假定完整的残缺值。部分本地清理只处理真实剩余责任；本合同不引入隐式Box、RC、pin或运行时借用检查。
 
-Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关系；涉及存储的签名以它为唯一声明关系，旧flat life若保留须是精确核验的导出投影，矛盾双合同拒绝。未调用定义、实际CFG、目标/alias/权限、导出与缓存分别由现有独立核检查。所有新扫描、路径比较、映射、clone、join、固定点及分配先从同一请求剩余额度付费；先界定深度/尺寸再递归分类。旧function/closure字节新增可选关系使Typed/Wire统一升38及TypedModule域V38；旧TypeIdentityV35/callable域在其既有字节不变时保持。恢复候选仍重新核验，不复用旧权限结论。
+Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关系；涉及存储的签名以它为唯一声明关系，旧flat life若保留须是精确核验的导出投影，矛盾双合同拒绝。未调用定义、实际CFG、目标/alias/权限、导出与缓存分别由现有独立核检查。所有新扫描、路径比较、映射、clone、join、固定点及分配先从同一请求剩余额度付费；先界定深度/尺寸再递归分类。function/closure、完整类型和module表共同使用Typed/Wire39及TypedModule/TypeIdentity域V39；callable独立域仅在其既有字节不变时保持。恢复候选仍重新核验，不复用旧权限结论。
 
 名义life实参的AST `GenericArg::Lifetime`须保留真实参数种类、声明序号、词法scope及联合规范关系，字符串只为语法。普通`SliceIter<life s,T:Copy>`与`Option<&'s T>`及trait方法为真实库消费者，不设Iterator内建特权。CT BorrowedStorage节点16/构造器12保存实际storage子节点及完整shape，codec界定类数、路径、增长、分配和DAG边。全名义phantom/lifetime实参仍须有封闭数值scope引用、参数位置及种类核验；不能丢弃实参或使用自由life名字冒充完成，在该消费者落地前显式Unsupported并继续施工。
 
-Task<T>的结果类型不代表隐藏frame依赖；Create后尚未首次poll的入口PC0也保留全部实参/捕获/子frame依赖。当前仅有result类型的Task公共形状不许可借入frame导出或线程转移，除非独立证明没有外部frame依赖；一般借入Task需真实可检查的固定port及完整类型关系后继续开放。request_cancel或Ready不提前释放保留依赖，只有实际关闭排空才归还；Ready转出的借用继续保护实际目标和父链。storage签名单独增加行不能为无port的Task创造可检查的隐藏环境权限。
+Task<T>的结果类型不代表隐藏frame依赖；Create后尚未首次poll的入口PC0也保留全部实参/捕获/子frame依赖。仅有result类型而缺少retained shape的Task公共形状不许可借入frame导出或线程转移，除非独立证明没有外部frame依赖；一般借入Task需真实可检查的固定port及完整类型关系后继续开放。request_cancel或Ready不提前释放保留依赖，只有实际关闭排空才归还；Ready转出的借用继续保护实际目标和父链。storage签名单独增加行不能为无port的Task创造可检查的隐藏环境权限。
 
 存储关系的共同固定域包含三类不同事实：`slots`只对应物理Address/Desc叶；`retained`把嵌套qualified载体的每个固定类映射一次；`nominal_arguments`保留完整名义实参中每个life位置，包括无物理字段的phantom。多个port共享一个类时只映射该类一次，不能逐port重新新鲜化。规范顺序来自实际声明及完整实参：先名义life实际位置，再物理叶及嵌套载体的规范类；嵌套载体在边界停止物理展平。所有实际类和出现位置恰好覆盖，冗余、缺项、冲突映射拒绝。只有phantom出现的类有意义，空物理slots不能擦除此类；phantom本身不产生目标根、loan或任何访问权限。
 
 `LifeTypeProjection`的TypeArgument/Pointee/Element/Parameter/Result/Port/AssociatedType只遍历真实语义构造及完整名义/签名信息，不是物理路径。`Pair<life a,life b>{d:&'a dyn Reader<'b>,p:&'b i32}`保留d的外层地址类a和其interface类映射b，不能合并成单一d来源；`Phantom<Tag<'b>>`通过真实完整TypeArgument及名义life位置保留b。尚不能完整表达的任意类型实参内借用不得擦除或猜测，须补齐消费者后开放。
+
+完整名义Type实参中的借用关系必须保存，即使该参数无物理字段。例如`Phantom<&'b T>`可在真实Type实参元数据位置使用`BorrowedStorage{storage:Address<T>,life:...}`表示语义类型；这不是运行时holder。只有独立核从实际声明完整参数表证明当前位置是Type实参后，才进入元数据类型上下文。实际局部、值、参数、捕获或物理字段不得因相同wrapper取得此上下文；直接Address/Desc运行时wrapper与直接双wrapper继续拒绝，元数据例外也不自动开放Desc。根借用叶、模式、完整嵌套类与scope映射仍须精确核验，不能从phantom创建目标根、loan或可返回地址。若Type实参经真实字段/签名recipe成为物理位置，关系须同时代换到包围它的实际存储/签名合同并重新核验实际叶，不得复制元数据专用wrapper成为物理holder或擦除关系；完整消费者落地前该形式显式Unsupported。
 
 Core/Typed module的`life_declarations`及`life_instances`承载实际声明身份、Record/Package/Resource/Enum种类、完整有序Type/Const/Lifetime参数及实际向量。`LifeDeclarationId{module,node,compiler}`仅为可重定位引用；跨请求语义身份须解析实际package、module_path、declaration_path、generation_path以及完整实参关系。原始SourceIndex/Origins与CT FrozenReadView保留真实声明沿选择和生成的对应，不以Span、生成名解析或同名代替。消费者独立核验唯一完整实例、精确种类/arity/常量域、实际type及真实参数序号；compiler位亦不能伪造内建声明。表不能证明trait、Copy、可见性、Transfer或Share。raw引用的Type::fingerprint不能单独成为导出/缓存语义身份。
 
