@@ -4,6 +4,9 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) fn head_address(ty:&Type)->bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 pub(super) mod product;
 mod summary_graph;
 pub(crate) mod sums;
@@ -429,7 +432,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
-        InstructionKind::Store { value, .. }
+        InstructionKind::DescribeAddress { address:value }
+        | InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
@@ -1839,6 +1843,9 @@ impl Flow<'_> {
                     {
                         return Err(error("head address requires a live managed position"));
                     }
+                }
+                InstructionKind::DescribeAddress { .. } => {
+                    produced = Some(Fact::default());
                 }
                 InstructionKind::DescribeLocal { local } => {
                     if !self.views.is_empty() {

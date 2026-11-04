@@ -1323,7 +1323,8 @@ fn infer_with_private(
                             }
                         }
                     }
-                    InstructionKind::ReborrowAddress { address, .. }
+                    InstructionKind::DescribeAddress { address }
+                    | InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::AddressSlice { address, .. }
                     | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. } => {

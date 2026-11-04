@@ -1590,7 +1590,8 @@ impl Builder<'_, '_> {
                 if matches!(self.known_type(object), Some(Type::Address { .. }))
                     || dynamic_store::borrow_expression(object)
                 {
-                    let (address, ty) = self.borrow_place(e)?;
+                    let (address, ty) = self.address_place(e, false)?;
+                    if resources::head_address(&ty) { return self.resource_descriptor(address,ty,e.span); }
                     let Type::Address { inner, .. } = ty else {
                         unreachable!()
                     };

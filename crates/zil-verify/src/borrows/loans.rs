@@ -231,7 +231,8 @@ fn reconstruct(
                             row.insert(id);
                             join(&mut parents, &flow.values[address.0 as usize], budget)?;
                         }
-                        InstructionKind::AddressField { address, .. }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
                         | InstructionKind::AddressIndex { address, .. } => {
                             join(&mut row, &flow.values[address.0 as usize], budget)?;

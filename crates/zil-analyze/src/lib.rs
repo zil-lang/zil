@@ -17,6 +17,7 @@ mod defers;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
+mod head_access;
 mod helpers;
 mod holds;
 mod incremental;
@@ -106,6 +107,7 @@ fn analyze_budgeted(
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
+    head_access::check(module, &hold_graphs, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
     for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
         module,

@@ -58,3 +58,9 @@ CT Type/Syntax、read view、构造和 Wire 均保留实际 DAG 子 ID 与完整
 Rust四目标：两个独立核的真实 root/window 与 canonical raw/Wire 反例增加有限安全实证，完整语言/异步安全仍未建立；仍为薄 ptr，没有隐式 Box/RC/锁，未测同语义 Rust 运行/RSS；原借用代码指针与 CT 类型组合可直接表达，完整框架维护收益未测；真实新增工作累计收费、默认限额不升，没有 Rust 编译成本优势结论。至少一项有限增量为 borrowed thin pointer 经 Type/Syntax、普通函数/闭包和 native 双后端直接组合；产品四目标合取、B0及现有 product-gates 不因此晋升。
 
 仍待后续：泛型 `F:for<life a> Fn...` 的普遍定义义务、借用存储/一般 lending、显式 dyn、一般 §5.2 状态。本分树未合 TaskYield 实现，集成需重放普通与借用 FunctionRef 到 Suspend 闭包的 source/raw/Wire 反例；不能以当前薄指针合同宣称 Suspend 安全闭合。独立审核等待精确干净候选。
+
+## 下一阶段提案：实际 borrowed owned/resource head
+
+真实345原源 `pub fn byte_len(value:&String)->i64{return bytes_len(value.data)}` 目前在Types拒绝：Package window只允许共享user Record头，Managed(ByteBuffer)未贯通。保留原源，先支持实际ByteBuffer/OwnedStore/有限user资源头的AddressField→DescribeAddress，不复制Managed责任；Task、foreign registration与SABI头不因形状相近获得权限。公开opcode109由root `aa790ccba` 发布，root规范已明确实际读/独占来源及转发/返回/捕获/动态调用义务。
+
+私有权限求证拟从实际Address.mutable和实际descriptor/closure输入建立符号访问限制，分别在Analyze及Verify的完整可达CFG/调用固定点传播；返回与捕获保留实际位置映射，callee实际写效果在当前调用代换，shared restriction不能被类型名、life标签、Desc复制或返回洗掉。描述权限与owner责任/loan/liveness分开：DescribeAddress结果保留父地址来源，实际view借用仍保留父贷款；只读API可访问shared来源，任何真实写/长度变更/独占view必须有实际授权。预算覆盖新CFG状态、符号集、捕获路径、summary复制与固定点；旧无新opcode源保留既有通路。以真实String、最近shared写/helper/returned/captured反例、raw+Wire、机器O0/O2、failure cleanup与适用N/N−1/cache核验，不以有限入口完成一般storage/lending声明。

@@ -4,6 +4,9 @@
 //! loan. Every resource operation is reconstructed from the checked CFG; the
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
+pub(super) fn head_address(ty:&Type)->bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;

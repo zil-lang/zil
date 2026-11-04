@@ -1365,6 +1365,9 @@ impl FunctionEmitter<'_> {
                 index,
                 value,
             } => self.store_package_field(instruction, *local, *index, *value)?,
+            InstructionKind::DescribeAddress { address } => {
+                self.event(m::Event::Instruction(m::Inst::new(Some(format!("v.{}",result(instruction)?.0)),m::Op::Gep {ty:m::Ty::Int(8),ptr:m::local(format!("v.{}",address.0)),indices:vec![m::Arg::new(m::Ty::Int(64),m::Val::Int(0))]})));
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.event(m::Event::Instruction(m::Inst::new(
                     Some(format!("v.{}", result(instruction)?.0)),
