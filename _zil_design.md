@@ -818,9 +818,9 @@ SABI 保留 init/poll/request_cancel/poll_close/finish_destroy。poll/poll_close
 
 ### 12.1.1 显式可挂起任务的首条机器通路（343）
 
-`task_start(worker, argument)`显式可失败创建拥有的`TaskI32`，worker为实际静态`fn(i32)->i32`，其可达图中`task_yield()`是挂起点。创建失败返回空头，`task_valid(&mut task)`可观察有效性；创建失败不启动worker。每个worker有实际init/poll/request_cancel/poll_close/finish_destroy入口及稳定帧，帧保存pc、跨挂起SSA/局部和一次移出的结果；不得以同步完整调用加伪Pending模拟挂起。
+`task_start(worker, argument)`显式可失败创建拥有的`TaskI32`，worker为实际静态`fn(i32)->i32`，其可达图中`task_yield()`是挂起点。创建失败返回空头，`task_valid(task)`只读其实际Desc(TaskI32)以观察有效性；创建失败不启动worker。每个worker有实际init/poll/request_cancel/poll_close/finish_destroy入口及稳定帧，帧保存pc、跨挂起SSA/局部和一次移出的结果；不得以同步完整调用加伪Pending模拟挂起。
 
-`task_poll(&mut task)`返回(tag,value)，tag为0 Pending、1 Ready、2 Complete、3 Cancelled、4 Invalid，只有Ready的value有意义且只移出一次。`task_request_cancel`是持久取消请求；`task_poll_close`推进关闭并返回是否Closed；`task_finish_destroy`消费已Closed头，空头无操作，未Closed不得释放。所有操作要求真实完整唯一拥有头的独占窗口，不能用复制描述伪造可重入poll。每个实现必须分别核空头、完成/取消/重复调用、实际分配失败和清理。普通Call、函数指针、线程worker、同步程序入口或导出Direct ABI均不得直接进入可达yield的Suspend图。
+`task_poll(&mut task)`返回(tag,value)，tag为0 Pending、1 Ready、2 Complete、3 Cancelled、4 Invalid，只有Ready的value有意义且只移出一次。`task_request_cancel`是持久取消请求；`task_poll_close`推进关闭并返回是否Closed；`task_finish_destroy(give task)`消费已Closed拥有头，空头无操作，未Closed不得释放。poll/request_cancel/poll_close要求真实完整唯一拥有头的独占窗口，不能用复制描述伪造可重入poll；valid只读描述仍需真实根与活性，finish_destroy通过Take/give取得唯一拥有责任。空头的valid为false、poll为Invalid、cancel无操作、close为true、finish/drop无操作。每个实现必须分别核空头、完成/取消/重复调用、实际分配失败和清理。普通Call、函数指针、线程worker、同步程序入口或导出Direct ABI均不得直接进入可达yield的Suspend图。
 
 首条纯i32机器通路仅在两个独立核从封闭可达worker图证明没有外部用户、拥有子帧或未清责任时，允许默认drop执行取消、关闭并回收；NoExternal不能是信任位。一般拥有结果、子帧、返回借用、外部登记、保留waker和异步draining仍依本章完整静止条件实施，不能从首条通路推导完成。
 
@@ -939,6 +939,10 @@ comptime 执行有逻辑配额和显式输入，不从未完成安全查询反�
 `T?` 是 Option；`E!T` 是错误联合；表达式后缀 `?` 只沿实际错误出口传播。数组类型 `[T; N]`、切片类型 `[T]`、数组值 `[a, b]`、索引 `a[i]`、半开范围 `a[lo..hi]` 各按上下文唯一解析。`&[T]`/`&mut [T]` 是地址窗口。`a ? b : c` 不属于语法，使用 `if` 表达式。`a[]` 非法，完整切片写 `a[..]`；区间端点采用非区间表达式，复杂比较或逻辑端点须用括号。`if/while/for/match/with` 的控制头在顶层遇到 `{` 即开始主体；头部需要结构构造字面量时写成 `(Node { ... })`，不得依赖类型查询判断大括号归属。
 
 借用模式接续（340）：`ref`/`ref mut`必须取得实际活动位置的地址，不能复制载荷到临时值后声称借到原值。Enum路径保存每层活动variant和实际field投影；取地址时及独立核沿控制流验证活动tag、初始化和父loan。有效窗口阻止相交移动、替换、tag失效或不合法可变别名；同一活动payload真正不相交字段可按真实投影证明分离。嵌套/聚合可变借用在完整失效模型和机器表示完成前不得放行，模式表示存在不等于完成。
+
+实际地址及字段接续（340/342）：借入Enum必须从真实输入地址观察tag及取得payload地址，不能将整个Enum复制到临时位置后声称引用原输入。Copy Tuple/Record字段使用真实本地字段位置及有界inline投影，借入一个字段后读取另一个字段不重载整个父值；父移动、整体替换及清理与每个子区间相交。闭包捕获、保存引用及重借须保留真实投影和父存储依赖，不能因public Hold较粗而丢失权限。临时RHS只求值一次后建立真实本地位置，其ref mut不赋予既有不可变位置写权限。
+
+从`&Package`/`&mut Package`投影Managed资源头可形成保留来源的Desc，绝不复制Managed责任；共享头来源只能执行已证明只读的操作，独占来源也仍受实际活跃view和may效果约束。源函数转发、返回、捕获和间接调用必须保留并核验父根/权限，不能通过DescribeAddress洗掉只读或获得销毁权限。Task及外部登记头的特殊生命周期不由普通资源描述投影自动开放。
 
 有限记录式枚举变体与具名match模式（329）：普通有限Copy枚举允许`V { field: Type, ... }`载荷、`E.V { field: expr, ... }`构造，以及match中的`E.V { field: pattern, ... }`。构造沿既有record grammar允许`{field}`读取同名值；构造表达式按源码字段顺序各求值一次，再按声明顺序形成既有Enum载荷；字段名及具体声明身份在正规化前完整核验，未知、重复、遗漏字段与tuple/record形式混用均拒绝。模式可重排具名字段，但首片要求全部字段显式`field:pattern`，不开放shorthand、rest或新ref权限；绑定和权限沿既有有限Copy模式规则。记录字段继承枚举载荷可见性，独立pub/default/manages标记首片Unsupported，不擦除。泛型与未用定义同核；允许枚举直接普通类型参数Copy前提并逐实参含phantom核验，不从bound推导整个枚举Copy，不开放任意trait/where前提。复用已有Core/Typed Enum表示与机器判别/字段序，AST具名标签必须通过CT生成、卫生与有界遍历保留到字段解析；不支持的CT路径显式拒绝，不丢标签放行。
 
