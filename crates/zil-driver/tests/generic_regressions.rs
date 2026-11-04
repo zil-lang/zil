@@ -5720,3 +5720,33 @@ fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin
         }
     }
 }
+
+#[test]
+fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
+    let text = "fn unused(give task:Task<i32>){}fn main(){}";
+    let input = source(text);
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        errors[0]
+            .message
+            .contains("Task automatic Drop has no complete synchronous worker origin"),
+        "{errors:?}"
+    );
+    // Nearest source control explicitly transfers responsibility to finish;
+    // its runtime CLOSED guard is the existing Task contract.
+    let control = text.replace(
+        "Task<i32>){}",
+        "Task<i32>){task_finish_destroy(give task);}",
+    );
+    let input = source(&control);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let control = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&control, &limits).unwrap();
+    zil_verify::verify_module(control, plan, &target, &limits).unwrap();
+}
