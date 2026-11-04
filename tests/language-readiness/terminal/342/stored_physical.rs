@@ -66,6 +66,36 @@ fn terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load
 fn candidate(module: &TypedModule) -> CandidatePlan {
     zil_analyze::analyze(module, &Limits::default()).unwrap()
 }
+
+#[test]
+fn terminal342_phantom_nominal_classes_preserve_metadata_without_target_roots() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/342");
+    let positive = dir.join("phantom_stored_metadata.zil");
+    let negative = dir.join("phantom_stored_metadata_escape.zil");
+    let report = zil_driver::compile_path(&positive, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let error = zil_driver::compile_path(&negative, &CompileOptions::default());
+    assert_eq!(
+        error.status,
+        ResultCategory::SafeReject,
+        "{}",
+        error.to_json()
+    );
+    assert!(
+        error
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.message.contains("activation-local")),
+        "{}",
+        error.to_json()
+    );
+}
 fn accept(module: &TypedModule) -> CandidatePlan {
     let plan = candidate(module);
     zil_verify::verify_module(
