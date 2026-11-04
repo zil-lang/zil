@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "implementation_author": "/root/reliability344",
+  "implementation_commit": "c5696a1c10d9b25549499fd991d73c4d2d681871",
+  "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
+  "proposal_commit": "9dac5e157",
+  "scope": "344 first milestone: default-2MiB source/API stack reliability; broader machine/floating/anonymous-union obligations remain in progress",
+  "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
+  "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade",
+  "failure_location": {
+    "method": "Standalone consumer linked retained338 rlibs; C SIGABRT handler on alternate signal stack collects native backtrace; addr2line resolves frame symbols. Handler diagnostic-only, no production stack settings changed.",
+    "original_source_legal": true,
+    "small_stack_bytes": 2097152,
+    "parse": "Success",
+    "core": "Success",
+    "requested_types": "SIGABRT intercepted at exit134; diagnostic handler preserves stack trace; original no-handler abort was review338 SIGABRT -6",
+    "actual_phase": "CT prepass, before Types query: zil_types::infer_source_closures -> prepare -> inference::Solver::expr_raw -> expr_expected -> expr -> projected_base, repeated across array indexes",
+    "baseline_expr_raw_frame_bytes": 124264,
+    "first_split_expr_raw_frame_bytes": 4328,
+    "first_split_index_helper_frame_bytes": 3704,
+    "deeper_controls": [
+      {
+        "input": "depth20.zil",
+        "actual_phase": "Types closure metadata inference",
+        "function": "closures::InferBuilder::expr_raw",
+        "fixed": true
+      },
+      {
+        "input": "depth32.zil",
+        "actual_phase": "Types",
+        "function": "Builder::aggregate -> expr_raw -> owned_array_input, with Type::clone at stack exhaustion",
+        "fixed": true
+      },
+      {
+        "input": "projection32.zil",
+        "actual_phase": "Types",
+        "function": "Builder::expr_raw -> aggregate -> known_type/enum_constructor at stack exhaustion",
+        "baseline_Builder_expr_raw_frame_bytes": 46056,
+        "fixed": true
+      }
+    ]
+  },
+  "structural_change": "Private per-variant helpers in source Solver and closure InferBuilder; separate aggregate variant helpers; Builder Call/If/Sequence helpers preserve original expected-type check and early-return bypass. Node/work/index/write checks and evaluation order unchanged. No public schema, authority, default budget, production stack/thread or allocation representation change.",
+  "inputs": {
+    "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil": "831cfff1e98460dbba53095706e3ffc5601bdc40388f99416eb6b48c0b2f6201",
+    "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture-var.zil": "4d31498969db08b1cb2fe5f64a8900aca4c98a869ee5c73c5feb03b3a832a267",
+    "tests/language-readiness/terminal/344/depth20.zil": "1d5e0600f3a1875b0d72e0ca338a8aa9a892171d057673e963cf22039b3769d3",
+    "tests/language-readiness/terminal/344/depth32.zil": "7c069bb0c712259f46c4ab29508c5db2aee0e1445ca0f6d7013e9afdd1b3ddae",
+    "tests/language-readiness/terminal/344/depth48.zil": "ee93727960be03c583f2e2a3689c26f7791c04e80ce7dd47f79f37d888bdf191",
+    "tests/language-readiness/terminal/344/projection32.zil": "7cc042a7ac53709883bcf2058d41199c8ddfb0966e2764cbba47a3759549866c",
+    "tests/language-readiness/terminal/344/projection48.zil": "56929ce15d09d04d44ff4742656c111e7add5fee7598aa814933ddd9219badc7"
+  },
+  "environment": {
+    "target": "/workspace/.zil-env/target344",
+    "jobs": 1,
+    "dev_debug": 0,
+    "test_debug": 0,
+    "incremental": 0,
+    "TMPDIR": "/workspace/.zil-env/terminal-20261104/tmp344",
+    "setup": "source /workspace/.zil-env/env.sh; override CARGO_TARGET_DIR/CARGO_BUILD_JOBS/TMPDIR as listed"
+  },
+  "commands": [
+    {
+      "command": "cargo check -p zil-driver --features llvm-api",
+      "result": "Pass after initial source Solver split; subsequent build/clippy covers final source"
+    },
+    {
+      "command": "cargo build -p zil-driver --features llvm-api",
+      "result": "Pass on final production source"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_enum_error_default_stack_api_reliability -- --exact --nocapture --test-threads=1",
+      "result": "Pass; 1 test, five isolated child profiles"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_enum_error_ -- --nocapture --test-threads=1",
+      "result": "Pass; 8 tests, 0 failed, 52 filtered; 40.79 seconds"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates large_copy_abi_codegen_budget_exact_and_fresh -- --exact --nocapture --test-threads=1",
+      "result": "Pass; 1 test, 0 failed, 59 filtered"
+    },
+    {
+      "command": "cargo clippy -p zil-driver --features llvm-api --test aggregates -- -D warnings",
+      "result": "Pass"
+    },
+    {
+      "command": "rustfmt --edition 2024 on changed Rust files; git diff --check",
+      "result": "Pass"
+    }
+  ],
+  "default_stack_subprocess": {
+    "parent_timeout_seconds": 90,
+    "worker": "std::thread::spawn with no stack_size override; subprocess env_remove RUST_MIN_STACK; default Linux Rust stack2MiB",
+    "frontend": [
+      "legal Parse/Core/Types/Analyze/Verify Success; Verify count exactly1 only at Verify",
+      "unchanged original let-FnMut source returns SafeReject/Types/E-CLOSURE-MUTABILITY; Verify count0",
+      "five retained 20/32/48-layer legal controls all Success/Verify1",
+      "real typed Analyze candidate -> Wire encode -> independent Verify roundtrip equals actual TypedModule",
+      "malformed capture layout rejected by independent raw Verify with current fingerprint"
+    ],
+    "native": {
+      "profiles": [
+        "clang/O0",
+        "clang/O2",
+        "llvm-api/O0",
+        "llvm-api/O2"
+      ],
+      "all_verify_runs": 1,
+      "all_exit": 0,
+      "all_stdout": "30\n",
+      "all_stderr": "",
+      "fallback": null,
+      "API_input": "actual builder; nonempty object report checked"
+    },
+    "source_constraint_work": {
+      "retained338_N": 2520,
+      "current344_N": 2520,
+      "boundary": "N and repeated fresh N accept; N-1 Types/ResourceLimit; standalone main-thread retained/current consumers agree"
+    }
+  },
+  "prior_controls": {
+    "original338_scale": "20 native combinations, Enum/ErrorUnion/empty/indirect paths across Clang/API O0/O2; all exit0",
+    "Codegen_N": 945883,
+    "metadata_short_long_N": [
+      694720,
+      1778112
+    ],
+    "prior333_fnptr_N": 356960,
+    "cache": "existing338 exact-budget/fresh and multi-CGU object-cache tests pass; old charge values unchanged"
+  },
+  "artifacts_sha256": {
+    "retained338_driver_rlib": "deb4ced40e45049aa5fc826297f88a748193bfb4c4abcc5adf1228894267bf49",
+    "current344_driver_rlib": "acff2797f7ada6ab8df55ca5cbc90834801e590cbe9387ee7064d317fff3dd58",
+    "aggregates_executable": "d9c4ed6e0a370b401baf67a78e786721b3adfd1a461a4c75ddfa1341618ec650"
+  },
+  "initial_failed_assertion": {
+    "test": "new frontend raw control initially asserted Analyze rejects malformed capture layout",
+    "observation": "Analyze accepts a candidate; structural type validity is independently checked by Verify",
+    "correction": "remove that unsupported test assertion, retain actual valid Analyze/Wire and raw Verify rejection. No production semantic relaxation."
+  },
+  "Rust_goals": {
+    "safety": "Existing Types/Analyze/Verify authority boundaries and invalid-source diagnostics preserved; no full-language safety claim",
+    "runtime_memory": "Same source/machine semantics, inline snapshots; no implicit Box/RC and no changed ZIL runtime representation. Rust same-semantics runtime/RSS NotRun",
+    "expression_maintenance": "Previously crashing legal API source and five deeper real sources now finish on default worker stack. Whole-library maintenance comparison NotRun",
+    "compile_cost": "Structural host-stack reduction, unchanged inference N2520 and prior codegen exact budgets; no Rust compile-speed claim",
+    "breakthrough": "Finite reliability improvement with actual default-stack API and machine evidence; product four-goal conjunction not established"
+  },
+  "remaining": [
+    "Independent non-author review pending",
+    "Broader large closure/helper/foreign ABI, IEEE floating and anonymous tagged-union semantics remain under344 work",
+    "No full workspace gate, native Windows or product/Rust comparison run by author; parent B0 remains Doing"
+  ]
+}
