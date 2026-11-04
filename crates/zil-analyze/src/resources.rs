@@ -1732,6 +1732,18 @@ impl Flow<'_> {
                             fact.life = BTreeSet::from([Life::Transferred]);
                         }
                         InstructionKind::DropOwnedArrayElement { .. } => {
+                            if check
+                                && fact.life.contains(&Life::Available)
+                                && tasks::needs_synchronous_proof(self.module, element, budget)?
+                            {
+                                tasks::require_synchronous_drop(
+                                    self.module,
+                                    f,
+                                    *local,
+                                    budget,
+                                    Some(i.span),
+                                )?;
+                            }
                             if i.result.is_some() {
                                 return Err(error("owning array element cleanup has no result"));
                             }
@@ -1987,6 +1999,18 @@ impl Flow<'_> {
                                 });
                                 fact.life = BTreeSet::from([Life::Transferred]);
                             } else {
+                                if check
+                                    && fact.life.contains(&Life::Available)
+                                    && tasks::needs_synchronous_proof(self.module, ty, budget)?
+                                {
+                                    tasks::require_synchronous_drop(
+                                        self.module,
+                                        f,
+                                        *local,
+                                        budget,
+                                        Some(i.span),
+                                    )?;
+                                }
                                 if i.result.is_some() {
                                     return Err(error("package field drop has no result"));
                                 }
@@ -2417,7 +2441,6 @@ impl Flow<'_> {
                     if check
                         && f.call_kind == CallKind::Direct
                         && fact.life.contains(&Life::Available)
-                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
                     {
                         tasks::require_synchronous_drop(
                             self.module,
@@ -2865,6 +2888,15 @@ impl Flow<'_> {
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
+                        if check {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                callee,
+                                budget,
+                                Some(i.span),
+                            )?;
+                        }
                         self.consume(state, callee, check, budget)?;
                     }
                     if budget.owned_callbacks.contains(id) {

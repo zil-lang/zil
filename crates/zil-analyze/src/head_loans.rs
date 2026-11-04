@@ -798,6 +798,13 @@ fn check_function(
                 }
             }
             let primitive = match i.kind {
+                InstructionKind::AsyncRegistrationValid { registration } => {
+                    Some((registration, false))
+                }
+                InstructionKind::AsyncRegistrationRequestClose { registration }
+                | InstructionKind::AsyncRegistrationPollClose { registration } => {
+                    Some((registration, true))
+                }
                 InstructionKind::ReadDesc { desc, .. } => Some((desc, false)),
                 InstructionKind::WriteDesc { desc, .. } => Some((desc, true)),
                 InstructionKind::ByteBufferLen { buffer }

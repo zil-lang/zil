@@ -4790,6 +4790,8 @@ fn async_registration_g8412_source_neighbors_and_unused_definitions() {
         original.replace("var count=37;", "unsafe {async_drain(c_null());} var count=37;"),
         original.replace("unsafe {", "{"),
         original.replace("async_registration_finish_destroy(give owner);", ""),
+        original.replace("async_registration_finish_destroy(give owner);", "let pair=(give owner,1);"),
+        original.replace("async_registration_finish_destroy(give owner);", "let cleanup=move()->i32=>{async_registration_finish_destroy(give owner);return 0};"),
         original.replace("async_registration_finish_destroy(give owner);", "registration_close(give owner);"),
         original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(owner);"),
         original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(give owner);async_registration_finish_destroy(give owner);"),
@@ -4816,6 +4818,37 @@ fn async_registration_g8412_source_neighbors_and_unused_definitions() {
         eprintln!(
             "async_registration_g8412 neighbor {index}: {:?}",
             report.status
+        );
+    }
+    for text in [
+        original.replace(
+            "c_register_async(async_register,async_request,async_drain,callback)",
+            "#(c_register_async(async_register,async_request,async_drain,callback))",
+        ),
+        original.replace("fn main()", "fn create_and_close()")
+            + "fn main()->i32=>#(create_and_close())",
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, zil_base::Phase::Ct, "{}", report.to_json());
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/async-registration/legacy-sync-direct.zil"),
+        include_str!(
+            "../../../tests/language-readiness/async-registration/legacy-sync-factory.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
         );
     }
     let declarations = original.split("fn main").next().unwrap();
@@ -4876,7 +4909,7 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
         .iter()
         .position(|f| f.name == "main")
         .unwrap();
-    for variant in 0..10 {
+    for variant in 0..15 {
         let mut raw = typed.clone();
         match variant {
             0 => {
@@ -4982,6 +5015,41 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
                     .unwrap();
                 i.result = None;
             }
+            10..=12 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                let owner = Type::Managed(Box::new(payload));
+                let aggregate = match variant {
+                    10 => Type::Tuple(vec![owner, Type::I32]),
+                    11 => Type::Enum {
+                        name: "@user:pollable-enum".into(),
+                        variants: vec![("Owner".into(), vec![owner])],
+                    },
+                    _ => Type::ErrorUnion {
+                        error: Box::new(Type::I32),
+                        result: Box::new(owner),
+                    },
+                };
+                raw.functions[main].values.push(aggregate);
+            }
+            13 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.closures[0].captures[0] = Type::Managed(Box::new(payload));
+            }
+            14 => {
+                raw.closures[0].captures[0] = Type::Managed(Box::new(Type::TaskI32));
+            }
             _ => unreachable!(),
         }
         let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
@@ -5006,9 +5074,114 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
             let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
             assert_eq!(
                 errors[0].category,
-                ResultCategory::SafeReject,
+                if variant == 13 {
+                    ResultCategory::Unsupported
+                } else {
+                    ResultCategory::SafeReject
+                },
                 "Verify raw {variant} wire={decoded}: {errors:?}"
             );
+        }
+    }
+    // A parent's exclusive address cannot be used while its actual child
+    // reborrow is live. The same operations through the child remain valid.
+    for poll in [false, true] {
+        for parent_access in [false, true] {
+            let mut raw = typed.clone();
+            let f = &mut raw.functions[main];
+            let child = zil_ir::ValueId(f.values.len() as u32);
+            let (block, position) = f
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| {
+                            if poll {
+                                matches!(i.kind, I::AsyncRegistrationPollClose { .. })
+                            } else {
+                                matches!(i.kind, I::AsyncRegistrationRequestClose { .. })
+                            }
+                        })
+                        .map(|i| (b, i))
+                })
+                .unwrap();
+            let mut operation = f.blocks[block].instructions[position].clone();
+            let address = match operation.kind {
+                I::AsyncRegistrationRequestClose { registration }
+                | I::AsyncRegistrationPollClose { registration } => registration,
+                _ => unreachable!(),
+            };
+            f.values.push(f.values[address.0 as usize].clone());
+            if let Some(result) = operation.result.filter(|_| parent_access) {
+                let result_ty = f.values[result.0 as usize].clone();
+                operation.result = Some(zil_ir::ValueId(f.values.len() as u32));
+                f.values.push(result_ty);
+            }
+            match &mut operation.kind {
+                I::AsyncRegistrationRequestClose { registration }
+                | I::AsyncRegistrationPollClose { registration } => *registration = child,
+                _ => unreachable!(),
+            }
+            let span = operation.span;
+            f.blocks[block].instructions.insert(
+                position,
+                zil_ir::Instruction {
+                    result: Some(child),
+                    kind: I::ReborrowAddress {
+                        address,
+                        mutable: true,
+                    },
+                    span,
+                },
+            );
+            if parent_access {
+                f.blocks[block].instructions.insert(position + 2, operation);
+            } else {
+                f.blocks[block].instructions[position + 1] = operation;
+            }
+            let result = zil_analyze::analyze(&raw, &limits);
+            if parent_access {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|d| d.message.contains("live child")),
+                    "Analyze poll={poll}: {errors:?}"
+                );
+            } else {
+                result.unwrap();
+            }
+            let mut valid = raw.clone();
+            if parent_access {
+                match &mut valid.functions[main].blocks[block].instructions[position + 1].kind {
+                    I::AsyncRegistrationRequestClose { registration }
+                    | I::AsyncRegistrationPollClose { registration } => *registration = child,
+                    _ => unreachable!(),
+                }
+            }
+            let mut claim = zil_analyze::analyze(&valid, &limits).unwrap();
+            claim.module_fingerprint = raw.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+            for wire in [false, true] {
+                let (input, claim) = if wire {
+                    zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+                } else {
+                    (raw.clone(), claim.clone())
+                };
+                let result = zil_verify::verify_module(input, claim, &target, &limits);
+                if parent_access {
+                    let errors = result.unwrap_err();
+                    assert!(
+                        errors
+                            .iter()
+                            .any(|d| d.category == ResultCategory::SafeReject),
+                        "Verify poll={poll} wire={wire}: {errors:?}"
+                    );
+                } else {
+                    result.unwrap();
+                }
+            }
         }
     }
     for verify in [false, true] {

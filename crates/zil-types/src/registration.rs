@@ -109,7 +109,7 @@ pub(super) fn add_definitions(
                 if blocked && matches!(t, Type::AsyncRegistration { .. }) {
                     return Err(unsupported(
                         f.span,
-                        "pollable registration roots inside ordinary Store/Package require an asynchronous storage consumer",
+                        "pollable registration roots in ordinary aggregate storage require an asynchronous ownership consumer",
                     ));
                 }
                 match t {
@@ -144,7 +144,7 @@ pub(super) fn add_definitions(
                     }
                     Type::Tuple(ts) => {
                         spend(left, ts.len())?;
-                        pending.extend(ts.iter().map(|t| (t, blocked)))
+                        pending.extend(ts.iter().map(|t| (t, true)))
                     }
                     Type::Record { fields, .. } | Type::Package { fields, .. } => {
                         spend(left, fields.len())?;
@@ -155,12 +155,12 @@ pub(super) fn add_definitions(
                         spend(left, variants.len())?;
                         for (_, ts) in variants {
                             spend(left, ts.len())?;
-                            pending.extend(ts.iter().map(|t| (t, blocked)))
+                            pending.extend(ts.iter().map(|t| (t, true)))
                         }
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        pending.extend([(error.as_ref(), blocked), (result.as_ref(), blocked)])
+                        pending.extend([(error.as_ref(), true), (result.as_ref(), true)])
                     }
                     _ => {}
                 }
@@ -281,7 +281,7 @@ impl Builder<'_, '_> {
                 ));
             }
             self.closures.factory_self_contained(id, callback.span)?;
-            closed_environment(self.closures, id, callback.span)?;
+            closed_environment_for(self.closures, id, callback.span, asynchronous)?;
             let environment = Box::new(Type::Closure(id));
             let ty = Type::Managed(Box::new(if asynchronous {
                 Type::AsyncRegistration { environment }
@@ -396,6 +396,14 @@ pub(super) fn closed_environment(
     root: ClosureId,
     span: Span,
 ) -> R<()> {
+    closed_environment_for(state, root, span, false)
+}
+fn closed_environment_for(
+    state: &mut closures::State,
+    root: ClosureId,
+    span: Span,
+    asynchronous: bool,
+) -> R<()> {
     let mut pending = vec![root];
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
@@ -440,6 +448,13 @@ pub(super) fn closed_environment(
                     return Err(unsupported(
                         span,
                         "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
+                    ));
+                }
+                Type::TaskI32 if asynchronous => {
+                    return Err(error(
+                        "E-CLOSED-ENVIRONMENT",
+                        span,
+                        "AsyncRegistration environment requires an actual synchronous legacy Task frame cleanup proof",
                     ));
                 }
                 Type::Dyn { .. }

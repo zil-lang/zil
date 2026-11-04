@@ -90,22 +90,22 @@ fn dependencies(
                 for _ in &module.resources {
                     resources::charge_payload(payload, budget)?;
                 }
-                if let Some(r) = module.resources.iter().find(|r| r.payload == **payload) {
-                    if let Some(drop) = r.teardown {
-                        functions.push(drop);
-                    }
+                if let Some(r) = module.resources.iter().find(|r| r.payload == **payload)
+                    && let Some(drop) = r.teardown
+                {
+                    functions.push(drop);
                 }
                 pending.push(payload);
             }
             Type::Closure(id) => {
                 budget.spend(closures.len().saturating_add(1))?;
-                if closures.insert(*id) {
-                    if let Some(c) = module.closures.get(id.0 as usize) {
-                        functions.push(c.function);
-                        for t in &c.captures {
-                            resources::charge_payload(t, budget)?;
-                            pending.push(t);
-                        }
+                if closures.insert(*id)
+                    && let Some(c) = module.closures.get(id.0 as usize)
+                {
+                    functions.push(c.function);
+                    for t in &c.captures {
+                        resources::charge_payload(t, budget)?;
+                        pending.push(t);
                     }
                 }
             }
