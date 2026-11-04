@@ -247,6 +247,35 @@ fn terminal340_error_arm_budget_fresh_and_warm() {
 }
 
 #[test]
+fn terminal340_unused_generic_error_ref_origins() {
+    let bad = "enum F{Bad}fn unused<T:Copy>(x:F!T)->i32{var value=x;match value{.ok(ref n)=>{value=x;let observed=*n;return 0},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+    let good = bad.replace("value=x;let observed=*n;", "let observed=*n;value=x;");
+    let rejected = compile_source(&source(bad), &CompileOptions::default());
+    let admitted = compile_source(&source(&good), &CompileOptions::default());
+    eprintln!(
+        "340 unused pattern alias bad={:?}, nearest={:?}",
+        rejected.status, admitted.status
+    );
+    assert_eq!(
+        admitted.status,
+        ResultCategory::Success,
+        "{}",
+        admitted.to_json()
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    let invoked = good.replace(
+        "fn result()->i32{return 42}",
+        "fn make()->F!i32{return 42}fn result()->i32{return unused(make())+42}",
+    );
+    review329_native(&[("main", &invoked)], 42);
+}
+
+#[test]
 fn terminal340_error_arm_patterns_definition_neighbors() {
     for text in [
         "enum F{Bad}fn make()->F!i32{return 42}fn result()->i32{let .ok(n)=make();return n}",

@@ -14,6 +14,7 @@ pub(crate) struct Budget<'a> {
     anonymous_sums: bool,
     borrowed_keys: bool,
     type_member_patterns: bool,
+    reference_patterns: bool,
     generic_methods: bool,
     dynamic_interfaces: bool,
 }
@@ -31,6 +32,7 @@ impl<'a> Budget<'a> {
             anonymous_sums: false,
             borrowed_keys: false,
             type_member_patterns: false,
+            reference_patterns: false,
             generic_methods: false,
             dynamic_interfaces: false,
         }
@@ -77,6 +79,9 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn has_anonymous_sums(&self) -> bool {
         self.anonymous_sums
+    }
+    pub(crate) fn has_reference_patterns(&self) -> bool {
+        self.reference_patterns
     }
     pub(crate) fn has_type_member_patterns(&self) -> bool {
         self.type_member_patterns
@@ -686,9 +691,11 @@ impl<'a> Budget<'a> {
                     self.pattern(&field.pattern, depth + 1)?;
                 }
             }
-            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
-                self.pattern(pattern, depth + 1)?
+            PatternKind::Reference { pattern, .. } => {
+                self.reference_patterns = true;
+                self.pattern(pattern, depth + 1)?;
             }
+            PatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             PatternKind::Literal(l) => self.literal(l, p.span)?,
             PatternKind::Wildcard => {}
         }

@@ -248,6 +248,101 @@ impl Check<'_, '_, '_> {
             })
             .collect()
     }
+    fn pattern_has_ref(&mut self, p: &Pattern, depth: usize) -> R<bool> {
+        self.budget.node(p.span, depth)?;
+        match &p.kind {
+            PatternKind::Reference { .. } => Ok(true),
+            PatternKind::ErrorArm { pattern, .. } => self.pattern_has_ref(pattern, depth + 1),
+            PatternKind::Tuple(fields)
+            | PatternKind::Constructor {
+                arguments: fields, ..
+            } => {
+                for p in fields {
+                    if self.pattern_has_ref(p, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            PatternKind::RecordConstructor { fields, .. } => {
+                for f in fields {
+                    if self.pattern_has_ref(&f.pattern, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
+    fn pattern_value(&mut self, value: &Expr, state: &mut State, keep_place: bool) -> R<TypeRef> {
+        let previous = self.pattern_read;
+        if keep_place {
+            let mut base = value;
+            while let ExprKind::Group(inner) | ExprKind::Ascribed { value: inner, .. } = &base.kind
+            {
+                self.budget.node(base.span, 0)?;
+                base = inner;
+            }
+            if matches!(
+                base.kind,
+                ExprKind::Unary {
+                    op: UnaryOp::Dereference,
+                    ..
+                } | ExprKind::Member { .. }
+                    | ExprKind::Index { .. }
+            ) {
+                self.pattern_read = Some(base as *const Expr as usize);
+            }
+        }
+        let result = self.expr(value, state, None, false);
+        self.pattern_read = previous;
+        result
+    }
+    fn prepare_pattern_place(&mut self, p: &Pattern, value: &Expr, state: &State) -> R<()> {
+        debug_assert!(self.pattern_place.is_none());
+        self.pattern_route.clear();
+        if self.budget.has_reference_patterns() && self.pattern_has_ref(p, 0)? {
+            self.pattern_place = Some(self.alias_pattern_prepare(value, state)?);
+        }
+        Ok(())
+    }
+    fn pattern_child(
+        &mut self,
+        p: &Pattern,
+        ty: &TypeRef,
+        state: &mut State,
+        seen: &mut BTreeSet<String>,
+        step: zil_ir::PlaceProjection,
+    ) -> R<Pat> {
+        let positioned = self.pattern_place.is_some();
+        if positioned {
+            self.budget.node(p.span, self.pattern_route.len() + 1)?;
+            for _ in 0..self.pattern_route.len() + 1 {
+                self.budget.node(p.span, 0)?;
+            }
+            self.pattern_route.push(step);
+        }
+        let result = self.pattern(p, ty, state, seen);
+        if positioned {
+            self.pattern_route.pop();
+        }
+        result
+    }
+    fn pattern_variant_slot(&mut self, decl: &EnumDecl, name: &str, span: Span) -> R<u32> {
+        for (i, variant) in decl.variants.iter().enumerate() {
+            self.budget.node(span, 0)?;
+            self.budget.text(&variant.name, span)?;
+            self.budget.text(name, span)?;
+            if variant.name == name {
+                return Ok(i as u32);
+            }
+        }
+        Err(error(
+            span,
+            "pattern variant has no actual declaration position",
+        ))
+    }
     fn pattern(
         &mut self,
         p: &Pattern,
@@ -276,7 +371,21 @@ impl Check<'_, '_, '_> {
                     },
                     span: p.span,
                 };
-                self.pattern(pattern, &address, state, seen)?
+                if !matches!(pattern.kind, PatternKind::Name(_) | PatternKind::Wildcard) {
+                    return Err(error(p.span, "reference binding needs a name or discard"));
+                }
+                let local = self.next_local;
+                let checked = self.pattern(pattern, &address, state, seen)?;
+                if let Some(place) = self.pattern_place.take() {
+                    let route = std::mem::take(&mut self.pattern_route);
+                    let binding = matches!(pattern.kind, PatternKind::Name(_)).then_some(local);
+                    let result =
+                        self.alias_pattern_borrow(&place, &route, binding, *mutable, state, p.span);
+                    self.pattern_route = route;
+                    self.pattern_place = Some(place);
+                    result?;
+                }
+                checked
             }
             PatternKind::ErrorArm { is_error, pattern } => {
                 let TypeKind::Error {
@@ -288,11 +397,12 @@ impl Check<'_, '_, '_> {
                 };
                 Pat::Ctor(
                     Ctor::Error(*is_error),
-                    vec![self.pattern(
+                    vec![self.pattern_child(
                         pattern,
                         if *is_error { error_ty } else { result },
                         state,
                         seen,
+                        zil_ir::PlaceProjection::ErrorArm(*is_error),
                     )?],
                 )
             }
@@ -329,7 +439,16 @@ impl Check<'_, '_, '_> {
                     Ctor::Tuple,
                     ps.iter()
                         .zip(ts)
-                        .map(|(p, t)| self.pattern(p, t, state, seen))
+                        .enumerate()
+                        .map(|(index, (p, t))| {
+                            self.pattern_child(
+                                p,
+                                t,
+                                state,
+                                seen,
+                                zil_ir::PlaceProjection::Field(index as u32),
+                            )
+                        })
                         .collect::<R<_>>()?,
                 )
             }
@@ -381,11 +500,25 @@ impl Check<'_, '_, '_> {
                 for _ in declared {
                     self.budget.node(p.span, 0)?;
                 }
+                let variant_slot = if self.pattern_place.is_some() {
+                    self.pattern_variant_slot(declaration, variant, p.span)?
+                } else {
+                    0
+                };
                 let mut patterns = vec![Pat::Any; declared.len()];
                 for (supplied, index) in supplied.iter().zip(order) {
                     let field_type =
                         syntax_enum::substituted(&declared[index].ty, &found, self.budget)?;
-                    patterns[index] = self.pattern(&supplied.pattern, &field_type, state, seen)?;
+                    patterns[index] = self.pattern_child(
+                        &supplied.pattern,
+                        &field_type,
+                        state,
+                        seen,
+                        zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: variant_slot,
+                            index: index as u32,
+                        }),
+                    )?;
                 }
                 Pat::Ctor(Ctor::Variant(variant.clone()), patterns)
             }
@@ -426,11 +559,12 @@ impl Check<'_, '_, '_> {
                     };
                     return Ok(Pat::Ctor(
                         Ctor::Error(is_error),
-                        vec![self.pattern(
+                        vec![self.pattern_child(
                             &arguments[0],
                             if is_error { error_ty } else { result },
                             state,
                             seen,
+                            zil_ir::PlaceProjection::ErrorArm(is_error),
                         )?],
                     ));
                 }
@@ -462,10 +596,13 @@ impl Check<'_, '_, '_> {
                     let member = found.ok_or_else(|| {
                         error(p.span, "pattern type is not an exact anonymous member")
                     })?;
-                    return Ok(Pat::Ctor(
-                        Ctor::Sum(key),
-                        vec![self.pattern(&arguments[0], &member, state, seen)?],
-                    ));
+                    let original = self.pattern_place.take();
+                    if let Some(place) = &original {
+                        self.pattern_place = Some(self.alias_pattern_coarse(place, p.span)?);
+                    }
+                    let child = self.pattern(&arguments[0], &member, state, seen);
+                    self.pattern_place = original;
+                    return Ok(Pat::Ctor(Ctor::Sum(key), vec![child?]));
                 }
                 let alias = path.first().and_then(|name| self.pattern_types.get(name));
                 if let Some(alias) = alias {
@@ -492,6 +629,12 @@ impl Check<'_, '_, '_> {
                         "record enum variant requires a named pattern",
                     ));
                 }
+                let variant_slot = if self.pattern_place.is_some() {
+                    let decl = self.enums[&base.join(".")];
+                    self.pattern_variant_slot(decl, variant, p.span)?
+                } else {
+                    0
+                };
                 let mut managed = Vec::new();
                 let fields = self.enum_fields(ty, variant, Some(&mut managed))?;
                 if fields.len() != arguments.len() {
@@ -505,7 +648,16 @@ impl Check<'_, '_, '_> {
                         .zip(&fields)
                         .enumerate()
                         .map(|(index, (p, t))| {
-                            let pattern = self.pattern(p, t, state, seen)?;
+                            let pattern = self.pattern_child(
+                                p,
+                                t,
+                                state,
+                                seen,
+                                zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
+                                    variant: variant_slot,
+                                    index: index as u32,
+                                }),
+                            )?;
                             if !managed.is_empty()
                                 && managed.binary_search(&index).is_ok()
                                 && let PatternKind::Name(name) = &p.kind
@@ -568,9 +720,11 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         span: Span,
     ) -> R<BlockFlow> {
-        let ty = self.expr(value, state, None, false)?;
+        let has_ref = self.budget.has_reference_patterns() && self.pattern_has_ref(pattern, 0)?;
+        let ty = self.pattern_value(value, state, has_ref)?;
         let mut yes = self.clone_state(state)?;
         let first = self.next_local;
+        self.prepare_pattern_place(pattern, value, &yes)?;
         let pattern = self.pattern(pattern, &ty, &mut yes, &mut BTreeSet::new())?;
         let irrefutable = !self.useful(
             &[vec![pattern]],
@@ -579,7 +733,11 @@ impl Check<'_, '_, '_> {
             0,
             span,
         )?;
+        let place = self.pattern_place.take();
         let a = self.block(then_body, &mut yes)?;
+        if let Some(place) = place {
+            self.alias_pattern_end(&place, &mut yes, span)?;
+        }
         self.resource_description_scope_exit(&mut yes, first, span)?;
         let mut no = self.clone_state(state)?;
         let b = match else_body {
@@ -617,11 +775,14 @@ impl Check<'_, '_, '_> {
     ) -> R<BlockFlow> {
         let aliases = self.alias_mark_loop();
         let entry = self.clone_loop_state(state, value.span)?;
-        let ty = self.expr(value, state, None, false)?;
+        let has_ref = self.budget.has_reference_patterns() && self.pattern_has_ref(pattern, 0)?;
+        let ty = self.pattern_value(value, state, has_ref)?;
         self.loop_invariant(&entry, state, value.span)?;
         let mut iteration = self.clone_loop_state(state, body.span)?;
+        self.prepare_pattern_place(pattern, value, &iteration)?;
         self.pattern(pattern, &ty, &mut iteration, &mut BTreeSet::new())?;
-        self.loop_body(body, state, iteration, span, aliases)
+        let place = self.pattern_place.take();
+        self.loop_body_pattern(body, state, iteration, span, aliases, place.as_ref())
     }
     pub(super) fn enum_match(
         &mut self,
@@ -629,7 +790,21 @@ impl Check<'_, '_, '_> {
         arms: &[MatchArm],
         state: &mut State,
     ) -> R<BlockFlow> {
-        let ty = self.expr(value, state, None, false)?;
+        let mut has_ref = false;
+        if self.budget.has_reference_patterns() {
+            for arm in arms {
+                if self.pattern_has_ref(&arm.pattern, 0)? {
+                    has_ref = true;
+                    break;
+                }
+            }
+        }
+        let ty = self.pattern_value(value, state, has_ref)?;
+        let prepared = if has_ref {
+            Some(self.alias_pattern_prepare(value, state)?)
+        } else {
+            None
+        };
         let mut rows = Vec::new();
         let mut continuing = Vec::new();
         let mut flow = BlockFlow {
@@ -639,6 +814,11 @@ impl Check<'_, '_, '_> {
         for arm in arms {
             let mut branch = self.clone_state(state)?;
             let first_resource_local = self.next_local;
+            self.pattern_route.clear();
+            self.pattern_place = prepared
+                .as_ref()
+                .map(|place| self.alias_pattern_clone(place, arm.span))
+                .transpose()?;
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
             if !self.useful(
                 &rows,
@@ -655,6 +835,7 @@ impl Check<'_, '_, '_> {
                 ));
             }
             rows.push(vec![p]);
+            let place = self.pattern_place.take();
             let branch_flow = match &arm.body {
                 ArrowBody::Block(b) => self.block(b, &mut branch)?,
                 ArrowBody::Expression(e) => {
@@ -662,6 +843,9 @@ impl Check<'_, '_, '_> {
                     BlockFlow::NEXT
                 }
             };
+            if let Some(place) = place {
+                self.alias_pattern_end(&place, &mut branch, arm.span)?;
+            }
             self.resource_description_scope_exit(&mut branch, first_resource_local, arm.span)?;
             flow.returns |= branch_flow.returns;
             if branch_flow.fallthrough {
@@ -1042,5 +1226,144 @@ mod terminal340_error_member_budget {
         );
         assert_eq!(left, 0);
         println!("340 ErrorUnion member-disjointness wide/grouped/prefix N={n}");
+    }
+}
+
+#[cfg(test)]
+mod terminal340_pattern_origin_tests {
+    use zil_base::{FileId, ModuleId, SourceUnit};
+    fn check(text: &str) -> zil_base::CompileResult<zil_ir::CoreModule> {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "pattern-origin.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result()?;
+        crate::expand(&source, &syntax)
+    }
+    #[test]
+    fn unused_payload_reference_keeps_parent_and_last_use_in_all_condition_forms() {
+        for (index, body) in [
+            "match value{.ok(ref n)=>{value=x;let observed=*n;return 0},.err(_)=>{return 0}}",
+            "if let .ok(ref n)=value{value=x;let observed=*n;return 0}return 0",
+            "while let .ok(ref n)=value{value=x;let observed=*n;return 0}return 0",
+        ]
+        .iter()
+        .enumerate()
+        {
+            let bad = format!(
+                "enum F{{Bad}}fn unused<T:Copy>(x:F!T)->i32{{var value=x;{body}}}fn result()->i32{{return 42}}"
+            );
+            let good = bad.replace("value=x;let observed=*n;", "let observed=*n;value=x;");
+            let rejected = check(&bad);
+            let admitted = check(&good);
+            assert!(admitted.is_ok(), "case{index} fresh: {admitted:?}");
+            assert!(rejected.is_err(), "case{index} stale accepted");
+        }
+    }
+    #[test]
+    fn copy_snapshots_are_independent_and_fresh_parent_loans_expire() {
+        let fresh = "enum F{Bad}fn unused<T:Copy>(x:F!T,fallback:T)->T{var value=x;match value{.ok(ref n)=>{let observed=*n;value=x;return observed},.err(_)=>{return fallback}}}fn result()->i32{return 42}";
+        assert!(check(fresh).is_ok(), "{:?}", check(fresh));
+        assert!(
+            check(&fresh.replace("let observed=*n;value=x;", "value=x;let observed=*n;")).is_err()
+        );
+        for body in [
+            "if let .ok(ref n)=(make()){saved=n}return *saved",
+            "while let .ok(ref n)=(make()){saved=n;break}return *saved",
+            "match (make()){.ok(ref n)=>{saved=n},.err(_)=>{}}return *saved",
+        ] {
+            let bad = format!(
+                "enum F{{Bad}}fn make()->F!i32{{return 42}}fn unused<T:Copy>(backup:&i32,marker:T)->i32{{var saved=backup;{body}}}fn result()->i32{{return 42}}"
+            );
+            let good = bad.replace("saved=n", "saved=n;let observed=*saved;saved=backup");
+            assert!(
+                check(&good).is_ok(),
+                "fresh temporary nearest: {:?}",
+                check(&good)
+            );
+            assert!(check(&bad).is_err(), "fresh temporary escaped: {body}");
+        }
+    }
+    #[test]
+    fn nested_pattern_origin_budget_is_exact_and_fresh() {
+        let mut ty = "(T,i32)".to_owned();
+        let mut pattern = "(ref a,ref mut b)".to_owned();
+        for _ in 0..12 {
+            ty = format!("({ty},i32)");
+            pattern = format!("({pattern},_)");
+        }
+        let text = format!(
+            "enum F{{Bad}}fn unused<T:Copy>(x:F!{ty})->i32{{var value=x;match value{{.ok({pattern})=>{{*b=42;let observed=*a;return *b}},.err(_)=>{{return 0}}}}}}fn result()->i32{{return 42}}"
+        );
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "pattern-budget.zil", &text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let run = |work| {
+            crate::expand_with_map_limits(
+                &source,
+                &syntax,
+                &zil_base::Limits {
+                    max_analysis_steps: work,
+                    ..zil_base::Limits::default()
+                },
+            )
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(_) => high = mid,
+                Err(errors) => {
+                    assert_eq!(
+                        errors[0].category,
+                        zil_base::ResultCategory::ResourceLimit,
+                        "{errors:?}"
+                    );
+                    low = mid + 1;
+                }
+            }
+        }
+        let first = run(low).unwrap().core;
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(first, run(low).unwrap().core);
+        println!("340 nested generic pattern-origin Expand N={low}, N-1 rejects, fresh agree");
+    }
+    #[test]
+    fn grouped_fresh_scrutinee_and_saved_call_result_root() {
+        let fresh = "enum F{Bad}fn make()->F!i32{return 42}fn unused<T:Copy>(x:T)->i32{match (make()){.ok(ref n)=>{return *n},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+        assert!(check(fresh).is_ok(), "{:?}", check(fresh));
+        let bad = "enum F{Bad}fn relay<life a,T:Copy>(p:&'a mut(F!T))->&'a mut(F!T){return p}fn unused<T:Copy>(p:&mut(F!T),q:&(F!T),next:F!T)->i32{match *relay(p){.ok(ref n)=>{let unrelated=q;let other=*unrelated;let observed=*n;return 0},.err(ref n)=>{*p=next;let observed=*n;return 0}}}fn result()->i32{return 42}";
+        let good = bad.replace("*p=next;let observed=*n;", "let observed=*n;*p=next;");
+        assert!(check(&good).is_ok(), "fresh relay: {:?}", check(&good));
+        assert!(check(bad).is_err(), "stale relay accepted");
+    }
+    #[test]
+    fn helper_mutation_shared_and_mutable_modes_keep_real_parent() {
+        for mode in ["ref", "ref mut"] {
+            let bad = format!(
+                "enum F{{Bad}}fn replace<T:Copy>(p:&mut(F!T),next:F!T){{*p=next}}fn unused<T:Copy>(p:&mut(F!T),next:F!T)->i32{{match *p{{.ok({mode} n)=>{{replace(p,next);let observed=*n;return 0}},.err(_)=>{{return 0}}}}}}fn result()->i32{{return 42}}"
+            );
+            let good = bad.replace(
+                "replace(p,next);let observed=*n;",
+                "let observed=*n;replace(p,next);",
+            );
+            assert!(check(&good).is_ok(), "{mode} fresh: {:?}", check(&good));
+            assert!(check(&bad).is_err(), "{mode} stale accepted");
+        }
+        let shared = "enum F{Bad}fn unused<T:Copy>(p:&(F!T))->i32{match *p{.ok(ref mut n)=>{let observed=*n;return 0},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+        assert!(check(shared).is_err());
+        let immutable = "enum F{Bad}fn unused<T:Copy>(x:F!T)->i32{let value=x;match value{.ok(ref mut n)=>{let observed=*n;return 0},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+        assert!(check(immutable).is_err());
+    }
+    #[test]
+    fn addressed_parent_mutation_and_disjoint_pattern_siblings() {
+        let bad = "enum F{Bad}fn unused<T:Copy>(value:&mut(F!T),replacement:F!T)->i32{match *value{.ok(ref n)=>{*value=replacement;let observed=*n;return 0},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+        let good = bad.replace(
+            "*value=replacement;let observed=*n;",
+            "let observed=*n;*value=replacement;",
+        );
+        assert!(check(&good).is_ok(), "{:?}", check(&good));
+        assert!(check(bad).is_err());
+        let siblings = "enum F{Bad}fn unused<T:Copy>(x:F!(T,i32))->i32{var value=x;match value{.ok((ref a,ref mut b))=>{*b=42;let observed=*a;return *b},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+        assert!(check(siblings).is_ok(), "{:?}", check(siblings));
     }
 }

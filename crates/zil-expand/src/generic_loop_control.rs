@@ -63,9 +63,20 @@ impl Check<'_, '_, '_> {
         &mut self,
         body: &Block,
         state: &mut State,
+        iteration: State,
+        span: Span,
+        aliases: state_aliases::LoopMark,
+    ) -> R<BlockFlow> {
+        self.loop_body_pattern(body, state, iteration, span, aliases, None)
+    }
+    pub(super) fn loop_body_pattern(
+        &mut self,
+        body: &Block,
+        state: &mut State,
         mut iteration: State,
         span: Span,
         aliases: state_aliases::LoopMark,
+        pattern: Option<&state_aliases::PatternPlace>,
     ) -> R<BlockFlow> {
         let depth = self.loops.len().checked_add(1).ok_or_else(|| {
             Diagnostic::limit(Phase::Expand, "generic loop depth overflow", Some(span))
@@ -73,8 +84,14 @@ impl Check<'_, '_, '_> {
         self.budget.node(span, depth)?;
         self.loops.push(LoopFrame::default());
         let result = self.block(body, &mut iteration);
-        let frame = self.loops.pop().expect("loop frame pushed above");
+        let mut frame = self.loops.pop().expect("loop frame pushed above");
         let body_flow = result?;
+        if let Some(pattern) = pattern {
+            self.alias_pattern_end(pattern, &mut iteration, span)?;
+            for branch in frame.breaks.iter_mut().chain(&mut frame.continues) {
+                self.alias_pattern_end(pattern, branch, span)?;
+            }
+        }
 
         // The original outer state is still in `state`: body-local bindings
         // and shadowed names exist only in iteration/exit snapshots. Compare

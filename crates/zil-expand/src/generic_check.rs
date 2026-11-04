@@ -137,6 +137,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         package_slots: BTreeMap::new(),
         loops: Vec::new(),
         aliases: state_aliases::Tracker::default(),
+        pattern_place: None,
+        pattern_route: Vec::new(),
+        pattern_read: None,
         factory_scopes: Vec::new(),
         factory_values: BTreeMap::new(),
         factory_return_identity: None,
@@ -786,6 +789,9 @@ struct Check<'s, 'b, 'l> {
     package_slots: BTreeMap<(usize, String), usize>,
     loops: Vec<loop_control::LoopFrame>,
     aliases: state_aliases::Tracker,
+    pattern_place: Option<state_aliases::PatternPlace>,
+    pattern_route: Vec<zil_ir::PlaceProjection>,
+    pattern_read: Option<usize>,
     factory_scopes: Vec<factory::Scope>,
     factory_values: BTreeMap<usize, Span>,
     factory_return_identity: Option<Span>,
@@ -2753,6 +2759,7 @@ impl Check<'_, '_, '_> {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 ..
             } => {}
+            _ if self.pattern_read == Some(e as *const Expr as usize) => {}
             _ => self.aliases.result.clear(),
         }
         Ok(ty)
