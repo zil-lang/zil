@@ -38,6 +38,8 @@ mod stores;
 mod trait_bounds;
 #[path = "generic_trait_defaults.rs"]
 pub(super) mod trait_defaults;
+#[path = "generic_trait_impls.rs"]
+mod trait_impls;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -75,11 +77,13 @@ pub(super) fn specialize_products<'a>(
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     let mut has_defaults = false;
+    let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
+        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
             has_defaults |=
                 trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
@@ -180,6 +184,7 @@ pub(super) fn specialize_products<'a>(
             .iter()
             .all(|item| params(item).is_empty())
             && !has_defaults
+            && !has_impl_recipes
             && !normalized
                 .module
                 .items
@@ -201,6 +206,7 @@ pub(super) fn specialize_products<'a>(
     }
     if module.items.iter().all(|item| params(item).is_empty())
         && !has_defaults
+        && !has_impl_recipes
         && !module
             .items
             .iter()
@@ -262,6 +268,8 @@ struct Engine<'a> {
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
+    realized_impls: BTreeSet<(trait_instances::Key, String)>,
+    impl_definitions: BTreeMap<(usize, usize), String>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
     pending: VecDeque<Item>,
@@ -338,6 +346,8 @@ impl<'a> Engine<'a> {
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
+            realized_impls: BTreeSet::new(),
+            impl_definitions: BTreeMap::new(),
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
             pending: VecDeque::new(),
@@ -389,6 +399,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.validate_impl_recipes()?;
         engine.validate_trait_defaults(module)?;
         if engine.nominal_binder_collision {
             return Ok(engine);
@@ -574,6 +585,10 @@ impl<'a> Engine<'a> {
             items: vec![],
         };
         for item in &module.items {
+            if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()))
+            {
+                continue;
+            }
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
                     if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
@@ -773,6 +788,7 @@ impl<'a> Engine<'a> {
             span,
             retained.as_ref(),
         )?;
+        self.realize_bounds(params(item), &substitution, span)?;
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
@@ -1098,13 +1114,22 @@ impl<'a> Engine<'a> {
                                 let expected = trait_instances::ConcreteSignature {
                                     key,
                                     host: host.to_owned(),
-                                    declaration: required.span,
                                     method: signature,
                                 };
+                                let identity_key = trait_instances::copy_key(
+                                    &expected.key,
+                                    &mut self.budget,
+                                    member.span,
+                                )?;
+                                self.budget.text(host, member.span)?;
+                                self.budget.text(&actual.name, member.span)?;
                                 if self
                                     .products
                                     .trait_signatures
-                                    .insert((item.span, actual.span), expected)
+                                    .insert(
+                                        (identity_key, host.to_owned(), actual.name.clone()),
+                                        expected,
+                                    )
                                     .is_some()
                                 {
                                     return Err(error(
@@ -1674,6 +1699,20 @@ impl<'a> Engine<'a> {
                                 callee.span,
                             )?
                         {
+                            self.budget.text(&target, callee.span)?;
+                            member.clone_from(&target);
+                            trait_signature = Some(signature);
+                        }
+                        if trait_signature.is_none()
+                            && !self.traits.recipes.is_empty()
+                            && let Some((target, signature, witness)) = self.traits.recipe_method(
+                                projection_shape(&actual),
+                                member,
+                                &mut self.budget,
+                                callee.span,
+                            )?
+                        {
+                            self.realize_witness(witness)?;
                             self.budget.text(&target, callee.span)?;
                             member.clone_from(&target);
                             trait_signature = Some(signature);
@@ -3154,6 +3193,17 @@ impl Substitution<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
+        if self.substitutions.contains_key("Self")
+            && let ExprKind::ReceiverMember(member) = &e.kind
+        {
+            e.kind = ExprKind::Member {
+                object: Box::new(Expr {
+                    kind: ExprKind::Name("self".into()),
+                    span: e.span,
+                }),
+                member: MemberName::Name(member.clone()),
+            };
+        }
         if let ExprKind::Name(name) = &e.kind
             && let Some(value) = self.substitutions.get(name).and_then(consts::expression)
         {

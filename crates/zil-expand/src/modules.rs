@@ -385,9 +385,13 @@ fn normalize(
     let mut has_trait_instances = false;
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            has_trait_instances |=
-                generics::trait_defaults::present(t, &mut budget)? || !t.generics.is_empty();
+            has_trait_instances |= generics::trait_defaults::present(t, &mut budget)?
+                || !t.generics.is_empty()
+                || !t.bounds.is_empty();
         }
+        has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
+            if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
+                || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())));
     }
     has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
     let instance_limits = if has_trait_instances {
@@ -716,8 +720,12 @@ impl Visitor<'_, '_, '_> {
                 };
                 self.budget.node(span, depth)?;
                 self.budget.text(target, span)?;
-                index.const_parameters.get(target)
-                    .and_then(|slots| slots.get(position)).copied().unwrap_or(false)
+                index
+                    .const_parameters
+                    .get(target)
+                    .and_then(|slots| slots.get(position))
+                    .copied()
+                    .unwrap_or(false)
             }
         } else {
             false

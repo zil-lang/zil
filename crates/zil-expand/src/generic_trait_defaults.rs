@@ -161,7 +161,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<BTreeMap<Span, String>> {
+    ) -> R<BTreeMap<usize, String>> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));

@@ -2,8 +2,11 @@
 //! immutable during specialization and never treats a same-named method as an
 //! implementation. All emitted calls still enter Types and independent Verify.
 use super::*;
+#[path = "generic_trait_solver.rs"]
+mod solver;
 #[path = "generic_trait_super.rs"]
 mod supertraits;
+pub(super) use solver::{Witness, subject_key};
 
 pub(super) use trait_instances::Bound;
 pub(super) type Bounds = BTreeMap<String, Vec<Bound>>;
@@ -18,6 +21,7 @@ pub(super) struct Index<'a> {
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
     nominals: BTreeMap<String, &'a Item>,
+    pub(super) recipes: Vec<&'a Item>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -58,6 +62,14 @@ impl<'a> Index<'a> {
                         "StoreElement is a compiler shape bound and cannot be implemented",
                     ));
                 }
+                ItemKind::Impl(i)
+                    if i.trait_type.is_some()
+                        && (!i.generics.is_empty()
+                            || !i.where_clause.is_empty()
+                            || plain(&i.target).is_none()) =>
+                {
+                    has_instances = true;
+                }
                 ItemKind::Trait(declaration) => {
                     let defaults = trait_defaults::present(declaration, budget)?;
                     has_defaults |= defaults;
@@ -90,6 +102,7 @@ impl<'a> Index<'a> {
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
+            recipes: Vec::new(),
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
@@ -149,6 +162,16 @@ impl<'a> Index<'a> {
                 }
             }
             if let ItemKind::Impl(i) = &item.kind
+                && i.trait_type.is_some()
+                && (!i.generics.is_empty()
+                    || !i.where_clause.is_empty()
+                    || plain(&i.target).is_none())
+            {
+                budget.item(item)?;
+                index.has_instances = true;
+                index.recipes.push(item);
+            }
+            if let ItemKind::Impl(i) = &item.kind
                 && i.generics.is_empty()
                 && i.where_clause.is_empty()
                 && let (Some(application), Some(host)) = (&i.trait_type, plain(&i.target))
@@ -165,6 +188,28 @@ impl<'a> Index<'a> {
                 index.references.insert(key, reference);
             }
         }
+        if validate && !index.recipes.is_empty() {
+            for (item, declaration) in index.declarations.values() {
+                trait_instances::validate_declaration(item, declaration, &index.nominals, budget)?;
+            }
+            // In mixed concrete/generic programs every source impl remains a
+            // recipe until its complete premise tree has been proved.
+            index.recipes.clear();
+            index.implementations.clear();
+            for item in &module.items {
+                budget.node(item.span, 0)?;
+                if let ItemKind::Impl(i) = &item.kind
+                    && let Some(application) = &i.trait_type
+                    && trait_instances::head(application)
+                        .is_some_and(|name| index.declarations.contains_key(name))
+                {
+                    index.recipes.push(item);
+                }
+            }
+        }
+        if validate {
+            index.coherence(module, budget)?;
+        }
         if index.instance_count() > budget.remaining_limits().max_functions {
             return Err(Diagnostic::limit(
                 Phase::Expand,
@@ -174,6 +219,24 @@ impl<'a> Index<'a> {
         }
         if validate && index.has_supertraits {
             index.validate_supertraits(budget)?;
+        }
+        if validate && !index.recipes.is_empty() {
+            for item in &index.recipes {
+                let ItemKind::Impl(i) = &item.kind else {
+                    unreachable!()
+                };
+                if i.generics.is_empty() {
+                    let reference =
+                        index.reference(i.trait_type.as_ref().expect("trait recipe"), budget)?;
+                    index.solve(
+                        &reference,
+                        &i.target,
+                        &Bounds::new(),
+                        &BTreeSet::new(),
+                        budget,
+                    )?;
+                }
+            }
         }
         Ok(index)
     }
@@ -256,18 +319,38 @@ impl<'a> Index<'a> {
         let declaration = self.declaration(bound, budget)?;
         let (item, _) = self.declarations[declaration.name.as_str()];
         let reference = trait_instances::arguments(item.span, declaration, bound, budget)?;
-        if !reference.arguments.is_empty() {
-            for actual in &reference.arguments {
-                copy::require(
+        self.reference_arguments(&reference, &Bounds::new(), &BTreeSet::new(), budget)?;
+        Ok(reference)
+    }
+    pub(super) fn reference_arguments(
+        &self,
+        reference: &trait_instances::Reference,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let (_, declaration) = self.declaration_item(reference);
+        for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
+            let GenericParamKind::Type(bounds) = &parameter.kind else {
+                return Err(unsupported(
+                    parameter.span,
+                    "trait non-type argument domain",
+                ));
+            };
+            if bounds.iter().any(copy::is_bound) || !check::dependent(actual, variables) {
+                copy::require(actual, &self.nominals, available, variables, budget)?;
+            } else {
+                trait_instances::known_type(actual, variables, &self.nominals, budget, 0)?;
+                self.store_types(
                     actual,
-                    &self.nominals,
-                    &Bounds::new(),
-                    &BTreeSet::new(),
+                    available,
+                    variables,
                     budget,
+                    callable::StoreCallbacks::None,
                 )?;
             }
         }
-        Ok(reference)
+        Ok(())
     }
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
         let callable = callable::template(function)?;
@@ -399,6 +482,10 @@ impl<'a> Index<'a> {
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
                 })?;
+                if !self.recipes.is_empty() {
+                    self.solve(&reference, actual, available, variables, budget)?;
+                    continue;
+                }
                 budget.ty(actual)?;
                 let host = plain(actual).ok_or_else(|| {
                     error(span, "trait bound requires an implemented nominal type")
@@ -438,7 +525,7 @@ impl<'a> Index<'a> {
         let mut selected = None;
         let expanded;
         let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
-        let supplied = if self.has_supertraits {
+        let supplied = if self.has_supertraits && !variable.starts_with("\0subject:") {
             expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
             expanded.as_slice()
         } else {
@@ -610,6 +697,18 @@ impl<'a> Index<'a> {
         callback: callable::StoreCallbacks<'_>,
     ) -> R<()> {
         budget.ty(ty)?;
+        if available
+            .first_key_value()
+            .is_some_and(|(key, _)| key.starts_with("\0subject:"))
+        {
+            let key = subject_key(ty, budget)?;
+            if available
+                .get(&key)
+                .is_some_and(|bounds| bounds.iter().any(|bound| bound == stores::BOUND))
+            {
+                return Ok(());
+            }
+        }
         if let Some(variable) = plain(ty).filter(|name| variables.contains(*name)) {
             if available
                 .get(variable)
