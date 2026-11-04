@@ -70,6 +70,28 @@ fn native(files: &[(&str, &str)], stdout: &[u8], exit: i32) -> Vec<PathBuf> {
 }
 
 fn native_input(files: &[(&str, &str)], input: &[u8], stdout: &[u8], exit: i32) -> Vec<PathBuf> {
+    native_input_backend(files, input, stdout, exit, zil_driver::NativeBackend::Clang)
+}
+
+fn replacement_native(files: &[(&str, &str)], stdout: &[u8], exit: i32) {
+    for backend in [
+        zil_driver::NativeBackend::Clang,
+        zil_driver::NativeBackend::LlvmApi,
+    ] {
+        if backend == zil_driver::NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        native_input_backend(files, b"", stdout, exit, backend);
+    }
+}
+
+fn native_input_backend(
+    files: &[(&str, &str)],
+    input: &[u8],
+    stdout: &[u8],
+    exit: i32,
+    backend: zil_driver::NativeBackend,
+) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     for optimization in [Optimization::O0, Optimization::O2] {
         let dir = directory();
@@ -81,6 +103,7 @@ fn native_input(files: &[(&str, &str)], input: &[u8], stdout: &[u8], exit: i32) 
             &project(files),
             &CompileOptions {
                 stop_after: Stage::Build,
+                backend,
                 optimization,
                 output: Some(executable.clone()),
                 emit_dir: Some(dir.join("phases")),
@@ -323,10 +346,9 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
     let text =
         format!("{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner.code=90;return 0}}");
     native(&[("main", &text)], b"ZB", 0);
-    // The same exclusive owning assignment now produces a real replacement
-    // transaction. Store element state/cleanup integration is still unfinished;
-    // preserve that fence instead of calling the old overwrite-debt diagnostic
-    // a permanent language error. No executable may be produced for this case.
+    // The original exclusive owning-write source now has independent Store
+    // responsibility consumers. The retained address drops A, stores Z, then
+    // ordinary Store cleanup observes Z and the unchanged sibling B.
     let replacement = format!(
         "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"
     );
@@ -369,21 +391,12 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
     let report = check(&replacement);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message == "Store element replacement state bridge is under construction"),
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 0);
-    assert!(!report.artifacts.contains_key("executable"));
+    assert_eq!(report.verification_runs, 1);
+    replacement_native(&[("main", &replacement)], b"AZB", 0);
     // Nearest actual permission error: a shared Store element cannot supply
     // the exclusive parent required to prepare this owning replacement.
     rejected(
@@ -870,4 +883,264 @@ fn raw_and_wire_cannot_write_after_consistently_downgrading_the_window() {
         "E-VERIFY-ADDRESS",
         "exclusive",
     );
+}
+
+#[test]
+fn owning_store_field_replacement_preserves_failure_and_actual_description_boundaries() {
+    for (prepared, stdout) in [(false, b"ABX".as_slice()), (true, b"CABX".as_slice())] {
+        let rhs = if prepared {
+            "make(R{code:67},fail()?)"
+        } else {
+            "R{code:fail()?}"
+        };
+        let text = format!(
+            "{MODEL}enum F{{Bad}}fn fail()->F!i32{{return F.Bad()}}fn make(give spare:R,n:i32)->R contract{{result(create)}}{{return R{{code:n}}}}fn run()->F!i32{{{SETUP}let v=store_at_mut(s,0);v.owner={rhs};return 0}}fn main()->i32{{match run(){{.ok(_)=>{{return 1}},.err(_)=>{{unsafe{{putchar(88)}}return 0}}}}}}"
+        );
+        replacement_native(&[("main", &text)], stdout, 0);
+    }
+    for body in [
+        "let v=store_at_mut(s,0);let old=v.owner;v.owner=R{code:90};return old.code",
+        "let old=store_at(s,1).owner;let v=store_at_mut(s,0);v.owner=R{code:90};return old.code",
+        "let index:i64=1;let old=store_at(s,index).owner;let v=store_at_mut(s,0);v.owner=R{code:90};return old.code",
+    ] {
+        rejected(
+            &format!("{MODEL}fn main()->i32{{{SETUP}{body}}}"),
+            ResultCategory::SafeReject,
+            Phase::Analyze,
+            "live element resource description",
+        );
+    }
+    // A same-type description from a physically separate Store is still valid.
+    let other = format!(
+        "{MODEL}fn main()->i32{{{SETUP}let t=empty();store_reserve(t,1);store_push(t,cell(67));let old=store_at(t,0).owner;let v=store_at_mut(s,0);v.owner=R{{code:90}};return old.code-67}}"
+    );
+    replacement_native(&[("main", &other)], b"ACZB", 0);
+    let package = format!(
+        "{MODEL}{STATE}fn main()->i32{{let s=state();let v=store_at_mut(s.left,0);v.owner=R{{code:68}};return 0}}"
+    );
+    replacement_native(&[("main", &package)], b"AZDB", 0);
+    let order = format!(
+        "{MODEL}fn index()->i64{{unsafe{{putchar(73)}}return 0}}fn owner()->R contract{{result(create)}}{{unsafe{{putchar(82)}}return R{{code:90}}}}fn main()->i32{{{SETUP}let v=store_at_mut(s,index());v.owner=owner();return 0}}"
+    );
+    replacement_native(&[("main", &order)], b"IRAZB", 0);
+    let child = format!(
+        "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);let child=&v.owner.code;v.owner=R{{code:90}};return *child}}"
+    );
+    let report = check(&child);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let grow = format!(
+        "{MODEL}fn grow(s:Store<Cell>)->R contract{{result(create)}}{{store_reserve(s,32);return R{{code:90}}}}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=grow(s);return v.tag}}"
+    );
+    let report = check(&grow);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn owning_store_replacement_raw_and_wire_rebuild_description_liveness_and_parent_pin() {
+    use zil_ir::InstructionKind as I;
+    // The real source uses the old instance before settlement. Move only that
+    // contiguous consumer into the post-Commit position, preserving definitions
+    // and the honest candidate's origin claims. The stale Desc is now live.
+    for old in ["let old=v.owner;", "let old=store_at(s,1).owner;"] {
+        let setup = if old.contains("store_at") {
+            ""
+        } else {
+            "let v=store_at_mut(s,0);"
+        };
+        let borrow = if setup.is_empty() {
+            "let v=store_at_mut(s,0);"
+        } else {
+            ""
+        };
+        let text = format!(
+            "{MODEL}fn main()->i32{{{SETUP}{setup}{old}let n=old.code;{borrow}v.owner=R{{code:90}};return n-65}}"
+        );
+        let (mut module, plan) = candidate(&text);
+        let f = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, I::CommitPlaceReplace { .. }))
+            })
+            .unwrap();
+        let first = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, I::ReadDesc { .. }))
+            .unwrap();
+        let end = first
+            + block.instructions[first..]
+                .iter()
+                .position(|i| matches!(i.kind, I::Store { .. }))
+                .unwrap()
+            + 1;
+        let read = block.instructions.drain(first..end).collect::<Vec<_>>();
+        let commit = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, I::CommitPlaceReplace { .. }))
+            .unwrap();
+        block.instructions.splice(commit + 1..commit + 1, read);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("live element resource description")),
+            "{errors:?}"
+        );
+        let (code, message) = if old.contains("store_at") {
+            ("E-BORROW-CONFLICT", "")
+        } else {
+            ("E-VERIFY-RESOURCE", "live element resource description")
+        };
+        reject_candidate(
+            "store-replacement-stale-field-description",
+            module,
+            plan,
+            code,
+            message,
+        );
+    }
+    let text = format!(
+        "{MODEL}fn grow(s:Store<Cell>)->R contract{{result(create)}}{{store_reserve(s,32);return R{{code:90}}}}fn main()->i32{{{SETUP}let t=empty();let v=store_at_mut(s,0);v.owner=grow(t);return v.tag-65}}"
+    );
+    let (mut module, plan) = candidate(&text);
+    let grow = module
+        .functions
+        .iter()
+        .find(|f| f.name == "grow")
+        .unwrap()
+        .id;
+    let f = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let parent = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            I::OwnedStoreBorrowMut { store, .. } => Some(store),
+            _ => None,
+        })
+        .unwrap();
+    let call = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::Call { function, .. } if function == grow))
+        .unwrap();
+    if let I::Call { arguments, .. } = &mut call.kind {
+        arguments[0] = parent;
+    }
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    reject_candidate(
+        "store-replacement-parent-reallocation",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "",
+    );
+}
+
+#[test]
+fn owning_store_nonlocal_invalidation_summary_remains_closed() {
+    for helper in [
+        "fn replace(s:Store<Cell>){let v=store_at_mut(s,0);v.owner=R{code:90}}fn main()->i32{let s=empty();store_reserve(s,1);store_push(s,cell(65));replace(s);return 0}",
+        "fn replace(v:&mut Cell){v.owner=R{code:90}}fn main()->i32{let s=empty();store_reserve(s,1);store_push(s,cell(65));replace(store_at_mut(s,0));return 0}",
+    ] {
+        rejected(
+            &format!("{MODEL}{helper}"),
+            ResultCategory::Unsupported,
+            Phase::Analyze,
+            "summary",
+        );
+    }
+}
+
+#[test]
+fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
+    let text = format!(
+        "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return v.owner.code-90}}"
+    );
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store-replacement-budget.zil",
+        &text,
+    );
+    for (stage, expected_n) in [(Stage::Analyze, 19754), (Stage::Verify, 54842)] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = zil_driver::compile_source(&unit, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert_eq!(
+            low, expected_n,
+            "{stage:?}: actual Store replacement work changed"
+        );
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                zil_driver::compile_source(&unit, &options(work)),
+                warm.compile_source(&unit, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        },
+                        "{}",
+                        report.to_json()
+                    );
+                }
+                if expected == ResultCategory::Success && stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!(
+            "G1.3.1 {stage:?} full-request N={low}; N-1 ResourceLimit; fresh/warm/retry agree"
+        );
+    }
 }

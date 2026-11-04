@@ -29,6 +29,53 @@ impl Plan {
             written: writes.to_vec(),
         })
     }
+    pub(super) fn extend_slots(
+        &self,
+        f: &TypedFunction,
+        slots: &mut Slots,
+        b: &mut Budget,
+    ) -> Check<()> {
+        let routes = &self.actual.functions[f.id.0 as usize].values;
+        for (value, row) in routes.iter().enumerate() {
+            b.spend(row.len().saturating_add(1))?;
+            let ty = &f.values[value];
+            if slots.desc_value[value].is_none()
+                && (head_address(ty) || ty.is_package_address())
+                && row
+                    .iter()
+                    .any(|target| matches!(target.base, actual::Base::Element(_)))
+            {
+                slots.desc_value[value] = Some(slots.desc_count);
+                slots.desc_count = slots
+                    .desc_count
+                    .checked_add(1)
+                    .ok_or_else(|| limit("Store address description slot count overflow"))?;
+            }
+        }
+        for block in &f.blocks {
+            for i in &block.instructions {
+                b.spend(1)?;
+                if let InstructionKind::Store { local, value } = i.kind {
+                    let row = &routes[value.0 as usize];
+                    b.spend(row.len())?;
+                    let ty = &f.locals[local.0 as usize].ty;
+                    if slots.desc_local[local.0 as usize].is_none()
+                        && (head_address(ty) || ty.is_package_address())
+                        && row
+                            .iter()
+                            .any(|target| matches!(target.base, actual::Base::Element(_)))
+                    {
+                        slots.desc_local[local.0 as usize] = Some(slots.desc_count);
+                        slots.desc_count = slots
+                            .desc_count
+                            .checked_add(1)
+                            .ok_or_else(|| limit("Store local description slot count overflow"))?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     pub(super) fn writes(&self, id: FunctionId, b: &mut Budget) -> Check<BTreeSet<Root>> {
         let row = &self.written[id.0 as usize];
         b.spend(row.len())?;
@@ -142,11 +189,68 @@ impl Plan {
                     b.spend(written.len().saturating_add(1))?;
                     written.insert(Root::BorrowedCapture(c));
                 }
-                actual::Base::Element(_) => {
-                    return Err(unsupported(
-                        "Store element replacement debt bridge is under construction",
-                        Some(span),
-                    ));
+                actual::Base::Element(element) => {
+                    let parent =
+                        transfer.slots.desc_value[element.0 as usize].ok_or_else(|| {
+                            bad(
+                                span,
+                                "Store element has no actual parent responsibility origin",
+                            )
+                        })?;
+                    b.spend(state.desc[parent].len())?;
+                    if state.desc[parent].iter().any(|root| {
+                        matches!(
+                            root.parent(),
+                            Root::Parameter(_) | Root::OwnedCapture(_) | Root::BorrowedCapture(_)
+                        ) || matches!(root.parent(), Root::PackageField { local, .. } if transfer.slots.view(local).is_some())
+                    }) {
+                        return Err(unsupported(
+                            "Store replacement through a borrowed/captured parent needs its instance invalidation summary",
+                            Some(span),
+                        ));
+                    }
+                    if validate {
+                        description_live(state, transfer.slots, parent, span, b)?;
+                        // Both kernels retain a Store-carrier qualifier only
+                        // for actual Store Desc production. Element extraction
+                        // strips it; a same-family resource Desc blocks Commit.
+                        for (ty, slot) in f.values.iter().zip(&transfer.slots.desc_value).chain(
+                            f.locals
+                                .iter()
+                                .map(|local| &local.ty)
+                                .zip(&transfer.slots.desc_local),
+                        ) {
+                            b.spend(1)?;
+                            if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                                continue;
+                            }
+                            let Some(slot) = *slot else {
+                                continue;
+                            };
+                            if !transfer.after[block][position][slot] {
+                                continue;
+                            }
+                            b.spend(
+                                state.desc[slot]
+                                    .len()
+                                    .saturating_mul(state.desc[parent].len().saturating_add(1)),
+                            )?;
+                            if state.desc[slot].iter().any(|root| {
+                                !matches!(root, Root::StoreParent(_))
+                                    && state.desc[parent]
+                                        .iter()
+                                        .any(|actual| root.parent() == actual.parent())
+                            }) {
+                                return Err(bad(
+                                    span,
+                                    "Store field replacement invalidates a live element resource description",
+                                ));
+                            }
+                        }
+                    }
+                    transfer.write_roots(&state.desc[parent], written, span, validate, b)?;
+                    // Store retains exactly its original complete initialized
+                    // prefix debt. No field debt or fresh permission is added.
                 }
             }
         }

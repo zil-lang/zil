@@ -30,7 +30,64 @@ enum Source {
     OwnedField(u32),
     Argument(u32),
     BorrowedField(u32),
+    StoreParent(StoreParentSource),
 }
+
+// Actual Store carrier descriptions remain distinct from descriptions derived
+// from a borrowed element. The parent responsibility identity is preserved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum StoreParentSource {
+    Head(LocalId),
+    PackageField { local: LocalId, index: u32 },
+    OwnedPackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
+    OwnedField(u32),
+    Argument(u32),
+    BorrowedField(u32),
+}
+impl Source {
+    fn parent(self) -> Self {
+        match self {
+            Self::StoreParent(StoreParentSource::Head(value)) => Self::Head(value),
+            Self::StoreParent(StoreParentSource::PackageField { local, index }) => {
+                Self::PackageField { local, index }
+            }
+            Self::StoreParent(StoreParentSource::OwnedPackageField { local, index }) => {
+                Self::OwnedPackageField { local, index }
+            }
+            Self::StoreParent(StoreParentSource::ArrayElement { local, index }) => {
+                Self::ArrayElement { local, index }
+            }
+            Self::StoreParent(StoreParentSource::OwnedField(value)) => Self::OwnedField(value),
+            Self::StoreParent(StoreParentSource::Argument(value)) => Self::Argument(value),
+            Self::StoreParent(StoreParentSource::BorrowedField(value)) => {
+                Self::BorrowedField(value)
+            }
+            other => other,
+        }
+    }
+    fn store_parent(self) -> Self {
+        match self.parent() {
+            Self::Head(value) => Self::StoreParent(StoreParentSource::Head(value)),
+            Self::PackageField { local, index } => {
+                Self::StoreParent(StoreParentSource::PackageField { local, index })
+            }
+            Self::OwnedPackageField { local, index } => {
+                Self::StoreParent(StoreParentSource::OwnedPackageField { local, index })
+            }
+            Self::ArrayElement { local, index } => {
+                Self::StoreParent(StoreParentSource::ArrayElement { local, index })
+            }
+            Self::OwnedField(value) => Self::StoreParent(StoreParentSource::OwnedField(value)),
+            Self::Argument(value) => Self::StoreParent(StoreParentSource::Argument(value)),
+            Self::BorrowedField(value) => {
+                Self::StoreParent(StoreParentSource::BorrowedField(value))
+            }
+            Self::StoreParent(_) => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Life {
     Vacant,
@@ -849,6 +906,8 @@ fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResul
     }
     for source in &fact.sources {
         budget.spend(1, "description source")?;
+        let source = source.parent();
+        let source = &source;
         let place = match source {
             Source::Head(l) => Some(Place::Local(*l)),
             Source::PackageField { local, index } | Source::OwnedPackageField { local, index } => {
@@ -900,9 +959,9 @@ fn no_later_use(
         let fact = copied(state, *place, budget)?;
         budget.spend(fact.sources.len(), "description owner matching")?;
         if fact.sources.iter().any(|actual| {
-            *actual == source
-                || matches!((source, actual),
-                (Source::Head(owner), Source::PackageField { local, .. } | Source::OwnedPackageField { local, .. } | Source::ArrayElement { local, .. }) if owner == *local)
+            actual.parent() == source.parent()
+                || matches!((source.parent(), actual.parent()),
+                (Source::Head(owner), Source::PackageField { local, .. } | Source::OwnedPackageField { local, .. } | Source::ArrayElement { local, .. }) if owner == local)
         }) {
             return Err(error(
                 "head transition invalidates a description required later",
@@ -1004,7 +1063,8 @@ fn record_write(
                 .saturating_add(effect.borrowed_fields.len()),
             "description write effect",
         )?;
-        match source {
+        let source = source.parent();
+        match &source {
             Source::OwnedField(_) | Source::OwnedPackageField { .. } if shared && check => {
                 return Err(error(
                     "shared owned capture is written through its description",
@@ -1144,7 +1204,17 @@ impl Flow<'_> {
                 )?;
             }
             if let Some(program) = self.replacements {
-                program.step(self, state, effect, i, check, budget)?;
+                program.step(
+                    self,
+                    state,
+                    effect,
+                    i,
+                    replacements::CheckPoint {
+                        validate: check,
+                        live: self.after.get(b).and_then(|row| row.get(position)),
+                    },
+                    budget,
+                )?;
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
@@ -2854,7 +2924,7 @@ impl Flow<'_> {
                 _ => {}
             }
             if produced.is_none()
-                && budget.head_descriptions
+                && (budget.head_descriptions || self.replacements.is_some())
                 && out_shape.is_some_and(|s| s.description)
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = i.kind
@@ -2874,6 +2944,35 @@ impl Flow<'_> {
                 && let Some(produced) = &mut produced
             {
                 produced.birth = birth;
+            }
+            if self.replacements.is_some()
+                && let (Some(value), Some(fact)) = (i.result, &mut produced)
+            {
+                if let Type::Desc(inner) = &f.values[value.0 as usize] {
+                    budget.spend(fact.sources.len(), "actual Store carrier description")?;
+                    let parent = matches!(inner.as_ref(), Type::OwnedStore { .. });
+                    fact.sources = fact
+                        .sources
+                        .iter()
+                        .map(|source| {
+                            if parent {
+                                source.store_parent()
+                            } else {
+                                source.parent()
+                            }
+                        })
+                        .collect();
+                } else if matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                ) {
+                    budget.spend(
+                        fact.sources.len(),
+                        "actual Store element description origin",
+                    )?;
+                    fact.sources = fact.sources.iter().map(|source| source.parent()).collect();
+                }
             }
             if let (Some(place), Some(s)) = (output, out_shape) {
                 let fact = produced
@@ -2957,7 +3056,10 @@ fn analyze_function_program(
         return Ok(Effect::default());
     }
     let sums = sums::Plan::new(f, budget)?;
-    let shapes = shapes(module, f, budget)?;
+    let mut shapes = shapes(module, f, budget)?;
+    if let Some(program) = replacements {
+        program.extend_shapes(f, &mut shapes, budget)?;
+    }
     if shapes.is_empty() && sums.is_none() {
         return Ok(Effect::default());
     }
@@ -3040,7 +3142,8 @@ fn analyze_function_program(
                 }
             }
             if s.description {
-                fact.sources.insert(Source::Argument(index as u32));
+                let source = Source::Argument(index as u32);
+                fact.sources.insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { source.store_parent() } else { source });
             }
             replace(&mut initial, Place::Local(*local), fact, budget)?;
             package_transition(f, &mut initial, *local, Life::Available, false, budget)?;
@@ -3446,7 +3549,8 @@ fn analyze_function_eager_reference(
                 }
             }
             if s.description {
-                fact.sources.insert(Source::Argument(index as u32));
+                let source = Source::Argument(index as u32);
+                fact.sources.insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { source.store_parent() } else { source });
             }
             replace(&mut initial, Place::Local(*local), fact, budget)?;
             package_transition(f, &mut initial, *local, Life::Available, false, budget)?;

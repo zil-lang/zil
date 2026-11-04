@@ -115,11 +115,14 @@ pub(crate) fn at_type<'a>(
             };
             &module.closures[id.0 as usize].captures[c as usize]
         }
-        actual::Base::Element(_) => {
-            return Err(unsupported(
-                "Store element replacement state bridge is under construction",
-                None,
-            ));
+        actual::Base::Element(value) => {
+            if !matches!(target.steps.as_slice(), [PlaceProjection::Field(_)]) {
+                return Err(unsupported(
+                    "Store replacement requires a direct complete owning field",
+                    None,
+                ));
+            }
+            &f.values[value.0 as usize]
         }
     };
     let mut ty = if matches!(target.base, actual::Base::Local(_)) {
@@ -266,6 +269,10 @@ impl Context<'_> {
                     b,
                 )?;
             }
+            // An actual borrowed Store element is complete and retained by the
+            // parent Store prefix. Replacement neither constructs an element
+            // nor exports a fresh Content claim for later Store pop.
+            actual::Base::Element(_) => {}
             _ => {
                 if matches!(target.base, actual::Base::Environment(_))
                     && flow.f.environment.is_some_and(|id| {
@@ -312,6 +319,12 @@ impl Context<'_> {
             }
             let incoming = flow.instantiate(payload, arguments, state, b)?;
             for target in targets {
+                if matches!(target.base, actual::Base::Element(_)) {
+                    return Err(unsupported(
+                        "Store field replacement through a helper needs its resource description summary bridge",
+                        None,
+                    ));
+                }
                 self.apply(flow, state, &target, &incoming, validate, b)?;
             }
         }
