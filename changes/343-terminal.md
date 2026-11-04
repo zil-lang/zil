@@ -205,3 +205,13 @@ This checkpoint completes the bounded public scalar SABI lane. General owned
 spills, retained registration, callback/waker admission, no-future/drain, generic
 Mutex<T>/Transfer/Share and native Windows remain task343 continuation work.
 Matched Rust runtime/RSS/compile-cost and maintenance comparisons remain unmeasured.
+
+Independent review of the public checkpoint found that instruction-count CGU
+costs did not prepay the subsequent recursive machine hash's strings, nested
+types and global initializer bytes. Codegen identity now reserves every actual
+machine node and variable-length byte sequence before hashing a unit. The walk
+stops on the shared remaining balance and bounds recursive type/value depth.
+A retained adversarial machine neighbor combines a 65536-byte initializer,
+nested aggregate/array signature types and long type/global/function/operand
+names; its N/N−1/fresh-N boundary is 257884. This is machine-level accounting
+evidence, separate from the source-to-native SABI tests.

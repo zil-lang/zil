@@ -5,6 +5,8 @@ use zil_base::{CompileResult, Diagnostic, Fingerprint, FingerprintBuilder, Phase
 use zil_ir::FunctionId;
 use zil_llvm_api::model as m;
 use zil_verify::VerifiedModule;
+#[path = "task_abi_identity.rs"]
+mod identity;
 
 pub const TASK_DATA_LAYOUT: &str =
     "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128";
@@ -244,18 +246,19 @@ pub(crate) fn bind_codegen(
     let mut hash = FingerprintBuilder::new();
     hash.update(b"ZIL-TASK-CODEGEN-ACTION-v1\0");
     for unit in units {
-        for item in &unit.items {
-            spend(
-                left,
-                match item {
-                    m::Item::Function(f) => f.cost().saturating_add(f.name.len()),
-                    m::Item::NamedType(n, f) => n.len().saturating_add(f.len().saturating_mul(4)),
-                    m::Item::Global(g) => g.name.len().saturating_add(4),
-                },
-            )?;
-        }
+        identity::prepay(unit, left)?;
         unit.hash(&mut hash);
     }
+    spend(
+        left,
+        options
+            .clang
+            .as_os_str()
+            .as_encoded_bytes()
+            .len()
+            .saturating_mul(4)
+            .saturating_add(256),
+    )?;
     format!(
         "{:?}|{:?}|{:?}|{}|{}|{}|{}|{:?}",
         options.backend,
@@ -281,6 +284,7 @@ pub(crate) fn bind_codegen(
         };
         let (version, library) = zil_llvm_api::cache_runtime(&config)
             .map_err(|_| bad("cannot bind actual LLVM runtime for task ABI artifact"))?;
+        spend(left, version.len().saturating_mul(2).saturating_add(64))?;
         version.hash(&mut hash);
         crate::object_cache::installed_identity(&library)
             .map_err(|_| bad("cannot identify actual LLVM runtime for task ABI artifact"))?
