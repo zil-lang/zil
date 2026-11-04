@@ -2835,6 +2835,9 @@ fn review329_native(files: &[(&str, &str)], expected: i64) {
     review329_native_output(files, format!("{expected}\n").as_bytes())
 }
 fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
+    review329_native_entry_output(files, "result", expected)
+}
+fn review329_native_entry_output(files: &[(&str, &str)], entry: &str, expected: &[u8]) {
     use zil_driver::{NativeBackend, Optimization};
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -2849,7 +2852,7 @@ fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
                     backend,
                     optimization,
                     stop_after: Stage::Build,
-                    entry: Some("result".into()),
+                    entry: Some(entry.into()),
                     output: Some(directory.0.join("program")),
                     ..CompileOptions::default()
                 },
@@ -6572,16 +6575,178 @@ fn ct4_fixed_phantom_context_source_bridge() {
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    for extra in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+    ] {
+        let report = compile_source(&source(extra), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native_entry_output(&[("main", extra)], "main", b"42\n");
+    }
+    let joint = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+    );
+    let wrong = joint.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let free = text.replace("Phantom::<'s>", "Phantom::<'free>");
+    let report = compile_source(&source(&free), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let escape = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context-escape.zil"
+    );
+    let report = compile_source(&source(escape), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct4_mixed_nominal_context_retains_pending_source_ordinal_boundary() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
     assert!(
-        report.diagnostics.iter().any(|d| d
-            .message
-            .contains("transformed declarations require explicit source lineage")),
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-GENERIC-ARGUMENT" && d.message.contains("full ordinal")),
         "{}",
         report.to_json()
+    );
+}
+
+#[test]
+fn ct4_phantom_source_work_neighbors_remain_checked_after_cache_reuse() {
+    use zil_driver::CompilationSession;
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        ),
+    ] {
+        let input = source(text);
+        let options = |n| CompileOptions {
+            limits: Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        assert_eq!(
+            compile_source(&input, &options(high)).status,
+            ResultCategory::Success
+        );
+        while low < high {
+            let middle = (low + high) / 2;
+            let report = compile_source(&input, &options(middle));
+            match report.status {
+                ResultCategory::Success => high = middle,
+                ResultCategory::ResourceLimit => low = middle + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        assert_eq!(
+            warm.compile_source(&input, &options(low)).status,
+            ResultCategory::Success
+        );
+        for (n, status) in [
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(n)),
+                CompilationSession::default().compile_source(&input, &options(n)),
+            ] {
+                assert_eq!(report.status, status, "{}", report.to_json());
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("344 CT4 whole-source analysis N={low}/N-1/warm/fresh");
+    }
+}
+
+#[test]
+fn ct4_phantom_source_default_worker_subprocess() {
+    const CHILD: &str = "ZIL_CT4_PHANTOM_DEFAULT_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        for text in [
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            ),
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+        ] {
+            let report = compile_source(&source(text), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+        }
+        return;
+    }
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "ct4_phantom_source_default_worker_subprocess",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env_remove("RUST_MIN_STACK")
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "default worker subprocess: {:?}\n{}\n{}",
+        child.status,
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
     );
 }
 

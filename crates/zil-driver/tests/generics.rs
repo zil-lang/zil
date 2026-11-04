@@ -1348,3 +1348,5 @@ fn generic_instance_growth_is_bounded_before_type_building() {
     assert_eq!(error[0].phase, Phase::Expand);
     assert_eq!(error[0].code, "E-RESOURCE-LIMIT");
 }
+
+include!("../../../tests/language-readiness/terminal/181/interface_source.rs");

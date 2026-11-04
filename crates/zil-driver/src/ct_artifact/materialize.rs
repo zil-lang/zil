@@ -511,6 +511,9 @@ impl Materializer<'_, '_> {
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
             CtTypeNode::BorrowedStorage { storage, .. } => {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
                 if !self.data_source_scopes.iter().any(|s| s.owner == id) {
                     return Err(category(
                         "stored-borrow Type has no genuine scoped source handle",
@@ -2185,6 +2188,9 @@ mod data_value;
 mod scoped_tests {
     use super::*;
     fn run(text: &str) -> CompileResult<Materialized> {
+        run_limited(text, &Limits::default())
+    }
+    fn run_limited(text: &str, limits: &Limits) -> CompileResult<Materialized> {
         let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
         let parsed = Arc::new(zil_syntax::parse(&source));
         let syntax = &parsed.module;
@@ -2197,8 +2203,9 @@ mod scoped_tests {
             ModuleId(0),
             source.fingerprint(),
             &TargetProfile::host_llvm(),
-            &Limits::default(),
+            limits,
             None,
+            true,
         )
     }
     #[test]
@@ -2256,5 +2263,111 @@ mod scoped_tests {
                 .any(|d| d.message.contains("different ambient lifetimes")),
             "{errors:?}"
         );
+    }
+    #[test]
+    fn ct4_materialization_scope_work_is_exact_and_request_local() {
+        let original = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        );
+        let long = format!("scope_{}", "x".repeat(512));
+        let renamed = original
+            .replace("life s", &format!("life {long}"))
+            .replace("'s", &format!("'{long}"));
+        let generic = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+        );
+        for text in [original, renamed.as_str(), generic] {
+            let defaults = Limits::default();
+            let run = |work| {
+                run_limited(
+                    text,
+                    &Limits {
+                        max_analysis_steps: work,
+                        ..defaults.clone()
+                    },
+                )
+            };
+            assert!(run(defaults.max_analysis_steps).is_ok());
+            let (mut low, mut high) = (1, defaults.max_analysis_steps);
+            while low < high {
+                let middle = (low + high) / 2;
+                match run(middle) {
+                    Ok(_) => high = middle,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                    {
+                        low = middle + 1
+                    }
+                    Err(errors) => panic!("unexpected budget result {errors:?}"),
+                }
+            }
+            for (work, good) in [(low, true), (low - 1, false), (low, true)] {
+                let result = run(work);
+                assert_eq!(result.is_ok(), good);
+                if !good {
+                    assert!(
+                        result
+                            .err()
+                            .unwrap()
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                    );
+                }
+            }
+            eprintln!("344 authentic CT4 source materialization N={low}/N-1/fresh");
+        }
+    }
+    #[test]
+    fn ct4_materialization_preserves_joint_and_mixed_nominal_actuals() {
+        for text in [
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            ),
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            ),
+        ] {
+            let output = run(text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(f) if f.name == "result" => Some(f),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            if text.contains("struct Pair") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="a"));
+                assert!(matches!(&args[1],s::GenericArg::Lifetime(name) if name=="b"));
+            } else if text.contains("#N:i32") {
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+                assert!(
+                    matches!(&args[1],s::GenericArg::Type(ty) if matches!(&ty.kind,s::TypeKind::Named {path,args} if path==&["i32"] && args.is_empty()))
+                );
+                assert!(
+                    matches!(&args[2],s::GenericArg::Const(value) if matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="7"))
+                );
+            } else {
+                assert_eq!(args.len(), 1);
+                assert!(matches!(&args[0],s::GenericArg::Lifetime(name) if name=="s"));
+            }
+        }
     }
 }

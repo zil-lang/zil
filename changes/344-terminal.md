@@ -376,3 +376,48 @@ The rich borrowed-function fixture stays Unsupported until a shared successor
 contract represents its nested Fixed/Invocation relation. These are WIP source
 bindings, not acceptance of all CT4 scopes, physical borrowed CT values or native
 execution of the new fixture. Existing CT3 source9/40 native controls remain green.
+
+Registered scoped data can now pass through an actual generic CT Copy identity
+function without stripping the joint context or rebuilding individual lifetime
+arguments. Copy qualification resolves the already registered genuine schema,
+checks every physical data field recursively, rejects CT-only fields and finite
+layout cycles, and retains its authentic source binding. Mixed ordered
+Type/Const/Lifetime and two-class contexts have direct materialization controls.
+Fresh request-work neighbors cover the base5467, long-name15302 and generic6542
+paths, with no default increase. Whole-source/native claims await the separately
+owned phantom-only stored-target correction; the retained local-field escape
+negative must still reject after the valid zero-slot source passes.
+
+### CT4 bounded source milestone before40
+
+The exact source checkpoint now verifies three real scoped programs and executes
+Clang/LLVM API O0/O2 for each (12 actual results42): one phantom class, a joint
+two-class context and generic CT Copy forwarding. Source free-life, wrong joint
+relation and actual local-field address escape reject. The original phantom
+source's CT, lineage, Types, empty-physical-slot and transparent lowering failures
+remain recorded; the executable helper now selects its actual main entry.
+
+Default2MiB API subprocesses and whole-source warm/fresh N22056/29217 neighbors
+pass; direct materializer N5467/15302/6542 neighbors and the original large-copy
+N2520/raw-Wire/native4 and five-mode nested-depth stack regressions also pass.
+Complete source/toolchain/production/retained-executable bindings are recorded in
+344-ct4-source-milestone.json. The mixed const ordinary producer and rich BFP
+source remain explicitly pending; this milestone grants no general CT5 context,
+physical CT borrow, ownership cleanup, performance or product acceptance.
+
+
+### CT5 compile adapter checkpoint (not semantic acceptance)
+
+The frozen40/CT5 public graph and artifact representation now compile through
+Verify and CT after the rich runtime-kernel adapter is composed. Closed direct
+address signatures use a paid lossless projection and retain the existing local
+arity, canonical-label, mutable-result and grounding checks. Rich signatures and
+nonempty ambient mappings remain explicit Unsupported at evaluation boundaries;
+ordinary runtime hints pay and preserve all rich binding/class paths. Genuine
+new closed Type graphs initialize an empty ambient table; incoming nonempty
+maps are rejected before legacy transformations rather than erased.
+
+This checkpoint only unblocks composed builds. Full authenticated invocation
+context, rich CT graph validation, source capture/reification and actual VM
+backing-byte accounting remain work in progress. It does not replace the CT4
+source/native receipt or its later per-use owner-lookup accounting correction.

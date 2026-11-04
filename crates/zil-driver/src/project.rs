@@ -600,13 +600,13 @@ impl CompilationSession {
                             }
                         }
                     }
-                    for index in 0..result.modules.len() {
+                    for (index, module_imports) in runtime_imports.iter_mut().enumerate().take(result.modules.len()) {
                         if !reachable.contains(&result.modules[index].id) {
                             result.retain_items(index, |_| false)?;
-                            runtime_imports[index].clear();
+                            module_imports.clear();
                             continue;
                         }
-                        runtime_imports[index].retain(|import| reachable.contains(&import.module));
+                        module_imports.retain(|import| reachable.contains(&import.module));
                         result.retain_items(index, |item| match &item.kind {
                             ast::ItemKind::Import(import) => {
                                 if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }

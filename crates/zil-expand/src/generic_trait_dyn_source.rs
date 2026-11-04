@@ -589,43 +589,15 @@ impl Catalog {
                     origins,
                     budget,
                 )?;
-                let mut parameter_lives = vec![Some(0)];
-                let mut bindings = vec![zil_ir::StorageLifeBinding {
+                // This profile has scalar nonreceiver parameters. The sole
+                // invocation address is the actual receiver at position zero.
+                let bindings = vec![zil_ir::StorageLifeBinding {
                     position: zil_ir::StoragePosition {
                         base: zil_ir::StorageBase::Parameter(0),
                         path: vec![],
                     },
                     binder: zil_ir::StorageBinder::Invocation(0),
                 }];
-                let mut binder_count = 1u32;
-                for (index, parameter) in parameters.iter().enumerate() {
-                    budget.node(slot.signature.span, 0)?;
-                    if matches!(parameter, zil_ir::Type::Address { .. }) {
-                        parameter_lives.push(Some(binder_count));
-                        bindings.push(zil_ir::StorageLifeBinding {
-                            position: zil_ir::StoragePosition {
-                                base: zil_ir::StorageBase::Parameter(
-                                    u32::try_from(index + 1).map_err(|_| {
-                                        error(
-                                            slot.signature.span,
-                                            "dyn parameter ordinal exhausted",
-                                        )
-                                    })?,
-                                ),
-                                path: vec![],
-                            },
-                            binder: zil_ir::StorageBinder::Invocation(binder_count),
-                        });
-                        binder_count = binder_count.checked_add(1).ok_or_else(|| {
-                            error(
-                                slot.signature.span,
-                                "dyn invocation binder ordinal exhausted",
-                            )
-                        })?;
-                    } else {
-                        parameter_lives.push(None);
-                    }
-                }
                 slots.push(DynSlot {
                     member: DynMember {
                         application,
@@ -641,15 +613,11 @@ impl Catalog {
                     result: result_type,
                     result_mode: zil_ir::PassingMode::Infer,
                     call_kind: zil_ir::CallKind::Direct,
-                    invocation_life: Some(zil_ir::FunctionLifeContract {
-                        binder_count,
-                        parameter_lives,
-                        result_life: None,
-                    }),
                     storage_life: Some(zil_ir::StorageLifeContract {
                         fixed_binder_count: 0,
-                        invocation_binder_count: binder_count,
+                        invocation_binder_count: 1,
                         bindings,
+                        classes: Vec::new(),
                     }),
                     contract: zil_ir::DynContract {
                         requires: None,

@@ -126,6 +126,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.budget.note_dynamic();
             }
             if matches!(ty.kind, s::TypeKind::ForLifetime { .. }) {
+                self.budget.note_borrowed_keys();
                 let old_binders = std::mem::take(&mut self.binders);
                 let old_headers = std::mem::take(&mut self.headers);
                 let old_mutable_life = self.mutable_life;
@@ -286,14 +287,17 @@ pub(super) fn pointer_type(ty: &s::TypeRef) -> Type {
             result: Box::new(lower(result)),
         };
     }
+    let Some(life) = zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+        binder_count: next,
+        parameter_lives,
+        result_life,
+    }) else {
+        return Type::Unsupported("higher-rank callable relation arity exhausted".into());
+    };
     Type::BorrowedFunctionPointer {
         parameters: params.iter().map(lower).collect(),
         result: Box::new(lower(result)),
-        life: zil_ir::FunctionLifeContract {
-            binder_count: next,
-            parameter_lives,
-            result_life,
-        },
+        life,
     }
 }
 

@@ -799,7 +799,8 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(storage, &mut Vec::new(), &mut actual, b)?;
-    if actual.len() != life.slots.len() || actual.is_empty() {
+    if actual.len() != life.slots.len() || (actual.is_empty() && life.nominal_arguments.is_empty())
+    {
         return Err(failure("physical stored slot coverage is incomplete"));
     }
     let mut seen = BTreeSet::new();
@@ -1908,8 +1909,9 @@ pub(super) fn derive(
         returns(f, facts, b)?;
         for (ty, roots) in f.values.iter().zip(&facts.values) {
             fee(b, 1)?;
-            if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. }) && roots.is_empty()
-            {
+            let needs_target = matches!(ty, Type::Address { .. })
+                || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
+            if needs_target && roots.is_empty() {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
                 ));
@@ -2020,6 +2022,41 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            if !matches!(
+                &i.kind,
+                InstructionKind::Constant(_)
+                    | InstructionKind::Load(_)
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::SliceLength { .. }
+                    | InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::Call { .. }
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::LoadStoredBorrow {
+                        mode: StoredBorrowLoad::CopyShared,
+                        ..
+                    }
+            ) {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "instruction is outside the actual stored profile, including in unreachable blocks",
+                    Some(i.span),
+                )]);
+            }
             if let Some(v) = i.result {
                 let slot = definitions
                     .get_mut(v.0 as usize)

@@ -198,25 +198,11 @@ fn signatures(
             }
         }
         if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
-            let work = inference::type_snapshot_work(
-                ty,
-                span,
-                &Limits {
-                    max_analysis_steps: foreign_work,
-                    ..limits.clone()
-                },
-            )?;
-            foreign_work = foreign_work
-                .checked_sub(work.saturating_mul(2))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "ordinary Sum helper parameter qualification budget exceeded",
-                        Some(span),
-                    )
-                })?;
-            Ok(())
+            inference::charge_type_snapshot(ty, span, limits, &mut foreign_work, 2)
         }) {
+            if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                return Err(vec![diagnostic]);
+            }
             errors.push(diagnostic);
         }
         if let Err(diagnostic) = store_templates::validate_header(f) {
@@ -2377,8 +2363,19 @@ impl<'a, 'c> Builder<'a, 'c> {
         ) = expected
         {
             if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                if !life.classes.is_empty() {
+                    self.closures.snapshot_type(
+                        expected.expect("matched borrowed pointer"),
+                        2,
+                        0,
+                        span,
+                    )?;
+                }
                 self.closures
                     .snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                    self.closures.snapshot(work, span)
+                })?;
                 borrowed_fp::relation(parameters, result, life, span)?;
             } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(

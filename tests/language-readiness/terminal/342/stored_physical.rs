@@ -66,6 +66,77 @@ fn terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load
 fn candidate(module: &TypedModule) -> CandidatePlan {
     zil_analyze::analyze(module, &Limits::default()).unwrap()
 }
+
+#[test]
+fn terminal342_phantom_nominal_classes_preserve_metadata_without_target_roots() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/342");
+    let positive = dir.join("phantom_stored_metadata.zil");
+    let negative = dir.join("phantom_stored_metadata_escape.zil");
+    let report = zil_driver::compile_path(&positive, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let error = zil_driver::compile_path(&negative, &CompileOptions::default());
+    assert_eq!(
+        error.status,
+        ResultCategory::SafeReject,
+        "{}",
+        error.to_json()
+    );
+    assert!(
+        error
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.message.contains("activation-local")),
+        "{}",
+        error.to_json()
+    );
+    let raw = fixture::phantom();
+    let plan = accept(&raw);
+    assert!(plan.functions[0].holds[1].roots.is_empty());
+    let mut forged = plan.clone();
+    forged.functions[0].holds[1]
+        .roots
+        .push(HoldRoot::Parameter(0));
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &forged, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(raw.clone(), forged, &raw.target, &Limits::default()).is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &raw.target, &Limits::default()).is_err());
+    let mut escaped = raw.clone();
+    escaped.functions[0].return_type = fixture::address(Type::I32, false);
+    escaped.functions[0].reference_return_bound = Some(vec![0]);
+    escaped.functions[0].values[4] = fixture::address(Type::I32, false);
+    escaped.functions[0].blocks[0].instructions[5].kind = InstructionKind::ReborrowAddress {
+        address: ValueId(3),
+        mutable: false,
+    };
+    escaped.functions[1].values[2] = fixture::address(Type::I32, false);
+    escaped.functions[1].values.push(Type::I32);
+    escaped.functions[1].blocks[0]
+        .instructions
+        .push(fixture::instruction(
+            Some(3),
+            InstructionKind::ReadAddress {
+                address: ValueId(2),
+            },
+        ));
+    escaped.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
+    let mut claim = plan;
+    claim.functions[1].holds.push(zil_ir::ValueHold {
+        value: ValueId(3),
+        roots: vec![],
+    });
+    reject(
+        &escaped,
+        claim,
+        "nominal phantom class cannot turn its activation-local field into input target permission",
+    );
+}
 fn accept(module: &TypedModule) -> CandidatePlan {
     let plan = candidate(module);
     zil_verify::verify_module(
@@ -342,4 +413,45 @@ fn terminal342_physical_stored_current_cfg_is_reproved_and_work_has_fresh_bounda
         forged,
         "cached symbolic role cannot replace actual activation-local escape proof",
     );
+}
+
+#[test]
+fn terminal342_unreachable_instructions_cannot_extend_the_stored_native_comparison_profile() {
+    let original = fixture::module();
+    let mut plan = accept(&original);
+    let bad = fixture::unimplemented_unreachable();
+    let error = zil_analyze::analyze(&bad, &Limits::default()).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("including in unreachable")),
+        "{error:?}"
+    );
+    plan.functions[3].blocks.push(zil_ir::BlockPlan {
+        block: zil_ir::BlockId(1),
+        initialized_in: vec![],
+        initialized_out: vec![],
+    });
+    for value in [6, 7] {
+        plan.functions[3].holds.push(zil_ir::ValueHold {
+            value: ValueId(value),
+            roots: vec![],
+        });
+    }
+    plan.functions[4].blocks[0].initialized_in = (0..64).map(LocalId).collect();
+    plan.functions[4].blocks[0].initialized_out = (0..64).map(LocalId).collect();
+    plan.functions[4].holds[0].roots.clear();
+    plan.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &plan, &Limits::default()).unwrap();
+    for errors in [
+        zil_verify::verify_module(bad.clone(), plan, &bad.target, &Limits::default()).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("including unreachable")),
+            "{errors:?}"
+        );
+    }
 }

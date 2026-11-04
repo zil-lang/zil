@@ -2,6 +2,10 @@
 use super::*;
 impl Identity<'_, '_> {
     pub(super) fn graph(&mut self, ty: &CtTypeRef) -> Check<Vec<u8>> {
+        if !ty.ambient_classes.is_empty() {
+            return Err(pending_scoped_identity());
+        }
+
         let count = ty.nodes.len();
         if count == 0 || ty.root.0 as usize != count - 1 {
             return Err(reject(None, "nominal type graph has a noncanonical root"));
@@ -183,9 +187,29 @@ impl Identity<'_, '_> {
         nodes: &[CtTypeNode],
         parameters: &[CtTypeNodeId],
         result: CtTypeNodeId,
-        life: &zil_ir::FunctionLifeContract,
+        life: &zil_ir::StorageLifeContract,
         out: &mut Vec<u8>,
     ) -> Check<()> {
+        self.reserve(
+            parameters
+                .len()
+                .saturating_mul(16)
+                .saturating_add(life.bindings.len().saturating_mul(64))
+                .saturating_add(life.classes.len().saturating_mul(96)),
+        )?;
+        for row in &life.bindings {
+            self.reserve(row.position.path.len().saturating_mul(16))?;
+        }
+        for row in &life.classes {
+            self.reserve(row.position.path.len().saturating_mul(16))?;
+        }
+        let life = life.to_flat(parameters.len()).ok_or_else(|| {
+            vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "rich CT5 graph signature consumer is not yet implemented",
+                None,
+            )]
+        })?;
         self.reserve(
             life.parameter_lives
                 .len()

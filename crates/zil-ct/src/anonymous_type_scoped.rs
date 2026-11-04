@@ -295,8 +295,11 @@ fn run(
                         phantom_shape(reference, id, *storage, life, work)?;
                         Some((true, life.binder_count))
                     }
-                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        Some((false, life.binder_count))
+                    CtTypeNode::BorrowedFunctionPointer {
+                        life, parameters, ..
+                    } => {
+                        flat_life(life, parameters.len(), work.budget)?;
+                        Some((false, life.invocation_binder_count))
                     }
                     _ => None,
                 };
@@ -402,8 +405,11 @@ fn run(
                             }
                         }
                     }
-                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        work.life(&mut key, life)?
+                    CtTypeNode::BorrowedFunctionPointer {
+                        life, parameters, ..
+                    } => {
+                        let life = flat_life(life, parameters.len(), work.budget)?;
+                        work.life(&mut key, &life)?
                     }
                     CtTypeNode::BorrowedStorage { life, .. } => work.storage(&mut key, life)?,
                     CtTypeNode::Array { length, .. } => {
@@ -428,7 +434,7 @@ fn run(
                 let dynamic = match node {
                     CtTypeNode::BorrowedStorage { life, .. } => work.shape_copy(life)?,
                     CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        let bytes = life.parameter_lives.len() as u64 * 8;
+                        let bytes = life_bytes(life);
                         work.pay(bytes, bytes)?;
                         bytes
                     }
@@ -509,6 +515,7 @@ fn run(
     let ty = CtTypeRef {
         root: CtTypeNodeId(u32::try_from(nodes.len() - 1).map_err(|_| bound())?),
         nodes,
+        ambient_classes: Vec::new(),
     };
     let key = if keep_key { built.key } else { Vec::new() };
     // The returned value/key remain live after scratch is released.
@@ -534,7 +541,7 @@ pub(super) fn retained_bytes(ty: &CtTypeRef) -> u64 {
                 CtTypeNode::BorrowedStorage { life, .. } => shape_bytes(life),
                 CtTypeNode::BorrowedFunctionPointer {
                     parameters, life, ..
-                } => parameters.len() as u64 * 4 + life.parameter_lives.len() as u64 * 8,
+                } => parameters.len() as u64 * 4 + life_bytes(life),
                 CtTypeNode::FunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => parameters.len() as u64 * 4,
                 CtTypeNode::Nominal { arguments, .. } => {

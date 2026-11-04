@@ -19,9 +19,27 @@ pub enum CtSymbolUsage {
     DefinitionName,
 }
 
+/// Source facts only. These do not grant construction, borrowing or Copy rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CtScopeParameterKind {
+    Type,
+    Scalar(CtScalarTy),
+    Lifetime,
+}
+
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
+        None
+    }
+    fn scope_parameter_kind(
+        &self,
+        _scope: &CtAmbientLifeScope,
+        _ordinal: usize,
+    ) -> Option<CtScopeParameterKind> {
+        None
+    }
     fn source_fingerprint(&self) -> Fingerprint;
     fn snapshot(&self) -> &CtSnapshotRequest;
     fn authenticate_input_table(&self, input: &CtInputTable) -> bool;
@@ -133,8 +151,12 @@ pub fn verify_ct_artifact_metered(
                             CtInstructionKind::TypeConstruct {
                                 constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
                                 ..
-                            } => (life.binder_count as usize)
-                                .saturating_add(life.parameter_lives.len().saturating_mul(2)),
+                            } => life
+                                .bindings
+                                .len()
+                                .saturating_mul(8)
+                                .saturating_add(life.classes.len().saturating_mul(16))
+                                .saturating_add(2),
                             _ => 0,
                         })
                     },
@@ -142,6 +164,53 @@ pub fn verify_ct_artifact_metered(
         },
     );
     meter.charge(initial_work.max(1), None)?;
+    if !raw.ambient_life_scopes.is_empty() {
+        meter.charge(1, None)?;
+        if raw.ambient_life_scopes.len() > limits.max_nodes
+            || raw.ambient_life_scopes.len() as u64 > raw.budget.max_generated_nodes
+        {
+            return Err(limit(None, "CT5 ambient inventory exceeds node quota"));
+        }
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "authenticated CT5 ambient inventory consumer is not yet implemented",
+            None,
+        )]);
+    }
+    for instruction in raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+    {
+        if let CtInstructionKind::TypeConstruct {
+            constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
+            arguments,
+        } = &instruction.kind
+        {
+            meter.charge(
+                arguments
+                    .len()
+                    .saturating_add(life.bindings.len())
+                    .saturating_add(life.classes.len()),
+                Some(instruction.span),
+            )?;
+            for row in &life.bindings {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            for row in &life.classes {
+                meter.charge(row.position.path.len(), Some(instruction.span))?;
+            }
+            if life.to_flat(arguments.len().saturating_sub(1)).is_none() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "rich CT5 borrowed signature construction is not yet implemented",
+                    Some(instruction.span),
+                )]);
+            }
+        }
+    }
+
     preflight(&raw, limits)?;
     check_type_metadata(&raw, limits, meter)?;
     for instruction in raw
@@ -1431,6 +1500,11 @@ fn check_instruction(
                             .all(|id| value(*id).ok() == Some(&CtTy::Type))
                 }
                 T::BorrowedFunctionPointer { life } => {
+                    let life =
+                        life.to_flat(arguments.len().saturating_sub(1))
+                            .ok_or_else(|| {
+                                reject(span, "rich borrowed constructor was not admitted")
+                            })?;
                     let mut dense = 0;
                     let canonical = life.parameter_lives.iter().flatten().all(|tag| {
                         if *tag > dense || *tag >= life.binder_count {

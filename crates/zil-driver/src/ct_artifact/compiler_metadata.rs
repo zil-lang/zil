@@ -507,6 +507,10 @@ impl Compiler<'_> {
             CtTy::Scalar(s) => CtTypeNode::Primitive(*s),
             CtTy::Record(id) => {
                 let schema = &self.records[id.0 as usize];
+                if let Some(context) = &schema.life_context {
+                    self.budget.metadata(context, span)?;
+                    return Ok(context.clone());
+                }
                 self.budget
                     .work(schema.arguments.len().saturating_add(1), span)?;
                 for argument in &schema.arguments {
@@ -519,6 +523,10 @@ impl Compiler<'_> {
             }
             CtTy::Enum(id) => {
                 let schema = &self.enums[id.0 as usize];
+                if let Some(context) = &schema.life_context {
+                    self.budget.metadata(context, span)?;
+                    return Ok(context.clone());
+                }
                 self.budget
                     .work(schema.arguments.len().saturating_add(1), span)?;
                 for argument in &schema.arguments {

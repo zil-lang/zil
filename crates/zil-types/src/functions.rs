@@ -45,13 +45,34 @@ impl Builder<'_, '_> {
         expression: &CoreExpr,
         expected: Option<&Type>,
     ) -> R<(ValueId, Type)> {
-        if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+        if let Some(Type::BorrowedFunctionPointer {
+            life,
+            parameters,
+            result,
+        }) = expected
+        {
             self.closures
                 .snapshot(borrowed_fp::metadata_work(life), expression.span)?;
+            borrowed_fp::qualified_inputs(life, parameters, result, |work| {
+                self.closures.snapshot(work, expression.span)
+            })?;
         }
         let signature = self.resolve_callee(expression)?;
         self.closures
             .snapshot(borrowed_fp::pointer_work(signature), expression.span)?;
+        if let Some(expected @ Type::BorrowedFunctionPointer { life, .. }) = expected
+            && !life.classes.is_empty()
+        {
+            self.closures
+                .snapshot_type(expected, 2, 0, expression.span)?;
+            for ty in signature
+                .parameters
+                .iter()
+                .chain(std::iter::once(&signature.result))
+            {
+                self.closures.snapshot_type(ty, 2, 0, expression.span)?;
+            }
+        }
         if signature.cleanup {
             return Err(error(
                 "E-DROP-CALL",
