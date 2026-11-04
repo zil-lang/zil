@@ -363,7 +363,11 @@ impl Origins {
     }
 }
 
-fn pay_identity(identity: &LifeDeclarationIdentity, budget: &mut Budget<'_>, span: Span) -> R<()> {
+pub(super) fn pay_identity(
+    identity: &LifeDeclarationIdentity,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<()> {
     budget.text(&identity.package, span)?;
     for part in identity
         .module_path
