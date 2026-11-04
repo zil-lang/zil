@@ -490,6 +490,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
                 b.push(u8::from(*mutable));
             }
         }
+        InstructionKind::DescribeAddress { address } => {
+            assert!(v32, "schema31 cannot represent actual head descriptions");
+            b.push(109);
+            encode_u32(b, address.0);
+        }
         InstructionKind::BorrowFieldLocal {
             local,
             path,

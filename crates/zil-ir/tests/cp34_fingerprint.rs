@@ -786,6 +786,9 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
             path,
             mutable: false,
         },
+        InstructionKind::DescribeAddress {
+            address: ValueId(89),
+        },
         InstructionKind::BorrowFieldLocal {
             local: LocalId(73),
             path: vec![79, 83],
