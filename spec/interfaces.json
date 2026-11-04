@@ -443,6 +443,15 @@
       "fingerprint": "Typed domainV36 and callable contract5; unchanged type identityV35/return contract3/CT2 retained",
       "responsibility": "Unused definition and actual concrete CFG each checked; fresh actual roots per invocation, canonical full relation, simultaneous windows, no fixed capture masquerading as fresh input",
       "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
+    },
+    "terminal_ct_anonymous_value_344": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "schema_version": 3,
+      "domains": "artifact/provider/dependencies and standalone function/value v3; old v2 rejected",
+      "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTy)|Scalar(Constant)> in complete declaration order including phantom/const",
+      "transport": "CtTy::AnonymousSum tag16, CtValue::AnonymousSum{members,active,payload} tag16, MakeAnonymousSum opcode37",
+      "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
     }
   },
   "schemas": [
