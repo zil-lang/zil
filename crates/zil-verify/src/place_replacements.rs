@@ -3,6 +3,10 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use zil_ir::{PlaceProjection, ReservationId};
+pub(crate) mod actual;
+#[cfg(test)]
+#[path="../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+pub(crate) mod fixture;
 
 #[derive(Clone)]
 pub(super) enum Origin {
