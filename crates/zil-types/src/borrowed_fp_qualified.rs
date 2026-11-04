@@ -38,6 +38,13 @@ pub(super) fn capture_relation(
         || captures.iter().any(|ty| !(scalar(ty) || matches!(ty, Type::Address { mutable: false, inner } if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. })))) {
         return Err(unsupported(span, "captured Fixed requires scalar result and shared finite environment"));
     }
+    if life.fixed_binder_count == 0 && life.invocation_binder_count == 0 {
+        return Err(error(
+            "E-FUNCTION-LIFE",
+            span,
+            "vacuous capture relation must be omitted",
+        ));
+    }
     relation_inner(parameters, Some(captures), result, life, span)
 }
 
@@ -324,6 +331,37 @@ mod tests {
             Span::default(),
         )
         .unwrap();
+        let plain = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let plain_life = StorageLifeContract {
+            fixed_binder_count: 1,
+            invocation_binder_count: 0,
+            bindings: vec![StorageBase::Parameter(0), StorageBase::Capture(0)]
+                .into_iter()
+                .map(|base| StorageLifeBinding {
+                    position: StoragePosition { base, path: vec![] },
+                    binder: StorageBinder::Fixed(0),
+                })
+                .collect(),
+            classes: vec![],
+        };
+        capture_relation(
+            std::slice::from_ref(&plain),
+            std::slice::from_ref(&plain),
+            &Type::I32,
+            &plain_life,
+            Span::default(),
+        )
+        .unwrap();
+        let empty = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+        };
+        assert!(capture_relation(&[], &[], &Type::I32, &empty, Span::default()).is_err());
         for mutation in 0..5 {
             let mut invalid = life.clone();
             match mutation {

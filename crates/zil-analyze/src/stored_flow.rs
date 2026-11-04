@@ -2718,6 +2718,66 @@ mod tests {
         )
     }
     #[test]
+    fn captured_fixed_phantom_needs_actual_header_origin() {
+        for header in [true, false] {
+            let mut m = if header {
+                fixture::captured_fixed(CallableKind::Fn, false)
+            } else {
+                fixture::captured_fixed_parent_end(false)
+            };
+            let mut phantom = m.life_instances[0].ty.clone();
+            let Type::BorrowedStorage { storage, life } = &mut phantom else {
+                unreachable!()
+            };
+            **storage = Type::Record {
+                name: "Phantom".into(),
+                fields: vec![("n".into(), Type::I64)],
+            };
+            life.slots.clear();
+            m.life_instances[0].ty = phantom.clone();
+            let ty = address(phantom.clone(), false);
+            m.closures[0].captures = vec![ty.clone()];
+            m.closures[0].parameters = vec![ty.clone()];
+            let entry = &mut m.functions[0];
+            entry.locals[0].ty = ty.clone();
+            entry.values = vec![ty.clone(), Type::I64];
+            entry.blocks[0].instructions = vec![
+                instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+                instruction(Some(1), InstructionKind::Constant(Constant::I64(42))),
+            ];
+            entry.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+            let caller = &mut m.functions[1];
+            if header {
+                caller.locals[..2]
+                    .iter_mut()
+                    .for_each(|l| l.ty = ty.clone());
+                caller.values[..2].fill(ty);
+            } else {
+                caller.locals[1].ty = phantom.clone();
+                caller.values[2] = phantom;
+                caller.values[3] = ty;
+                let InstructionKind::MakeAggregate { fields } =
+                    &mut caller.blocks[0].instructions[3].kind
+                else {
+                    unreachable!()
+                };
+                fields[0] = ValueId(0); // scalar field does not ground its nominal class
+            }
+            let result = super::super::analyze(&m, &Limits::default());
+            if header {
+                result.unwrap();
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error
+                        .iter()
+                        .any(|d| d.message.contains("no actual header or Address origin")),
+                    "{error:?}"
+                );
+            }
+        }
+    }
+    #[test]
     fn captured_fixed_ordinary_address_needs_no_nominal_trigger() {
         for wrong in [false, true] {
             let mut m = fixture::captured_fixed(CallableKind::Fn, wrong);

@@ -12,12 +12,19 @@ struct Equations {
     parent: Vec<usize>,
     rigid: Vec<Option<usize>>,
     next_rigid: usize,
+    grounded: Option<Vec<bool>>,
 }
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> CompileResult<usize> {
-        b.spend(3, "class variable allocation")?;
+        b.spend(
+            if self.grounded.is_some() { 4 } else { 3 },
+            "class variable allocation",
+        )?;
         let i = self.parent.len();
         self.parent.push(i);
+        if let Some(grounded) = &mut self.grounded {
+            grounded.push(rigid);
+        }
         self.rigid.push(if rigid {
             let id = self.next_rigid;
             self.next_rigid += 1;
@@ -50,13 +57,34 @@ impl Equations {
                 "actual retained classes do not satisfy this invocation relation",
             ));
         }
+        if let Some(grounded) = &mut self.grounded {
+            b.spend(1, "actual class grounding propagation")?;
+            grounded[a] |= grounded[z];
+        }
         self.parent[z] = a;
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
+        Ok(())
+    }
+    fn address_origin(&mut self, variable: usize, b: &mut Budget) -> CompileResult<()> {
+        if self.grounded.is_some() {
+            let root = self.root(variable, b)?;
+            b.spend(1, "actual local Address class origin")?;
+            if let Some(grounded) = &mut self.grounded {
+                grounded[root] = true;
+            }
+        }
         Ok(())
     }
     fn retain(&mut self, variable: usize, b: &mut Budget) -> CompileResult<()> {
         let root = self.root(variable, b)?;
         b.spend(1, "freeze actual environment class")?;
+        if !self.grounded.as_ref().is_some_and(|g| g[root]) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "captured Fixed class has no actual header or Address origin",
+                None,
+            )]);
+        }
         if self.rigid[root].is_none() {
             self.rigid[root] = Some(self.next_rigid);
             self.next_rigid += 1;
@@ -265,9 +293,11 @@ pub(super) fn check_role(
     if let Some(actual) = &d.storage_life {
         super::signature_life::charge(actual, b)?;
         if actual != life {
-            return Err(bad(
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
                 "Fixed helper role needs the complete actual capture relation",
-            ));
+                None,
+            )]);
         }
         super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
     } else {
@@ -286,6 +316,7 @@ fn check_with(
         parent: Vec::new(),
         rigid: Vec::new(),
         next_rigid: 0,
+        grounded: b.capture_relations.then(Vec::new),
     };
     b.spend(
         f.values.len().saturating_add(f.locals.len()),
@@ -409,6 +440,9 @@ fn check_with(
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {
+                        if let Some(outer) = out.outer {
+                            e.address_origin(outer, b)?;
+                        }
                         let stored = &locals[local.0 as usize];
                         b.spend(
                             out.classes.len().saturating_add(stored.classes.len()),
@@ -521,9 +555,11 @@ fn check_with(
                             crate::signature_life::charge(actual, b)?;
                             crate::signature_life::charge(role, b)?;
                             if role != actual {
-                                return Err(bad(
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Analyze,
                                     "Fixed role differs from complete actual capture relation",
-                                ));
+                                    None,
+                                )]);
                             }
                         }
                         let receiver = match &i.kind {
@@ -563,14 +599,11 @@ fn check_with(
         }
     }
     // Ordinary sources and structural propagation precede any use of a free
-    // environment class. An unanchored capture gets one persistent identity;
-    // the first caller cannot choose or refresh it.
+    // environment class. Only grounded capture facts get persistent identities;
+    // neither a local phantom constructor nor the first call can choose one.
     if retained_environment {
-        b.spend(
-            values.len().saturating_add(locals.len()),
-            "retained environment inventory",
-        )?;
-        for p in values.iter().chain(&locals) {
+        b.spend(values.len(), "retained environment inventory")?;
+        for p in &values {
             if p.environment {
                 b.spend(p.classes.len(), "actual environment class retention")?;
                 for variable in &p.classes {

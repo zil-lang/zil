@@ -785,9 +785,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 if let Some(actual) = &definition.storage_life {
                     crate::signature_life::charge(actual, budget)?;
                     if actual != life {
-                        return Err(bad(
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
                             "Fixed helper role needs the complete actual capture relation",
-                        ));
+                            None,
+                        )]);
                     }
                     super::signature_life::capture_relation(
                         &definition.parameters,
