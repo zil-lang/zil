@@ -404,3 +404,17 @@ Complete source/toolchain/production/retained-executable bindings are recorded i
 344-ct4-source-milestone.json. The mixed const ordinary producer and rich BFP
 source remain explicitly pending; this milestone grants no general CT5 context,
 physical CT borrow, ownership cleanup, performance or product acceptance.
+
+### Mixed full nominal ordinal source completion
+
+341's ordinary source producer correction e90572dff (39 integration c4c4b44f1)
+now preserves the full life/type/const parameter positions. The retained mixed
+Phantom source reaches Verify and real Clang/API O0/O2 execution with stdout42;
+its const7-declaration/const8-construction neighbor rejects. The same actual
+source runs in the default worker and has whole-source analysis N26283,
+N−1 ResourceLimit, warm reuse and fresh exact-N controls. The existing base,
+joint and generic CT4 controls remain included: four source positives now give
+16 native profiles, and the invocation-scoped rich BFP fixture stays explicitly
+pending its different producer/consumer obligation. Historical e65 rejection
+and629 three-source accounting receipts remain tied to their original sources.
+No full CT5 semantic or language-terminal conclusion follows from this fix.
