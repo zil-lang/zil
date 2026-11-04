@@ -380,6 +380,12 @@ impl Resolver<'_, '_> {
                             span: parameter.span,
                         };
                         match arg {
+                            GenericArg::Lifetime(_) => {
+                                return Err(error(
+                                    ty.span,
+                                    "a lifetime actual cannot satisfy a const parameter",
+                                ));
+                            }
                             GenericArg::Type(ty) => self.budget.ty_depth(ty, depth + 1)?,
                             GenericArg::Const(value) => {
                                 self.budget.const_expression_depth(value, depth + 1)?
@@ -393,6 +399,32 @@ impl Resolver<'_, '_> {
                         *arg = GenericArg::Const(expression.clone());
                     } else {
                         match arg {
+                            GenericArg::Lifetime(name) => {
+                                self.budget.text(name, ty.span)?;
+                                for binder in &self.life_scope {
+                                    self.budget.text(binder, ty.span)?;
+                                    self.budget.text(name, ty.span)?;
+                                }
+                                if !self.life_scope.contains(name) {
+                                    return Err(error(
+                                        ty.span,
+                                        "undeclared nominal lifetime actual",
+                                    ));
+                                }
+                                if !parameters
+                                    .and_then(|p| p.get(index))
+                                    .is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                                {
+                                    return Err(error(
+                                        ty.span,
+                                        "lifetime actual supplied for a non-lifetime parameter",
+                                    ));
+                                }
+                                return Err(unsupported(
+                                    ty.span,
+                                    "scoped nominal lifetime substitution is not yet implemented",
+                                ));
+                            }
                             GenericArg::Type(t) => self.target(t, variables, depth + 1)?,
                             GenericArg::Const(value) => {
                                 self.budget.const_expression_depth(value, depth + 1)?

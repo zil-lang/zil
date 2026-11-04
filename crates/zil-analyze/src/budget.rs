@@ -484,6 +484,13 @@ pub(super) fn preflight(
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "stored declaration/instance inventory consumer is not yet implemented",
+            None,
+        )]);
+    }
     count(0, module.functions.len(), limits.max_functions, "function")?;
     budget.input(1, "module preflight")?;
     if let Some(feature) = module.unsupported.first() {

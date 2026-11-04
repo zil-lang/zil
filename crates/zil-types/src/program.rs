@@ -454,6 +454,11 @@ pub(super) fn check_resolved_program_with_reuse(
     )
     .map_err(|e| vec![e])?;
     let mut module = TypedModule {
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
         resources,
         schema_version: SCHEMA_VERSION,
         module_id: program.root,

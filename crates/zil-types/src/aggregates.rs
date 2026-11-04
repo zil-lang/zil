@@ -213,6 +213,7 @@ pub(super) fn resolve_program(
     let modules = program.modules.iter().map(|m| &m.core).collect::<Vec<_>>();
     let mut normalized = Vec::new();
     for module in &program.modules {
+        inference::unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
         let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
             core,

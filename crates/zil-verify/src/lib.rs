@@ -489,6 +489,12 @@ fn check_module(
             "unknown module or candidate schema version",
         ));
     }
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        return Err(unsupported(
+            "stored declaration/instance inventory consumer is not yet implemented",
+            None,
+        ));
+    }
     check_target(&module.target, expected_target)?;
     if let Some(feature) = module
         .unsupported
