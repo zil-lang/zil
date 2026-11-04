@@ -672,3 +672,212 @@ pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
     m.functions = vec![require, caller];
     m
 }
+
+#[allow(dead_code)]
+pub(super) fn rich_marker_pointer(wrong_actual: bool, wrong_target: bool) -> TypedModule {
+    let mut m = phantom();
+    let marker = m.life_instances[0].ty.clone();
+    let tag = address(marker, false);
+    let number = address(Type::I32, false);
+    let class = |binder| SignatureLifeClassBinding {
+        position: SignatureLifeClass {
+            base: StorageBase::Parameter(0),
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+        },
+        binder,
+    };
+    let mut target = function(
+        0,
+        vec![tag.clone(), number.clone()],
+        Type::I32,
+        vec![Type::I32],
+        vec![instruction(
+            Some(0),
+            InstructionKind::Constant(Constant::I32(42)),
+        )],
+        0,
+    );
+    target.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 1,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(StorageBase::Parameter(1), vec![], StorageBinder::Fixed(0)),
+        ],
+        classes: vec![class(StorageBinder::Fixed(0))],
+    });
+    let pointer = Type::BorrowedFunctionPointer {
+        parameters: vec![tag.clone(), number.clone()],
+        result: Box::new(Type::I32),
+        life: StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 2,
+            bindings: vec![
+                row(
+                    StorageBase::Parameter(0),
+                    vec![],
+                    StorageBinder::Invocation(0),
+                ),
+                row(
+                    StorageBase::Parameter(1),
+                    vec![],
+                    StorageBinder::Invocation(1),
+                ),
+            ],
+            classes: vec![class(StorageBinder::Invocation(if wrong_target {
+                0
+            } else {
+                1
+            }))],
+        },
+    };
+    let mut caller = function(
+        1,
+        vec![tag.clone(), number.clone()],
+        Type::I32,
+        vec![tag, number, pointer, Type::I32],
+        vec![
+            instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(
+                Some(2),
+                InstructionKind::FunctionRef {
+                    function: FunctionId(0),
+                },
+            ),
+            instruction(
+                Some(3),
+                InstructionKind::CallIndirect {
+                    callee: ValueId(2),
+                    arguments: vec![ValueId(0), ValueId(1)],
+                },
+            ),
+        ],
+        3,
+    );
+    caller.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: if wrong_actual { 2 } else { 1 },
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                if wrong_actual {
+                    StorageBinder::Invocation(1)
+                } else {
+                    StorageBinder::Fixed(0)
+                },
+            ),
+        ],
+        classes: vec![class(StorageBinder::Fixed(0))],
+    });
+    m.functions = vec![target, caller];
+    m
+}
+
+#[allow(dead_code)]
+pub(super) fn class_candidate(m: &TypedModule) -> CandidatePlan {
+    let mut c = CandidatePlan::empty_for(m);
+    for f in &m.functions {
+        let mut holds = (0..f.values.len())
+            .map(|i| ValueHold {
+                value: ValueId(i as u32),
+                roots: vec![],
+            })
+            .collect::<Vec<_>>();
+        for instruction in &f.blocks[0].instructions {
+            if let (Some(v), InstructionKind::Load(local)) = (instruction.result, &instruction.kind)
+                && matches!(f.values[v.0 as usize], Type::Address { .. })
+                && let Some(p) = f.parameters.iter().position(|p| p == local)
+            {
+                holds[v.0 as usize].roots = vec![HoldRoot::Parameter(p as u32)];
+            }
+        }
+        c.functions.push(FunctionPlan {
+            function: f.id,
+            holds,
+            blocks: vec![BlockPlan {
+                block: BlockId(0),
+                initialized_in: f.parameters.clone(),
+                initialized_out: f.parameters.clone(),
+            }],
+        });
+    }
+    c
+}
+
+#[allow(dead_code)]
+pub(super) fn rich_marker_exclusive_call(alias: bool) -> TypedModule {
+    let mut m = rich_marker_pointer(false, false);
+    let mutable = address(Type::I32, true);
+    let target = &mut m.functions[0];
+    target.locals[1].ty = mutable.clone();
+    target.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "other".into(),
+        ty: mutable.clone(),
+        mutable: false,
+        span: s(),
+    });
+    target.parameters.push(LocalId(2));
+    let life = target.storage_life.as_mut().unwrap();
+    life.invocation_binder_count = 2;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(1),
+    ));
+    let caller = &mut m.functions[1];
+    caller.locals[1].ty = mutable.clone();
+    caller.values[1] = mutable.clone();
+    caller.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "other".into(),
+        ty: mutable.clone(),
+        mutable: false,
+        span: s(),
+    });
+    caller.parameters.push(LocalId(2));
+    caller.values.push(mutable.clone());
+    let life = caller.storage_life.as_mut().unwrap();
+    life.invocation_binder_count = 2;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(1),
+    ));
+    let Type::BorrowedFunctionPointer {
+        parameters, life, ..
+    } = &mut caller.values[2]
+    else {
+        unreachable!()
+    };
+    parameters[1] = mutable.clone();
+    parameters.push(mutable);
+    life.invocation_binder_count = 3;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
+    caller.blocks[0]
+        .instructions
+        .insert(2, instruction(Some(4), InstructionKind::Load(LocalId(2))));
+    let InstructionKind::CallIndirect { arguments, .. } =
+        &mut caller.blocks[0].instructions.last_mut().unwrap().kind
+    else {
+        unreachable!()
+    };
+    arguments.push(ValueId(if alias { 1 } else { 4 }));
+    m
+}

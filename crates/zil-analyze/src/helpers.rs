@@ -775,10 +775,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
             }
             if let Some(life) = &role.life {
-                budget.spend(
-                    super::borrowed_fp::work(life),
-                    "higher-rank actual callback signature",
-                )?;
+                crate::signature_life::charge(life, budget)?;
                 super::borrowed_fp::signature_work(
                     &definition.parameters,
                     &definition.result,

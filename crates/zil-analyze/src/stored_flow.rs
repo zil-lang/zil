@@ -584,10 +584,8 @@ fn binding(
             b,
             slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if slot.path == path {
-            if local.replace(slot.binder).is_some() {
-                return Err(failure("duplicate actual stored leaf"));
-            }
+        if slot.path == path && local.replace(slot.binder).is_some() {
+            return Err(failure("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
@@ -629,7 +627,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
         }
         return Ok(());
     };
-    fee(b, super::signature_life::work(c))?;
+    super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(failure(
@@ -2412,6 +2410,80 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn rich_indirect_actual_exclusive_windows_are_simultaneous() {
+        super::super::analyze(
+            &fixture::rich_marker_exclusive_call(false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(
+            &fixture::rich_marker_exclusive_call(true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live access overlaps")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn rich_class_equations_share_the_request_budget_and_fresh_boundary() {
+        let m = fixture::rich_marker_pointer(false, false);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if super::super::analyze(&m, &limit(mid)).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = super::super::analyze(&m, &limit(low - 1)).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+        println!("342 rich class Analyze N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn rich_pointer_proves_target_implication_and_actual_outer_to_class_equations() {
+        super::super::analyze(
+            &fixture::rich_marker_pointer(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(true, false),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{bad:?}"
+        );
+        let bad = super::super::analyze(
+            &fixture::rich_marker_pointer(false, true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            bad.iter()
+                .any(|d| d.message.contains("entail actual target")),
+            "{bad:?}"
+        );
     }
     #[test]
     fn a_fresh_phantom_class_is_instantiated_once_and_retained_between_actual_calls() {

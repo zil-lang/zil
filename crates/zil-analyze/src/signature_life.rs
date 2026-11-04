@@ -1,23 +1,23 @@
 //! Semantic class equations are not target origins or access paths.
 use super::*;
 
-pub(super) fn work(c: &StorageLifeContract) -> usize {
-    let mut n = (c.fixed_binder_count as usize)
-        .saturating_add(c.invocation_binder_count as usize)
-        .saturating_add(2)
-        .saturating_add(
-            c.bindings
-                .len()
-                .saturating_add(c.classes.len())
-                .saturating_mul(c.bindings.len().saturating_add(c.classes.len())),
-        );
+pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
+    let rows = c.bindings.len().saturating_add(c.classes.len());
+    b.spend(
+        (c.fixed_binder_count as usize)
+            .saturating_add(c.invocation_binder_count as usize)
+            .saturating_add(rows.saturating_mul(rows))
+            .saturating_add(rows.saturating_mul(2))
+            .saturating_add(2),
+        "signature relation row reservation",
+    )?;
     for row in &c.bindings {
-        n = n.saturating_add(row.position.path.len()).saturating_add(2);
+        b.spend(row.position.path.len(), "signature actual borrow path")?;
     }
     for row in &c.classes {
-        n = n.saturating_add(row.position.path.len()).saturating_add(2);
+        b.spend(row.position.path.len(), "signature semantic class path")?;
     }
-    n
+    Ok(())
 }
 
 pub(super) fn outer(c: &StorageLifeContract, base: StorageBase) -> Option<StorageBinder> {
@@ -32,6 +32,11 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
+    if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
+        return Err(bad(
+            "vacuous borrowed signature must use the ordinary callable type",
+        ));
+    }
     struct Cursor<'a> {
         c: &'a StorageLifeContract,
         borrow: usize,

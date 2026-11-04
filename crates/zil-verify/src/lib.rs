@@ -91,9 +91,9 @@ mod stored_borrows;
 mod stored_flow;
 mod sums;
 mod tasks;
-pub use ct_artifact::{CtScopeParameterKind,
-    CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
-    verify_ct_artifact, verify_ct_artifact_metered,
+pub use ct_artifact::{
+    CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage, CtVerificationMeter,
+    VerifiedCTArtifactProgram, verify_ct_artifact, verify_ct_artifact_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 
@@ -1072,7 +1072,7 @@ fn check_type_shape(
                 life,
             } => {
                 budget.borrowed_function_pointers = true;
-                budget.spend(crate::signature_life::work(life))?;
+                crate::signature_life::charge(life, budget)?;
                 for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
                     stored_flow::type_work(ty, limits, budget)?;
                 }

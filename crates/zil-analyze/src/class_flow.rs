@@ -114,10 +114,7 @@ fn variables(
     rigid: bool,
     b: &mut Budget,
 ) -> CompileResult<(Vec<usize>, Vec<usize>)> {
-    b.spend(
-        super::signature_life::work(c),
-        "class invocation variable domain",
-    )?;
+    crate::signature_life::charge(c, b)?;
     let mut fixed = Vec::new();
     let mut invocation = Vec::new();
     for _ in 0..c.fixed_binder_count {
@@ -145,10 +142,7 @@ fn bind(
     e: &mut Equations,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    b.spend(
-        super::signature_life::work(c),
-        "actual class position substitution",
-    )?;
+    crate::signature_life::charge(c, b)?;
     for row in &c.bindings {
         if row.position.base == base {
             if !row.position.path.is_empty() {
@@ -452,11 +446,8 @@ pub(super) fn pointer_types(
                 }
             }
             if let Some(required) = &target.storage_life {
-                b.spend(
-                    super::signature_life::work(required)
-                        .saturating_add(super::signature_life::work(life)),
-                    "actual target class implication",
-                )?;
+                super::signature_life::charge(required, b)?;
+                super::signature_life::charge(life, b)?;
                 if !super::signature_life::entails(required, life) {
                     return Err(bad(
                         "pointer relation does not entail actual target class requirements",

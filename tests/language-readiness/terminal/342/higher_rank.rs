@@ -577,9 +577,7 @@ fn terminal342_hrtb_module_cache_and_interfaces_keep_numeric_relations() {
     let cold = session.compile_project(&project(api, main), &options);
     assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
     assert!(
-        cold.to_json().contains("\"invocation_binder_count\":2")
-            && cold.to_json().contains("\"bindings\":[")
-            && cold.to_json().contains("\"classes\":[]"),
+        cold.to_json().contains(r#""fixed_binder_count":0,"invocation_binder_count":2,"bindings":[{"base":{"parameter":0},"path":[],"binder":{"invocation":0}},{"base":{"parameter":1},"path":[],"binder":{"invocation":1}},{"base":"result","path":[],"binder":{"invocation":0}}],"classes":[]"#),
         "{}",
         cold.to_json()
     );
