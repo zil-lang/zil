@@ -163,12 +163,6 @@ fn require_origin(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> Check<()> {
-    // Preflight visits all actual type/capture/resource tables, including unused
-    // entries. Without a new Task root there is no new origin obligation. The
-    // separate Legacy TaskStart NoExternal constructor proof is never gated here.
-    if !budget.task_origin_roots {
-        return Ok(());
-    }
     let ty = if let Some(local) = local {
         &f.locals
             .get(local.0 as usize)
@@ -179,6 +173,12 @@ fn require_origin(
             .get(value.expect("value endpoint").0 as usize)
             .ok_or_else(|| reject("E-VERIFY-TASK", span, "Task callback value absent"))?
     };
+    // Preflight visits all actual type/capture/resource tables, including unused
+    // entries. Without a new Task root there is no new origin obligation. The
+    // separate Legacy TaskStart NoExternal constructor proof is never gated here.
+    if !budget.task_origin_roots {
+        return Ok(());
+    }
     if !contains_kind(module, ty, budget, false)? {
         return Ok(());
     }
