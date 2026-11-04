@@ -1527,7 +1527,9 @@ pub(super) fn captured_fixed_helper(kind: CallableKind, wrong_actual: bool) -> T
         }]),
     });
     let caller = &mut m.functions[1];
-    if !once { caller.values.push(env); }
+    if !once {
+        caller.values.push(env);
+    }
     // Replace direct invocation with an actual ordinary helper Call.
     caller.blocks[0].instructions.pop();
     if !once {
@@ -1637,5 +1639,137 @@ pub(super) fn captured_fixed_parent_end(end_before_call: bool) -> TypedModule {
         );
     }
     m.functions[1] = f;
+    m
+}
+
+/// Untrusted Typed-only true owning FnOnce + Fixed model. Not Source evidence.
+/// Mark is class-free; only the shared View capture carries relation rows.
+#[allow(dead_code)]
+pub(super) fn captured_owned_fixed(wrong_actual: bool) -> TypedModule {
+    let mut m = captured_fixed(CallableKind::FnOnce, wrong_actual);
+    let payload = Type::Record {
+        name: "Mark".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let owned = Type::Managed(Box::new(payload.clone()));
+    let desc = Type::Desc(Box::new(payload.clone()));
+    m.resources.push(ResourceDefinition {
+        name: "Mark".into(),
+        payload,
+        teardown: None,
+    });
+    let d = &mut m.closures[0];
+    d.captures.insert(0, owned.clone());
+    let life = d.storage_life.as_mut().unwrap();
+    for row in &mut life.bindings {
+        if row.position.base == StorageBase::Capture(0) {
+            row.position.base = StorageBase::Capture(1);
+        }
+    }
+    for row in &mut life.classes {
+        if row.position.base == StorageBase::Capture(0) {
+            row.position.base = StorageBase::Capture(1);
+        }
+    }
+    let life = life.clone();
+    let f = &mut m.functions[0];
+    f.storage_life = Some(life);
+    f.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "taken".into(),
+        ty: owned.clone(),
+        mutable: false,
+        span: s(),
+    });
+    f.values.extend([
+        owned.clone(),
+        desc,
+        Type::I32,
+        Type::I64,
+        Type::I64,
+        Type::I64,
+        Type::I64,
+    ]);
+    for i in &mut f.blocks[0].instructions {
+        if let InstructionKind::ReadCapture { index } = &mut i.kind {
+            *index = 1;
+        }
+    }
+    f.blocks[0].instructions.splice(
+        0..0,
+        [
+            instruction(Some(7), InstructionKind::TakeCapture { index: 0 }),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(7),
+                },
+            ),
+        ],
+    );
+    f.blocks[0].instructions.extend([
+        instruction(
+            Some(8),
+            InstructionKind::DescribeLocal { local: LocalId(1) },
+        ),
+        instruction(
+            Some(9),
+            InstructionKind::ReadDesc {
+                desc: ValueId(8),
+                index: 0,
+            },
+        ),
+        instruction(
+            Some(10),
+            InstructionKind::ConvertInteger {
+                value: ValueId(9),
+                target: Type::I64,
+            },
+        ),
+        instruction(Some(11), InstructionKind::Constant(Constant::I64(1))),
+        instruction(
+            Some(12),
+            InstructionKind::Binary {
+                op: BinaryOp::Subtract,
+                left: ValueId(10),
+                right: ValueId(11),
+            },
+        ),
+        instruction(
+            Some(13),
+            InstructionKind::Binary {
+                op: BinaryOp::Add,
+                left: ValueId(6),
+                right: ValueId(12),
+            },
+        ),
+        instruction(None, InstructionKind::DropManaged { local: LocalId(1) }),
+        instruction(None, InstructionKind::StorageDead(LocalId(1))),
+    ]);
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(13)));
+    let caller = &mut m.functions[1];
+    caller.values.extend([Type::I32, owned]);
+    let code = &mut caller.blocks[0].instructions;
+    let at = code
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+        .unwrap();
+    code.splice(
+        at..at,
+        [
+            instruction(Some(4), InstructionKind::Constant(Constant::I32(1))),
+            instruction(
+                Some(5),
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(4)],
+                },
+            ),
+        ],
+    );
+    let InstructionKind::MakeClosure { captures, .. } = &mut code[at + 2].kind else {
+        unreachable!()
+    };
+    *captures = vec![ValueId(5), ValueId(0)];
     m
 }
