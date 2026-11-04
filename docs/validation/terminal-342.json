@@ -778,5 +778,89 @@
       "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-716965bc41ea50a8",
       "sha256": "d308ee34b1376ae74e4dec2c066a286c6a3e20b9aab5b092bd22721a369975e0"
     }
+  },
+  "ordinary_view_native_continuation": {
+    "status": "AuthorScopedOrdinaryViewNativePass_GeneralStorageStillWIP",
+    "base_commit": "573080f77",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 423,
+      "sha256": "237cbc37ce7b3b3500dd18904473753d405be36b79d6655da478c7d433b2f76f"
+    },
+    "source_fixture": {
+      "path": "tests/language-readiness/terminal/342/stored_view.zil",
+      "sha256": "1cf229d0e77e4164d8218fd8ab13667fadf4f8e2dd4ab226e65a9dbb78c5b313",
+      "unchanged_root_original": true
+    },
+    "focused_existing_cross": {
+      "passed": 4,
+      "failed": 0,
+      "filtered": 78,
+      "ignored": 0
+    },
+    "actual_source_native": {
+      "profiles": 4,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "exit": 0,
+      "stdout": "42\n",
+      "llvm": "inline {ptr} record; real typed GEP and load ptr"
+    },
+    "lower_lir_forgery_controls": [
+      "erased storage_life",
+      "changed stored physical path"
+    ],
+    "meter": "Verified profile only gates payment; Lower shared Sum ledger, Codegen copy/task remaining ledger before binding/type clones/emission",
+    "clippy": "zil-verify/zil-lower/zil-backend-llvm --lib --features zil-backend-llvm/llvm-api -D warnings Pass",
+    "broader_library_command": {
+      "status": "BlockedBeforeTests",
+      "error": "preexisting machine_cgu_clone_controls.rs TypedFunction literal omitted storage_life",
+      "root_fix": "f078d4333; not part of this tested573 base"
+    },
+    "retained_native": {
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.bin": "96d45e2dd5b8201b79be3bae656e3fbe08eedd2a2ed87d86054e80d0b3064d6e",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.json": "ff41018f847f754aa2ec25925f17b0a3a8e0e0838872a9de88944094d62ad8b6",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O0.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.bin": "12e34894c933fa760c018b2b4d148f19ae4b2e91a126742231d2a7f60e03f316",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.json": "88c656a21dee6f851975b4a87e66e5c224df6c1994c1939ca90aeefa06b7f870",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-Clang-O2.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.bin": "8c49117e44916314af6af280f1f5d670da491b77ea4c0a3f88045d67fd56e3ad",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.json": "b1bfff0a9eef3f53cccf8cb99e4bcbcb17d759d817ecdc34a02d786c086500af",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O0.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.bin": "7e1714a65a7a1ae92acc51f78610b9fd3f1d8c1ea446a70ab86d72dacc044c15",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.json": "0d59139b261a047e56addcedb7ce7c553aff917bef6d95223b1e02bed0976cdd",
+      "/workspace/.zil-env/terminal-20261104/342-native-view-retained/view-LlvmApi-O2.ll": "7f89645be3723ee5e863b3702286a3a0d5674cdb696a467422d81f0fd56ebc31"
+    },
+    "logs": {
+      "342-stored-view-native-first.log": "721c08876ce19fa446aedb12c0415b1948b868e72c4aa8cdc0cecfe245760280",
+      "342-stored-native-focused.log": "a8338feb3ce79dc105ba21036e22caee47cedb90a858d4e1f934311b8a46d7bc",
+      "342-stored-native-retained.log": "a2db1457480e51e9619b2e39a64a75a7978b88e180dbf9a4ca7eceb84bd80d32",
+      "342-stored-native-clippy.log": "45e9bdf8e33f74becbc818ed895925c407a9555089d3249abdd05fdab8815a9c",
+      "342-stored-native-libs.log": "7aa16cf77c80c30da6a3f756318ff8ab61795afc84ee3609e3b4d2d0ccb81a30",
+      "342-stored-native-mtime.json": "782b9a96fd3ae65f5ba2dba2c2f82a3e342fc31fdfe42c280940e86b08545d42"
+    },
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_physical.rs": "a7364dc033d299d376a70c368e15e3c73cddfede7c5f9f200f34ca22078965e2",
+      "tests/language-readiness/terminal/342/stored_view.zil": "1cf229d0e77e4164d8218fd8ab13667fadf4f8e2dd4ab226e65a9dbb78c5b313"
+    },
+    "independent_review": "Pending exact native checkpoint",
+    "general_scope_remaining": [
+      "phantom-only nominal carrier no-root consumer correction",
+      "multiple invariant classes/inputs and actual class unification",
+      "mutable slot actions/init/refill/epoch",
+      "enum/Option/SliceIter",
+      "owned/captured/opaque carrier and State/lending/dyn integration"
+    ],
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299",
+      "sha256": "ea643a1ee59739115569c0da519f8d0c15f08c044e6d6d89b1018d3ceb77e805"
+    }
   }
 }

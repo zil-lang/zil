@@ -1311,13 +1311,17 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 
 普通有限借入存储共同合同（342，共同Wire39）：`BorrowedStorage{storage,life}`保留有限Record/Package/Tuple/Enum/ErrorUnion的完整底层布局与相对存储叶关系，不制造实际目标或权限。`StorageLifeShape`以声明顺序记录`StorageLifeSlot{path,binder,mode}`；路径仅含真实内联Field/Variant/ErrorArm，完整覆盖每个实际Address/Desc叶恰一次，保留实际tag与初始化。binder按真实语义遍历首次出现规范密集编号；无任何真实关系的空wrapper、重复、漏项、错误模式、无用尾类、直接双wrapper及相互不一致的嵌套关系拒绝。可写/只读描述模式只是访问上界；Copy/StoreElement/capture/Transfer/Share、拥有叶责任与raw pointee资格仍分别证明。机器布局可擦除关系，语义身份不可擦除。
 
-`StorageLifeContract`把持久Fixed与每次新鲜Invocation分域，绑定到真实Parameter/Capture/Result及其完整位置。Fixed须从实际保留的载体类（capture、存储载体或dyn环境port）独立建立，不限语法Capture位置，但裸新调用输入/结果不能凭空引入Fixed。满足已有Fixed的调用不得缩短、重命名为新类或选择较短交集；结果只能引用已实际建立的类。声明同类不证明对象相同、不相交或可变权限。参数空路径选实际外层Address；非空物理路径最多在入口解开一次外层Address，不能隐式穿过存储Address/Desc。合同路径独立为`ContractProjection::Place`及终端`RetainedPort`/`RetainedClass`；RetainedPort只在真实保留载体选择已核typed port，不是GEP、物理字段或加载权限。RetainedClass只绑定真实固定类，不可作为Read/Write/Manage/Call或加载路径。dyn值须保持接收者和映射到的实际目标根。
+`StorageLifeContract`把持久Fixed与每次新鲜Invocation分域，绑定到真实Parameter/Capture/Result及其完整位置。Fixed须从实际保留的载体类（capture、存储载体或dyn环境port）独立建立，不限语法Capture位置，但裸新调用输入/结果不能凭空引入Fixed。满足已有Fixed的调用不得缩短、重命名为新类或选择较短交集；结果只能引用已实际建立的类。声明同类不证明对象相同、不相交或可变权限。参数空路径选实际外层Address；非空物理路径最多在入口解开一次外层Address，不能隐式穿过存储Address/Desc。实际借用位置的合同路径为`ContractProjection::Place`及终端`RetainedPort`；RetainedPort只在真实保留载体选择已核typed port，不是GEP、物理字段或加载权限。共同40以独立的`SignatureLifeClass{base,path:Vec<LifeTypeProjection>,class}`选择完整语义类型的持久类，`StorageLifeContract.classes`将其映射到Fixed或Invocation；类位置绝不是StoragePosition、实际目标根、loan或Read/Write/Manage/Call路径。旧39把类写成`RetainedClass`的bindings在40不规范，消费者必须迁移或拒绝，不接纳两种等价拼写。dyn值须保持接收者和映射到的实际目标根。
 
 `LoadStoredBorrow`（129）从实际storage Address和物理路径取得叶。CopyShared分离结果与指针槽epoch/短载体借用，保留真实目标拥有者、父loan链和不变Fixed上界；指针槽可换成仍满足同上界的另一合法目标。若旧目标实际由载体拥有，该拥有依赖不得被分离。CopyDescription的有效权限为实际存储事实、声明上界和实际base权限之交；共享载体或可变借入载体都不能将原只读描述升级。描述实际拥有Managed字段仍用既有DescribeAddress/DescribePackageField，不能与加载存储描述混同。Reborrow保留槽epoch/载体借用并建立真实子loan。Take转交实际许可、使原槽未初始化，保留目标祖先与Fixed上界；refill不使已转交许可失效，但第二次Take、重复独占目标或不完整整体move/call/return均拒绝。
 
 `StoreStoredBorrow`（130）要求真实独占storage、活的初始化祖先、精确叶类型/模式及同一不变上界；同时支持初始化叶替换和空槽refill。新Hold准备并核验后才结束旧权限/清理，所有相交call/result loan仍受保护。借入外部&mut载体在每条普通/错误返回须恢复声明的完整状态，或实际转入合法空enum分支；跨调用部分状态须另有真实状态协议，不能交还一个被假定完整的残缺值。部分本地清理只处理真实剩余责任；本合同不引入隐式Box、RC、pin或运行时借用检查。
 
 Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关系；涉及存储的签名以它为唯一声明关系，旧flat life若保留须是精确核验的导出投影，矛盾双合同拒绝。未调用定义、实际CFG、目标/alias/权限、导出与缓存分别由现有独立核检查。所有新扫描、路径比较、映射、clone、join、固定点及分配先从同一请求剩余额度付费；先界定深度/尺寸再递归分类。function/closure、完整类型和module表共同使用Typed/Wire39及TypedModule/TypeIdentity域V39；callable独立域仅在其既有字节不变时保持。恢复候选仍重新核验，不复用旧权限结论。
+
+共同40的完整可调用关系：BorrowedFunctionPointer、CoreCallableParameter.life、CallableRole.life及CT对应节点/构造器统一使用同一完整StorageLifeContract；DynSlot只保留storage_life，不再并列独立invocation_life。旧FunctionLifeContract仅为确切的平坦地址导出投影；存在Fixed、非空classes、capture或非空位置路径时不能以平坦投影擦除关系。完整签名先独立验证实际类型和声明上下文，再按Parameter、实际Capture、Result顺序遍历；外层Address先访问直接借用位置，再访问pointee语义类。每个实际借用位置和类型边界类恰覆盖一次，遇qualified边界使用其已核本地类，不另行展平子关系。Fixed/Invocation按联合遍历的首次出现分别密集编号，不用物理和元数据两份独立遍历编号。无用尾类、重复、缺漏、错误路径及矛盾映射拒绝。
+
+类映射保持实际完整关系，例如for<a,b> fn(&'a Tag<'b>, &'b i32)中Parameter0的外层Address与Pointee的Tag类分别映射Invocation0/1；不能仅凭外层地址标签合并。嵌套callable自身Invocation是词法屏障，外层只能显式关联其自由Fixed域。Fixed必须由实际输入/捕获保留类或完整包围上下文建立，结果单独出现不能创建它；捕获Fixed不能洗成新Invocation。调用先匹配不变语义类，再独立代入实际目标、槽和父loan；phantom无运行时目标或权限。薄指针无运行时环境，其自由Fixed必须来自真实包围语义上下文；显式forall仍每次调用新鲜。函数目标与角色转换分别核完整签名关系、实际返回根、模式、拥有/清理、CallKind/effects和线程/resume约束；同一ClosureId不等于同一角色关系。
 
 名义life实参的AST `GenericArg::Lifetime`须保留真实参数种类、声明序号、词法scope及联合规范关系，字符串只为语法。普通`SliceIter<life s,T:Copy>`与`Option<&'s T>`及trait方法为真实库消费者，不设Iterator内建特权。CT BorrowedStorage节点16/构造器12保存实际storage子节点及完整shape，codec界定类数、路径、增长、分配和DAG边。全名义phantom/lifetime实参仍须有封闭数值scope引用、参数位置及种类核验；不能丢弃实参或使用自由life名字冒充完成，在该消费者落地前显式Unsupported并继续施工。
 
@@ -1337,7 +1341,11 @@ opaque载体共同`RetainedLifeShape`保留binder_count、完整typed ports、�
 
 CT4以一份联合`life_context`表达名义应用完整的Type/Const/Lifetime实参及关系。`CtLifetimeArgument{owner,binder}`引用实际词法包围的binder拥有者，数值owner为语义反向引用，不是物理DAG边；分别核验物理图与词法scope、域和范围，同形兄弟owner不可替代祖先。节点复制/重编号连同owner一致变换，键以已核相对scope/域/序号表示。带context的schema Type实参必须为同一图内的`TypeInContext`并选择对应实际参数，禁止独立Type图逐参新鲜化后丢掉相等关系；无context时仅接纳实际封闭Type图。提取Type参数保留真实scope handle；当前返回形状无法表达时显式Unsupported并继续补齐，不能新建自由life名或空wrapper。Task/Dyn的完整CT节点和上下文桥仍须另外实现，不由运行时表示自动开放。
 
-共同形状和module记录改变字节后，公共schema/Wire统一为39，TypedModule/TypeIdentity域V39；CT schema及相关artifact/program/provider/dependency/function/value域为4。历史Wire38/CT3不复用新版布局。所有新表、路径、端口叶、上下文键、映射和clone在扫描/增长前从同一请求剩余额度预费；数字owner不能触发无界递归。codec只证明有限运输，独立实际根、权限、清理及源码/机器消费者仍必须分别落地。未接通的旧消费者显式拒绝新形状，不能默默忽略非空元数据。
+CT5的源上下文与图内owner分域：CtTypeRef.ambient_classes把本图实际Fixed owner/class映射到CtAmbientLifeReference{scope,parameter}；parameter为原始完整泛型参数序号。CtArtifactProgram.ambient_life_scopes的每行保留实际CtSymbolId、binder_site和Definition或完整有序Instantiated(Type/Scalar/Lifetime)实参。图内CtLifetimeArgument仍只引用本图真实词法owner；外部scope不能伪装为图内节点。每个自由Fixed类须唯一映射到真实ambient源binder，或由真实包围rich callable关系建立；无上下文独立图不能接收非空ambient映射或新建自由类。
+
+实际源码/Origins和真实特化操作建立私有FrozenInvocationContext，由compiler、FrozenAuthority、FrozenReadView、ValueContext、反射及物化共同使用。raw scope/symbol/index/hash仅为引用，须先解析真实包名域、逻辑module/声明/member/generation身份、binder路径、完整参数种类与实参向量。CT Wire和独立value摘要是结构摘要，不能当作有ambient/schema引用值的完整语义键。contextual value/type key包含实际引用的完整已解析上下文及目标相关含义；外层query/dependency/cache再绑定请求snapshot、requester、可见性和target，不将无关源码快照混入显式稳定包身份。ClosedSnapshot包域按快照变化；Explicit包域不因无关源码编辑变化。缺失、歧义、环或不能完整传递的上下文必须拒绝；导出完整值须携带共同上下文，或仅准出实际无上下文值。任何类/上下文信息都不制造权限。
+
+共同40接续改变类行及可调用关系字节后，公共schema/Wire统一为40，TypedModule/TypeIdentity及LifeInventory域V40、StorageLifeContract域2、CallableParameterContract域6；CT schema及相关artifact/program/provider/dependency/function/value域为5。未改变布局的CallableReturnContract域3保留。历史Wire39/CT4不复用新版布局；表示发布与各消费者实际准入分别记录，未迁移消费者不能接收新形状。所有新表、路径、端口叶、上下文键、映射和clone在扫描/增长前从同一请求剩余额度预费；数字owner不能触发无界递归。codec只证明有限运输，独立实际根、权限、清理及源码/机器消费者仍必须分别落地。未接通的旧消费者显式拒绝新形状，不能默默忽略非空元数据。
 
 
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。

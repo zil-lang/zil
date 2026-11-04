@@ -184,6 +184,24 @@ pub(super) fn concrete_element(
     ),
 ) -> R<()> {
     let mut shape = Shape { nominals, budget };
+    if let TypeKind::Named { path, args } = &grouped(ty).kind
+        && path.as_slice() == ["Managed"]
+    {
+        shape.budget.ty(ty)?;
+        let [GenericArg::Type(resource)] = args.as_slice() else {
+            return Err(error(
+                ty.span,
+                "Managed requires one canonical resource argument",
+            ));
+        };
+        if !shape.resource(resource)? {
+            return Err(error(
+                ty.span,
+                "StoreElement requires nonzero actual resource storage",
+            ));
+        }
+        return Ok(());
+    }
     let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package)?;
     // aggregate already charged the complete application before this bounded
     // syntactic classification. F grants neither Copy nor StoreElement: only
@@ -237,6 +255,31 @@ pub(super) fn concrete_element(
         ));
     }
     Ok(())
+}
+
+pub(super) fn explicit_managed_value(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return Ok(false);
+    };
+    if path.as_slice() != ["Managed"] {
+        return Ok(false);
+    }
+    budget.ty(ty)?;
+    let [GenericArg::Type(resource)] = args.as_slice() else {
+        return Err(error(
+            ty.span,
+            "Managed requires one canonical resource argument",
+        ));
+    };
+    let mut shape = Shape { nominals, budget };
+    // The resource category and actual finite payload are checked; zero-size
+    // owners still carry their real Drop responsibility in ordinary Enums.
+    shape.resource(resource)?;
+    Ok(true)
 }
 
 struct Shape<'s, 'b, 'n, 'l> {

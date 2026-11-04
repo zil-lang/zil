@@ -1,5 +1,6 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod owned;
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -92,11 +93,17 @@ fn worker_one(
     budget.spend(
         f.locals
             .len()
-            .saturating_add(f.values.len())
+            .saturating_mul(2)
+            .saturating_add(f.values.len().saturating_mul(2))
             .saturating_add(module.resources.len())
             .saturating_add(1),
         "task worker real scalar profile",
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
+        || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+    {
+        return owned::profile(module, f, budget, Some(span));
+    }
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.callable_contract.is_some()
@@ -232,7 +239,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 false,
                 "canonical general Task definition identity",
             )?;
-            if matches!(&r.payload,Type::Task{result,..} if **result!=Type::I32) {
+            if let Type::Task { result, .. } = &r.payload
+                && !owned::result_type(result, budget)?
+            {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
                     "general owning task result lowering is not yet admitted by this frame profile",
@@ -369,6 +378,19 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         worker: id,
                         argument,
                     } => {
+                        let target = module
+                            .functions
+                            .get(id.0 as usize)
+                            .ok_or_else(|| fail(i.span, "task worker absent"))?;
+                        if target.parameters.len() != 1
+                            || target.locals[target.parameters[0].0 as usize].ty != Type::I32
+                            || target.return_type != Type::I32
+                        {
+                            return Err(fail(
+                                i.span,
+                                "legacy task_start requires an actual i32 worker signature",
+                            ));
+                        }
                         if ty(argument)? != &Type::I32 {
                             return Err(fail(i.span, "task payload must be i32"));
                         }
@@ -388,6 +410,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 i.span,
                                 "static child call requires exact actual i32 input",
                             ));
+                        }
+                        let target = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| fail(i.span, "child absent"))?;
+                        if target.parameters.len() != 1
+                            || target.locals[target.parameters[0].0 as usize].ty != Type::I32
+                            || target.return_type != Type::I32
+                        {
+                            return Err(fail(i.span, "child signature requires scalar adapter"));
                         }
                         worker(module, function, budget, i.span)?;
                         Some(Type::I32)

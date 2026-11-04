@@ -147,6 +147,11 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
     }
     for function in &module.functions {
+        if verified.uses_stored_borrows()
+            && let Some(life) = &function.storage_life
+        {
+            sum_budget.stored_contract(life)?;
+        }
         if !forwarded_callable_signature(function) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
@@ -154,7 +159,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 Some(function.span),
             )]);
         }
-        let old_return = function.return_type.is_copy_value()
+        let old_return = sum_budget.borrowed(&function.return_type, 0)?
+            || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
@@ -180,7 +186,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
         for id in &function.parameters {
             let ty = &function.locals[id.0 as usize].ty;
-            let old = ty.is_copy_value()
+            let old = sum_budget.borrowed(ty, 0)?
+                || ty.is_copy_value()
                 || ty.is_scalar_or_address()
                 || resource_type(ty, &module.resources)
                 || package_value_type(ty, &module.resources)
@@ -211,7 +218,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             .chain(function.values.iter())
         {
             let concrete_closure = callable_parameter_type(ty, &module.closures);
-            if !ty.is_copy_value()
+            if !sum_budget.borrowed(ty, 0)?
+                && !ty.is_copy_value()
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())

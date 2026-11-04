@@ -491,6 +491,19 @@
       "compatibility": "task_start/TaskI32 nullable head, tuple five-state poll and Bool close remain explicit compatibility; general owning external SABI is not ABI1",
       "responsibility": "Saved-PC canonical owner/live/partial/result slots; once-only input commit and Ready move; actual child creation-order PendingExit, parent loans retained through drain; Closed includes child/result/loan/external-user/no-future/drain settlement; Direct default Drop needs Closed or complete synchronous-close proof",
       "accounting": "Single cumulative request ledger; full actual type/instance/layout/effect/cleanup/metadata/cache work paid before traversal or growth; no producer proof bits or default-limit increase"
+    },
+    "terminal_rich_callable_context_181": {
+      "authority": "_zil_design.md §18.1 common40 and CT5",
+      "state": "ContractToImplement",
+      "schema_version": 40,
+      "wire_version": 40,
+      "ct_schema_version": 5,
+      "relation": "StorageLifeContract{fixed_binder_count,invocation_binder_count,bindings,classes:Vec<SignatureLifeClassBinding{position:SignatureLifeClass{base,path:Vec<LifeTypeProjection>,class},binder}>}",
+      "sole_contract": "BFP, CoreCallableParameter.life, CallableRole.life and CT BFP use StorageLifeContract; DynSlot removes invocation_life. Function/closure/export storage_life uses same relation. Legacy flat projection is exact data adapter only.",
+      "classes": "Semantic class selections are not access positions or targets; RetainedClass in signature bindings is noncanonical. Full actual constructors and declaration contexts checked independently; nested Invocation lexical barrier and Fixed invariance preserved.",
+      "ambient": "CtTypeRef.ambient_classes:Vec<CtAmbientClassBinding{owner:CtTypeNodeId,class,source:CtAmbientLifeReference{scope:CtAmbientScopeId,parameter:full original ordinal}}>; CtArtifactProgram.ambient_life_scopes:Vec<CtAmbientLifeScope{declaration,binder_site,instance:Definition|Instantiated(Vec<CtScopeActual Type|Scalar|Lifetime>) }>",
+      "identity": "TypedModule/TypeIdentity/LifeInventory V40; StorageLifeContract2; CallableParameterContract6; CT artifact/program/provider/dependency/function/value5. Standalone raw fingerprints are structural, semantic keys resolve referenced authentic context before outer request/cache binding.",
+      "responsibility": "Same remaining work/depth/node ledger prepays all traversal/lookup/clone/remap/sort/hash; independent actual source/body/target/loan/permission/cleanup reconstruction. Unsupported consumers explicitly reject new nonempty metadata; transport is not admission."
     }
   },
   "schemas": [

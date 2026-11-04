@@ -168,7 +168,7 @@ impl Builder<'_, '_> {
             .get(&key)
             .filter(|s| s.public && s.receiver.is_some() && !s.cleanup))
     }
-    pub(super) fn borrowed_task_hint<'b>(
+    pub(crate) fn borrowed_task_hint<'b>(
         &'b self,
         e: &'b CoreExpr,
         left: &mut usize,
