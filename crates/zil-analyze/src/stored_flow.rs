@@ -24,6 +24,7 @@ struct Value {
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
+    creation_complete: Option<bool>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
@@ -95,6 +96,11 @@ fn union(to: &mut Permission, from: &Permission, b: &mut Budget) -> CompileResul
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
     changed |= union(&mut to.held, &from.held, b)?;
+    if let Some(complete) = from.creation_complete {
+        let joined = Some(to.creation_complete.unwrap_or(false) || complete);
+        changed |= to.creation_complete != joined;
+        to.creation_complete = joined;
+    }
     for (path, value) in &from.slots {
         ordered(b, to.slots.len(), path.len())?;
         fee(b, path.len().saturating_add(1))?;
@@ -1271,8 +1277,14 @@ fn transfer(
         InstructionKind::MakeClosure { closure, captures }
             if module.closures[closure.0 as usize].storage_life.is_some() =>
         {
+            let mut complete = true;
             for capture in captures {
                 let actual = get(*capture)?;
+                if matches!(value_type(f, *capture)?, Type::Address { .. })
+                    && actual.pointer.targets.is_empty()
+                {
+                    complete = false;
+                }
                 union(&mut out.held, &actual.pointer, b)?;
                 for leaf in actual.slots.values() {
                     union(&mut out.held, leaf, b)?;
@@ -1280,10 +1292,12 @@ fn transfer(
                 if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
                     for slot in &shape.slots {
                         let leaf = select(state, &actual.pointer, &slot.path, b)?;
+                        complete &= !leaf.targets.is_empty();
                         union(&mut out.held, &leaf, b)?;
                     }
                 }
             }
+            out.creation_complete = Some(complete);
         }
         InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
             ordered(b, state.captures.len(), 0)?;
@@ -2073,6 +2087,9 @@ pub(super) fn derive(
             let mut grounded = true;
             for (ty, value) in f.values.iter().zip(&values) {
                 fee(b, 1)?;
+                if value.creation_complete == Some(false) {
+                    grounded = false;
+                }
                 if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
                     grounded = false;
                 }
@@ -2699,6 +2716,142 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn captured_fixed_ordinary_address_needs_no_nominal_trigger() {
+        for wrong in [false, true] {
+            let mut m = fixture::captured_fixed(CallableKind::Fn, wrong);
+            let ty = address(Type::I64, false);
+            let contract = StorageLifeContract {
+                fixed_binder_count: 1,
+                invocation_binder_count: 0,
+                bindings: vec![
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Parameter(0),
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Fixed(0),
+                    },
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Capture(0),
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Fixed(0),
+                    },
+                ],
+                classes: vec![],
+            };
+            m.life_declarations.clear();
+            m.life_instances.clear();
+            m.closures[0].captures = vec![ty.clone()];
+            m.closures[0].parameters = vec![ty.clone()];
+            m.closures[0].storage_life = Some(contract.clone());
+            let entry = &mut m.functions[0];
+            entry.locals[0].ty = ty.clone();
+            entry.storage_life = Some(contract);
+            entry.values = vec![ty.clone(), Type::I64, ty.clone(), Type::I64, Type::I64];
+            entry.blocks[0].instructions = vec![
+                instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+                instruction(
+                    Some(1),
+                    InstructionKind::ReadAddress {
+                        address: ValueId(0),
+                    },
+                ),
+                instruction(Some(2), InstructionKind::Load(LocalId(0))),
+                instruction(
+                    Some(3),
+                    InstructionKind::ReadAddress {
+                        address: ValueId(2),
+                    },
+                ),
+                instruction(
+                    Some(4),
+                    InstructionKind::Binary {
+                        op: BinaryOp::Add,
+                        left: ValueId(1),
+                        right: ValueId(3),
+                    },
+                ),
+            ];
+            entry.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+            let caller = &mut m.functions[1];
+            for local in &mut caller.locals[..2] {
+                local.ty = ty.clone();
+            }
+            caller.values[..2].fill(ty);
+            let header = caller.storage_life.as_mut().unwrap();
+            header.fixed_binder_count = 0;
+            header.classes.clear();
+            let result = super::super::analyze(&m, &Limits::default());
+            if wrong {
+                let error = result.unwrap_err();
+                assert!(
+                    error
+                        .iter()
+                        .any(|d| d.message.contains("actual retained classes")),
+                    "{error:?}"
+                );
+            } else {
+                result.unwrap();
+            }
+        }
+    }
+    #[test]
+    fn captured_fixed_once_move_keeps_body_parameter_classes() {
+        let mut m = fixture::captured_fixed_helper(CallableKind::FnOnce, false);
+        let helper = &mut m.functions[2];
+        let ty = helper.locals[1].ty.clone();
+        let mut local = helper.locals[1].clone();
+        local.id = LocalId(2);
+        helper.locals.push(local);
+        helper.parameters.push(LocalId(2));
+        helper.values.push(ty);
+        helper.blocks[0]
+            .instructions
+            .insert(2, instruction(Some(3), InstructionKind::Load(LocalId(2))));
+        let InstructionKind::CallClosureOnce { arguments, .. } =
+            &mut helper.blocks[0].instructions[3].kind
+        else {
+            unreachable!()
+        };
+        arguments[0] = ValueId(3);
+        let header = helper.storage_life.as_mut().unwrap();
+        header.fixed_binder_count = 3;
+        header.invocation_binder_count = 2;
+        header.bindings.push(StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Parameter(2),
+                path: vec![],
+            },
+            binder: StorageBinder::Invocation(1),
+        });
+        header.classes.push(SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(2),
+                path: vec![LifeTypeProjection::Pointee],
+                class: 0,
+            },
+            binder: StorageBinder::Fixed(2),
+        });
+        let InstructionKind::Call { arguments, .. } = &mut m.functions[1].blocks[0]
+            .instructions
+            .last_mut()
+            .unwrap()
+            .kind
+        else {
+            unreachable!()
+        };
+        arguments.push(ValueId(1));
+        let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("actual retained classes")),
+            "{error:?}"
+        );
     }
     #[test]
     fn captured_fixed_persists_while_invocation_is_fresh() {
