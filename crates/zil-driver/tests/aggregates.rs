@@ -6572,14 +6572,26 @@ fn ct4_fixed_phantom_context_source_bridge() {
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(
-        report.diagnostics.iter().any(|d| d
-            .message
-            .contains("transformed declarations require explicit source lineage")),
+    review329_native(&[("main", text)], 42);
+    let free = text.replace("Phantom::<'s>", "Phantom::<'free>");
+    let report = compile_source(&source(&free), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let escape = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context-escape.zil"
+    );
+    let report = compile_source(&source(escape), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );

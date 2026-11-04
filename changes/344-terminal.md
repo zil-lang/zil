@@ -376,3 +376,14 @@ The rich borrowed-function fixture stays Unsupported until a shared successor
 contract represents its nested Fixed/Invocation relation. These are WIP source
 bindings, not acceptance of all CT4 scopes, physical borrowed CT values or native
 execution of the new fixture. Existing CT3 source9/40 native controls remain green.
+
+Registered scoped data can now pass through an actual generic CT Copy identity
+function without stripping the joint context or rebuilding individual lifetime
+arguments. Copy qualification resolves the already registered genuine schema,
+checks every physical data field recursively, rejects CT-only fields and finite
+layout cycles, and retains its authentic source binding. Mixed ordered
+Type/Const/Lifetime and two-class contexts have direct materialization controls.
+Fresh request-work neighbors cover the base5467, long-name15302 and generic6542
+paths, with no default increase. Whole-source/native claims await the separately
+owned phantom-only stored-target correction; the retained local-field escape
+negative must still reject after the valid zero-slot source passes.
