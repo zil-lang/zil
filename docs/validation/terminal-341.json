@@ -691,5 +691,24 @@
       "joint dyn CT graph",
       "Types/Analyze/independent Verify/Lower/Clang/LLVM API/source/raw/Wire/native/budget/cache controls"
     ]
+  },
+  "source_context_handoff": {
+    "status": "WIP frontend handoff; no dyn acceptance",
+    "base": "5873c4aed",
+    "driver_check": "cargo check -p zil-driver --lib Pass (existing WIP warnings)",
+    "actual_checks": {
+      "source_context_units": 4,
+      "driver_generics_source_control": 1,
+      "namespace_work": 221,
+      "namespace_nodes": 5,
+      "controls": "Alias equivalence groups, original bytes, ID/source-order/native-path relocation, Explicit canonical paths and edit stability, duplicate IDs/paths, empty component/nonroot empty alias rejection; exact N/N-1. Actual original-source View reachesCore with namespace preserved across native file labels; transformed source Unavailable rejectsbeforeBuildpublication."
+    },
+    "open": [
+      "genuine aligned lineage across selection/materialization",
+      "dyn concrete source/vtable emission",
+      "context-aware full type/interface keys",
+      "actual Types/Analyze/Verify/Lower/Clang/LLVM API dynamic consumers",
+      "combined raw/Wire/native/budget/cache validation"
+    ]
   }
 }

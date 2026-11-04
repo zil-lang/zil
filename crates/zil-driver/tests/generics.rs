@@ -9,6 +9,78 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
+    let text = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}fn main(){}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut packages = Vec::new();
+    for path in ["first-location.zil", "other/location.zil"] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path, text);
+        let options = CompileOptions {
+            stop_after: Stage::Core,
+            emit_dir: Some(directory.join(packages.len().to_string())),
+            ..CompileOptions::default()
+        };
+        let report = compile_source(&source, &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        let package = dump
+            .split("package: \"")
+            .filter_map(|part| part.strip_prefix("closed-snapshot:v1:"))
+            .next()
+            .expect("Driver did not pass original context")
+            .split('"')
+            .next()
+            .unwrap()
+            .to_owned();
+        packages.push(package);
+    }
+    assert_eq!(
+        packages[0], packages[1],
+        "native file labels changed logical snapshot identity"
+    );
+    let transformed = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "transformed.zil",
+        format!("#if(true){{fn selected(){{}}}}{text}"),
+    );
+    let report = compile_source(
+        &transformed,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(directory.join("must-not-publish")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("explicit source lineage")),
+        "{}",
+        report.to_json()
+    );
+    assert!(report.commands.is_empty());
+    assert!(!directory.join("must-not-publish").exists());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn terminal341_generic_methods_specialize_ordinary_calls() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
