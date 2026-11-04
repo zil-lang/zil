@@ -804,7 +804,14 @@ impl Builder<'_, '_> {
             let bound = self.expr(right, Some(&initial.ty), depth + 1)?;
             if !matches!(
                 initial.ty,
-                CtTy::Scalar(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
+                CtTy::Scalar(
+                    CtScalarTy::U8
+                        | CtScalarTy::U16
+                        | CtScalarTy::U64
+                        | CtScalarTy::Usize
+                        | CtScalarTy::I32
+                        | CtScalarTy::I64
+                )
             ) {
                 return Err(error(span, "CT range requires target integers"));
             }

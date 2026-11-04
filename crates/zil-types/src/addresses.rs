@@ -368,9 +368,11 @@ impl Builder<'_, '_> {
                     self.closures.snapshot(work.saturating_mul(2), e.span)?;
                 }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                let shared_owned = (matches!(&field, Type::Managed(_)) && resources::supported(&field)) || !mutable
-                    && (packages::product::supported(&field)
-                        || matches!(&field, Type::Managed(payload)
+                let shared_owned = (matches!(&field, Type::Managed(_))
+                    && resources::supported(&field))
+                    || !mutable
+                        && (packages::product::supported(&field)
+                            || matches!(&field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                 if matches!(inner.as_ref(), Type::Package { .. })
                     && !field.is_copy_value()

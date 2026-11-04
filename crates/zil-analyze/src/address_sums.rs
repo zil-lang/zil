@@ -277,36 +277,33 @@ pub(super) fn check(
                         ) = (
                             definitions[tag.0 as usize],
                             definitions[constant.0 as usize],
-                        ) {
-                            if *n >= 0
-                                && output.observed.contains(&tag)
-                                && matches!(op, BinaryOp::Equal | BinaryOp::NotEqual)
-                            {
-                                selected =
-                                    Some((*address, path, *n as u32, *op == BinaryOp::Equal));
-                            }
+                        ) && *n >= 0
+                            && output.observed.contains(&tag)
+                            && matches!(op, BinaryOp::Equal | BinaryOp::NotEqual)
+                        {
+                            selected = Some((*address, path, *n as u32, *op == BinaryOp::Equal));
                         }
                     }
                 }
                 for (target, truth) in [(then_block, true), (else_block, false)] {
                     let mut edge = output.copy(b)?;
-                    if let Some((address, path, tag, equal)) = selected {
-                        if truth == equal {
-                            b.spend(
-                                path.len().saturating_add(1).saturating_mul(
-                                    edge.facts
-                                        .len()
-                                        .checked_ilog2()
-                                        .map_or(1, |n| n as usize + 2),
-                                ),
-                                "address tag edge fact",
-                            )?;
-                            let key = path
-                                .iter()
-                                .map(|p| (p.variant, p.index))
-                                .collect::<Vec<_>>();
-                            edge.facts.insert((address, key, tag));
-                        }
+                    if let Some((address, path, tag, equal)) = selected
+                        && truth == equal
+                    {
+                        b.spend(
+                            path.len().saturating_add(1).saturating_mul(
+                                edge.facts
+                                    .len()
+                                    .checked_ilog2()
+                                    .map_or(1, |n| n as usize + 2),
+                            ),
+                            "address tag edge fact",
+                        )?;
+                        let key = path
+                            .iter()
+                            .map(|p| (p.variant, p.index))
+                            .collect::<Vec<_>>();
+                        edge.facts.insert((address, key, tag));
                     }
                     let changed = if let Some(prior) = &mut inputs[target.0 as usize] {
                         prior.meet(&edge, b)?

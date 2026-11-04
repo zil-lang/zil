@@ -431,6 +431,7 @@ mod record_enum329_ledger {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine,
+            false, // This retained source fixture has no associated declarations.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

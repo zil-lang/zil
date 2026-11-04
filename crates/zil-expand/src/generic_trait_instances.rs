@@ -767,6 +767,7 @@ mod trait_request_ledger {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine_products,
+            false, // This retained source fixture has no associated declarations.
         )
         .unwrap();
         let engine_left = engine_products.allowance.unwrap();
