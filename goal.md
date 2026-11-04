@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 实现待验 | P0 | root / g10_1_review | [C39][c39] / [C40][c40]修复已实现；由 root / g10_1_review 在 G10.1 复核。 |
-| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 | 已接续 `task/G1.3`；[替换复核][replacement] / [WIP][w340]；责任转交及机器消费者未闭合。 |
+| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | root / g1_3 | [Managed 叶子替换源码](https://github.com/zil-lang/zil/tree/bab0651270071db27b1c569a344f2cb91fed8a14)已交付；限定独审通过检查中，待共同回归；一般拥有组合仍缺。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 实现待验 | P0 | root / g10_1_review | [C40][c40] 已有两核及原生检查；由 root / g10_1_review 在 G10.1 复核。 |
@@ -18,13 +18,13 @@
 | G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 实现待验 | P0 | root / g10_1_review | [C39][c39] / [C40][c40] 已有 role 检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | g3_3 | 已接续 `task/G3.3`；依赖 G2.2；外层捕获上下文及实际环境关系未闭合。 |
+| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | g3_3 / goal_publish | 标量捕获 Fn/FnMut/FnOnce 消费者已提交；独审提出 raw 一次消费反例，修正中；外层 Fixed 尚缺公共上下文接口。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
 | G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 实现待验 | P0 | root / g10_1_review | [C39][c39] 已有限定独审和原生检查；由 root / g10_1_review 在 G10.1 复核。 |
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 实现待验 | P0 | root / g10_1_review | [C40][c40] 已有上下文及原生检查；由 root / g10_1_review 在 G10.1 复核。 |
-| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | g4_4 | 已接续 `task/G4.4`；已有 Definition 路径；成员、生成等作用域待补。 |
+| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | g4_4 / goal_publish | 成员自身 life 上下文已有实现；独审要求修正生成作用域归属并补核 LLVM API；完整实参向量/生成作用域未完成。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
 | G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有前端；实际消费者待接。 |
@@ -40,7 +40,7 @@
 | G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 待排期 | P1 | 待派 | 依赖 G7.2、G7.3、G8.4、G8.6。 |
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
 | G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 实现待验 | P0 | root / g10_1_review | [Task 复核][task40]；由 root / g10_1_review 在 G10.1 复核，不覆盖通用 frame port/拥有 Sum。 |
-| G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 部分实现 | P0 | g8_3 | 已接续 `task/G8.3`；[C41][c41] / [WIP][w343]；[机器模型][cas]已有，源码全链未闭合。 |
+| G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 实现待验 | P0 | root | [源码交付及作者收据](https://github.com/zil-lang/zil/blob/e797559b51cef6ccc75377caf55270ea8fc7a927/docs/validation/G8.3-cas-source.json)；非作者限定复核11项通过，待共同回归合入。 |
 | G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 待排期 | P1 | 待派 | 与 G7.3 共用责任合同和真实事件源。 |
 | G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
 | G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.1、G6.2、G8.2、G8.4。 |
@@ -51,7 +51,7 @@
 | G9.5 | 字体/文本布局、渲染呈现及输入到绘制的真实闭环 | 待排期 | P2 | 待派 | 与 G9.4 协调；需实际字体、呈现和输入链路。 |
 | G9.6 | 真实ZUI应用集成、资源失败/关闭及维护场景 | 待排期 | P2 | 待派 | 依赖 G9.3、G9.4、G9.5 及必要语言能力。 |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root / g10_1_review | root / g10_1_review 正在运行精确树独审与适用检查；尚未验收或合入。[349 项作者检查][e40]不等于全量。 |
+| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root / g10_1_review | 已组合本批候选；补齐12处旧CT夹具；保留编译失败与磁盘中断，修复复核发现后运行共同门。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
