@@ -5,6 +5,11 @@ use super::*;
 use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
+#[derive(Clone, Copy)]
+pub(super) struct CheckPoint<'a> {
+    pub(super) validate: bool,
+    pub(super) live: Option<&'a Live>,
+}
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
@@ -254,6 +259,7 @@ impl Program {
         target: &Target,
         birth: &BTreeSet<Birth>,
         check: bool,
+        live: Option<&Live>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let ty = self.actual_type(flow.module, flow.function, target, b)?;
@@ -324,12 +330,65 @@ impl Program {
                 effect.borrowed_fields.insert(capture);
                 add(&mut effect.replacements, target, birth, b)?;
             }
-            origins::Root::StoreElement(_) => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "Store element replacement state bridge is under construction",
-                    None,
-                )]);
+            origins::Root::StoreElement(value) => {
+                if !matches!(target.path.as_slice(), [PlaceProjection::Field(_)]) {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "Store replacement requires a direct complete owning field",
+                        None,
+                    )]);
+                }
+                // The actual borrow operation already proves complete element
+                // initialization. Preserve its parent debt; no field is taken,
+                // no prefix is extended and no fresh privilege is manufactured.
+                let parent = copied(state, Place::Value(value), b)?;
+                fee(b, parent.sources.len())?;
+                if parent.sources.iter().any(|source| {
+                    matches!(
+                        source.parent(),
+                        Source::Argument(_) | Source::BorrowedField(_) | Source::OwnedField(_)
+                    )
+                }) {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "Store replacement through a borrowed/captured parent needs its instance invalidation summary",
+                        None,
+                    )]);
+                }
+                if check {
+                    live_sources(state, &parent, b)?;
+                    let live = live
+                        .ok_or_else(|| error("Store replacement description liveness missing"))?;
+                    for place in live {
+                        let ty = match place {
+                            Place::Local(local) => &flow.function.locals[local.0 as usize].ty,
+                            Place::Value(value) => &flow.function.values[value.0 as usize],
+                            _ => continue,
+                        };
+                        if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                            continue;
+                        }
+                        let fact = copied(state, *place, b)?;
+                        fee(
+                            b,
+                            fact.sources
+                                .len()
+                                .saturating_mul(parent.sources.len().saturating_add(1)),
+                        )?;
+                        if fact.sources.iter().any(|source| {
+                            !matches!(source, Source::StoreParent(_))
+                                && parent
+                                    .sources
+                                    .iter()
+                                    .any(|root| source.parent() == root.parent())
+                        }) {
+                            return Err(error(
+                                "Store field replacement invalidates a live element resource description",
+                            ));
+                        }
+                    }
+                }
+                record_write(&parent.sources, effect, false, check, b)?;
             }
         }
         Ok(())
@@ -380,6 +439,7 @@ impl Program {
         arguments: &[ValueId],
         captures: Option<&origins::Slots>,
         check: bool,
+        live: Option<&Live>,
         b: &mut Budget,
     ) -> CompileResult<()> {
         let rows = &flow.effects[callee].replacements;
@@ -401,7 +461,14 @@ impl Program {
             }
             let incoming = self.substitute_birth(state, arguments, birth, b)?;
             for at in selected {
-                self.update(flow, state, effect, &at, &incoming, check, b)?;
+                if matches!(at.root, origins::Root::StoreElement(_)) {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "Store field replacement through a helper needs its resource description summary bridge",
+                        None,
+                    )]);
+                }
+                self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
         Ok(())
@@ -412,9 +479,13 @@ impl Program {
         state: &mut State,
         effect: &mut Effect,
         i: &Instruction,
-        check: bool,
+        point: CheckPoint<'_>,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        let CheckPoint {
+            validate: check,
+            live,
+        } = point;
         let f = flow.function;
         match &i.kind {
             InstructionKind::ReservePlaceLocal { reservation, .. }
@@ -442,7 +513,7 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
-                    self.update(flow, state, effect, &target, &rhs.birth, check, b)?;
+                    self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
                 }
                 flow.consume(state, *value, check, b)?;
             }
@@ -469,6 +540,7 @@ impl Program {
                     arguments,
                     None,
                     check,
+                    live,
                     b,
                 )?;
             }
@@ -483,6 +555,7 @@ impl Program {
                         &[],
                         Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]),
                         check,
+                        live,
                         b,
                     )?;
                 }
@@ -498,6 +571,7 @@ impl Program {
                     &[],
                     Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]),
                     check,
+                    live,
                     b,
                 )?;
             }
@@ -517,6 +591,7 @@ impl Program {
                     arguments,
                     facts.local_slots.get(callee),
                     check,
+                    live,
                     b,
                 )?;
             }
@@ -534,6 +609,7 @@ impl Program {
                     arguments,
                     Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
                     check,
+                    live,
                     b,
                 )?;
             }

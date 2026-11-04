@@ -351,6 +351,55 @@ pub(super) enum Root {
     Parameter(u32),
     OwnedCapture(u32),
     BorrowedCapture(u32),
+    StoreParent(StoreParentRoot),
+}
+
+// Actual Store carrier descriptions remain distinct from descriptions derived
+// from a borrowed element. The parent responsibility identity is preserved.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum StoreParentRoot {
+    Local(LocalId),
+    PackageField { local: LocalId, index: u32 },
+    ArrayElement { local: LocalId, index: u32 },
+    Parameter(u32),
+    OwnedCapture(u32),
+    BorrowedCapture(u32),
+}
+impl Root {
+    fn parent(self) -> Self {
+        match self {
+            Self::StoreParent(StoreParentRoot::Local(value)) => Self::Local(value),
+            Self::StoreParent(StoreParentRoot::PackageField { local, index }) => {
+                Self::PackageField { local, index }
+            }
+            Self::StoreParent(StoreParentRoot::ArrayElement { local, index }) => {
+                Self::ArrayElement { local, index }
+            }
+            Self::StoreParent(StoreParentRoot::Parameter(value)) => Self::Parameter(value),
+            Self::StoreParent(StoreParentRoot::OwnedCapture(value)) => Self::OwnedCapture(value),
+            Self::StoreParent(StoreParentRoot::BorrowedCapture(value)) => {
+                Self::BorrowedCapture(value)
+            }
+            other => other,
+        }
+    }
+    fn store_parent(self) -> Self {
+        match self.parent() {
+            Self::Local(value) => Self::StoreParent(StoreParentRoot::Local(value)),
+            Self::PackageField { local, index } => {
+                Self::StoreParent(StoreParentRoot::PackageField { local, index })
+            }
+            Self::ArrayElement { local, index } => {
+                Self::StoreParent(StoreParentRoot::ArrayElement { local, index })
+            }
+            Self::Parameter(value) => Self::StoreParent(StoreParentRoot::Parameter(value)),
+            Self::OwnedCapture(value) => Self::StoreParent(StoreParentRoot::OwnedCapture(value)),
+            Self::BorrowedCapture(value) => {
+                Self::StoreParent(StoreParentRoot::BorrowedCapture(value))
+            }
+            Self::StoreParent(_) => unreachable!(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -434,7 +483,7 @@ impl Slots {
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
-        let head_descriptions = budget.head_descriptions;
+        let head_descriptions = budget.head_descriptions || budget.replacements;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -817,13 +866,15 @@ fn description_live(
         ));
     }
     for root in &state.desc[row] {
-        let slot = match root {
+        let root = root.parent();
+        let slot = match &root {
             Root::Local(local) => slots.managed_local[local.0 as usize],
             Root::PackageField { local, index } | Root::ArrayElement { local, index } => {
                 slots.package_fields[local.0 as usize][*index as usize]
             }
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
             Root::Parameter(_) | Root::BorrowedCapture(_) => None,
+            Root::StoreParent(_) => unreachable!(),
         };
         if let Some(slot) = slot
             && state.debt[slot] != LIVE
@@ -849,9 +900,9 @@ fn no_live_description(
         if *active {
             budget.spend(roots.len())?;
             if roots.iter().any(|candidate| {
-                *candidate == root
+                candidate.parent() == root.parent()
                     || matches!(
-                        (*candidate, root),
+                        (candidate.parent(), root.parent()),
                         (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
                     )
             }) {
@@ -923,25 +974,20 @@ impl Transfer<'_> {
                 .is_some_and(|id| self.module.closures[id.0 as usize].kind == CallableKind::Fn)
             && roots
                 .iter()
-                .any(|root| matches!(root, Root::OwnedCapture(_))
-                    || matches!(root, Root::PackageField { local, .. } if self.slots.view(*local).is_some()))
+                .any(|root| matches!(root.parent(), Root::OwnedCapture(_))
+                    || matches!(root.parent(), Root::PackageField { local, .. } if self.slots.view(local).is_some()))
         {
             return Err(bad(
                 span,
                 "a shared Fn entry cannot write an owned resource capture, including through a callee",
             ));
         }
-        written.extend(
-            roots
-                .iter()
-                .filter(|root| {
-                    !matches!(
-                        root,
-                        Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
-                    )
-                })
-                .copied(),
-        );
+        written.extend(roots.iter().map(|root| root.parent()).filter(|root| {
+            !matches!(
+                root,
+                Root::Local(_) | Root::PackageField { .. } | Root::ArrayElement { .. }
+            )
+        }));
         Ok(())
     }
 
@@ -1892,7 +1938,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -1923,7 +1969,7 @@ impl Transfer<'_> {
                             budget.spend(self.effects[entry].len())?;
                             if self.effects[entry]
                                 .iter()
-                                .any(|root| matches!(root, Root::BorrowedCapture(_)))
+                                .any(|root| matches!(root.parent(), Root::BorrowedCapture(_)))
                             {
                                 self.write_roots(
                                     &state.desc[row],
@@ -1951,7 +1997,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -1973,7 +2019,7 @@ impl Transfer<'_> {
                         budget.spend(self.effects[entry].len())?;
                         if self.effects[entry]
                             .iter()
-                            .any(|r| matches!(r, Root::BorrowedCapture(_)))
+                            .any(|r| matches!(r.parent(), Root::BorrowedCapture(_)))
                         {
                             self.write_roots(&state.desc[row], written, span, validate, budget)?;
                         }
@@ -2090,7 +2136,7 @@ impl Transfer<'_> {
                 }
                 _ => {}
             }
-            if budget.head_descriptions
+            if (budget.head_descriptions || self.replacements.is_some())
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
                 && matches!(
@@ -2109,6 +2155,32 @@ impl Transfer<'_> {
                 })?;
                 state.debt[index] = LIVE;
                 state.fresh[index] = fresh;
+            }
+            if self.replacements.is_some()
+                && let Some(value) = instruction.result
+                && let Some(row) = slots.desc_value[value.0 as usize]
+            {
+                if let Type::Desc(inner) = &f.values[value.0 as usize] {
+                    budget.spend(state.desc[row].len())?;
+                    let parent = matches!(inner.as_ref(), Type::OwnedStore { .. });
+                    state.desc[row] = state.desc[row]
+                        .iter()
+                        .map(|root| {
+                            if parent {
+                                root.store_parent()
+                            } else {
+                                root.parent()
+                            }
+                        })
+                        .collect();
+                } else if matches!(
+                    instruction.kind,
+                    InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                ) {
+                    budget.spend(state.desc[row].len())?;
+                    state.desc[row] = state.desc[row].iter().map(|root| root.parent()).collect();
+                }
             }
             if !state.product_fresh.is_empty() {
                 slots.product.apply(f, slots, instruction, state, budget)?;
@@ -2294,7 +2366,8 @@ fn run_function_data(
             }
         }
         if let Some(index) = slots.desc_local[local.0 as usize] {
-            initial.desc[index].insert(Root::Parameter(p as u32));
+            let root = Root::Parameter(p as u32);
+            initial.desc[index].insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { root.store_parent() } else { root });
         }
     }
     if validate {

@@ -24,7 +24,8 @@ impl Dependencies {
         let mut edges = self.0.borrow_mut();
         for source in sources {
             budget.lookup(edges.len(), "resource summary constraint")?;
-            let output = match source {
+            let source = source.parent();
+            let output = match &source {
                 Source::Argument(i) => Kind::Argument(*i),
                 Source::BorrowedField(i) => Kind::BorrowedField(*i),
                 _ => continue,

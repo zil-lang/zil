@@ -142,11 +142,68 @@ impl Plan {
                     b.spend(written.len().saturating_add(1))?;
                     written.insert(Root::BorrowedCapture(c));
                 }
-                actual::Base::Element(_) => {
-                    return Err(unsupported(
-                        "Store element replacement debt bridge is under construction",
-                        Some(span),
-                    ));
+                actual::Base::Element(element) => {
+                    let parent =
+                        transfer.slots.desc_value[element.0 as usize].ok_or_else(|| {
+                            bad(
+                                span,
+                                "Store element has no actual parent responsibility origin",
+                            )
+                        })?;
+                    b.spend(state.desc[parent].len())?;
+                    if state.desc[parent].iter().any(|root| {
+                        matches!(
+                            root.parent(),
+                            Root::Parameter(_) | Root::OwnedCapture(_) | Root::BorrowedCapture(_)
+                        )
+                    }) {
+                        return Err(unsupported(
+                            "Store replacement through a borrowed/captured parent needs its instance invalidation summary",
+                            Some(span),
+                        ));
+                    }
+                    if validate {
+                        description_live(state, transfer.slots, parent, span, b)?;
+                        // Both kernels retain a Store-carrier qualifier only
+                        // for actual Store Desc production. Element extraction
+                        // strips it; a same-family resource Desc blocks Commit.
+                        for (ty, slot) in f.values.iter().zip(&transfer.slots.desc_value).chain(
+                            f.locals
+                                .iter()
+                                .map(|local| &local.ty)
+                                .zip(&transfer.slots.desc_local),
+                        ) {
+                            b.spend(1)?;
+                            if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                                continue;
+                            }
+                            let Some(slot) = *slot else {
+                                continue;
+                            };
+                            if !transfer.after[block][position][slot] {
+                                continue;
+                            }
+                            b.spend(
+                                state.desc[slot]
+                                    .len()
+                                    .saturating_mul(state.desc[parent].len().saturating_add(1)),
+                            )?;
+                            if state.desc[slot].iter().any(|root| {
+                                !matches!(root, Root::StoreParent(_))
+                                    && state.desc[parent]
+                                        .iter()
+                                        .any(|actual| root.parent() == actual.parent())
+                            }) {
+                                return Err(bad(
+                                    span,
+                                    "Store field replacement invalidates a live element resource description",
+                                ));
+                            }
+                        }
+                    }
+                    transfer.write_roots(&state.desc[parent], written, span, validate, b)?;
+                    // Store retains exactly its original complete initialized
+                    // prefix debt. No field debt or fresh permission is added.
                 }
             }
         }
