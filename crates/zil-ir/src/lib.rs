@@ -1389,6 +1389,18 @@ pub enum InstructionKind {
         path: Vec<VariantProjection>,
         mutable: bool,
     },
+    /// Observe the actual Enum addressed by this value through active prefixes.
+    /// Address identity, current tag epochs and permission are untrusted claims.
+    VariantTagAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+    },
+    /// Borrow an actual addressed payload, retaining its real parent loan.
+    BorrowVariantAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
+    },
     /// Atomically consume one complete Enum and initialize all variant fields.
     /// Fields are exact distinct vacant locals, registered in reverse order;
     /// this instruction has no SSA result and inherits no cleanup age.
@@ -2481,6 +2493,23 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, step.index);
             }
             b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
         }
         InstructionKind::UnpackVariant {
             local,

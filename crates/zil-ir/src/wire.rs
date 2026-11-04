@@ -1157,6 +1157,25 @@ impl<'a> Writer<'a> {
                 }
                 self.boolean(*mutable)?;
             }
+            InstructionKind::VariantTagAddress { address, path }
+            | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                self.u8(
+                    if matches!(&instruction.kind, InstructionKind::VariantTagAddress { .. }) {
+                        107
+                    } else {
+                        108
+                    },
+                )?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+                if let InstructionKind::BorrowVariantAddress { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
+                }
+            }
             InstructionKind::UnpackVariant {
                 local,
                 variant,
@@ -2407,6 +2426,26 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            tag @ (107 | 108) => {
+                let address = ValueId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                if tag == 107 {
+                    InstructionKind::VariantTagAddress { address, path }
+                } else {
+                    InstructionKind::BorrowVariantAddress {
+                        address,
+                        path,
+                        mutable: self.boolean()?,
+                    }
+                }
             }
             106 => {
                 let local = LocalId(self.u32()?);
