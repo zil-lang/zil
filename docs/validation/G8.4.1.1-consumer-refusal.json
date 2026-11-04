@@ -1,0 +1,31 @@
+{
+  "task": "G8.4.1.1",
+  "status": "TransportOnly",
+  "publication": "NotPublished",
+  "tested_source_commit": "d2b14e87c7942dba84ac77b67883f0c779363da3",
+  "production_draft_commit": "55b47af664ff01f979011df71fe94bf0e76237b9",
+  "increment_scope": "Existing generic_regressions test only; no production, normative or schema change",
+  "command": "cargo test -j2 -p zil-driver --test generic_regressions --features llvm-api public42_unused_pollable -- --nocapture",
+  "result": {"passed": 1, "failed": 0, "filtered": 89},
+  "positive_controls": [
+    "Two real source strings independently pass compile_source through Verify",
+    "FFI/closure source also passes explicit ClosedSnapshot Original expansion, Types, Analyze and Verify, raw and decoded current Wire",
+    "Separate phantom type/life nominal source passes Types, Analyze and Verify before changing its actual table",
+    "The extra no-predecessor Trap block and complete candidate BlockPlan pass both kernels before inserting the unimplemented operation"
+  ],
+  "negative_matrix": [
+    {"case": 0, "mutation": "Unused exact-signature AsyncRegister foreign role", "reason": "pollable registration foreign role consumer is not implemented"},
+    {"case": 1, "mutation": "Unused exact-signature AsyncRequestClose foreign role", "reason": "pollable registration foreign role consumer is not implemented"},
+    {"case": 2, "mutation": "Unused exact-signature AsyncPollDrain foreign role", "reason": "pollable registration foreign role consumer is not implemented"},
+    {"case": 3, "mutation": "Unused Managed<AsyncRegistration<actual source ClosureId>> local", "reason": "pollable registration type consumer is not implemented"},
+    {"case": 4, "mutation": "Unused AsyncRegistration payload in resource table", "reason": "pollable registration type consumer is not implemented"},
+    {"case": 5, "mutation": "AsyncRegistration actual source closure in real phantom nominal Type actual", "reason": "pollable registration inventory consumer is not implemented"},
+    {"case": 6, "mutation": "AsyncRegistrationStart134 in original reachable unsafe block", "reason": "pollable registration operation consumer is not implemented"},
+    {"case": 7, "mutation": "Same Start134 in no-predecessor block", "reason": "pollable registration operation consumer is not implemented"}
+  ],
+  "matrix_execution": "Each of eight mutations is checked independently by Analyze and Verify, raw and decoded Wire: 32 explicit E-UNSUPPORTED refusals. Every diagnostic must be Unsupported and name the unimplemented pollable consumer; old schema, stale identity or incomplete plan errors fail the test. Actual module fingerprint is refreshed after each mutation; existing target and unrelated candidate facts are retained.",
+  "operation_control_limit": "The opcode cases retain real source callback/provider IDs and unsafe region but intentionally introduce no Async result type, which would mask operation refusal behind type refusal. They isolate raw opcode rejection and do not assert a fully typed/source-admitted AsyncRegistration constructor or consumer semantics.",
+  "initial_fixture_adjustments": "Detached expansion lacked original nominal declaration identity, so the test uses the real ClosedSnapshot/Original API. A first combined FFI+stored-nominal source hit the existing stored-profile foreign-body boundary; this was not counted. The final test uses two independently successful source controls to isolate each actual capability gate.",
+  "environment": "Reused target343 after root explicitly released it; workspace TMPDIR; no new test target or cache tree",
+  "not_claimed": "No pollable source admission, no-future proof, pending Task draining or native late callback execution. Root's independent IR90 and strict workspace Clippy replay predate this test-only increment; no newer full suite or independent-review result is claimed."
+}
