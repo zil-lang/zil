@@ -135,12 +135,9 @@ fn missing_extra_duplicate_methods_and_overlapping_impls_reject() {
 }
 #[test]
 fn unsupported_solver_features_are_not_invented_by_lowering_to_functions() {
-    for src in [
-        "trait A{fn f(self:&Self)->i32;}trait B{fn f(self:&Self)->i32;}struct C{x:i32}impl A for C{fn f()->i32=>1}impl B for C{fn f()->i32=>2}fn main(){}",
-    ] {
-        let r = compile(src);
-        assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
-    }
+    let src = "trait A{fn f(self:&Self)->i32;}trait B{fn f(self:&Self)->i32;}struct C{x:i32}impl A for C{fn f()->i32=>1}impl B for C{fn f()->i32=>2}fn main(){}";
+    let r = compile(src);
+    assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
     let r = compile("trait Read{fn read<T>(self:&Self,x:T)->T{return x}}fn main(){}");
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     assert_eq!(r.verification_runs, 1);
