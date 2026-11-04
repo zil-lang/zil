@@ -387,3 +387,20 @@ Fresh request-work neighbors cover the base5467, long-name15302 and generic6542
 paths, with no default increase. Whole-source/native claims await the separately
 owned phantom-only stored-target correction; the retained local-field escape
 negative must still reject after the valid zero-slot source passes.
+
+### CT4 bounded source milestone before40
+
+The exact source checkpoint now verifies three real scoped programs and executes
+Clang/LLVM API O0/O2 for each (12 actual results42): one phantom class, a joint
+two-class context and generic CT Copy forwarding. Source free-life, wrong joint
+relation and actual local-field address escape reject. The original phantom
+source's CT, lineage, Types, empty-physical-slot and transparent lowering failures
+remain recorded; the executable helper now selects its actual main entry.
+
+Default2MiB API subprocesses and whole-source warm/fresh N22056/29217 neighbors
+pass; direct materializer N5467/15302/6542 neighbors and the original large-copy
+N2520/raw-Wire/native4 and five-mode nested-depth stack regressions also pass.
+Complete source/toolchain/production/retained-executable bindings are recorded in
+344-ct4-source-milestone.json. The mixed const ordinary producer and rich BFP
+source remain explicitly pending; this milestone grants no general CT5 context,
+physical CT borrow, ownership cleanup, performance or product acceptance.
