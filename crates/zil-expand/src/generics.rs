@@ -16,6 +16,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_closure_context.rs"]
+pub(super) mod closure_context;
 #[path = "generic_const.rs"]
 mod consts;
 #[path = "generic_copy.rs"]
