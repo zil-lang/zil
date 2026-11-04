@@ -975,6 +975,9 @@ fn returned_snapshot(bound: &CoreCallableReturn, span: Span, budget: &mut Budget
 }
 
 fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span) -> R<Signature> {
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |work| budget.work(work, span), 1)?;
+    }
     // Repeated uses must reserve the complete shape before cloning a signature.
     // Reuse the existing finite ordinary ABI shapes, including owned error
     // alternatives. This does not grant a closure capture or callable ABI.
@@ -2476,20 +2479,32 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         match term {
             Term::Scalar(variable) => Ok(*variable),
             Term::Function(signature) => {
-                for ty in signature
-                    .parameters
-                    .iter()
-                    .chain(std::iter::once(&signature.result))
-                {
-                    if signature.storage_life.is_some() {
+                if signature.storage_life.is_some() {
+                    for ty in &signature.parameters {
                         charge_type_snapshot(
                             ty,
                             span,
                             self.budget.limits,
                             &mut self.budget.work,
-                            3,
+                            4,
                         )?;
-                    } else {
+                    }
+                    charge_type_snapshot(
+                        &signature.result,
+                        span,
+                        self.budget.limits,
+                        &mut self.budget.work,
+                        5,
+                    )?;
+                    borrowed_fp::static_pointer_slots(signature, |work| {
+                        self.budget.work(work, span)
+                    })?;
+                } else {
+                    for ty in signature
+                        .parameters
+                        .iter()
+                        .chain(std::iter::once(&signature.result))
+                    {
                         validate_type(ty, 0, span, self.budget)?;
                     }
                 }

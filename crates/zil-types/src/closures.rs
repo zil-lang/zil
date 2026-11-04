@@ -1020,6 +1020,18 @@ impl Graph {
         );
         Ok(())
     }
+    fn reserve_type_uses(&self, ty: &Type, uses: usize, span: Span) -> R<()> {
+        let original = self.work_left.get();
+        let allowance = original
+            .checked_div(uses)
+            .ok_or_else(|| limit("invalid type formation reservation", span))?;
+        self.work_left.set(allowance);
+        let result = self.reserve_type(ty, 0, span);
+        let consumed = allowance - self.work_left.get();
+        // consumed <= original / uses; arithmetic cannot exceed original.
+        self.work_left.set(original - consumed * uses);
+        result
+    }
     pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
         tasks::require_closed_context(ty, span)?;
         self.spend(span)?;
@@ -4702,14 +4714,13 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     fn pointer_type(&self, signature: &Signature, span: Span) -> R<Type> {
         self.reserve_signature(signature, span)?;
         if signature.storage_life.is_some() {
-            for ty in signature
-                .parameters
-                .iter()
-                .chain(std::iter::once(&signature.result))
-            {
-                self.graph.reserve_type(ty, 0, span)?;
-                self.graph.reserve_type(ty, 0, span)?;
+            for ty in &signature.parameters {
+                self.graph.reserve_type_uses(ty, 4, span)?;
             }
+            self.graph.reserve_type_uses(&signature.result, 5, span)?;
+            borrowed_fp::static_pointer_slots(signature, |work| {
+                self.graph.spend_count(work, span)
+            })?;
         }
         self.graph
             .spend_count(borrowed_fp::pointer_work(signature), span)?;

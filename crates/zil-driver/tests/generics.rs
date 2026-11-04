@@ -1440,3 +1440,74 @@ fn terminal_static_function_value_keeps_qualified_input_classes() {
         "static qualified pointer source Types/analysis whole request N={low}/N-1/warm/fresh"
     );
 }
+
+#[test]
+fn terminal_static_function_formation_prepays_wide_copy_result_types() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let mut boundaries = Vec::new();
+    for width in [4, 32] {
+        let fields = (0..width)
+            .map(|i| format!("n{i}:i32"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let text = format!(
+            "struct Tag<life a>{{n:i32}} struct Inner{{{fields}}} struct Wide{{left:Inner,right:Inner}} fn produce<life a>(tag:&Tag<'a>,value:Wide)->Wide{{return value}} fn apply<life a>(tag:&Tag<'a>,value:Wide)->Wide{{let code=produce;return code(tag,value)}} fn main()->i32{{return 0}}"
+        );
+        let unit = source(&text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let aliases = Default::default();
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &unit,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let run = |steps| {
+            zil_types::check(
+                &core,
+                &target,
+                &Limits {
+                    max_analysis_steps: steps,
+                    ..limits.clone()
+                },
+            )
+        };
+        let typed = run(limits.max_analysis_steps).unwrap();
+        assert!(typed.functions.iter().flat_map(|f|&f.values).any(|ty|matches!(ty,zil_ir::Type::BorrowedFunctionPointer{result,..} if matches!(result.as_ref(),zil_ir::Type::Record{fields,..} if fields.len()==2))));
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            match run(middle) {
+                Ok(_) => high = middle,
+                Err(errors) => {
+                    assert_eq!(
+                        errors[0].category,
+                        ResultCategory::ResourceLimit,
+                        "{errors:?}"
+                    );
+                    low = middle + 1
+                }
+            }
+        }
+        let exact = run(low).unwrap();
+        assert_eq!(exact, typed);
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        assert_eq!(run(low).unwrap(), typed);
+        eprintln!("static function wide Copy result width={width} Types N={low}/N-1/fresh");
+        boundaries.push(low);
+    }
+    assert!(boundaries[1] > boundaries[0]);
+}

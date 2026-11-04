@@ -70,3 +70,25 @@ The initial native run reached the actual paid-binding consumer fence;343's
 7cf8ed22f adds the FunctionRef/CallIndirect occurrence reservation and the four
 native runs then pass. The earlier failed log remains retained. No new public
 schema, implicit environment allocation or borrowed-result root is introduced.
+
+### Static code formation and free Fixed correction
+
+The successor to034fbc80d reserves both eligibility walks, the returned type
+snapshot, the extra result Copy qualification and the qualified-slot planner
+plus its two consumers before formation. Closure inference leases its current
+remaining work once and debits every planned use, including failed planning.
+Context signature snapshots also pay the complete storage relation before
+cloning; state-origin lookup uses the same live request ledger.
+
+Actual source controls returning nested wide Copy records have whole Types
+boundaries1535/5459 for widths4/32, N−1 ResourceLimit and fresh exact-N behavior.
+The original static qualified source retains N12633 and four native executions;
+Types43/0, source2/0 and strict Types library/test Clippy pass. These thresholds
+measure complete requests, not marginal formation fees.
+
+A code value or role carrying Fixed rows without a retained enclosing context
+now rejects before entering the qualified relation adapter. The original static
+definition is checked separately before conversion to Invocation-only code.
+The independent kernel counterpart9e6698 rejects the raw phantom counterexample;
+its prior acceptance and correction are recorded separately by the reviewer.
+No captured/enclosing Fixed code context is claimed by this construction slice.

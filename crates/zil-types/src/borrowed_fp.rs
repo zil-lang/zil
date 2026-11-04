@@ -59,16 +59,16 @@ pub(super) fn relation(
             "borrowed function pointer requires a complete invocation-local address relation",
         )
     };
-    if !life.classes.is_empty() {
-        return borrowed_fp_qualified::relation(parameters, result, life, span);
-    }
-    // A free Fixed domain needs a real enclosing class context. It cannot be
-    // erased through a flat projection or invented by a bare address input.
+    // Callable values and roles have no retained enclosing Fixed-class context
+    // in this lane. Input-grounded direct definition rows are a separate case.
     if life.fixed_binder_count != 0 {
         return Err(unsupported(
             span,
             "rich borrowed callable class relation requires its complete signature consumer",
         ));
+    }
+    if !life.classes.is_empty() {
+        return borrowed_fp_qualified::relation(parameters, result, life, span);
     }
     if life.invocation_binder_count == 0 {
         return Err(invalid());
@@ -207,6 +207,21 @@ pub(super) fn pointer_work(signature: &Signature) -> usize {
         }))
 }
 
+/// Pay the qualified-slot planner and both subsequent relation inspections.
+/// Type formation separately reserves its own walk, two eligibility walks,
+/// the output clone, and the extra result Copy qualification.
+pub(super) fn static_pointer_slots(
+    signature: &Signature,
+    mut charge: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    if let Some(life) = &signature.storage_life {
+        qualified_inputs(life, &signature.parameters, &signature.result, |work| {
+            charge(work.saturating_mul(3))
+        })?;
+    }
+    Ok(())
+}
+
 /// Abstract a static definition's complete incoming equations into fresh
 /// invocation formals. The actual definition relation remains unchanged.
 /// Caller prepays metadata, type walks, mapping storage and returned snapshots.
@@ -215,7 +230,13 @@ pub(super) fn static_pointer_life(
     result: &Type,
     definition: &StorageLifeContract,
 ) -> Option<StorageLifeContract> {
-    relation(parameters, result, definition, Span::default()).ok()?;
+    if definition.classes.is_empty() {
+        relation(parameters, result, definition, Span::default()).ok()?;
+    } else {
+        // This is the unchanged, independently checked static definition,
+        // not a callable value with an unrepresented captured class context.
+        borrowed_fp_qualified::relation(parameters, result, definition, Span::default()).ok()?;
+    }
     let mut fixed = vec![None; definition.fixed_binder_count as usize];
     let mut invocation = vec![None; definition.invocation_binder_count as usize];
     let mut next = 0u32;

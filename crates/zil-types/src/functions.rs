@@ -92,13 +92,14 @@ impl Builder<'_, '_> {
             }
         }
         if signature.storage_life.is_some() {
-            for ty in signature
-                .parameters
-                .iter()
-                .chain(std::iter::once(&signature.result))
-            {
-                self.closures.snapshot_type(ty, 3, 0, expression.span)?;
+            for ty in &signature.parameters {
+                self.closures.snapshot_type(ty, 4, 0, expression.span)?;
             }
+            self.closures
+                .snapshot_type(&signature.result, 5, 0, expression.span)?;
+            borrowed_fp::static_pointer_slots(signature, |work| {
+                self.closures.snapshot(work, expression.span)
+            })?;
         }
         if signature.cleanup {
             return Err(error(
