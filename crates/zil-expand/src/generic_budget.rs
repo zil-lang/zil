@@ -667,6 +667,10 @@ impl<'a> Budget<'a> {
         {
             return self.expr(value, depth, None);
         }
+        if matches!(e.kind, ExprKind::ReceiverMember(_)) && subs.is_some_and(|s| s.contains_key("Self")) {
+            self.node(e.span, depth + 1)?;
+            self.text("self", e.span)?;
+        }
         match &e.kind {
             ExprKind::Literal(l) => self.literal(l, e.span)?,
             ExprKind::Name(s) | ExprKind::ReceiverMember(s) => self.text(s, e.span)?,

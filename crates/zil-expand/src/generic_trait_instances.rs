@@ -230,7 +230,7 @@ pub(crate) fn validate_declaration(
     }
     Ok(())
 }
-fn known_type(
+pub(crate) fn known_type(
     ty: &TypeRef,
     variables: &BTreeSet<String>,
     nominals: &BTreeMap<String, &Item>,

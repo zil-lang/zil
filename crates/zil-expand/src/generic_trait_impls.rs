@@ -1,0 +1,157 @@
+//! Definition checking and ordinary static materialization of impl recipes.
+use super::*;
+
+impl<'a> Engine<'a> {
+    pub(super) fn validate_impl_recipes(&mut self) -> R<()> {
+        if self.traits.recipes.is_empty() { return Ok(()); }
+        for (recipe, item) in self.traits.recipes.iter().enumerate() {
+            self.budget.item(item)?;
+            let ItemKind::Impl(implementation) = &item.kind else { unreachable!() };
+            let application = implementation.trait_type.as_ref().expect("nominal recipe");
+            let reference = self.traits.pattern_reference(application, &mut self.budget)?;
+            let (trait_item, declaration) = self.traits.declaration_item(&reference);
+            let host = trait_instances::head(&implementation.target).and_then(|name| self.nominals.get(name));
+            let Some(host) = host else { return Err(error(item.span, "impl Self needs an outer nominal declaration")); };
+            if trait_item.span.file != item.span.file && host.span.file != item.span.file {
+                return Err(error(item.span, "impl requires its trait or outer Self declaration in the current module"));
+            }
+            if implementation.receiver_default.is_some() { return Err(unsupported(item.span, "impl group receiver default")); }
+            let mut parameters = implementation.generics.clone();
+            for clause in &implementation.where_clause {
+                self.budget.node(clause.span, 0)?;
+                let BoundSubject::Type(subject) = &clause.subject else { return Err(unsupported(clause.span, "impl lifetime where premise")); };
+                let Some(subject) = trait_bounds::plain(subject) else { return Err(unsupported(clause.span, "definition checking of applied impl where subject")); };
+                let Some(parameter) = parameters.iter_mut().find(|p| p.name == subject) else { return Err(error(clause.span, "impl where subject is not a declared binder")); };
+                let GenericParamKind::Type(bounds) = &mut parameter.kind else { return Err(unsupported(clause.span, "impl lifetime/const where subject")); };
+                for bound in &clause.bounds { self.budget.ty(bound)?; bounds.push(bound.clone()); }
+            }
+            let bounds = self.traits.parameter_bounds(&parameters, &mut self.budget)?;
+            let mut variables = BTreeSet::new();
+            for parameter in &parameters {
+                self.budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+            }
+            self.traits.store_types(&implementation.target, &bounds, &variables, &mut self.budget, callable::StoreCallbacks::None)?;
+            self.traits.reference_arguments(&reference, &bounds, &variables, &mut self.budget)?;
+            let declared_arity = match &host.kind { ItemKind::Aggregate(a) => a.generics.len(), ItemKind::Enum(e) => e.generics.len(), _ => unreachable!() };
+            let TypeKind::Named { args, .. } = &grouped(&implementation.target).kind else { unreachable!() };
+            if args.len() != declared_arity { return Err(error(item.span, "impl Self type argument arity differs from its declaration")); }
+            if !item.attributes.is_empty() { return Err(unsupported(item.span, "unexecuted generic impl attribute")); }
+            let mut seen = BTreeSet::new();
+            for parameter in &parameters {
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text(&parameter.name, parameter.span)?;
+                if !seen.insert(parameter.name.as_str()) { return Err(error(parameter.span, "duplicate impl binder")); }
+                if !matches!(parameter.kind, GenericParamKind::Type(_)) { return Err(unsupported(parameter.span, "impl lifetime/const binder")); }
+                if self.nominals.contains_key(&parameter.name) { self.nominal_binder_collision = true; return Ok(()); }
+            }
+            let mut methods = BTreeSet::new();
+            for (ordinal, member) in implementation.members.iter().enumerate() {
+                self.budget.item(member)?;
+                let ItemKind::Function(method) = &member.kind else { return Err(unsupported(member.span, "associated impl item requires its solver")); };
+                if !member.attributes.is_empty() || method.params.iter().any(|p| !p.attributes.is_empty()) { return Err(unsupported(member.span, "unexecuted generic impl method attribute")); }
+                if matches!(method.body, FunctionBody::Declaration) { return Err(error(member.span, "impl method requires an ordinary body")); }
+                if !methods.insert(method.name.as_str()) { return Err(error(member.span, "duplicate impl method")); }
+                if !method.generics.is_empty() || !method.where_clause.is_empty() { return Err(unsupported(member.span, "generic impl method requires method specialization")); }
+                let required = declaration.members.iter().find(|m| matches!(&m.kind, ItemKind::Function(f) if f.name == method.name)).ok_or_else(|| error(member.span, "impl method is not declared by its trait"))?;
+                let mut signature = trait_instances::signature(declaration, required, &reference, &mut self.budget)?.into_owned();
+                let substitutions = BTreeMap::from([("Self".into(), implementation.target.clone())]);
+                let mut function = method.clone();
+                if !function.params.first().is_some_and(|p| p.name == "self")
+                    && let Some(receiver) = signature.params.first().filter(|p| p.name == "self") {
+                    self.budget.ty(&receiver.ty)?;
+                    function.params.insert(0, receiver.clone());
+                }
+                for parameter in &mut signature.params { self.budget.substituted_type(&parameter.ty, &substitutions)?; Substitution { substitutions: &substitutions }.ty(&mut parameter.ty); }
+                if let Some(result) = &mut signature.return_type { self.budget.substituted_type(result, &substitutions)?; Substitution { substitutions: &substitutions }.ty(result); }
+                let mut checked = Item { kind: ItemKind::Function(function), ..member.clone() };
+                self.budget.substituted_item(&checked, &substitutions)?;
+                substitute_item(&mut checked, &substitutions)?;
+                let ItemKind::Function(mut function) = checked.kind else { unreachable!() };
+                if function.params.len() != signature.params.len() { return Err(error(member.span, "impl parameter count differs from trait declaration")); }
+                for (actual, expected) in function.params.iter().zip(&signature.params) {
+                    if actual.give != expected.give || type_key(&actual.ty, &mut self.budget)? != type_key(&expected.ty, &mut self.budget)? { return Err(error(member.span, "impl method signature differs from trait declaration")); }
+                }
+                let actual_result = function.return_type.clone().unwrap_or_else(|| check::unit(member.span));
+                let required_result = signature.return_type.clone().unwrap_or_else(|| check::unit(member.span));
+                if type_key(&actual_result, &mut self.budget)? != type_key(&required_result, &mut self.budget)? { return Err(error(member.span, "impl result differs from trait declaration")); }
+                // Every method receives its own declared-bound checking scope.
+                // Prepay the repeated binder and bound-map copies before growth.
+                for parameter in &parameters {
+                    self.budget.node(parameter.span, 0)?;
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    if let GenericParamKind::Type(bounds) = &parameter.kind { for bound in bounds { self.budget.ty(bound)?; } }
+                }
+                for (variable, supplied) in &bounds {
+                    self.budget.text(variable, member.span)?;
+                    for bound in supplied {
+                        self.budget.node(member.span, 0)?;
+                        if let trait_bounds::Bound::Nominal(reference) = bound {
+                            trait_instances::copy_key(&reference.key, &mut self.budget, member.span)?;
+                            for argument in &reference.arguments { self.budget.ty(argument)?; }
+                        }
+                    }
+                }
+                function.generics = parameters.clone();
+                self.budget.text(&method.name, member.span)?;
+                function.name = format!("$impl_definition_{}_{}", self.impl_definitions.len(), method.name);
+                check::validate_parametric_with_bounds(
+                    &function,
+                    check::ParametricTables { nominals: &self.nominals, enums: &self.enums, signatures: &self.signatures, foreign_signatures: &self.foreign_signatures, pattern_types: self.pattern_types, traits: &self.traits },
+                    &mut helper_graph::Dependencies::default(), &mut self.budget, &mut self.trait_calls, Some(bounds.clone()),
+                )?;
+                self.impl_definitions.insert((recipe, ordinal), function.name);
+            }
+            for required in &declaration.members {
+                self.budget.node(required.span, 0)?;
+                if let ItemKind::Function(method) = &required.kind
+                    && matches!(method.body, FunctionBody::Declaration)
+                    && !methods.contains(method.name.as_str()) { return Err(error(item.span, "impl is missing a required method")); }
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn realize_witness(&mut self, witness: trait_bounds::Witness<'a>) -> R<()> {
+        for dependency in witness.dependencies { self.realize_witness(dependency)?; }
+        let key = (trait_instances::copy_key(&witness.reference.key, &mut self.budget, witness.item.span)?, type_key(&witness.actual, &mut self.budget)?);
+        if self.realized_impls.contains(&key) { return Ok(()); }
+        if self.realized_impls.len() >= self.limits.max_functions { return Err(Diagnostic::limit(Phase::Expand, "impl instance budget exhausted", Some(witness.item.span))); }
+        if matches!(&witness.item.kind, ItemKind::Impl(i) if i.generics.is_empty() && i.where_clause.is_empty() && trait_bounds::plain(&i.target).is_some()) {
+            self.realized_impls.insert(key);
+            return Ok(());
+        }
+        self.budget.substituted_item(witness.item, &witness.substitutions)?;
+        let mut instance = witness.item.clone();
+        let ItemKind::Impl(implementation) = &mut instance.kind else { unreachable!() };
+        Substitution { substitutions: &witness.substitutions }.ty(&mut implementation.target);
+        if let Some(application) = &mut implementation.trait_type { Substitution { substitutions: &witness.substitutions }.ty(application); }
+        for (ordinal, member) in implementation.members.iter_mut().enumerate() {
+            if let Some(definition) = self.impl_definitions.get(&(witness.recipe, ordinal))
+                && let Some(calls) = self.trait_calls.get(definition) { trait_instances::rewrite_calls(member, calls, &mut self.budget)?; }
+            substitute_item(member, &witness.substitutions)?;
+        }
+        implementation.generics.clear();
+        implementation.where_clause.clear();
+        self.realized_impls.insert(key);
+        self.pending.push_back(instance);
+        Ok(())
+    }
+
+    pub(super) fn realize_bounds(&mut self, parameters: &[GenericParam], found: &BTreeMap<String, TypeRef>, span: Span) -> R<()> {
+        if self.traits.recipes.is_empty() { return Ok(()); }
+        for parameter in parameters {
+            let GenericParamKind::Type(bounds) = &parameter.kind else { continue; };
+            for bound in bounds {
+                if copy::is_bound(bound) || stores::is_bound(bound) { continue; }
+                self.budget.substituted_type(bound, found)?;
+                let mut application = bound.clone();
+                Substitution { substitutions: found }.ty(&mut application);
+                let reference = self.traits.pattern_reference(&application, &mut self.budget)?;
+                let actual = found.get(&parameter.name).ok_or_else(|| error(span, "missing impl type argument"))?;
+                if let Some(witness) = self.traits.solve(&reference, actual, &trait_bounds::Bounds::new(), &BTreeSet::new(), &mut self.budget)? { self.realize_witness(witness)?; }
+            }
+        }
+        Ok(())
+    }
+}

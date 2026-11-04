@@ -150,8 +150,32 @@ impl<'a> Index<'a> {
             };
             budget.ty(&application)?;
             let root = trait_instances::arguments(item.span, declaration, &application, budget)?;
+            // A declared inherited application must be valid under its own
+            // binders, including when no implementation is ever requested.
+            let mut available = Bounds::new();
+            let mut variables = BTreeSet::from(["Self".to_owned()]);
+            for parameter in &declaration.generics {
+                budget.node(parameter.span, 0)?;
+                budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+                let mut structural = Vec::new();
+                if let GenericParamKind::Type(bounds) = &parameter.kind {
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                        if copy::is_bound(bound) { structural.push(Bound::Copy); }
+                        if stores::is_bound(bound) { structural.push(Bound::StoreElement); }
+                    }
+                }
+                available.insert(parameter.name.clone(), structural);
+            }
+            for bound in &declaration.bounds {
+                if copy::is_bound(bound) || stores::is_bound(bound) { continue; }
+                let inherited = self.pattern_reference(bound, budget)?;
+                self.reference_arguments(&inherited, &available, &variables, budget)?;
+            }
             self.super_bounds(&[Bound::Nominal(root)], budget, item.span, Some("Self"))?;
         }
+        if !self.recipes.is_empty() { return Ok(()); }
         let candidates = std::mem::take(&mut self.implementations);
         let mut active = BTreeSet::new();
         for (key, host) in &candidates {

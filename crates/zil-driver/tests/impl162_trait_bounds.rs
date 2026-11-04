@@ -15,6 +15,33 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
+    for text in [
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn main()->i32{let p=Box::<i32>{value:3,n:7};return p.read()-7}",
+        "trait Base{fn base(self:&Self)->i32;}trait Read:Base{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Base for Box<T>{fn base()->i32{return .n}}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()+p.base()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-14}",
+        "trait Base{fn base(self:&Self)->i32;}trait Read{fn read(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T> where T:Base{fn read(self:&Self)->i32{return self.value.base()}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<P>{value:P{n:7}};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return self.n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<bool>{value:true,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T> Read for Box<T> where T:Copy{fn read()->i32{return .n}}fn consume<T:Read>(p:&T)->i32{return p.read()}fn main()->i32{let p=Box::<i32>{value:3,n:7};return consume(&p)-7}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn main(){}",
+    ] {
+        let report=check(text); assert_eq!(report.status, ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+    for text in [
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return self.value+1}}fn main(){}",
+        "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return 1}}impl Read for Box<i32>{fn read(self:&Self)->i32{return 2}}fn main(){}",
+        "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy,U> Read for Box<T>{}fn main(){}",
+        "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{}impl<U:Copy> Read for Box<U>{}fn main(){}",
+        "trait Base{}trait Read:Base{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{}fn consume<T:Read>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        "trait Base{}trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T> where T:Base{}fn consume<T:Read>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
+        "trait Base<T>{}trait Child:Base<Missing>{}fn main(){}",
+        "resource R{n:i32}trait Base<T:Copy>{}trait Child:Base<R>{}fn main(){}",
+    ] {
+        let report=check(text); assert_ne!(report.status, ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+}
+
+#[test]
 fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
     for text in [
         "trait Base{fn base(self:&Self)->i32;}trait Child:Base{fn child(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}impl Child for P{fn child()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.base()+p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-14}",
