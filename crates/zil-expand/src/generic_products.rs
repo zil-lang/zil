@@ -8,6 +8,7 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    pub(crate) closure_contexts: closure_context::Ledger,
     pub(super) rich_aliases: Vec<TypeRef>,
     pub(crate) storage: crate::stored_types::Catalog,
     pub(crate) origins: Option<origins::Origins>,
