@@ -199,6 +199,32 @@ impl Engine<'_> {
     }
 }
 impl Products {
+    pub(crate) fn bind_dynamic_targets(
+        &mut self,
+        module: &Module,
+        expanded: &crate::ExpandedModule,
+        limits: &Limits,
+    ) -> CompileResult<()> {
+        if self.dynamic.is_empty() {
+            return Ok(());
+        }
+        let mut budget = Budget::new(self.allowance.as_ref().unwrap_or(limits));
+        self.dynamic
+            .bind_targets(
+                module,
+                &expanded.dyn_method_emissions,
+                self.origins.as_ref().ok_or_else(|| {
+                    vec![unsupported(
+                        module.span,
+                        "dyn provider declaration context absent",
+                    )]
+                })?,
+                &mut budget,
+            )
+            .map_err(|e| vec![e])?;
+        self.allowance = Some(budget.remaining_limits());
+        Ok(())
+    }
     pub(crate) fn metered(&self) -> bool {
         self.trait_instances
             || self.record_variants
@@ -259,11 +285,26 @@ impl Products {
         if self.templates.is_empty()
             && self.storage.instances.is_empty()
             && self.storage.functions.is_empty()
+            && self.dynamic.is_empty()
         {
             return Ok(());
         }
         let allowance = self.allowance.as_ref().unwrap_or(limits);
         let mut budget = Budget::new(allowance);
+        if !self.dynamic.is_empty() {
+            self.dynamic
+                .publish(
+                    cores,
+                    self.origins.as_ref().ok_or_else(|| {
+                        vec![unsupported(
+                            Span::default(),
+                            "dyn source declaration context absent",
+                        )]
+                    })?,
+                    &mut budget,
+                )
+                .map_err(|e| vec![e])?;
+        }
         for (core, _) in cores.iter_mut() {
             self.storage
                 .publish(core, &mut budget)
