@@ -1,0 +1,63 @@
+{
+  "status": "PassLimitedSemanticReplayWithOpenAccountingFinding",
+  "source_commit": "c262a1c846985750f9afce7c77085b25d86b2f34",
+  "scope": "Exact mixed addressed Tuple/Enum/ErrorUnion projection 126/127 checkpoint; author retained binaries independently executed, not an independent rebuild.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/mixed126340-source-binding.json",
+    "sha256": "9db8de4cac2cbcdda8ed7cc6b88bde3279cbf6914b37c6d9864e7fe06d3187bc",
+    "production_count": 362,
+    "production_sha256": "93fb040536a648b7b03f027f27d8077e8ed392087427c8c3bf42572b0fc8f32c",
+    "algorithm": "Sorted Git paths: all .rs containing /src/, every Cargo.toml, repository-root Cargo.lock only. Concatenate path NUL lowercaseSHA256(file bytes) LF.",
+    "tests_count": 15,
+    "tests_sha256": "8dadf398935cc0339b8115151d1677f352cd59aa5664f469a277a5acc8952fac"
+  },
+  "replays": [
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/mixed126340-aggregates",
+      "sha256": "6cf66ae2c6028dfcbbc48f3bfba84cb200d7ef8dbd6bef6dc3fa630237287bc7",
+      "filter": "terminal340",
+      "passed": 34,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/mixed126340-aggregates.log",
+      "log_sha256": "346ec0b9a7b3ec2f5968faeca1b197e648d5c634a11c692ce57f1589dbea0b53"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/mixed126340-impl187",
+      "sha256": "38d5d4efc7ba131a3a5d032e0672c506c0f5d0e510ae7d3f22e4c84c37cc3806",
+      "filter": null,
+      "passed": 24,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/mixed126340-impl187.log",
+      "log_sha256": "c2d4428fa43d8fdd4f377dc1176351039539f8f51b9a169de359312314827a30"
+    }
+  ],
+  "code_review": [
+    "Independent Analyze and Verify actual-address observations and mutation epochs; explicit true/false CFG transfer, including equal successors.",
+    "Full Field/Variant/ErrorArm endpoint paths preserve actual parent/root intervals; loan authority is separate from discriminant observations.",
+    "Copy ErrorUnion discriminant invalidation remains independent in both kernels and preserves moved ownership markers.",
+    "Ordered-map route and observed-set work is prepaid before clone/search; raw 64-observation controls exercise both independent kernels and decoded Wire.",
+    "Prepared compound integer reads use the already evaluated address; stable place comparison excludes effectful calls."
+  ],
+  "open_findings": [
+    {
+      "id": "types-prepared-owner-planner-remaining-budget",
+      "path": "crates/zil-types/src/addresses.rs",
+      "function": "same_stable_place",
+      "detail": "The newly added explicit member-owner comparison invokes type_snapshot_work with fresh default Limits before charging the caller ledger. An almost-exhausted caller may traverse an entire recursive owner type before rejection.",
+      "requested_fix": "Use the actual remaining caller allowance during planning and account visited work on failure; preserve default limits and successful fees where possible.",
+      "successor": "Author proposed focused 024055bbc; separate source review and exact integrated validation pending."
+    }
+  ],
+  "limits": [
+    "No full terminal acceptance while the accounting finding remains open.",
+    "No independent rebuild or full workspace test in this review.",
+    "Captured Address of owning aggregate, direct E!T source patterns, owned replacement, and later reservation consumers remain outside this checkpoint.",
+    "No native Windows, complete ZUI, Rust performance superiority, or product-gate claim."
+  ],
+  "rust_goals": {
+    "safety": "Bounded source/raw/decoded-Wire and native evidence for real address roots and residual cleanup; not complete language.",
+    "cost": "Exact N/N-1/fresh controls passed but fresh-planner accounting issue remains open; no Rust cost comparison.",
+    "expression": "Shared/mutable nested references and returned scalar-reference captures reach actual native execution.",
+    "breakthrough": "Concrete compositional addressing gain; complete safety/performance conjunction unproven."
+  }
+}
