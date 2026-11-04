@@ -201,6 +201,7 @@ struct Materializer<'a, 'b> {
     max_depth: usize,
     track_declarations: bool,
     declaration_lineage_preserved: bool,
+    generated_context: bool,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -601,65 +602,69 @@ impl Materializer<'_, '_> {
                                         runtime("fixed lifetime source ordinal is absent", span)
                                     })?;
                                 let definition = scope.definition.clone();
-                                fn name<'a>(
-                                    this: &'a Materializer<'_, '_>,
-                                    definition: &CtSymbolId,
-                                    ordinal: u32,
-                                    span: Span,
-                                ) -> CompileResult<&'a str> {
-                                    let (_, parsed) = this.parsed_source(definition.module)?;
-                                    let item = parsed
-                                        .module
-                                        .items
-                                        .get(definition.declaration.0 as usize)
-                                        .ok_or_else(|| {
-                                            runtime("source lifetime definition is absent", span)
-                                        })?;
-                                    if definition.generation_path.is_some()
-                                        || !this.environment.index.contains(definition)
-                                    {
-                                        return Err(runtime(
-                                            "source lifetime owner is not an actual original declaration",
-                                            span,
-                                        ));
-                                    }
-                                    let s::ItemKind::Function(function) = &item.kind else {
-                                        return Err(category(
-                                            "source lifetime owner is not an original function",
-                                            span,
-                                        ));
-                                    };
-                                    let parameter = function
-                                        .generics
-                                        .get(ordinal as usize)
-                                        .ok_or_else(|| {
-                                            runtime("source lifetime full ordinal is absent", span)
-                                        })?;
-                                    if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
-                                        return Err(runtime(
-                                            "source lifetime full ordinal selects a different parameter kind",
-                                            span,
-                                        ));
-                                    }
-                                    Ok(&parameter.name)
-                                }
                                 self.environment.budget.reserve_analysis_work(
                                     self.environment
                                         .index
                                         .symbol_lookup_work()
-                                        .saturating_add(self.sources.len() as u64)
-                                        .saturating_mul(2),
+                                        .saturating_add(self.parsed.len() as u64),
                                 )?;
-                                let length = name(self, &definition, ordinal, span)?.len();
+                                if definition.generation_path.is_some()
+                                    || !self.environment.index.contains(&definition)
+                                {
+                                    return Err(runtime(
+                                        "source lifetime owner is not an actual original declaration",
+                                        span,
+                                    ));
+                                }
+                                let parsed = self
+                                    .parsed
+                                    .iter()
+                                    .find(|parsed| parsed.module.id == definition.module)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime module is absent", span)
+                                    })?;
+                                let max_depth =
+                                    self.environment.budget.remaining().max_call_depth as usize;
+                                let original = super::compiler::source_scope::original_function(
+                                    &parsed.module,
+                                    definition.declaration,
+                                    max_depth,
+                                    |work| {
+                                        self.environment.budget.reserve_analysis_work(work as u64)
+                                    },
+                                )?
+                                .ok_or_else(|| {
+                                    runtime(
+                                        "source lifetime owner is not an original function",
+                                        span,
+                                    )
+                                })?;
+                                if original.generic_host {
+                                    return Err(category(
+                                        "source member lifetime lacks enclosing generic context",
+                                        span,
+                                    ));
+                                }
+                                let parameter = original
+                                    .function
+                                    .generics
+                                    .get(ordinal as usize)
+                                    .ok_or_else(|| {
+                                        runtime("source lifetime full ordinal is absent", span)
+                                    })?;
+                                if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                                    return Err(runtime(
+                                        "source lifetime full ordinal selects a different parameter kind",
+                                        span,
+                                    ));
+                                }
                                 self.environment
                                     .budget
-                                    .reserve_analysis_work(length as u64 + 1)?;
+                                    .reserve_analysis_work(parameter.name.len() as u64 + 1)?;
                                 self.environment
                                     .budget
-                                    .reserve_temporary_bytes(length as u64)?;
-                                args.push(s::GenericArg::Lifetime(
-                                    name(self, &definition, ordinal, span)?.to_owned(),
-                                ));
+                                    .reserve_temporary_bytes(parameter.name.len() as u64)?;
+                                args.push(s::GenericArg::Lifetime(parameter.name.clone()));
                                 continue;
                             }
                             let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
@@ -925,7 +930,7 @@ impl Materializer<'_, '_> {
         let input = self.environment.empty_input(expression.span)?;
         self.reject_runtime_capture(expression)?;
         let has_receiving_category = expected.is_some();
-        self.environment.evaluate_data(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
+        self.environment.evaluate_data(Entry::Expression { module, expression, definition: owner.clone(), lexical_owner: (!self.generated_context).then(|| owner.clone()), expected, parameters: &[] },
             &input, None, &[], expression.span).map_err(|mut errors| {
                 if has_receiving_category {
                     for error in &mut errors {
@@ -1304,6 +1309,36 @@ impl Materializer<'_, '_> {
                     ));
                 }
                 symbol
+            } else if self.track_declarations
+                && !generated
+                && !self.generated_context
+                && inherited.is_some()
+            {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.parsed.len() as u64)?;
+                let parsed = self
+                    .parsed
+                    .iter()
+                    .find(|p| p.module.id == module)
+                    .ok_or_else(|| category("original member module is absent", item.span))?;
+                let parent = inherited.expect("checked inherited declaration");
+                let max_depth = self.environment.budget.remaining().max_call_depth as usize;
+                if let Some(declaration) = compiler::source_scope::original_member(
+                    &parsed.module,
+                    parent.declaration,
+                    ordinal,
+                    max_depth,
+                    |work| self.environment.budget.reserve_analysis_work(work as u64),
+                )? {
+                    CtSymbolId {
+                        module,
+                        declaration,
+                        generation_path: None,
+                    }
+                } else {
+                    self.owner(module, item.span, inherited)?
+                }
             } else {
                 self.owner(module, item.span, inherited)?
             };
@@ -1315,6 +1350,8 @@ impl Materializer<'_, '_> {
             {
                 continue;
             }
+            let previous_generated = self.generated_context;
+            self.generated_context |= generated;
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
                     self.declaration_lineage_preserved = false;
@@ -1362,6 +1399,7 @@ impl Materializer<'_, '_> {
                     output.push(item);
                 }
             }
+            self.generated_context = previous_generated;
         }
         *items = output;
         Ok(retained)
@@ -2002,6 +2040,7 @@ pub(crate) fn materialize(
         max_depth: limits.max_call_depth,
         track_declarations: declaration_origins.is_some(),
         declaration_lineage_preserved: true,
+        generated_context: false,
     };
     for (index, module) in output.iter_mut().enumerate() {
         let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
@@ -2233,17 +2272,36 @@ mod scoped_tests {
     }
     #[test]
     fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
+        check_shared_scope_spans(
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",
+        );
+        check_shared_scope_spans(
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} struct Reader{fn first<life left>(self:Self,p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(self:Self,p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n}} fn main()->i32{let n=0;let r=Reader{};return r.first(&n)+r.second(&n)-42}",
+        );
+    }
+    fn check_shared_scope_spans(text: &str) {
         let source = SourceUnit::new(
             zil_base::FileId(0),
             ModuleId(0),
             "shared-scope-spans.zil",
-            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",
+            text,
         );
         let mut parsed = zil_syntax::parse(&source);
         assert!(parsed.diagnostics.is_empty());
         let shared = parsed.module.span;
-        parsed.module.items[2].span = shared;
-        parsed.module.items[3].span = shared;
+        for item in &mut parsed.module.items {
+            match &mut item.kind {
+                s::ItemKind::Function(f) if f.name == "first" || f.name == "second" => {
+                    item.span = shared
+                }
+                s::ItemKind::Aggregate(a) => {
+                    for member in &mut a.methods {
+                        member.span = shared;
+                    }
+                }
+                _ => {}
+            }
+        }
         let parsed = Arc::new(parsed);
         let sources = std::slice::from_ref(&source);
         let syntax = [&parsed.module];
@@ -2268,6 +2326,10 @@ mod scoped_tests {
             let function = output.modules[0]
                 .items
                 .iter()
+                .flat_map(|item| match &item.kind {
+                    s::ItemKind::Aggregate(a) if !a.methods.is_empty() => a.methods.as_slice(),
+                    _ => std::slice::from_ref(item),
+                })
                 .find_map(|item| match &item.kind {
                     s::ItemKind::Function(function) if function.name == name => Some(function),
                     _ => None,
@@ -2323,6 +2385,33 @@ mod scoped_tests {
             &limits,
         )
         .unwrap();
+    }
+    #[test]
+    fn ct5_generated_member_keeps_naming_owner_without_original_binder_authority() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+        );
+        let probe = zil_syntax::parse(&SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "generated.zil",
+            text,
+        ));
+        assert!(probe.diagnostics.is_empty(), "{:?}", probe.diagnostics);
+        let output = run(text).unwrap();
+        assert!(output.declaration_origins.is_none());
+        let generated = text
+            .replace("#(scalar(i32,42))", "#(Phantom::<'s>{n:scalar(i32,42)})")
+            .replace("return value\n", "return value.n\n");
+        let errors = run(&generated)
+            .err()
+            .expect("generated own binder needs authentic lineage");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("actual lexical source owner")),
+            "{errors:?}"
+        );
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {

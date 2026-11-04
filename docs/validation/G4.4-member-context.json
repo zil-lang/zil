@@ -1,0 +1,53 @@
+{
+  "task": "G4.4",
+  "baseline": "54e618a07c99126203d44d28b6f03a302e65c266",
+  "scope": "Author limited delivery: authentic original member own-binder Definition context and generated naming/lexical-scope separation; not complete G4.4 or independent acceptance",
+  "commands": [
+    {
+      "command": "cargo test -p zil-driver --lib ct5_ -j2 -- --nocapture",
+      "result": "7 passed, 0 failed, 84 filtered; member and top-level raw/Wire verification N3906/N-1/fresh, VM; member contextual sibling/full-ordinal/module-relocation/shared-Span checks"
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates ct5_member_own_life_context_reaches_native -j2 -- --exact --nocapture",
+      "result": "Checkpoint default-feature run: 1 passed, 0 failed, 149 filtered; Clang O0/O2 only (2 native runs), stdout42 and no fallback; whole analysis N37370/N-1/warm/fresh; undeclared life rejects. Earlier four-run/API claim was incorrect and is superseded by the explicit llvm-api command below."
+    },
+    {
+      "command": "cargo test -p zil-driver --lib ct5_ -j2 -- --nocapture",
+      "result": "Final: 8 passed, 0 failed, 84 filtered; additionally real original member repeated Spans through materialize/Expand/Types/Analyze/Verify; generated member scalar CT materialization; generated lifetime and absent lexical_owner fail closed."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates ct5_ -j2 -- --nocapture",
+      "result": "3 passed, 0 failed, 147 filtered. Explicit fingerprint features [default,llvm-api], executable aggregates-e68efd3bca6e242d. Four original/member/scalar-generated source controls each run Clang and LLVM API O0/O2 (16 executions), stdout42, no fallback; member whole analysis N37370/N-1/warm/fresh. Generic host Unsupported, full mixed member specialization Unsupported, generated life original source Unsupported for missing transformed declaration lineage."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates ct4_ -j2 -- --nocapture",
+      "result": "4 passed, 0 failed, 146 filtered; existing phantom source/native controls, default worker subprocess and whole-request N23245/N30617/N27490 with N-1/warm/fresh."
+    },
+    {
+      "command": "cargo clippy -p zil-driver --features llvm-api --lib -j2 -- -D warnings -A dead_code",
+      "result": "Pass; only the pre-existing dead_code lint is explicitly allowed."
+    }
+  ],
+  "actual_source": "tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil",
+  "prior_failures": [
+    "Initial check found helper visibility and depth-width compile errors; corrected before passing source check.",
+    "Driver library build temporarily failed creating rmeta because shared workspace disk was full; no tests executed in that attempt; replay after root reclaimed disposable caches passed.",
+    "Mixed own Type/life member source reaches CT then Types Unsupported: generic function specialization. The existing aggregates test retains this exact minimal derivative as a checked unfinished consumer.",
+    "Independent review found the checkpoint native count was wrong: default feature only runs Clang O0/O2. Corrected to two; explicit llvm-api replay supplies actual API evidence. A first generated test string omitted a terminator; corrected before the final real-source check.",
+    "Attempting to run the generated life fixture end-to-end reached Expand Unsupported: transformed declarations require explicit source lineage. This boundary remains checked; only its no-life scalar derivative runs natively. CT-only materialization and full-source rejection are reported separately."
+  ],
+  "unfinished": [
+    "Actual complete specialization vector producer",
+    "Generic enclosing member context",
+    "Generated declaration/binder lineage and ambient life admission (naming and lexical authority now separated)",
+    "General ambient Type export"
+  ],
+  "rust_goals": {
+    "safety": "Existing CT independent kernel and ordinary Analyze/Verify still check actual source; metadata grants no access.",
+    "runtime_memory": "Copy phantom source has no new runtime allocation or ownership path; no paired Rust timing/RSS measured.",
+    "expression_maintenance": "Actual member-own-life CT value now materializes and runs; general generic member specialization remains unsupported.",
+    "compile": "All new source/member traversals debit caller ledger, default budgets unchanged; N37370 full request is not isolated marginal cost.",
+    "breakthrough": "Finite source consumer closure only; no product-level net-breakthrough claim."
+  },
+  "generated_source": "tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+}

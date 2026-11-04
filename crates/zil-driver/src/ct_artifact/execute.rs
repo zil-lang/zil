@@ -1715,6 +1715,7 @@ mod tests {
             Entry::Expression {
                 module: ModuleId(0),
                 expression,
+                lexical_owner: Some(symbol.clone()),
                 definition: symbol,
                 expected: None,
                 parameters: &[],
@@ -1729,11 +1730,27 @@ mod tests {
     }
     #[test]
     fn ct5_actual_definition_scope_raw_wire_and_independent_budget_controls() {
+        for (text, definition_ordinal, sibling_ordinal) in [
+            (
+                "struct Phantom<life a>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<T:Copy,life a,life b>(p:&'a i32)->i32{let value:Phantom<'a>=#(Phantom::<'a>{n:scalar(i32,42)});return value.n} fn second<T:Copy,life a,life b>(p:&'a i32)->i32{return 0}",
+                2,
+                3,
+            ),
+            (
+                "struct Phantom<life a>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} struct Reader{fn first<T:Copy,life a,life b>(p:&'a i32)->i32{let value:Phantom<'a>=#(Phantom::<'a>{n:scalar(i32,42)});return value.n} fn second<T:Copy,life a,life b>(p:&'a i32)->i32{return 0}}",
+                4,
+                5,
+            ),
+        ] {
+            check_actual_scope_control(text, definition_ordinal, sibling_ordinal);
+        }
+    }
+    fn check_actual_scope_control(text: &str, definition_ordinal: u32, sibling_ordinal: u32) {
         let sources = vec![SourceUnit::new(
             zil_base::FileId(0),
             ModuleId(0),
             "scope-raw.zil",
-            "struct Phantom<life a>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<T:Copy,life a,life b>(p:&'a i32)->i32{let value:Phantom<'a>=#(Phantom::<'a>{n:scalar(i32,42)});return value.n} fn second<T:Copy,life a,life b>(p:&'a i32)->i32{return 0}",
+            text,
         )];
         let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
         assert!(
@@ -1770,12 +1787,18 @@ mod tests {
         .unwrap();
         let definition = CtSymbolId {
             module: ModuleId(0),
-            declaration: zil_base::NodeId(2),
+            declaration: zil_base::NodeId(definition_ordinal),
             generation_path: None,
         };
-        let zil_syntax::ast::ItemKind::Function(function) = &parsed[0].module.items[2].kind else {
-            unreachable!()
-        };
+        let original = super::super::compiler::source_scope::original_function(
+            &parsed[0].module,
+            definition.declaration,
+            limits.max_call_depth,
+            |_| Ok(()),
+        )
+        .unwrap()
+        .unwrap();
+        let function = original.function;
         let zil_syntax::ast::FunctionBody::Block(block) = &function.body else {
             unreachable!()
         };
@@ -1796,6 +1819,43 @@ mod tests {
         .unwrap();
         let input = environment.empty_input(expression.span).unwrap();
         let modules = environment.index.modules(&sources, &syntax);
+        let unavailable_entry = || Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: None,
+            expected: None,
+            parameters: &[],
+        };
+        assert!(
+            super::super::invocation_context::FrozenInvocationContext::freeze(
+                &unavailable_entry(),
+                &parsed,
+                &environment.index,
+                Some(&origins),
+                &mut environment.budget,
+            )
+            .unwrap()
+            .is_none(),
+            "a naming owner is not an authentic lexical binder"
+        );
+        let errors = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: target.pointer_width,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: unavailable_entry(),
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .err()
+        .expect("missing original scope must not bind a source lifetime");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("actual lexical source owner")),
+            "{errors:?}"
+        );
         let (expected, _) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: target.pointer_width,
             modules: &modules,
@@ -1803,6 +1863,7 @@ mod tests {
             entry: Entry::Expression {
                 module: ModuleId(0),
                 expression,
+                lexical_owner: Some(definition.clone()),
                 definition,
                 expected: None,
                 parameters: &[],
@@ -1865,7 +1926,10 @@ mod tests {
         for attack in 0..10 {
             let mut raw = expected.clone();
             match attack {
-                0 => raw.ambient_life_scopes[0].declaration.declaration = zil_base::NodeId(3),
+                0 => {
+                    raw.ambient_life_scopes[0].declaration.declaration =
+                        zil_base::NodeId(sibling_ordinal)
+                }
                 1 => {
                     raw.record_schemas[0]
                         .life_context
@@ -1949,7 +2013,9 @@ mod tests {
         assert!(matches!(value, CtValue::Record { .. }));
         environment.budget.release_value(&value);
         environment.budget.release_usage_receipt(&usage);
-        eprintln!("CT5 actual-source raw/Wire independent work boundary {exact}");
+        eprintln!(
+            "CT5 actual-source owner {definition_ordinal} raw/Wire independent work boundary {exact}"
+        );
     }
 }
 

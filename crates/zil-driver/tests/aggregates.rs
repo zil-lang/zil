@@ -7438,3 +7438,125 @@ fn ct5_phantom_context_query_reaches_native() {
     );
     review329_native_entry_output(&[("main", text)], "main", b"42\n");
 }
+
+#[test]
+fn ct5_member_own_life_context_reaches_native() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    use zil_driver::CompilationSession;
+    let input = source(text);
+    let options = |n| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    while low < high {
+        let middle = (low + high) / 2;
+        let report = compile_source(&input, &options(middle));
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    assert_eq!(
+        warm.compile_source(&input, &options(low)).status,
+        ResultCategory::Success
+    );
+    for (n, expected) in [
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    eprintln!("G4.4 member source whole analysis N={low}/N-1/warm/fresh");
+    let generated = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+    );
+    let report = compile_source(&source(generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.diagnostics.iter().any(|d| {
+        d.message
+            .contains("transformed declarations require explicit source lineage")
+    }));
+    let scalar_generated = generated
+        .replace("struct Phantom<life s>{n:i32}\n", "")
+        .replace("<life s>", "")
+        .replace("&'s i32", "&i32");
+    let report = compile_source(&source(&scalar_generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", &scalar_generated)], "main", b"42\n");
+    let host = text
+        .replace("struct Reader {", "struct Reader<X:Copy> {")
+        .replace("Reader{}", "Reader::<i32>{}");
+    let report = compile_source(&source(&host), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual enclosing generic context"))
+    );
+    let mixed = text
+        .replace(
+            "result<life s>(self:Self,p:",
+            "result<T:Copy,life s>(self:Self,marker:T,p:",
+        )
+        .replace("reader.result(&n)", "reader.result(7,&n)");
+    let report = compile_source(&source(&mixed), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message == "generic function specialization")
+    );
+    let wrong = text.replace("Phantom::<'s>", "Phantom::<'other>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}

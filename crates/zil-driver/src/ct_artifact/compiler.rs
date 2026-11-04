@@ -14,6 +14,8 @@ mod generics;
 mod quote;
 #[path = "compiler_selection.rs"]
 mod selection;
+#[path = "compiler_source_scope.rs"]
+pub(super) mod source_scope;
 #[path = "compiler_types.rs"]
 mod types;
 use std::collections::{BTreeMap, VecDeque};
@@ -123,6 +125,9 @@ pub(crate) enum Entry<'a> {
         module: ModuleId,
         expression: &'a s::Expr,
         definition: CtSymbolId,
+        /// Actual original lexical function. Generated declarations retain
+        /// their naming owner above but have no authentic binder ledger yet.
+        lexical_owner: Option<CtSymbolId>,
         expected: Option<CtTy>,
         parameters: &'a [(String, CtTy)],
     },
@@ -641,12 +646,15 @@ pub(crate) fn compile_scoped(
             module,
             expression,
             definition,
+            lexical_owner,
             expected,
             parameters,
         } => {
             let module = compiler.module_index(module, expression.span)?;
-            compiler.source_life_scope =
-                compiler.source_life_scope(module, &definition, expression.span)?;
+            compiler.source_life_scope = match lexical_owner {
+                Some(owner) => compiler.source_life_scope(module, &owner, expression.span)?,
+                None => None,
+            };
             compiler.budget.node(expression.span)?;
             Budget::take(
                 &mut compiler.budget.functions,

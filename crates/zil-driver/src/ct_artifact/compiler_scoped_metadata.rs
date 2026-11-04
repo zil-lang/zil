@@ -17,21 +17,25 @@ impl<'a> Compiler<'a> {
                 "CT lexical owner has no original declaration lineage",
             ));
         }
-        let Some(item) = self.modules[module]
-            .syntax
-            .items
-            .get(definition.declaration.0 as usize)
+        let max_depth = self.budget.limits.max_call_depth;
+        let Some(original) = source_scope::original_function(
+            self.modules[module].syntax,
+            definition.declaration,
+            max_depth,
+            |work| self.budget.work(work, span),
+        )?
         else {
+            return Ok(None);
+        };
+        let item = original.item;
+        let function = original.function;
+        if original.generic_host {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Ct,
-                "CT member scope requires its actual binder inventory",
+                "CT member scope requires its actual enclosing generic context",
                 Some(span),
             )]);
-        };
-        let function = match &item.kind {
-            s::ItemKind::Function(function) | s::ItemKind::Extern { function, .. } => function,
-            _ => return Ok(None),
-        };
+        }
         self.budget.work(function.generics.len(), span)?;
         let mut binders = Vec::new();
         for (ordinal, parameter) in function.generics.iter().enumerate() {
