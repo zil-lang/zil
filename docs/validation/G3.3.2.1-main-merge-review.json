@@ -1,0 +1,25 @@
+{
+  "commit": "d8b3f10ba96c459a0bba578054411ea7df5eec56",
+  "status": "LimitedStaticMergePass",
+  "scope": "Two-file merge glue only; does not replace independent Driver author-logic review. No tests executed by this reviewer.",
+  "files": {
+    "crates/zil-expand/src/generics.rs": "a7127b559228f7875a72bb35cd2989f7c85c259a0fbe71dd3f5eacf7edd87079",
+    "crates/zil-driver/src/ct_artifact/materialize.rs": "0b1045a55206a8035092f07344a0197c95e82f671a7174ca56bfe53f4ef68674"
+  },
+  "findings": [
+    "Source revision/set and Self constant source/output inventories all retained and initialized, including direct Self test initializer.",
+    "Changed closure sites remain keyed by pre-output original ordinal; retained Source rows apply Unavailable before relocation. Self output index uses separate output.len coordinate.",
+    "Self scalar constant prepass does not reorder top-level creators. Added require_evaluated_constants receives immutable Module and checks closed scalar equations; it does not rewrite closures.",
+    "generics.rs equals Source parent after removing exactly constant_plan registration and require_evaluated_constants call. Both parents function/test name sets retained."
+  ],
+  "parent_function_preservation": {
+    "^1": {
+      "missing_function_names": []
+    },
+    "^2": {
+      "missing_function_names": []
+    }
+  },
+  "blockers": [],
+  "tests_run": []
+}

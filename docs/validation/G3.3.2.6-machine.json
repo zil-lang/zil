@@ -1,0 +1,78 @@
+{
+  "task": "G3.3.2.6",
+  "decision": "LimitedRepresentationSourceNativePass",
+  "source": "4b6294225ede7a2802a300752ebd6abb438a907a",
+  "production": "55ddd6fce",
+  "scope": [
+    "Real original Source shared Fn, two-call move-counter FnMut and Managed scalar Mark true FnOnce",
+    "Actual Source Typed/Analyze plan -> independent Verify raw and Wire -> Lower -> exact LLVM LIR binding",
+    "Existing inline environment/shared pointer representation and resource emission, no lifetime runtime fields or implicit allocation"
+  ],
+  "command": "cargo test --locked -p zil-driver --test generic_regressions --features llvm-api g3326_ -- --nocapture",
+  "tests": {
+    "passed": 2,
+    "failed": 0
+  },
+  "log_sha256": "7de310669a194cdcc5669985654cf24cf025e0843b329746083003e6f016893f",
+  "native": {
+    "cases": 3,
+    "backends": [
+      "Clang",
+      "LLVM API"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "executions": 12,
+    "stdout": "42\n",
+    "exit_code": 0,
+    "fallback": false,
+    "fn_invocations": 1,
+    "fnmut_invocations": 2,
+    "fnonce_kind": "Genuine FnOnce with Managed capture"
+  },
+  "forged_lir_rejections": {
+    "count": 6,
+    "fields": [
+      "actual captured type",
+      "complete retained contract"
+    ],
+    "code": "E-CODEGEN-UNBOUND-LIR"
+  },
+  "whole_Source_to_Lower_budget": [
+    {
+      "case": "Fn",
+      "N": 24224,
+      "tight_phase": "Verify"
+    },
+    {
+      "case": "FnMut two calls",
+      "N": 34804,
+      "tight_phase": "Verify"
+    },
+    {
+      "case": "FnOnce",
+      "N": 36307,
+      "tight_phase": "Analyze"
+    }
+  ],
+  "budget_controls": "Every N / N-1 / fresh retry executed. These are complete Source-to-Lower thresholds, not isolated Lower thresholds. Existing private Lower relation quota tests remain applicable.",
+  "independent_review": "docs/validation/G3.3.2.6-review.json",
+  "prior_failures": [
+    {
+      "source": "98e33c29677b604daa490888e053470b77380764",
+      "result": "Fn/FnMut Verify passed, Lower closed qualified capture gate; owning Once blocked in Analyze"
+    },
+    {
+      "source": "a1641b52fa6f137133de1e09e67ef5788145f85e",
+      "result": "All three Verify passed; Fn/FnMut failed closure field alignment and Once failed stored owned-instruction payment"
+    }
+  ],
+  "limitations": [
+    "No full common gate or main acceptance yet",
+    "Analyze resource definition identity correction is pending G3.3.3 final; positive source observations do not close that raw metadata gap",
+    "User-defined Drop, F-helper source-bound bridge, mixed/instantiated/member/generated creator contexts, lending and long-lived owning combinations remain outside this slice",
+    "Earlier 12 executable exit-code probes are historical observations, not 12 additional distinct full-value controls"
+  ]
+}
