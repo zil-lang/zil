@@ -105,7 +105,8 @@ pub(super) fn add_definitions(
                         spend(left, found.len().saturating_add(32))?;
                         found.insert(*id, t.clone());
                     }
-                    Type::Managed(t)
+                    Type::Task { result: t }
+                    | Type::Managed(t)
                     | Type::Desc(t)
                     | Type::Address { inner: t, .. }
                     | Type::Opaque { hidden: t, .. }
@@ -324,7 +325,8 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
-                Type::Address { .. }
+                Type::Task { .. }
+                | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)

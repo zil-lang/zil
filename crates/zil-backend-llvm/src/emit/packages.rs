@@ -123,7 +123,7 @@ pub(super) fn teardown_paths(
                     })?;
                 let teardown = if matches!(definition.payload, Type::Registration { .. }) {
                     Some("zil.registration.drop".into())
-                } else if definition.payload == Type::TaskI32 {
+                } else if matches!(definition.payload, Type::TaskI32 | Type::Task { .. }) {
                     Some("zil.task.drop".into())
                 } else if definition.payload == Type::ByteBuffer {
                     Some("zil.bytes.drop".into())

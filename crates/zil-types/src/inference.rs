@@ -758,7 +758,8 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Registration { environment: inner }
+        Type::Task { result: inner }
+        | Type::Registration { environment: inner }
         | Type::Address { inner, .. }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
@@ -3481,7 +3482,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let variable = *variable;
                 self.graph.solve()?;
                 let payload = self.resolved(variable, span)?;
-                let task_head = *op == UnaryOp::BorrowMut && payload == Type::TaskI32;
+                let task_head = *op == UnaryOp::BorrowMut
+                    && matches!(payload, Type::TaskI32 | Type::Task { .. });
                 if !task_head
                     && (*op != UnaryOp::Borrow
                         || !matches!(payload, Type::Record { .. })
@@ -3680,6 +3682,37 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
+            if name == "task_create" {
+                let Some(worker) = arguments.first() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                };
+                let Term::Function(signature) = self.expr(worker, depth + 1, false)? else {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task_create worker must be static",
+                    ));
+                };
+                if arguments.len() != signature.parameters.len() + 1 {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create actual input count mismatch",
+                    ));
+                }
+                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                    self.bind_term(&term, wanted, argument.span)?;
+                }
+                validate_type(&signature.result, 0, span, self.budget)?;
+                let work = type_snapshot_work(&signature.result, span, self.budget.limits)?;
+                self.budget.work(work.saturating_mul(4), span)?;
+                return self.known_term(&tasks::create_type(&signature.result), span);
+            }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
@@ -3707,11 +3740,23 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     ));
                 }
             }
-            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
-                let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
-                self.bind_term(&term, ty, argument.span)?;
+            let mut returned = tasks::result(name);
+            for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, None, depth + 1, false)?;
+                let v = self.projection_base(&term, argument.span)?;
+                if let Some(actual) = self.graph.ty(v)?
+                    && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
+                {
+                    let work = type_snapshot_work(task, span, self.budget.limits)?;
+                    self.budget.work(work.saturating_mul(6), span)?;
+                    let parameter = tasks::parameter_for(name, task);
+                    self.bind_term(&term, &parameter, argument.span)?;
+                    returned = tasks::result_for(name, task);
+                } else {
+                    self.bind_term(&term, wanted, argument.span)?;
+                }
             }
-            return self.known_term(&tasks::result(name), span);
+            return self.known_term(&returned, span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;

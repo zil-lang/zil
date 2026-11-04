@@ -183,7 +183,8 @@ pub(super) fn reserve_enum_metadata(
                 }
             }
         }
-        Type::Array { element, .. }
+        Type::Task { result: element }
+        | Type::Array { element, .. }
         | Type::Slice { element }
         | Type::Registration {
             environment: element,

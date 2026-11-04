@@ -47,7 +47,8 @@ impl Walk<'_> {
             match recipe {
                 CoreAggregateTypeRecipe::Concrete(ty) => self.ty(ty, span, depth + 1)?,
                 CoreAggregateTypeRecipe::Parameter { .. } => {}
-                CoreAggregateTypeRecipe::Registration {
+                CoreAggregateTypeRecipe::Task { result: element }
+                | CoreAggregateTypeRecipe::Registration {
                     environment: element,
                 }
                 | CoreAggregateTypeRecipe::Store { element } => pending.push((element, depth + 1)),
