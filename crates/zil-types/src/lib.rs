@@ -24,6 +24,7 @@ mod functions;
 mod helpers;
 mod incremental;
 mod inference;
+mod interface_identity;
 pub use incremental::{FunctionSession, FunctionStats};
 mod lending;
 mod lifetimes;

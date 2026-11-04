@@ -563,37 +563,29 @@ fn interface_fingerprint(
                 )]
             })?;
     }
-    for export in exports {
-        for ty in export
-            .parameters
-            .iter()
-            .map(|(_, ty)| ty)
-            .chain(std::iter::once(&export.result))
-        {
-            let cost = inference::type_snapshot_work(
-                ty,
-                Span::default(),
-                &Limits {
-                    max_analysis_steps: *remaining,
-                    ..limits.clone()
-                },
-            )
-            .map_err(|e| vec![e])?;
-            *remaining = remaining
-                .checked_sub(cost.saturating_mul(64))
-                .ok_or_else(|| {
-                    vec![Diagnostic::limit(
-                        Phase::Types,
-                        "stored interface type identity budget exceeded",
-                        None,
-                    )]
-                })?;
-        }
-    }
     let mut bytes = b"ZIL-SCALAR-INTERFACE-3\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
     for export in exports {
+        let cost = export
+            .name
+            .len()
+            .saturating_mul(2)
+            .saturating_add(export.parameters.len().saturating_mul(8))
+            .saturating_add(
+                export
+                    .reference_return_bound
+                    .as_ref()
+                    .map_or(0, |b| b.len().saturating_mul(8)),
+            )
+            .saturating_add(64);
+        *remaining = remaining.checked_sub(cost).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "export header identity budget exceeded",
+                None,
+            )]
+        })?;
         bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
         bytes.extend_from_slice(export.name.as_bytes());
         bytes.extend_from_slice(&(export.parameters.len() as u64).to_le_bytes());
@@ -608,7 +600,8 @@ fn interface_fingerprint(
                 PassingMode::BorrowMut => 6,
                 PassingMode::Infer => 7,
             });
-            type_identity(&mut bytes, ty, closures);
+            interface_identity::encode(ty, closures, &mut bytes, limits, remaining)
+                .map_err(|e| vec![e])?;
         }
         bytes.push(match export.result_mode {
             PassingMode::Copy => 0,
@@ -620,7 +613,8 @@ fn interface_fingerprint(
             PassingMode::BorrowMut => 6,
             PassingMode::Infer => 7,
         });
-        type_identity(&mut bytes, &export.result, closures);
+        interface_identity::encode(&export.result, closures, &mut bytes, limits, remaining)
+            .map_err(|e| vec![e])?;
         bytes.push(u8::from(export.reference_return_bound.is_some()));
         if let Some(bound) = &export.reference_return_bound {
             bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());
@@ -695,164 +689,4 @@ fn interface_fingerprint(
         }
     }
     Ok(Fingerprint::of(&bytes))
-}
-fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition]) {
-    match ty {
-        Type::Unit => bytes.push(0),
-        Type::Bool => bytes.push(1),
-        Type::U8 => bytes.push(15),
-        Type::I32 => bytes.push(2),
-        Type::I64 => bytes.push(3),
-        Type::F32 => bytes.push(28),
-        Type::F64 => bytes.push(29),
-        Type::U64 => bytes.push(23),
-        Type::Usize => bytes.push(24),
-        Type::U16 => bytes.push(16),
-        Type::ByteBuffer => bytes.push(21),
-        Type::Registration { environment } => {
-            bytes.push(32);
-            type_identity(bytes, environment, closures);
-        }
-        Type::TaskI32 => bytes.push(33),
-        Type::Task { .. } => {
-            bytes.push(34);
-            // Full semantic payload identity includes the retained class domain,
-            // typed ports and nested/nominal mappings, never result alone.
-            bytes.extend_from_slice(&ty.fingerprint().0);
-        }
-        Type::BorrowedStorage { .. } => {
-            bytes.push(35);
-            // The complete nominal inventory is appended by the interface
-            // caller. The standalone structural digest is not that context.
-            bytes.extend_from_slice(&ty.fingerprint().0);
-        }
-        Type::SyncCell(kind) => bytes.extend_from_slice(&[
-            30,
-            match kind {
-                SyncCellKind::MutexI32 => 0,
-                SyncCellKind::AtomicI32 => 1,
-            },
-        ]),
-        Type::OwnedStore { element } => {
-            bytes.push(22);
-            type_identity(bytes, element, closures);
-        }
-        Type::ForeignHandle => bytes.push(17),
-        Type::CWideString => bytes.push(18),
-        Type::ForeignCallback { parameters, result } => {
-            bytes.push(19);
-            bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
-            for parameter in parameters {
-                type_identity(bytes, parameter, closures);
-            }
-            type_identity(bytes, result, closures);
-        }
-        Type::Address { mutable, inner } => {
-            bytes.extend_from_slice(&[4, u8::from(*mutable)]);
-            type_identity(bytes, inner, closures);
-        }
-        Type::Array { element, length } => {
-            bytes.push(7);
-            bytes.extend_from_slice(&length.to_le_bytes());
-            type_identity(bytes, element, closures);
-        }
-        Type::Slice { element } => {
-            bytes.push(20);
-            type_identity(bytes, element, closures);
-        }
-        Type::FunctionPointer { parameters, result } => {
-            bytes.push(8);
-            bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
-            for parameter in parameters {
-                type_identity(bytes, parameter, closures);
-            }
-            type_identity(bytes, result, closures);
-        }
-        Type::BorrowedFunctionPointer {
-            parameters,
-            result,
-            life,
-        } => {
-            bytes.push(31);
-            bytes.extend_from_slice(&life.fingerprint().0);
-            bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
-            for parameter in parameters {
-                type_identity(bytes, parameter, closures);
-            }
-            type_identity(bytes, result, closures);
-        }
-        Type::Tuple(fields) => {
-            bytes.push(5);
-            bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());
-            for ty in fields {
-                type_identity(bytes, ty, closures);
-            }
-        }
-        Type::Record { name, fields } | Type::Package { name, fields } => {
-            bytes.push(if matches!(ty, Type::Package { .. }) {
-                13
-            } else {
-                6
-            });
-            bytes.extend_from_slice(&(name.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(name.as_bytes());
-            bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());
-            for (name, ty) in fields {
-                bytes.extend_from_slice(&(name.len() as u64).to_le_bytes());
-                bytes.extend_from_slice(name.as_bytes());
-                type_identity(bytes, ty, closures);
-            }
-        }
-        Type::Enum { name, variants } => {
-            bytes.push(9);
-            bytes.extend_from_slice(&(name.len() as u64).to_le_bytes());
-            bytes.extend_from_slice(name.as_bytes());
-            bytes.extend_from_slice(&(variants.len() as u64).to_le_bytes());
-            for (name, fields) in variants {
-                bytes.extend_from_slice(&(name.len() as u64).to_le_bytes());
-                bytes.extend_from_slice(name.as_bytes());
-                bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());
-                for ty in fields {
-                    type_identity(bytes, ty, closures);
-                }
-            }
-        }
-        Type::ErrorUnion { error, result } => {
-            bytes.push(12);
-            type_identity(bytes, error, closures);
-            type_identity(bytes, result, closures);
-        }
-        Type::Managed(payload) => {
-            bytes.push(10);
-            type_identity(bytes, payload, closures);
-        }
-        Type::Desc(payload) => {
-            bytes.push(11);
-            type_identity(bytes, payload, closures);
-        }
-        Type::Closure(id) => {
-            // A concrete helper's ABI includes its actual environment layout.
-            // An id alone would collide after a capture changed type while the
-            // same source closure remained at the same ordinal.
-            let definition = &closures[id.0 as usize];
-            bytes.push(14);
-            bytes.extend_from_slice(&id.0.to_le_bytes());
-            bytes.push(match definition.kind {
-                CallableKind::Fn => 0,
-                CallableKind::FnMut => 1,
-                CallableKind::FnOnce => 2,
-                CallableKind::FunctionPointer => 3,
-            });
-            bytes.extend_from_slice(&(definition.captures.len() as u64).to_le_bytes());
-            for capture in &definition.captures {
-                type_identity(bytes, capture, closures);
-            }
-            bytes.extend_from_slice(&(definition.parameters.len() as u64).to_le_bytes());
-            for parameter in &definition.parameters {
-                type_identity(bytes, parameter, closures);
-            }
-            type_identity(bytes, &definition.result, closures);
-        }
-        _ => unreachable!("unsupported interface type rejected before hashing"),
-    }
 }
