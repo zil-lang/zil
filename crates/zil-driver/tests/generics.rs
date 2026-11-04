@@ -1561,3 +1561,15 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
         );
     }
 }
+#[test]
+fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};let f=(p,q)=>42;return invoke(&f,&v,x)} fn result()->i32{let n=21;return apply(&n)} fn main()->i32{return result()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
