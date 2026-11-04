@@ -127,6 +127,7 @@ impl<'a> Engine<'a> {
                         .map_err(|_| error(parameter.span, "parameter ordinal overflow"))?,
                 ),
                 &mut Vec::new(),
+                &mut Vec::new(),
                 &mut occurrences,
                 &mut stored,
                 &mut next_elided,
@@ -137,6 +138,7 @@ impl<'a> Engine<'a> {
             self.storage_header(
                 result,
                 zil_ir::StorageBase::Result,
+                &mut Vec::new(),
                 &mut Vec::new(),
                 &mut occurrences,
                 &mut stored,
@@ -195,6 +197,7 @@ impl<'a> Engine<'a> {
         ty: &mut TypeRef,
         base: zil_ir::StorageBase,
         path: &mut Vec<zil_ir::ContractProjection>,
+        type_path: &mut Vec<zil_ir::LifeTypeProjection>,
         occurrences: &mut Vec<stored_types::Occurrence>,
         stored: &mut bool,
         next_elided: &mut u32,
@@ -206,6 +209,7 @@ impl<'a> Engine<'a> {
                 inner,
                 base,
                 path,
+                type_path,
                 occurrences,
                 stored,
                 next_elided,
@@ -227,24 +231,28 @@ impl<'a> Engine<'a> {
                     self.budget.node(ty.span, depth)?;
                 }
                 occurrences.push(stored_types::Occurrence {
-                    position: zil_ir::StoragePosition {
+                    position: stored_types::OccurrencePosition::Borrow(zil_ir::StoragePosition {
                         base,
                         path: path.clone(),
-                    },
+                    }),
                     life,
                     fixed_input: false,
                 });
                 // StoragePosition paths are relative to the receiver's actual
                 // pointee; crossing this outer Address is not a byte selector.
-                self.storage_header(
+                type_path.push(zil_ir::LifeTypeProjection::Pointee);
+                let result = self.storage_header(
                     inner,
                     base,
                     path,
+                    type_path,
                     occurrences,
                     stored,
                     next_elided,
                     depth + 1,
-                )
+                );
+                type_path.pop();
+                result
             }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_declaration(&name[0], ty.span)? {
@@ -267,51 +275,33 @@ impl<'a> Engine<'a> {
                     unreachable!()
                 };
                 let fixed_input = !matches!(base, zil_ir::StorageBase::Result);
-                for slot in &life.slots {
-                    self.budget.node(ty.span, depth)?;
-                    for _ in path.iter().map(|_| ()).chain(slot.path.iter().map(|_| ())) {
-                        self.budget.node(ty.span, depth)?;
-                    }
-                    let life = *classes
-                        .get(slot.binder as usize)
-                        .ok_or_else(|| error(ty.span, "stored source class mapping absent"))?;
-                    occurrences.push(stored_types::Occurrence {
-                        position: zil_ir::StoragePosition {
-                            base,
-                            path: path
-                                .iter()
-                                .copied()
-                                .chain(
-                                    slot.path
-                                        .iter()
-                                        .copied()
-                                        .map(zil_ir::ContractProjection::Place),
-                                )
-                                .collect(),
-                        },
-                        life,
-                        fixed_input,
-                    });
+                // A qualified boundary maps its local classes exactly once.
+                // Its physical fields/ports are reconstructed from the actual
+                // validated type, never duplicated as signature access rows.
+                if classes.len() != life.binder_count as usize {
+                    return Err(error(
+                        ty.span,
+                        "stored source class count differs from qualified type",
+                    ));
                 }
                 for (class, source) in classes.iter().enumerate() {
-                    for _ in &life.slots {
+                    self.budget.node(ty.span, depth)?;
+                    for _ in type_path.iter() {
                         self.budget.node(ty.span, depth)?;
                     }
-                    if !life.slots.iter().any(|slot| slot.binder as usize == class) {
-                        for _ in path.iter() {
-                            self.budget.node(ty.span, depth)?;
-                        }
-                        let mut selection = path.clone();
-                        selection.push(zil_ir::ContractProjection::RetainedClass(class as u32));
-                        occurrences.push(stored_types::Occurrence {
-                            position: zil_ir::StoragePosition {
+                    occurrences.push(stored_types::Occurrence {
+                        position: stored_types::OccurrencePosition::Class(
+                            zil_ir::SignatureLifeClass {
                                 base,
-                                path: selection,
+                                path: type_path.clone(),
+                                class: u32::try_from(class).map_err(|_| {
+                                    error(ty.span, "signature class ordinal overflow")
+                                })?,
                             },
-                            life: *source,
-                            fixed_input,
-                        });
-                    }
+                        ),
+                        life: *source,
+                        fixed_input,
+                    });
                 }
                 *stored = true;
                 *name = vec![generated];
@@ -325,16 +315,21 @@ impl<'a> Engine<'a> {
                     path.push(zil_ir::ContractProjection::Place(
                         zil_ir::PlaceProjection::Field(index),
                     ));
+                    type_path.push(zil_ir::LifeTypeProjection::Place(
+                        zil_ir::PlaceProjection::Field(index),
+                    ));
                     self.storage_header(
                         field,
                         base,
                         path,
+                        type_path,
                         occurrences,
                         stored,
                         next_elided,
                         depth + 1,
                     )?;
                     path.pop();
+                    type_path.pop();
                 }
                 Ok(())
             }

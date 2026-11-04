@@ -283,3 +283,23 @@ or runtime/performance comparison follows. Full contextual type keys, concrete
 coercions,131/132 source operations, both safety kernels and both native backends
 remain unfinished. The next common40 migration preserves this checkpoint as
 schema39 evidence and removes the independent flat slot life field.
+
+The first40 Expand boundary checkpoint compiles on public7ffbfc856. DynSlot now
+uses only storage_life. Existing outer-only callable roles embed their declared
+flat relation with prepaid input/output rows on the actual remaining member
+ledger; higher-rank source programs retain that remainder through lowering.
+BFP raw type data uses the common record, while its full contextual/rich source
+rendering and accounting remain part of the next actual producer slice.
+
+Ordinary stored signatures now emit SignatureLifeClassBinding rows. They visit
+an outer Address first, then its pointee's qualified classes; tuples add actual
+Place selectors. Every local qualified class maps once, including phantom
+classes, while internal fields are reconstructed from the actual type and never
+flattened into duplicate signature bindings. Fixed/Invocation numbering follows
+one joint source traversal. The actual View factory/read, phantom full ordinals,
+reversed fields and tuple boundary source controls pass. The full-common-prefix
+source request now requires work1636871 with N-1 rejection. A simple callable
+role publishes Parameter0/Result Invocation0 in the common record. Source
+for<a>fn(&a Tag<a>) and same/other two-label forms remain closed before their
+actual class producer. This is a compile/source-data checkpoint, not whole40
+admission; Types/kernel/CT/native composition remains separately assigned.

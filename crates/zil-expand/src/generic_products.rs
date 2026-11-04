@@ -20,6 +20,7 @@ pub(crate) struct Products {
     pub(crate) trait_instances: bool,
     pub(crate) record_variants: bool,
     pub(crate) protected_binders: bool,
+    pub(crate) borrowed_signatures: bool,
 }
 #[derive(Clone)]
 pub(super) struct Scope {
@@ -229,6 +230,7 @@ impl Products {
         self.trait_instances
             || self.record_variants
             || self.protected_binders
+            || self.borrowed_signatures
             || self
                 .origins
                 .as_ref()

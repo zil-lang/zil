@@ -152,6 +152,13 @@ impl Catalog {
                         binding.position.path.len().saturating_add(1),
                     )?;
                 }
+                for class in &contract.classes {
+                    spend(
+                        budget,
+                        function.span,
+                        class.position.path.len().saturating_add(1),
+                    )?;
+                }
                 function.life = None;
                 function.storage_life = Some(contract.clone());
             }
@@ -252,11 +259,30 @@ fn pay_type(ty: &Type, budget: &mut generics::Budget<'_>, span: Span, depth: usi
 }
 
 pub(super) struct Occurrence {
-    pub(super) position: StoragePosition,
+    pub(super) position: OccurrencePosition,
     pub(super) life: LexicalLife,
     /// True only for a class of an actual qualified INPUT carrier. A result
     /// occurrence cannot introduce a fixed upper or revive a dead target.
     pub(super) fixed_input: bool,
+}
+
+pub(super) enum OccurrencePosition {
+    Borrow(StoragePosition),
+    Class(SignatureLifeClass),
+}
+impl OccurrencePosition {
+    fn base(&self) -> StorageBase {
+        match self {
+            Self::Borrow(position) => position.base,
+            Self::Class(position) => position.base,
+        }
+    }
+    fn path_len(&self) -> usize {
+        match self {
+            Self::Borrow(position) => position.path.len(),
+            Self::Class(position) => position.path.len(),
+        }
+    }
 }
 
 /// Form the complete retained relation from source occurrences before type
@@ -272,11 +298,11 @@ pub(super) fn contract(
         spend(
             budget,
             span,
-            occurrence.position.path.len().saturating_add(1),
+            occurrence.position.path_len().saturating_add(1),
         )?;
         if occurrence.fixed_input {
             if !matches!(
-                occurrence.position.base,
+                occurrence.position.base(),
                 StorageBase::Parameter(_) | StorageBase::Capture(_)
             ) {
                 return Err(invalid(span, "a result cannot introduce a fixed lifetime"));
@@ -290,22 +316,44 @@ pub(super) fn contract(
     let mut fixed = Vec::new();
     let mut invocation = Vec::new();
     let mut bindings: Vec<StorageLifeBinding> = Vec::new();
+    let mut classes: Vec<SignatureLifeClassBinding> = Vec::new();
     for occurrence in occurrences {
         // Every comparison includes all actual path segments, before storing
         // any relation row. An equal physical position cannot carry two labels.
-        for prior in &bindings {
-            spend(
-                budget,
-                span,
-                prior
-                    .position
-                    .path
-                    .len()
-                    .saturating_add(occurrence.position.path.len())
-                    .saturating_add(1),
-            )?;
-            if prior.position == occurrence.position {
-                return Err(invalid(span, "duplicate stored-lifetime contract position"));
+        match &occurrence.position {
+            OccurrencePosition::Borrow(position) => {
+                for prior in &bindings {
+                    spend(
+                        budget,
+                        span,
+                        prior
+                            .position
+                            .path
+                            .len()
+                            .saturating_add(position.path.len())
+                            .saturating_add(1),
+                    )?;
+                    if prior.position == *position {
+                        return Err(invalid(span, "duplicate stored-lifetime borrow position"));
+                    }
+                }
+            }
+            OccurrencePosition::Class(position) => {
+                for prior in &classes {
+                    spend(
+                        budget,
+                        span,
+                        prior
+                            .position
+                            .path
+                            .len()
+                            .saturating_add(position.path.len())
+                            .saturating_add(1),
+                    )?;
+                    if prior.position == *position {
+                        return Err(invalid(span, "duplicate signature class position"));
+                    }
+                }
             }
         }
         spend(
@@ -340,10 +388,14 @@ pub(super) fn contract(
                 u32::try_from(index).map_err(|_| invalid(span, "invocation binder overflow"))?,
             )
         };
-        bindings.push(StorageLifeBinding {
-            position: occurrence.position,
-            binder,
-        });
+        match occurrence.position {
+            OccurrencePosition::Borrow(position) => {
+                bindings.push(StorageLifeBinding { position, binder })
+            }
+            OccurrencePosition::Class(position) => {
+                classes.push(SignatureLifeClassBinding { position, binder })
+            }
+        }
     }
     Ok(StorageLifeContract {
         fixed_binder_count: u32::try_from(fixed.len())
@@ -351,6 +403,7 @@ pub(super) fn contract(
         invocation_binder_count: u32::try_from(invocation.len())
             .map_err(|_| invalid(span, "invocation binder overflow"))?,
         bindings,
+        classes,
     })
 }
 
@@ -679,8 +732,17 @@ fn main() -> i32 {
             ),
             (0, 1)
         );
-        assert_eq!(contract.bindings.len(), 2);
-        assert_eq!(contract.bindings[0].binder, contract.bindings[1].binder);
+        assert_eq!(contract.bindings.len(), 1);
+        assert_eq!(contract.classes.len(), 1);
+        assert_eq!(contract.bindings[0].binder, contract.classes[0].binder);
+        assert_eq!(
+            contract.classes[0].position,
+            SignatureLifeClass {
+                base: StorageBase::Result,
+                path: vec![],
+                class: 0,
+            }
+        );
         let helper = core.functions.iter().find(|f| f.name == "read").unwrap();
         let contract = helper.storage_life.as_ref().unwrap();
         assert_eq!(
@@ -696,6 +758,23 @@ fn main() -> i32 {
             .find(|binding| binding.position.base == StorageBase::Result)
             .unwrap();
         assert_eq!(result.binder, StorageBinder::Fixed(0));
+        assert_eq!(
+            contract.classes,
+            vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(0),
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0
+                },
+                binder: StorageBinder::Fixed(0),
+            }]
+        );
+        assert!(
+            contract
+                .bindings
+                .iter()
+                .all(|binding| binding.position.path.is_empty())
+        );
     }
 
     #[test]
@@ -762,6 +841,27 @@ fn same<life {a}>(x: &'{a} i64) -> Pair<'{a}, i64, '{a}, '{a}> {{
             let shared = shapes.iter().find(|life| life.binder_count == 1).unwrap();
             assert!(shared.nominal_arguments.iter().all(|row| row.binder == 0));
             assert!(shared.slots.iter().all(|row| row.binder == 0));
+            let make = core
+                .functions
+                .iter()
+                .find(|function| function.name == "make")
+                .unwrap();
+            let contract = make.storage_life.as_ref().unwrap();
+            assert_eq!(
+                contract
+                    .classes
+                    .iter()
+                    .map(|row| (row.position.class, row.binder))
+                    .collect::<Vec<_>>(),
+                [
+                    (0, StorageBinder::Invocation(0)),
+                    (1, StorageBinder::Invocation(1)),
+                    (2, StorageBinder::Invocation(2))
+                ]
+            );
+            assert!(contract.classes.iter().all(
+                |row| row.position.base == StorageBase::Result && row.position.path.is_empty()
+            ));
         }
     }
 
@@ -788,12 +888,15 @@ fn first<life a, life b>(x: &'b i64, va: View<'a>, vb: View<'b>) -> &'b i64 { re
                 .iter()
                 .map(|row| row.binder)
                 .collect::<Vec<_>>(),
-            [
-                StorageBinder::Fixed(0),
-                StorageBinder::Fixed(1),
-                StorageBinder::Fixed(0),
-                StorageBinder::Fixed(0)
-            ]
+            [StorageBinder::Fixed(0), StorageBinder::Fixed(0)]
+        );
+        assert_eq!(
+            contract
+                .classes
+                .iter()
+                .map(|row| row.binder)
+                .collect::<Vec<_>>(),
+            [StorageBinder::Fixed(1), StorageBinder::Fixed(0)]
         );
     }
 
@@ -814,6 +917,111 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
                     .any(|error| error.category == zil_base::ResultCategory::Unsupported)
             );
         }
+    }
+
+    #[test]
+    fn rich_bfp_source_classes_stay_closed_until_their_actual_producer() {
+        for signature in [
+            "for<life a> fn(&'a Tag<'a>)->i32",
+            "for<life a> for<life b> fn(&'a Tag<'b>,&'b i32)->i32",
+            "for<life a> for<life b> fn(&'a Tag<'a>,&'b i32)->i32",
+        ] {
+            let errors = expand_text(&format!("struct Tag<life s>{{n:i32}}type Handler={signature};fn use_handler(f:Handler){{}}fn main(){{}}"))
+                .expect_err("an outer-only relation cannot erase a qualified signature class");
+            assert!(
+                errors.iter().all(|error| matches!(
+                    error.category,
+                    zil_base::ResultCategory::Unsupported | zil_base::ResultCategory::SafeReject
+                )),
+                "{errors:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn signature_classes_select_actual_qualified_tuple_boundaries() {
+        let core = expand_text("struct Phantom<life a>{n:i32}fn select<life a,life b>(pair:(Phantom<'a>,Phantom<'b>))->Phantom<'b>{return pair.1}").unwrap();
+        let contract = core
+            .functions
+            .iter()
+            .find(|function| function.name == "select")
+            .unwrap()
+            .storage_life
+            .as_ref()
+            .unwrap();
+        assert!(contract.bindings.is_empty());
+        assert_eq!(
+            (
+                contract.fixed_binder_count,
+                contract.invocation_binder_count
+            ),
+            (2, 0)
+        );
+        assert_eq!(
+            contract.classes,
+            vec![
+                SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],
+                        class: 0
+                    },
+                    binder: StorageBinder::Fixed(0)
+                },
+                SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Place(PlaceProjection::Field(1))],
+                        class: 0
+                    },
+                    binder: StorageBinder::Fixed(1)
+                },
+                SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Result,
+                        path: vec![],
+                        class: 0
+                    },
+                    binder: StorageBinder::Fixed(1)
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn outer_only_callable_role_uses_the_common_invocation_contract() {
+        let core = expand_text("fn apply<F:for<life a>Fn(&'a i64)->&'a i64>(f:&F,p:&i64)->&i64{return f(p)}fn main(){}").unwrap();
+        let role = &core
+            .functions
+            .iter()
+            .find(|function| function.name == "apply")
+            .unwrap()
+            .callable_parameters[0];
+        let life = role.life.as_ref().unwrap();
+        assert_eq!(
+            (life.fixed_binder_count, life.invocation_binder_count),
+            (0, 1)
+        );
+        assert!(life.classes.is_empty());
+        assert_eq!(
+            life.bindings,
+            vec![
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(0),
+                        path: vec![]
+                    },
+                    binder: StorageBinder::Invocation(0)
+                },
+                StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Result,
+                        path: vec![]
+                    },
+                    binder: StorageBinder::Invocation(0)
+                },
+            ]
+        );
     }
 
     #[test]
