@@ -733,7 +733,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (26 + 18) * 16 * 2);
+    assert_eq!(compared, (28 + 18) * 16 * 2);
 }
 
 #[test]
