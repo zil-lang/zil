@@ -613,6 +613,7 @@ pub(super) fn preflight(
             first.take().or_else(|| pending.pop())
         {
             budget.input(1, "type shape")?;
+            super::tasks::require_closed_context(ty)?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
             }
