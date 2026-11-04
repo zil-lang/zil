@@ -80,6 +80,185 @@ fn g231_self_associated_constants_effective_and_default_checks() {
 }
 
 #[test]
+fn g231_generated_self_default_impls_require_completed_ct_jobs() {
+    for text in [
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}#emit quote<ItemList>{impl C for P{const A:i32=2147483647;const B:i32=0;}};fn main(){}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}#for(i in 0..1){impl C for P{const A:i32=2147483647;const B:i32=0;}}fn main(){}",
+    ] {
+        let report=check(text);
+        assert_ne!(report.status,ResultCategory::Success,"{}",report.to_json());
+        assert_ne!(report.status,ResultCategory::InfraError,"{}",report.to_json());
+    }
+    let closed=check("trait C{const A:i32;const B:i32=42;}struct P{}#emit quote<ItemList>{impl C for P{const A:i32=41;const B:i32=0;}};fn main(){}");
+    assert_eq!(closed.status,ResultCategory::Success,"{}",closed.to_json());
+}
+
+#[test]
+fn g231_self_associated_identity_budgets_and_machine_values() {
+    use zil_driver::CompilationSession;
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/341/associated-constant-self.zil");
+    let unit = source(original);
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let options = |n: usize| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                "steps" => options.limits.max_ct_steps = n as u64,
+                "bytes" => options.limits.max_source_bytes = n,
+                _ => unreachable!(),
+            }
+            options
+        };
+        let limits = Limits::default();
+        let (mut low, mut high) = (
+            1,
+            match ledger {
+                "work" => limits.max_analysis_steps,
+                "nodes" => limits.max_nodes,
+                "steps" => limits.max_ct_steps as usize,
+                "bytes" => limits.max_source_bytes,
+                _ => unreachable!(),
+            },
+        );
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{ledger} n={n}: {}", report.to_json()),
+            }
+        }
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(
+                    report.status,
+                    expected,
+                    "{ledger} N={low}: {}",
+                    report.to_json()
+                );
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!("G2.3.1 {ledger} N={low}; N-1/cold/warm/fresh agree");
+    }
+    native_both(&[("main", original)]);
+    let mut session = CompilationSession::default();
+    for text in [
+        original.to_owned(),
+        original
+            .replace("const B:i32=70", "const B:i32=80")
+            .replace("-213", "-223"),
+        original
+            .replace("const A:i32=40", "const A:i32=41")
+            .replace("-213", "-214"),
+        original.to_owned(),
+    ] {
+        let dir = std::env::temp_dir().join(format!(
+            "g231-warm-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let executable = dir.join("program");
+        let report = session.compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: zil_driver::NativeBackend::Clang,
+                optimization: Optimization::O0,
+                output: Some(executable.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.verification_runs >= 1, "{}", report.to_json());
+        let output = Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(0), "{text}: {output:?}");
+        fs::remove_dir_all(dir).unwrap();
+    }
+    for width in [32, 64] {
+        let report = compile_source(
+            &source(
+                "trait C{const A:usize;const B:usize=Self.A+1usize;}struct P{}impl C for P{const A:usize=4294967295usize;}fn main(){}",
+            ),
+            &CompileOptions {
+                target: zil_base::TargetProfile {
+                    pointer_width: width,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            if width == 32 {
+                ResultCategory::SafeReject
+            } else {
+                ResultCategory::Success
+            },
+            "{}",
+            report.to_json()
+        );
+    }
+    let outside = compile_project(
+        &project(&[
+            (
+                "main",
+                "import api;struct P{}impl api.C for P{const A:i32=41;}fn main(){}",
+            ),
+            ("api", "pub trait C{const A:i32;const B:i32=Self.A+1;}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        outside.status,
+        ResultCategory::Unsupported,
+        "{}",
+        outside.to_json()
+    );
+    assert!(
+        outside
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("cross-module constant witness")),
+        "{}",
+        outside.to_json()
+    );
+    let closed = compile_project(
+        &project(&[
+            (
+                "main",
+                "import api;struct P{}impl api.C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+            ),
+            ("api", "pub trait C{const A:i32;const B:i32=42;}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        closed.status,
+        ResultCategory::Success,
+        "{}",
+        closed.to_json()
+    );
+}
+
+#[test]
 fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_kernel_boundary() {
     let files = [
         (

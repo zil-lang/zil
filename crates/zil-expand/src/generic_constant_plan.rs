@@ -3,11 +3,27 @@ use super::*;
 use crate::associated_constants::{Equation, Instance, Plan, Source};
 use crate::ct_selection::{Visitor, walk_expression, walk_type};
 
-pub(super) fn scalar(ty: &TypeRef) -> bool {
-    matches!(&grouped(ty).kind, TypeKind::Named { path, args }
-        if args.is_empty() && path.len() == 1 && matches!(path[0].as_str(),
-        "bool"|"u8"|"u16"|"i32"|"i64"|"u64"|"usize"|"f32"|"f64"))
+pub(super) fn scalar(mut ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
+    let mut depth = 0;
+    loop {
+        budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Group(inner) => {
+                ty = inner;
+                depth += 1;
+            }
+            TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
+                budget.text(&path[0], ty.span)?;
+                return Ok(matches!(
+                    path[0].as_str(),
+                    "bool" | "u8" | "u16" | "i32" | "i64" | "u64" | "usize" | "f32" | "f64"
+                ));
+            }
+            _ => return Ok(false),
+        }
+    }
 }
+
 fn self_object(mut value: &Expr) -> bool {
     while let ExprKind::Group(inner) = &value.kind {
         value = inner;
@@ -62,7 +78,7 @@ impl Visitor for Dependencies<'_, '_, '_> {
                             )]
                         })?;
                         self.budget.ty(ty).map_err(|e| vec![e])?;
-                        if !scalar(ty) {
+                        if !scalar(ty, self.budget).map_err(|e| vec![e])? {
                             return Err(vec![unsupported(
                                 ty.span,
                                 "Self-dependent constants require existing explicit scalar types",
@@ -168,16 +184,22 @@ fn prepare_inner(module: &Module, width: u16, limits: &Limits) -> R<Plan> {
                     "Self-dependent constants in generic or inherited traits require a later instance bridge",
                 ));
             }
-            let required = declaration
-                .members
-                .iter()
-                .find_map(|m| match &m.kind {
-                    ItemKind::Const(r) if r.name == c.name => r.ty.as_ref(),
-                    _ => None,
-                })
-                .ok_or_else(|| error(member.span, "constant declaration is absent"))?;
+            let mut required = None;
+            for candidate in &declaration.members {
+                engine.budget.node(candidate.span, 0)?;
+                if let ItemKind::Const(declared) = &candidate.kind {
+                    engine.budget.text(&declared.name, candidate.span)?;
+                    engine.budget.text(&c.name, member.span)?;
+                    if declared.name == c.name {
+                        required = declared.ty.as_ref();
+                        break;
+                    }
+                }
+            }
+            let required =
+                required.ok_or_else(|| error(member.span, "constant declaration is absent"))?;
             engine.budget.ty(required)?;
-            if !scalar(required) {
+            if !scalar(required, &mut engine.budget)? {
                 return Err(unsupported(
                     member.span,
                     "Self-dependent constants require existing explicit scalar types",
@@ -260,7 +282,7 @@ fn prepare_inner(module: &Module, width: u16, limits: &Limits) -> R<Plan> {
                 c.ty.as_ref()
                     .ok_or_else(|| error(member.span, "constant declared type absent"))?;
             engine.budget.ty(ty)?;
-            if !scalar(ty) {
+            if !scalar(ty, &mut engine.budget)? {
                 return Err(unsupported(
                     member.span,
                     "a Self-dependent instance requires existing scalar equations",
