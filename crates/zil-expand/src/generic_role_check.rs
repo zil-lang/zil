@@ -41,6 +41,14 @@ pub(super) struct Scope<'a> {
 }
 impl<'a> Scope<'a> {
     pub(super) fn new(source: &'a Function, callable: bool, budget: &mut Budget<'_>) -> R<Self> {
+        // A declaration without a callable role cannot have a role-local
+        // class scope. Do not scan or charge its generic list for that query.
+        if !callable {
+            return Ok(Self {
+                source,
+                active: false,
+            });
+        }
         budget.identity_work(source.generics.len(), source.span)?;
         let has_life = source
             .generics
@@ -494,4 +502,35 @@ pub(super) fn reject_callee_context(function: &Function, budget: &mut Budget<'_>
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_storage_role_binders_survive_without_a_direct_address_relation() {
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0),
+            zil_base::ModuleId(0),
+            "role-binders.zil",
+            "fn invoke<F:for<life a>Fn(Tag<'a>)->i32>(f:&F,value:i32)->i32{return value}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let ItemKind::Function(function) = &syntax.items[0].kind else {
+            panic!("source function");
+        };
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let classified = callable::template(function, &mut budget).unwrap().unwrap();
+        let role = &classified.roles[0];
+        assert!(role.life.is_none());
+        assert!(role.has_role_binders);
+        // The actual role-frame consumer must still discover this binder.
+        assert!(
+            Frame::new(&role.generic_name, function, &mut budget, function.span)
+                .unwrap()
+                .is_some()
+        );
+    }
 }

@@ -3682,7 +3682,10 @@ impl Check<'_, '_, '_> {
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
-                    let mut role_frame = if let Some(bound) = bound {
+                    // Flat callable headers have no role binders to look up.
+                    // Use the actual header shape, not the direct-address life
+                    // relation, which does not describe nested storage classes.
+                    let mut role_frame = if let Some(bound) = bound.filter(|b| b.has_role_binders) {
                         role_check::Frame::new(
                             &bound.generic_name,
                             self.class_scope.source,

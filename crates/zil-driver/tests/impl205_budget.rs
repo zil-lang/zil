@@ -75,23 +75,30 @@ fn boundary(label: &str, source: &str) -> usize {
 
 #[test]
 fn actual_types_boundaries_cover_new_state_and_legacy_controls() {
+    let mut measured = Vec::new();
     for (label, source) in [
         ("old-state", OLD_STATE),
         ("ordinary-eager", EAGER),
         ("replacement", NEW),
     ] {
         let expected = match label {
-            "old-state" => 5584,
+            // Previous 5584/4809/2938 remain historical measurements. New
+            // callable inventory, life/signature snapshots and non-scalar
+            // owning-address classification are paid; see G10.1.5 notes.
+            "old-state" => 5624,
             "ordinary-eager" => 88,
-            "replacement" => 4809,
+            "replacement" => 4868,
             _ => unreachable!(),
         };
-        assert_eq!(boundary(label, source), expected, "{label}");
+        measured.push((label, boundary(label, source), expected));
+    }
+    for (label, actual, expected) in measured {
+        assert_eq!(actual, expected, "{label}");
     }
 }
 
 #[test]
 fn actual_types_boundary_covers_refreshed_alias_and_continue_snapshots() {
     let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn recycle<F:Fn()->i32>(state:State<F>)->State<F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a;continue}view();return next}fn main(){}";
-    assert_eq!(boundary("loop-refresh-continue", source), 2938);
+    assert_eq!(boundary("loop-refresh-continue", source), 2939);
 }
