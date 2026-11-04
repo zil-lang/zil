@@ -183,8 +183,23 @@ pub(super) fn reserve_enum_metadata(
                 }
             }
         }
-        Type::Task { result: element }
-        | Type::Array { element, .. }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            if retained_life.binder_count != 0
+                || !retained_life.ports.is_empty()
+                || !retained_life.retained.is_empty()
+                || !retained_life.nominal_arguments.is_empty()
+            {
+                return unsupported(
+                    "borrowed Task native frame mapping is not implemented",
+                    None,
+                );
+            }
+            reserve_enum_metadata(result, work, depth + 1, limits)?;
+        }
+        Type::Array { element, .. }
         | Type::Slice { element }
         | Type::Registration {
             environment: element,
