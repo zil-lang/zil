@@ -1310,8 +1310,10 @@ pub struct ClosureDefinition {
     pub parameters: Vec<Type>,
     pub result: Type,
     pub kind: CallableKind,
-    /// Sorted unique capture positions that own storage borrowed by the result.
-    /// Distinct from external captured Address/Desc targets and ordinary parameters.
+    /// Sorted unique source capture positions used by the returned borrow.
+    /// May select inline owned storage or a qualified direct owning-base Address;
+    /// each actual target and parent loan is independently reconstructed. This
+    /// does not make arbitrary captured Address/Desc or ordinary parameters eligible.
     pub lending_captures: Vec<u32>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
