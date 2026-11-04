@@ -868,6 +868,11 @@ pub(super) fn preflight(
                         super::borrowed_fp::work(life),
                         "borrowed function pointer relation",
                     )?;
+                    // Bound the complete raw signature before recursive eligibility.
+                    for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                        super::stored_flow::shape_work(ty, limits, budget)?;
+                    }
+                    super::borrowed_fp::signature_work(parameters, result, budget)?;
                     super::borrowed_fp::relation(parameters, result, life)?;
                     pending.push((result, depth + 1, store_element, None, false, child));
                     for parameter in parameters {

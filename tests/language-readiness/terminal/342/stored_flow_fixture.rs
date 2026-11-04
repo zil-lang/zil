@@ -557,3 +557,118 @@ pub(super) fn wide_shared(width: usize) -> TypedModule {
     fields.extend(vec![ValueId(3); width]);
     m
 }
+
+#[allow(dead_code)]
+pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
+    let mut m = phantom();
+    let marker = m.life_instances[0].ty.clone();
+    let classes = |base: StorageBase, binder: StorageBinder| SignatureLifeClassBinding {
+        position: SignatureLifeClass {
+            base,
+            path: vec![],
+            class: 0,
+        },
+        binder,
+    };
+    let mut require = function(
+        0,
+        vec![marker.clone(), marker.clone()],
+        Type::I32,
+        vec![Type::I32],
+        vec![instruction(
+            Some(0),
+            InstructionKind::Constant(Constant::I32(42)),
+        )],
+        0,
+    );
+    require.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 1,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        classes: vec![
+            classes(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            classes(StorageBase::Parameter(1), StorageBinder::Fixed(0)),
+        ],
+    });
+    let pointer_life = StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![],
+        classes: vec![
+            classes(StorageBase::Parameter(0), StorageBinder::Invocation(0)),
+            classes(StorageBase::Parameter(1), StorageBinder::Invocation(0)),
+        ],
+    };
+    let pointer = Type::BorrowedFunctionPointer {
+        parameters: vec![marker.clone(), marker.clone()],
+        result: Box::new(Type::I32),
+        life: pointer_life,
+    };
+    let mut body = vec![
+        instruction(Some(0), InstructionKind::Load(LocalId(0))),
+        instruction(Some(1), InstructionKind::Load(LocalId(1))),
+        instruction(Some(2), InstructionKind::Constant(Constant::I32(42))),
+        instruction(
+            Some(3),
+            InstructionKind::MakeAggregate {
+                fields: vec![ValueId(2)],
+            },
+        ),
+        instruction(
+            Some(5),
+            InstructionKind::MakeAggregate {
+                fields: vec![ValueId(2)],
+            },
+        ),
+    ];
+    if indirect {
+        body.push(instruction(
+            Some(7),
+            InstructionKind::FunctionRef {
+                function: FunctionId(0),
+            },
+        ));
+    }
+    let call = |arguments: Vec<ValueId>| {
+        if indirect {
+            InstructionKind::CallIndirect {
+                callee: ValueId(7),
+                arguments,
+            }
+        } else {
+            InstructionKind::Call {
+                function: FunctionId(0),
+                arguments,
+            }
+        }
+    };
+    body.push(instruction(Some(4), call(vec![ValueId(0), ValueId(3)])));
+    body.push(instruction(
+        Some(6),
+        call(vec![ValueId(1), ValueId(if reuse { 3 } else { 5 })]),
+    ));
+    let mut values = vec![
+        marker.clone(),
+        marker.clone(),
+        Type::I32,
+        marker.clone(),
+        Type::I32,
+        marker.clone(),
+        Type::I32,
+    ];
+    if indirect {
+        values.push(pointer);
+    }
+    let mut caller = function(1, vec![marker.clone(), marker], Type::I32, values, body, 6);
+    caller.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 0,
+        bindings: vec![],
+        classes: vec![
+            classes(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            classes(StorageBase::Parameter(1), StorageBinder::Fixed(1)),
+        ],
+    });
+    m.functions = vec![require, caller];
+    m
+}
