@@ -876,3 +876,67 @@ fn terminal342_hrtb_raw_mixed_headers_preflight_before_recursive_relation() {
         );
     }
 }
+
+#[test]
+fn terminal342_hrtb_project_identity_uses_remaining_type_budget() {
+    let api = "pub fn invoke<F:for<life a> Fn(&'a i64)->&'a i64>(f:&F,p:&i64)->&i64{return f(p)}";
+    let main =
+        "import api;fn main()->i64{let n:i64=42;let f=(p:&i64)=>p;return *api.invoke(&f,&n)}";
+    let units = vec![
+        SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
+        SourceUnit::new(FileId(1), ModuleId(1), "api.zil", api),
+    ];
+    let syntax = units
+        .iter()
+        .map(|u| zil_syntax::parse(u).into_result().unwrap())
+        .collect::<Vec<_>>();
+    let imports = vec![
+        vec![zil_ir::CoreImport {
+            alias: "api".into(),
+            module: ModuleId(1),
+            span: syntax[0].items[0].span,
+        }],
+        vec![],
+    ];
+    let expanded = zil_expand::expand_program_with_limits(
+        &units,
+        &syntax.iter().collect::<Vec<_>>(),
+        &imports,
+        &Limits::default(),
+    )
+    .unwrap();
+    let program = zil_ir::CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: zil_base::Fingerprint::of(format!("{main}\n{api}").as_bytes()),
+        modules: expanded.into_iter().map(|(m, _)| m).collect(),
+    };
+    let n = hrtb_boundary(Phase::Types, |n| {
+        zil_types::check_program(
+            &program,
+            &TargetProfile::default(),
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    });
+    let typed =
+        zil_types::check_program(&program, &TargetProfile::default(), &Limits::default()).unwrap();
+    assert!(typed.module.functions.iter().any(|f| {
+        f.callable_contract
+            .as_ref()
+            .is_some_and(|c| c.roles.iter().any(|r| r.life.is_some()))
+    }));
+    let plan = zil_analyze::analyze(&typed.module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.module.clone(),
+        plan.clone(),
+        &typed.module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes =
+        zil_ir::wire::encode_module_candidate(&typed.module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &typed.module.target, &Limits::default()).unwrap();
+    println!("342 HRTB project identity Types N={n}; N-1 ResourceLimit and fresh N identical");
+}

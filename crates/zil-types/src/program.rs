@@ -435,7 +435,8 @@ pub(super) fn check_resolved_program_with_reuse(
             target,
             &module.closures,
             &module.functions,
-        );
+            &mut remaining,
+        )?;
     }
     Ok(TypedProgram {
         module,
@@ -482,7 +483,8 @@ fn interface_fingerprint(
     target: &TargetProfile,
     closures: &[ClosureDefinition],
     functions: &[TypedFunction],
-) -> Fingerprint {
+    remaining: &mut usize,
+) -> CompileResult<Fingerprint> {
     let mut bytes = b"ZIL-SCALAR-INTERFACE-2\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
@@ -522,10 +524,37 @@ fn interface_fingerprint(
             }
         }
     }
+    let exhausted = || {
+        vec![Diagnostic::limit(
+            Phase::Types,
+            "export relation identity work exceeded",
+            None,
+        )]
+    };
+    *remaining = remaining.checked_sub(exports.len()).ok_or_else(exhausted)?;
     for export in exports {
         if let Some(contract) = &functions[export.function.0 as usize].callable_contract {
+            *remaining = remaining
+                .checked_sub(contract.roles.len())
+                .ok_or_else(exhausted)?;
             for role in &contract.roles {
                 if let Some(life) = &role.life {
+                    // Reserve appended bytes and their subsequent hash pass.
+                    // One tag uses at most one presence byte and four index bytes.
+                    let tags = life
+                        .parameter_lives
+                        .len()
+                        .checked_add(1)
+                        .and_then(|n| n.checked_mul(5))
+                        .ok_or_else(exhausted)?;
+                    let serialized = b"HRTB-CALL-1\0"
+                        .len()
+                        .checked_add(8 + 4 + 4 + 8)
+                        .and_then(|n| n.checked_add(export.name.len()))
+                        .and_then(|n| n.checked_add(tags))
+                        .and_then(|n| n.checked_mul(2))
+                        .ok_or_else(exhausted)?;
+                    *remaining = remaining.checked_sub(serialized).ok_or_else(exhausted)?;
                     bytes.extend_from_slice(b"HRTB-CALL-1\0");
                     bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
                     bytes.extend_from_slice(export.name.as_bytes());
@@ -546,7 +575,7 @@ fn interface_fingerprint(
             }
         }
     }
-    Fingerprint::of(&bytes)
+    Ok(Fingerprint::of(&bytes))
 }
 fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition]) {
     match ty {
