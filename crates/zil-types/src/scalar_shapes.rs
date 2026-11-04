@@ -278,6 +278,11 @@ mod tests {
                 imports: vec![],
                 exports: vec![],
                 core: CoreModule {
+                    dyn_declarations: Vec::new(),
+                    dyn_interfaces: Vec::new(),
+                    dyn_vtables: Vec::new(),
+                    life_declarations: Vec::new(),
+                    life_instances: Vec::new(),
                     aggregate_templates: Vec::new(),
                     aggregate_applications: Vec::new(),
                     schema_version: SCHEMA_VERSION,
@@ -287,6 +292,7 @@ mod tests {
                     enums: vec![],
                     unsupported: vec![],
                     functions: vec![CoreFunction {
+                        storage_life: None,
                         call_kind: None,
                         life: None,
                         id: NodeId(1),

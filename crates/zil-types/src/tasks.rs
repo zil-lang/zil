@@ -444,6 +444,7 @@ mod terminal343_snapshot_budget {
     use super::*;
     fn function(ty: Type) -> TypedFunction {
         TypedFunction {
+            storage_life: None,
             call_kind: CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
