@@ -102,6 +102,15 @@ impl Check<'_, '_, '_> {
         self.work(f, span)?;
         Ok(f.clone())
     }
+    fn lookup(&mut self, entries: usize, width: usize, span: Span) -> R<()> {
+        self.pay(
+            span,
+            entries
+                .saturating_add(1)
+                .saturating_mul(width.saturating_add(1))
+                .saturating_mul(2),
+        )
+    }
     fn environment(&mut self, env: &Facts, span: Span) -> R<Facts> {
         for (name, f) in env {
             self.budget.text(name, span)?;
@@ -152,6 +161,87 @@ impl Check<'_, '_, '_> {
         }
         self.pay(span, 1)?;
         Ok(Some(Fact::Named(Head::Declaration(host), args)))
+    }
+    fn unknown_type(&mut self, ty: &TypeRef, scope: &Scope<'_>, depth: usize) -> R<Fact> {
+        struct Free<'a, 'b, 'c, 'd, 'l> {
+            check: &'a mut Check<'b, 'c, 'l>,
+            scope: &'d Scope<'d>,
+            local: Vec<String>,
+            found: bool,
+        }
+        impl crate::ct_selection::Visitor for Free<'_, '_, '_, '_, '_> {
+            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                self.check.budget.node(span, depth).map_err(|e| vec![e])
+            }
+            fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+                self.check.budget.text(text, span).map_err(|e| vec![e])
+            }
+            fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+                if let TypeKind::ForLifetime { lifetime, inner } = &ty.kind {
+                    self.check
+                        .budget
+                        .node(ty.span, depth)
+                        .map_err(|e| vec![e])?;
+                    self.check
+                        .budget
+                        .text(lifetime, ty.span)
+                        .map_err(|e| vec![e])?;
+                    self.local.push(lifetime.clone());
+                    self.ty(inner, depth + 1)?;
+                    self.local.pop();
+                    return Ok(());
+                }
+                let mut names = Vec::new();
+                match &ty.kind {
+                    TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                        for arg in args {
+                            self.check
+                                .budget
+                                .node(ty.span, depth)
+                                .map_err(|e| vec![e])?;
+                            if let GenericArg::Lifetime(name) = arg {
+                                names.push(name.as_str());
+                            }
+                        }
+                    }
+                    TypeKind::Reference {
+                        lifetime: Some(name),
+                        ..
+                    } => names.push(name.as_str()),
+                    _ => {}
+                }
+                for name in names {
+                    self.check
+                        .lookup(self.local.len(), name.len(), ty.span)
+                        .map_err(|e| vec![e])?;
+                    if !self.local.iter().any(|local| local == name)
+                        && self
+                            .check
+                            .binder(self.scope, name, ty.span)
+                            .map_err(|e| vec![e])?
+                            .is_some_and(|(_, life)| life)
+                    {
+                        self.found = true;
+                    }
+                }
+                crate::ct_selection::walk_type(self, ty, depth)
+            }
+        }
+        use crate::ct_selection::Visitor;
+        let mut visit = Free {
+            check: self,
+            scope,
+            local: Vec::new(),
+            found: false,
+        };
+        visit.ty(ty, depth).map_err(|mut e| e.remove(0))?;
+        if visit.found {
+            return Err(unsupported(
+                ty.span,
+                "source lifetime-bearing type constructor requires its complete class consumer",
+            ));
+        }
+        Ok(Fact::Unknown)
     }
     fn ty(&mut self, ty: &TypeRef, scope: &Scope<'_>, depth: usize) -> R<Fact> {
         self.budget.node(ty.span, depth)?;
@@ -215,8 +305,8 @@ impl Check<'_, '_, '_> {
                 }
                 Fact::Function(out, Box::new(self.ty(result, scope, depth + 1)?))
             }
-            // Independently quantified Code has its own binder scope and consumer.
-            _ => Fact::Unknown,
+            // Closed quantified Code has a distinct local binder domain.
+            _ => self.unknown_type(ty, scope, depth + 1)?,
         })
     }
     fn head(&mut self, path: &[String], span: Span) -> R<Head> {
@@ -296,10 +386,13 @@ impl Check<'_, '_, '_> {
         self.fact(span, |this| {
             this.work(f, span)?;
             Ok(match f {
-                Fact::Class(b) | Fact::Parameter(b) => match map.get(b) {
-                    Some(f) => this.copy(f, span)?,
-                    None => Fact::Unknown,
-                },
+                Fact::Class(b) | Fact::Parameter(b) => {
+                    this.lookup(map.len(), 2, span)?;
+                    match map.get(b) {
+                        Some(f) => this.copy(f, span)?,
+                        None => Fact::Unknown,
+                    }
+                }
                 Fact::Named(path, fs) => {
                     let mut out = Vec::new();
                     for f in fs {
@@ -354,7 +447,30 @@ impl Check<'_, '_, '_> {
     ) -> R<()> {
         self.work(formal, span)?;
         self.work(actual, span)?;
+        if invariant {
+            self.work(formal, span)?;
+        }
         match (formal, actual) {
+            (f, Fact::Unknown) if invariant && f.has_class() => {
+                return Err(unsupported(
+                    span,
+                    "source class inference requires the complete actual qualified type",
+                ));
+            }
+            (Fact::Class(b), actual) if !invariant => {
+                // Ordinary borrow uppers may admit an intersection. Keep an
+                // actual single-input map, but never select one of several
+                // distinct declared inputs as a retained nominal class.
+                self.pay(span, map.len().saturating_add(1))?;
+                if let Some(prior) = map.get(b) {
+                    let same = matches!((prior,actual),(Fact::Class(a),Fact::Class(b)) if a==b);
+                    if !same {
+                        map.insert(*b, Fact::Unknown);
+                    }
+                } else {
+                    map.insert(*b, self.copy(actual, span)?);
+                }
+            }
             (Fact::Class(_), Fact::Unknown) if invariant => {
                 return Err(unsupported(
                     span,
@@ -388,7 +504,7 @@ impl Check<'_, '_, '_> {
                 }
             }
             (Fact::Address(f, fi), Fact::Address(x, xi)) => {
-                if invariant && let (Some(f), Some(x)) = (f, x) {
+                if let (Some(f), Some(x)) = (f, x) {
                     self.infer(f, x, map, span, invariant)?;
                 }
                 self.infer(fi, xi, map, span, invariant)?;
@@ -399,6 +515,12 @@ impl Check<'_, '_, '_> {
                     self.infer(f, x, map, span, invariant)?;
                 }
                 self.infer(fr, xr, map, span, invariant)?;
+            }
+            (f, _) if invariant && f.has_class() => {
+                return Err(unsupported(
+                    span,
+                    "source class inference cannot omit a qualified parameter relation",
+                ));
             }
             _ => {}
         }
@@ -411,6 +533,7 @@ impl Check<'_, '_, '_> {
         match &p.kind {
             PatternKind::Name(name) => {
                 self.budget.text(name, p.span)?;
+                self.lookup(env.len(), name.len(), p.span)?;
                 env.insert(name.clone(), self.copy(fact, p.span)?);
             }
             PatternKind::Tuple(ps) => {
@@ -464,7 +587,7 @@ impl Check<'_, '_, '_> {
         };
         let mut map = Substitutions::new();
         for (ordinal, actual) in actuals.iter().enumerate() {
-            self.pay(span, 1)?;
+            self.lookup(map.len(), 2, span)?;
             map.insert(Binder(scope.owner, ordinal), self.copy(actual, span)?);
         }
         for field in &declaration.fields {
@@ -489,6 +612,7 @@ impl Check<'_, '_, '_> {
         let actual = match &e.kind {
             ExprKind::Name(name) => {
                 self.budget.text(name, e.span)?;
+                self.lookup(env.len(), name.len(), e.span)?;
                 match env.get(name) {
                     Some(f) => self.copy(f, e.span)?,
                     None => Fact::Unknown,
@@ -541,6 +665,7 @@ impl Check<'_, '_, '_> {
                 };
                 for field in fields {
                     if let Some(value) = &field.value {
+                        self.budget.text(&field.name, field.span)?;
                         let hint = self.field(
                             &record,
                             &MemberName::Name(field.name.clone()),
@@ -600,8 +725,26 @@ impl Check<'_, '_, '_> {
                 Fact::Unknown
             }
             ExprKind::MetaBlock(block) => {
-                self.block(block, scope, env, None, depth + 1)?;
-                Fact::Unknown
+                self.budget.node(block.span, depth + 1)?;
+                let mut local = self.environment(env, block.span)?;
+                let mut output = None;
+                for statement in &block.statements {
+                    if let StmtKind::Yield(value) = &statement.kind {
+                        let f = self.expr(
+                            value,
+                            scope,
+                            &mut local,
+                            wanted.or(output.as_ref()),
+                            depth + 2,
+                        )?;
+                        if output.is_none() {
+                            output = Some(f);
+                        }
+                    } else {
+                        self.statement(statement, scope, &mut local, None, depth + 2)?;
+                    }
+                }
+                output.unwrap_or(Fact::Unknown)
             }
             ExprKind::Member { object, member } => {
                 let object = self.expr(object, scope, env, None, depth + 1)?;
@@ -650,6 +793,9 @@ impl Check<'_, '_, '_> {
                     _ => (None, None),
                 };
                 let mut output = Fact::Unknown;
+                if let Some(name) = root {
+                    self.lookup(env.len(), name.len(), e.span)?;
+                }
                 if let Some(name) = root.filter(|name| !env.contains_key(*name)) {
                     for owner in 0..self.functions.len() {
                         self.pay(e.span, 1)?;
@@ -678,7 +824,7 @@ impl Check<'_, '_, '_> {
                             {
                                 if let GenericArg::Type(t) = arg {
                                     let fact = self.ty(t, scope, depth + 1)?;
-                                    self.pay(e.span, 1)?;
+                                    self.lookup(map.len(), 2, e.span)?;
                                     map.insert(Binder(owner, ordinal), fact);
                                 }
                             }
@@ -690,19 +836,11 @@ impl Check<'_, '_, '_> {
                             .transpose()?;
                         let mut formals = Vec::new();
                         let mut invariant = false;
-                        if let Some(result) = &result {
-                            self.work(result, e.span)?;
-                            invariant |= result.has_class();
-                        }
                         for p in &f.params {
                             let f = self.ty(&p.ty, &definition, depth + 1)?;
                             self.work(&f, e.span)?;
                             invariant |= f.has_class();
                             formals.push(f);
-                        }
-                        for actual in &actuals {
-                            self.work(actual, e.span)?;
-                            invariant |= actual.has_class();
                         }
                         for (formal, actual) in formals.iter().zip(&actuals) {
                             self.infer(formal, actual, &mut map, e.span, invariant)?;
@@ -753,6 +891,7 @@ impl Check<'_, '_, '_> {
                             .transpose()?
                             .unwrap_or(Fact::Unknown);
                     self.budget.text(&p.name, p.span)?;
+                    self.lookup(child.len(), p.name.len(), p.span)?;
                     child.insert(p.name.clone(), f);
                 }
                 let output = return_type
@@ -1032,6 +1171,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         for p in &f.params {
             let fact = check.ty(&p.ty, &scope, 0)?;
             check.budget.text(&p.name, p.span)?;
+            check.lookup(env.len(), p.name.len(), p.span)?;
             env.insert(p.name.clone(), fact);
         }
         let result = f

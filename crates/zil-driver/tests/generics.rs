@@ -2110,6 +2110,7 @@ fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
         "Phantom::<'CLASS>{n:42}",
         "#(Phantom::<'CLASS>{n:scalar(i32,42)})",
         "#((Phantom::<'a>{n:scalar(i32,0)},Phantom::<'CLASS>{n:scalar(i32,42)}).1)",
+        "#(#{yield Phantom::<'CLASS>{n:scalar(i32,42)}})",
     ];
     for constructor in constructors {
         for intermediate in [false, true] {
@@ -2183,22 +2184,26 @@ fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
 #[test]
 fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
     let prefix = "struct Phantom<life s>{n:i32}type Id<T>=T;struct Reader{}";
-    for (good, bad) in [
+    for (good, bad, executable) in [
         (
             "let x:Id<Phantom<'a>>=Phantom::<'a>{n:42};return x.n",
             "let x:Id<Phantom<'a>>=Phantom::<'b>{n:42};return x.n",
+            true,
         ),
         (
             "let values=[Phantom::<'a>{n:42}];let x:Phantom<'a>=values[0];return x.n",
             "let values=[Phantom::<'b>{n:42}];let x:Phantom<'a>=values[0];return x.n",
+            false,
         ),
         (
             "var x=Phantom::<'a>{n:0};x=Phantom::<'a>{n:42};return x.n",
             "var x=Phantom::<'a>{n:0};x=Phantom::<'b>{n:42};return x.n",
+            true,
         ),
         (
             "let pair=(0,Phantom::<'a>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
             "let pair=(0,Phantom::<'b>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
+            false,
         ),
     ] {
         for (body, expected) in [
@@ -2206,10 +2211,33 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
             (bad, ResultCategory::SafeReject),
         ] {
             let text = format!(
-                "{prefix}fn value<T:Copy,life a,life b>(pad:T,pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value::<i32>(0,&a,&b)}}"
+                "{prefix}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
             );
-            let report = compile_source(&source(&text), &CompileOptions::default());
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    stop_after: if executable {
+                        Stage::Verify
+                    } else {
+                        Stage::Core
+                    },
+                    ..Default::default()
+                },
+            );
             assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::Success && executable {
+                terminal_native_profiles(&text, "main", 42);
+            }
+            if expected == ResultCategory::Success && !executable {
+                let full = compile_source(&source(&text), &CompileOptions::default());
+                assert_eq!(
+                    full.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    full.to_json()
+                );
+                assert_eq!(full.phase, Phase::Types, "{}", full.to_json());
+            }
             if expected == ResultCategory::SafeReject {
                 assert!(
                     report
@@ -2243,6 +2271,22 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
                     "{}",
                     report.to_json()
                 );
+            } else if host.contains('<') {
+                // Existing generic-host method emission is a separate consumer
+                // fence; the class check itself must not reject equal classes.
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Unsupported,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    report.diagnostics.iter().any(|d| d
+                        .message
+                        .contains("generic resource or methods require capability resolution")),
+                    "{}",
+                    report.to_json()
+                );
             } else {
                 assert_eq!(
                     report.status,
@@ -2262,4 +2306,54 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
         report.to_json()
     );
     terminal_native_profiles(reborrow, "main", 42);
+}
+
+#[test]
+fn g3_3_1_full_nominal_ordinals_and_enclosing_method_life_are_not_class_zero() {
+    for actual in ["a", "b"] {
+        let text = format!(
+            "struct Phantom<T,life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<i32,'a>=Phantom::<i32,'{actual}>{{n:42}};return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        if actual == "a" {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            terminal_native_profiles(&text, "main", 42);
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("distinct declared lifetime classes")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    let wrong = "struct Phantom<life s>{n:i32}struct Reader<life outer>{fn bad<life inner>(self:Self,p:&'inner i32)->i32{let x:Phantom<'outer>=Phantom::<'inner>{n:42};return x.n}}fn main()->i32{return 0}";
+    let report = compile_source(&source(wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
 }
