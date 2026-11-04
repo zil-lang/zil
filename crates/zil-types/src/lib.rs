@@ -1667,19 +1667,54 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.inject_error_union(value, actual, union, e.span)
     }
     fn expr_non_call(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
-        let result = match &e.kind {
-            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
-                return Err(unsupported(
-                    e.span,
-                    "dyn expression consumer is not yet implemented",
-                ));
+        // These variants historically return before the common expected-type
+        // comparison. Preserve that behavior while keeping recursive dispatch
+        // free of unrelated literal/member temporary storage.
+        match &e.kind {
+            CoreExprKind::Name(..) => return self.scalar_expr_name(e, expected),
+            CoreExprKind::NumericConvert { value, target } => {
+                return self.numeric_conversion(value, target, expected, e.span);
             }
-            CoreExprKind::Literal(value) => {
-                foreign::check_literal(value, e.span)?;
-                self.constant(value.clone(), e.span)?
+            CoreExprKind::Binary {
+                op: BinaryOp::And,
+                left,
+                right,
+            } => {
+                return self.short_circuit(left, right, false, e.span);
             }
-            CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty))?,
-            CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected)?,
+            CoreExprKind::Binary {
+                op: BinaryOp::Or,
+                left,
+                right,
+            } => {
+                return self.short_circuit(left, right, true, e.span);
+            }
+            CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
+            CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
+            CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
+            CoreExprKind::Member { .. } => return self.expr_member_body(e, expected),
+            _ => {}
+        }
+        let result = self.expr_non_call_value(e, expected)?;
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, e.span)?
+        }
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_non_call_value(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        match &e.kind {
+            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => Err(
+                unsupported(e.span, "dyn expression consumer is not yet implemented"),
+            ),
+            CoreExprKind::Literal(_)
+            | CoreExprKind::Float(_)
+            | CoreExprKind::Integer(_)
+            | CoreExprKind::Bool(_)
+            | CoreExprKind::Unit => self.expr_literal_body(e, expected),
+            CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty)),
+            CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected),
             CoreExprKind::Try(operand) => {
                 if self.defer_body {
                     return Err(error(
@@ -1688,93 +1723,98 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "a defer body cannot propagate an error outside its cleanup boundary",
                     ));
                 }
-                self.try_expr(operand, e.span)?
+                self.try_expr(operand, e.span)
             }
-            CoreExprKind::Float(text) => {
-                self.closures
-                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
-                self.constant(floats::literal(text, expected, e.span)?, e.span)?
-            }
-            CoreExprKind::NumericConvert { value, target } => {
-                return self.numeric_conversion(value, target, expected, e.span);
-            }
-            CoreExprKind::Integer(text) => {
-                self.constant(integer(text, expected, false, e.span)?, e.span)?
-            }
-            CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span)?,
-            CoreExprKind::Unit => self.constant(Constant::Unit, e.span)?,
-            CoreExprKind::Name(..) => return self.scalar_expr_name(e, expected),
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
-            } => self.resource_give(operand, e.span)?,
+            } => self.resource_give(operand, e.span),
             CoreExprKind::Unary {
                 op: UnaryOp::Borrow,
                 operand,
-            } => self.borrow_place(operand)?,
+            } => self.borrow_place(operand),
             CoreExprKind::Unary {
                 op: UnaryOp::BorrowMut,
                 operand,
-            } => self.borrow_place_mode(operand, true)?,
+            } => self.borrow_place_mode(operand, true),
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
                 ..
-            } => self.scalar_expr_dereference(e, expected)?,
+            } => self.scalar_expr_dereference(e, expected),
             CoreExprKind::Unary {
                 op: UnaryOp::Negate,
                 operand,
             } if matches!(operand.kind, CoreExprKind::Integer(_)) => {
-                let CoreExprKind::Integer(text) = &operand.kind else {
-                    unreachable!()
-                };
-                self.constant(integer(text, expected, true, e.span)?, e.span)?
+                self.expr_literal_body(e, expected)
             }
-            CoreExprKind::Unary { .. } => self.scalar_expr_unary(e, expected)?,
-            CoreExprKind::Binary {
-                op: BinaryOp::And,
-                left,
-                right,
-            } => return self.short_circuit(left, right, false, e.span),
-            CoreExprKind::Binary {
-                op: BinaryOp::Or,
-                left,
-                right,
-            } => return self.short_circuit(left, right, true, e.span),
-            CoreExprKind::Binary { .. } => self.scalar_expr_binary(e, expected)?,
-            CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
-            CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
-            CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
-            CoreExprKind::Closure { .. } => self.scalar_expr_closure(e, expected)?,
-            CoreExprKind::Member { .. } if self.enum_constructor(e)?.is_some() => {
-                let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
-                return self.make_variant(&ty, variant, &[], expected, e.span);
-            }
-            CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
-                self.function_reference(e, expected)?
-            }
-            CoreExprKind::Member { object, .. }
-                if matches!(object.kind, CoreExprKind::Member { .. })
-                    && !self.package_captures.is_empty() =>
-            {
-                if let Some(value) = self.captured_product_copy_projection(e)? {
-                    value
-                } else {
-                    self.aggregate(e, expected)?
-                }
-            }
+            CoreExprKind::Unary { .. } => self.scalar_expr_unary(e, expected),
+            CoreExprKind::Binary { .. } => self.scalar_expr_binary(e, expected),
+            CoreExprKind::Closure { .. } => self.scalar_expr_closure(e, expected),
             CoreExprKind::Tuple(_)
             | CoreExprKind::Array(_)
             | CoreExprKind::Index { .. }
             | CoreExprKind::Record { .. }
-            | CoreExprKind::RecordUpdate { .. }
-            | CoreExprKind::Member { .. } => self.aggregate(e, expected)?,
-            CoreExprKind::Unsupported(feature) => return Err(unsupported(e.span, feature)),
-            _ => {
-                return Err(unsupported(
-                    e.span,
-                    "aggregate, closure, string or projection typing",
-                ));
+            | CoreExprKind::RecordUpdate { .. } => self.aggregate(e, expected),
+            CoreExprKind::Unsupported(feature) => Err(unsupported(e.span, feature)),
+            _ => Err(unsupported(
+                e.span,
+                "aggregate, closure, string or projection typing",
+            )),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_literal_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        match &e.kind {
+            CoreExprKind::Literal(value) => {
+                foreign::check_literal(value, e.span)?;
+                self.constant(value.clone(), e.span)
             }
+            CoreExprKind::Float(text) => {
+                self.closures
+                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
+                self.constant(floats::literal(text, expected, e.span)?, e.span)
+            }
+            CoreExprKind::Integer(text) => {
+                self.constant(integer(text, expected, false, e.span)?, e.span)
+            }
+            CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span),
+            CoreExprKind::Unit => self.constant(Constant::Unit, e.span),
+            CoreExprKind::Unary {
+                op: UnaryOp::Negate,
+                operand,
+            } => {
+                let CoreExprKind::Integer(text) = &operand.kind else {
+                    unreachable!()
+                };
+                self.constant(integer(text, expected, true, e.span)?, e.span)
+            }
+            _ => unreachable!("literal expression dispatcher"),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_member_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Member { object, .. } = &e.kind else {
+            unreachable!("member expression dispatcher")
+        };
+        if self.enum_constructor(e)?.is_some() {
+            let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
+            return self.make_variant(&ty, variant, &[], expected, e.span);
+        }
+        let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
+        {
+            self.function_reference(e, expected)?
+        } else if matches!(object.kind, CoreExprKind::Member { .. })
+            && !self.package_captures.is_empty()
+        {
+            if let Some(value) = self.captured_product_copy_projection(e)? {
+                value
+            } else {
+                self.aggregate(e, expected)?
+            }
+        } else {
+            self.aggregate(e, expected)?
         };
         if let Some(expected) = expected {
             self.same(&result.1, expected, e.span)?

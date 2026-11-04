@@ -1559,12 +1559,61 @@ impl Resolver<'_> {
     fn expr(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
+            CoreExprKind::Unary { operand, .. }
+            | CoreExprKind::CompileTime(operand)
+            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1),
+            CoreExprKind::Binary { left, right, .. } => self.expr_pair(left, right, depth + 1),
+            CoreExprKind::Index { object, index } => self.expr_pair(object, index, depth + 1),
+            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
+                self.expr_list(values, depth + 1)
+            }
+            CoreExprKind::Ascribed { .. }
+            | CoreExprKind::IntegerConvert { .. }
+            | CoreExprKind::NumericConvert { .. } => self.expr_variant_ascribed(e, depth),
+            CoreExprKind::Record { .. } => self.expr_variant_record(e, depth),
+            CoreExprKind::RecordUpdate { .. } => self.expr_variant_recordupdate(e, depth),
+            CoreExprKind::TypeApply { .. } => self.expr_variant_typeapply(e, depth),
+            CoreExprKind::Call { .. } => self.expr_variant_call(e, depth),
+            CoreExprKind::Slice { .. } => self.expr_variant_slice(e, depth),
+            CoreExprKind::Member { .. } => self.expr_variant_member(e, depth),
+            CoreExprKind::Sequence { .. } => self.expr_variant_sequence(e, depth),
+            CoreExprKind::Closure { .. } => self.expr_variant_closure(e, depth),
+            CoreExprKind::If { .. } => self.expr_variant_if(e, depth),
+            _ => Ok(()),
+        }
+    }
+
+    #[inline(never)]
+    fn expr_pair(&mut self, first: &mut CoreExpr, second: &mut CoreExpr, depth: usize) -> R<()> {
+        self.expr(first, depth)?;
+        self.expr(second, depth)
+    }
+
+    #[inline(never)]
+    fn expr_list(&mut self, values: &mut [CoreExpr], depth: usize) -> R<()> {
+        for value in values {
+            self.expr(value, depth)?;
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_ascribed(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
             | CoreExprKind::IntegerConvert { target: ty, value }
             | CoreExprKind::NumericConvert { target: ty, value } => {
                 *ty = self.ty(ty, depth + 1, e.span)?;
                 self.expr(value, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_record(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Record { ty, fields } => {
                 *ty = match self.ty(ty, depth + 1, e.span)? {
                     Type::Desc(payload) => Type::Managed(payload),
@@ -1574,6 +1623,14 @@ impl Resolver<'_> {
                     self.expr(v, depth + 1)?;
                 }
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_recordupdate(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 if let Some(t) = ty {
                     *t = self.ty(t, depth + 1, e.span)?;
@@ -1583,13 +1640,14 @@ impl Resolver<'_> {
                     self.expr(v, depth + 1)?;
                 }
             }
-            CoreExprKind::Unary { operand, .. }
-            | CoreExprKind::CompileTime(operand)
-            | CoreExprKind::Try(operand) => self.expr(operand, depth + 1)?,
-            CoreExprKind::Binary { left, right, .. } => {
-                self.expr(left, depth + 1)?;
-                self.expr(right, depth + 1)?;
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_typeapply(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
@@ -1599,39 +1657,70 @@ impl Resolver<'_> {
                 }
                 self.expr(callee, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_call(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Call { callee, arguments } => {
                 self.expr(callee, depth + 1)?;
                 for e in arguments {
                     self.expr(e, depth + 1)?;
                 }
             }
-            CoreExprKind::Index { object, index } => {
-                self.expr(object, depth + 1)?;
-                self.expr(index, depth + 1)?;
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_slice(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Slice { object, start, end } => {
                 self.expr(object, depth + 1)?;
                 for endpoint in [start, end].into_iter().flatten() {
                     self.expr(endpoint, depth + 1)?;
                 }
             }
-            CoreExprKind::Tuple(values) | CoreExprKind::Array(values) => {
-                for e in values {
-                    self.expr(e, depth + 1)?;
-                }
-            }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_member(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Member { object, owner, .. } => {
                 if let Some(ty) = owner {
                     *ty = self.ty(ty, depth + 1, e.span)?;
                 }
                 self.expr(object, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_sequence(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Sequence { bindings, value } => {
                 for (_, e) in bindings {
                     self.expr(e, depth + 1)?;
                 }
                 self.expr(value, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_closure(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::Closure {
                 parameters,
                 return_type,
@@ -1648,6 +1737,14 @@ impl Resolver<'_> {
                 }
                 self.block(body, depth + 1)?;
             }
+            _ => unreachable!("aggregate expression dispatcher"),
+        }
+        Ok(())
+    }
+
+    #[inline(never)]
+    fn expr_variant_if(&mut self, e: &mut CoreExpr, depth: usize) -> R<()> {
+        match &mut e.kind {
             CoreExprKind::If {
                 condition,
                 then_value,
@@ -1657,7 +1754,7 @@ impl Resolver<'_> {
                 self.expr(then_value, depth + 1)?;
                 self.expr(else_value, depth + 1)?;
             }
-            _ => {}
+            _ => unreachable!("aggregate expression dispatcher"),
         }
         Ok(())
     }
