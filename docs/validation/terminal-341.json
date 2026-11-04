@@ -732,6 +732,21 @@
       "actual Dyn source metadata and dynamic instructions",
       "independent Dyn safety/native consumers",
       "CT4 phantom source composition with344 pending combined checkpoint"
-    ]
+    ],
+    "known_regression": "34fc discovery Budget.item rejected pendingSyntaxIsland before materialization; corrected by8a22b6361"
+  },
+  "retained_original_lineage_correction": {
+    "production_files": 373,
+    "production_sha256": "61e0346e824639409b8c4eba6d046e1426565247da94fa108a480674b8cc47a0",
+    "correction": "8a22b6361 paid borrowed discovery visitor; no generic-clone admission during CT syntax discovery",
+    "checks": {
+      "expand_source_context": 5,
+      "driver_declaration_filter": 3,
+      "existing_ct_generic_type_return_record_reflection_and_syntax": 1,
+      "capture_work": 700,
+      "capture_nodes": 35,
+      "exact_N_N_minus_1": true
+    },
+    "scope": "same retained-original profile; selection/generated/member lineage and actualDyn remain open"
   }
 }
