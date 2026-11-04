@@ -162,7 +162,7 @@ impl<'a> Budget<'a> {
     fn ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
         self.depth(depth, span)?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.ty(field, depth + 1, span)?;
                 }
@@ -184,7 +184,7 @@ impl<'a> Budget<'a> {
             "CT source temporary type bytes exhausted",
         )?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.copy_ty(field, depth + 1, span)?;
                 }
