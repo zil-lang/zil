@@ -169,12 +169,15 @@ fn closed(
             .functions
             .get(id.0 as usize)
             .ok_or_else(|| fail(span, "registration actual code target is absent"))?;
+        if f.call_kind != CallKind::Direct {
+            return Err(fail(span, "retained callback target selects Suspend ABI"));
+        }
         for b in &f.blocks {
             budget.spend(1, "registration Direct block")?;
             for i in &b.instructions {
                 budget.spend(1, "registration actual Direct instruction")?;
                 match i.kind {
-                    InstructionKind::TaskYield => {
+                    InstructionKind::TaskYield | InstructionKind::SuspendCall { .. } => {
                         return Err(fail(
                             i.span,
                             "retained callback has no Suspend invocation authority",

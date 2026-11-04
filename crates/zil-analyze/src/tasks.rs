@@ -14,12 +14,12 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
-fn worker(
+fn worker_one(
     module: &TypedModule,
     id: FunctionId,
     budget: &mut Budget,
     span: zil_base::Span,
-) -> CompileResult<()> {
+) -> CompileResult<Vec<FunctionId>> {
     let f = module
         .functions
         .get(id.0 as usize)
@@ -52,6 +52,7 @@ fn worker(
             "task worker requires a closed scalar fn(i32)->i32 without external users or cleanup",
         ));
     }
+    let mut children = Vec::new();
     for b in &f.blocks {
         budget.spend(1, "task worker block")?;
         for i in &b.instructions {
@@ -78,12 +79,70 @@ fn worker(
                     | InstructionKind::Binary { .. }
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::TaskYield
+                    | InstructionKind::SuspendCall { .. }
             ) {
                 return Err(fail(
                     i.span,
                     "scalar task worker contains an external, owning or unsupported operation",
                 ));
             }
+            if let InstructionKind::SuspendCall {
+                function,
+                arguments,
+            } = &i.kind
+            {
+                budget.spend(arguments.len().saturating_add(1), "actual child inputs")?;
+                if arguments.len() != 1
+                    || arguments
+                        .iter()
+                        .any(|v| f.values.get(v.0 as usize) != Some(&Type::I32))
+                {
+                    return Err(fail(
+                        i.span,
+                        "first static child lane requires actual scalar i32 input",
+                    ));
+                }
+                children.push(*function);
+            }
+        }
+    }
+    Ok(children)
+}
+fn worker(
+    module: &TypedModule,
+    id: FunctionId,
+    budget: &mut Budget,
+    span: zil_base::Span,
+) -> CompileResult<()> {
+    let mut stack = vec![(id, false)];
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    while let Some((current, exiting)) = stack.pop() {
+        budget.spend(
+            active
+                .len()
+                .saturating_add(complete.len())
+                .saturating_add(1),
+            "actual static child graph",
+        )?;
+        if exiting {
+            active.remove(&current);
+            complete.insert(current);
+            continue;
+        }
+        if complete.contains(&current) {
+            continue;
+        }
+        if !active.insert(current) {
+            return Err(fail(
+                span,
+                "recursive static children require explicit BoxTask or arena",
+            ));
+        }
+        stack.push((current, true));
+        for child in worker_one(module, current, budget, span)?.into_iter().rev() {
+            budget.spend(1, "static child edge")?;
+            stack.push((child, false));
         }
     }
     Ok(())
@@ -115,6 +174,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     }
     let mut suspend = vec![false; module.functions.len()];
     for (index, f) in module.functions.iter().enumerate() {
+        if f.call_kind == CallKind::Suspend {
+            suspend[index] = true;
+            worker(module, f.id, budget, f.span)?;
+        }
         for block in &f.blocks {
             for i in &block.instructions {
                 budget.spend(1, "task suspension inventory")?;
@@ -181,6 +244,23 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         }
                         worker(module, id, budget, i.span)?;
                         Some(Type::Managed(Box::new(Type::TaskI32)))
+                    }
+                    InstructionKind::SuspendCall {
+                        function,
+                        ref arguments,
+                    } => {
+                        suspend[index] = true;
+                        budget.spend(arguments.len().saturating_add(1), "child call inputs")?;
+                        if arguments.len() != 1
+                            || arguments.iter().any(|v| ty(*v).ok() != Some(&Type::I32))
+                        {
+                            return Err(fail(
+                                i.span,
+                                "static child call requires exact actual i32 input",
+                            ));
+                        }
+                        worker(module, function, budget, i.span)?;
+                        Some(Type::I32)
                     }
                     InstructionKind::TaskYield => {
                         suspend[index] = true;
@@ -255,6 +335,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         }
     }
     for f in &module.functions {
+        if suspend[f.id.0 as usize] && f.call_kind != CallKind::Suspend {
+            return Err(fail(
+                f.span,
+                "Direct selection excludes actual reachable suspension",
+            ));
+        }
         for b in &f.blocks {
             for i in &b.instructions {
                 budget.spend(1, "Suspend Direct boundary exclusion")?;
@@ -602,15 +688,8 @@ pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Compile
             }
             worker(module, export.worker, budget, zil_base::Span::default())?;
             let f = &module.functions[export.worker.0 as usize];
-            let mut actual_yield = false;
-            for b in &f.blocks {
-                for i in &b.instructions {
-                    budget.spend(1, "exported worker actual suspension")?;
-                    actual_yield |= matches!(i.kind, InstructionKind::TaskYield);
-                }
-            }
-            if !actual_yield {
-                return Err(bad("task export must name an actual Suspend worker"));
+            if f.call_kind != CallKind::Suspend {
+                return Err(bad("task export must select Suspend ABI"));
             }
         }
     }
@@ -621,15 +700,10 @@ pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Compile
             let Some(f) = module.functions.get(export.function.0 as usize) else {
                 continue;
             };
-            for b in &f.blocks {
-                for i in &b.instructions {
-                    budget.spend(1, "scalar export actual suspension")?;
-                    if matches!(i.kind, InstructionKind::TaskYield) {
-                        return Err(bad(
-                            "Suspend worker cannot be exported as ordinary Direct scalar ABI",
-                        ));
-                    }
-                }
+            if f.call_kind == CallKind::Suspend {
+                return Err(bad(
+                    "Suspend worker cannot be exported as ordinary Direct scalar ABI",
+                ));
             }
         }
     }

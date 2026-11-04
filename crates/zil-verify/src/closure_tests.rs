@@ -16,6 +16,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 fn candidate() -> (TypedModule, CandidatePlan) {
     let closure = ClosureId(0);
     let main = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -74,6 +75,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         span: span(),
     };
     let entry = TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,

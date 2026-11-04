@@ -434,6 +434,7 @@ fn keys(
             signature.id.hash(&mut context);
             signature.public.hash(&mut context);
             f.name.hash(&mut context);
+            f.call_kind.hash(&mut context);
             f.life.is_some().hash(&mut context);
             if let Some(life) = &f.life {
                 // Ordered lexical binders and their dense actual positions

@@ -2,10 +2,7 @@
 use super::*;
 
 pub(super) fn suspends(f: &TypedFunction) -> bool {
-    f.blocks
-        .iter()
-        .flat_map(|b| &b.instructions)
-        .any(|i| matches!(i.kind, InstructionKind::TaskYield))
+    f.call_kind == CallKind::Suspend
 }
 pub(super) fn resource(ty: &Type) -> bool {
     matches!(ty, Type::Managed(inner) | Type::Desc(inner) if **inner == Type::TaskI32)
@@ -18,6 +15,7 @@ pub(super) fn primitive(expression: &CoreExpr) -> Option<&str> {
         name.as_str(),
         "task_start"
             | "task_yield"
+            | "task_await"
             | "task_valid"
             | "task_poll"
             | "task_request_cancel"
@@ -38,7 +36,7 @@ pub(super) fn head() -> Type {
 pub(super) fn parameters(name: &str) -> Vec<Type> {
     match name {
         "task_yield" => vec![],
-        "task_start" => vec![Type::I32], // Static worker is resolved separately.
+        "task_start" | "task_await" => vec![Type::I32], // Static worker is resolved separately.
         "task_valid" => vec![Type::Desc(Box::new(Type::TaskI32))],
         "task_finish_destroy" => vec![owner()],
         _ => vec![head()],
@@ -47,6 +45,7 @@ pub(super) fn parameters(name: &str) -> Vec<Type> {
 pub(super) fn result(name: &str) -> Type {
     match name {
         "task_start" => owner(),
+        "task_await" => Type::I32,
         "task_valid" | "task_poll_close" => Type::Bool,
         "task_poll" => Type::Tuple(vec![Type::I32, Type::I32]),
         _ => Type::Unit,
@@ -112,7 +111,7 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<(ValueId, Type)> {
         let parameters = parameters(name);
-        let offset = usize::from(name == "task_start");
+        let offset = usize::from(matches!(name, "task_start" | "task_await"));
         if arguments.len() != parameters.len() + offset {
             return Err(error(
                 "E-CALL-ARITY",
@@ -120,7 +119,7 @@ impl Builder<'_, '_> {
                 "task primitive argument count mismatch",
             ));
         }
-        let kind = if name == "task_start" {
+        let kind = if matches!(name, "task_start" | "task_await") {
             let worker_expr = &arguments[0];
             if !matches!(
                 worker_expr.kind,
@@ -143,7 +142,14 @@ impl Builder<'_, '_> {
             let worker = signature.concrete_id(worker_expr.span)?;
             let (argument, ty) = self.expr(&arguments[1], Some(&Type::I32))?;
             self.same(&ty, &Type::I32, arguments[1].span)?;
-            InstructionKind::TaskStart { worker, argument }
+            if name == "task_start" {
+                InstructionKind::TaskStart { worker, argument }
+            } else {
+                InstructionKind::SuspendCall {
+                    function: worker,
+                    arguments: vec![argument],
+                }
+            }
         } else if name == "task_yield" {
             InstructionKind::TaskYield
         } else {

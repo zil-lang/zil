@@ -292,9 +292,10 @@ entries remain Direct boundaries. Neither a declaration nor TaskStart supplies
 an effect or no-external-users proof. TaskStart of a non-yielding Direct worker
 still creates a task adapter while preserving the worker's ordinary Direct body.
 
-Unannotated source selects the actual reachable effect; `effects(direct)` is an
-explicit upper bound which rejects any reachable Yield/SuspendCall/Suspend
-callee or cleanup. `effects(suspend); resume(local)` explicitly selects Suspend
+Unannotated source selects the actual reachable effect. An explicit `effects`
+clause without `suspend` selects Direct and rejects any reachable
+Yield/SuspendCall/Suspend callee or cleanup; no new `direct` effect keyword is
+introduced. `effects(suspend); resume(local)` explicitly selects Suspend
 even for an empty/effect-free implementation. Each kernel reconstructs effects
 including actual indirect targets or their complete admitted upper bound. An
 ordinary Call to a Suspend-selected function rejects. `task_await(f, args...)`
@@ -341,3 +342,51 @@ Raw/decoded-Wire controls alter CallKind, ordinary-call a Suspend target, duplic
 Ready ownership, or destroy a live child. Budget and cache identity controls must
 cover actual nested child layouts and expanded live-instance work. No capability
 or acceptance is claimed by this proposal before implementation and replay.
+
+### General owning task publication proposed after Wire37 child integration
+
+Root reserves future Wire38 Type tag34 `Task { result: Box<Type> }`, carried only
+under ordinary Managed/Desc and the exact unique mutable owning-head boundary,
+and opcode128 `TaskCreate { worker, arguments: Vec<ValueId> }`. Opcodes126/127
+belong to the allocation/address work. `task_create(worker,args...)` is the
+canonical general source root; `task_start` and TaskI32 retain their explicitly
+bounded compatibility behavior. Both routes use the same actual continuation
+frame/child plan; the general route does not inherit a scalar no-external or
+synchronous-cleanup proof from the type tag.
+
+`task_create` evaluates arguments once under ordinary pre-call move/loan rules.
+Its result is ordinary `TaskCreateError ! Task<T>`, with the fixed nominal
+`TaskCreateError { Allocation }`. On allocation failure, all transferred actual
+owned inputs are cleaned once and the error alternative owns no task. Success
+owns a fully initialized non-null task. No argument rollback is promised; any
+API returning input responsibility must carry that payload explicitly.
+
+General `task_poll` returns ordinary `TaskPollState ! Poll<T>`, where the fixed
+nominal enums are `TaskPollState { Complete, Cancelled, Invalid }` and
+`Poll<T> { Pending, Ready(T) }`. Only Ready owns T. The result slot has its own
+live flag; worker completion stores T once, and the first Ready transfer clears
+that flag. Complete/Cancelled/Invalid contain no dummy owning T. Invalid is a
+defensive runtime state, never permission to construct a task from raw bits.
+Cancel after Ready cannot reclaim the caller's result. ComputationComplete and
+Closed remain distinct.
+
+Close retains the owning head while it drives PendingExit, live children,
+untransferred result slots and actual parent cleanup. A general pending close
+must expose ordinary Pending and preserve all those obligations; only its Ready
+means Closed. The exact source close return type is to be published with this
+group, using Poll<Unit> rather than giving a bool the meaning of destroyed
+storage. `task_finish_destroy(give owner)` consumes only a Closed owner. A
+Direct default Drop requires either Closed or an independently rebuilt complete
+child/teardown graph proving synchronous close. Otherwise an explicit driving
+root/parent retains the owner; aborting on Pending is not cleanup.
+
+Every supported saved PC must have complete independently checked cleanup
+coverage: one canonical frame slot with live/partial flags for each real owning
+obligation, including prepared inputs and unconsumed temporaries. SSA aliases
+do not get independent drop flags. Unsaved responsibility must be materialized
+before suspension or rejected. Cancel notifies all live children, drains them
+in creation order while retaining their borrowed parents, then settles actual
+parent/result responsibilities in the established scope order. User defers,
+borrowed frame results and heterogeneous error conversions require their full
+actual ownership/effect contracts before admission. This proposal does not
+publish unchecked producer cleanup/effect bits or claim those paths complete.

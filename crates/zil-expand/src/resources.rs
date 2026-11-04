@@ -117,6 +117,7 @@ impl Expander<'_> {
                     Some(clause.span),
                     "resource result modes are mutually exclusive",
                 )),
+                None if matches!(clause.name.as_str(), "effects" | "resume") => {}
                 None => self.unsupported(
                     "callable contract clause outside finite resource results",
                     clause.span,

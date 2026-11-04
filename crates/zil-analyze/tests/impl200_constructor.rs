@@ -24,6 +24,7 @@ fn ins(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
         name: format!("ordinary_name_{id}"),
@@ -367,6 +368,7 @@ fn ordinary_noescape_helpers_still_require_their_actual_public_contract() {
     module.functions[1].callable_contract = Some(CallableParameterContract {
         roles: (0..2)
             .map(|parameter| CallableRole {
+                life: None,
                 parameter,
                 closure: ClosureId(0),
                 kind: CallableKind::FnOnce,

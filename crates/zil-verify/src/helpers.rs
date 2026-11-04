@@ -584,6 +584,12 @@ pub(super) fn check_claim_shape(
             .filter(|n| *n <= limits.max_nodes)
             .ok_or_else(|| limit("raw callback contract metadata node allowance exhausted"))?;
         budget.spend(amount.saturating_add(2))?;
+        if role.life.is_some() {
+            return Err(bad(
+                f,
+                "higher-rank callable role life requires the complete life consumer",
+            ));
+        }
     }
     match &claim.traces {
         CallableTraces::Finite(traces) => {
@@ -1041,6 +1047,7 @@ pub(super) fn check_module(
                 }
             }
             roles.push(CallableRole {
+                life: None,
                 parameter: *parameter,
                 closure: *closure,
                 kind: proposed.kind,

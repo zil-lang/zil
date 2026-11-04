@@ -76,6 +76,7 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
         }],
     }];
     f.callable_parameters = vec![CoreCallableParameter {
+        life: None,
         closed_environment: false,
         index: direct,
         generic_index: 0,

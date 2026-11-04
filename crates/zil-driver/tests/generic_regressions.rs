@@ -3116,6 +3116,17 @@ fn task343_public_semantics_are_independently_bound() {
 #[test]
 #[cfg(target_os = "linux")]
 fn task343_external_five_entry_sabi_and_physical_layout() {
+    task343_run_external_sabi(false);
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_external_child_sabi_and_physical_layout() {
+    task343_run_external_sabi(true);
+}
+
+#[cfg(target_os = "linux")]
+fn task343_run_external_sabi(child: bool) {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -3134,23 +3145,52 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
             "i16" => "uint16_t".into(),
             "i32" => "int32_t".into(),
             "i64" => "int64_t".into(),
-            "{ i32, i1 }" => "struct {int32_t value;_Bool overflow;}".into(),
-            "{ i64, i1 }" => "struct {int64_t value;_Bool overflow;}".into(),
-            other => panic!("uncovered actual scalar frame type {other}"),
+            _ => {
+                let body = ty
+                    .strip_prefix("{ ")
+                    .and_then(|s| s.strip_suffix(" }"))
+                    .expect("closed literal frame type");
+                let (mut depth, mut start, mut fields) = (0, 0, vec![]);
+                for (offset, ch) in body.char_indices() {
+                    match ch {
+                        '{' => depth += 1,
+                        '}' => depth -= 1,
+                        ',' if depth == 0 => {
+                            fields.push(body[start..offset].trim());
+                            start = offset + 1;
+                        }
+                        _ => {}
+                    }
+                }
+                if !body.is_empty() {
+                    fields.push(body[start..].trim());
+                }
+                format!(
+                    "struct {{{}}}",
+                    fields
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, t)| format!("{} f{i};", c_type(t)))
+                        .collect::<String>()
+                )
+            }
         }
     }
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/language-readiness/terminal/343/task-export-caller.c");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(if child {
+        "../../tests/language-readiness/terminal/343/task-child-export-caller.c"
+    } else {
+        "../../tests/language-readiness/terminal/343/task-export-caller.c"
+    });
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
             continue;
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-task-export-{}-{backend:?}-{optimization:?}",
+                "zil343-task-export-{}-{child}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             fs::create_dir_all(&dir).unwrap();
@@ -3168,9 +3208,13 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
             let project = zil_driver::ProjectSources {
                 root: ModuleId(0),
-                modules: vec![source(include_str!(
-                    "../../../tests/language-readiness/terminal/343/task-export.zil"
-                ))],
+                modules: vec![source(if child {
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-child-export.zil"
+                    )
+                } else {
+                    include_str!("../../../tests/language-readiness/terminal/343/task-export.zil")
+                })],
                 paths: Default::default(),
             };
             let options = CompileOptions {
@@ -3200,11 +3244,12 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
                     .unwrap()
                     .contains(&abi.codegen_key.to_hex())
             );
-            assert_eq!(abi.worker, zil_ir::FunctionId(0));
+            assert_eq!(abi.worker, zil_ir::FunctionId(if child { 2 } else { 0 }));
             assert_eq!(abi.entrypoints.len(), 5);
             assert_eq!(abi.name, "worker");
             assert_eq!(abi.data_layout, zil_backend_llvm::TASK_DATA_LAYOUT);
-            if backend == NativeBackend::LlvmApi
+            if !child
+                && backend == NativeBackend::LlvmApi
                 && optimization == Optimization::O2
                 && let Some(path) = std::env::var_os("ZIL343_TASK_ABI_RECEIPT")
             {
@@ -3244,11 +3289,18 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
                     Some(0)
                 );
                 let mut changed = project.clone();
-                changed.modules[0] = source(
-                    &changed.modules[0]
-                        .text
-                        .replace("i32(wide)+i32(small)", "i32(wide)+%i32(small)"),
-                );
+                changed.modules[0] = source(&changed.modules[0].text.replace(
+                    if child {
+                        "seed+1"
+                    } else {
+                        "i32(wide)+i32(small)"
+                    },
+                    if child {
+                        "seed+%1"
+                    } else {
+                        "i32(wide)+%i32(small)"
+                    },
+                ));
                 let updated = zil_driver::compile_project(&changed, &options);
                 assert_eq!(
                     updated.status,
@@ -3273,7 +3325,7 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
             }
             let ir = fs::read_to_string(&report.artifacts["llvm"])
                 .unwrap_or_else(|_| fs::read_to_string(dir.join("program.ll")).unwrap());
-            assert!(!ir.contains("define i32 @zil.fn.0("));
+            assert!(!ir.contains(&format!("define i32 @zil.fn.{}(", abi.worker.0)));
             if backend == NativeBackend::LlvmApi {
                 assert!(
                     cg.object_reports
@@ -3840,4 +3892,436 @@ fn registration343_source_library_preserves_actual_returned_environment() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_native_static_frames_resume_and_cancel() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let prefix = original.split("fn main").next().unwrap();
+    let mut sources = vec![original.to_owned()];
+    for after in 0..=8 {
+        sources.push(format!(
+            "{prefix}
+fn main()->i32 {{
+    var task=task_start(worker,7)
+    if !task_valid(task) {{return 10}}
+    var count=0
+    while count<{after} {{
+        let (status,value)=task_poll(&mut task)
+        if status!=0 || value!=0 {{return 11}}
+        count=count+1
+    }}
+    task_request_cancel(&mut task)
+    task_request_cancel(&mut task)
+    let (status,value)=task_poll(&mut task)
+    if status!=3 || value!=0 {{return 12}}
+    if !task_poll_close(&mut task) {{return 13}}
+    task_finish_destroy(give task)
+    return 0
+}}"
+        ));
+    }
+    sources.push("fn plain(x:i32)->i32=>x+1
+fn empty(x:i32)->i32 contract {effects(suspend);resume(local)} {return x+2}
+fn worker(x:i32)->i32 {let a=task_await(plain,x);return task_await(empty,a)}
+fn main()->i32 {var t=task_start(worker,7);let direct=plain(7);let (s,v)=task_poll(&mut t);if s!=1 || v!=10 || direct!=8{return 1} if !task_poll_close(&mut t){return 2} task_finish_destroy(give t);return 0}".to_owned());
+    for (case, text) in sources.iter().enumerate() {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-child-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "case {case}: {}",
+                    report.to_json()
+                );
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "case {case} {backend:?} {optimization:?}: {actual:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn child343_source_and_raw_effect_boundaries() {
+    use zil_ir::{CallKind, InstructionKind as I, Type};
+    for text in [
+        "fn worker(x:i32)->i32 contract{effects()} {task_yield();return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(alloc)} {task_yield();return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(direct)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(alloc);resume(local)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{effects(suspend);effects(suspend)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{resume(transfer)} {return x} fn main(){}",
+        "fn worker(x:i32)->i32 contract{resume(local)} {return x} fn main()->i32=>worker(7)",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main()->i32{let f:fn(i32)->i32=worker;return f(7)}",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main(){let f=c_callback(worker)}",
+        "fn worker(x:i32)->i32 contract{effects(suspend)} {return x} fn main()->i32{let r=thread_scope(worker,7,()->i32=>0);return r.1}",
+        "fn worker(x:i32)->i32 {return task_await(worker,x)} fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/task-child.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let encoded = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&encoded, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let verified = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert!(verified.is_suspend(zil_ir::FunctionId(2)));
+    assert_eq!(verified.task_worker_ids().len(), 3);
+    zil_lower::lower(&verified).unwrap();
+    for case in 0..9 {
+        let mut raw = typed.clone();
+        if case == 0 {
+            raw.functions[2].call_kind = CallKind::Direct;
+        } else if case == 1 {
+            raw.functions[0].call_kind = CallKind::Direct;
+        } else {
+            let current = &mut raw.functions[2];
+            let op = current
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, I::SuspendCall { .. }))
+                .unwrap();
+            let I::SuspendCall {
+                function,
+                arguments,
+            } = &mut op.kind
+            else {
+                unreachable!()
+            };
+            match case {
+                2 => {
+                    op.kind = I::Call {
+                        function: *function,
+                        arguments: arguments.clone(),
+                    }
+                }
+                3 => *function = zil_ir::FunctionId(2),
+                4 => arguments.clear(),
+                5 => arguments.push(arguments[0]),
+                6 => current.values[op.result.unwrap().0 as usize] = Type::Bool,
+                7 => *function = zil_ir::FunctionId(u32::MAX),
+                8 => *function = zil_ir::FunctionId(3),
+                _ => unreachable!(),
+            }
+        }
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw {case}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for wire in [false, true] {
+            let (input, claim) = if wire {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw {case} Wire={wire}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let bounds = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &bounds).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &bounds).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("child343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn child343_life_transport_is_not_silently_admitted() {
+    use zil_ir::FunctionLifeContract;
+    let src = source(
+        "fn apply<F:Fn(i32)->i32>(f:F,x:i32)->i32 {return f(x)} fn main()->i32 {let f=(x:i32)->i32=>x+1;return apply(f,7)}",
+    );
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let relation = FunctionLifeContract {
+        binder_count: 0,
+        parameter_lives: vec![None],
+        result_life: None,
+    };
+    let mut header = core.clone();
+    header
+        .functions
+        .iter_mut()
+        .find(|f| !f.callable_parameters.is_empty())
+        .unwrap()
+        .callable_parameters[0]
+        .life = Some(relation.clone());
+    assert!(zil_types::check(&header, &target, &limits).is_err());
+    let mut raw = typed;
+    raw.functions
+        .iter_mut()
+        .find_map(|f| f.callable_contract.as_mut())
+        .unwrap()
+        .roles[0]
+        .life = Some(relation);
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = raw.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let (input, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert!(zil_verify::verify_module(input, claim, &target, &limits).is_err());
+}
+
+#[test]
+fn child343_effect_free_suspend_interface_and_incremental_identity() {
+    use zil_ir::{CallKind, CoreProgram, ProgramModule};
+    let src =
+        source("pub fn worker(x:i32)->i32 {let a=x+1;let b=a+2;let c=b+3;return c} fn main(){}");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let worker = core.functions[0].id;
+    let original = CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![worker],
+        }],
+    };
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let mut session = zil_types::FunctionSession::default();
+    let prepared = zil_types::infer_program_for_ct(&original, &limits)
+        .unwrap()
+        .into_prepared();
+    let direct = session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert!(direct.task_interfaces.is_empty());
+    session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert!(session.last_stats().reused_functions > 0);
+    // Raw header mutation deliberately preserves source fingerprint/body/spans:
+    // the declaration field itself must invalidate the Types work product.
+    let mut changed = original;
+    changed.modules[0].core.functions[0].call_kind = Some(CallKind::Suspend);
+    let prepared = zil_types::infer_program_for_ct(&changed, &limits)
+        .unwrap()
+        .into_prepared();
+    let suspended = session
+        .check_prepared_program(&prepared, &target, &limits)
+        .unwrap();
+    assert_eq!(session.last_stats().reused_functions, 0);
+    assert_eq!(
+        suspended.task_interfaces[0].exports[0].worker,
+        zil_ir::FunctionId(0)
+    );
+    assert!(suspended.interfaces[0].exports.is_empty());
+    let plan = zil_analyze::analyze_program(&suspended, &limits).unwrap();
+    let verified = zil_verify::verify_shared_program_module(
+        std::sync::Arc::new(suspended.clone()),
+        std::sync::Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert!(verified.is_suspend(zil_ir::FunctionId(0)));
+    let mut forged = suspended;
+    forged.task_interfaces.clear();
+    forged.interfaces[0].exports = direct.interfaces[0].exports.clone();
+    assert!(zil_analyze::analyze_program(&forged, &limits).is_err());
+    assert!(
+        zil_verify::verify_shared_program_module(
+            std::sync::Arc::new(forged),
+            std::sync::Arc::new(plan),
+            &target,
+            &limits
+        )
+        .is_err()
+    );
+    let report = compile_source(
+        &source("fn worker(x:i32)->i32 contract{resume(local)} {return x+1} fn main(){}"),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn child343_native_allocation_failure_and_embedded_cleanup() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let prefix = original.split("fn main").next().unwrap();
+    let mut cases = vec![original.to_owned()];
+    for explicit in [false, true] {
+        cases.push(format!("{prefix}
+fn main()->i32 {{var t=task_start(worker,7);if !task_valid(t){{return 10}}
+let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
+{} return 0}}",if explicit{"task_request_cancel(&mut t);if !task_poll_close(&mut t){return 12} task_finish_destroy(give t);"}else{""}));
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-child-fault-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let object = dir.join("observer.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                )
+                .arg("-o")
+                .arg(&object)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            for (case, text) in cases.iter().enumerate() {
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper.clone()),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "case {case}: {}",
+                    report.to_json()
+                );
+                let cg = report.native_codegen.as_ref().unwrap();
+                assert_eq!(cg.backend, backend);
+                assert!(cg.fallback.is_none());
+                for failure in [false, true] {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if failure {
+                        command.env("ZIL343_TASK_ALLOC_FAIL", "1");
+                    }
+                    let actual = command.output().unwrap();
+                    assert_eq!(
+                        actual.status.code(),
+                        Some(if failure { 10 } else { 0 }),
+                        "case {case} {backend:?} {optimization:?} failure={failure}: {actual:?}"
+                    );
+                    assert_eq!(
+                        actual.stdout,
+                        if failure {
+                            b"A".as_slice()
+                        } else {
+                            b"AF".as_slice()
+                        },
+                        "only the parent owns an allocation"
+                    );
+                }
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
 }
