@@ -70,13 +70,6 @@ pub(super) fn encode(
                     Diagnostic::limit(Phase::Types, "interface identity depth overflow", None)
                 })?;
                 match ty {
-                    Type::AsyncRegistration { .. } => {
-                        return Err(Diagnostic::unsupported(
-                            Phase::Types,
-                            "pollable registration interface consumer is not implemented",
-                            None,
-                        ));
-                    }
                     Type::Unit => bytes.push(0),
                     Type::Bool => bytes.push(1),
                     Type::I32 => bytes.push(2),
@@ -98,13 +91,15 @@ pub(super) fn encode(
                             SyncCellKind::AtomicI32 => 1,
                         },
                     ]),
-                    Type::Registration { environment: inner }
+                    Type::AsyncRegistration { environment: inner }
+                    | Type::Registration { environment: inner }
                     | Type::OwnedStore { element: inner }
                     | Type::Slice { element: inner }
                     | Type::Managed(inner)
                     | Type::Desc(inner) => {
                         bytes.push(match ty {
                             Type::Registration { .. } => 32,
+                            Type::AsyncRegistration { .. } => 37,
                             Type::OwnedStore { .. } => 22,
                             Type::Slice { .. } => 20,
                             Type::Managed(_) => 10,

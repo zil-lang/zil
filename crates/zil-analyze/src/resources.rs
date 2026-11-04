@@ -5,7 +5,7 @@ use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 pub(super) fn head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 pub(super) mod product;
 mod replacements;
@@ -1502,6 +1502,12 @@ impl Flow<'_> {
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len(), "task transferred inputs")?;
                     for &v in arguments {
+                        if matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(error(
+                                "live pollable TaskCreate input cannot be cleaned synchronously on allocation failure",
+                            ));
+                        }
                         self.consume(state, v, check, budget)?;
                     }
                     produced = Some(Fact {
@@ -1510,7 +1516,8 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::RegistrationStart { callback, .. } => {
+                InstructionKind::RegistrationStart { callback, .. }
+                | InstructionKind::AsyncRegistrationStart { callback, .. } => {
                     self.consume(state, *callback, check, budget)?;
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
@@ -2407,6 +2414,15 @@ impl Flow<'_> {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
+                    if check
+                        && f.call_kind == CallKind::Direct
+                        && fact.life.contains(&Life::Available)
+                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                    {
+                        return Err(error(
+                            "Direct automatic Drop cannot close an unknown pollable registration; explicitly advance and finish it",
+                        ));
+                    }
                     if check {
                         no_later_use(
                             state,
@@ -2516,7 +2532,8 @@ impl Flow<'_> {
                     }
                     produced = Some(fact);
                 }
-                InstructionKind::RegistrationClose { registration: task }
+                InstructionKind::AsyncRegistrationFinishDestroy { registration: task }
+                | InstructionKind::RegistrationClose { registration: task }
                 | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, check, budget)?;
                 }

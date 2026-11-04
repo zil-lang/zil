@@ -109,10 +109,16 @@ fn registration_name(name: &str) -> bool {
     matches!(
         name,
         "Registration"
+            | "AsyncRegistration"
             | "ClosedEnvironment"
             | "c_register"
             | "registration_valid"
             | "registration_close"
+            | "c_register_async"
+            | "async_registration_valid"
+            | "async_registration_request_close"
+            | "async_registration_poll_close"
+            | "async_registration_finish_destroy"
     )
 }
 fn primitive_name(name: &str) -> bool {
@@ -1774,6 +1780,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                                 | Type::TaskI32
                                 | Type::Task { .. }
                                 | Type::Registration { .. }
+                                | Type::AsyncRegistration { .. }
                         ) =>
                     {
                         Type::Managed(payload)
@@ -1802,10 +1809,16 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("Task requires one complete result type".into())
             }
         }
-        s::TypeKind::Named { path, args } if path.as_slice() == ["Registration"] => {
+        s::TypeKind::Named { path, args } if matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration") => {
             if let [s::GenericArg::Type(environment)] = args.as_slice() {
-                Type::Desc(Box::new(Type::Registration {
-                    environment: Box::new(type_ref(environment)),
+                Type::Desc(Box::new(if path[0] == "AsyncRegistration" {
+                    Type::AsyncRegistration {
+                        environment: Box::new(type_ref(environment)),
+                    }
+                } else {
+                    Type::Registration {
+                        environment: Box::new(type_ref(environment)),
+                    }
                 }))
             } else {
                 Type::Unsupported("Registration requires one concrete environment type".into())

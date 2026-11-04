@@ -8,12 +8,30 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         span: Span,
     ) -> R<TypeRef> {
-        if name == "c_register" {
-            let [register, close, callback] = arguments else {
-                return Err(error(
-                    span,
-                    "c_register requires register, close and actual F",
-                ));
+        let asynchronous = name == "c_register_async" || name.starts_with("async_registration_");
+        if matches!(name, "c_register" | "c_register_async") {
+            let (providers, callback): (Vec<_>, _) = match arguments {
+                [register, close, callback] if !asynchronous => (
+                    vec![
+                        (register, zil_ir::ScopedCallbackRole::Register),
+                        (close, zil_ir::ScopedCallbackRole::Close),
+                    ],
+                    callback,
+                ),
+                [register, close, drain, callback] if asynchronous => (
+                    vec![
+                        (register, zil_ir::ScopedCallbackRole::AsyncRegister),
+                        (close, zil_ir::ScopedCallbackRole::AsyncRequestClose),
+                        (drain, zil_ir::ScopedCallbackRole::AsyncPollDrain),
+                    ],
+                    callback,
+                ),
+                _ => {
+                    return Err(error(
+                        span,
+                        "registration constructor requires ordered actual providers and F",
+                    ));
+                }
             };
             if !self.unsafe_scope || arguments.iter().any(|a| a.spread) {
                 return Err(error(
@@ -21,10 +39,7 @@ impl Check<'_, '_, '_> {
                     "c_register requires explicit unsafe and ordered arguments",
                 ));
             }
-            for (argument, role) in [
-                (register, zil_ir::ScopedCallbackRole::Register),
-                (close, zil_ir::ScopedCallbackRole::Close),
-            ] {
+            for (argument, role) in providers {
                 self.tick(argument.span)?;
                 let name = super::super::super::foreign::bare_name(&argument.value)
                     .filter(|n| !state.locals.contains_key(*n))
@@ -85,7 +100,11 @@ impl Check<'_, '_, '_> {
             Ok(TypeRef {
                 span,
                 kind: TypeKind::Named {
-                    path: vec!["Registration".into()],
+                    path: vec![if asynchronous {
+                        "AsyncRegistration".into()
+                    } else {
+                        "Registration".into()
+                    }],
                     args: vec![GenericArg::Type(ty)],
                 },
             })
@@ -99,17 +118,67 @@ impl Check<'_, '_, '_> {
             if argument.spread {
                 return Err(error(span, "registration operation does not accept spread"));
             }
-            let owns = self.owned_resource_expression(&argument.value, state)?;
-            let ty = self.expr(&argument.value, state, None, name == "registration_valid")?;
-            if callable::registration_environment(&ty).is_none()
-                || (name == "registration_close" && !owns)
+            if asynchronous
+                && matches!(
+                    name,
+                    "async_registration_request_close" | "async_registration_poll_close"
+                )
             {
+                let ExprKind::Unary {
+                    op: UnaryOp::BorrowMut,
+                    operand,
+                } = &argument.value.kind
+                else {
+                    return Err(error(
+                        span,
+                        "async request/poll require exclusive complete local owning head",
+                    ));
+                };
+                self.tick(argument.span)?;
+                let ty = self.expr(operand, state, None, true)?;
+                if callable::registration_environment(&ty).is_none()
+                    || !matches!(&group(&ty).kind,TypeKind::Named{path,..} if path.as_slice()==["AsyncRegistration"])
+                {
+                    return Err(error(span, "async close requires actual pollable owner"));
+                }
+                let ExprKind::Name(local) = &operand.kind else {
+                    return Err(error(
+                        span,
+                        "async close requires complete local owning head",
+                    ));
+                };
+                if !state.locals.get(local).is_some_and(|l| l.owned_resource) {
+                    return Err(error(span, "async close cannot advance a descriptor"));
+                }
+                return Ok(if name == "async_registration_poll_close" {
+                    TypeRef {
+                        span,
+                        kind: TypeKind::Named {
+                            path: vec!["std".into(), "task".into(), "Poll".into()],
+                            args: vec![GenericArg::Type(unit(span))],
+                        },
+                    }
+                } else {
+                    unit(span)
+                });
+            }
+            let owns = self.owned_resource_expression(&argument.value, state)?;
+            let valid = matches!(name, "registration_valid" | "async_registration_valid");
+            let ty = self.expr(&argument.value, state, None, valid)?;
+            if matches!(&group(&ty).kind,TypeKind::Named{path,..} if (path.as_slice()==["AsyncRegistration"]) != asynchronous)
+            {
+                return Err(error(
+                    span,
+                    "sync and pollable registration carriers are distinct",
+                ));
+            }
+            if callable::registration_environment(&ty).is_none() || (!valid && !owns) {
                 return Err(error(
                     span,
                     "registration validity reads descriptor; close requires actual give owner",
                 ));
             }
-            Ok(if name == "registration_valid" {
+            Ok(if valid {
                 named("bool", span)
             } else {
                 unit(span)

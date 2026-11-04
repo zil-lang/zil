@@ -1212,6 +1212,7 @@ impl Check<'_, '_, '_> {
             ExprKind::Call { callee, .. } => stores::call_name(callee).is_some_and(|name| {
                 name == "bytes_new"
                     || name == "c_register"
+                    || name == "c_register_async"
                     || self.signatures.get(name).is_some_and(|function| {
                         stores::result_mode(function).is_ok_and(|mode| {
                             matches!(
@@ -1492,7 +1493,7 @@ impl Check<'_, '_, '_> {
                 let Some(name) = stores::call_name(callee) else {
                     return false;
                 };
-                if name == "store_new" || name == "c_register" {
+                if name == "store_new" || name == "c_register" || name == "c_register_async" {
                     return true;
                 }
                 self.signatures.get(name).is_some_and(|function| {
@@ -1546,6 +1547,7 @@ impl Check<'_, '_, '_> {
                 };
                 Ok(name == "store_new"
                     || name == "c_register"
+                    || name == "c_register_async"
                     || self.signatures.get(name).is_some_and(|function| {
                         stores::result_mode(function)
                             .is_ok_and(|mode| mode == zil_ir::PassingMode::Create)
@@ -3583,7 +3585,14 @@ impl Check<'_, '_, '_> {
                 if let Some(name) = super::super::foreign::bare_name(callee).filter(|n| {
                     matches!(
                         *n,
-                        "c_register" | "registration_valid" | "registration_close"
+                        "c_register"
+                            | "registration_valid"
+                            | "registration_close"
+                            | "c_register_async"
+                            | "async_registration_valid"
+                            | "async_registration_request_close"
+                            | "async_registration_poll_close"
+                            | "async_registration_finish_destroy"
                     )
                 }) {
                     return self.registration_call(name, arguments, state, e.span);

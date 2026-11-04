@@ -1,6 +1,7 @@
 //! Kernel reconstruction of the stable owning retained callback boundary.
 use super::*;
 pub(super) const PREFIX: &str = "@builtin:Registration:";
+pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn error(span: Option<Span>, s: &str) -> Diagnostic {
     reject("E-VERIFY-REGISTRATION", span, s)
 }
@@ -14,7 +15,8 @@ pub(super) fn carrier(
     let (Type::Managed(p) | Type::Desc(p)) = ty else {
         return Err(error(span, "registration requires an owner or descriptor"));
     };
-    let Type::Registration { environment } = p.as_ref() else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = p.as_ref()
+    else {
         return Err(error(span, "sealed registration payload is absent"));
     };
     let Type::Closure(id) = environment.as_ref() else {
@@ -24,7 +26,12 @@ pub(super) fn carrier(
         ));
     };
     budget.spend(module.resources.len().saturating_add(32))?;
-    let name = format!("{PREFIX}{}", id.0);
+    let prefix = if matches!(p.as_ref(), Type::AsyncRegistration { .. }) {
+        ASYNC_PREFIX
+    } else {
+        PREFIX
+    };
+    let name = format!("{prefix}{}", id.0);
     if !module.target.is_supported_x64_llvm()
         || (module.resources.iter().filter(|r| r.payload == **p).count() != 1
             || !module
@@ -124,8 +131,20 @@ fn closed(
                     budget.spend(1)?;
                     closure_queue.push(*id)
                 }
+                Type::Managed(p) => {
+                    budget.spend(module.resources.len())?;
+                    for resource in &module.resources {
+                        resources::charge_payload(&resource.payload, budget)?;
+                        if resource.payload == **p {
+                            if let Some(teardown) = resource.teardown {
+                                code_queue.push(teardown);
+                            }
+                        }
+                    }
+                    budget.spend(1)?;
+                    fields.push(p);
+                }
                 Type::BorrowedStorage { storage: p, .. }
-                | Type::Managed(p)
                 | Type::Opaque { hidden: p, .. }
                 | Type::OwnedStore { element: p }
                 | Type::Registration { environment: p }
@@ -217,8 +236,101 @@ pub(super) fn instruction(
 ) -> Check<Option<Type>> {
     let span = Some(i.span);
     budget.registrations = true;
+    budget.head_descriptions = true;
     budget.spend(1)?;
     Ok(Some(match i.kind {
+        InstructionKind::AsyncRegistrationStart {
+            register,
+            request_close,
+            poll_drain,
+            callback,
+            ..
+        } => {
+            for (id, role) in [
+                (register, ScopedCallbackRole::AsyncRegister),
+                (request_close, ScopedCallbackRole::AsyncRequestClose),
+                (poll_drain, ScopedCallbackRole::AsyncPollDrain),
+            ] {
+                let provider = module
+                    .functions
+                    .get(id.0 as usize)
+                    .ok_or_else(|| error(span, "async provider absent"))?;
+                if provider.foreign.as_ref().and_then(|f| f.scoped_callback) != Some(role) {
+                    return Err(error(span, "async provider has wrong actual role"));
+                }
+                scoped_callback::declaration(provider, budget)?;
+            }
+            let Type::Closure(id) = value_type(f, callback, span)? else {
+                return Err(error(
+                    span,
+                    "async callback requires actual consumed concrete F",
+                ));
+            };
+            let closure = closures::definition(module, *id, span)?;
+            budget.spend(closure.parameters.len().saturating_add(1))?;
+            if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                || closure.parameters != [Type::I32]
+                || closure.result != Type::I32
+            {
+                return Err(error(
+                    span,
+                    "async callback requires actual FnMut(i32)->i32",
+                ));
+            }
+            let ty = Type::Managed(Box::new(Type::AsyncRegistration {
+                environment: Box::new(Type::Closure(*id)),
+            }));
+            carrier(module, &ty, span, budget)?;
+            ty
+        }
+        InstructionKind::AsyncRegistrationValid { registration } => {
+            let ty = value_type(f, registration, span)?;
+            if !matches!(ty,Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) {
+                return Err(error(span, "async validity requires actual descriptor"));
+            }
+            carrier(module, ty, span, budget)?;
+            Type::Bool
+        }
+        InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration } => {
+            let Type::Address {
+                mutable: true,
+                inner,
+            } = value_type(f, registration, span)?
+            else {
+                return Err(error(
+                    span,
+                    "async close requires exclusive actual head address",
+                ));
+            };
+            if !matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+            {
+                return Err(error(
+                    span,
+                    "async close requires complete pollable owning head",
+                ));
+            }
+            carrier(module, inner, span, budget)?;
+            if matches!(i.kind, InstructionKind::AsyncRegistrationPollClose { .. }) {
+                Type::Enum {
+                    name: format!("@std.task:v1:Poll:{}", Type::Unit.fingerprint()),
+                    variants: vec![
+                        ("Pending".into(), vec![]),
+                        ("Ready".into(), vec![Type::Unit]),
+                    ],
+                }
+            } else {
+                Type::Unit
+            }
+        }
+        InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            let ty = value_type(f, registration, span)?;
+            if !matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) {
+                return Err(error(span, "async finish requires actual owning head"));
+            }
+            carrier(module, ty, span, budget)?;
+            Type::Unit
+        }
         InstructionKind::RegistrationStart {
             register,
             close,
@@ -263,7 +375,7 @@ pub(super) fn instruction(
         }
         InstructionKind::RegistrationValid { registration } => {
             let t = value_type(f, registration, span)?;
-            if !matches!(t, Type::Desc(_)) {
+            if !matches!(t, Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..})) {
                 return Err(error(
                     span,
                     "registration validity requires actual descriptor",
@@ -274,7 +386,7 @@ pub(super) fn instruction(
         }
         InstructionKind::RegistrationClose { registration } => {
             let t = value_type(f, registration, span)?;
-            if !matches!(t, Type::Managed(_)) {
+            if !matches!(t, Type::Managed(p) if matches!(p.as_ref(),Type::Registration{..})) {
                 return Err(error(
                     span,
                     "registration close consumes actual owning head",

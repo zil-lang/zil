@@ -4757,3 +4757,19 @@ fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);
         }
     }
 }
+
+#[test]
+fn async_registration_g8412_explicit_source_smoke() {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/async-registration/explicit.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (raw, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
+}
