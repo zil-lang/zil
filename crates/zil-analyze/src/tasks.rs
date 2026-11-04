@@ -80,6 +80,48 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn has_await(blocks: &[BasicBlock], budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(
+        blocks.len().saturating_mul(2),
+        "task lane classification blocks",
+    )?;
+    for block in blocks {
+        budget.spend(
+            block.instructions.len(),
+            "task lane classification instructions",
+        )?;
+        if block
+            .instructions
+            .iter()
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+fn matching_resources(
+    resources: &[ResourceDefinition],
+    payload: &Type,
+    budget: &mut Budget,
+) -> CompileResult<usize> {
+    budget.spend(
+        resources.len().saturating_mul(2),
+        "task resource comparison rows",
+    )?;
+    let mut count = 0usize;
+    for resource in resources {
+        if std::mem::discriminant(&resource.payload) != std::mem::discriminant(payload) {
+            continue;
+        }
+        budget.type_work(&resource.payload, false, "actual task resource equality")?;
+        budget.type_work(payload, false, "query task resource equality")?;
+        if resource.payload == *payload {
+            count = count.saturating_add(1);
+        }
+    }
+    Ok(count)
+}
 fn worker_one(
     module: &TypedModule,
     id: FunctionId,
@@ -119,10 +161,7 @@ fn worker_one(
                 Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
             )
         })
-        || f.blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        || has_await(&f.blocks, budget)?
     {
         return owned::profile(module, f, budget, Some(span));
     }
@@ -274,15 +313,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let Type::Task { .. } = &r.payload else {
                 return Err(bad("general Task canonical name has another payload"));
             };
-            budget.spend(module.resources.len(), "general Task uniqueness")?;
+            let expected_name = format!("{TASK_RESOURCE_NAME_PREFIX}{}", r.payload.fingerprint());
+            budget.spend(
+                r.name.len().saturating_add(expected_name.len()),
+                "task canonical name comparison",
+            )?;
             if r.teardown.is_some()
-                || r.name != format!("{TASK_RESOURCE_NAME_PREFIX}{}", r.payload.fingerprint())
-                || module
-                    .resources
-                    .iter()
-                    .filter(|other| other.payload == r.payload)
-                    .count()
-                    != 1
+                || r.name != expected_name
+                || matching_resources(&module.resources, &r.payload, budget)? != 1
             {
                 return Err(bad(
                     "general Task definition must be actual canonical unique sealed payload",
@@ -915,3 +953,6 @@ pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Compile
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod budget_tests;
