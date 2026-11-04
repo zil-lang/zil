@@ -1077,6 +1077,12 @@ fn owning_store_parameter_and_product_helper_invalidation_summaries() {
         );
         replacement_native(&[("main", &text)], b"AZ", 0);
     }
+    // A may-write to the Copy payload keeps the same resource instance. Keep
+    // an unused real replacement in the module so the new Plan is active.
+    let copy = format!(
+        "{MODEL}fn unused(s:Store<Cell>){{let v=store_at_mut(s,0);v.owner=R{{code:88}}}}fn update(v:&mut Cell){{v.owner.code=90}}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);let old=v.owner;update(v);return old.code-90}}"
+    );
+    replacement_native(&[("main", &copy)], b"ZB", 0);
 }
 
 #[test]
