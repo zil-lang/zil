@@ -45,7 +45,7 @@ fn store_raw_ops_have_fixed_tags_and_reject_every_truncated_prefix() {
                     .is_err()
             );
         }
-        for unknown in [254, 255] {
+        for unknown in [253, 254] {
             let mut changed = writer.output.clone();
             changed[5] = unknown;
             assert_eq!(

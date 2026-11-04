@@ -279,8 +279,8 @@ fn shared_window_cannot_upgrade_and_active_windows_lock_structure() {
     reject(
         "reserve-before-window-call",
         &invalid,
-        &[Phase::Verify],
-        "access overlaps an active address window",
+        &[Phase::Expand],
+        "State alias outlives",
     );
     let invalid = PAIR_MUT.replace(
         "let first = store_at_mut(items, 0)",
@@ -289,8 +289,8 @@ fn shared_window_cannot_upgrade_and_active_windows_lock_structure() {
     reject(
         "pop-before-window-call",
         &invalid,
-        &[Phase::Verify],
-        "access overlaps an active address window",
+        &[Phase::Expand],
+        "State alias outlives",
     );
 }
 
@@ -334,8 +334,16 @@ fn lending_result_keeps_its_element_and_parent_store_alive() {
         reject(
             &format!("lending-{label}"),
             &source,
-            &[Phase::Verify],
-            "access overlaps an active address window",
+            if label != "reborrow" {
+                &[Phase::Expand]
+            } else {
+                &[Phase::Verify]
+            },
+            if label != "reborrow" {
+                "State alias outlives"
+            } else {
+                "access overlaps an active address window"
+            },
         );
     }
 }
@@ -361,8 +369,8 @@ fn main()->i32{return run(pair(make(65,10),make(66,20)))}"#;
             "item.callback(false)",
             "item.callback(store_reserve(items,2))",
         ),
-        &[Phase::Verify],
-        "access overlaps an active address window",
+        &[Phase::Expand],
+        "State field conflicts with a prepared callee",
     );
 }
 

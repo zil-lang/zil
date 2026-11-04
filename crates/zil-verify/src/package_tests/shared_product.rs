@@ -531,6 +531,8 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             Some(if indirect { 18453 } else { 15662 }),
         ));
     }
+    let mut observed = Vec::new();
+    let mut recorded = Vec::new();
     for (label, module, plan, expected) in fixtures {
         let defaults = Limits::default();
         let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &defaults).unwrap();
@@ -578,7 +580,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         // The two owning/local controls were independently measured against
         // d3b7b29b's unchanged Verify using these exact public candidates.
         if let Some(expected) = expected {
-            assert_eq!(minima[0], expected, "{label}");
+            observed.push((label.clone(), minima[0]));
+            recorded.push((label, expected));
         }
     }
+    assert_eq!(observed, recorded, "current actual raw/Wire minima");
 }

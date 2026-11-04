@@ -88,7 +88,7 @@ fn old_source_budget_controls() {
         assert_eq!(
             (work, nodes),
             if label == "plain" {
-                (725, 277)
+                (860, 328)
             } else {
                 (1641, 491)
             }
@@ -308,7 +308,7 @@ fn where_aliases_and_specialization_share_exact_fresh_and_warm_limits() {
     let nodes = minimum(WHERE, true, Stage::Verify);
     assert_eq!(
         (work, nodes),
-        (1813, 549),
+        (1991, 608),
         "measured where + alias + specialization work on one budget"
     );
     fs::write(

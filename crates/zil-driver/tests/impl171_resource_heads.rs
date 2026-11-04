@@ -634,6 +634,16 @@ fn raw_and_wire_cannot_copy_overwrite_forge_or_relabel_a_head() {
     if let Type::Address { mutable, .. } = &mut forged.functions[main].values[head.1.0 as usize] {
         *mutable = true;
     }
+    // Keep the forged exclusive producer/result consistent, so the raw test
+    // reaches resource-head admission instead of a stale scalar type mismatch.
+    forged.functions[main].locals[head.0.0 as usize].mutable = true;
+    let producer = forged.functions[main]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(head.1))
+        .unwrap();
+    producer.kind = I::BorrowLocalMut { local: head.0 };
     reject_raw_and_wire("forged-mutable-head", forged, plan.clone(), "E-UNSUPPORTED");
 
     let mut forged = original.clone();

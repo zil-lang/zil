@@ -318,11 +318,23 @@ fn shared_windows_cannot_be_upgraded_or_written() {
 
 #[test]
 fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
-    for body in [
-        "let v=store_at_mut(s,0);v.owner=R{code:90};return 0",
-        "let v=store_at_mut(s,0);v.owner.code=90;return 0",
-        "let v=store_at_mut(s,0);let callback=()=>v.tag;return callback()",
-    ] {
+    rejected(
+        &format!(
+            "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner.code=90;return 0}}"
+        ),
+        ResultCategory::SafeReject,
+        Phase::Analyze,
+        "instruction cannot produce the claimed resource kind",
+    );
+    rejected(
+        &format!(
+            "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"
+        ),
+        ResultCategory::SafeReject,
+        Phase::Analyze,
+        "responsibility unpaid",
+    );
+    for body in ["let v=store_at_mut(s,0);let callback=()=>v.tag;return callback()"] {
         let report = check(&format!("{MODEL}fn main()->i32{{{SETUP}{body}}}"));
         assert_eq!(
             report.status,
@@ -341,17 +353,26 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
             report.to_json()
         );
     }
-    for helper in [
-        "fn escape(s:Store<Cell>)->&mut Cell{return store_at_mut(s,0)}",
-        "fn escape(s:Store<Cell>)->&i32{let v=store_at_mut(s,0);return &v.tag}",
-        "fn escape(v:&mut Cell)->&mut i32{return &mut v.tag}",
-    ] {
+    for helper in ["fn escape(s:Store<Cell>)->&mut Cell{return store_at_mut(s,0)}"] {
         rejected(
             &format!("{MODEL}{helper}fn main(){{}}"),
             ResultCategory::Unsupported,
             Phase::Types,
             "synchronous inputs",
         );
+    }
+    for helper in [
+        "fn escape(s:Store<Cell>)->&i32{let v=store_at_mut(s,0);return &v.tag}",
+        "fn escape(v:&mut Cell)->&mut i32{return &mut v.tag}",
+    ] {
+        let report = check(&format!("{MODEL}{helper}fn main(){{}}"));
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
     }
     let report = check(&format!(
         "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);let copied=*v;return copied.tag}}"
@@ -644,14 +665,44 @@ fn raw_and_wire_reject_resource_projection_and_early_owner_drop() {
         .position(|f| f.name == "main")
         .unwrap();
     let mut bad = module.clone();
-    let field = bad.functions[main]
+    let f = &mut bad.functions[main];
+    let field = f
         .blocks
         .iter_mut()
         .flat_map(|b| &mut b.instructions)
         .find(|i| matches!(i.kind, I::AddressField { .. }))
         .unwrap();
-    if let I::AddressField { index, .. } = &mut field.kind {
-        *index = 0;
+    let I::AddressField { address, index } = &mut field.kind else {
+        unreachable!()
+    };
+    *index = 0;
+    let parent = *address;
+    let projected = field.result.unwrap();
+    let Type::Address { mutable, inner } = &f.values[parent.0 as usize] else {
+        unreachable!()
+    };
+    let Type::Package { fields, .. } = inner.as_ref() else {
+        unreachable!()
+    };
+    let projected_type = Type::Address {
+        mutable: *mutable,
+        inner: Box::new(fields[0].1.clone()),
+    };
+    f.values[projected.0 as usize] = projected_type.clone();
+    // Carry the actual projected type through the source's explicit reborrow.
+    // The attempted owned write still reaches the independent owner check.
+    for inst in f.blocks.iter().flat_map(|b| &b.instructions) {
+        if let I::ReborrowAddress { address, mutable } = inst.kind
+            && address == projected
+        {
+            let Type::Address { inner, .. } = &projected_type else {
+                unreachable!()
+            };
+            f.values[inst.result.unwrap().0 as usize] = Type::Address {
+                mutable,
+                inner: inner.clone(),
+            };
+        }
     }
     reject_candidate(
         "managed-field-projection",

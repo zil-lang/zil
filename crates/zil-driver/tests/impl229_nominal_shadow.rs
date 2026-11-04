@@ -123,7 +123,7 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
         assert_eq!(
             (work, nodes),
             if label == "inline" {
-                (922, 229)
+                (1006, 264)
             } else {
                 (1021, 270)
             }

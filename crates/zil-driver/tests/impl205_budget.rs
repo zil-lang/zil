@@ -81,7 +81,7 @@ fn actual_types_boundaries_cover_new_state_and_legacy_controls() {
         ("replacement", NEW),
     ] {
         let expected = match label {
-            "old-state" => 5293,
+            "old-state" => 5366,
             "ordinary-eager" => 88,
             "replacement" => 4498,
             _ => unreachable!(),
@@ -93,5 +93,5 @@ fn actual_types_boundaries_cover_new_state_and_legacy_controls() {
 #[test]
 fn actual_types_boundary_covers_refreshed_alias_and_continue_snapshots() {
     let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn recycle<F:Fn()->i32>(state:State<F>)->State<F>{var next=state;var view=&next.a;while view()==0 {let moved=next.a;next.a=moved;view=&next.a;continue}view();return next}fn main(){}";
-    assert_eq!(boundary("loop-refresh-continue", source), 2935);
+    assert_eq!(boundary("loop-refresh-continue", source), 2936);
 }

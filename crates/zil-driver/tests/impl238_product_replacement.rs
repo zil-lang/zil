@@ -195,7 +195,7 @@ fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
         "review318/frozen223: &mut Root, one top-level i32 projection/write; raw and Wire checked"
     );
     zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
-    zil_verify::verify_module_bytes(bytes, &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&migrated, &module.target, &limits).unwrap();
     let mut shared = module.clone();
     let f = shared
         .functions
@@ -419,7 +419,7 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
             "owned-write315",
             "replace(&mut panel);return 0",
             "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
-            ResultCategory::Unsupported,
+            ResultCategory::SafeReject,
         ),
     ] {
         reject(label, &product315(body, helpers), category);
@@ -791,6 +791,17 @@ fn reject(label: &str, source: &str, category: ResultCategory) {
     );
     fs::write(path.join("report.json"), report.to_json()).unwrap();
     assert_eq!(report.status, category, "{label}: {}", report.to_json());
+    if label == "owned-write315" {
+        assert_eq!(report.phase, Phase::Analyze);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("responsibility unpaid")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 #[test]
 fn original_relay_retains_shell_age_and_unchanged_cleanup_oracle() {
