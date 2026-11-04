@@ -575,7 +575,7 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
-                let nominal = self.compiler.symbol(owner, item.span)?;
+                let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut ids = Vec::new();
                 for argument in arguments {
                     self.compiler.budget.node(span)?;
@@ -718,7 +718,7 @@ impl Builder<'_, '_> {
             self.compiler.active_aliases.pop();
             return result;
         }
-        let symbol = self.compiler.symbol(owner, item.span)?;
+        let symbol = self.compiler.item_symbol(owner, item)?;
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
     }
     pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
@@ -755,7 +755,7 @@ impl Builder<'_, '_> {
                     return Err(error(ty.span, "CT type binder takes no type arguments"));
                 }
                 let (owner, item) = self.compiler.named_item(module, path, ty.span)?;
-                let nominal = self.compiler.symbol(owner, item.span)?;
+                let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut arguments = Vec::new();
                 for arg in args {
                     let value = match arg {
@@ -1281,7 +1281,7 @@ impl Builder<'_, '_> {
                     .work(self.compiler.modules[owner].syntax.items.len(), span)?;
                 let item = self.compiler.modules[owner].syntax.items.iter().find(|item| matches!(&item.kind,s::ItemKind::Aggregate(a) if std::ptr::eq(a,declaration)))
                     .ok_or_else(|| error(span,"CT generic record declaration is absent"))?;
-                let symbol = self.compiler.symbol(owner, item.span)?;
+                let symbol = self.compiler.item_symbol(owner, item)?;
                 let args = &self.compiler.record_arguments[id.0 as usize];
                 for ty in args {
                     self.compiler.budget.copy_ty(ty, 0, span)?;

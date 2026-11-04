@@ -16,32 +16,42 @@ fn identity_cost(
     identity: &LifeDeclarationIdentity,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<u64> {
-    let count = identity
+    budget.reserve_analysis_work(
+        identity
+            .module_path
+            .len()
+            .saturating_add(identity.declaration_path.len())
+            .saturating_add(identity.generation_path.len()) as u64,
+    )?;
+    let mut bytes = (identity
         .module_path
         .len()
-        .saturating_add(identity.declaration_path.len())
-        .saturating_add(identity.generation_path.len());
-    budget.reserve_analysis_work(count as u64)?;
-    let mut bytes = std::mem::size_of::<LifeDeclarationIdentity>() as u64;
+        .saturating_add(identity.declaration_path.len()) as u64)
+        .saturating_mul(std::mem::size_of::<String>() as u64)
+        .saturating_add(identity.generation_path.len() as u64 * std::mem::size_of::<u32>() as u64);
     for text in std::iter::once(&identity.package)
         .chain(&identity.module_path)
         .chain(&identity.declaration_path)
     {
         budget.reserve_analysis_work(text.len() as u64)?;
-        bytes = bytes
-            .saturating_add(text.len() as u64)
-            .saturating_add(std::mem::size_of::<String>() as u64);
+        bytes = bytes.saturating_add(text.len() as u64);
     }
-    Ok(bytes.saturating_add(identity.generation_path.len() as u64 * 4))
+    Ok(bytes)
 }
 pub(super) fn origins_cost(
     origins: &[ModuleDeclarationOrigins],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<u64> {
     budget.reserve_analysis_work(origins.len() as u64)?;
-    let mut bytes = origins.len() as u64 * std::mem::size_of::<ModuleDeclarationOrigins>() as u64;
+    let mut bytes = (std::mem::size_of::<Vec<ModuleDeclarationOrigins>>()
+        + 2 * std::mem::size_of::<usize>()) as u64
+        + (origins.len() as u64) * std::mem::size_of::<ModuleDeclarationOrigins>() as u64;
     for module in origins {
         budget.reserve_analysis_work(module.items.len() as u64)?;
+        bytes = bytes.saturating_add(
+            module.items.len() as u64
+                * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64,
+        );
         for item in &module.items {
             bytes = bytes.saturating_add(identity_cost(&item.identity, budget)?);
         }
@@ -67,7 +77,25 @@ impl FrozenInvocationContext {
         index: &SourceIndex,
         origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
         budget: &mut CtExecutionBudget,
-    ) -> CompileResult<Arc<Self>> {
+    ) -> CompileResult<Option<Arc<Self>>> {
+        let before = budget.live_temporary_bytes();
+        let result = Self::freeze_inner(entry, parsed, index, origins, budget);
+        let keep = result
+            .as_ref()
+            .ok()
+            .and_then(|context| context.as_ref())
+            .map_or(0, |context| context.bytes);
+        let added = budget.live_temporary_bytes().saturating_sub(before);
+        budget.release_temporary_bytes(added.saturating_sub(keep));
+        result
+    }
+    fn freeze_inner(
+        entry: &Entry<'_>,
+        parsed: &[Arc<ParseResult>],
+        index: &SourceIndex,
+        origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<Arc<Self>>> {
         let definition = match entry {
             Entry::Expression { definition, .. } | Entry::Function(definition) => definition,
         };
@@ -91,12 +119,7 @@ impl FrozenInvocationContext {
             _ => None,
         });
         let Some(function) = function else {
-            return Ok(Arc::new(Self {
-                active: Vec::new(),
-                bytes: 0,
-                origins: None,
-                modules: Vec::new(),
-            }));
+            return Ok(None);
         };
         budget.reserve_analysis_work(function.generics.len() as u64)?;
         if !function
@@ -104,12 +127,7 @@ impl FrozenInvocationContext {
             .iter()
             .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
         {
-            return Ok(Arc::new(Self {
-                active: Vec::new(),
-                bytes: 0,
-                origins: None,
-                modules: Vec::new(),
-            }));
+            return Ok(None);
         }
         let origins = origins
             .ok_or_else(|| unsupported("CT ambient scope requires original declaration lineage"))?;
@@ -124,13 +142,11 @@ impl FrozenInvocationContext {
                 "CT ambient original declaration ordinal differs",
             ));
         }
-        let bytes = (parsed.len() as u64)
-            .saturating_mul(std::mem::size_of::<Arc<ParseResult>>() as u64)
-            .saturating_add(identity_cost(&origin.identity, budget)?)
-            .saturating_add(std::mem::size_of::<ActiveScope>() as u64)
-            .saturating_add(
-                function.generics.len() as u64 * std::mem::size_of::<CtScopeParameterKind>() as u64,
-            );
+        let bytes = (std::mem::size_of::<Self>() + 2 * std::mem::size_of::<usize>()) as u64
+            + (parsed.len() as u64) * std::mem::size_of::<Arc<ParseResult>>() as u64
+            + identity_cost(&origin.identity, budget)?
+            + std::mem::size_of::<ActiveScope>() as u64
+            + (function.generics.len() as u64) * std::mem::size_of::<CtScopeParameterKind>() as u64;
         budget.reserve_temporary_bytes(bytes)?;
         let mut parameters = Vec::with_capacity(function.generics.len());
         for parameter in &function.generics {
@@ -159,7 +175,7 @@ impl FrozenInvocationContext {
                 }
             });
         }
-        Ok(Arc::new(Self {
+        Ok(Some(Arc::new(Self {
             active: vec![ActiveScope {
                 raw: CtAmbientLifeScope {
                     declaration: definition.clone(),
@@ -172,9 +188,24 @@ impl FrozenInvocationContext {
             bytes,
             origins: Some(origins.clone()),
             modules: parsed.to_vec(),
-        }))
+        })))
+    }
+    pub(super) fn has_scopes(&self) -> bool {
+        !self.active.is_empty()
     }
     pub(super) fn symbol_key(
+        &self,
+        symbol: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Vec<u8>> {
+        let before = budget.live_temporary_bytes();
+        let result = self.symbol_key_inner(symbol, budget);
+        let keep = result.as_ref().map_or(0, |key| key.capacity() as u64);
+        let added = budget.live_temporary_bytes().saturating_sub(before);
+        budget.release_temporary_bytes(added.saturating_sub(keep));
+        result
+    }
+    fn symbol_key_inner(
         &self,
         symbol: &CtSymbolId,
         budget: &mut CtExecutionBudget,
@@ -260,9 +291,11 @@ impl FrozenInvocationContext {
             number(&mut out, u64::from(*part));
         }
         number(&mut out, member.len() as u64);
+        let member_bytes = member.capacity() as u64 * std::mem::size_of::<u32>() as u64;
         for part in member {
             number(&mut out, u64::from(part));
         }
+        budget.release_temporary_bytes(member_bytes);
         budget.reserve_analysis_work(out.len() as u64)?;
         debug_assert!(out.capacity() <= size);
         Ok(out)
@@ -360,9 +393,14 @@ fn member_path(
     ) -> CompileResult<Vec<u32>> {
         let ordinal =
             u32::try_from(ordinal).map_err(|_| unsupported("CT member ordinal overflow"))?;
-        budget.reserve_temporary_bytes((tail.len() as u64 + 2) * 8)?;
-        let mut path = vec![kind, ordinal];
+        let count = tail.len().saturating_add(2);
+        budget.reserve_analysis_work(tail.len() as u64)?;
+        budget.reserve_temporary_bytes(count as u64 * std::mem::size_of::<u32>() as u64)?;
+        let mut path = Vec::with_capacity(count);
+        path.extend([kind, ordinal]);
+        let tail_bytes = tail.capacity() as u64 * std::mem::size_of::<u32>() as u64;
         path.extend(tail);
+        budget.release_temporary_bytes(tail_bytes);
         Ok(path)
     }
     match &item.kind {

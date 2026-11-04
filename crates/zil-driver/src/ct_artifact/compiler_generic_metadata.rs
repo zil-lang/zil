@@ -173,7 +173,7 @@ impl Compiler<'_> {
                 if !args.is_empty() =>
             {
                 let (owner, item) = self.named_item(module, path, pattern.span)?;
-                if self.symbol(owner, item.span)? != *symbol || args.len() != arguments.len() {
+                if self.item_symbol(owner, item)? != *symbol || args.len() != arguments.len() {
                     return Err(error(
                         pattern.span,
                         "generic metadata nominal owner or arity differs",
