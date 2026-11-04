@@ -485,3 +485,21 @@ descriptor bytes after success/failure. A step-failure control also frees the
 actual frame arrays. The CT library passes56/0 and the three unchanged phantom
 sources again run12 native profiles. Full contextual keys, authenticated rich/
 specialization scopes and exact final source bindings remain subsequent work.
+
+### Resumed Definition-context candidate
+
+The interrupted source changes now retain contextual data keys through genuine
+Definition scopes, full mixed-kind parameter ordinals and original declaration
+identity. Source relocation and repeated function spans do not collapse owners;
+contextual field descriptors retain the nested owner graph. Frozen-source,
+symbol-key and later invocation failures release their owned temporary bytes.
+Ambient Type export, rich/member/instantiated scopes and complete actual-vector
+identity remain explicitly unsupported pending their producers and consumers.
+
+After the worker stopped on its service usage limit, root resumed the actual
+working tree. Six CT5 controls pass on the resumed tree, including actual-source
+raw/Wire mutations, independent Verify N3906/N−1/fresh, contextual descriptor
+N12688/N−1/fresh, shared-span source reification and scratch rollback. The new
+actual phantom-context meta.field/field_type query passes ordinary kernels and
+four Clang/LLVM API O0/O2 runs with output42. This is resumed author evidence,
+not independent acceptance or completion of all CT5 contracts.

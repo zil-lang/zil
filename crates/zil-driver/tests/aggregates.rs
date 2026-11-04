@@ -6952,3 +6952,11 @@ fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
         review329_native(&[("main", text)], 42);
     }
 }
+
+#[test]
+fn ct5_phantom_context_query_reaches_native() {
+    let text=include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil");
+    let report=compile_source(&source(text),&CompileOptions::default());
+    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    review329_native_entry_output(&[("main",text)],"main",b"42\n");
+}
