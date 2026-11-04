@@ -836,12 +836,48 @@ impl State {
                     "closure body was not resolved",
                 )
             })?;
+            let captures = pending
+                .captures
+                .iter()
+                .map(Capture::stored_type)
+                .collect::<Vec<_>>();
+            if let Some(life) = &typed.storage_life {
+                remaining = remaining
+                    .checked_sub(
+                        borrowed_fp::metadata_work(life)
+                            .saturating_add(parameters.len())
+                            .saturating_add(captures.len())
+                            .saturating_add(1),
+                    )
+                    .ok_or_else(|| {
+                        limit("completed capture relation budget exceeded", pending.span)
+                    })?;
+                borrowed_fp::qualified_inputs(life, &parameters, &result, |work| {
+                    remaining = remaining.checked_sub(work).ok_or_else(|| {
+                        limit("completed parameter class budget exceeded", pending.span)
+                    })?;
+                    Ok(())
+                })?;
+                borrowed_fp::qualified_inputs(life, &captures, &Type::Unit, |work| {
+                    remaining = remaining.checked_sub(work).ok_or_else(|| {
+                        limit("completed capture class budget exceeded", pending.span)
+                    })?;
+                    Ok(())
+                })?;
+                borrowed_fp_qualified::capture_relation(
+                    &parameters,
+                    &captures,
+                    &result,
+                    life,
+                    pending.span,
+                )?;
+            }
             definitions.push(ClosureDefinition {
-                storage_life: None,
+                storage_life: typed.storage_life.clone(),
                 lending_captures: Vec::new(),
                 id: pending.id,
                 function: pending.function,
-                captures: pending.captures.iter().map(Capture::stored_type).collect(),
+                captures,
                 parameters,
                 result,
                 kind,

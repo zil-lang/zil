@@ -125,7 +125,7 @@ fn analyze_budgeted(
             helpers::check(module, budget)?;
         }
         for f in &module.functions {
-            stored_flow::header(f, budget)?;
+            stored_flow::header(module, f, budget)?;
         }
         for (f, package) in module.functions.iter().zip(&package_functions) {
             scopes::check(module, f, *package, budget)?;
