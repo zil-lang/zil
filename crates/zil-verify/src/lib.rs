@@ -70,6 +70,7 @@ mod owned_callbacks;
 #[cfg(test)]
 mod package_tests;
 mod packages;
+mod place_replacements;
 mod registration;
 #[cfg(test)]
 mod resource_closure_tests;

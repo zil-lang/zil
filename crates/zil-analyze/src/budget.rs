@@ -24,6 +24,7 @@ pub(super) struct Budget {
     pub(super) shared_product_capture: bool,
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
+    pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
@@ -62,6 +63,7 @@ impl Budget {
             shared_product_capture: false,
             address_capture: false,
             owning_address_captures: false,
+            replacement_functions: BTreeSet::new(),
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
@@ -1432,11 +1434,15 @@ pub(super) fn preflight(
                     | InstructionKind::ReservePlaceAddress { .. }
                     | InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "owning-place reservation consumers are under construction",
-                            Some(instruction.span),
-                        )]);
+                        budget.lookup(
+                            budget.replacement_functions.len(),
+                            "replacement function profile insertion",
+                        )?;
+                        budget.replacement_functions.insert(function.id);
+                        // Actual endpoint/activation, resource and pin passes
+                        // independently reconstruct these private consumers.
+                        // No producer ticket or claimed pointee grants access.
+                        budget.addressed_sums = true;
                     }
                     InstructionKind::TakeTupleField { local, path }
                     | InstructionKind::TakeVariantField { local, path }

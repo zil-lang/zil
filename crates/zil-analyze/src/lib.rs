@@ -26,6 +26,7 @@ mod incremental;
 mod lifetimes;
 mod mixed_address_sums;
 mod owned_callbacks;
+mod place_replacements;
 mod registration;
 #[cfg(test)]
 mod resource_tests;

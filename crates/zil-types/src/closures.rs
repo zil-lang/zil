@@ -2969,6 +2969,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     let field = aggregates::field(&ty, member, expression.span)?.1;
                     return self.known(&field, expression.span);
                 }
+                if let LocalType::Address(variable, _) = probe
+                    && let Some(ty @ Type::Package { .. }) = self.graph.ty(variable)?
+                {
+                    self.graph.reserve_type(&ty, 0, expression.span)?;
+                    let field = aggregates::field(&ty, member, expression.span)?.1;
+                    if matches!(&field, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+                    {
+                        // A replacement target is the actual owning slot.
+                        // Ordinary member reads still project a descriptor.
+                        self.mark_address_write(object, depth + 1)?;
+                        return self.known(&field, expression.span);
+                    }
+                }
                 let base = if matches!(probe, LocalType::Resource(..)) {
                     self.mark_resource_write(probe, expression.span)?;
                     probe

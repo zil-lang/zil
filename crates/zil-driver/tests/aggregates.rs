@@ -11,6 +11,163 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_owner_replacement_types_uses_real_tickets() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let temp = Temp::new();
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                emit_dir: Some(temp.0.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+        assert!(typed.contains("ReservePlaceAddress"), "{typed}");
+        assert!(typed.contains("CommitPlaceReplace"), "{typed}");
+        assert!(!typed.contains("WriteAddress"), "{typed}");
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_analyze_tracks_fresh_and_incoming() {
+    for (text, expected) in [
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"
+            ),
+            ResultCategory::Success,
+        ),
+        (
+            include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+            ResultCategory::SafeReject,
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+            ),
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_preparation_abort_and_pin_neighbors() {
+    let failed_rhs =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil");
+    let temp = Temp::new();
+    let report = compile_source(
+        &source(failed_rhs),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            emit_dir: Some(temp.0.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+    assert!(typed.contains("AbortPlaceReservation"), "{typed}");
+    let report = compile_source(
+        &source(failed_rhs),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let prefix = "resource R{code:i32}package P{manages owner:R;n:i32}";
+    for (helper, rhs, expected) in [
+        (
+            "fn read(n:&i32)->i32{return *n}",
+            "read(&target.n)",
+            ResultCategory::Success,
+        ),
+        (
+            "fn write(n:&mut i32)->i32{*n=66;return *n}",
+            "write(&mut target.n)",
+            ResultCategory::Success,
+        ),
+        (
+            "fn write(p:&mut P)->i32{p.n=66;return p.n}",
+            "write(target)",
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let text = format!(
+            "{prefix}{helper}fn replace(target:&mut P){{target.owner=R{{code:{rhs}}}}}fn result()->i32{{var packet=P{{owner:R{{code:65}},n:0}};replace(&mut packet);return 42}}"
+        );
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+    ] {
+        review329_native_output(&[("main", text)], b"AB42\n");
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal340_captured_owning_base_native() {
     let original = include_str!(
         "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"
