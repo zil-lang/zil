@@ -58,5 +58,12 @@
     "evidence": "Reported by root after the exact19-test scoped replay;340 confirmed guard regression. Earlier19/0 remains unchanged and does not cover these original integration consumers.",
     "required": "Restore the nonempty address_afters guard in conjunction with profile flags; replay original impl236 consumers and new pattern controls at the corrected exact source.",
     "status": "Root and340 correcting; clean follow-up evidence pending"
+  },
+  "integration_followup": {
+    "status": "ResolvedAtIntegratedCandidate",
+    "source_commit": "c741b63b0f54f513a25201606831a495b6b98000",
+    "fix_commit": "223439f1ff929dbf4a00a226f601d91db907c2c2",
+    "review_receipt": "docs/validation/review-root-head-sync-terminal-architecture.json",
+    "evidence": "Exact c741 retained impl236 harness independently passes all9, including original3 panic consumers. Prior e7b source remains historical; corrected integrated candidate alone resolves this finding."
   }
 }
