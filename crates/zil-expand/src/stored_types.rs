@@ -1484,6 +1484,80 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
         );
     }
 
+    const RICH_ROLE_HELPER: &str = "struct Tag<life s>{n:i32}fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)}fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};let f=(p,q)=>42;return invoke(&f,&v,x)}fn result()->i32{let n=21;return apply(&n)}fn main()->i32{return result()-42}";
+    #[test]
+    fn rich_callable_role_preserves_helper_and_invocation_domains() {
+        let core = expand_text(RICH_ROLE_HELPER).unwrap();
+        let helper = core.functions.iter().find(|f| f.name == "invoke").unwrap();
+        let contract = helper.storage_life.as_ref().unwrap();
+        assert_eq!(
+            (
+                contract.fixed_binder_count,
+                contract.invocation_binder_count
+            ),
+            (1, 2)
+        );
+        assert_eq!(
+            contract
+                .bindings
+                .iter()
+                .map(|r| r.binder)
+                .collect::<Vec<_>>(),
+            [
+                StorageBinder::Invocation(0),
+                StorageBinder::Invocation(1),
+                StorageBinder::Fixed(0)
+            ]
+        );
+        assert_eq!(contract.classes[0].binder, StorageBinder::Fixed(0));
+        assert_eq!(contract.classes[0].position.base, StorageBase::Parameter(1));
+        let role = &helper.callable_parameters[0];
+        let relation = role.life.as_ref().unwrap();
+        assert_eq!(
+            (
+                relation.fixed_binder_count,
+                relation.invocation_binder_count
+            ),
+            (0, 2)
+        );
+        assert_eq!(
+            relation
+                .bindings
+                .iter()
+                .map(|r| r.binder)
+                .collect::<Vec<_>>(),
+            [StorageBinder::Invocation(0), StorageBinder::Invocation(1)]
+        );
+        assert_eq!(relation.classes[0].binder, StorageBinder::Invocation(1));
+        assert_eq!(
+            relation.classes[0].position.path,
+            [LifeTypeProjection::Pointee]
+        );
+        assert!(
+            matches!(&role.parameters[0],Type::Address {inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage {..}))
+        );
+    }
+    #[test]
+    fn unused_rich_role_definitions_check_rigid_classes_before_instances() {
+        for (tag, q, expected) in [("b", "b", true), ("a", "b", false), ("a", "a", true)] {
+            let text = format!(
+                "struct Tag<life s>{{n:i32}}fn unused<life a,life b,F:for<life x>for<life y>Fn(&'x Tag<'y>,&'y i32)->i32>(f:&F,p:&'a Tag<'{tag}>,q:&'{q} i32)->i32{{return f(p,q)}}fn main(){{}}"
+            );
+            let result = expand_text(&text);
+            if expected {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("distinct declared lifetime classes")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn outer_only_callable_role_uses_the_common_invocation_contract() {
         let core = expand_text("fn apply<F:for<life a>Fn(&'a i64)->&'a i64>(f:&F,p:&i64)->&i64{return f(p)}fn main(){}").unwrap();

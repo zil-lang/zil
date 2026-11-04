@@ -54,6 +54,18 @@ impl Expander<'_> {
                     .roles
                     .into_iter()
                     .map(|role| {
+                        if let Some((parameters, result, life)) = self.source_rich_role(f, &role) {
+                            return CoreCallableParameter {
+                                life: Some(life),
+                                index: role.index as u32,
+                                generic_index: role.generic_index,
+                                generic_name: role.generic_name,
+                                closed_environment: role.closed_environment,
+                                kind: role.kind,
+                                parameters,
+                                result,
+                            };
+                        }
                         let parameters = role
                             .parameters
                             .iter()

@@ -442,11 +442,21 @@ impl Engine<'_> {
             let mut inner = self.clone_env(env)?;
             for param in params {
                 if let Some(t) = &mut param.ty {
+                    rich_pointer::reject_fixed_closure(
+                        t,
+                        &self.products.storage.instances,
+                        &mut self.budget,
+                    )?;
                     self.ty(t, depth + 1)?;
                 }
                 inner.insert(param.name.clone(), param.ty.clone());
             }
             if let Some(t) = return_type {
+                rich_pointer::reject_fixed_closure(
+                    t,
+                    &self.products.storage.instances,
+                    &mut self.budget,
+                )?;
                 self.ty(t, depth + 1)?;
             }
             let saved = std::mem::replace(&mut self.return_type, return_type.clone());

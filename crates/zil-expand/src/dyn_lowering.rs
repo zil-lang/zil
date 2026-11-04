@@ -48,6 +48,68 @@ impl Expander<'_> {
         }
     }
 
+    pub(super) fn source_rich_role(
+        &mut self,
+        function: &s::Function,
+        role: &generics::callable::CallableTemplate,
+    ) -> Option<(Vec<Type>, Type, zil_ir::StorageLifeContract)> {
+        let storage = self.storage_catalog?;
+        if storage.pointers.is_empty() {
+            return None;
+        }
+        let limits = Limits {
+            max_analysis_steps: self
+                .member_owner_limit
+                .saturating_sub(self.member_owner_work),
+            max_nodes: self.member_owner_nodes,
+            max_call_depth: self.member_owner_depth,
+            ..Limits::default()
+        };
+        let mut budget = generics::Budget::new(&limits);
+        let result = (|| {
+            for formal in &function.generics {
+                budget.node(formal.span, 0)?;
+                budget.text(&formal.name, formal.span)?;
+                budget.text(&role.generic_name, formal.span)?;
+                if formal.name != role.generic_name {
+                    continue;
+                }
+                let s::GenericParamKind::Type(bounds) = &formal.kind else {
+                    continue;
+                };
+                for bound in bounds {
+                    budget.node(bound.span, 0)?;
+                    if let Some(code) = generics::rich_pointer::role_code(bound, &mut budget)? {
+                        let Some(Type::BorrowedFunctionPointer {
+                            parameters,
+                            result,
+                            life,
+                        }) = storage.pointer_type(&code, &mut budget)?
+                        else {
+                            return Err(Diagnostic::unsupported(
+                                Phase::Expand,
+                                "rich role has no actual prepared signature",
+                                Some(bound.span),
+                            ));
+                        };
+                        return Ok(Some((parameters, *result, life)));
+                    }
+                }
+            }
+            Ok(None)
+        })();
+        let left = budget.remaining_limits();
+        self.member_owner_work += limits.max_analysis_steps - left.max_analysis_steps;
+        self.member_owner_nodes = left.max_nodes;
+        match result {
+            Ok(result) => result,
+            Err(error) => {
+                self.diagnostics.push(error);
+                None
+            }
+        }
+    }
+
     pub(super) fn record_dyn_method(&mut self, member: usize, function: NodeId, span: Span) {
         if self
             .dynamic_catalog

@@ -603,7 +603,12 @@ fn template_with_state(
         ));
     }
     if callables.len() > 2
-        || function.generics.len() > callables.len() + 1
+        || function
+            .generics
+            .iter()
+            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+            .count()
+            > callables.len() + 1
         || !function.where_clause.is_empty()
     {
         return Err(unsupported(
@@ -611,11 +616,9 @@ fn template_with_state(
             "at most two callable types and one ordinary Copy type with direct bounds are implemented",
         ));
     }
-    for ordinary in function
-        .generics
-        .iter()
-        .filter(|p| !callables.iter().any(|c| c.name == p.name))
-    {
+    for ordinary in function.generics.iter().filter(|p| {
+        !matches!(p.kind, GenericParamKind::Lifetime) && !callables.iter().any(|c| c.name == p.name)
+    }) {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
             if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
         {
