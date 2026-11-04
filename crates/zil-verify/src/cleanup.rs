@@ -56,6 +56,9 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_add(1))?;
                 pending.extend(parameters);
@@ -73,6 +76,7 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::ReadVariantLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::UnpackVariant { local, .. }
         | InstructionKind::DropEnum { local }
         | InstructionKind::RegisterDefer { local, .. }
@@ -164,6 +168,7 @@ pub(super) fn check_function(
                 InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
                     | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
                     | InstructionKind::DropEnum { .. }
             ) {

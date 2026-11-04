@@ -824,6 +824,10 @@ SABI 保留 init/poll/request_cancel/poll_close/finish_destroy。poll/poll_close
 
 首条纯i32机器通路仅在两个独立核从封闭可达worker图证明没有外部用户、拥有子帧或未清责任时，允许默认drop执行取消、关闭并回收；NoExternal不能是信任位。一般拥有结果、子帧、返回借用、外部登记、保留waker和异步draining仍依本章完整静止条件实施，不能从首条通路推导完成。
 
+公开任务语义接口携带模块、导出名、真实worker、参数及结果的完整Type/PassingMode和SABI版本；两个核都从实际程序重建资格，不能把旧ScalarInterface中指向Suspend入口的声明当作Direct导出。实际后台导出`zil.sabi.task.<op>.<worker-id>`的init/poll/request_cancel/poll_close/finish_destroy。首条i32接口的init(i32)返回可空frame地址；外部poll(ptr)返回i64，高32位为上述状态，低32位为结果原始i32位；cancel(ptr)无返回值，close(ptr)返回i1，destroy(ptr)无返回值。源码poll仍返回普通二元组。
+
+机器ABI产物须绑定已核输入、实际目标/DataLayout、工具及代码生成配置，记录实际符号/签名与帧字段偏移、大小、对齐、机器类型及完整类型身份。首条布局只接受明确支持的Linux x64目标和ptr/i1/i8/i16/i32/i64及普通非packed结构；实际LLVM DataLayout和C sizeof/offsetof交叉核对。不能使用Rust宿主sizeof推测目标，也不能把缓存descriptor当作独立安全证明。
+
 ### 12.2 异常与待退出状态
 
 **不能先展开一个直接调用栈，再声称其局部缓冲已经转移给异步 draining。**
@@ -849,6 +853,10 @@ SABI 内的清理若再次 panic，按固定策略进入 Faulted/abort；不得�
 回收条件是所有真实使用者归还、后端不再直接访问记录、结果责任已处理、窗口已结束。submit-returned、data-done、callback-quiescent 仅是这个完整条件的具体分量。
 
 正常退出等待；主体异常优先，随后按创建序选未观察子错误。成功返回值先存待退出槽，最终改为失败时也准确清理。取消界和最终回收有环境前提，不以提前 free 换时限。
+
+可返回的同线程登记对象（343）使用`unsafe c_register(register, close, callback)`显式将实际具体闭包环境转入稳定拥有存储；普通F表达式依既有消费规则转移，`give`仅用于Managed拥有头。类型`Registration<F>`携真实环境类型，不赋予Transfer/Share/Copy。`registration_valid(owner)`只读描述，`registration_close(give owner)`消费拥有根；默认清理同样完成强关闭后才销毁环境。安装helper返回、栈被覆盖后，后续反调仍访问原实际环境，不能复制已借栈或只延长外壳。
+
+参数化安装定义必须明确要求`F: FnMut(...) + ClosedEnvironment`。ClosedEnvironment是编译器密封的实际自含环境要求，未用泛型定义也须检查；声明本身不证明资格。Types/Analyze与Verify分别走实际具体捕获图和责任链，拒绝环境保留普通借用或外借描述；代码指针签名中的地址并非被捕获的地址。此界限不从Copy、StoreElement、Transfer或Share推导。外部register失败须同步撤销全部入口；close返回必须保证所有原始入口/访问都已结束且以后不会再开始，包括尚未进入ZIL trampoline的用户。仅计数active回调不满足合同，不能关闭后再解引用已释放userdata以检查过期。实际unsafe外部角色承诺与完整静止机制均须逐项验证，首条合同不开放跨线程或异步draining。
 
 ### 12.4 设备与 FFI
 
@@ -943,6 +951,8 @@ comptime 执行有逻辑配额和显式输入，不从未完成安全查询反�
 实际地址及字段接续（340/342）：借入Enum必须从真实输入地址观察tag及取得payload地址，不能将整个Enum复制到临时位置后声称引用原输入。Copy Tuple/Record字段使用真实本地字段位置及有界inline投影，借入一个字段后读取另一个字段不重载整个父值；父移动、整体替换及清理与每个子区间相交。闭包捕获、保存引用及重借须保留真实投影和父存储依赖，不能因public Hold较粗而丢失权限。临时RHS只求值一次后建立真实本地位置，其ref mut不赋予既有不可变位置写权限。
 
 从`&Package`/`&mut Package`投影Managed资源头可形成保留来源的Desc，绝不复制Managed责任；共享头来源只能执行已证明只读的操作，独占来源也仍受实际活跃view和may效果约束。源函数转发、返回、捕获和间接调用必须保留并核验父根/权限，不能通过DescribeAddress洗掉只读或获得销毁权限。Task及外部登记头的特殊生命周期不由普通资源描述投影自动开放。
+
+拥有Tuple及混合选择性移动（340）保留实际结构Type::Tuple。MakeOwnedTuple转入各实际责任，UnpackTuple原子转移完整槽到互异空槽，DropTuple仅清理仍初始化的叶。TakeTupleField与TakeVariantField使用非空有界PlaceProjection路径，Field进入真实inline Tuple/Package字段，Variant同时核当前判别与字段；不得跨Managed/地址/外部稳定存储边界。每次选择性Take只转移其初始化子树，父仍保留判别/存储及其余责任；之后整体Take要求完整初始化。两核独立从实际CFG重建每个子树的状态、父子借用相交、重复/前缀路径冲突和清理，backend在真实local GEP和实际活标志上执行；不使用public Plan中的权限位或把Tuple改名Package替代。
 
 有限记录式枚举变体与具名match模式（329）：普通有限Copy枚举允许`V { field: Type, ... }`载荷、`E.V { field: expr, ... }`构造，以及match中的`E.V { field: pattern, ... }`。构造沿既有record grammar允许`{field}`读取同名值；构造表达式按源码字段顺序各求值一次，再按声明顺序形成既有Enum载荷；字段名及具体声明身份在正规化前完整核验，未知、重复、遗漏字段与tuple/record形式混用均拒绝。模式可重排具名字段，但首片要求全部字段显式`field:pattern`，不开放shorthand、rest或新ref权限；绑定和权限沿既有有限Copy模式规则。记录字段继承枚举载荷可见性，独立pub/default/manages标记首片Unsupported，不擦除。泛型与未用定义同核；允许枚举直接普通类型参数Copy前提并逐实参含phantom核验，不从bound推导整个枚举Copy，不开放任意trait/where前提。复用已有Core/Typed Enum表示与机器判别/字段序，AST具名标签必须通过CT生成、卫生与有界遍历保留到字段解析；不支持的CT路径显式拒绝，不丢标签放行。
 
@@ -1256,6 +1266,8 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 高阶借用薄函数指针接续（342）：`for<life a> fn(&'a T)->&'a T`等一层Direct地址签名使用函数局部、规范化密集binder关系。公开FunctionLifeContract保存binder_count、实际参数顺序的parameter_lives与result_life，不以词法名字、Span或已有调用身份作为关系。关系只约束地址形参/结果，结果标签必须对应非空真实地址输入集合；可变结果仍要求实际可变输入权限。同一个薄代码地址可复制，但不复制载荷责任。静态目标必须无环境、foreign、teardown或Suspend，完整实际参数/结果/可变模式一致，并由独立核得的实际返回根证明属于指针声明上界。每次间接调用对真实当前实参重新实例化关系，同时核全部参数窗口；返回来源保守取已声明允许输入的实际根，保留重借父链直到真实最后使用，不能借建指针时的对象或其它调用的life取得权限。此地址关系本身不证明嵌套存储/lending或固定环境依赖；这些需要相应独立投影与Hold事实。
 
 借用薄指针的普通省略形式`fn(&T,...)->R`把所有实际地址输入映射到一个新调用局部上界binder；借用结果必须来自该非空集合，显式`for<life ...>`可声明更窄关系。此上界不证明各输入别名或分离，可变权限仍从实际根取得。CT Type DAG用BorrowedFunctionPointer节点保留完整FunctionLifeContract与参数/结果节点ID，反射、编码及物化不能退化成无life FunctionPointer。binder、map与DAG边均先计费，拒绝不规范关系及环。旧有限无借用指针边界的拒绝用例仅在实际完整消费者成立时按本合同迁移。
+
+可调用参数的高阶life关系（342）：`F: for<life a> Fn(&'a T)->&'a T`把FunctionLifeContract保留在CoreCallableParameter及Typed CallableRole，约束每次真实调用的输入/返回关系，固定环境Hold仍独立保留。未用定义须按声明关系验证，具体闭包的实际CFG返回根须在该次声明允许的输入集合内；固定捕获根不能洗为新调用binder。参数顺序、可变模式、密集binder、非空返回来源及同时活动窗口由两个核分别重建。源/Core签名依赖、JSON接口、Wire及缓存身份均包含关系，旧候选不能复用旧核验结论。新字段使旧无life角色字节也改变，因此该候选使用Typed/Wire36、typed module域V36、CallableParameterContract域5；CT artifact域2和CallableReturnContract域3在字节不变时保持。现有Type编码未变，不由角色字段自动更改Type身份域。只有完整消费者与独立证据完成后才升级实际接收版本，登记不算通过。
 
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 

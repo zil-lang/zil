@@ -132,7 +132,16 @@ fn cells(ty: &Type, cap: usize) -> CompileResult<usize> {
             .ok_or_else(|| quota("CT aggregate cell budget exhausted"))
     };
     match ty {
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::U64 | Type::Usize => Ok(1),
+        Type::Unit
+        | Type::Bool
+        | Type::U8
+        | Type::U16
+        | Type::I32
+        | Type::I64
+        | Type::F32
+        | Type::U64
+        | Type::Usize
+        | Type::F64 => Ok(1),
         Type::Tuple(fields) => fields
             .iter()
             .try_fold(1usize, |n, t| add(n, cells(t, cap)?)),
@@ -268,6 +277,13 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         program.module().target.pointer_width,
                     )?))
                 }
+                InstructionKind::ConvertNumber { value, target } => {
+                    Some(CompileTimeValue::Scalar(super::convert_number(
+                        frame.value(*value).scalar(),
+                        target,
+                        program.module().target.pointer_width,
+                    )?))
+                }
                 InstructionKind::Load(local) => Some(
                     frame.locals[local.0 as usize]
                         .as_ref()
@@ -293,7 +309,14 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         "defer is forbidden during compile-time execution",
                     )]);
                 }
-                InstructionKind::WithScopedThread { .. }
+                InstructionKind::TaskStart { .. }
+                | InstructionKind::TaskYield
+                | InstructionKind::TaskValid { .. }
+                | InstructionKind::TaskPoll { .. }
+                | InstructionKind::TaskRequestCancel { .. }
+                | InstructionKind::TaskPollClose { .. }
+                | InstructionKind::TaskFinishDestroy { .. }
+                | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
                 | InstructionKind::SyncI32 { .. } => {
                     return Err(vec![Diagnostic::error(
@@ -320,9 +343,13 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                     frame.locals[local.0 as usize] = Some(frame.value(*value).clone());
                     None
                 }
-                InstructionKind::Unary { op, operand } => Some(CompileTimeValue::Scalar(
-                    crate::unary_target(*op, frame.value(*operand).scalar(), program.module().target.pointer_width)?,
-                )),
+                InstructionKind::Unary { op, operand } => {
+                    Some(CompileTimeValue::Scalar(crate::unary_target(
+                        *op,
+                        frame.value(*operand).scalar(),
+                        program.module().target.pointer_width,
+                    )?))
+                }
                 InstructionKind::Binary { op, left, right } => {
                     Some(CompileTimeValue::Scalar(crate::binary_target(
                         *op,

@@ -95,6 +95,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
+    let expression_ids = if traits.has_instances {
+        trait_instances::expression_ids(&function.body, budget)?
+    } else {
+        BTreeMap::new()
+    };
     let mut check = Check {
         variables,
         definition_bound_context,
@@ -107,6 +112,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             None => traits.bounds(function, budget)?,
         },
         trait_calls,
+        expression_ids,
         traits,
         next_local: function.params.len(),
         enum_resource_flow: false,
@@ -451,6 +457,101 @@ fn substituted_type(
     Substitution { substitutions }.ty(&mut result);
     Ok(result)
 }
+/// Only floating literals can receive a floating format from the other operand.
+/// Group/unary inspection is metadata work, before either value is evaluated.
+pub(super) fn uncontextual_float(
+    expression: &Expr,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    match &expression.kind {
+        ExprKind::Literal(Literal::Float(text)) => {
+            Ok(!text.starts_with("@bits:") && !text.ends_with("f32") && !text.ends_with("f64"))
+        }
+        ExprKind::Group(inner)
+        | ExprKind::Unary {
+            op: UnaryOp::Negate,
+            operand: inner,
+        } => {
+            budget.node(expression.span, depth)?;
+            uncontextual_float(inner, budget, depth + 1)
+        }
+        _ => Ok(false),
+    }
+}
+pub(super) fn floating(ty: &TypeRef) -> bool {
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "f32" | "f64")))
+}
+fn checked_float(
+    text: &str,
+    expected: Option<&TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    use zil_base::numeric::{FloatFormat, FloatValue};
+    if text.starts_with("@bits:") {
+        budget.numeric_work(text.len(), span)?;
+        let value = FloatValue::from_generated_spelling(text).map_err(|_| {
+            Diagnostic::error(
+                Phase::Expand,
+                "E-FLOAT-LITERAL",
+                Some(span),
+                "invalid generated floating bits",
+            )
+        })?;
+        let name = if value.format() == FloatFormat::F32 {
+            "f32"
+        } else {
+            "f64"
+        };
+        if let Some(expected) = expected.filter(|ty| floating(ty))
+            && !matches!(&group(expected).kind, TypeKind::Named { path, .. } if path.as_slice() == [name])
+        {
+            return Err(error(
+                span,
+                "generated floating format differs from expected type",
+            ));
+        }
+        return Ok(named(name, span));
+    }
+    budget.numeric_work(zil_base::numeric::decimal_work(text.len()), span)?;
+    let suffix = ["f32", "f64"]
+        .into_iter()
+        .find(|suffix| text.ends_with(suffix));
+    let context = expected.filter(|ty| floating(ty));
+    if let (Some(suffix), Some(expected)) = (suffix, context)
+        && !matches!(&group(expected).kind, TypeKind::Named { path, .. } if path.as_slice() == [suffix])
+    {
+        return Err(error(span, "floating suffix differs from expected type"));
+    }
+    let ty = if let Some(suffix) = suffix {
+        named(suffix, span)
+    } else if let Some(expected) = context {
+        budget.ty(expected)?;
+        expected.clone()
+    } else {
+        named("f64", span)
+    };
+    let format = if matches!(&group(&ty).kind, TypeKind::Named { path, .. } if path.as_slice() == ["f32"])
+    {
+        FloatFormat::F32
+    } else {
+        FloatFormat::F64
+    };
+    let spelling = text
+        .strip_suffix("f32")
+        .or_else(|| text.strip_suffix("f64"))
+        .unwrap_or(text);
+    FloatValue::from_decimal(spelling, format).map_err(|_| {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-FLOAT-LITERAL",
+            Some(span),
+            "floating literal is invalid or overflows its finite format",
+        )
+    })?;
+    Ok(ty)
+}
 pub(super) fn integer(ty: &TypeRef) -> bool {
     matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u64" | "usize" | "i32" | "i64")))
 }
@@ -627,6 +728,7 @@ struct Check<'s, 'b, 'l> {
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
     trait_calls: &'b mut trait_instances::Calls,
+    expression_ids: BTreeMap<usize, usize>,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
@@ -1795,6 +1897,18 @@ impl Check<'_, '_, '_> {
                     .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, span)))
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
+                    .or(default_integer.then_some("f64"))
+                    .map(|suffix| named(suffix, span)))
+            }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, state, depth + 1, default_integer)
@@ -2142,14 +2256,21 @@ impl Check<'_, '_, '_> {
             TypeKind::Reference { inner, .. } => inner.as_ref(),
             _ => actual,
         };
-        let variable = trait_bounds::plain(host)
-            .filter(|name| self.variables.contains(*name))
-            .ok_or_else(|| {
-                unsupported(
+        let subject_key;
+        let variable = if let Some(variable) =
+            trait_bounds::plain(host).filter(|name| self.variables.contains(*name))
+        {
+            variable
+        } else {
+            subject_key = trait_bounds::subject_key(host, self.budget)?;
+            if !self.bounds.contains_key(&subject_key) {
+                return Err(error(
                     object.span,
-                    "parametric method receiver requires a declared type-parameter bound",
-                )
-            })?;
+                    "method receiver requires a declared nominal bound for this type",
+                ));
+            }
+            &subject_key
+        };
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
@@ -2157,10 +2278,33 @@ impl Check<'_, '_, '_> {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
+            let reference = self.traits.method_reference(
+                &self.bounds,
+                variable,
+                name,
+                &method.name,
+                self.budget,
+                object.span,
+            )?;
+            self.budget.text(name, object.span)?;
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
-                .insert(object.span, method.name.clone());
+                .insert(
+                    *self
+                        .expression_ids
+                        .get(&(object as *const Expr as usize))
+                        .ok_or_else(|| {
+                            error(
+                                object.span,
+                                "method receiver lost its declaration-local expression identity",
+                            )
+                        })?,
+                    trait_instances::CallTarget {
+                        reference,
+                        member: name.to_owned(),
+                    },
+                );
         }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
             return Err(error(
@@ -2367,6 +2511,13 @@ impl Check<'_, '_, '_> {
                     return Err(needs_bound());
                 }
                 Ok(checked_integer(text, expected, false, e.span)?.0)
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let expected = self.literal_context(expected);
+                if expected.is_some_and(|ty| dependent(ty, &self.variables)) {
+                    return Err(needs_bound());
+                }
+                checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
@@ -2641,7 +2792,8 @@ impl Check<'_, '_, '_> {
                     return Err(needs_bound());
                 }
                 let valid = match op {
-                    UnaryOp::Negate | UnaryOp::BitNot => integer(&ty),
+                    UnaryOp::Negate => integer(&ty) || floating(&ty),
+                    UnaryOp::BitNot => integer(&ty),
                     UnaryOp::Not => boolean(&ty),
                     UnaryOp::BorrowMut | UnaryOp::Give => {
                         return Err(unsupported(
@@ -2675,7 +2827,13 @@ impl Check<'_, '_, '_> {
                 } else {
                     expected
                 };
-                let lhs = self.expr(left, state, operand_hint, false)?;
+                let float_hint =
+                    if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+                        self.value_hint(right, state, 1, false)?.filter(floating)
+                    } else {
+                        None
+                    };
+                let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
                 let rhs = self.expr(right, state, Some(&lhs), false)?;
                 if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
                     return Err(needs_bound());
@@ -2685,10 +2843,19 @@ impl Check<'_, '_, '_> {
                     BinaryOp::And | BinaryOp::Or => boolean(&lhs),
                     BinaryOp::Equal | BinaryOp::NotEqual => {
                         integer(&lhs)
+                            || floating(&lhs)
                             || boolean(&lhs)
                             || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
                     }
                     BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
+                    BinaryOp::Add
+                    | BinaryOp::Subtract
+                    | BinaryOp::Multiply
+                    | BinaryOp::Divide
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
                     _ => integer(&lhs),
                 };
                 if !valid {
@@ -2889,7 +3056,7 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                     let actual = self.expr(&arguments[0].value, state, None, false)?;
-                    if !integer(&actual) {
+                    if !integer(&actual) && !floating(&actual) {
                         return Err(super::super::conversion_error(
                             e.span,
                             "integer conversion requires a known integer operand",
@@ -3141,14 +3308,46 @@ impl Check<'_, '_, '_> {
                     type_parameters(function).map(|p| p.name.clone()).collect();
                 let mut found = BTreeMap::new();
                 if let Some(args) = explicit {
-                    if args.len() != type_parameters(function).count() {
+                    if args.len() != consts::parameters(function).count() {
                         return Err(error(e.span, "parametric type argument arity mismatch"));
                     }
-                    for (param, arg) in type_parameters(function).zip(args) {
-                        let GenericArg::Type(ty) = arg else {
-                            return Err(unsupported(e.span, "const generic argument"));
+                    for (param, arg) in consts::parameters(function).zip(args) {
+                        let actual = consts::argument(arg, Some(param), self.budget)?;
+                        let actual = if let GenericParamKind::Const(wanted) = &param.kind
+                            && let Some(Expr {
+                                kind: ExprKind::Name(name),
+                                ..
+                            }) = consts::expression(&actual)
+                        {
+                            // Only this declaration's original immutable const
+                            // binder is compile-time evidence. A same-spelled
+                            // runtime parameter or shadowing local is not.
+                            let source = self.signatures.get(self.definition).ok_or_else(|| {
+                                error(e.span, "symbolic const call has no declaration context")
+                            })?;
+                            let (ordinal, binder) = consts::symbolic_parameter(source, name)
+                                .ok_or_else(|| {
+                                    error(e.span, "const argument names a runtime value")
+                                })?;
+                            let GenericParamKind::Const(domain) = &binder.kind else {
+                                unreachable!()
+                            };
+                            same(domain, wanted, e.span, self.budget)?;
+                            if state
+                                .locals
+                                .get(name)
+                                .is_none_or(|local| local.id != source.params.len() + ordinal)
+                            {
+                                return Err(error(
+                                    e.span,
+                                    "const argument is shadowed by a runtime value",
+                                ));
+                            }
+                            actual
+                        } else {
+                            consts::normalize(param, &actual, self.budget)?
                         };
-                        found.insert(param.name.clone(), ty.clone());
+                        found.insert(param.name.clone(), actual);
                     }
                 }
                 if self.callable.as_ref().is_some_and(|bounds| {

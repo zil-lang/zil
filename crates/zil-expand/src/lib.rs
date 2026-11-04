@@ -28,7 +28,10 @@ use zil_syntax::ast as s;
 
 /// These names are source primitives, never ordinary function values.
 fn integer_name(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "u64" | "usize" | "i32" | "i64")
+    matches!(
+        name,
+        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+    )
 }
 fn foreign_constructor_name(name: &str) -> bool {
     matches!(
@@ -80,8 +83,22 @@ fn sync_name(name: &str) -> bool {
             | "atomic_fetch_add"
     )
 }
+fn task_name(name: &str) -> bool {
+    matches!(
+        name,
+        "TaskI32"
+            | "task_start"
+            | "task_yield"
+            | "task_valid"
+            | "task_poll"
+            | "task_request_cancel"
+            | "task_poll_close"
+            | "task_finish_destroy"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    sync_name(name)
+    task_name(name)
+        || sync_name(name)
         || name == "Option"
         || name == "thread_scope"
         || integer_name(name)
@@ -90,7 +107,14 @@ fn primitive_name(name: &str) -> bool {
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if sync_name(name) {
+    if task_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-TASK-NAME",
+            Some(span),
+            "sealed task names cannot be rebound",
+        )
+    } else if sync_name(name) {
         Diagnostic::error(
             Phase::Expand,
             "E-SYNC-NAME",
@@ -186,7 +210,7 @@ pub struct ExpandedModule {
     generated_imports: Vec<CoreImport>,
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -291,7 +315,7 @@ fn source_exports(
     module: &s::Module,
     core: &CoreModule,
     imported_public_traits: &BTreeSet<String>,
-    trait_method_names: &BTreeMap<(Span, Span), String>,
+    trait_method_names: &BTreeMap<(usize, usize), String>,
 ) -> Vec<NodeId> {
     let public_nominals: std::collections::BTreeSet<_> = module
         .items
@@ -322,19 +346,20 @@ fn source_exports(
     let functions: std::collections::BTreeMap<_, _> = core
         .functions
         .iter()
-        .map(|f| ((f.name.clone(), f.span), f.id))
+        .map(|f| (f.name.clone(), f.id))
         .collect();
     let mut result = Vec::new();
-    let mut add = |f: &s::Function, prefix: Option<&str>, implementation: Option<Span>| {
-        let target = implementation
-            .and_then(|owner| trait_method_names.get(&(owner, f.span)))
-            .unwrap_or(&f.name);
-        let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
-        if let Some(id) = functions.get(&(name, f.span)) {
-            result.push(*id);
-        }
-    };
-    for item in &module.items {
+    let mut add =
+        |f: &s::Function, prefix: Option<&str>, implementation: Option<(usize, usize)>| {
+            let target = implementation
+                .and_then(|identity| trait_method_names.get(&identity))
+                .unwrap_or(&f.name);
+            let name = prefix.map_or_else(|| target.clone(), |owner| format!("{owner}.{target}"));
+            if let Some(id) = functions.get(&name) {
+                result.push(*id);
+            }
+        };
+    for (item_ordinal, item) in module.items.iter().enumerate() {
         match &item.kind {
             s::ItemKind::Function(f) if item.public => add(f, None, None),
             s::ItemKind::Aggregate(a) if public_nominals.contains(a.name.as_str()) => {
@@ -361,14 +386,14 @@ fn source_exports(
                         public_traits.contains(name.as_str())
                             || imported_public_traits.contains(&name)
                     });
-                for member in &i.members {
+                for (member_ordinal, member) in i.members.iter().enumerate() {
                     if (if i.trait_type.is_some() {
                         public_trait
                     } else {
                         member.public
                     }) && let s::ItemKind::Function(f) = &member.kind
                     {
-                        add(f, Some(&owner), Some(item.span));
+                        add(f, Some(&owner), Some((item_ordinal, member_ordinal)));
                     }
                 }
             }
@@ -690,7 +715,8 @@ fn expand_inner_project(
             }
         }
     }
-    for item in &module.items {
+    for (ordinal, item) in module.items.iter().enumerate() {
+        e.source_item_ordinal = ordinal;
         e.item(item, None, None, None);
     }
     if !e.diagnostics.is_empty() {
@@ -747,11 +773,12 @@ struct Expander<'a> {
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
     imported_public_traits: BTreeSet<String>,
-    trait_method_names: BTreeMap<(Span, Span), String>,
+    trait_method_names: BTreeMap<(usize, usize), String>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
-    static_trait_impls: BTreeSet<Span>,
+    static_trait_impls: BTreeSet<usize>,
+    source_item_ordinal: usize,
     source_map: SourceMap,
     node_maps: BTreeMap<NodeId, SourceMapId>,
     markers: BTreeMap<Span, SourceMapId>,
@@ -800,6 +827,7 @@ impl<'a> Expander<'a> {
             project_trait_nodes: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
+            source_item_ordinal: 0,
             source_map: SourceMap::new(module_id),
             node_maps: BTreeMap::new(),
             markers: BTreeMap::new(),
@@ -903,12 +931,14 @@ impl Expander<'_> {
                 if self.resource_drop(i) {
                     return;
                 }
-                if i.trait_type.is_some() && !self.static_trait_impls.contains(&item.span) {
+                if i.trait_type.is_some()
+                    && !self.static_trait_impls.contains(&self.source_item_ordinal)
+                {
                     self.unsupported("trait implementation resolution", item.span)
                 }
                 let name = type_path(&i.target).unwrap_or_else(|| "$unsupported".into());
                 let host = type_ref(&i.target);
-                for m in &i.members {
+                for (member_ordinal, m) in i.members.iter().enumerate() {
                     let inherited = if let Some(trait_type) = &i.trait_type {
                         self.trait_receiver(trait_type, m)
                     } else {
@@ -916,13 +946,17 @@ impl Expander<'_> {
                     };
                     let first = self.functions.len();
                     self.item(m, Some(&name), Some(&host), inherited.as_ref());
-                    if let s::ItemKind::Function(f) = &m.kind
-                        && let Some(target) = self.trait_method_names.get(&(item.span, f.span))
+                    if matches!(m.kind, s::ItemKind::Function(_))
+                        && let Some(target) = self
+                            .trait_method_names
+                            .get(&(self.source_item_ordinal, member_ordinal))
                     {
-                        for function in &mut self.functions[first..] {
-                            if function.span == f.span {
-                                function.name = format!("{name}.{target}");
-                            }
+                        // function() appends its own function after any
+                        // helpers emitted while lowering the body. The result
+                        // of this invocation is independent of source spans.
+                        if self.functions.len() > first {
+                            self.functions.last_mut().expect("emitted method").name =
+                                format!("{name}.{target}");
                         }
                     }
                 }
@@ -967,7 +1001,8 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if sync_name(name)
+        if task_name(name)
+            || sync_name(name)
             || name == "Option"
             || name == "c_with_callback"
             || name == "thread_scope"
@@ -1300,6 +1335,25 @@ impl Expander<'_> {
         let kind = match &e.kind {
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
+                s::Literal::Float(v) if v.starts_with("@bits:") => {
+                    let parsed = self.enum_meter(|meter| {
+                        meter.text(v, e.span)?;
+                        zil_base::numeric::FloatValue::from_generated_spelling(v).map_err(|_| Diagnostic::error(Phase::Expand, "E-FLOAT-LITERAL", Some(e.span), "generated floating constant requires fixed-width canonical hexadecimal bits"))
+                    });
+                    match parsed {
+                        Ok(zil_base::numeric::FloatValue::F32(bits)) => {
+                            CoreExprKind::Literal(Constant::F32(bits))
+                        }
+                        Ok(zil_base::numeric::FloatValue::F64(bits)) => {
+                            CoreExprKind::Literal(Constant::F64(bits))
+                        }
+                        Err(error) => {
+                            self.diagnostics.push(error);
+                            CoreExprKind::Unit
+                        }
+                    }
+                }
+                s::Literal::Float(v) => CoreExprKind::Float(v.clone()),
                 s::Literal::Bool(v) => CoreExprKind::Bool(*v),
                 s::Literal::String(v) => CoreExprKind::String(v.clone()),
                 _ => CoreExprKind::Unsupported("floating/character literal typing".into()),
@@ -1356,13 +1410,15 @@ impl Expander<'_> {
                         ));
                         CoreExprKind::Unsupported("invalid integer conversion".into())
                     } else {
-                        CoreExprKind::IntegerConvert {
+                        CoreExprKind::NumericConvert {
                             value: Box::new(self.expr(&arguments[0].value)),
                             target: match name {
                                 "u8" => Type::U8,
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
+                                "f32" => Type::F32,
+                                "f64" => Type::F64,
                                 "u64" => Type::U64,
                                 "usize" => Type::Usize,
                                 _ => unreachable!(),
@@ -1539,6 +1595,8 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,
+            "f32" => Type::F32,
+            "f64" => Type::F64,
             "u64" => Type::U64,
             "usize" => Type::Usize,
             "bool" => Type::Bool,
@@ -1596,10 +1654,30 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             parameters: params.iter().map(type_ref).collect(),
             result: Box::new(type_ref(result)),
         },
-        s::TypeKind::Function { params, result } => Type::FunctionPointer {
-            parameters: params.iter().map(type_ref).collect(),
-            result: Box::new(type_ref(result)),
-        },
+        s::TypeKind::Function { params, result } => {
+            let parameters: Vec<_> = params.iter().map(type_ref).collect();
+            let result = Box::new(type_ref(result));
+            if parameters.iter().any(|p| matches!(p, Type::Address { .. }))
+                || matches!(result.as_ref(), Type::Address { .. })
+            {
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: parameters
+                        .iter()
+                        .map(|p| matches!(p, Type::Address { .. }).then_some(0))
+                        .collect(),
+                    result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
+                };
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                }
+            } else {
+                Type::FunctionPointer { parameters, result }
+            }
+        }
+        s::TypeKind::ForLifetime { .. } => lifetimes::pointer_type(t),
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }

@@ -7,6 +7,7 @@ use zil_ir::*;
 mod addresses;
 mod aggregate_templates;
 mod aggregates;
+mod borrowed_fp;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
@@ -15,6 +16,7 @@ mod deferred;
 mod dynamic_store;
 mod enums;
 mod errors;
+mod floats;
 mod foreign;
 mod foreign_scoped;
 mod forwarding;
@@ -48,12 +50,14 @@ mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
 mod store_templates;
+mod tasks;
 mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
     callable: Vec<CoreCallableParameter>,
@@ -120,6 +124,22 @@ fn signatures(
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
     for f in &core.functions {
+        if let Some(life) = &f.life {
+            foreign_work = foreign_work
+                .checked_sub(
+                    life.binders
+                        .len()
+                        .saturating_add(life.parameter_lives.len())
+                        .saturating_add(1),
+                )
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "function pointer signature relation budget exceeded",
+                        Some(f.span),
+                    )]
+                })?;
+        }
         let i = concrete_index;
         if f.callable_parameters.is_empty()
             && f.type_parameters.is_empty()
@@ -170,6 +190,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
@@ -242,6 +263,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
+        || reference_patterns::sum_address(&f.return_type)
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
         || owned_shapes::enumeration(&f.return_type)
@@ -284,6 +306,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         }
         if !(p.ty.is_copy_value()
             || p.ty.is_scalar_or_address()
+            || reference_patterns::sum_address(&p.ty)
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
@@ -306,9 +329,10 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
                 || p.ty.is_shared_sync_cell_address()
                 || p.ty.is_shared_resource_head_address()
-                || p.ty.is_shared_package_address()))
+                || p.ty.is_shared_package_address()
+                || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
@@ -421,9 +445,12 @@ pub fn check(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
+    let mut task_work = closure_state.remaining_work();
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resource_definitions, &mut task_work)
+        .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
@@ -702,7 +729,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&self.function.values)
-                .any(Type::is_package_address)
+                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner)))
             {
                 return Err(unsupported(
                     body.span,
@@ -1520,6 +1547,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 self.try_expr(operand, e.span)?
             }
+            CoreExprKind::Float(text) => {
+                self.closures
+                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
+                self.constant(floats::literal(text, expected, e.span)?, e.span)?
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                return self.numeric_conversion(value, target, expected, e.span);
+            }
             CoreExprKind::Integer(text) => {
                 self.constant(integer(text, expected, false, e.span)?, e.span)?
             }
@@ -1570,7 +1605,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         (value, ty)
                     }
                 } else {
-                    self.function_reference(e)?
+                    self.function_reference(e, expected)?
                 }
             }
             CoreExprKind::Unary {
@@ -1633,7 +1668,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 let (v, t) = self.expr(operand, want)?;
                 if (*op == UnaryOp::Not && t != Type::Bool)
-                    || (*op != UnaryOp::Not && !t.is_integer())
+                    || (*op != UnaryOp::Not
+                        && !t.is_integer()
+                        && !(*op == UnaryOp::Negate && t.is_float()))
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -1683,7 +1720,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 let (r, rt) = self.expr(right, Some(&lt))?;
                 self.same(&rt, &lt, e.span)?;
                 let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
-                if !lt.is_integer() && !(equality && matches!(lt, Type::Bool | Type::ForeignHandle))
+                if !lt.is_integer()
+                    && !(lt.is_float() && floats::binary(*op))
+                    && !(equality && matches!(lt, Type::Bool | Type::ForeignHandle))
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -1729,7 +1768,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.make_variant(&ty, variant, &[], expected, e.span);
             }
             CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
-                self.function_reference(e)?
+                self.function_reference(e, expected)?
             }
             CoreExprKind::Member { object, .. }
                 if matches!(object.kind, CoreExprKind::Member { .. })
@@ -1781,6 +1820,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Some(name) = dynamic_store::primitive(callee) {
                 return self.dynamic_store_call(name, arguments, expected, e.span);
+            }
+            if let Some(name) = tasks::primitive(callee) {
+                return self.task_call(name, arguments, expected, e.span);
             }
             if let Some(name) = byte_buffer::primitive(callee) {
                 return self.byte_buffer_call(name, arguments, expected, e.span);
@@ -2002,6 +2044,47 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(result)
     }
 
+    fn numeric_conversion(
+        &mut self,
+        operand: &CoreExpr,
+        target: &Type,
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let (value, source) = self.expr(operand, None)?;
+        if !source.is_numeric() || !target.is_numeric() {
+            return Err(if target.is_integer() && !source.is_float() {
+                error(
+                    "E-INTEGER-CONVERSION",
+                    span,
+                    "conversion operand must be an integer",
+                )
+            } else {
+                error(
+                    "E-NUMERIC-CONVERSION",
+                    span,
+                    "numeric conversion requires numeric operands and target",
+                )
+            });
+        }
+        let instruction = if source.is_integer() && target.is_integer() {
+            InstructionKind::ConvertInteger {
+                value,
+                target: target.clone(),
+            }
+        } else {
+            InstructionKind::ConvertNumber {
+                value,
+                target: target.clone(),
+            }
+        };
+        let result = self.value(instruction, target.clone(), span)?;
+        if let Some(expected) = expected {
+            self.same(target, expected, span)?;
+        }
+        Ok((result, target.clone()))
+    }
+
     /// An owning capture still reads a Copy leaf without taking its inline
     /// Product prefixes. The whole environment retains its original cleanup.
     fn captured_product_copy_projection(
@@ -2125,7 +2208,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             },
             CoreExprKind::Literal(value) => Some(value.ty()),
             CoreExprKind::Ascribed { ty, .. } => Some(ty.clone()),
-            CoreExprKind::IntegerConvert { target, .. } => Some(target.clone()),
+            CoreExprKind::IntegerConvert { target, .. } | CoreExprKind::NumericConvert { target, .. } => Some(target.clone()),
+            CoreExprKind::Float(text) if text.ends_with("f32") || text.ends_with("f64") => floats::ty(text, None, e.span).ok(),
             CoreExprKind::Name(name) => self
                 .lookup(name)
                 .map(|id| {
@@ -2255,7 +2339,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .ok()
                         .flatten();
                 }
-                if let Some(Type::FunctionPointer { result, .. }) = self.known_type(callee) {
+                if let Some(Type::FunctionPointer { result, .. } | Type::BorrowedFunctionPointer { result, .. }) = self.known_type(callee) {
                     return Some(*result);
                 }
                 self.resolve_callee(callee).ok().map(|s| s.result.clone())
@@ -2310,8 +2394,18 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.enums,
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
-        if let Some(Type::FunctionPointer { parameters, result }) = expected {
-            if !closures::supported_signature(parameters, result) {
+        if let Some(
+            Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            },
+        ) = expected
+        {
+            if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                self.closures
+                    .snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
+            } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(
                     span,
                     "owned callback data signatures do not qualify for function pointers",
@@ -2330,7 +2424,12 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             pending.inference.expect_result(result, span)?;
             let (slot, mut pending) = self.closures.take_thin(id, span)?;
-            let (parameters, result) = pending.inference.resolve(false, span)?;
+            let (parameters, result) =
+                if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                    pending.inference.resolve_borrowed(life, span)?
+                } else {
+                    pending.inference.resolve(false, span)?
+                };
             let function_id = pending.function;
             let function = CoreFunction {
                 life: None,
@@ -2731,7 +2830,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             let (value, ty) = self.expr(callee, None)?;
             (Some(value), ty)
         };
-        if let Type::FunctionPointer { parameters, result } = ty {
+        if let Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } = ty
+        {
             return self.call_indirect(
                 callee_value.expect("function value"),
                 &parameters,
@@ -2968,6 +3071,37 @@ impl<'a, 'c> Builder<'a, 'c> {
             Type::Bool,
         ))
     }
+}
+/// Parse a floating literal without providing type or verification authority.
+/// Callers reserve the full byte length for generated `@bits:` spellings, or
+/// numeric::decimal_work(text.len()) for source decimal spellings, before parsing.
+pub fn parse_float_literal(
+    text: &str,
+    expected: Option<&Type>,
+    span: Span,
+) -> CompileResult<Constant> {
+    if text.starts_with("@bits:") {
+        let value = zil_base::numeric::FloatValue::from_generated_spelling(text).map_err(|_| {
+            vec![error(
+                "E-FLOAT-LITERAL",
+                span,
+                "invalid generated floating bits",
+            )]
+        })?;
+        let constant = match value {
+            zil_base::numeric::FloatValue::F32(bits) => Constant::F32(bits),
+            zil_base::numeric::FloatValue::F64(bits) => Constant::F64(bits),
+        };
+        if expected.is_some_and(|expected| expected.is_float() && *expected != constant.ty()) {
+            return Err(vec![error(
+                "E-TYPE-MISMATCH",
+                span,
+                "generated floating format differs from expected type",
+            )]);
+        }
+        return Ok(constant);
+    }
+    floats::literal(text, expected, span).map_err(|error| vec![error])
 }
 /// Parse a target integer literal using the ordinary language's exact rules.
 /// This function provides no type, ownership, or verification authority.

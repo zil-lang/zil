@@ -367,6 +367,13 @@ pub(super) fn check_resolved_program_with_reuse(
                 root_functions.push(export.clone());
             }
             if signature.public {
+                if tasks::suspends(&typed) {
+                    return Err(vec![error(
+                        "E-TASK-DIRECT-EXPORT",
+                        f.span,
+                        "Suspend export requires a separate SABI descriptor",
+                    )]);
+                }
                 exports.push(export);
             }
             functions.push(typed);
@@ -405,9 +412,11 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
+    let mut task_work = closure_state.remaining_work();
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resources, &mut task_work).map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
         &functions,
@@ -526,10 +535,13 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::U8 => bytes.push(15),
         Type::I32 => bytes.push(2),
         Type::I64 => bytes.push(3),
+        Type::F32 => bytes.push(28),
+        Type::F64 => bytes.push(29),
         Type::U64 => bytes.push(23),
         Type::Usize => bytes.push(24),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
+        Type::TaskI32 => bytes.push(33),
         Type::OwnedStore { element } => {
             bytes.push(22);
             type_identity(bytes, element, closures);
@@ -559,6 +571,30 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         }
         Type::FunctionPointer { parameters, result } => {
             bytes.push(8);
+            bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
+            for parameter in parameters {
+                type_identity(bytes, parameter, closures);
+            }
+            type_identity(bytes, result, closures);
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            bytes.push(31);
+            bytes.extend_from_slice(&life.binder_count.to_le_bytes());
+            bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
+            for tag in &life.parameter_lives {
+                bytes.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag {
+                    bytes.extend_from_slice(&tag.to_le_bytes());
+                }
+            }
+            bytes.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life {
+                bytes.extend_from_slice(&tag.to_le_bytes());
+            }
             bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
             for parameter in parameters {
                 type_identity(bytes, parameter, closures);

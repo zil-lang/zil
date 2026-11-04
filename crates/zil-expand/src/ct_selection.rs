@@ -785,15 +785,34 @@ pub(crate) fn member_owner_type_cost(
                 }
                 core_shape(v, result, span, depth + 1)?;
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                for _ in 0..life.binder_count {
+                    v.node(span, depth + 1)?;
+                }
+                for _ in &life.parameter_lives {
+                    v.node(span, depth + 1)?;
+                }
+                for ty in parameters {
+                    core_shape(v, ty, span, depth + 1)?;
+                }
+                core_shape(v, result, span, depth + 1)?;
+            }
             Type::Unit
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::U64
             | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
             | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString

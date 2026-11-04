@@ -806,6 +806,7 @@ impl Resolver<'_> {
         }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
+            Type::Named(name) if name == "TaskI32" => Type::Desc(Box::new(Type::TaskI32)),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -1043,6 +1044,9 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
+                        Box::new(Type::TaskI32)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }
@@ -1066,6 +1070,11 @@ impl Resolver<'_> {
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if *mutable && *payload == Type::TaskI32 =>
+                    {
+                        Type::Managed(payload)
+                    }
                     Type::Managed(payload) | Type::Desc(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })
@@ -1139,6 +1148,23 @@ impl Resolver<'_> {
                     .collect::<R<_>>()?,
                 result: Box::new(self.ty(result, depth + 1, span)?),
             },
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty, depth + 1, span))
+                    .collect::<R<Vec<_>>>()?;
+                let result = Box::new(self.ty(result, depth + 1, span)?);
+                borrowed_fp::relation(&parameters, &result, life, span)?;
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                }
+            }
             Type::ForeignCallback { parameters, result } => {
                 let parameters = parameters
                     .iter()
@@ -1274,7 +1300,8 @@ impl Resolver<'_> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 *ty = self.ty(ty, depth + 1, e.span)?;
                 self.expr(value, depth + 1)?;
             }
@@ -1835,7 +1862,10 @@ impl Builder<'_, '_> {
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
-            let (address, ty) = self.borrow_place(e)?;
+            let (address, ty) = self.address_place(e, false)?;
+            if resources::head_address(&ty) {
+                return self.resource_descriptor(address, ty, e.span);
+            }
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
             };

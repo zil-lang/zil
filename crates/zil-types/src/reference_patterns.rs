@@ -10,6 +10,79 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
     }
 }
 impl Builder<'_, '_> {
+    fn inline_pattern_place(&mut self, e: &CoreExpr, mutable: bool) -> R<Option<(ValueId, Type)>> {
+        let mut members = Vec::new();
+        let mut cursor = e;
+        while let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &cursor.kind
+        {
+            if members.len() >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(
+                    Phase::Types,
+                    "field pattern path depth",
+                    Some(e.span),
+                ));
+            }
+            self.closures.snapshot(1, e.span)?;
+            members.push((member.as_str(), owner.as_ref(), cursor.span));
+            cursor = object;
+        }
+        let CoreExprKind::Name(name) = &cursor.kind else {
+            return Ok(None);
+        };
+        if members.is_empty() {
+            return Ok(None);
+        }
+        members.reverse();
+        let Some(local) = self.lookup(name) else {
+            return Ok(None);
+        };
+        if self.stored_copy_captures.contains_key(&local)
+            || self.borrowed_captures.contains_key(&local)
+            || self.closure_captures.contains_key(&local)
+        {
+            return Ok(None);
+        }
+        let declaration = &self.function.locals[local.0 as usize];
+        let work = inference::type_snapshot_work(&declaration.ty, e.span, self.limits)?;
+        self.closures.snapshot(work.saturating_mul(2), e.span)?;
+        if !declaration.ty.is_copy_value() {
+            return Ok(None);
+        }
+        let mut ty = declaration.ty.clone();
+        let available = declaration.mutable;
+        let mut path = Vec::new();
+        for (member, owner, span) in members {
+            self.member_owner(&ty, owner, span)?;
+            let (index, next) = aggregates::field(&ty, member, span)?;
+            path.push(index);
+            ty = next;
+        }
+        if mutable && !available {
+            return Err(error(
+                "E-IMMUTABLE-ASSIGNMENT",
+                e.span,
+                "exclusive field pattern requires mutable storage",
+            ));
+        }
+        let t = Type::Address {
+            mutable,
+            inner: Box::new(ty),
+        };
+        let v = self.value(
+            InstructionKind::BorrowFieldLocal {
+                local,
+                path,
+                mutable,
+            },
+            t.clone(),
+            e.span,
+        )?;
+        Ok(Some((v, t)))
+    }
     pub(super) fn reference_binding(
         &mut self,
         p: &CorePattern,
@@ -73,7 +146,11 @@ impl Builder<'_, '_> {
         self.closures.snapshot(1, p.span)?;
         match &p.kind {
             CorePatternKind::Reference { mutable, pattern } => {
-                let (value, ty) = self.borrow_place_mode(e, *mutable)?;
+                let (value, ty) = if let Some(place) = self.inline_pattern_place(e, *mutable)? {
+                    place
+                } else {
+                    self.borrow_place_mode(e, *mutable)?
+                };
                 let Type::Address { inner, .. } = &ty else {
                     unreachable!()
                 };
@@ -119,7 +196,16 @@ impl Builder<'_, '_> {
                 Ok(())
             }
             CorePatternKind::Name(_) | CorePatternKind::Wildcard => {
-                let (v, t) = self.expr(e, expected)?;
+                let (v, t) = if let Some((address, Type::Address { inner, .. })) =
+                    self.inline_pattern_place(e, false)?
+                {
+                    let t = *inner;
+                    let v =
+                        self.value(InstructionKind::ReadAddress { address }, t.clone(), e.span)?;
+                    (v, t)
+                } else {
+                    self.expr(e, expected)?
+                };
                 let fail = self.current.unwrap();
                 self.pattern_test(p, v, &t, fail, bindings)
             }
@@ -136,6 +222,13 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if let CoreExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } = &e.kind
+        {
+            return self.reference_address_match(operand, arms, span);
+        }
         let (root, ty) = if let CoreExprKind::Name(name) = &e.kind {
             let local = self
                 .lookup(name)
@@ -282,6 +375,169 @@ impl Builder<'_, '_> {
                 "E-PATTERN-MOVE-BORROW",
                 p.span,
                 "a borrowed match payload requires an explicit reference or discard",
+            )),
+        }
+    }
+}
+
+pub(super) fn sum_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Enum{..}) && owned_shapes::value(inner))
+}
+impl Builder<'_, '_> {
+    fn reference_address_match(
+        &mut self,
+        operand: &CoreExpr,
+        arms: &[CoreMatchArm],
+        span: Span,
+    ) -> R<()> {
+        let (address, t) = self.expr(operand, None)?;
+        let Type::Address { mutable, inner } = t else {
+            return Err(error(
+                "E-MATCH-TYPE",
+                span,
+                "borrowed match requires an address",
+            ));
+        };
+        self.check_match_coverage(&inner, arms, span)?;
+        let mut ends = Vec::new();
+        for arm in arms {
+            let fail = self.block_id()?;
+            let mut bindings = Vec::new();
+            self.reference_address_test(
+                &arm.pattern,
+                address,
+                &mut Vec::new(),
+                &inner,
+                mutable,
+                fail,
+                &mut bindings,
+            )?;
+            self.push_scope(arm.span)?;
+            for (name, v, t, s) in bindings {
+                let l = self.local(&name, t, false, s)?;
+                self.store(l, v, s)?
+            }
+            self.block(&arm.body)?;
+            if self.current.is_some() {
+                self.end_scopes(self.scopes.len() - 1, arm.span)?
+            }
+            if let Some(end) = self.current.take() {
+                ends.push(end)
+            }
+            self.pop_scope();
+            self.current = Some(fail);
+        }
+        self.terminate(Terminator::Trap);
+        if !ends.is_empty() {
+            let join = self.block_id()?;
+            for end in ends {
+                self.function.blocks[end.0 as usize].terminator = Terminator::Jump(join)
+            }
+            self.current = Some(join)
+        }
+        Ok(())
+    }
+    // Keep the real place, active variant path and publication destinations explicit.
+    #[allow(clippy::too_many_arguments)]
+    fn reference_address_test(
+        &mut self,
+        p: &CorePattern,
+        address: ValueId,
+        path: &mut Vec<VariantProjection>,
+        ty: &Type,
+        available: bool,
+        fail: BlockId,
+        bindings: &mut Vec<(String, ValueId, Type, Span)>,
+    ) -> R<()> {
+        self.closures.snapshot(path.len() + 1, p.span)?;
+        match &p.kind {
+            CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Variant {
+                variant, fields, ..
+            } => {
+                let Type::Enum { variants, .. } = ty else {
+                    unreachable!("coverage checked")
+                };
+                let (index, (_, types)) = variants
+                    .iter()
+                    .enumerate()
+                    .find(|(_, (n, _))| n == variant)
+                    .unwrap();
+                let tag = self.value(
+                    InstructionKind::VariantTagAddress {
+                        address,
+                        path: path.clone(),
+                    },
+                    Type::I32,
+                    p.span,
+                )?;
+                self.pattern_branch(tag, Constant::I32(index as i32), fail, p.span)?;
+                for (field, (p, t)) in fields.iter().zip(types).enumerate() {
+                    path.push(VariantProjection {
+                        variant: index as u32,
+                        index: field as u32,
+                    });
+                    self.reference_address_test(p, address, path, t, available, fail, bindings)?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            CorePatternKind::Reference { mutable, pattern } => {
+                if *mutable && !available {
+                    return Err(error(
+                        "E-ADDRESS-PERMISSION",
+                        p.span,
+                        "shared input cannot grant an exclusive pattern",
+                    ));
+                }
+                let t = Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(ty.clone()),
+                };
+                let kind = if path.is_empty() {
+                    InstructionKind::ReborrowAddress {
+                        address,
+                        mutable: *mutable,
+                    }
+                } else {
+                    InstructionKind::BorrowVariantAddress {
+                        address,
+                        path: path.clone(),
+                        mutable: *mutable,
+                    }
+                };
+                let v = self.value(kind, t.clone(), p.span)?;
+                self.pattern_test(pattern, v, &t, fail, bindings)
+            }
+            _ if ty.is_copy_value() => {
+                let t = Type::Address {
+                    mutable: false,
+                    inner: Box::new(ty.clone()),
+                };
+                let pointer = if path.is_empty() {
+                    address
+                } else {
+                    self.value(
+                        InstructionKind::BorrowVariantAddress {
+                            address,
+                            path: path.clone(),
+                            mutable: false,
+                        },
+                        t,
+                        p.span,
+                    )?
+                };
+                let value = self.value(
+                    InstructionKind::ReadAddress { address: pointer },
+                    ty.clone(),
+                    p.span,
+                )?;
+                self.pattern_test(p, value, ty, fail, bindings)
+            }
+            _ => Err(error(
+                "E-PATTERN-MOVE-BORROW",
+                p.span,
+                "borrowed payload cannot transfer its owner's responsibility",
             )),
         }
     }

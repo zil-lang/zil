@@ -643,6 +643,10 @@ impl State {
         Ok((slot, pending))
     }
 
+    pub(super) fn remaining_work(&self) -> usize {
+        self.work_left
+    }
+
     pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
@@ -756,7 +760,11 @@ pub(super) const HANDLE: u16 = 128;
 pub(super) const U64: u16 = 256;
 pub(super) const USIZE: u16 = 512;
 pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
-pub(super) const SCALAR: u16 = UNIT | BOOL | INTEGER | HANDLE;
+pub(super) const F32: u16 = 1024;
+pub(super) const F64: u16 = 2048;
+pub(super) const FLOAT: u16 = F32 | F64;
+pub(super) const NUMBER: u16 = INTEGER | FLOAT;
+pub(super) const SCALAR: u16 = UNIT | BOOL | NUMBER | HANDLE;
 const AGGREGATE: u16 = 16;
 pub(super) const VALUE: u16 = SCALAR | AGGREGATE;
 
@@ -950,6 +958,18 @@ impl Graph {
                 }
                 self.reserve_type(result, depth + 1, span)?;
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.spend_count(borrowed_fp::metadata_work(life), span)?;
+                for parameter in parameters {
+                    self.reserve_type(parameter, depth + 1, span)?;
+                }
+                self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
+            }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
             _ => {}
         }
@@ -1030,11 +1050,13 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            Type::F32 => F32,
+            Type::F64 => F64,
             Type::U64 => U64,
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
@@ -1126,6 +1148,11 @@ impl Graph {
                     Type::FunctionPointer {
                         parameters: types,
                         result: result_type,
+                    }
+                    | Type::BorrowedFunctionPointer {
+                        parameters: types,
+                        result: result_type,
+                        ..
                     },
                 ) if parameters.len() == types.len() => {
                     for (parameter, ty) in parameters.into_iter().zip(types) {
@@ -1519,6 +1546,8 @@ impl Graph {
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
+            F32 => Some(Type::F32),
+            F64 => Some(Type::F64),
             U64 => Some(Type::U64),
             USIZE => Some(Type::Usize),
             AGGREGATE => {
@@ -1593,6 +1622,10 @@ impl Graph {
             self.bind(variable, &Type::I32, span)?;
             return Ok(Type::I32);
         }
+        if self.nodes[root].literal && self.nodes[root].domain == FLOAT {
+            self.bind(variable, &Type::F64, span)?;
+            return Ok(Type::F64);
+        }
         Err(error(
             "E-ERROR-INFERENCE",
             span,
@@ -1603,6 +1636,8 @@ impl Graph {
         for node in &mut self.nodes {
             if node.literal && node.domain == INTEGER {
                 node.domain = I32;
+            } else if node.literal && node.domain == FLOAT {
+                node.domain = F64;
             }
         }
     }
@@ -1643,6 +1678,21 @@ impl Inference {
         Ok(true)
     }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(defaults, None, span)
+    }
+    pub fn resolve_borrowed(
+        &mut self,
+        life: &FunctionLifeContract,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(false, Some(life), span)
+    }
+    fn resolve_inner(
+        &mut self,
+        defaults: bool,
+        life: Option<&FunctionLifeContract>,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
         if defaults {
             self.graph.default_literals();
@@ -1660,6 +1710,15 @@ impl Inference {
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
         let old = supported_signature(&signature.0, &signature.1);
+        if let Some(life) = life {
+            self.graph
+                .spend_count(borrowed_fp::metadata_work(life), span)?;
+            for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+            borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
+            return Ok(signature);
+        }
         if !old {
             // The owned shape and hidden-callable checks are new traversals.
             // Pay them only after the old profile failed, before classification.
@@ -1730,6 +1789,7 @@ impl LocalType {
             ) if (inner.is_address_pointee()
                 || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
@@ -2226,6 +2286,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             LocalType::Address(inner, false) => {
                                 self.graph
                                     .shared_address(self.result, inner, expression.span)?;
+                            }
+                            LocalType::Address(inner, true) => {
+                                self.graph.address(
+                                    self.result,
+                                    inner,
+                                    Some(true),
+                                    expression.span,
+                                )?;
                             }
                             _ => self.graph.unify(
                                 self.result,
@@ -2820,6 +2888,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 foreign::check_literal(value, span)?;
                 self.known(&value.ty(), span)
             }
+            CoreExprKind::Float(text) => {
+                self.graph
+                    .spend_count(zil_base::numeric::decimal_work(text.len()), span)?;
+                let domain = if text.ends_with("f32") {
+                    F32
+                } else if text.ends_with("f64") {
+                    F64
+                } else {
+                    FLOAT
+                };
+                let variable = self.graph.fresh(domain, domain == FLOAT);
+                if let Some(expected) = expected.filter(|ty| ty.is_float()) {
+                    self.graph.bind(variable, expected, span)?;
+                }
+                Ok(LocalType::Scalar(variable))
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(error(
+                        "E-NUMERIC-CONVERSION",
+                        span,
+                        "numeric target required",
+                    ));
+                }
+                let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                self.graph.constrain(value, NUMBER, span)?;
+                self.known(target, span)
+            }
             CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(expression, depth),
             CoreExprKind::Ascribed { .. } => self.expr_ascribed(expression, depth),
             CoreExprKind::Try(..) => self.expr_try(expression, depth),
@@ -2989,6 +3085,28 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
             }
+            if *op == UnaryOp::BorrowMut
+                && let LocalType::Resource(variable, _) = value
+            {
+                let payload = self
+                    .graph
+                    .ty(variable)?
+                    .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
+                if payload != Type::TaskI32 {
+                    return Err(unsupported(
+                        span,
+                        "exclusive resource head requires TaskI32",
+                    ));
+                }
+                self.mark_address_write(operand, depth + 1)?;
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(1)
+                    .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
+                let head = self.graph.fresh(VALUE, false);
+                self.graph.bind(head, &tasks::owner(), span)?;
+                return Ok(LocalType::Address(head, true));
+            }
             if matches!(value, LocalType::Address(..)) {
                 return Err(unsupported(
                     span,
@@ -3021,7 +3139,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let variable = value.scalar(span)?;
         match op {
             UnaryOp::Not => self.graph.constrain(variable, BOOL, span)?,
-            UnaryOp::Negate | UnaryOp::BitNot => self.graph.constrain(variable, INTEGER, span)?,
+            UnaryOp::Negate => self.graph.constrain(variable, NUMBER, span)?,
+            UnaryOp::BitNot => self.graph.constrain(variable, INTEGER, span)?,
             _ => return Err(unsupported(span, "address/resource operation in closure")),
         }
         Ok(value)
@@ -3048,9 +3167,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let domain = if matches!(op, BinaryOp::And | BinaryOp::Or) {
             BOOL
         } else if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
-            BOOL | INTEGER | HANDLE
+            BOOL | NUMBER | HANDLE
         } else {
-            INTEGER
+            NUMBER
         };
         self.graph.constrain(left, domain, span)?;
         Ok(LocalType::Scalar(if comparison {
@@ -3131,6 +3250,47 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.mark_resource_write(first, arguments[0].span)?;
             }
             return self.known(&dynamic_store::result_type(name, &element), span);
+        }
+        if let Some(name) = tasks::primitive(callee) {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(12)
+                .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
+            let offset = usize::from(name == "task_start");
+            let parameters = tasks::parameters(name);
+            if arguments.len() != parameters.len() + offset {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "task primitive argument count mismatch",
+                ));
+            }
+            if offset != 0 {
+                self.visit(depth + 1, arguments[0].span)?;
+                if !self.direct(&arguments[0]) {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker must be a static function",
+                    ));
+                }
+                let signature = self.callee(&arguments[0])?;
+                if !signature.scalar_thread_worker()
+                    || signature.parameters.as_slice() != [Type::I32]
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker requires fn(i32)->i32",
+                    ));
+                }
+            }
+            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                term.bind(&mut self.graph, ty, argument.span)?;
+            }
+            return self.known(&tasks::result(name), span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
@@ -3729,6 +3889,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return self.known(&result, span);
             }
             let callee_type = callee_type.scalar(callee.span)?;
+            if let Some(Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }) = self.graph.ty(callee_type)?
+            {
+                if parameters.len() != arguments.len() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "indirect callback arity differs from its signature",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    self.expr_expected(argument, Some(parameter), depth + 1)?
+                        .bind(&mut self.graph, parameter, argument.span)?;
+                    if matches!(parameter, Type::Address { mutable: true, .. }) {
+                        self.mark_address_write(argument, depth + 1)?;
+                    }
+                }
+                return self.known(&result, span);
+            }
             let mut parameters = Vec::new();
             for argument in arguments {
                 parameters.push(self.expr(argument, depth + 1)?.scalar(argument.span)?);
@@ -4204,6 +4384,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.life {
+            self.graph
+                .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
+        }
         for ty in signature
             .parameters
             .iter()

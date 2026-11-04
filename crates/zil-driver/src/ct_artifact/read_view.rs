@@ -60,13 +60,47 @@ impl FrozenReadView<'_> {
             message,
         )
     }
+    fn pointer_component_spelling(
+        &self,
+        ty: &CtTypeRef,
+        id: CtTypeNodeId,
+        label: Option<u32>,
+        out: &mut Vec<(String, CtTokenClass, Option<CtIdent>)>,
+        depth: usize,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        if let Some(label) = label {
+            let Some(CtTypeNode::Address { mutable, inner }) = ty.nodes.get(id.0 as usize) else {
+                return Err(phase(
+                    "pointer life label needs an actual address component",
+                ));
+            };
+            budget.reserve_analysis_work(3)?;
+            budget.reserve_temporary_bytes(96)?;
+            out.push(("&".into(), CtTokenClass::Punctuation, None));
+            out.push((
+                format!("'zil_life_{label}"),
+                CtTokenClass::Punctuation,
+                None,
+            ));
+            if *mutable {
+                out.push(("mut".into(), CtTokenClass::Identifier, None));
+            }
+            self.type_spelling(ty, *inner, out, depth + 1, budget)
+        } else {
+            self.type_spelling(ty, id, out, depth + 1, budget)
+        }
+    }
     fn type_spelling(
         &self,
         ty: &CtTypeRef,
         node: CtTypeNodeId,
         out: &mut Vec<(String, CtTokenClass, Option<CtIdent>)>,
         depth: usize,
+        budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
+        budget.reserve_analysis_work(1)?;
+        budget.reserve_temporary_bytes(64)?;
         if depth > 128 {
             return Err(error(
                 "E-CT-TYPE-PHASE",
@@ -92,6 +126,8 @@ impl FrozenReadView<'_> {
                     CtScalarTy::U16 => "u16",
                     CtScalarTy::I32 => "i32",
                     CtScalarTy::I64 => "i64",
+                    CtScalarTy::F32 => "f32",
+                    CtScalarTy::F64 => "f64",
                     CtScalarTy::U64 => "u64",
                     CtScalarTy::Usize => "usize",
                 }
@@ -128,7 +164,7 @@ impl FrozenReadView<'_> {
                         }
                         match argument {
                             CtTypeArgument::Type(id) => {
-                                self.type_spelling(ty, *id, out, depth + 1)?
+                                self.type_spelling(ty, *id, out, depth + 1, budget)?
                             }
                             CtTypeArgument::Scalar(value) => {
                                 let text = match value {
@@ -167,7 +203,7 @@ impl FrozenReadView<'_> {
             }
             CtTypeNode::Array { element, length } => {
                 punctuation(out, "[");
-                self.type_spelling(ty, *element, out, depth + 1)?;
+                self.type_spelling(ty, *element, out, depth + 1, budget)?;
                 punctuation(out, ";");
                 out.push((length.to_string(), CtTokenClass::Integer, None));
                 punctuation(out, "]");
@@ -178,7 +214,7 @@ impl FrozenReadView<'_> {
                     if index != 0 {
                         punctuation(out, ",");
                     }
-                    self.type_spelling(ty, *item, out, depth + 1)?;
+                    self.type_spelling(ty, *item, out, depth + 1, budget)?;
                 }
                 if items.len() == 1 {
                     punctuation(out, ",");
@@ -187,7 +223,7 @@ impl FrozenReadView<'_> {
             }
             CtTypeNode::Slice(inner) => {
                 punctuation(out, "[");
-                self.type_spelling(ty, *inner, out, depth + 1)?;
+                self.type_spelling(ty, *inner, out, depth + 1, budget)?;
                 punctuation(out, "]");
             }
             CtTypeNode::Address { mutable, inner } => {
@@ -195,7 +231,7 @@ impl FrozenReadView<'_> {
                 if *mutable {
                     word(out, "mut");
                 }
-                self.type_spelling(ty, *inner, out, depth + 1)?;
+                self.type_spelling(ty, *inner, out, depth + 1, budget)?;
             }
             CtTypeNode::Managed(inner)
             | CtTypeNode::Desc(inner)
@@ -209,8 +245,52 @@ impl FrozenReadView<'_> {
                     },
                 );
                 punctuation(out, "<");
-                self.type_spelling(ty, *inner, out, depth + 1)?;
+                self.type_spelling(ty, *inner, out, depth + 1, budget)?;
                 punctuation(out, ">");
+            }
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.reserve_analysis_work(
+                    (life.binder_count as u64)
+                        .saturating_mul(8)
+                        .saturating_add(life.parameter_lives.len() as u64),
+                )?;
+                budget.reserve_temporary_bytes((life.binder_count as u64).saturating_mul(192))?;
+                for i in 0..life.binder_count {
+                    word(out, "for");
+                    punctuation(out, "<");
+                    word(out, "life");
+                    word(out, &format!("zil_life_{i}"));
+                    punctuation(out, ">");
+                }
+                word(out, "fn");
+                punctuation(out, "(");
+                for (i, id) in parameters.iter().enumerate() {
+                    if i > 0 {
+                        punctuation(out, ",");
+                    }
+                    self.pointer_component_spelling(
+                        ty,
+                        *id,
+                        life.parameter_lives.get(i).copied().flatten(),
+                        out,
+                        depth + 1,
+                        budget,
+                    )?;
+                }
+                punctuation(out, ")");
+                punctuation(out, "->");
+                self.pointer_component_spelling(
+                    ty,
+                    *result,
+                    life.result_life,
+                    out,
+                    depth + 1,
+                    budget,
+                )?;
             }
             CtTypeNode::FunctionPointer { parameters, result }
             | CtTypeNode::ForeignCallback { parameters, result } => {
@@ -224,16 +304,16 @@ impl FrozenReadView<'_> {
                     if index != 0 {
                         punctuation(out, ",");
                     }
-                    self.type_spelling(ty, *parameter, out, depth + 1)?;
+                    self.type_spelling(ty, *parameter, out, depth + 1, budget)?;
                 }
                 punctuation(out, ")");
                 punctuation(out, "->");
-                self.type_spelling(ty, *result, out, depth + 1)?;
+                self.type_spelling(ty, *result, out, depth + 1, budget)?;
             }
             CtTypeNode::ErrorUnion { error, result } => {
-                self.type_spelling(ty, *error, out, depth + 1)?;
+                self.type_spelling(ty, *error, out, depth + 1, budget)?;
                 punctuation(out, "!");
-                self.type_spelling(ty, *result, out, depth + 1)?;
+                self.type_spelling(ty, *result, out, depth + 1, budget)?;
             }
             CtTypeNode::Opaque { .. } => {
                 return Err(phase("opaque Type cannot reveal a source spelling"));
@@ -925,6 +1005,9 @@ impl FrozenReadView<'_> {
                 1u64.saturating_add(child(inner)?)
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 let params = parameters.iter().try_fold(1u64, |sum, item| {
                     Ok::<_, Vec<Diagnostic>>(sum.saturating_add(Self::checked_type_nodes(
@@ -1298,6 +1381,62 @@ impl FrozenReadView<'_> {
                     CtTypeNode::Slice(inner)
                 }
             }
+            s::TypeKind::ForLifetime { .. } => {
+                let mut inner = ty;
+                let mut binders = Vec::new();
+                while let s::TypeKind::ForLifetime {
+                    lifetime,
+                    inner: next,
+                } = &inner.kind
+                {
+                    budget.reserve_analysis_work((lifetime.len() as u64).saturating_add(1))?;
+                    budget.reserve_temporary_bytes((lifetime.len() as u64).saturating_add(8))?;
+                    binders.push(lifetime.as_str());
+                    inner = next;
+                }
+                let s::TypeKind::Function { params, result } = &inner.kind else {
+                    return Err(
+                        self.unready("higher-rank Type requires an ordinary pointer signature")
+                    );
+                };
+                budget.reserve_analysis_work(
+                    (binders.len() as u64).saturating_mul((params.len() as u64).saturating_add(1)),
+                )?;
+                budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(16))?;
+                let life = super::compiler::source_relation(&binders, params, result);
+                let parameters = params
+                    .iter()
+                    .map(|p| {
+                        self.append_source_type(
+                            requester,
+                            module,
+                            p,
+                            substitutions,
+                            nodes,
+                            budget,
+                            depth + 1,
+                        )
+                    })
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.append_source_type(
+                    requester,
+                    module,
+                    result,
+                    substitutions,
+                    nodes,
+                    budget,
+                    depth + 1,
+                )?;
+                if life.binder_count == 0 {
+                    CtTypeNode::FunctionPointer { parameters, result }
+                } else {
+                    CtTypeNode::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
+                    }
+                }
+            }
             s::TypeKind::Function { params, result } => {
                 budget.reserve_temporary_bytes((params.len() as u64).saturating_mul(8))?;
                 let parameters = params
@@ -1323,7 +1462,26 @@ impl FrozenReadView<'_> {
                     budget,
                     depth + 1,
                 )?;
-                CtTypeNode::FunctionPointer { parameters, result }
+                let address = |id: &CtTypeNodeId| {
+                    matches!(nodes.get(id.0 as usize), Some(CtTypeNode::Address { .. }))
+                };
+                if parameters.iter().any(address) || address(&result) {
+                    let life = zil_ir::FunctionLifeContract {
+                        binder_count: 1,
+                        parameter_lives: parameters
+                            .iter()
+                            .map(|id| address(id).then_some(0))
+                            .collect(),
+                        result_life: address(&result).then_some(0),
+                    };
+                    CtTypeNode::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
+                    }
+                } else {
+                    CtTypeNode::FunctionPointer { parameters, result }
+                }
             }
             s::TypeKind::ForeignFunction {
                 abi,
@@ -1603,6 +1761,34 @@ impl FrozenReadView<'_> {
                 self.matches_checked_type(inner, value, *id, derived, budget, depth + 1)?
             }
             (
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                },
+                CtTypeNode::BorrowedFunctionPointer {
+                    parameters: ids,
+                    result: id,
+                    life: actual,
+                },
+            ) if parameters.len() == ids.len() => {
+                budget.reserve_analysis_work(
+                    (life.parameter_lives.len() as u64)
+                        .saturating_mul(2)
+                        .saturating_add(life.binder_count as u64),
+                )?;
+                if life != actual {
+                    return Ok(false);
+                }
+                let mut valid =
+                    self.matches_checked_type(result, value, *id, derived, budget, depth + 1)?;
+                for (ty, id) in parameters.iter().zip(ids) {
+                    valid &=
+                        self.matches_checked_type(ty, value, *id, derived, budget, depth + 1)?;
+                }
+                valid
+            }
+            (
                 Type::FunctionPointer { parameters, result },
                 CtTypeNode::FunctionPointer {
                     parameters: ids,
@@ -1775,6 +1961,7 @@ impl FrozenReadView<'_> {
                 }
                 CtTypeNode::Tuple(parts) => 1u64.saturating_add(parts.len() as u64),
                 CtTypeNode::FunctionPointer { parameters, .. }
+                | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
                     2u64.saturating_add(parameters.len() as u64)
                 }
@@ -1788,6 +1975,7 @@ impl FrozenReadView<'_> {
                 CtTypeNode::Nominal { arguments, .. } => arguments.len() as u64,
                 CtTypeNode::Tuple(parts) => parts.len() as u64,
                 CtTypeNode::FunctionPointer { parameters, .. }
+                | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
                     (parameters.len() as u64).saturating_add(1)
                 }
@@ -1846,6 +2034,9 @@ impl FrozenReadView<'_> {
                 | CtTypeNode::OwnedStore(element)
                 | CtTypeNode::Address { inner: element, .. } => vec![*element],
                 CtTypeNode::FunctionPointer { parameters, result }
+                | CtTypeNode::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }
                 | CtTypeNode::ForeignCallback { parameters, result } => {
                     let mut children = parameters.clone();
                     children.push(*result);
@@ -1890,6 +2081,15 @@ impl FrozenReadView<'_> {
                 CtTypeNode::Array { element, length } => CtTypeNode::Array {
                     element: mapped(element),
                     length,
+                },
+                CtTypeNode::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => CtTypeNode::BorrowedFunctionPointer {
+                    parameters: parameters.into_iter().map(mapped).collect(),
+                    result: mapped(result),
+                    life,
                 },
                 CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
                     parameters: parameters.into_iter().map(mapped).collect(),
@@ -2193,6 +2393,15 @@ impl CtReadView for FrozenReadView<'_> {
                             CtTypeNode::Array { element, length } => CtTypeNode::Array {
                                 element: shift(*element),
                                 length: *length,
+                            },
+                            CtTypeNode::BorrowedFunctionPointer {
+                                parameters,
+                                result,
+                                life,
+                            } => CtTypeNode::BorrowedFunctionPointer {
+                                parameters: parameters.iter().copied().map(shift).collect(),
+                                result: shift(*result),
+                                life: life.clone(),
                             },
                             CtTypeNode::FunctionPointer { parameters, result } => {
                                 CtTypeNode::FunctionPointer {
@@ -2678,7 +2887,13 @@ impl CtReadView for FrozenReadView<'_> {
                             "layout offsets require a complete visible shape",
                         ));
                     }
-                    ordinary_type::checked_type(ty, ready, self.index, self.limits.max_call_depth)?
+                    ordinary_type::checked_type(
+                        ty,
+                        ready,
+                        self.index,
+                        self.limits.max_call_depth,
+                        budget,
+                    )?
                 };
                 let (size, alignment, field_offsets) = zil_backend_llvm::ct_layout_of_checked_type(
                     &ordinary,
@@ -2753,7 +2968,7 @@ impl CtReadView for FrozenReadView<'_> {
             ),
             (CtSyntaxBuilder::TypeRef, [CtValue::Type(ty)]) => {
                 let mut parts = Vec::new();
-                self.type_spelling(ty, ty.root, &mut parts, 0)?;
+                self.type_spelling(ty, ty.root, &mut parts, 0, budget)?;
                 Self::syntax_tokens(CtSyntaxCategory::Type, parts, budget)
             }
             (CtSyntaxBuilder::NameExpr, [CtValue::Ident(ident)])

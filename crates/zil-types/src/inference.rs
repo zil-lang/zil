@@ -1,7 +1,8 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, U64, UNIT, USIZE, VALUE, Variable,
+    BOOL, F32, F64, FLOAT, Graph, I32, I64, INTEGER, NUMBER, Projection, SCALAR, U8, U16, U64,
+    UNIT, USIZE, VALUE, Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -490,6 +491,15 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.life {
+            budget.work(
+                life.binders
+                    .len()
+                    .saturating_add(life.parameter_lives.len())
+                    .saturating_add(1),
+                function.span,
+            )?;
+        }
         state_snapshot(&function.state_parameters, function.span, budget)?;
         if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
             // The mixed header compares both declarations and the actual
@@ -588,6 +598,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
@@ -752,6 +763,18 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             }
             validate_type(result, depth + 1, span, budget)?;
         }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            budget.work(borrowed_fp::metadata_work(life), span)?;
+            for parameter in parameters {
+                validate_type(parameter, depth + 1, span, budget)?;
+            }
+            validate_type(result, depth + 1, span, budget)?;
+            borrowed_fp::relation(parameters, result, life, span)?;
+        }
         Type::Named(name) => {
             budget.work(name.len(), span)?;
             budget.store_shapes |= budget.inside_store;
@@ -830,6 +853,9 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
         ));
     }
     validate_type(&signature.result, 0, span, budget)?;
+    if let Some(life) = &signature.life {
+        budget.work(life.parameter_lives.len().saturating_add(1), span)?;
+    }
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
     }
@@ -956,7 +982,8 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(units)) => budget.work(units.len(), e.span)?,
         CoreExprKind::Ascribed { ty, value }
-        | CoreExprKind::IntegerConvert { target: ty, value } => {
+        | CoreExprKind::IntegerConvert { target: ty, value }
+        | CoreExprKind::NumericConvert { target: ty, value } => {
             validate_type(ty, depth + 1, e.span, budget)?;
             found |= expression_has_closure(value, depth + 1, budget)?;
         }
@@ -1080,6 +1107,7 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
             found |= expression_has_closure(else_value, depth + 1, budget)?;
         }
         CoreExprKind::Integer(text)
+        | CoreExprKind::Float(text)
         | CoreExprKind::String(text)
         | CoreExprKind::Name(text)
         | CoreExprKind::ReceiverMember(text)
@@ -1526,7 +1554,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             if !inner.is_address_pointee()
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
+                && !reference_patterns::sum_address(ty)
                 && !self.graph.symbolic_store_type(inner)
             {
                 return Err(unsupported(span, "nested reference signature"));
@@ -2080,7 +2110,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 } if (inner.is_address_pointee()
                     || ty.is_shared_sync_cell_address()
                     || ty.is_shared_resource_head_address()
+                    || ty.is_exclusive_task_head_address()
                     || ty.is_package_address()
+                    || reference_patterns::sum_address(ty)
                     || self.graph.symbolic_store_type(inner))
                     && (*mutable || !wanted) =>
                 {
@@ -2608,6 +2640,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 inner,
                                 statement.span,
                             )?;
+                        } else if let Term::Address(inner, true) = value {
+                            self.graph.address(
+                                self.closures[owner].result,
+                                inner,
+                                Some(true),
+                                statement.span,
+                            )?;
                         } else {
                             self.unify(
                                 &value,
@@ -2816,6 +2855,36 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, span)?;
                 self.known_term(&value.ty(), span)
+            }
+            CoreExprKind::Float(text) => {
+                self.budget
+                    .work(zil_base::numeric::decimal_work(text.len()), span)?;
+                let domain = if text.ends_with("f32") {
+                    F32
+                } else if text.ends_with("f64") {
+                    F64
+                } else {
+                    FLOAT
+                };
+                let variable = self.fresh(domain, domain == FLOAT, span)?;
+                if let Some(expected) = expected.filter(|ty| ty.is_float()) {
+                    self.graph.bind(variable, expected, span)?;
+                }
+                self.literal_types.insert(index, variable);
+                Ok(Term::Scalar(variable))
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(error(
+                        "E-NUMERIC-CONVERSION",
+                        span,
+                        "numeric target required",
+                    ));
+                }
+                let operand = self.expr(value, depth + 1, false)?;
+                let variable = self.scalar(&operand, value.span)?;
+                self.graph.constrain(variable, NUMBER, span)?;
+                self.known_term(target, span)
             }
             CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(expression, depth),
             CoreExprKind::Ascribed { .. } => self.expr_ascribed(expression, depth),
@@ -3056,7 +3125,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 return Ok(Term::ClosureAddress(id, *op == UnaryOp::BorrowMut));
             }
-            if *op == UnaryOp::Borrow
+            if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut)
                 && let CoreExprKind::Name(name) = &operand.kind
                 && let Some(Binding {
                     term: Term::Resource(variable, true),
@@ -3066,7 +3135,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 let variable = *variable;
                 self.graph.solve()?;
                 let payload = self.resolved(variable, span)?;
-                if !matches!(payload, Type::Record { .. }) || !payload.is_copy_value() {
+                let task_head = *op == UnaryOp::BorrowMut && payload == Type::TaskI32;
+                if !task_head
+                    && (*op != UnaryOp::Borrow
+                        || !matches!(payload, Type::Record { .. })
+                        || !payload.is_copy_value())
+                {
                     return Err(unsupported(
                         span,
                         "head borrow requires a finite user-resource payload",
@@ -3074,7 +3148,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 let head = self.fresh(VALUE, false, span)?;
                 self.bind(head, &Type::Managed(Box::new(payload)), span)?;
-                return Ok(Term::Address(head, false));
+                return Ok(Term::Address(head, *op == UnaryOp::BorrowMut));
             }
             if matches!(value, Term::Address(..) | Term::ClosureAddress(..)) {
                 return Err(unsupported(
@@ -3106,7 +3180,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let variable = self.scalar(&value, span)?;
         let domain = match op {
             UnaryOp::Not => BOOL,
-            UnaryOp::Negate | UnaryOp::BitNot => INTEGER,
+            UnaryOp::Negate => NUMBER,
+            UnaryOp::BitNot => INTEGER,
             _ => {
                 return Err(unsupported(
                     span,
@@ -3137,7 +3212,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             // the ordinary checker after CT has been verified/run.
             SCALAR
         } else {
-            INTEGER
+            NUMBER
         };
         self.budget.work(1, span)?;
         self.graph.constrain(variable, domain, span)?;
@@ -3254,6 +3329,43 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.bind_term(&term, &wanted, arguments[1].span)?;
             }
             return self.known_term(&dynamic_store::result_type(name, &element), span);
+        }
+        if let Some(name) = tasks::primitive(callee) {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            self.budget.work(12, span)?;
+            let offset = usize::from(name == "task_start");
+            let parameters = tasks::parameters(name);
+            if arguments.len() != parameters.len() + offset {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "task primitive argument count mismatch",
+                ));
+            }
+            if offset != 0 {
+                let Term::Function(signature) = self.expr(&arguments[0], depth + 1, false)? else {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker must be a static function",
+                    ));
+                };
+                if !signature.scalar_thread_worker()
+                    || signature.parameters.as_slice() != [Type::I32]
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker requires fn(i32)->i32",
+                    ));
+                }
+            }
+            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                self.bind_term(&term, ty, argument.span)?;
+            }
+            return self.known_term(&tasks::result(name), span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.budget.node(depth + 1, callee.span)?;
@@ -3707,8 +3819,29 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             }
             Term::Scalar(callee) => {
                 let known = self.graph.ty(callee)?;
+                if let Some(Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }) = &known
+                {
+                    if parameters.len() != arguments.len() {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "indirect call arity differs from its signature",
+                        ));
+                    }
+                    for (argument, parameter) in arguments.iter().zip(parameters) {
+                        let term =
+                            self.expr_expected(argument, Some(parameter), depth + 1, false)?;
+                        self.bind_term(&term, parameter, argument.span)?;
+                    }
+                    return self.known_term(result, span);
+                }
                 let hints = match &known {
-                    Some(Type::FunctionPointer { parameters, .. }) => Some(parameters),
+                    Some(
+                        Type::FunctionPointer { parameters, .. }
+                        | Type::BorrowedFunctionPointer { parameters, .. },
+                    ) => Some(parameters),
                     _ => None,
                 };
                 let mut parameters = Vec::new();
@@ -4192,6 +4325,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
+                || (matches!(expected, Some(Type::BorrowedFunctionPointer { .. }))
+                    && matches!(t, Type::Address { inner, .. } if inner.is_address_pointee()))
                 || closures::owned_signature_head(t))
         }) || parameters.iter().any(|p| {
             p.ty.as_ref().is_some_and(|t| {
@@ -4205,9 +4340,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
         let callable_hint = self.callable_hint.take();
         let pointer = match expected {
-            Some(Type::FunctionPointer { parameters, result }) => {
-                Some((parameters, result.as_ref()))
-            }
+            Some(
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                },
+            ) => Some((parameters, result.as_ref())),
             _ => None,
         };
         let shape = pointer.or_else(|| callable_hint.as_ref().map(|(p, r)| (p, r)));
@@ -4448,8 +4586,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         let index = *expression;
         *expression += 1;
         match &mut value.kind {
-            CoreExprKind::Ascribed { value, .. } | CoreExprKind::IntegerConvert { value, .. } => {
+            CoreExprKind::Ascribed { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. } => {
                 self.normalize_expr(value, expression, statement)?
+            }
+            CoreExprKind::Float(text) => {
+                if !text.ends_with("f32") && !text.ends_with("f64") {
+                    let ty = self.resolved(self.literal_types[&index], value.span)?;
+                    text.push_str(if ty == Type::F32 { "f32" } else { "f64" });
+                }
             }
             CoreExprKind::Integer(text) => {
                 if !text.ends_with("u8")

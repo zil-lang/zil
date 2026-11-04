@@ -56,6 +56,11 @@ pub fn encode_ct(module: &CtModule, limits: &Limits) -> CompileResult<Vec<u8>> {
                     writer.u8(0)?;
                     writer.constant(constant)?;
                 }
+                CtInstructionKind::ConvertNumber { value, target } => {
+                    writer.u8(4)?;
+                    writer.u32(value.0)?;
+                    writer.ty(target, 0)?;
+                }
                 CtInstructionKind::ConvertInteger { value, target } => {
                     writer.u8(3)?;
                     writer.u32(value.0)?;
@@ -127,6 +132,10 @@ pub fn decode_ct(bytes: &[u8], limits: &Limits) -> CompileResult<CtModule> {
                     op: reader.binary()?,
                     left: ValueId(reader.u32()?),
                     right: ValueId(reader.u32()?),
+                },
+                4 => CtInstructionKind::ConvertNumber {
+                    value: ValueId(reader.u32()?),
+                    target: reader.ty(0)?,
                 },
                 3 => CtInstructionKind::ConvertInteger {
                     value: ValueId(reader.u32()?),
@@ -430,9 +439,12 @@ impl<'a> Writer<'a> {
                 Type::I64 => self.u8(3)?,
                 Type::U64 => self.u8(26)?,
                 Type::Usize => self.u8(27)?,
+                Type::F32 => self.u8(28)?,
+                Type::F64 => self.u8(29)?,
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
+                Type::TaskI32 => self.u8(33)?,
                 Type::ForeignHandle => self.u8(20)?,
                 Type::SyncCell(kind) => {
                     self.u8(30)?;
@@ -502,6 +514,28 @@ impl<'a> Writer<'a> {
                     pending.push(Task::Type(result, depth + 1));
                     pending.push(Task::Types(parameters, depth + 1));
                 }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    self.u8(31)?;
+                    self.count(life.binder_count as usize, self.limits.max_locals)?;
+                    self.count(life.parameter_lives.len(), self.limits.max_locals)?;
+                    for tag in &life.parameter_lives {
+                        self.boolean(tag.is_some())?;
+                        if let Some(tag) = tag {
+                            self.u32(*tag)?;
+                        }
+                    }
+                    self.boolean(life.result_life.is_some())?;
+                    if let Some(tag) = life.result_life {
+                        self.u32(tag)?;
+                    }
+                    self.count(parameters.len(), self.limits.max_locals)?;
+                    pending.push(Task::Type(result, depth + 1));
+                    pending.push(Task::Types(parameters, depth + 1));
+                }
                 Type::Closure(id) => {
                     self.u8(10)?;
                     self.u32(id.0)?;
@@ -555,6 +589,14 @@ impl<'a> Writer<'a> {
             Constant::Usize(value) => {
                 self.u8(10)?;
                 self.bytes(&value.to_le_bytes())
+            }
+            Constant::F32(bits) => {
+                self.u8(11)?;
+                self.bytes(&bits.to_le_bytes())
+            }
+            Constant::F64(bits) => {
+                self.u8(12)?;
+                self.bytes(&bits.to_le_bytes())
             }
         }
     }
@@ -921,6 +963,10 @@ impl<'a> Writer<'a> {
                     self.u32(field.0)?;
                 }
             }
+            InstructionKind::DescribeAddress { address } => {
+                self.u8(109)?;
+                self.u32(address.0)?;
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.u8(35)?;
                 self.u32(local.0)?;
@@ -1020,6 +1066,11 @@ impl<'a> Writer<'a> {
                 self.u32(local.0)?;
                 self.u32(value.0)?;
             }
+            InstructionKind::ConvertNumber { value, target } => {
+                self.u8(98)?;
+                self.u32(value.0)?;
+                self.ty(target, 0)?;
+            }
             InstructionKind::ConvertInteger { value, target } => {
                 self.u8(59)?;
                 self.u32(value.0)?;
@@ -1096,6 +1147,32 @@ impl<'a> Writer<'a> {
                 }
                 self.u8(*ordering as u8)?;
             }
+            InstructionKind::TaskStart { worker, argument } => {
+                self.u8(99)?;
+                self.u32(worker.0)?;
+                self.u32(argument.0)?;
+            }
+            InstructionKind::TaskYield => self.u8(100)?,
+            InstructionKind::TaskValid { task } => {
+                self.u8(101)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskPoll { task } => {
+                self.u8(102)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskRequestCancel { task } => {
+                self.u8(103)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskPollClose { task } => {
+                self.u8(104)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskFinishDestroy { task } => {
+                self.u8(105)?;
+                self.u32(task.0)?;
+            }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
                 self.u32(function.0)?;
@@ -1156,6 +1233,19 @@ impl<'a> Writer<'a> {
                 self.u32(*variant)?;
                 self.u32(*index)?;
             }
+            InstructionKind::BorrowFieldLocal {
+                local,
+                path,
+                mutable,
+            } => {
+                self.u8(110)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for field in path {
+                    self.u32(*field)?;
+                }
+                self.boolean(*mutable)?;
+            }
             InstructionKind::VariantTagLocal { local, path }
             | InstructionKind::ReadVariantLocal { local, path } => {
                 self.u8(
@@ -1185,6 +1275,25 @@ impl<'a> Writer<'a> {
                     self.u32(step.index)?;
                 }
                 self.boolean(*mutable)?;
+            }
+            InstructionKind::VariantTagAddress { address, path }
+            | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                self.u8(
+                    if matches!(&instruction.kind, InstructionKind::VariantTagAddress { .. }) {
+                        107
+                    } else {
+                        108
+                    },
+                )?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+                if let InstructionKind::BorrowVariantAddress { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
+                }
             }
             InstructionKind::UnpackVariant {
                 local,
@@ -1692,6 +1801,10 @@ impl<'a> Reader<'a> {
                 start: usize,
                 foreign: bool,
             },
+            BorrowedFunction {
+                start: usize,
+                life: FunctionLifeContract,
+            },
             Record {
                 start: usize,
                 names: usize,
@@ -1768,6 +1881,16 @@ impl<'a> Reader<'a> {
                         Type::ForeignCallback { parameters, result }
                     } else {
                         Type::FunctionPointer { parameters, result }
+                    });
+                    continue;
+                }
+                Task::BorrowedFunction { start, life } => {
+                    let result = Box::new(values.pop().expect("read borrowed function result"));
+                    let parameters = values.split_off(start);
+                    values.push(Type::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
                     });
                     continue;
                 }
@@ -1850,8 +1973,11 @@ impl<'a> Reader<'a> {
                 3 => Type::I64,
                 26 => Type::U64,
                 27 => Type::Usize,
+                28 => Type::F32,
+                29 => Type::F64,
                 18 => Type::U8,
                 19 => Type::U16,
+                33 => Type::TaskI32,
                 20 => Type::ForeignHandle,
                 30 => Type::SyncCell(match self.u8()? {
                     0 => SyncCellKind::MutexI32,
@@ -1863,6 +1989,38 @@ impl<'a> Reader<'a> {
                 4 => {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     pending.push(Task::Tuple(values.len()));
+                    pending.push(Task::Types {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
+                }
+                31 => {
+                    let binder_count = self.count(self.limits.max_locals, 0)? as u32;
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    let mut parameter_lives = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        parameter_lives.push(if self.boolean()? {
+                            Some(self.u32()?)
+                        } else {
+                            None
+                        });
+                    }
+                    let result_life = if self.boolean()? {
+                        Some(self.u32()?)
+                    } else {
+                        None
+                    };
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    pending.push(Task::BorrowedFunction {
+                        start: values.len(),
+                        life: FunctionLifeContract {
+                            binder_count,
+                            parameter_lives,
+                            result_life,
+                        },
+                    });
+                    pending.push(Task::Type(depth + 1));
                     pending.push(Task::Types {
                         left: count,
                         depth: depth + 1,
@@ -1963,6 +2121,12 @@ impl<'a> Reader<'a> {
             }
             2 => Constant::I32(i32::from_le_bytes(
                 self.take(4)?.try_into().expect("checked length"),
+            )),
+            11 => Constant::F32(u32::from_le_bytes(
+                self.take(4)?.try_into().expect("four float32 bytes"),
+            )),
+            12 => Constant::F64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("eight float64 bytes"),
             )),
             3 => Constant::I64(i64::from_le_bytes(
                 self.take(8)?.try_into().expect("checked length"),
@@ -2385,6 +2549,10 @@ impl<'a> Reader<'a> {
                 local: LocalId(self.u32()?),
                 value: ValueId(self.u32()?),
             },
+            98 => InstructionKind::ConvertNumber {
+                value: ValueId(self.u32()?),
+                target: self.ty(0)?,
+            },
             59 => InstructionKind::ConvertInteger {
                 value: ValueId(self.u32()?),
                 target: self.ty(0)?,
@@ -2441,6 +2609,39 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            110 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 4)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(self.u32()?);
+                }
+                InstructionKind::BorrowFieldLocal {
+                    local,
+                    path,
+                    mutable: self.boolean()?,
+                }
+            }
+            tag @ (107 | 108) => {
+                let address = ValueId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                if tag == 107 {
+                    InstructionKind::VariantTagAddress { address, path }
+                } else {
+                    InstructionKind::BorrowVariantAddress {
+                        address,
+                        path,
+                        mutable: self.boolean()?,
+                    }
+                }
             }
             106 => {
                 let local = LocalId(self.u32()?);
@@ -2605,6 +2806,9 @@ impl<'a> Reader<'a> {
                 }
                 InstructionKind::MakeManaged { fields }
             }
+            109 => InstructionKind::DescribeAddress {
+                address: ValueId(self.u32()?),
+            },
             35 => InstructionKind::DescribeLocal {
                 local: LocalId(self.u32()?),
             },
@@ -2846,6 +3050,26 @@ impl<'a> Reader<'a> {
                     4 => AtomicOrdering::SeqCst,
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
                 },
+            },
+            99 => InstructionKind::TaskStart {
+                worker: FunctionId(self.u32()?),
+                argument: ValueId(self.u32()?),
+            },
+            100 => InstructionKind::TaskYield,
+            101 => InstructionKind::TaskValid {
+                task: ValueId(self.u32()?),
+            },
+            102 => InstructionKind::TaskPoll {
+                task: ValueId(self.u32()?),
+            },
+            103 => InstructionKind::TaskRequestCancel {
+                task: ValueId(self.u32()?),
+            },
+            104 => InstructionKind::TaskPollClose {
+                task: ValueId(self.u32()?),
+            },
+            105 => InstructionKind::TaskFinishDestroy {
+                task: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),

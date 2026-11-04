@@ -19,6 +19,9 @@ unsafe extern "C" {
     fn LLVMSetTarget(module: Handle, triple: *const c_char);
     fn LLVMVoidTypeInContext(context: Handle) -> Handle;
     fn LLVMIntTypeInContext(context: Handle, bits: c_uint) -> Handle;
+    fn LLVMFloatTypeInContext(context: Handle) -> Handle;
+    fn LLVMDoubleTypeInContext(context: Handle) -> Handle;
+    fn LLVMConstBitCast(value: Handle, ty: Handle) -> Handle;
     fn LLVMPointerTypeInContext(context: Handle, address_space: c_uint) -> Handle;
     fn LLVMArrayType2(element: Handle, count: u64) -> Handle;
     fn LLVMStructTypeInContext(
@@ -76,6 +79,24 @@ unsafe extern "C" {
         ordering: c_int,
         single_thread: c_int,
     ) -> Handle;
+
+    fn LLVMBuildFAdd(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFSub(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFMul(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFDiv(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFCmp(
+        builder: Handle,
+        predicate: c_uint,
+        a: Handle,
+        b: Handle,
+        name: *const c_char,
+    ) -> Handle;
+    fn LLVMBuildSIToFP(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildUIToFP(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFPToSI(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFPToUI(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFPExt(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFPTrunc(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildAdd(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildSub(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildMul(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
@@ -178,6 +199,8 @@ impl<'a> Construction<'a> {
             match ty {
                 m::Ty::Void => LLVMVoidTypeInContext(self.context),
                 m::Ty::Int(bits) => LLVMIntTypeInContext(self.context, *bits),
+                m::Ty::F32 => LLVMFloatTypeInContext(self.context),
+                m::Ty::F64 => LLVMDoubleTypeInContext(self.context),
                 m::Ty::Ptr => LLVMPointerTypeInContext(self.context, 0),
                 m::Ty::Array(n, t) => LLVMArrayType2(self.ty(t)?, *n),
                 m::Ty::Struct(fields) => {
@@ -226,6 +249,15 @@ impl<'a> Construction<'a> {
                     // them, but IPSCCP can then mismerge distinct return values.
                     let value = (*n as u64) & (u64::MAX >> (64 - bits));
                     LLVMConstInt(self.ty(ty)?, value, 0)
+                }
+                m::Val::F32(bits) => {
+                    let integer =
+                        LLVMConstInt(LLVMIntTypeInContext(self.context, 32), u64::from(*bits), 0);
+                    LLVMConstBitCast(integer, self.ty(ty)?)
+                }
+                m::Val::F64(bits) => {
+                    let integer = LLVMConstInt(LLVMIntTypeInContext(self.context, 64), *bits, 0);
+                    LLVMConstBitCast(integer, self.ty(ty)?)
                 }
                 m::Val::Bool(b) => LLVMConstInt(self.ty(ty)?, u64::from(*b), 0),
                 m::Val::Null | m::Val::Zero => LLVMConstNull(self.ty(ty)?),
@@ -400,6 +432,10 @@ impl<'a> Construction<'a> {
                     let l = self.value(left, ty)?;
                     let r = self.value(right, ty)?;
                     match opcode.as_str() {
+                        "fadd" => LLVMBuildFAdd(b, l, r, n),
+                        "fsub" => LLVMBuildFSub(b, l, r, n),
+                        "fmul" => LLVMBuildFMul(b, l, r, n),
+                        "fdiv" => LLVMBuildFDiv(b, l, r, n),
                         "add" => LLVMBuildAdd(b, l, r, n),
                         "sub" => LLVMBuildSub(b, l, r, n),
                         "mul" => LLVMBuildMul(b, l, r, n),
@@ -422,25 +458,52 @@ impl<'a> Construction<'a> {
                     left,
                     right,
                 } => {
-                    let p = match predicate.as_str() {
-                        "eq" => 32,
-                        "ne" => 33,
-                        "ugt" => 34,
-                        "uge" => 35,
-                        "ult" => 36,
-                        "ule" => 37,
-                        "sgt" => 38,
-                        "sge" => 39,
-                        "slt" => 40,
-                        "sle" => 41,
-                        _ => return Err(error(ErrorKind::Verify, "unknown predicate")),
-                    };
-                    LLVMBuildICmp(b, p, self.value(left, ty)?, self.value(right, ty)?, n)
+                    if matches!(ty, m::Ty::F32 | m::Ty::F64) {
+                        let predicate = match predicate.as_str() {
+                            "oeq" => 1,
+                            "ogt" => 2,
+                            "oge" => 3,
+                            "olt" => 4,
+                            "ole" => 5,
+                            "ord" => 7,
+                            "uno" => 8,
+                            "une" => 14,
+                            _ => return Err(error(ErrorKind::Verify, "unknown float predicate")),
+                        };
+                        LLVMBuildFCmp(
+                            b,
+                            predicate,
+                            self.value(left, ty)?,
+                            self.value(right, ty)?,
+                            n,
+                        )
+                    } else {
+                        let p = match predicate.as_str() {
+                            "eq" => 32,
+                            "ne" => 33,
+                            "ugt" => 34,
+                            "uge" => 35,
+                            "ult" => 36,
+                            "ule" => 37,
+                            "sgt" => 38,
+                            "sge" => 39,
+                            "slt" => 40,
+                            "sle" => 41,
+                            _ => return Err(error(ErrorKind::Verify, "unknown predicate")),
+                        };
+                        LLVMBuildICmp(b, p, self.value(left, ty)?, self.value(right, ty)?, n)
+                    }
                 }
                 m::Op::Cast { opcode, arg, to } => {
                     let value = self.value(&arg.value, &arg.ty)?;
                     let ty = self.ty(to)?;
                     match opcode.as_str() {
+                        "sitofp" => LLVMBuildSIToFP(b, value, ty, n),
+                        "uitofp" => LLVMBuildUIToFP(b, value, ty, n),
+                        "fptosi" => LLVMBuildFPToSI(b, value, ty, n),
+                        "fptoui" => LLVMBuildFPToUI(b, value, ty, n),
+                        "fpext" => LLVMBuildFPExt(b, value, ty, n),
+                        "fptrunc" => LLVMBuildFPTrunc(b, value, ty, n),
                         "sext" => LLVMBuildSExt(b, value, ty, n),
                         "zext" => LLVMBuildZExt(b, value, ty, n),
                         "trunc" => LLVMBuildTrunc(b, value, ty, n),

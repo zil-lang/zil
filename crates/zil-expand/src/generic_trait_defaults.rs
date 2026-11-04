@@ -2,14 +2,16 @@
 //! selected. Concrete bodies remain ordinary functions in the trait's module.
 use super::*;
 
-pub(crate) fn present(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<bool> {
+pub(crate) fn features(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool, bool)> {
     let mut found = false;
+    let mut associated = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
+        associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok(found)
+    Ok((found, associated))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
@@ -161,7 +163,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<BTreeMap<Span, String>> {
+    ) -> R<trait_instances::CallTargets> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
@@ -208,11 +210,20 @@ impl Engine<'_> {
         self.budget.text("Self", member.span)?;
         bounds.insert(
             "Self".into(),
-            vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
-                key,
-                arguments,
-            })],
+            self.traits.inherited_bounds(
+                vec![trait_bounds::Bound::Nominal(trait_instances::Reference {
+                    key,
+                    arguments,
+                })],
+                "Self",
+                &mut self.budget,
+                member.span,
+            )?,
         );
+        if self.traits.has_associated {
+            self.traits
+                .associated_bounds(&mut bounds, &mut self.budget)?;
+        }
         no_new_borrows(member, &mut self.budget)?;
         self.check_default_reference_result(&function, &bounds)?;
         let mut calls = trait_instances::Calls::new();
@@ -384,7 +395,7 @@ impl Engine<'_> {
             let mut body = member.clone();
             substitute_item(&mut body, &substitutions)?;
             let calls = self.check_default(declaration, &body, &reference, false)?;
-            trait_instances::rewrite_calls(&mut body, &calls, &mut self.budget)?;
+            trait_instances::rewrite_calls(&mut body, &calls, &BTreeMap::new(), &mut self.budget)?;
             self.budget.text("Self", span)?;
             self.budget.ty(&implementation.target)?;
             substitutions.clear();

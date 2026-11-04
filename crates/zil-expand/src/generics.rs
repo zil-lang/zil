@@ -16,6 +16,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_const.rs"]
+mod consts;
 #[path = "generic_copy.rs"]
 mod copy;
 #[path = "generic_enum.rs"]
@@ -38,6 +40,8 @@ mod stores;
 mod trait_bounds;
 #[path = "generic_trait_defaults.rs"]
 pub(super) mod trait_defaults;
+#[path = "generic_trait_impls.rs"]
+mod trait_impls;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
 #[path = "generic_where.rs"]
@@ -88,14 +92,20 @@ fn specialize_products_prepared<'a>(
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     let mut has_defaults = false;
+    let mut has_associated = false;
+    let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
+        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
-            has_defaults |=
-                trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            let (defaults, associated) =
+                trait_defaults::features(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            has_associated |= associated;
+            has_defaults |= defaults || associated;
+            has_defaults |= !declaration.bounds.is_empty();
         }
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
@@ -165,6 +175,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
+            has_associated,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -180,8 +191,16 @@ fn specialize_products_prepared<'a>(
                 &aliased.pattern_types,
                 budget,
                 products,
+                has_associated,
             ),
-            None => specialize_with_budget(&normalized, limits, &BTreeMap::new(), budget, products),
+            None => specialize_with_budget(
+                &normalized,
+                limits,
+                &BTreeMap::new(),
+                budget,
+                products,
+                has_associated,
+            ),
         }
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -195,6 +214,7 @@ fn specialize_products_prepared<'a>(
             .iter()
             .all(|item| params(item).is_empty())
             && !has_defaults
+            && !has_impl_recipes
             && !normalized
                 .module
                 .items
@@ -210,12 +230,14 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
+            has_associated,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
     }
     if module.items.iter().all(|item| params(item).is_empty())
         && !has_defaults
+        && !has_impl_recipes
         && !module
             .items
             .iter()
@@ -224,18 +246,28 @@ fn specialize_products_prepared<'a>(
     {
         return Ok(Cow::Borrowed(module));
     }
-    specialize_with_budget(module, limits, &BTreeMap::new(), names_budget, products)
-        .map(Cow::Owned)
-        .map_err(|error| vec![error])
+    specialize_with_budget(
+        module,
+        limits,
+        &BTreeMap::new(),
+        names_budget,
+        products,
+        has_associated,
+    )
+    .map(Cow::Owned)
+    .map_err(|error| vec![error])
 }
 
 fn specialize_with_budget<'a>(
     module: &'a Module,
     limits: &'a Limits,
     pattern_types: &'a BTreeMap<String, TypeRef>,
-    budget: Budget<'a>,
+    mut budget: Budget<'a>,
     products: &mut products::Products,
+    has_associated: bool,
 ) -> R<Module> {
+    let prepared = trait_bounds::associated::prepare(module, has_associated, &mut budget)?;
+    let module = prepared.as_ref().unwrap_or(module);
     let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
@@ -277,6 +309,9 @@ struct Engine<'a> {
     signatures: BTreeMap<String, Cow<'a, Function>>,
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
+    realized_impls: BTreeSet<(trait_instances::Key, String)>,
+    realized_references: Vec<(trait_instances::Reference, TypeRef)>,
+    impl_definitions: BTreeMap<(usize, usize), String>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
     pending: VecDeque<Item>,
@@ -353,6 +388,9 @@ impl<'a> Engine<'a> {
             signatures: BTreeMap::new(),
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
+            realized_impls: BTreeSet::new(),
+            realized_references: Vec::new(),
+            impl_definitions: BTreeMap::new(),
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
             pending: VecDeque::new(),
@@ -404,6 +442,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        engine.validate_impl_recipes()?;
         engine.validate_trait_defaults(module)?;
         if engine.nominal_binder_collision {
             return Ok(engine);
@@ -454,7 +493,10 @@ impl<'a> Engine<'a> {
                     {
                         // Preserve the already-accounted callable protection path.
                         engine.nominal_binder_collision = true;
-                    } else if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                    } else if matches!(
+                        parameter.kind,
+                        GenericParamKind::Type(_) | GenericParamKind::Const(_)
+                    ) {
                         // Ordinary type binders need the same nominal isolation.
                         // Do not inspect a symbolic body against an ambiguously
                         // named nominal table: the caller first protects the
@@ -467,6 +509,9 @@ impl<'a> Engine<'a> {
                     return Err(error(parameter.span, "duplicate type parameter"));
                 }
                 match &parameter.kind {
+                    GenericParamKind::Const(ty) => {
+                        consts::domain(ty)?;
+                    }
                     GenericParamKind::Type(bounds)
                         if bounds.is_empty()
                             || callable.is_some()
@@ -495,8 +540,9 @@ impl<'a> Engine<'a> {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
+                let checked = consts::definition(f, &mut engine.budget)?;
                 validate_parametric(
-                    f,
+                    &checked,
                     check::ParametricTables {
                         nominals: &engine.nominals,
                         enums: &engine.enums,
@@ -583,6 +629,10 @@ impl<'a> Engine<'a> {
             items: vec![],
         };
         for item in &module.items {
+            if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()))
+            {
+                continue;
+            }
             if params(item).is_empty()
                 || matches!(&item.kind, ItemKind::Function(f)
                     if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
@@ -664,7 +714,7 @@ impl<'a> Engine<'a> {
         };
         let parameters: Vec<_> = params(item)
             .iter()
-            .filter(|p| matches!(p.kind, GenericParamKind::Type(_)))
+            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
             .filter(|p| {
                 retained
                     .as_ref()
@@ -681,6 +731,19 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
+        let arguments = parameters
+            .iter()
+            .zip(arguments)
+            .map(|(parameter, actual)| {
+                if matches!(parameter.kind, GenericParamKind::Const(_))
+                    || consts::expression(&actual).is_some()
+                {
+                    consts::normalize(parameter, &actual, &mut self.budget)
+                } else {
+                    Ok(actual)
+                }
+            })
+            .collect::<R<Vec<_>>>()?;
         if dependent {
             return self.retain_store_template(template, item, arguments, span);
         }
@@ -769,12 +832,14 @@ impl<'a> Engine<'a> {
             span,
             retained.as_ref(),
         )?;
+        self.realize_bounds(params(item), &substitution, span)?;
         self.budget.substituted_item(item, &substitution)?;
+        consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
         if let ItemKind::Function(f) = &item.kind
             && let Some(calls) = self.trait_calls.get(&f.name)
         {
-            trait_instances::rewrite_calls(&mut instance, calls, &mut self.budget)?;
+            trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
@@ -830,15 +895,31 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
+            *ty = self.traits.normalize_associated(
+                ty,
+                &trait_bounds::Bounds::new(),
+                &BTreeSet::new(),
+                &mut self.budget,
+            )?;
+            return self.ty(ty, depth + 1);
+        }
         match &mut ty.kind {
             TypeKind::Named { path, args } => {
                 let mut values = Vec::new();
-                for arg in args.iter_mut() {
-                    let GenericArg::Type(value) = arg else {
-                        return Err(unsupported(ty.span, "const generic argument"));
-                    };
-                    self.ty(value, depth + 1)?;
-                    values.push(value.clone());
+                let declaration = (path.len() == 1)
+                    .then(|| self.templates.get(&path[0]).copied())
+                    .flatten();
+                for (index, arg) in args.iter_mut().enumerate() {
+                    let parameter = declaration.and_then(|item| params(item).get(index));
+                    if let GenericArg::Type(value) = arg
+                        && !parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                    {
+                        self.ty(value, depth + 1)?;
+                        values.push(value.clone());
+                    } else {
+                        values.push(consts::argument(arg, parameter, &mut self.budget)?);
+                    }
                 }
                 if !values.is_empty() && path.len() == 1 && self.templates.contains_key(&path[0]) {
                     if !matches!(
@@ -1033,6 +1114,19 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.complete_trait_defaults(i, item.span)?;
+                let source_target = if self.traits.has_associated {
+                    self.budget.ty(&i.target)?;
+                    self.budget.text("Self", item.span)?;
+                    let substitutions = BTreeMap::from([("Self".into(), i.target.clone())]);
+                    for member in &mut i.members {
+                        self.budget.substituted_item(member, &substitutions)?;
+                        substitute_item(member, &substitutions)?;
+                    }
+                    self.budget.ty(&i.target)?;
+                    Some(i.target.clone())
+                } else {
+                    None
+                };
                 self.ty(&mut i.target, 0)?;
                 if self.traits.has_instances
                     && let Some(application) = &i.trait_type
@@ -1041,11 +1135,22 @@ impl<'a> Engine<'a> {
                 {
                     let reference = self.traits.reference(application, &mut self.budget)?;
                     let (_, declaration) = self.traits.declaration_item(&reference);
-                    if !declaration.generics.is_empty() {
+                    if !declaration.generics.is_empty() || self.traits.has_associated {
+                        let mut implemented = BTreeSet::new();
                         for member in &i.members {
                             let ItemKind::Function(actual) = &member.kind else {
                                 continue;
                             };
+                            self.budget.text(&actual.name, member.span)?;
+                            self.budget.node(member.span, 0)?;
+                            if !implemented.insert(actual.name.as_str()) {
+                                return Err(Diagnostic::error(
+                                    Phase::Expand,
+                                    "E-TRAIT-METHOD-SET",
+                                    Some(member.span),
+                                    "duplicate implementation method",
+                                ));
+                            }
                             let mut required = None;
                             for candidate in &declaration.members {
                                 self.budget.node(candidate.span, 0)?;
@@ -1059,6 +1164,9 @@ impl<'a> Engine<'a> {
                                 }
                             }
                             if let Some(required) = required {
+                                if self.traits.has_associated && declaration.generics.is_empty() {
+                                    self.budget.item(required)?;
+                                }
                                 let mut signature = trait_instances::signature(
                                     declaration,
                                     required,
@@ -1066,6 +1174,26 @@ impl<'a> Engine<'a> {
                                     &mut self.budget,
                                 )?
                                 .into_owned();
+                                if let Some(source_target) = &source_target {
+                                    self.budget.text("Self", member.span)?;
+                                    self.budget.ty(source_target)?;
+                                    let substitutions =
+                                        BTreeMap::from([("Self".into(), source_target.clone())]);
+                                    for p in &mut signature.params {
+                                        self.budget.substituted_type(&p.ty, &substitutions)?;
+                                        Substitution {
+                                            substitutions: &substitutions,
+                                        }
+                                        .ty(&mut p.ty);
+                                    }
+                                    if let Some(t) = &mut signature.return_type {
+                                        self.budget.substituted_type(t, &substitutions)?;
+                                        Substitution {
+                                            substitutions: &substitutions,
+                                        }
+                                        .ty(t);
+                                    }
+                                }
                                 for p in &mut signature.params {
                                     self.ty(&mut p.ty, 0)?;
                                 }
@@ -1088,18 +1216,29 @@ impl<'a> Engine<'a> {
                                 let expected = trait_instances::ConcreteSignature {
                                     key,
                                     host: host.to_owned(),
-                                    declaration: required.span,
                                     method: signature,
                                 };
+                                let identity_key = trait_instances::copy_key(
+                                    &expected.key,
+                                    &mut self.budget,
+                                    member.span,
+                                )?;
+                                self.budget.text(host, member.span)?;
+                                self.budget.text(&actual.name, member.span)?;
                                 if self
                                     .products
                                     .trait_signatures
-                                    .insert((item.span, actual.span), expected)
+                                    .insert(
+                                        (identity_key, host.to_owned(), actual.name.clone()),
+                                        expected,
+                                    )
                                     .is_some()
                                 {
-                                    return Err(error(
-                                        member.span,
-                                        "duplicate source trait method signature identity",
+                                    return Err(Diagnostic::error(
+                                        Phase::Expand,
+                                        "E-TRAIT-DUPLICATE",
+                                        Some(member.span),
+                                        "duplicate implementation of the same trait instance and Self",
                                     ));
                                 }
                             }
@@ -1108,6 +1247,10 @@ impl<'a> Engine<'a> {
                 }
                 for item in &mut i.members {
                     self.item(item)?;
+                }
+                if self.traits.has_associated {
+                    i.members
+                        .retain(|member| !matches!(member.kind, ItemKind::TypeAlias(_)));
                 }
             }
             _ => {}
@@ -1272,6 +1415,18 @@ impl<'a> Engine<'a> {
                     .or(default_integer.then_some("i32"))
                     .map(|suffix| named(suffix, e.span)))
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, e.span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
+                    .or(default_integer.then_some("f64"))
+                    .map(|suffix| named(suffix, e.span)))
+            }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", e.span))),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.value_hint(inner, env, depth + 1, default_integer)
@@ -1308,6 +1463,13 @@ impl<'a> Engine<'a> {
                 ..
             } => Ok(Some(named("bool", e.span))),
             ExprKind::Binary { left, right, .. } => {
+                if check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                    && let Some(ty) = self
+                        .value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                {
+                    return Ok(Some(ty));
+                }
                 match self.value_hint(left, env, depth + 1, default_integer)? {
                     Some(ty) => Ok(Some(ty)),
                     None => self.value_hint(right, env, depth + 1, default_integer),
@@ -1571,6 +1733,19 @@ impl<'a> Engine<'a> {
                     ))
                 }
             }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let suffix = ["f32", "f64"].into_iter().find(|suffix| {
+                    text.ends_with(suffix)
+                        || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                        || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                });
+                if suffix.is_none() && expected.is_some_and(check::floating) {
+                    self.budget.ty(expected.unwrap())?;
+                    expected.cloned()
+                } else {
+                    Some(named(suffix.unwrap_or("f64"), e.span))
+                }
+            }
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
             ExprKind::Name(name) => {
                 if let Some(Some(ty)) = env.get(name) {
@@ -1621,6 +1796,15 @@ impl<'a> Engine<'a> {
                             | BinaryOp::GreaterEqual
                     )
                 });
+                let float_hint = if hint.is_none()
+                    && check::uncontextual_float(left, &mut self.budget, depth + 1)?
+                {
+                    self.value_hint(right, env, depth + 1, false)?
+                        .filter(check::floating)
+                } else {
+                    None
+                };
+                let hint = hint.or(float_hint.as_ref());
                 let left_type = self.expr_expected(left, env, hint, depth + 1)?;
                 self.expr_expected(right, env, hint.or(left_type.as_ref()), depth + 1)?;
                 if matches!(
@@ -1668,6 +1852,30 @@ impl<'a> Engine<'a> {
                                 callee.span,
                             )?
                         {
+                            self.budget.text(&target, callee.span)?;
+                            member.clone_from(&target);
+                            trait_signature = Some(signature);
+                        }
+                        if trait_signature.is_none()
+                            && member.starts_with("$trait_")
+                            && let Some(signature) = self.realized_method(
+                                projection_shape(&actual),
+                                member,
+                                callee.span,
+                            )?
+                        {
+                            trait_signature = Some(signature);
+                        }
+                        if trait_signature.is_none()
+                            && !self.traits.recipes.is_empty()
+                            && let Some((target, signature, witness)) = self.traits.recipe_method(
+                                projection_shape(&actual),
+                                member,
+                                &mut self.budget,
+                                callee.span,
+                            )?
+                        {
+                            self.realize_witness(witness)?;
                             self.budget.text(&target, callee.span)?;
                             member.clone_from(&target);
                             trait_signature = Some(signature);
@@ -1892,12 +2100,22 @@ impl<'a> Engine<'a> {
                         arguments: args,
                     } => {
                         let mut types = Vec::new();
-                        for arg in args {
-                            let GenericArg::Type(t) = arg else {
-                                return Err(unsupported(e.span, "const generic argument"));
-                            };
-                            self.ty(t, depth + 1)?;
-                            types.push(t.clone());
+                        let declaration = if let ExprKind::Name(name) = &base.kind {
+                            self.templates.get(name).copied()
+                        } else {
+                            None
+                        };
+                        for (index, arg) in args.iter_mut().enumerate() {
+                            let parameter = declaration.and_then(|item| params(item).get(index));
+                            if let GenericArg::Type(t) = arg
+                                && !parameter
+                                    .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                            {
+                                self.ty(t, depth + 1)?;
+                                types.push(t.clone());
+                            } else {
+                                types.push(consts::argument(arg, parameter, &mut self.budget)?);
+                            }
                         }
                         explicit = Some(types);
                         match &base.kind {
@@ -1940,6 +2158,11 @@ impl<'a> Engine<'a> {
                                 };
                                 if let (Some(result), Some(expected)) =
                                     (&function.return_type, expected)
+                                    && (!self.traits.has_associated
+                                        || !trait_bounds::associated::contains(
+                                            result,
+                                            &mut self.budget,
+                                        )?)
                                 {
                                     let expected = self.original_type(expected)?;
                                     unify(
@@ -2038,6 +2261,11 @@ impl<'a> Engine<'a> {
                             };
                             if let (Some(result), Some(expected)) =
                                 (&function.return_type, expected)
+                                && (!self.traits.has_associated
+                                    || !trait_bounds::associated::contains(
+                                        result,
+                                        &mut self.budget,
+                                    )?)
                             {
                                 let expected = self.original_type(expected)?;
                                 unify(
@@ -2442,7 +2670,10 @@ fn original_type_observed(
                             binder,
                             dependent,
                         )?)),
-                        _ => Err(unsupported(ty.span, "const generic argument")),
+                        GenericArg::Const(e) => {
+                            budget.const_expression(e)?;
+                            Ok(GenericArg::Const(e.clone()))
+                        }
                     })
                     .collect::<R<_>>()?,
             }
@@ -2554,20 +2785,7 @@ fn original_type_observed(
     })
 }
 fn array_length(length: &Expr) -> R<u32> {
-    match &length.kind {
-        ExprKind::Literal(Literal::Integer(text)) => {
-            text.replace('_', "").parse::<u32>().map_err(|_| {
-                unsupported(
-                    length.span,
-                    "array length must be a bounded integer constant",
-                )
-            })
-        }
-        _ => Err(unsupported(
-            length.span,
-            "nonliteral array length needs CT type evaluation",
-        )),
-    }
+    consts::length(length)
 }
 fn array_type(element: TypeRef, length: usize, span: Span) -> R<TypeRef> {
     let length = u32::try_from(length)
@@ -2631,10 +2849,11 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
         TypeKind::Named { path, args } => {
             let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
             for a in args {
-                let GenericArg::Type(t) = a else {
-                    return Err(unsupported(ty.span, "const generic argument"));
+                let argument = match a {
+                    GenericArg::Type(t) => type_key_bounded(t)?,
+                    GenericArg::Const(e) => format!("#{}", consts::key(e)?),
                 };
-                key.push_str(&format!("<{}>", type_key_bounded(t)?));
+                key.push_str(&format!("<{argument}>"));
             }
             key
         }
@@ -2652,7 +2871,12 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
         TypeKind::Array {
             element,
             length: Some(length),
-        } => format!("A{}<{}>", array_length(length)?, type_key_bounded(element)?),
+        } => format!(
+            "A{}<{}>",
+            consts::length_key(length, &BTreeMap::new())?,
+            type_key_bounded(element)?
+        ),
+        TypeKind::MetaEval(expression) => format!("#{}", consts::key(expression)?),
         TypeKind::Array {
             element,
             length: None,
@@ -2887,7 +3111,9 @@ fn unify_bounded(
                 element: b,
                 length: Some(y),
             },
-        ) if array_length(x)? == array_length(y)? => unify_bounded(a, b, variables, found, span),
+        ) if consts::length_key(x, found)? == consts::length_key(y, &BTreeMap::new())? => {
+            unify_bounded(a, b, variables, found, span)
+        }
         (
             TypeKind::Array {
                 element: a,
@@ -2906,7 +3132,8 @@ fn unify_bounded(
     }
 }
 
-// The visitor substitutes only type syntax. Value names are never textual
+// Type substitutions never rewrite value names. Private const carriers replace
+// only their lexically visible value uses; local patterns shadow them normally.
 // replacements: a parameter called T does not become the name of its type.
 fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -> R<()> {
     let visitor = Substitution { substitutions };
@@ -2925,6 +3152,23 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
             if let Some(t) = &mut f.return_type {
                 visitor.ty(t);
             }
+            for clause in &mut f.where_clause {
+                if let BoundSubject::Type(subject) = &mut clause.subject {
+                    visitor.ty(subject);
+                }
+                for bound in &mut clause.bounds {
+                    visitor.ty(bound);
+                }
+            }
+            let mut scoped = Cow::Borrowed(substitutions);
+            for parameter in &f.params {
+                if let Cow::Owned(next) = consts::scoped_name(&parameter.name, &scoped) {
+                    scoped = Cow::Owned(next);
+                }
+            }
+            let visitor = Substitution {
+                substitutions: &scoped,
+            };
             match &mut f.body {
                 FunctionBody::Block(b) => visitor.block(b),
                 FunctionBody::Expression(e) => visitor.expr(e),
@@ -2956,6 +3200,14 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
                 }
             }
         }
+        ItemKind::TypeAlias(alias) => {
+            for bound in &mut alias.bounds {
+                visitor.ty(bound);
+            }
+            if let Some(value) = &mut alias.value {
+                visitor.ty(value);
+            }
+        }
         _ => {}
     }
     Ok(())
@@ -2963,12 +3215,28 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
 struct Substitution<'a> {
     substitutions: &'a BTreeMap<String, TypeRef>,
 }
+fn substitution_name<'a>(path: &'a [String]) -> Cow<'a, str> {
+    if path.len() == 1 {
+        Cow::Borrowed(&path[0])
+    } else {
+        Cow::Owned(path.join("."))
+    }
+}
 impl Substitution<'_> {
     fn ty(&self, ty: &mut TypeRef) {
+        if trait_bounds::associated::parts(ty).is_some()
+            && let Ok(key) = trait_bounds::associated::equation_key(ty)
+            && let Some(value) = self.substitutions.get(&key)
+        {
+            let span = ty.span;
+            *ty = value.clone();
+            ty.span = span;
+            return;
+        }
         if let TypeKind::Named { path, args } = &ty.kind
-            && path.len() == 1
             && args.is_empty()
-            && let Some(value) = self.substitutions.get(&path[0])
+            && let Some(value) = self.substitutions.get(substitution_name(path).as_ref())
+            && consts::expression(value).is_none()
         {
             let span = ty.span;
             *ty = value.clone();
@@ -2978,8 +3246,18 @@ impl Substitution<'_> {
         match &mut ty.kind {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for a in args {
-                    if let GenericArg::Type(t) = a {
-                        self.ty(t);
+                    match a {
+                        GenericArg::Type(t) => {
+                            if let Some(name) = trait_bounds::plain(t)
+                                && let Some(value) =
+                                    self.substitutions.get(name).and_then(consts::expression)
+                            {
+                                *a = GenericArg::Const(value.clone());
+                            } else {
+                                self.ty(t);
+                            }
+                        }
+                        GenericArg::Const(e) => self.expr(e),
                     }
                 }
             }
@@ -2996,6 +3274,9 @@ impl Substitution<'_> {
                 self.ty(element);
                 if let Some(e) = length {
                     self.expr(e);
+                    if let Ok(value) = consts::length(e) {
+                        e.kind = ExprKind::Literal(Literal::Integer(value.to_string()));
+                    }
                 }
             }
             TypeKind::Function { params, result }
@@ -3018,8 +3299,18 @@ impl Substitution<'_> {
         }
     }
     fn block(&self, b: &mut Block) {
+        let mut substitutions = Cow::Borrowed(self.substitutions);
         for s in &mut b.statements {
-            self.statement(s);
+            Substitution {
+                substitutions: &substitutions,
+            }
+            .statement(s);
+            if let StmtKind::Binding { pattern, .. } = &s.kind {
+                let scoped = consts::scoped(pattern, &substitutions);
+                if let Cow::Owned(scoped) = scoped {
+                    substitutions = Cow::Owned(scoped);
+                }
+            }
         }
     }
     fn statement(&self, s: &mut Stmt) {
@@ -3043,7 +3334,15 @@ impl Substitution<'_> {
                 else_body,
             } => {
                 self.condition(condition);
-                self.block(then_body);
+                if let Condition::Let { pattern, .. } = condition {
+                    let scoped = consts::scoped(pattern, self.substitutions);
+                    Substitution {
+                        substitutions: &scoped,
+                    }
+                    .block(then_body);
+                } else {
+                    self.block(then_body);
+                }
                 match else_body {
                     Some(ElseBranch::Block(b)) => self.block(b),
                     Some(ElseBranch::If(s)) => self.statement(s),
@@ -3052,21 +3351,49 @@ impl Substitution<'_> {
             }
             StmtKind::While { condition, body } => {
                 self.condition(condition);
-                self.block(body);
+                if let Condition::Let { pattern, .. } = condition {
+                    let scoped = consts::scoped(pattern, self.substitutions);
+                    Substitution {
+                        substitutions: &scoped,
+                    }
+                    .block(body);
+                } else {
+                    self.block(body);
+                }
             }
-            StmtKind::For { iterable, body, .. } => {
+            StmtKind::For {
+                pattern,
+                iterable,
+                body,
+            } => {
                 self.expr(iterable);
-                self.block(body);
+                let scoped = consts::scoped(pattern, self.substitutions);
+                Substitution {
+                    substitutions: &scoped,
+                }
+                .block(body);
             }
             StmtKind::Loop(b) | StmtKind::Unsafe(b) | StmtKind::Defer(b) => self.block(b),
-            StmtKind::With { value, body, .. } => {
+            StmtKind::With { name, value, body } => {
                 self.expr(value);
-                self.block(body);
+                let pattern = Pattern {
+                    span: s.span,
+                    kind: PatternKind::Name(name.clone()),
+                };
+                let scoped = consts::scoped(&pattern, self.substitutions);
+                Substitution {
+                    substitutions: &scoped,
+                }
+                .block(body);
             }
             StmtKind::Match { value, arms } => {
                 self.expr(value);
                 for arm in arms {
-                    self.arrow(&mut arm.body);
+                    let scoped = consts::scoped(&arm.pattern, self.substitutions);
+                    Substitution {
+                        substitutions: &scoped,
+                    }
+                    .arrow(&mut arm.body);
                 }
             }
             _ => {}
@@ -3079,6 +3406,25 @@ impl Substitution<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
+        if self.substitutions.contains_key("Self")
+            && let ExprKind::ReceiverMember(member) = &e.kind
+        {
+            e.kind = ExprKind::Member {
+                object: Box::new(Expr {
+                    kind: ExprKind::Name("self".into()),
+                    span: e.span,
+                }),
+                member: MemberName::Name(member.clone()),
+            };
+        }
+        if let ExprKind::Name(name) = &e.kind
+            && let Some(value) = self.substitutions.get(name).and_then(consts::expression)
+        {
+            let span = e.span;
+            *e = value.clone();
+            e.span = span;
+            return;
+        }
         match &mut e.kind {
             ExprKind::Group(x)
             | ExprKind::Try(x)
@@ -3107,7 +3453,16 @@ impl Substitution<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
-                        GenericArg::Type(t) => self.ty(t),
+                        GenericArg::Type(t) => {
+                            if let Some(name) = trait_bounds::plain(t)
+                                && let Some(value) =
+                                    self.substitutions.get(name).and_then(consts::expression)
+                            {
+                                *a = GenericArg::Const(value.clone());
+                            } else {
+                                self.ty(t);
+                            }
+                        }
                         GenericArg::Const(e) => self.expr(e),
                     }
                 }
@@ -3147,15 +3502,26 @@ impl Substitution<'_> {
                 body,
                 ..
             } => {
+                let mut substitutions = Cow::Borrowed(self.substitutions);
                 for p in params {
                     if let Some(t) = &mut p.ty {
                         self.ty(t);
+                    }
+                    let pattern = Pattern {
+                        span: p.span,
+                        kind: PatternKind::Name(p.name.clone()),
+                    };
+                    if let Cow::Owned(scoped) = consts::scoped(&pattern, &substitutions) {
+                        substitutions = Cow::Owned(scoped);
                     }
                 }
                 if let Some(t) = return_type {
                     self.ty(t);
                 }
-                self.arrow(body);
+                Substitution {
+                    substitutions: &substitutions,
+                }
+                .arrow(body);
             }
             ExprKind::If {
                 condition,

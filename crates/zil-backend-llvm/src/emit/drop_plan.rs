@@ -22,6 +22,9 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         _ => false,
     }
 }
+pub(super) fn sum_address(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) && value_type(inner, resources))
+}
 fn has_store(ty: &Type) -> bool {
     match ty {
         Type::Managed(p) => matches!(p.as_ref(), Type::OwnedStore { .. }),
@@ -185,6 +188,9 @@ impl<'a> Budget<'a> {
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => self.tree(t, depth + 1)?,
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.tree(t, depth + 1)?;
@@ -255,7 +261,9 @@ fn link(
                 None,
             );
         };
-        return Ok(if r.payload == Type::ByteBuffer {
+        return Ok(if r.payload == Type::TaskI32 {
+            DropPlan::Leaf("zil.task.drop".into())
+        } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())
         } else if let Some(f) = r.teardown {
             DropPlan::Leaf(super::symbol(f))
@@ -590,6 +598,21 @@ pub(super) fn functions(
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
                 match &instruction.kind {
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        let ty = &f.locals[local.0 as usize].ty;
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(32))?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        let ty = &f.values[address.0 as usize];
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(64))?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
                     | InstructionKind::ReadVariantLocal { local, path }
                     | InstructionKind::BorrowVariantLocal { local, path, .. } => {

@@ -2,6 +2,13 @@
 //! immutable during specialization and never treats a same-named method as an
 //! implementation. All emitted calls still enter Types and independent Verify.
 use super::*;
+#[path = "generic_trait_associated.rs"]
+pub(super) mod associated;
+#[path = "generic_trait_solver.rs"]
+mod solver;
+#[path = "generic_trait_super.rs"]
+mod supertraits;
+pub(super) use solver::{Witness, subject_key};
 
 pub(super) use trait_instances::Bound;
 pub(super) type Bounds = BTreeMap<String, Vec<Bound>>;
@@ -11,10 +18,13 @@ pub(super) struct Index<'a> {
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
     pub(super) has_defaults: bool,
+    has_supertraits: bool,
+    pub(super) has_associated: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
     nominals: BTreeMap<String, &'a Item>,
+    pub(super) recipes: Vec<&'a Item>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -22,6 +32,73 @@ pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
         TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => Some(&path[0]),
         _ => None,
     }
+}
+
+fn mentions_any(ty: &TypeRef, variables: &BTreeSet<&str>, budget: &mut Budget<'_>) -> R<bool> {
+    use super::super::ct_selection::Visitor;
+    struct Mentions<'a, 'b, 'l> {
+        names: &'a BTreeSet<&'a str>,
+        budget: &'b mut Budget<'l>,
+        found: bool,
+    }
+    impl Visitor for Mentions<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let TypeKind::Named { path, .. } = &ty.kind
+                && path.len() == 1
+            {
+                for _ in 0..self
+                    .names
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                {
+                    self.node(ty.span, depth)?;
+                    self.text(&path[0], ty.span)?;
+                }
+                self.found |= self.names.contains(path[0].as_str());
+            }
+            super::super::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut visitor = Mentions {
+        names: variables,
+        budget,
+        found: false,
+    };
+    visitor.ty(ty, 0).map_err(|mut e| e.remove(0))?;
+    Ok(visitor.found)
+}
+fn binder_names<'a>(
+    names: impl Iterator<Item = &'a str>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<BTreeSet<&'a str>> {
+    let mut result = BTreeSet::new();
+    for name in names {
+        budget.node(span, 0)?;
+        budget.text(name, span)?;
+        result.insert(name);
+    }
+    Ok(result)
+}
+fn prepay_shadow(
+    parameters: &[GenericParam],
+    name: &str,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    for parameter in parameters {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        budget.text(name, span)?;
+    }
+    Ok(())
 }
 
 impl<'a> Index<'a> {
@@ -36,6 +113,8 @@ impl<'a> Index<'a> {
         let implementations = BTreeSet::new();
         let mut has_instances = false;
         let mut has_defaults = false;
+        let mut has_supertraits = false;
+        let mut has_associated = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -54,10 +133,23 @@ impl<'a> Index<'a> {
                         "StoreElement is a compiler shape bound and cannot be implemented",
                     ));
                 }
+                ItemKind::Impl(i)
+                    if i.trait_type.is_some()
+                        && (!i.generics.is_empty()
+                            || !i.where_clause.is_empty()
+                            || plain(&i.target).is_none()) =>
+                {
+                    has_instances = true;
+                }
                 ItemKind::Trait(declaration) => {
-                    let defaults = trait_defaults::present(declaration, budget)?;
+                    let (defaults, associated) = trait_defaults::features(declaration, budget)?;
+                    has_associated |= associated;
                     has_defaults |= defaults;
-                    has_instances |= !declaration.generics.is_empty() || defaults;
+                    has_supertraits |= !declaration.bounds.is_empty();
+                    has_instances |= !declaration.generics.is_empty()
+                        || defaults
+                        || associated
+                        || !declaration.bounds.is_empty();
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
                         .is_some()
@@ -79,26 +171,71 @@ impl<'a> Index<'a> {
             nominals,
             has_instances,
             has_defaults,
+            has_supertraits,
+            has_associated,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
+            recipes: Vec::new(),
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() || has_defaults {
+                if !declaration.generics.is_empty()
+                    || has_defaults
+                    || has_supertraits
+                    || has_associated
+                {
                     trait_instances::validate_declaration(
                         item,
                         declaration,
                         &index.nominals,
                         budget,
                     )?;
-                    let bounds = index.parameter_bounds(&declaration.generics, budget)?;
+                    let mut bounds = index.parameter_bounds(&declaration.generics, budget)?;
+                    if has_associated {
+                        let mut arguments = Vec::new();
+                        for parameter in &declaration.generics {
+                            budget.text(&parameter.name, parameter.span)?;
+                            arguments
+                                .push(GenericArg::Type(named(&parameter.name, parameter.span)));
+                        }
+                        budget.text(&declaration.name, item.span)?;
+                        let application = TypeRef {
+                            kind: TypeKind::Named {
+                                path: vec![declaration.name.clone()],
+                                args: arguments,
+                            },
+                            span: item.span,
+                        };
+                        let reference = index.pattern_reference(&application, budget)?;
+                        budget.text("Self", item.span)?;
+                        let inherited = index.inherited_bounds(
+                            vec![Bound::Nominal(reference)],
+                            "Self",
+                            budget,
+                            item.span,
+                        )?;
+                        bounds.insert("Self".into(), inherited);
+                        index.associated_bounds(&mut bounds, budget)?;
+                    }
                     let variables = declaration
                         .generics
                         .iter()
                         .map(|p| p.name.clone())
                         .chain(std::iter::once("Self".to_owned()))
                         .collect();
+                    if has_associated
+                        && let Some(Bound::Nominal(reference)) =
+                            bounds.get("Self").and_then(|b| b.first())
+                    {
+                        index.validate_associated_defaults(
+                            declaration,
+                            reference,
+                            &bounds,
+                            &variables,
+                            budget,
+                        )?;
+                    }
                     for member in &declaration.members {
                         if let ItemKind::Function(method) = &member.kind {
                             for parameter in &method.params {
@@ -141,6 +278,17 @@ impl<'a> Index<'a> {
                 }
             }
             if let ItemKind::Impl(i) = &item.kind
+                && i.trait_type.is_some()
+                && (!i.generics.is_empty()
+                    || !i.where_clause.is_empty()
+                    || plain(&i.target).is_none())
+            {
+                budget.item(item)?;
+                index.declaration(i.trait_type.as_ref().expect("nominal recipe"), budget)?;
+                index.has_instances = true;
+                index.recipes.push(item);
+            }
+            if let ItemKind::Impl(i) = &item.kind
                 && i.generics.is_empty()
                 && i.where_clause.is_empty()
                 && let (Some(application), Some(host)) = (&i.trait_type, plain(&i.target))
@@ -157,6 +305,28 @@ impl<'a> Index<'a> {
                 index.references.insert(key, reference);
             }
         }
+        if validate && (!index.recipes.is_empty() || has_associated) {
+            for (item, declaration) in index.declarations.values() {
+                trait_instances::validate_declaration(item, declaration, &index.nominals, budget)?;
+            }
+            // In mixed concrete/generic programs every source impl remains a
+            // recipe until its complete premise tree has been proved.
+            index.recipes.clear();
+            index.implementations.clear();
+            for item in &module.items {
+                budget.node(item.span, 0)?;
+                if let ItemKind::Impl(i) = &item.kind
+                    && let Some(application) = &i.trait_type
+                    && trait_instances::head(application)
+                        .is_some_and(|name| index.declarations.contains_key(name))
+                {
+                    index.recipes.push(item);
+                }
+            }
+        }
+        if validate {
+            index.coherence(module, budget)?;
+        }
         if index.instance_count() > budget.remaining_limits().max_functions {
             return Err(Diagnostic::limit(
                 Phase::Expand,
@@ -164,10 +334,44 @@ impl<'a> Index<'a> {
                 Some(module.span),
             ));
         }
+        if validate && index.has_supertraits {
+            index.validate_supertraits(budget)?;
+        }
+        if validate && !index.recipes.is_empty() {
+            for item in &index.recipes {
+                let ItemKind::Impl(i) = &item.kind else {
+                    unreachable!()
+                };
+                if i.generics.is_empty() {
+                    let reference =
+                        index.reference(i.trait_type.as_ref().expect("trait recipe"), budget)?;
+                    index.solve(
+                        &reference,
+                        &i.target,
+                        &Bounds::new(),
+                        &BTreeSet::new(),
+                        budget,
+                    )?;
+                }
+            }
+        }
         Ok(index)
     }
     pub(super) fn instance_count(&self) -> usize {
         self.instance_count
+    }
+    pub(super) fn inherited_bounds(
+        &self,
+        bounds: Vec<Bound>,
+        variable: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Vec<Bound>> {
+        if self.has_supertraits {
+            self.super_bounds(&bounds, budget, span, Some(variable))
+        } else {
+            Ok(bounds)
+        }
     }
 
     pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
@@ -192,12 +396,6 @@ impl<'a> Index<'a> {
                 "generic trait bound is private to its declaring module",
             ));
         }
-        if !declaration.bounds.is_empty() {
-            return Err(unsupported(
-                bound.span,
-                "generic or supertrait bound requires the full trait solver",
-            ));
-        }
         if name.starts_with("$module") {
             // The same exact prefix exclusion applies to both static impls and
             // generic bounds. Charge this path as before sharing the predicate.
@@ -211,6 +409,9 @@ impl<'a> Index<'a> {
         }
         for member in &declaration.members {
             budget.node(member.span, 0)?;
+            if matches!(member.kind, ItemKind::TypeAlias(_)) {
+                continue;
+            }
             let ItemKind::Function(method) = &member.kind else {
                 return Err(unsupported(
                     member.span,
@@ -238,18 +439,38 @@ impl<'a> Index<'a> {
         let declaration = self.declaration(bound, budget)?;
         let (item, _) = self.declarations[declaration.name.as_str()];
         let reference = trait_instances::arguments(item.span, declaration, bound, budget)?;
-        if !reference.arguments.is_empty() {
-            for actual in &reference.arguments {
-                copy::require(
+        self.reference_arguments(&reference, &Bounds::new(), &BTreeSet::new(), budget)?;
+        Ok(reference)
+    }
+    pub(super) fn reference_arguments(
+        &self,
+        reference: &trait_instances::Reference,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let (_, declaration) = self.declaration_item(reference);
+        for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
+            let GenericParamKind::Type(bounds) = &parameter.kind else {
+                return Err(unsupported(
+                    parameter.span,
+                    "trait non-type argument domain",
+                ));
+            };
+            if bounds.iter().any(copy::is_bound) || !check::dependent(actual, variables) {
+                copy::require(actual, &self.nominals, available, variables, budget)?;
+            } else {
+                trait_instances::known_type(actual, variables, &self.nominals, budget, 0)?;
+                self.store_types(
                     actual,
-                    &self.nominals,
-                    &Bounds::new(),
-                    &BTreeSet::new(),
+                    available,
+                    variables,
                     budget,
+                    callable::StoreCallbacks::None,
                 )?;
             }
         }
-        Ok(reference)
+        Ok(())
     }
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
         let callable = callable::template(function)?;
@@ -282,6 +503,7 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
+                    prepay_shadow(parameters, copy::BOUND, bound.span, budget)?;
                     if parameters.iter().any(|p| {
                         matches!(p.kind, GenericParamKind::Type(_)) && p.name == copy::BOUND
                     }) {
@@ -305,21 +527,45 @@ impl<'a> Index<'a> {
                     continue;
                 }
                 let declaration = self.declaration(bound, budget)?;
+                prepay_shadow(parameters, &declaration.name, bound.span, budget)?;
                 if parameters.iter().any(|p| p.name == declaration.name) {
                     return Err(error(
                         bound.span,
                         "trait bound resolves to a shadowing type parameter",
                     ));
                 }
-                for parameter in parameters {
-                    if callable::refers(bound, &parameter.name) {
-                        return Err(unsupported(
-                            bound.span,
-                            "trait arguments require concrete types, not lexical type binders",
-                        ));
+                let names_in_scope = binder_names(
+                    parameters.iter().map(|p| p.name.as_str()),
+                    bound.span,
+                    budget,
+                )?;
+                let reference = if mentions_any(bound, &names_in_scope, budget)? {
+                    let mut structural = Bounds::new();
+                    let mut variables = BTreeSet::new();
+                    for parameter in parameters {
+                        budget.node(parameter.span, 0)?;
+                        budget.text(&parameter.name, parameter.span)?;
+                        if let GenericParamKind::Type(bounds) = &parameter.kind {
+                            variables.insert(parameter.name.clone());
+                            let mut supplied = Vec::new();
+                            for bound in bounds {
+                                budget.ty(bound)?;
+                                if copy::is_bound(bound) {
+                                    supplied.push(Bound::Copy);
+                                }
+                                if stores::is_bound(bound) {
+                                    supplied.push(Bound::StoreElement);
+                                }
+                            }
+                            structural.insert(parameter.name.clone(), supplied);
+                        }
                     }
-                }
-                let reference = self.reference(bound, budget)?;
+                    let reference = self.pattern_reference(bound, budget)?;
+                    self.reference_arguments(&reference, &structural, &variables, budget)?;
+                    reference
+                } else {
+                    self.reference(bound, budget)?
+                };
                 if names
                     .iter()
                     .any(|b| matches!(b,Bound::Nominal(r) if r.key==reference.key))
@@ -330,8 +576,16 @@ impl<'a> Index<'a> {
             }
             if !names.is_empty() {
                 budget.text(&parameter.name, parameter.span)?;
+                let names = if self.has_supertraits {
+                    self.super_bounds(&names, budget, parameter.span, Some(&parameter.name))?
+                } else {
+                    names
+                };
                 result.insert(parameter.name.clone(), names);
             }
+        }
+        if self.has_associated {
+            self.associated_bounds(&mut result, budget)?;
         }
         Ok(result)
     }
@@ -371,11 +625,30 @@ impl<'a> Index<'a> {
                     self.store_element(actual, available, variables, budget, callback)?;
                     continue;
                 }
+                let mut instantiated;
+                let names_in_scope =
+                    binder_names(found.keys().map(String::as_str), bound.span, budget)?;
+                let bound = if mentions_any(bound, &names_in_scope, budget)? {
+                    budget.substituted_type(bound, found)?;
+                    instantiated = bound.clone();
+                    Substitution {
+                        substitutions: found,
+                    }
+                    .ty(&mut instantiated);
+                    &instantiated
+                } else {
+                    bound
+                };
                 let declaration = self.declaration(bound, budget)?;
-                let reference = self.reference(bound, budget)?;
+                let reference = self.pattern_reference(bound, budget)?;
+                self.reference_arguments(&reference, available, variables, budget)?;
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
                 })?;
+                if !self.recipes.is_empty() {
+                    self.solve(&reference, actual, available, variables, budget)?;
+                    continue;
+                }
                 budget.ty(actual)?;
                 let host = plain(actual).ok_or_else(|| {
                     error(span, "trait bound requires an implemented nominal type")
@@ -413,7 +686,15 @@ impl<'a> Index<'a> {
         span: Span,
     ) -> R<Cow<'a, Function>> {
         let mut selected = None;
-        for bound in bounds.get(variable).into_iter().flatten() {
+        let expanded;
+        let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
+        let supplied = if self.has_supertraits && !variable.starts_with("\0subject:") {
+            expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
+            expanded.as_slice()
+        } else {
+            supplied
+        };
+        for bound in supplied {
             budget.node(span, 0)?;
             let Bound::Nominal(reference) = bound else {
                 continue;
@@ -451,6 +732,47 @@ impl<'a> Index<'a> {
                 format!("method {name} is not provided by the declared trait bounds of {variable}"),
             )
         })
+    }
+
+    pub(super) fn method_reference(
+        &self,
+        bounds: &Bounds,
+        variable: &str,
+        member: &str,
+        target: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<trait_instances::Reference> {
+        let mut selected = None;
+        let expanded;
+        let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
+        let supplied = if self.has_supertraits && !variable.starts_with("\0subject:") {
+            expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
+            expanded.as_slice()
+        } else {
+            supplied
+        };
+        for bound in supplied {
+            budget.node(span, 0)?;
+            let Bound::Nominal(reference) = bound else {
+                continue;
+            };
+            if trait_instances::method_name(reference, member, budget, span)? != target {
+                continue;
+            }
+            trait_instances::copy_key(&reference.key, budget, span)?;
+            for argument in &reference.arguments {
+                budget.ty(argument)?;
+            }
+            if selected.is_some() {
+                return Err(error(
+                    span,
+                    "method target has ambiguous declared trait identity",
+                ));
+            }
+            selected = Some(reference.clone());
+        }
+        selected.ok_or_else(|| error(span, "method target lost its declared trait identity"))
     }
 
     pub(super) fn declaration_item(
@@ -579,6 +901,18 @@ impl<'a> Index<'a> {
         callback: callable::StoreCallbacks<'_>,
     ) -> R<()> {
         budget.ty(ty)?;
+        if available
+            .first_key_value()
+            .is_some_and(|(key, _)| key.starts_with("\0subject:"))
+        {
+            let key = subject_key(ty, budget)?;
+            if available
+                .get(&key)
+                .is_some_and(|bounds| bounds.iter().any(|bound| bound == stores::BOUND))
+            {
+                return Ok(());
+            }
+        }
         if let Some(variable) = plain(ty).filter(|name| variables.contains(*name)) {
             if available
                 .get(variable)
@@ -608,8 +942,18 @@ impl<'a> Index<'a> {
         let mut pending = vec![ty];
         while let Some(ty) = pending.pop() {
             budget.node(ty.span, 0)?;
+            if associated::parts(ty).is_some() {
+                self.normalize_associated(ty, available, variables, budget)?;
+                continue;
+            }
             match &grouped(ty).kind {
                 TypeKind::Named { path, args } => {
+                    if path.len() != 1 || path.as_slice() == ["$ambiguous_associated_projection"] {
+                        return Err(error(
+                            ty.span,
+                            "associated type requires one unambiguous declared trait bound",
+                        ));
+                    }
                     if path.as_slice() == [stores::BOUND] {
                         return Err(error(ty.span, "StoreElement is a bound, not a value type"));
                     }

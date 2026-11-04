@@ -19,6 +19,12 @@ mod mutable337;
 #[path = "../../../tests/language-readiness/terminal/342/mutable_life.rs"]
 mod terminal342_mutable;
 
+#[path = "../../../tests/language-readiness/terminal/342/borrowed_fp.rs"]
+mod terminal342_borrowed_fp;
+
+#[path = "../../../tests/language-readiness/terminal/342/resource_head.rs"]
+mod terminal342_resource_head;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

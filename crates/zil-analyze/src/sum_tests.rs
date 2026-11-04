@@ -963,7 +963,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
 }
 
 #[test]
-fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
+fn ordinary_sum_admission_qualifies_borrowed_locals_without_storage_profiles() {
     let mut m = module(true, false);
     let element = Type::Package {
         name: "ForbiddenElement".into(),
@@ -995,15 +995,38 @@ fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
                 .any(|d| d.message.contains("qualification"))
         );
     }
-    for ty in [
-        Type::Array {
-            element: Box::new(sum()),
-            length: 1,
-        },
-        Type::Address {
-            inner: Box::new(sum()),
-            mutable: false,
-        },
+    for (ty, admitted) in [
+        (
+            Type::Array {
+                element: Box::new(sum()),
+                length: 1,
+            },
+            false,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(sum()),
+                mutable: false,
+            },
+            true,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(sum()),
+                mutable: true,
+            },
+            true,
+        ),
+        (
+            Type::Address {
+                inner: Box::new(Type::Address {
+                    inner: Box::new(sum()),
+                    mutable: false,
+                }),
+                mutable: false,
+            },
+            false,
+        ),
     ] {
         let mut m = module(true, false);
         m.functions[0].locals.push(LocalDecl {
@@ -1014,7 +1037,7 @@ fn ordinary_sum_admission_does_not_qualify_storage_or_borrowed_profiles() {
             span: Span::default(),
         });
         for result in both(&m) {
-            assert!(result.is_err());
+            assert_eq!(result.is_ok(), admitted, "{result:?}");
         }
     }
 }

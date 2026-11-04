@@ -184,7 +184,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !ty.is_shared_resource_head_address()
+                && !resource_head_address(ty)
+                && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
                 && !package_value_type(ty, &module.resources)
@@ -216,7 +217,20 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     })
 }
 
+fn resource_head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
+
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
+        && resources.iter().any(|r| {
+            r.name == zil_ir::TASK_I32_RESOURCE_NAME
+                && r.payload == Type::TaskI32
+                && r.teardown.is_none()
+        })
+    {
+        return true;
+    }
     if matches!(ty, Type::Managed(payload) | Type::Desc(payload)
         if matches!(payload.as_ref(), Type::OwnedStore { .. })
         && resources.iter().any(|r| r.payload == **payload && r.teardown.is_none()))
@@ -343,6 +357,16 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
         },
         ScalarLayout {
             ty: Type::I64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: Type::F32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::F64,
             size: 8,
             alignment: 8,
         },

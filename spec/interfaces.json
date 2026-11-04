@@ -342,7 +342,8 @@
       "union": "Canonical hygienic tagged structural Sum via existing Enum, exact member identity/no conversion search, ordinary borrow/move/cleanup",
       "machine": "IEEE nofastmath/noimplicitFMA, gradualunderflow/signedzero; actual LLVMAPI andtext consumers; CT same target semantics",
       "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening.",
-      "generated_AST_bits": "Generated Literal::Float reserved @bits:f32:XXXXXXXX / @bits:f64:XXXXXXXXXXXXXXXX, canonical fixed-width hex and prepaid parse directly to raw Constant; ordinary source lexer cannot spell it. Same-format conversion preserves bits; actual CT arithmetic retains specified NaN policy."
+      "generated_AST_bits": "Generated Literal::Float reserved @bits:f32:XXXXXXXX / @bits:f64:XXXXXXXXXXXXXXXX, canonical fixed-width hex and prepaid parse directly to raw Constant; ordinary source lexer cannot spell it. Same-format conversion preserves bits; actual CT arithmetic retains specified NaN policy.",
+      "CT_anonymous_sum": "CtTypeNode::AnonymousSum(Vec<CtTypeNodeId>) tag15; CtTypeConstructor::AnonymousSum tag11. Bounded full structural constructor/nominal identity independent of DAG sharing/index; runtime full Type recanonicalization and explicit exact-member tag mapping, never hash/name-only identity."
     },
     "terminal_borrowed_function_pointer_342": {
       "authority": "_zil_design.md §18.1 higherranked342",
@@ -381,7 +382,10 @@
         "task_request_cancel(&mut Managed(TaskI32))->Unit",
         "task_poll_close(&mut Managed(TaskI32))->Bool",
         "task_finish_destroy(give Managed(TaskI32))->Unit"
-      ]
+      ],
+      "public_semantics": "TypedProgram.task_interfaces: Vec<TaskInterface {module,exports}>; TaskExport{name,worker,parameter:(PassingMode,Type),result:(PassingMode,Type),abi_version}. Untrusted declarations, independent actual Suspend/worker reconstruction; forged Scalar export rejected.",
+      "external_ABI": "zil.sabi.task.<op>.<worker-id>; init(i32)->ptr, poll(ptr)->i64(high32 status/low32 raw result), request_cancel(ptr)->Unit, poll_close(ptr)->i1, finish_destroy(ptr)->Unit. Source tuple remains unchanged; real wrapper and C calls required.",
+      "artifact": "Backend-only physical descriptor keyed by verified input/actual target+DataLayout/tools/codegen. Actual symbols, signatures, frame field offsets/sizes/alignment/machine and full type identity. Frozen supported Linux x64 layout checked against LLVM and C; no host size guesses."
     },
     "terminal_source_stdlib_345": {
       "authority": "_zil_design.md §15.1",
@@ -392,7 +396,8 @@
         "std.utf8",
         "std.text_edit",
         "std.string",
-        "std.store"
+        "std.store",
+        "std.iter"
       ]
     },
     "terminal_resource_head_projection_342": {
@@ -401,6 +406,43 @@
       "instruction": "DescribeAddress {address:ValueId}, opcode109",
       "result": "Desc(payload) from actual Address<Managed(payload)>, no Managed copy",
       "responsibility": "Independent actual roots, parent loan and shared/exclusive authority through locals/calls/returns/captures; may-write from shared input rejected; not generic authority for Task/Registration"
+    },
+    "terminal_returned_registration_343": {
+      "authority": "_zil_design.md §12.3",
+      "state": "ContractToImplement",
+      "Type": "Registration {environment:Box<Type>} tag32; actual concrete closure, Managed owning root and read Desc",
+      "instructions": {
+        "111": "RegistrationStart {register:FunctionId,close:FunctionId,callback:ValueId,region:u32}; region denotes explicit unsafe invocation, not retained lifetime",
+        "112": "RegistrationValid {registration}",
+        "113": "RegistrationClose {registration}; consumes actual Managed root"
+      },
+      "Core": "Registration aggregate recipe preserves actual F; CoreCallableParameter.closed_environment is a required bound, never a proof",
+      "qualification": "Compiler-sealed ClosedEnvironment independently reconstructed from actual captures; required on unused generic definition. Strong close ends all entered and future raw entries before releasing stable environment."
+    },
+    "terminal_owned_tuple_patterns_340": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "Type": "existing structural Type::Tuple",
+      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1; bounded nonempty actual path",
+      "instructions": {
+        "114": "MakeOwnedTuple {fields:Vec<ValueId>}",
+        "115": "UnpackTuple {local,fields:Vec<LocalId>}",
+        "116": "DropTuple {local}",
+        "117": "TakeTupleField {local,path:Vec<PlaceProjection>}",
+        "118": "TakeVariantField {local,path:Vec<PlaceProjection>}"
+      },
+      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness"
+    },
+    "terminal_higher_ranked_callable_342": {
+      "authority": "_zil_design.md §18.1",
+      "state": "ContractToImplement",
+      "Core": "CoreCallableParameter.life: Option<FunctionLifeContract>, invocation-local required bound",
+      "Typed": "CallableRole.life: Option<FunctionLifeContract>; fixed environment Hold remains separate",
+      "schema_version": 36,
+      "wire_version": 36,
+      "fingerprint": "Typed domainV36 and callable contract5; unchanged type identityV35/return contract3/CT2 retained",
+      "responsibility": "Unused definition and actual concrete CFG each checked; fresh actual roots per invocation, canonical full relation, simultaneous windows, no fixed capture masquerading as fresh input",
+      "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
     }
   },
   "schemas": [

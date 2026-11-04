@@ -4,6 +4,9 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 pub(super) mod product;
 mod summary_graph;
 pub(crate) mod sums;
@@ -261,6 +264,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
+        Type::Address { .. }
+            if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Desc(_) => Shape {
             owned: false,
             description: true,
@@ -412,6 +423,15 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
+        InstructionKind::TaskYield => (None, None, &[]),
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
@@ -431,8 +451,10 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
-        InstructionKind::Store { value, .. }
+        InstructionKind::DescribeAddress { address: value }
+        | InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
@@ -498,6 +520,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
         | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -713,7 +736,10 @@ fn address_afters_inner(
     ) {
         let captured = captures && capture_carrier(ty, budget)?;
         has_capture |= captured;
-        if captured || matches!(ty, Type::Address { .. }) {
+        if captured
+            || matches!(ty, Type::Address { .. })
+            || (budget.head_descriptions && matches!(ty, Type::Desc(_) | Type::Closure(_)))
+        {
             budget.lookup(shapes.len(), "captured Store address shape insertion")?;
             shapes.insert(
                 place,
@@ -1031,7 +1057,8 @@ impl Flow<'_> {
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
-                | InstructionKind::BorrowVariantLocal { local, .. } => {
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(
@@ -1309,7 +1336,8 @@ impl Flow<'_> {
                 }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => {
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => {
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),
@@ -1833,6 +1861,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -1843,6 +1872,40 @@ impl Flow<'_> {
                     {
                         return Err(error("head address requires a live managed position"));
                     }
+                }
+                InstructionKind::DescribeAddress { address } => {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    produced = Some(Fact {
+                        sources: fact.sources,
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::AddressField { address, index }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    let mut sources = BTreeSet::new();
+                    budget.spend(fact.sources.len(), "actual resource head field sources")?;
+                    for source in fact.sources {
+                        sources.insert(match source {
+                            Source::Head(local)
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Package { .. }
+                                ) =>
+                            {
+                                Source::PackageField {
+                                    local,
+                                    index: *index,
+                                }
+                            }
+                            other => other,
+                        });
+                    }
+                    produced = Some(Fact {
+                        sources,
+                        ..Fact::default()
+                    });
                 }
                 InstructionKind::DescribeLocal { local } => {
                     if !self.views.is_empty() {
@@ -1937,7 +2000,10 @@ impl Flow<'_> {
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
                     }
-                    if matches!(ty, Type::Desc(_)) {
+                    if matches!(ty, Type::Desc(_))
+                        || (budget.head_descriptions
+                            && (head_address(ty) || ty.is_package_address()))
+                    {
                         produced = Some(Fact {
                             sources: BTreeSet::from([Source::BorrowedField(*index)]),
                             ..Fact::default()
@@ -2254,6 +2320,9 @@ impl Flow<'_> {
                         fact.birth.insert(Birth::Incoming);
                     }
                     produced = Some(fact);
+                }
+                InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, check, budget)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -2577,6 +2646,21 @@ impl Flow<'_> {
                     }
                 }
                 _ => {}
+            }
+            if produced.is_none()
+                && budget.head_descriptions
+                && out_shape.is_some_and(|s| s.description)
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = i.kind
+                && matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Package { .. } | Type::Managed(_)
+                )
+            {
+                produced = Some(Fact {
+                    sources: BTreeSet::from([Source::Head(local)]),
+                    ..Fact::default()
+                });
             }
             if let Some(plan) = self.sums
                 && let Some(birth) =

@@ -1,0 +1,61 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "fffdbb11186606f5bcbb1f08e89e75b56099b1d9",
+  "scope": "Bound-supported associated type atoms, required/default equations and concrete projection normalization after impl premise proof. Associated constants, generic methods, broader projections and CT bridges are excluded.",
+  "identity": {
+    "production_rust_count": 308,
+    "production_rust_sha256": "997c1c76f6ee102f3a51caa76ec300896ed6991e4a6cee4dec2ac077eceb988f",
+    "test_rust_sha256": "237907ff152aa787df2cc866d338d1fc12af5b17bad5beb45e795d518d15f6e6",
+    "algorithm": "Exact candidate Git blobs, author selection sorted by Python Path component order; UTF-8 path + NUL + bytes + NUL. Both independently recomputed digests match author receipt.",
+    "retained_harnesses": {
+      "/tmp/zil-terminal-review/generics-341-associated": "24b13f6f49723b03f29c1bf594bc3f7e67bbd4dae3d960d6fa1facbcf6748f60",
+      "/tmp/zil-terminal-review/traits-341-associated": "3b99f0bd9e7b612eda03c5b5ca110901a1b08da5fa6cacb484c272b2e756c224"
+    },
+    "binding": "Copied and independently hashed against exact receipt before target reuse. Native artifacts actually rebuilt/run from embedded local/project source."
+  },
+  "independent_execution": {
+    "commands": "Source /workspace/.zil-env/env.sh, then both copied harnesses with terminal341 --test-threads=1 --nocapture",
+    "generics": {
+      "passed": 3,
+      "failed": 0,
+      "filtered": 16,
+      "seconds": 0.14
+    },
+    "traits": {
+      "passed": 8,
+      "failed": 0,
+      "filtered": 46,
+      "seconds": 3.52
+    },
+    "associated_request": {
+      "work": 25808,
+      "nodes": 4375
+    },
+    "other_exact_budgets": {
+      "const_expand": 1262,
+      "generic_impl_expand": 5418,
+      "supertrait_work": 3322,
+      "supertrait_nodes": 864,
+      "const_shadow_work": 2414,
+      "const_shadow_nodes": 823,
+      "generic_impl_work": 6271,
+      "generic_impl_nodes": 1811,
+      "symbolic_argument_work": 9226,
+      "symbolic_argument_nodes": 2390
+    },
+    "boundaries": "Each N accepts, N-1 ResourceLimit; cold/warm/fresh agree and persisted cache re-verifies. Limits unchanged.",
+    "coverage": "Unused invalid/default/required equations; unbounded and non-Copy RHS; missing bounds/equations and duplicate items; circular Self.A/Self.B and own-premise rejection; acyclic/bounded positives; same Self distinct bool/i32 trait applications and actual signatures; local/project Clang/LlvmApi O0/O2, Typed/Analyze/Verify and Wire."
+  },
+  "source_review": [
+    "Projection atoms retain actual host, resolved trait identity with ordered arguments and member. Lexical subject/member spelling only routes source syntax; ambiguous associations remain an explicit rejected atom.",
+    "Concrete normalization shares the active goal set with premise solving and reads the selected impl/default equation only after solve_active returns a Witness. Dependent generic subjects remain opaque under declared evidence.",
+    "Definition-local equation maps validate impl methods under declared assumptions and do not enter candidate premise evidence. Trait defaults and unused impl equations are checked independently; impl-local versus trait-default substitutions preserve distinct binder scopes.",
+    "Cycle traversal, cloning, replacement growth and concrete normalization are paid before execution. Associated discovery reuses an already paid feature inventory with an O(1) enabled flag, removing the earlier WIP uncharged module/member scan.",
+    "All prior corrected const, nominal recipe, symbolic dispatch and shared-Span controls replay at this exact candidate."
+  ],
+  "limitations": [
+    "This exact branch precedes integration of complete UInt/Float/life consumers. General CT-return/reflection probes, associated constants, generic methods and broader domains remain active work.",
+    "No reviewer full workspace gate or Clippy; author full19+54 results remain separate. Native Windows and Rust product-cost comparisons remain unmeasured."
+  ]
+}

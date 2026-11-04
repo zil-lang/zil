@@ -703,3 +703,103 @@ fn life_and_scoped_thread_identity_fields_match_the_extended_reference() {
         assert_ne!(raw.fingerprint(), changed.fingerprint());
     }
 }
+
+#[test]
+fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
+    let mut input = module(false);
+    let address = Type::Address {
+        mutable: true,
+        inner: Box::new(Type::I32),
+    };
+    for ty in [
+        Type::U64,
+        Type::Usize,
+        Type::F32,
+        Type::F64,
+        Type::TaskI32,
+        Type::SyncCell(SyncCellKind::MutexI32),
+        Type::SyncCell(SyncCellKind::AtomicI32),
+        Type::BorrowedFunctionPointer {
+            parameters: vec![address.clone()],
+            result: Box::new(address),
+            life: FunctionLifeContract {
+                binder_count: 1,
+                parameter_lives: vec![Some(0)],
+                result_life: Some(0),
+            },
+        },
+    ] {
+        input.functions[0].return_type = ty;
+        equal(&input);
+    }
+    let path = vec![
+        VariantProjection {
+            variant: 3,
+            index: 5,
+        },
+        VariantProjection {
+            variant: 7,
+            index: 11,
+        },
+    ];
+    for kind in [
+        InstructionKind::Constant(Constant::U64(u64::MAX)),
+        InstructionKind::Constant(Constant::Usize(1_u64 << 63)),
+        InstructionKind::Constant(Constant::F32(0x7fc0_1234)),
+        InstructionKind::Constant(Constant::F64(0x8000_0000_0000_0000)),
+        InstructionKind::ConvertNumber {
+            value: ValueId(17),
+            target: Type::F64,
+        },
+        InstructionKind::WithSyncCell {
+            kind: SyncCellKind::AtomicI32,
+            initial: ValueId(13),
+            body: ValueId(19),
+        },
+        InstructionKind::SyncI32 {
+            op: SyncI32Op::FetchAdd,
+            address: ValueId(23),
+            value: Some(ValueId(29)),
+            ordering: AtomicOrdering::AcqRel,
+        },
+        InstructionKind::TaskStart {
+            worker: FunctionId(31),
+            argument: ValueId(37),
+        },
+        InstructionKind::TaskYield,
+        InstructionKind::TaskValid { task: ValueId(41) },
+        InstructionKind::TaskPoll { task: ValueId(43) },
+        InstructionKind::TaskRequestCancel { task: ValueId(47) },
+        InstructionKind::TaskPollClose { task: ValueId(53) },
+        InstructionKind::TaskFinishDestroy { task: ValueId(59) },
+        InstructionKind::BorrowVariantLocal {
+            local: LocalId(61),
+            path: path.clone(),
+            mutable: true,
+        },
+        InstructionKind::VariantTagAddress {
+            address: ValueId(67),
+            path: path.clone(),
+        },
+        InstructionKind::BorrowVariantAddress {
+            address: ValueId(71),
+            path,
+            mutable: false,
+        },
+        InstructionKind::DescribeAddress {
+            address: ValueId(89),
+        },
+        InstructionKind::BorrowFieldLocal {
+            local: LocalId(73),
+            path: vec![79, 83],
+            mutable: true,
+        },
+    ] {
+        input.functions[0].blocks[0].instructions.push(Instruction {
+            result: None,
+            span: Span::default(),
+            kind,
+        });
+        equal(&input);
+    }
+}

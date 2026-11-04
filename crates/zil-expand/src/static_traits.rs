@@ -69,17 +69,13 @@ impl<'a> Expander<'a> {
             );
             return;
         }
-        if !t.bounds.is_empty() {
-            self.unsupported(
-                "generic or supertrait declarations require the full trait solver",
-                item.span,
-            );
-            return;
-        }
         let mut names = BTreeSet::new();
         let mut valid = true;
         for member in &t.members {
             self.unexecuted_attributes(&member.attributes, "trait member");
+            if matches!(member.kind, s::ItemKind::TypeAlias(_)) {
+                continue;
+            }
             let s::ItemKind::Function(f) = &member.kind else {
                 self.unsupported(
                     "associated trait items are not in the static local trait slice",
@@ -228,7 +224,7 @@ impl<'a> Expander<'a> {
                 }
             }
         }
-        for item in &module.items {
+        for (item_ordinal, item) in module.items.iter().enumerate() {
             let s::ItemKind::Impl(i) = &item.kind else {
                 continue;
             };
@@ -312,7 +308,21 @@ impl<'a> Expander<'a> {
                 .get(trait_name)
                 .expect("collected local declaration");
             let mut instance_reference = None;
-            if !declaration.generics.is_empty() {
+            let Some(left) = work.checked_sub(declaration.members.len()) else {
+                self.diagnostics.push(Diagnostic::limit(
+                    Phase::Expand,
+                    "trait member scan budget exhausted",
+                    Some(item.span),
+                ));
+                return;
+            };
+            work = left;
+            if !declaration.generics.is_empty()
+                || declaration
+                    .members
+                    .iter()
+                    .any(|m| matches!(m.kind, s::ItemKind::TypeAlias(_)))
+            {
                 let mut found = None;
                 for source in declarations.iter().copied().chain(std::iter::once(module)) {
                     for item in &source.items {
@@ -466,13 +476,34 @@ impl<'a> Expander<'a> {
                                 }
                             }
                         }
-                        let result = if let Some(actual) = actual
-                            && let Some(frozen) = signatures.get(&(item.span, actual.span))
+                        let identity_key = match trait_instances::copy_key(
+                            &reference.key,
+                            &mut meter,
+                            member.span,
+                        ) {
+                            Ok(key) => key,
+                            Err(error) => {
+                                self.diagnostics.push(error);
+                                return;
+                            }
+                        };
+                        if let Err(error) = meter.text(host_name, item.span) {
+                            self.diagnostics.push(error);
+                            return;
+                        }
+                        if let Some(actual) = actual
+                            && let Err(error) = meter.text(&actual.name, actual.span)
                         {
-                            if frozen.key != reference.key
-                                || frozen.host != host_name
-                                || frozen.declaration != member.span
-                            {
+                            self.diagnostics.push(error);
+                            return;
+                        }
+                        let result = if let Some(actual) = actual
+                            && let Some(frozen) = signatures.get(&(
+                                identity_key,
+                                host_name.to_owned(),
+                                actual.name.clone(),
+                            )) {
+                            if frozen.key != reference.key || frozen.host != host_name {
                                 Err(Diagnostic::error(
                                     Phase::Expand,
                                     "E-TRAIT-SIGNATURE",
@@ -605,7 +636,7 @@ impl<'a> Expander<'a> {
             }
             if valid {
                 if let Some(reference) = &instance_reference {
-                    for member in &i.members {
+                    for (member_ordinal, member) in i.members.iter().enumerate() {
                         if let s::ItemKind::Function(method) = &member.kind {
                             let selected = Limits {
                                 max_analysis_steps: work,
@@ -625,7 +656,7 @@ impl<'a> Expander<'a> {
                             match result {
                                 Ok(target) => {
                                     self.trait_method_names
-                                        .insert((item.span, method.span), target);
+                                        .insert((item_ordinal, member_ordinal), target);
                                 }
                                 Err(error) => {
                                     self.diagnostics.push(error);
@@ -635,7 +666,7 @@ impl<'a> Expander<'a> {
                         }
                     }
                 }
-                self.static_trait_impls.insert(item.span);
+                self.static_trait_impls.insert(item_ordinal);
                 if project_impl || instance_reference.is_some() {
                     self.project_trait_work = self
                         .project_trait_work

@@ -793,7 +793,8 @@ impl Walk<'_, '_> {
                 }
                 old_primitive_shape => old_primitive_shape,
             },
-            CoreExprKind::IntegerConvert { value, target } => {
+            CoreExprKind::IntegerConvert { value, target }
+            | CoreExprKind::NumericConvert { value, target } => {
                 self.expr(value, depth + 1)?;
                 if self.full_values {
                     self.shape(target, &[], Bindings::default(), expression.span, depth + 1)?
@@ -934,6 +935,12 @@ impl Walk<'_, '_> {
             CoreExprKind::Integer(text) if self.full_values => {
                 self.state.snapshot(text.len(), expression.span)?;
                 let ty = integer(text, None, false, expression.span)?.ty();
+                self.shape(&ty, &[], Bindings::default(), expression.span, depth + 1)?
+            }
+            CoreExprKind::Float(text) if self.full_values => {
+                self.state
+                    .snapshot(zil_base::numeric::decimal_work(text.len()), expression.span)?;
+                let ty = floats::literal(text, None, expression.span)?.ty();
                 self.shape(&ty, &[], Bindings::default(), expression.span, depth + 1)?
             }
             _ => Shape::Unknown,

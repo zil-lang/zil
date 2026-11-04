@@ -644,34 +644,67 @@ impl Engine<'_> {
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != type_parameters(f).count() {
+            if args.len() != consts::parameters(f).count() {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
-            for (p, a) in type_parameters(f).zip(args) {
-                let GenericArg::Type(t) = a else {
-                    return Err(unsupported(callee.span, "const generic argument"));
-                };
-                self.budget.ty(t)?;
-                found.insert(p.name.clone(), t.clone());
+            for (p, a) in consts::parameters(f).zip(args) {
+                let actual = consts::argument(a, Some(p), &mut self.budget)?;
+                let actual = consts::normalize(p, &actual, &mut self.budget)?;
+                found.insert(p.name.clone(), actual);
             }
         }
         if let (Some(result), Some(expected)) = (&f.return_type, expected.as_ref())
             && callable::opaque_signature(result).is_none()
             && callable::opaque_signature(expected).is_none()
         {
-            unify(
-                result,
-                expected,
-                &variables,
-                &mut found,
-                callee.span,
-                &mut self.budget,
-            )?;
+            if self.traits.has_associated
+                && trait_bounds::associated::contains(result, &mut self.budget)?
+            {
+                let result = substituted(result, &found, &mut self.budget)?;
+                if !check::dependent(&result, &variables) {
+                    let result = self.traits.normalize_associated(
+                        &result,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?;
+                    unify(
+                        &result,
+                        expected,
+                        &variables,
+                        &mut found,
+                        callee.span,
+                        &mut self.budget,
+                    )?;
+                }
+            } else {
+                unify(
+                    result,
+                    expected,
+                    &variables,
+                    &mut found,
+                    callee.span,
+                    &mut self.budget,
+                )?;
+            }
         }
         let parameters = f
             .params
             .iter()
             .map(|p| {
+                if self.traits.has_associated
+                    && trait_bounds::associated::contains(&p.ty, &mut self.budget)?
+                {
+                    let substituted = substituted(&p.ty, &found, &mut self.budget)?;
+                    if !check::dependent(&substituted, &variables) {
+                        return self.traits.normalize_associated(
+                            &substituted,
+                            &trait_bounds::Bounds::new(),
+                            &BTreeSet::new(),
+                            &mut self.budget,
+                        );
+                    }
+                }
                 self.budget.ty(&p.ty)?;
                 Ok(p.ty.clone())
             })

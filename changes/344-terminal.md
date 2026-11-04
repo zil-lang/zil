@@ -47,3 +47,65 @@ A 32-layer ladder-initialized projection then exposes cumulative Types
 Keep scalar/operator arms available to 340; split only Call/If/Sequence there,
 and the six aggregate branches into private helpers. Retain the original
 post-dispatch expected-type check and early-return behavior exactly.
+
+## Floating-point terminal semantics
+
+Root froze IEEE binary32/binary64 with raw-bit constants and exact operand
+types, unsuffixed float defaults to f64, contextual/suffixed f32/f64 literals,
+checked finite literal overflow, gradual underflow, signed zero and normal
+IEEE infinity/NaN arithmetic. Comparison is ordered except `!=` includes
+unordered operands; no fast math, reassociation or contraction. Numeric
+conversion with a floating endpoint has a separate checked operation; existing
+integer-only conversion invariants remain. Float-to-integer requires a finite,
+integral mathematical value in range and guards before LLVM fptosi/fptoui.
+Finite conversion overflow to infinity rejects/traps, with underflow allowed.
+
+The machine event model gains explicit float types and raw-bit constants,
+floating arithmetic/predicates and validated numeric casts, consumed identically
+by textual LLVM and the LLVM API. Raw bits use constant bitcasts rather than
+host-decimal serialization. Nearest counterexamples include mixed numeric types,
+non-numeric casts, fractional/NaN/infinite/out-of-range integer conversions and
+integer machine instructions applied to float types. Actual CT/native O0/O2
+agreement and edge values are required before declaring this capability closed.
+
+Float source parsing debits `bytes² + 64` work before underscore normalization
+or software decimal conversion. Independent review found that reconstructing
+NaNs with arithmetic would lose raw payload bits from a constant-returning CT
+artifact. Reification therefore reserves 26 work units, 26 temporary bytes and
+one generated node before emitting generated-only `Literal::Float` spelling
+`@bits:f32:XXXXXXXX` or `@bits:f64:XXXXXXXXXXXXXXXX`, using exactly 8/16 canonical
+lowercase hex digits. Source lexing cannot produce that prefix. Every generated
+AST remains untrusted: Expand prepays its full byte length before validating and
+emits the existing Core raw Constant directly; the artifact compiler uses the
+same fixed-byte charge and no decimal conversion. Malformed width/case/hex and
+format mismatches reject. Same-format conversions preserve every raw bit;
+true CT arithmetic retains its specified canonical quiet NaN behavior.
+The lower storage table gains the two natural float layouts. Ordinary C scalar parameters/results and borrowed POD leaves admit
+f32/f64 with matching independent Verify layouts; ownership, escape and
+callback contracts retain their existing meaning.
+
+The real generic call `same(1.0 + 2.0f32)` exposed an early f64 default
+before the explicit RHS format. Float metadata hints now inspect an explicit
+other-operand format before defaulting an unsuffixed floating literal, including
+grouped/negated literals. Group/unary metadata inspection debits actual node
+work; value evaluation order remains left-to-right.
+
+## Unsigned composition
+
+The parent integrates complete UInt340 production and public shapes into the
+reviewed float candidate. Preserve disjoint inference domains (U64=256,
+USIZE=512, F32=1024, F64=2048) and both target-width CT ledgers. Floating numeric
+conversion accepts the full unsigned mathematical range, uses unsigned LLVM
+casts, and checks exact 2^64 / target-width powers of two before fptoui. CT
+conversion reads the target pointer width rather than treating every usize as
+u64. The nearest legal f64 below 2^64, exact 2^63, rounded u64::MAX to f64,
+exact 2^64 rejection and 32-bit usize bounds must execute on the composed code.
+This does not change integer-only conversion or default budget semantics.
+
+The stronger real `Carrier.Value(Mixed{word:u64,amount:f64}, usize)` source
+reaches Verify1 and Lower, then codegen reports `non-Copy enum payload physical
+layout`. The Enum physical-layout and scalar payload-store consumers omitted
+U64/Usize. Add their existing natural x64 8/8 representation to those private
+tables; actual Type identity and ordinary tag/payload behavior remain unchanged.
+The mixed source is retained as the machine regression, rather than claiming a
+scalar-only conversion test covers aggregate storage.

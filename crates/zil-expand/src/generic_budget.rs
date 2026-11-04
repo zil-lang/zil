@@ -67,6 +67,16 @@ impl<'a> Budget<'a> {
         self.work -= 1;
         Ok(())
     }
+    pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(amount).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "floating literal conversion work exhausted",
+                Some(span),
+            )
+        })?;
+        Ok(())
+    }
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
             Diagnostic::limit(
@@ -89,6 +99,12 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn ty(&mut self, ty: &TypeRef) -> R<()> {
         self.ty_at(ty, 0, None)
+    }
+    pub(crate) fn const_expression(&mut self, expression: &Expr) -> R<()> {
+        self.expr(expression, 0, None)
+    }
+    pub(crate) fn const_function(&mut self, function: &Function) -> R<()> {
+        self.function(function, 0, None)
     }
     pub(crate) fn ty_depth(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.ty_at(ty, depth, None)
@@ -134,14 +150,31 @@ impl<'a> Budget<'a> {
         slice_element: bool,
     ) -> R<()> {
         self.node(ty.span, depth)?;
-        if let TypeKind::Named { path, args } = &ty.kind
-            && path.len() == 1
-            && args.is_empty()
-            && let Some(value) = substitutions.and_then(|s| s.get(&path[0]))
+        if let Some(substitutions) = substitutions
+            && super::trait_bounds::associated::parts(ty).is_some()
         {
-            // A substitution is simultaneous. Do not substitute caller T again
-            // merely because the callee's type parameter is also named T.
-            return self.ty_context(value, depth, None, slice_element);
+            self.ty(ty)?;
+            let key = super::trait_bounds::associated::equation_key(ty)?;
+            self.text(&key, ty.span)?;
+            if let Some(value) = substitutions.get(&key) {
+                return self.ty_context(value, depth, None, slice_element);
+            }
+        }
+        if let TypeKind::Named { path, args } = &ty.kind
+            && args.is_empty()
+            && let Some(substitutions) = substitutions
+        {
+            if path.len() != 1 {
+                for part in path {
+                    self.text(part, ty.span)?;
+                    self.node(ty.span, depth)?;
+                }
+            }
+            if let Some(value) = substitutions.get(super::substitution_name(path).as_ref()) {
+                // A substitution is simultaneous. Do not substitute caller T again
+                // merely because the callee's type parameter is also named T.
+                return self.ty_context(value, depth, None, slice_element);
+            }
         }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
@@ -654,6 +687,19 @@ impl<'a> Budget<'a> {
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
         self.node(e.span, depth)?;
+        if let ExprKind::Name(name) = &e.kind
+            && let Some(value) = subs
+                .and_then(|substitutions| substitutions.get(name))
+                .and_then(consts::expression)
+        {
+            return self.expr(value, depth, None);
+        }
+        if matches!(e.kind, ExprKind::ReceiverMember(_))
+            && subs.is_some_and(|s| s.contains_key("Self"))
+        {
+            self.node(e.span, depth + 1)?;
+            self.text("self", e.span)?;
+        }
         match &e.kind {
             ExprKind::Literal(l) => self.literal(l, e.span)?,
             ExprKind::Name(s) | ExprKind::ReceiverMember(s) => self.text(s, e.span)?,

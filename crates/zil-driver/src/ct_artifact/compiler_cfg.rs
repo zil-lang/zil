@@ -225,6 +225,16 @@ impl<'c, 'a> Builder<'c, 'a> {
     pub(super) fn operand_hint(&mut self, expression: &s::Expr, depth: usize) -> R<Option<CtTy>> {
         self.compiler.budget.depth(depth, expression.span)?;
         match &expression.kind {
+            s::ExprKind::Literal(s::Literal::Float(text))
+                if text.ends_with("f32") || text.starts_with("@bits:f32:") =>
+            {
+                Ok(Some(CtTy::Scalar(CtScalarTy::F32)))
+            }
+            s::ExprKind::Literal(s::Literal::Float(text))
+                if text.ends_with("f64") || text.starts_with("@bits:f64:") =>
+            {
+                Ok(Some(CtTy::Scalar(CtScalarTy::F64)))
+            }
             s::ExprKind::Name(name) => {
                 for scope in self.scopes.iter().rev() {
                     for binding in scope.bindings.iter().rev() {

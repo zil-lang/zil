@@ -49,6 +49,8 @@ pub enum CtScalarTy {
     I64,
     U64,
     Usize,
+    F32,
+    F64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -131,6 +133,12 @@ pub enum CtTypeNode {
     FunctionPointer {
         parameters: Vec<CtTypeNodeId>,
         result: CtTypeNodeId,
+    },
+    /// Invocation-local relation only; every safety consumer checks actual roots.
+    BorrowedFunctionPointer {
+        parameters: Vec<CtTypeNodeId>,
+        result: CtTypeNodeId,
+        life: crate::FunctionLifeContract,
     },
     Address {
         mutable: bool,
@@ -399,12 +407,18 @@ pub enum CtTerminator {
     },
     Trap,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeConstructor {
+    /// Raw invocation relation; children remain actual Type arguments.
+    BorrowedFunctionPointer {
+        life: crate::FunctionLifeContract,
+    },
     Array,
     Tuple,
     FunctionPointer,
-    Address { mutable: bool },
+    Address {
+        mutable: bool,
+    },
     Slice,
     Managed,
     Desc,
@@ -474,6 +488,10 @@ pub enum CtInstructionKind {
         value: CtValueId,
     },
     ConvertInteger {
+        value: CtValueId,
+        target: CtScalarTy,
+    },
+    ConvertNumber {
         value: CtValueId,
         target: CtScalarTy,
     },

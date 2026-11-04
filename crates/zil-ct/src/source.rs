@@ -459,7 +459,16 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::U64 | Type::Usize => Ok(true),
+        Type::Unit
+        | Type::Bool
+        | Type::U8
+        | Type::U16
+        | Type::I32
+        | Type::I64
+        | Type::F32
+        | Type::U64
+        | Type::Usize
+        | Type::F64 => Ok(true),
         Type::Named(n) => {
             *work = work.checked_sub(n.len()).ok_or_else(limit)?;
             Ok(true)
@@ -513,6 +522,27 @@ pub(super) fn hint_type(
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            *work = work
+                .checked_sub(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )
+                .ok_or_else(limit)?;
+            if parameters.len() > limits.max_locals {
+                return Err(limit());
+            }
+            for parameter in parameters {
+                hint_type(parameter, depth + 1, nodes, work, limits)?;
+            }
+            hint_type(result, depth + 1, nodes, work, limits)?;
+            Ok(false)
+        }
         Type::FunctionPointer { parameters, result }
         | Type::ForeignCallback { parameters, result } => {
             if parameters.len() > limits.max_locals {
@@ -533,7 +563,8 @@ pub(super) fn hint_type(
         | Type::ForeignHandle
         | Type::CWideString
         | Type::Closure(_)
-        | Type::SyncCell(_) => Ok(false),
+        | Type::SyncCell(_)
+        | Type::TaskI32 => Ok(false),
     }
 }
 
@@ -632,7 +663,16 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
     fn scalar(ty: &Type) -> bool {
         matches!(
             ty,
-            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16
+            Type::Unit
+                | Type::Bool
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::F32
+                | Type::U64
+                | Type::Usize
+                | Type::F64
         )
     }
     enum Node<'a> {
@@ -730,6 +770,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                 }
                 Node::Expr(e) => match &e.kind {
                     CoreExprKind::Integer(_)
+                    | CoreExprKind::Float(_)
                     | CoreExprKind::Bool(_)
                     | CoreExprKind::Unit
                     | CoreExprKind::Name(_) => {}
@@ -737,7 +778,10 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                     CoreExprKind::Unary { operand, .. } => {
                         push(&mut stack, &mut fuel, Node::Expr(operand), next)?
                     }
-                    CoreExprKind::IntegerConvert { value, target } if scalar(target) => {
+                    CoreExprKind::IntegerConvert { value, target }
+                    | CoreExprKind::NumericConvert { value, target }
+                        if scalar(target) =>
+                    {
                         push(&mut stack, &mut fuel, Node::Expr(value), next)?
                     }
                     CoreExprKind::Binary { left, right, .. } => {
@@ -955,8 +999,15 @@ impl<'a> Walker<'a> {
         self.charge(depth, e.span)?;
         match &e.kind {
             CoreExprKind::Literal(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
-            CoreExprKind::Integer(text) | CoreExprKind::Name(text) => {
+            CoreExprKind::Integer(text) | CoreExprKind::Float(text) | CoreExprKind::Name(text) => {
                 self.text(text, Some(e.span))?
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                self.pattern_type_shape(target, depth + 1, e.span)?;
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                self.unchanged_expr(value, None, depth + 1)?;
             }
             CoreExprKind::IntegerConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
@@ -1506,6 +1557,16 @@ impl<'a> Walker<'a> {
                 }
                 CoreExprKind::Literal(constant.clone())
             }
+            CoreExprKind::NumericConvert { value, target } => {
+                self.pattern_type_shape(target, depth + 1, e.span)?;
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                CoreExprKind::NumericConvert {
+                    value: Box::new(self.expr(value, None, depth + 1)?),
+                    target: target.clone(),
+                }
+            }
             CoreExprKind::IntegerConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_integer() {
@@ -1774,6 +1835,7 @@ impl<'a> Walker<'a> {
             other => {
                 match other {
                     CoreExprKind::Integer(text)
+                    | CoreExprKind::Float(text)
                     | CoreExprKind::String(text)
                     | CoreExprKind::Name(text)
                     | CoreExprKind::ReceiverMember(text)
@@ -1864,6 +1926,7 @@ impl<'a> Walker<'a> {
             instructions: Vec::new(),
             limits: self.limits,
             remaining: self.steps_left,
+            work_left: &mut self.work_left,
             hints: scalar_hints(inner, self.limits, &mut self.nodes)?,
         };
         let (result, _) = builder.expression(inner, expected, 0)?;
@@ -1959,7 +2022,8 @@ impl<'a> Walker<'a> {
                 | CoreExprKind::CompileTime(operand)
                 | CoreExprKind::Try(operand)
                 | CoreExprKind::Ascribed { value: operand, .. }
-                | CoreExprKind::IntegerConvert { value: operand, .. } => work.push(operand),
+                | CoreExprKind::IntegerConvert { value: operand, .. }
+                | CoreExprKind::NumericConvert { value: operand, .. } => work.push(operand),
                 CoreExprKind::Binary { left, right, .. } => {
                     work.push(left);
                     work.push(right);
@@ -2099,6 +2163,7 @@ impl<'a> Walker<'a> {
     }
     fn hint(&mut self, e: &CoreExpr) -> CompileResult<Option<Type>> {
         let ty = match &e.kind {
+            CoreExprKind::NumericConvert { target, .. } if target.is_numeric() => Some(target),
             CoreExprKind::IntegerConvert { target, .. } if target.is_integer() => Some(target),
             CoreExprKind::Ascribed { ty, .. } => Some(ty),
             CoreExprKind::Name(name) => self
@@ -2174,6 +2239,52 @@ impl<'a> Walker<'a> {
     }
 }
 
+fn floating(text: &str, expected: Option<&Type>, span: Span) -> CompileResult<Constant> {
+    use zil_base::numeric::{FloatFormat, FloatValue};
+    let suffix = if text.ends_with("f32") {
+        Some(Type::F32)
+    } else if text.ends_with("f64") {
+        Some(Type::F64)
+    } else {
+        None
+    };
+    if let (Some(suffix), Some(expected)) = (&suffix, expected.filter(|ty| ty.is_float()))
+        && suffix != expected
+    {
+        return Err(unsupported(
+            span,
+            "floating suffix differs from expected type",
+        ));
+    }
+    let ty = suffix
+        .or_else(|| expected.filter(|ty| ty.is_float()).cloned())
+        .unwrap_or(Type::F64);
+    let spelling = text
+        .strip_suffix("f32")
+        .or_else(|| text.strip_suffix("f64"))
+        .unwrap_or(text);
+    FloatValue::from_decimal(
+        spelling,
+        if ty == Type::F32 {
+            FloatFormat::F32
+        } else {
+            FloatFormat::F64
+        },
+    )
+    .map(|value| match value {
+        FloatValue::F32(bits) => Constant::F32(bits),
+        FloatValue::F64(bits) => Constant::F64(bits),
+    })
+    .map_err(|_| {
+        vec![Diagnostic::error(
+            Phase::Ct,
+            "E-FLOAT-LITERAL",
+            Some(span),
+            "floating literal is invalid or overflows its finite format",
+        )]
+    })
+}
+
 fn comparison(op: BinaryOp) -> bool {
     matches!(
         op,
@@ -2189,6 +2300,7 @@ struct CtBuilder<'a> {
     instructions: Vec<CtInstruction>,
     limits: &'a Limits,
     remaining: u64,
+    work_left: &'a mut usize,
     // Borrowed expression identity is private to one query, never persisted or
     // dereferenced. Raw Core NodeIds need not be unique for this lookup.
     hints: BTreeMap<*const CoreExpr, Type>,
@@ -2231,7 +2343,10 @@ fn scalar_hints(
                 CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
                     work.push((operand, depth + 1, false))
                 }
-                CoreExprKind::IntegerConvert { value, .. } => work.push((value, depth + 1, false)),
+                CoreExprKind::IntegerConvert { value, .. }
+                | CoreExprKind::NumericConvert { value, .. } => {
+                    work.push((value, depth + 1, false))
+                }
                 CoreExprKind::Binary { left, right, .. } => {
                     work.push((left, depth + 1, false));
                     work.push((right, depth + 1, false));
@@ -2252,9 +2367,14 @@ fn scalar_hints(
                 op: UnaryOp::Not, ..
             } => Some(Type::Bool),
             CoreExprKind::Unit => Some(Type::Unit),
-            CoreExprKind::IntegerConvert { target, .. } if target.is_integer() => {
+            CoreExprKind::IntegerConvert { target, .. }
+            | CoreExprKind::NumericConvert { target, .. }
+                if target.is_numeric() =>
+            {
                 Some(target.clone())
             }
+            CoreExprKind::Float(text) if text.ends_with("f32") => Some(Type::F32),
+            CoreExprKind::Float(text) if text.ends_with("f64") => Some(Type::F64),
             CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
                 hints.get(&std::ptr::from_ref(operand.as_ref())).cloned()
             }
@@ -2289,7 +2409,10 @@ impl CtBuilder<'_> {
                 )]);
             }
             match &expression.kind {
-                CoreExprKind::Integer(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
+                CoreExprKind::Integer(_)
+                | CoreExprKind::Float(_)
+                | CoreExprKind::Bool(_)
+                | CoreExprKind::Unit => {}
                 CoreExprKind::Unary {
                     op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
                     operand,
@@ -2297,7 +2420,10 @@ impl CtBuilder<'_> {
                     work.push((operand, depth + 1));
                 }
                 CoreExprKind::CompileTime(inner) => work.push((inner, depth + 1)),
-                CoreExprKind::IntegerConvert { value, target } if target.is_integer() => {
+                CoreExprKind::IntegerConvert { value, target }
+                | CoreExprKind::NumericConvert { value, target }
+                    if target.is_numeric() =>
+                {
                     work.push((value, depth + 1))
                 }
                 CoreExprKind::Binary { op, left, right }
@@ -2355,6 +2481,44 @@ impl CtBuilder<'_> {
                 if matches!(&callee.kind, CoreExprKind::TypeApply { .. }) =>
             {
                 Err(forbidden_type_application(e.span))
+            }
+            CoreExprKind::Float(text) => {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(zil_base::numeric::decimal_work(text.len()))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Ct,
+                            "floating literal conversion work exhausted",
+                            Some(e.span),
+                        )]
+                    })?;
+                let c = floating(text, expected, e.span)?;
+                self.emit(c.ty(), CtInstructionKind::Constant(c), e.span)
+            }
+            CoreExprKind::Literal(c) if c.ty().is_float() => {
+                self.emit(c.ty(), CtInstructionKind::Constant(c.clone()), e.span)
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                let (value, source) = self.expression(value, None, depth + 1)?;
+                if !source.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion operand required"));
+                }
+                let kind = if source.is_integer() && target.is_integer() {
+                    CtInstructionKind::ConvertInteger {
+                        value,
+                        target: target.clone(),
+                    }
+                } else {
+                    CtInstructionKind::ConvertNumber {
+                        value,
+                        target: target.clone(),
+                    }
+                };
+                self.emit(target.clone(), kind, e.span)
             }
             CoreExprKind::IntegerConvert { value, target } => {
                 if !target.is_integer() {
@@ -2508,7 +2672,9 @@ fn integer(
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| error()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| error()),
         Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error()),
-        Type::Usize => u64::try_from(value).map(Constant::Usize).map_err(|_| error()),
+        Type::Usize => u64::try_from(value)
+            .map(Constant::Usize)
+            .map_err(|_| error()),
         _ => i32::try_from(value).map(Constant::I32).map_err(|_| error()),
     }
 }
