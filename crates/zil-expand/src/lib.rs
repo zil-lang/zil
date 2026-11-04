@@ -1667,6 +1667,12 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             if let [s::GenericArg::Type(result)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Task {
                     result: Box::new(type_ref(result)),
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: 0,
+                        ports: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
                 }))
             } else {
                 Type::Unsupported("Task requires one complete result type".into())
