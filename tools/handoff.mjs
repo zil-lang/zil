@@ -11,6 +11,8 @@ const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const sliceStates = new Set(['施工', '待验', '退回', '已合入', '卡住']);
 const formalStates = new Set(['Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled']);
 const activeStates = new Set(['Ready', 'Doing', 'Review', 'Done']);
+const formalIds = new Set(['B0', ...Array.from({length: 9}, (_, i) => `T${String(i + 1).padStart(2, '0')}`), ...Array.from({length: 4}, (_, i) => `W${i + 1}`)]);
+const goalId = /^G[1-9][0-9]*(?:\.[1-9][0-9]*)+$/;
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const migrationPath = 'docs/validation/handoff-migration-326.json';
 const pointer = (value, selector = '') => {
@@ -304,11 +306,19 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
     }
   }
 
-  const tasks = [], slices = [], legacyErrors = [];
+  const tasks = [], slices = [], legacyErrors = [], goalNotes = [];
   for (const [directory, output, isSlice] of [['.task', tasks, false], ['.task/impl', slices, true]]) {
     const folder = path.join(root, directory);
     if (!fs.existsSync(folder)) { if (!isSlice) complain('tasks', 'Task directory is missing.'); continue; }
     for (const filename of fs.readdirSync(folder).filter(x => x.endsWith('.md') && x !== 'TEMPLATE.md').sort()) {
+      if (!isSlice && goalId.test(filename.slice(0, -3))) {
+        goalNotes.push(`${directory}/${filename}`);
+        continue;
+      }
+      if (!isSlice && !formalIds.has(filename.slice(0, -3))) {
+        complain(`${directory}/${filename}`, 'Unknown formal contract or noncanonical Goal ID.');
+        continue;
+      }
       const relative = `${directory}/${filename}`, bytes = fs.readFileSync(path.join(root, relative));
       const archived = historicalRecords.get(relative);
       if (archived && !legacyAudit) {
@@ -378,6 +388,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
   }
   if (!tasks.length) complain('tasks', 'No formal task records were found.');
   const byId = new Map(tasks.map(t => [t.id, t]));
+  if (byId.size !== formalIds.size || [...formalIds].some(id => !byId.has(id))) complain('tasks', 'Expected exactly B0, T01..T09, W1..W4; Goal notes cannot replace formal contracts.');
   for (const task of tasks) if (activeStates.has(task.status) && task.blocked_by.some(id => byId.get(id)?.status !== 'Done')) complain(task.id, 'Active formal task has an incomplete dependency.');
   for (const slice of slices) if (slice.validation?.classification !== 'HistoricalRecord' && !byId.has(slice.parent_task)) complain(slice.id, 'Implementation slice has no formal parent task.');
   let measured = null;
@@ -408,6 +419,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
     schema_version: migration ? 2 : 1, scope: 'Main-tree engineering and delivery record integrity; historical availability is separate. Does not read the live goal board or check all development branches; not language correctness, review quality or full task acceptance.',
     status: migration ? legacyAudit ? legacyFailed ? 'LegacyAuditFail' : 'LegacyAuditPass' : currentGate.status : errors.length ? 'Fail' : 'Pass', snapshot_only: true,
     live_plan: livePlan, live_plan_checked: false, development_branches_checked: false,
+    goal_implementation_notes: {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: goalNotes},
     current_gate: currentGate,
     historical_status: {status: unavailable ? 'Unavailable' : historicalRecords.size ? 'Unreviewed' : 'NotClassified', archived: historicalRecords.size, unavailable, unreviewed: historicalRecords.size - unavailable, object_availability_changes: [...historicalRecords.values()].reduce((total, record) => total + record.object_availability_changes.length, 0), claims_revalidated: false, source_commit: migration?.source_commit ?? null},
     legacy_audit: {status: legacyAudit ? legacyFailed ? 'Fail' : 'Pass' : 'NotRun', errors: legacyAudit ? [...errors, ...legacyErrors] : []},

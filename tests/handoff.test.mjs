@@ -17,6 +17,7 @@ const results = [];
 let assertions = 0;
 const check = (actual, expected = true) => { assertions++; assert.deepEqual(actual, expected); };
 const sha = value => createHash('sha256').update(value).digest('hex');
+const formalIds = ['B0', ...Array.from({length: 9}, (_, i) => `T${String(i + 1).padStart(2, '0')}`), ...Array.from({length: 4}, (_, i) => `W${i + 1}`)];
 function capture(command, args, options = {}) {
   const area = fs.mkdtempSync(path.join(os.tmpdir(), 'zil-handoff-capture-')), handles = [];
   try {
@@ -49,7 +50,7 @@ function fixture(t) {
   const {spec_hash: specHash, normative_hash: norm} = writeSpecification(root, '# Fixture specification\n');
   const baseline = commit(root, 'fixture baseline');
   const formal = {id: 'B0', status: 'Doing', spec_hash: specHash, normative_hash: norm, base_revision: baseline, blocked_by: [], evidence: []};
-  put(root, '.task/B0.md', '# B0 fixture\n\n```json\n' + JSON.stringify(formal) + '\n```\n');
+  for (const id of formalIds) put(root, `.task/${id}.md`, `# ${id} fixture\n\n\`\`\`json\n${JSON.stringify({...formal, id, status: id === 'B0' ? 'Doing' : 'Planned'})}\n\`\`\`\n`);
   const task = {id: '003', parent_task: 'B0', status: '施工', baseline, spec_hash: specHash, normative_hash: norm, authoritative_task: '/previous/computer/zil/.task/impl/003.md', write_set: ['tools/handoff.mjs'], implementation_author: 'builder', implementation_commit: null, integration_commit: null, review: null, evidence: []};
   const save = () => put(root, '.task/impl/003.md', `${task.status}\n# 003 交接\n\n\`\`\`json\n${JSON.stringify(task, null, 2)}\n\`\`\`\n`);
   save(); commit(root, 'assign fixture');
@@ -196,11 +197,13 @@ function writeSpecification(root, text) {
 
 function advanceSpecification(f, text = '# Next specification\n') {
   const {spec_hash: spec, normative_hash: norm} = writeSpecification(f.root, text);
-  const file = path.join(f.root, '.task/B0.md');
-  const current = fs.readFileSync(file, 'utf8');
-  const formal = JSON.parse(current.match(/```json\n([\s\S]*?)\n```/)[1]);
-  formal.spec_hash = spec; formal.normative_hash = norm;
-  put(f.root, '.task/B0.md', '# B0 fixture\n\n```json\n' + JSON.stringify(formal) + '\n```\n');
+  for (const id of formalIds) {
+    const file = path.join(f.root, `.task/${id}.md`);
+    const current = fs.readFileSync(file, 'utf8');
+    const formal = JSON.parse(current.match(/```json\n([\s\S]*?)\n```/)[1]);
+    formal.spec_hash = spec; formal.normative_hash = norm;
+    put(f.root, `.task/${id}.md`, `# ${id} fixture\n\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`);
+  }
   commit(f.root, 'publish next specification');
   return {spec_hash: spec, normative_hash: norm};
 }
@@ -534,10 +537,57 @@ scenario('handoff-029', '工作树新证据不能填补历史snapshot缺失或�
   check(report.historical_status.claims_revalidated, false); check(report.slices[0].validation.claims_revalidated, false);
 });
 
+function readFormalContracts(root) {
+  return capture('python3', ['-c', 'import json,runpy,sys; from pathlib import Path; m=runpy.run_path(sys.argv[1]); print(json.dumps([t["id"] for t in m["read_tasks"](Path(sys.argv[2]))]))', path.join(project, 'tools/check-plan.py'), root]);
+}
+
+scenario('handoff-030', 'Goal实施说明和子号只分类；非规范ID与未知文档仍拒绝', t => {
+  const f = fixture(t);
+  put(f.root, '.task/G8.3.md', fs.readFileSync(path.join(project, '.task/G8.3.md'), 'utf8'));
+  put(f.root, '.task/G8.3.1.md', '# G8.3.1 implementation note\nNo formal status or acceptance record.\n');
+  const result = inspectHandoff(f.root);
+  check(result.status, 'Pass');
+  check(result.tasks.map(row => row.id), formalIds);
+  check(result.goal_implementation_notes, {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: ['.task/G8.3.1.md', '.task/G8.3.md']});
+  const python = readFormalContracts(f.root);
+  check(python.status, 0); check(JSON.parse(python.stdout), formalIds);
+  for (const stem of ['G08.3', 'G8.03', 'G8.0', 'G0.3', 'G8.3.01', 'G8', 'G8.3extra', 'unknown', 'G8.3\n']) {
+    const name = `.task/${stem}.md`;
+    put(f.root, name, '# Unknown record\n');
+    check(hasError(inspectHandoff(f.root), 'Unknown formal contract or noncanonical Goal ID'));
+    check(readFormalContracts(f.root).status, 1);
+    fs.unlinkSync(path.join(f.root, name));
+  }
+  put(f.root, '.task/impl/G8.3.1.md', '# Wrong directory; never excluded as a root Goal note.\n');
+  check(hasError(inspectHandoff(f.root), 'Task has no valid JSON record'));
+});
+
+scenario('handoff-031', '全部14正式合同不可改名为Goal来逃过规范和Done门', t => {
+  const f = fixture(t), note = path.join(f.root, '.task/G10.1.1.md');
+  for (const id of formalIds) {
+    const original = path.join(f.root, `.task/${id}.md`);
+    fs.renameSync(original, note);
+    const result = inspectHandoff(f.root);
+    check(result.status, 'Fail');
+    check(hasError(result, 'Goal notes cannot replace formal contracts'));
+    const python = readFormalContracts(f.root);
+    check(python.status, 1); check(python.stderr.includes('Goal notes cannot replace formal contracts'));
+    fs.renameSync(note, original);
+  }
+  const formal = JSON.parse(fs.readFileSync(path.join(f.root, '.task/B0.md'), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
+  formal.status = 'Done'; formal.spec_hash = 'stale';
+  put(f.root, '.task/B0.md', `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`);
+  put(f.root, '.task/G10.1.1.md', '# Approved implementation note\n');
+  const result = inspectHandoff(f.root);
+  check(hasError(result, 'Task specification snapshot is stale'));
+  check(hasError(result, 'Evidence references are missing'));
+  check(hasError(result, 'Done task lacks an integrator acceptance record'));
+});
+
 after(() => {
   const baseline = git(project, 'rev-parse', 'HEAD');
-  const expectedIds = Array.from({length: 29}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
-  const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === expectedIds.length && expectedIds.every(id => results.some(row => row.id === id)) && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
+  const expectedIds = Array.from({length: 31}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
+  const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === expectedIds.length && expectedIds.every(id => results.some(row => row.id === id)) && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tools/check-plan.py', 'tools/check-docs.py', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
   const output = writeReport('handoff-tests.json', report, {file: process.env.ZIL_HANDOFF_REPORT});
   console.log(JSON.stringify({handoff_report: output, status: report.status, executed: report.executed, assertions: report.assertions}));
 });
