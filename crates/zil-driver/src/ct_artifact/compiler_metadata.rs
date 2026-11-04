@@ -41,6 +41,146 @@ pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId))
     }
 }
 impl Budget<'_> {
+    /// Comparison only: charge every fixed payload and variable edge/path
+    /// before a structural scope equality. This allocates no graph copy.
+    pub(super) fn scope_comparison(&mut self, scope: &CtAmbientLifeScope, span: Span) -> R<()> {
+        self.work(
+            32usize.saturating_add(scope.binder_site.len().saturating_mul(4)),
+            span,
+        )?;
+        let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
+            return Ok(());
+        };
+        self.work(
+            actuals
+                .len()
+                .saturating_mul(std::mem::size_of::<CtScopeActual>()),
+            span,
+        )?;
+        for actual in actuals {
+            let CtScopeActual::Type(graph) = actual else {
+                if let CtScopeActual::Scalar(Constant::WideString(text)) = actual {
+                    self.work(text.len().saturating_mul(2), span)?;
+                }
+                continue;
+            };
+            self.work(
+                graph
+                    .nodes
+                    .len()
+                    .saturating_mul(std::mem::size_of::<CtTypeNode>())
+                    .saturating_add(
+                        graph
+                            .ambient_classes
+                            .len()
+                            .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                    ),
+                span,
+            )?;
+            for node in &graph.nodes {
+                match node {
+                    CtTypeNode::Nominal { arguments, .. } => {
+                        self.work(
+                            arguments
+                                .len()
+                                .saturating_mul(std::mem::size_of::<CtTypeArgument>()),
+                            span,
+                        )?;
+                        for argument in arguments {
+                            if let CtTypeArgument::Scalar(Constant::WideString(text)) = argument {
+                                self.work(text.len().saturating_mul(2), span)?;
+                            }
+                        }
+                    }
+                    CtTypeNode::Tuple(ids) | CtTypeNode::AnonymousSum(ids) => {
+                        self.work(ids.len().saturating_mul(4), span)?
+                    }
+                    CtTypeNode::FunctionPointer { parameters, .. }
+                    | CtTypeNode::ForeignCallback { parameters, .. } => {
+                        self.work(parameters.len().saturating_mul(4), span)?
+                    }
+                    CtTypeNode::BorrowedFunctionPointer {
+                        parameters, life, ..
+                    } => {
+                        self.work(
+                            parameters
+                                .len()
+                                .saturating_mul(4)
+                                .saturating_add(life.bindings.len().saturating_mul(
+                                    std::mem::size_of::<zil_ir::StorageLifeBinding>(),
+                                ))
+                                .saturating_add(life.classes.len().saturating_mul(
+                                    std::mem::size_of::<zil_ir::SignatureLifeClassBinding>(),
+                                )),
+                            span,
+                        )?;
+                        for row in &life.bindings {
+                            self.work(
+                                row.position
+                                    .path
+                                    .len()
+                                    .saturating_mul(
+                                        std::mem::size_of::<zil_ir::ContractProjection>(),
+                                    ),
+                                span,
+                            )?;
+                        }
+                        for row in &life.classes {
+                            self.work(
+                                row.position
+                                    .path
+                                    .len()
+                                    .saturating_mul(
+                                        std::mem::size_of::<zil_ir::LifeTypeProjection>(),
+                                    ),
+                                span,
+                            )?;
+                        }
+                    }
+                    CtTypeNode::BorrowedStorage { life, .. } => {
+                        self.work(
+                            life.slots
+                                .len()
+                                .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeSlot>())
+                                .saturating_add(life.retained.len().saturating_mul(
+                                    std::mem::size_of::<zil_ir::StorageRetainedBinding>(),
+                                ))
+                                .saturating_add(life.nominal_arguments.len().saturating_mul(
+                                    std::mem::size_of::<zil_ir::NominalLifeArgument>(),
+                                )),
+                            span,
+                        )?;
+                        for row in &life.slots {
+                            self.work(
+                                row.path
+                                    .len()
+                                    .saturating_mul(std::mem::size_of::<zil_ir::PlaceProjection>()),
+                                span,
+                            )?;
+                        }
+                        for row in &life.retained {
+                            self.work(
+                                row.path.len().saturating_mul(std::mem::size_of::<
+                                    zil_ir::LifeTypeProjection,
+                                >()),
+                                span,
+                            )?;
+                        }
+                        for row in &life.nominal_arguments {
+                            self.work(
+                                row.path.len().saturating_mul(std::mem::size_of::<
+                                    zil_ir::LifeTypeProjection,
+                                >()),
+                                span,
+                            )?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
+    }
     pub(super) fn metadata(&mut self, graph: &CtTypeRef, span: Span) -> R<()> {
         self.work(graph.ambient_classes.len(), span)?;
         Self::take(

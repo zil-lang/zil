@@ -95,6 +95,14 @@ pub(in crate::ct_artifact) fn graph_cost(
         bytes = bytes
             .saturating_add(std::mem::size_of::<CtTypeNode>() as u64)
             .saturating_add((edges as u64).saturating_mul(bytes_per_edge as u64));
+        if let CtTypeNode::Nominal { arguments, .. } = node {
+            for argument in arguments {
+                if let CtTypeArgument::Scalar(zil_ir::Constant::WideString(text)) = argument {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    bytes = bytes.saturating_add(text.len() as u64 * 2);
+                }
+            }
+        }
         if let CtTypeNode::BorrowedStorage { life, .. } = node {
             bytes = bytes.saturating_add(storage_cost(life, budget)?);
         }

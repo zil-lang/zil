@@ -279,6 +279,37 @@ impl<'c, 'a> Builder<'c, 'a> {
         Ok(false)
     }
     fn bind(&mut self, name: &str, ty: CtTy, mutable: bool, span: Span) -> R<CtLocalId> {
+        // This first mixed-const profile has no dynamic const attribution for
+        // locals. Reject the unsupported binding before a static nominal or
+        // instance argument can silently keep reading the outer parameter.
+        // This applies to the function body as well as nested lexical scopes.
+        for (parameter, _) in &self.compiler.abstract_scalars {
+            self.compiler
+                .budget
+                .work(name.len().min(parameter.len()) + 1, span)?;
+            if parameter == name {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT local scalar-generic shadowing requires dynamic const attribution",
+                    Some(span),
+                )]);
+            }
+        }
+        for (parameter, _) in &self.compiler.scalar_bindings {
+            self.compiler
+                .budget
+                .work(name.len().min(parameter.len()) + 1, span)?;
+            if parameter == name {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT local scalar-generic shadowing requires dynamic const attribution",
+                    Some(span),
+                )]);
+            }
+        }
+        self.bind_declared(name, ty, mutable, span)
+    }
+    fn bind_declared(&mut self, name: &str, ty: CtTy, mutable: bool, span: Span) -> R<CtLocalId> {
         for binding in &self.scopes.last().unwrap().bindings {
             self.compiler.budget.work(1, span)?;
             if binding.name == name {
@@ -747,7 +778,7 @@ pub(super) fn function(
             if let s::GenericParamKind::Const(ty) = &parameter.kind {
                 let scalar = b.compiler.scalar_argument_type(ty, parameter.span)?;
                 let ty = CtTy::Scalar(scalar);
-                let local = b.bind(&parameter.name, ty.clone(), false, parameter.span)?;
+                let local = b.bind_declared(&parameter.name, ty.clone(), false, parameter.span)?;
                 b.parameters.push(local);
                 b.parameter_types.push(ty);
             }

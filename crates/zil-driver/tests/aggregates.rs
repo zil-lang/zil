@@ -7794,6 +7794,252 @@ fn g442_mixed_ct_phantom_call_actuals() {
             report.to_json()
         );
     }
+    let wrong_life = minimal
+        .replace(
+            "fn make<T:Copy,#N:i32,life a>",
+            "fn make<life a,life b,T:Copy,#N:i32>",
+        )
+        .replace("make::<i32,7,'s>", "make::<'s,'s,i32,7>")
+        .replace("return Phantom::<'a,T,N>", "return Phantom::<'b,T,N>");
+    for input in [
+        wrong_life.clone(),
+        wrong_life.replace(
+            "fn main()->i32{let n=0;return result(&n)}",
+            "fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual expected type")),
+            "{}",
+            report.to_json()
+        );
+    }
+    let shadowed = minimal.replace(
+        "return Phantom::<'a,T,N>",
+        "let N=7;return Phantom::<'a,T,N>",
+    );
+    for input in [
+        shadowed.clone(),
+        shadowed.replace("let N=7", "var N=7"),
+        shadowed.replace(
+            "fn main()->i32{let n=0;return result(&n)}",
+            "fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("scalar-generic shadowing")),
+            "{}",
+            report.to_json()
+        );
+    }
+    // Existing runtime const-generic local value shadowing keeps its ordinary
+    // accepted behavior; only the new CT mixed-instance profile is fenced.
+    for input in [
+        "fn scoped<#N:i32>()->i32{let N:i32=8;return N}fn main()->i32{return scoped::<7>()-8}",
+        "fn scoped<#N:i32>()->i32{let N:i32=8;let p=&N;return *p}fn main()->i32{return scoped::<7>()-8}",
+        "fn scoped<#N:i32>(N:i32)->i32{return N}fn main()->i32{return scoped::<7>(8)-8}",
+    ] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn g442_source_budgets_cache_and_comparison_growth() {
+    use zil_driver::CompilationSession;
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+    );
+    let boundary = |input: &str, ledger: &str| {
+        let options = |n: usize| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                "steps" => options.limits.max_ct_steps = n as u64,
+                "bytes" => options.limits.max_source_bytes = n,
+                _ => unreachable!(),
+            }
+            options
+        };
+        let limits = Limits::default();
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => limits.max_analysis_steps,
+            "nodes" => limits.max_nodes,
+            "steps" => limits.max_ct_steps as usize,
+            "bytes" => limits.max_source_bytes,
+            _ => unreachable!(),
+        };
+        let input = source(input);
+        assert_eq!(
+            compile_source(&input, &options(high)).status,
+            ResultCategory::Success
+        );
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{ledger}/{n}: {}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(n)),
+                CompilationSession::default().compile_source(&input, &options(n)),
+            ] {
+                assert_eq!(
+                    report.status,
+                    expected,
+                    "{ledger}/N={low}: {}",
+                    report.to_json()
+                );
+                if expected == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        low
+    };
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let n = boundary(text, ledger);
+        eprintln!("G4.4.2 whole Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+    }
+    let deep = |calls: usize, width: usize| {
+        let ty = format!(
+            "({})",
+            (0..width)
+                .map(|i| if i % 2 == 0 { "i32" } else { "bool" })
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let invocations = [7, 11, 35]
+            .iter()
+            .take(calls)
+            .enumerate()
+            .map(|(i, n)| {
+                let life = if i % 2 == 0 { "s" } else { "t" };
+                format!("make::<{ty},{n},'{life}>(i32)")
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "struct Phantom<life a,T:Copy,#N:i32>{{n:i32}}fn make<T:Copy,#N:i32,life a>(marker:Type)->Phantom<'a,T,N>{{return Phantom::<'a,T,N>{{n:N}}}}fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{{let value:Phantom<'s,{ty},7>=#(({invocations}).0);return value.n}}fn main()->i32{{let n=0;let m=0;return result(&n,&m)}}"
+        )
+    };
+    let small = boundary(&deep(2, 2), "work");
+    let wide = boundary(&deep(2, 8), "work");
+    let many = boundary(&deep(3, 8), "work");
+    assert!(
+        small < wide && wide < many,
+        "comparison growth {small}/{wide}/{many}"
+    );
+    eprintln!(
+        "G4.4.2 complete graph/instance work growth: 2x2={small}, 2x8={wide}, 3x8={many}; each exact N-1/fresh/warm checked"
+    );
+    let directory = Temp::new();
+    let mut session = CompilationSession::default();
+    let changed = text
+        .replace("i32,7,'s", "i32,11,'s")
+        .replace("Phantom<'s,i32,7>", "Phantom<'s,i32,11>")
+        .replace("left.n!=7", "left.n!=11");
+    let reversed = text
+        .replace(
+            "make::<i32,7,'s>(i32),make::<bool,35,'t>(bool)",
+            "make::<bool,35,'t>(bool),make::<i32,7,'s>(i32)",
+        )
+        .replace(").0", ").saved")
+        .replace(").1", ").0")
+        .replace(").saved", ").1");
+    for (ordinal, input) in [text, text, changed.as_str(), reversed.as_str(), text]
+        .into_iter()
+        .enumerate()
+    {
+        let executable = directory.0.join(format!("warm-{ordinal}"));
+        let options = CompileOptions {
+            stop_after: Stage::Build,
+            entry: Some("main".into()),
+            output: Some(executable.clone()),
+            backend: zil_driver::NativeBackend::Clang,
+            semantic_cache: Some(directory.0.join("cache")),
+            ..CompileOptions::default()
+        };
+        let report = session.compile_source(&source(input), &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+        let observed = Command::new(executable).output().unwrap();
+        assert!(observed.status.success(), "{observed:?}");
+        assert_eq!(observed.stdout, b"42\n");
+    }
+    let store = directory.0.join("cache/semantic-v4");
+    let mut candidates = 0;
+    for entry in fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|x| x != "candidate") {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("missing actual semantic candidate")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        candidates += 1;
+    }
+    assert!(candidates > 0);
+    eprintln!(
+        "G4.4.2 actual warm/change/reorder/revert native outputs42 and {candidates} semantic candidates raw+Wire reverified"
+    );
 }
 
 #[test]
