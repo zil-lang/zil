@@ -221,7 +221,8 @@ pub(super) fn plan(
     }
     for function in lir.functions {
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
-            if let InstructionKind::TaskStart { worker, .. }
+            if let InstructionKind::TaskCreate { worker, .. }
+            | InstructionKind::TaskStart { worker, .. }
             | InstructionKind::WithScopedThread { worker, .. } = instruction.kind
                 && plans
                     .functions

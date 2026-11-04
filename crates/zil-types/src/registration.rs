@@ -106,6 +106,7 @@ pub(super) fn add_definitions(
                         found.insert(*id, t.clone());
                     }
                     Type::BorrowedStorage { storage: t, .. }
+                    | Type::Task { result: t }
                     | Type::Managed(t)
                     | Type::Desc(t)
                     | Type::Address { inner: t, .. }
@@ -325,7 +326,8 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
-                Type::Address { .. }
+                Type::Task { .. }
+                | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)

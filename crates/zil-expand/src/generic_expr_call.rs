@@ -95,6 +95,103 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        if let Some(name) = crate::foreign::bare_name(callee).filter(|name| {
+            matches!(
+                *name,
+                "task_create"
+                    | "task_poll"
+                    | "task_poll_close"
+                    | "task_request_cancel"
+                    | "task_finish_destroy"
+                    | "task_valid"
+            )
+        }) {
+            let name = name.to_owned();
+            if name == "task_create" {
+                let Some(first) = arguments.first() else {
+                    return Err(error(e.span, "task_create requires a static worker"));
+                };
+                let worker = stores::call_name(&first.value)
+                    .ok_or_else(|| error(first.span, "task_create worker must be static"))?;
+                let signature = self
+                    .signatures
+                    .get(worker)
+                    .ok_or_else(|| error(first.span, "task_create worker is absent"))?;
+                self.budget.const_function(signature)?;
+                let signature = (*signature).clone();
+                if arguments.len() != signature.params.len() + 1 {
+                    return Err(error(
+                        e.span,
+                        "task_create argument count differs from worker",
+                    ));
+                }
+                for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
+                    self.expr_expected(&mut argument.value, env, Some(&parameter.ty), depth + 1)?;
+                }
+                let result = signature
+                    .return_type
+                    .clone()
+                    .unwrap_or_else(|| named("void", e.span));
+                let mut result = TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Error {
+                        error: Box::new(named(options::TASK_CREATE_ERROR, e.span)),
+                        result: Box::new(TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Named {
+                                path: vec!["Task".into()],
+                                args: vec![GenericArg::Type(result)],
+                            },
+                        }),
+                    },
+                };
+                self.ty(&mut result, depth + 1)?;
+                return Ok(Some(Some(result)));
+            }
+            if arguments.len() == 1
+                && let Some(actual) =
+                    self.expr_expected(&mut arguments[0].value, env, None, depth + 1)?
+            {
+                let mut task = &actual;
+                while let TypeKind::Reference { inner, .. } | TypeKind::Group(inner) = &task.kind {
+                    task = inner;
+                }
+                if let TypeKind::Named { path, args } = &task.kind
+                    && path.as_slice() == ["Task"]
+                    && let [GenericArg::Type(payload)] = args.as_slice()
+                {
+                    self.budget.ty(payload)?;
+                    let mut result = match name.as_str() {
+                        "task_poll" => TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Error {
+                                error: Box::new(named(options::TASK_POLL_STATE, e.span)),
+                                result: Box::new(TypeRef {
+                                    span: e.span,
+                                    kind: TypeKind::Named {
+                                        path: vec![options::TASK_POLL.into()],
+                                        args: vec![GenericArg::Type(payload.clone())],
+                                    },
+                                }),
+                            },
+                        },
+                        "task_poll_close" => TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Named {
+                                path: vec![options::TASK_POLL.into()],
+                                args: vec![GenericArg::Type(named("void", e.span))],
+                            },
+                        },
+                        "task_valid" => named("bool", e.span),
+                        _ => named("void", e.span),
+                    };
+                    self.ty(&mut result, depth + 1)?;
+                    return Ok(Some(Some(result)));
+                }
+            }
+            // Compatibility TaskI32 calls retain the existing signature path.
+            return Ok(Some(None));
+        }
         if let Some(name) = crate::foreign::bare_name(callee).filter(|name| stores::primitive(name))
         {
             return self.expr_call_store(arguments, e.span, env, context, name, depth);

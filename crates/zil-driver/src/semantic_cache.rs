@@ -490,7 +490,8 @@ fn charge_type(
                 }
             }
         }
-        Type::Array { element, .. }
+        Type::Task { result: element }
+        | Type::Array { element, .. }
         | Type::Slice { element }
         | Type::Registration {
             environment: element,

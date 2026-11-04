@@ -560,6 +560,10 @@ pub(super) fn hint_type(
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
+        Type::Task { result } => {
+            hint_type(result, depth + 1, nodes, work, limits)?;
+            Ok(false)
+        }
         Type::Unsupported(name) => {
             *work = work.checked_sub(name.len()).ok_or_else(limit)?;
             Ok(false)

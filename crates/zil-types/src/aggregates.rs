@@ -871,7 +871,9 @@ impl Resolver<'_> {
                         }
                         variants.push((variant.clone(), fields));
                     }
-                    if name.starts_with("$generic_$builtinOption340_") {
+                    if name.starts_with("$generic_$builtinOption340_")
+                        || name.starts_with("$generic_$stdTaskPoll343_")
+                    {
                         for (_, fields) in &variants {
                             for field in fields {
                                 let work = inference::type_snapshot_work(
@@ -1018,6 +1020,16 @@ impl Resolver<'_> {
                     span,
                 )?
             }
+            Type::Task { result } => {
+                let result = self.ty(result, depth + 1, span)?;
+                let result = match result {
+                    Type::Desc(p) => Type::Managed(p),
+                    t => t,
+                };
+                Type::Task {
+                    result: Box::new(result),
+                }
+            }
             Type::Registration { environment } => Type::Registration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
             },
@@ -1079,6 +1091,9 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::Task { .. } if matches!(inner.as_ref(), Type::Task { .. }) => {
+                        Box::new(resolved)
+                    }
                     Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
                         Box::new(Type::TaskI32)
                     }
@@ -1106,7 +1121,8 @@ impl Resolver<'_> {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
                     Type::Managed(payload) | Type::Desc(payload)
-                        if *mutable && *payload == Type::TaskI32 =>
+                        if *mutable
+                            && matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. }) =>
                     {
                         Type::Managed(payload)
                     }
@@ -2550,6 +2566,16 @@ impl Resolver<'_> {
                 span,
                 "generic Product formal index is invalid",
             )),
+            CoreAggregateTypeRecipe::Task { result } => {
+                let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
+                let result = match result {
+                    Type::Desc(p) => Type::Managed(p),
+                    t => t,
+                };
+                Ok(Type::Desc(Box::new(Type::Task {
+                    result: Box::new(result),
+                })))
+            }
             CoreAggregateTypeRecipe::Registration { environment } => {
                 let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;
                 Ok(Type::Desc(Box::new(Type::Registration {

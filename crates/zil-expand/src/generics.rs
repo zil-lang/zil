@@ -648,6 +648,7 @@ impl<'a> Engine<'a> {
             if let ItemKind::Enum(e) = &item.kind
                 && !engine.budget.enum_profile(item.span)
                 && e.name != options::TEMPLATE
+                && e.name != options::TASK_POLL
             {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
@@ -1003,6 +1004,7 @@ impl<'a> Engine<'a> {
         // actual substituted fields while the real template identity exists.
         if let ItemKind::Enum(e) = &instance.kind
             && template != options::TEMPLATE
+            && template != options::TASK_POLL
         {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {

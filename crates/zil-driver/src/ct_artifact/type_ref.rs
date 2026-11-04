@@ -188,6 +188,7 @@ impl Builder<'_> {
             | Type::Closure(_)
             | Type::Unsupported(_)
             | Type::Registration { .. }
+            | Type::Task { .. }
             | Type::TaskI32
             | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }

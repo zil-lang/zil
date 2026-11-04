@@ -312,7 +312,9 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
-                    && !(mutable && decl.ty == tasks::owner())
+                    && !(mutable
+                        && matches!(decl.ty, Type::Managed(_))
+                        && tasks::resource(&decl.ty))
                     && !product_head
                     && !owned_shapes::sum(&decl.ty)
                 {

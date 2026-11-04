@@ -4484,3 +4484,6 @@ fn terminal343_scalar_library_helpers_keep_sealed_identity() {
         }
     }
 }
+
+#[path = "../../../tests/language-readiness/terminal/343/task_general.rs"]
+mod general_task343;

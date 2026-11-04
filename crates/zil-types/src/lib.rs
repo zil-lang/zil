@@ -482,8 +482,13 @@ pub fn check(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resource_definitions, &mut remaining)
-        .map_err(|e| vec![e])?;
+    tasks::add_definition(
+        &functions,
+        &mut resource_definitions,
+        &mut remaining,
+        limits,
+    )
+    .map_err(|e| vec![e])?;
     registration::add_definitions(&functions, &mut resource_definitions, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
@@ -2228,6 +2233,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
+                    || (*op == UnaryOp::BorrowMut && matches!(ty,Type::Managed(_)) && tasks::resource(ty))
                     || owned_shapes::sum(ty)
                     || matches!(ty, Type::Package { .. })
                     || (*op == UnaryOp::Borrow && matches!(ty, Type::Managed(payload)

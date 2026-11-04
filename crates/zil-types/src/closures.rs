@@ -974,7 +974,8 @@ impl Graph {
                     }
                 }
             }
-            Type::Array { element, .. }
+            Type::Task { result: element }
+            | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::Registration {
                 environment: element,
@@ -1095,7 +1096,7 @@ impl Graph {
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+            ty if matches!(ty, Type::TaskI32 | Type::Task { .. }) || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
@@ -3160,7 +3161,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     .graph
                     .ty(variable)?
                     .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
-                if payload != Type::TaskI32 {
+                if !matches!(payload, Type::TaskI32 | Type::Task { .. }) {
                     return Err(unsupported(
                         span,
                         "exclusive resource head requires TaskI32",
@@ -3321,10 +3322,40 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         if let Some(name) = tasks::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
-            *self.work_left = self
-                .work_left
-                .checked_sub(12)
-                .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
+            self.graph.spend_count(12, span)?;
+            if name == "task_create" {
+                let Some(worker) = arguments.first() else {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                };
+                self.visit(depth + 1, worker.span)?;
+                if !self.direct(worker) {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task_create requires a static worker",
+                    ));
+                }
+                let signature = self.callee(worker)?.clone();
+                if arguments.len() != signature.parameters.len() + 1 {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "task_create actual input count mismatch",
+                    ));
+                }
+                for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+                    let term = self.expr_expected(argument, Some(wanted), depth + 1)?;
+                    term.bind(&mut self.graph, wanted, argument.span)?;
+                }
+                for _ in 0..4 {
+                    self.graph.reserve_type(&signature.result, 0, span)?;
+                }
+                return self.known(&tasks::create_type(&signature.result), span);
+            }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
@@ -3354,11 +3385,34 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     ));
                 }
             }
-            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
-                let term = self.expr_expected(argument, Some(ty), depth + 1)?;
-                term.bind(&mut self.graph, ty, argument.span)?;
+            let mut returned = tasks::result(name);
+            for (argument, wanted) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, None, depth + 1)?;
+                let variable = match term {
+                    LocalType::Address(v, _) | LocalType::Resource(v, _) | LocalType::Scalar(v) => {
+                        v
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            span,
+                            "task operand has unresolved callable shape",
+                        ));
+                    }
+                };
+                if let Some(actual) = self.graph.ty(variable)?
+                    && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
+                {
+                    for _ in 0..6 {
+                        self.graph.reserve_type(task, 0, span)?;
+                    }
+                    let parameter = tasks::parameter_for(name, task);
+                    term.bind(&mut self.graph, &parameter, argument.span)?;
+                    returned = tasks::result_for(name, task);
+                } else {
+                    term.bind(&mut self.graph, wanted, argument.span)?;
+                }
             }
-            return self.known(&tasks::result(name), span);
+            return self.known(&returned, span);
         }
         if let Some(name) = byte_buffer::primitive(callee) {
             self.visit(depth + 1, callee.span)?;

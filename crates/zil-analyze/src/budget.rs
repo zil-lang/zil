@@ -211,6 +211,10 @@ impl Budget {
                 self.registrations = true;
                 self.type_work(environment, copy_check, context)?;
             }
+            Type::Task { result } => {
+                self.tasks = true;
+                self.type_work(result, copy_check, context)?;
+            }
             Type::TaskI32 => {
                 self.tasks = true;
             }
@@ -341,7 +345,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
+            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -670,6 +674,17 @@ pub(super) fn preflight(
                         capture_owner,
                         resource_head,
                         child,
+                    ));
+                }
+                Type::Task { result: element } => {
+                    budget.input(1, "actual Task result metadata")?;
+                    pending.push((
+                        element,
+                        depth + 1,
+                        store_element,
+                        None,
+                        false,
+                        SumContext::default(),
                     ));
                 }
                 Type::Slice { element } => {
@@ -1244,7 +1259,8 @@ pub(super) fn preflight(
                             return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
-                    InstructionKind::TaskStart { .. }
+                    InstructionKind::TaskCreate { .. }
+                    | InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskPoll { .. }
@@ -1252,7 +1268,12 @@ pub(super) fn preflight(
                     | InstructionKind::TaskPollClose { .. }
                     | InstructionKind::TaskFinishDestroy { .. } => {
                         budget.tasks = true;
-                        budget.input(3, "task ABI operands")?;
+                        budget.input(
+                            crate::resources::uses(&instruction.kind)
+                                .count()
+                                .saturating_add(3),
+                            "task ABI operands",
+                        )?;
                         for v in crate::resources::uses(&instruction.kind) {
                             if v.0 as usize >= function.values.len() {
                                 return Err(bad("task operand is outside actual table"));

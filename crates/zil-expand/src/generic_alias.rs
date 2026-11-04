@@ -185,6 +185,60 @@ struct Alias {
     parameters: Vec<String>,
     target: TypeRef,
 }
+
+impl Alias {
+    fn forward(&self) -> Option<&str> {
+        let TypeKind::Named { path, args } = &grouped(&self.target).kind else {
+            return None;
+        };
+        if path.len() != 1 || args.len() != self.parameters.len() {
+            return None;
+        }
+        for (arg, param) in args.iter().zip(&self.parameters) {
+            if !matches!(arg,GenericArg::Type(TypeRef{kind:TypeKind::Named{path,args},..}) if path.as_slice()==[param.as_str()] && args.is_empty())
+            {
+                return None;
+            }
+        }
+        Some(&path[0])
+    }
+}
+fn qualified_key(path: &[String], budget: &mut Budget<'_>, span: Span) -> R<String> {
+    budget.identity_work(path.len(), span)?;
+    for part in path {
+        budget.text(part, span)?;
+    }
+    Ok(path.join("."))
+}
+fn namespace_path(e: &Expr, budget: &mut Budget<'_>, depth: usize) -> R<Option<(String, String)>> {
+    let mut path = vec![];
+    let mut node = e;
+    let mut depth = depth;
+    loop {
+        budget.node(node.span, depth)?;
+        depth = depth.saturating_add(1);
+        match &node.kind {
+            ExprKind::Name(name) => {
+                budget.text(name, e.span)?;
+                path.push(name.as_str());
+                break;
+            }
+            ExprKind::Member {
+                object,
+                member: MemberName::Name(name),
+            } => {
+                budget.text(name, e.span)?;
+                path.push(name.as_str());
+                node = object;
+            }
+            ExprKind::Group(inner) => node = inner,
+            _ => return Ok(None),
+        }
+    }
+    path.reverse();
+    budget.text(path[0], e.span)?;
+    Ok(Some((path.join("."), path[0].to_owned())))
+}
 struct Resolver<'s, 'l> {
     life_scope: Vec<String>,
     definitions: BTreeMap<String, &'s TypeAlias>,
@@ -429,14 +483,16 @@ impl Visitor<'_, '_, '_> {
     fn ty(&mut self, ty: &mut TypeRef, types: &Names, depth: usize) -> R<()> {
         self.resolver.budget.node(ty.span, depth)?;
         if let TypeKind::Named { path, args } = &mut ty.kind
-            && path.len() == 1
+            && !path.is_empty()
             && !types.contains(&path[0])
-            && self.resolver.definitions.contains_key(&path[0])
         {
-            *ty = self
-                .resolver
-                .instantiate(&path[0], args, types, ty.span, depth)?;
-            return Ok(());
+            let key = qualified_key(path, &mut self.resolver.budget, ty.span)?;
+            if self.resolver.definitions.contains_key(&key) {
+                *ty = self
+                    .resolver
+                    .instantiate(&key, args, types, ty.span, depth)?;
+                return Ok(());
+            }
         }
         match &mut ty.kind {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
@@ -476,25 +532,38 @@ impl Visitor<'_, '_, '_> {
         if let ExprKind::Group(inner) = &mut e.kind {
             return self.namespace(inner, types, values, depth + 1);
         }
-        let (name, arguments): (&str, &mut [GenericArg]) = match &mut e.kind {
-            ExprKind::Name(name) => (name, &mut []),
-            ExprKind::TypeApply { callee, arguments } => {
-                let Some(name) = super::super::foreign::bare_name(callee) else {
-                    return Ok(());
-                };
-                (name, arguments)
-            }
-            _ => return Ok(()),
+        let namespace = match &e.kind {
+            ExprKind::TypeApply { callee, .. } => callee.as_ref(),
+            _ => e,
         };
-        if types.contains(name)
-            || values.contains(name)
-            || !self.resolver.definitions.contains_key(name)
+        let Some((name, root)) = namespace_path(namespace, &mut self.resolver.budget, depth)?
+        else {
+            return Ok(());
+        };
+        if types.contains(&root)
+            || values.contains(&root)
+            || !self.resolver.definitions.contains_key(&name)
         {
             return Ok(());
         }
+        let arguments = match &mut e.kind {
+            ExprKind::TypeApply { arguments, .. } => arguments.as_mut_slice(),
+            _ => &mut [],
+        };
+        if arguments.is_empty()
+            && let Some(alias) = self.resolver.resolved.get(&name)
+            && !alias.parameters.is_empty()
+        {
+            self.resolver.budget.ty_depth(&alias.target, depth)?;
+            if let Some(target) = alias.forward() {
+                self.resolver.budget.text(target, e.span)?;
+                e.kind = ExprKind::Name(target.into());
+                return Ok(());
+            }
+        }
         let alias = self
             .resolver
-            .instantiate(name, arguments, types, e.span, depth)?;
+            .instantiate(&name, arguments, types, e.span, depth)?;
         let TypeKind::Named { path, args } = &grouped(&alias).kind else {
             return Err(error(
                 e.span,
@@ -537,6 +606,25 @@ impl Visitor<'_, '_, '_> {
                 self.pattern(pattern, types, values, depth + 1)?
             }
             PatternKind::Constructor { path, arguments } => {
+                if path.len() >= 2 && !types.contains(&path[0]) && !values.contains(&path[0]) {
+                    let root =
+                        qualified_key(&path[..path.len() - 1], &mut self.resolver.budget, p.span)?;
+                    if let Some(alias) = self.resolver.resolved.get(&root)
+                        && (!alias.parameters.is_empty() || path.len() > 2)
+                    {
+                        self.resolver.budget.ty_depth(&alias.target, depth)?;
+                        if let Some(target) = alias.forward() {
+                            self.resolver.budget.text(target, p.span)?;
+                            let variant = path.last().unwrap().clone();
+                            *path = vec![target.into(), variant];
+                        } else if path.len() > 2 {
+                            return Err(unsupported(
+                                p.span,
+                                "qualified constructor alias requires a direct nominal family binding",
+                            ));
+                        }
+                    }
+                }
                 if path.len() == 1
                     && !types.contains(&path[0])
                     && let Some(alias) = self.resolver.resolved.get(&path[0])
@@ -871,10 +959,11 @@ impl Visitor<'_, '_, '_> {
                 self.expr(object, types, values, depth + 1)?;
             }
             ExprKind::TypeApply { callee, arguments } => {
-                if super::super::foreign::bare_name(callee).is_some_and(|name| {
-                    self.resolver.definitions.contains_key(name)
-                        && !types.contains(name)
-                        && !values.contains(name)
+                let binding = namespace_path(callee, &mut self.resolver.budget, depth + 1)?;
+                if binding.is_some_and(|(name, root)| {
+                    self.resolver.definitions.contains_key(&name)
+                        && !types.contains(&root)
+                        && !values.contains(&root)
                 }) {
                     self.namespace(e, types, values, depth + 1)?;
                 } else {

@@ -101,7 +101,8 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
-                Type::Address { .. }
+                Type::Task { .. }
+                | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)

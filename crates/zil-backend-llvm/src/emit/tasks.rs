@@ -51,6 +51,28 @@ impl Meter {
             })
     }
 }
+// Bridge expansion is constant-sized in the independently admitted i32
+// profile. This inventory shares the actual remaining task planning ledger.
+pub(super) fn reserve_bridges(function: &TypedFunction, meter: &Meter) -> CompileResult<()> {
+    meter.spend(function.blocks.len())?;
+    for block in &function.blocks {
+        for i in &block.instructions {
+            meter.spend(1)?;
+            match &i.kind {
+                InstructionKind::TaskCreate { arguments, .. } => {
+                    meter.spend(256usize.saturating_add(arguments.len().saturating_mul(16)))?
+                }
+                InstructionKind::TaskPoll { task } | InstructionKind::TaskPollClose { task }
+                    if matches!(&function.values[task.0 as usize],Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..}))) =>
+                {
+                    meter.spend(1024)?
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
 fn loc(s: impl Into<String>) -> m::Val {
     m::local(s.into())
 }
@@ -1379,6 +1401,228 @@ pub(super) fn runtime(
     Ok(code)
 }
 impl FunctionEmitter<'_> {
+    fn general_task_poll(&mut self, i: &Instruction, task: ValueId) -> CompileResult<()> {
+        let output = result(i)?;
+        let actual = &self.function.values[output.0 as usize];
+        let llvm = llvm_type(actual)?;
+        let slot = self.temp();
+        let answer = self.temp();
+        let tag = self.temp();
+        let serial = self.continuation;
+        self.continuation += 1;
+        let label = |s: &str| format!("task.general.{serial}.{s}");
+        let mut body = vec![];
+        push(
+            &mut body,
+            Some(&m::name(&slot)),
+            m::Op::Alloca {
+                ty: llvm.clone(),
+                align: 0,
+            },
+        );
+        store(&mut body, llvm.clone(), m::Val::Zero, m::val(slot.clone()));
+        if matches!(i.kind, InstructionKind::TaskPollClose { .. }) {
+            call(
+                &mut body,
+                Some(&m::name(&answer)),
+                m::Ty::Int(1),
+                m::global("zil.task.poll_close".into()),
+                vec![m::Arg::new(m::Ty::Ptr, m::val(value(task)))],
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tag)),
+                m::Op::Cast {
+                    opcode: "zext".into(),
+                    arg: m::Arg::new(m::Ty::Int(1), m::val(answer)),
+                    to: m::Ty::Int(32),
+                },
+            );
+            gep(&mut body, &label("tag.ptr"), &llvm, m::val(slot.clone()), 0);
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                m::val(tag),
+                loc(label("tag.ptr")),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+        } else {
+            let Type::ErrorUnion {
+                error,
+                result: poll,
+            } = actual
+            else {
+                unreachable!()
+            };
+            let poll_llvm = llvm_type(poll)?;
+            let error_llvm = llvm_type(error)?;
+            call(
+                &mut body,
+                Some(&m::name(&answer)),
+                result_ty(),
+                m::global("zil.task.poll".into()),
+                vec![m::Arg::new(m::Ty::Ptr, m::val(value(task)))],
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tag)),
+                m::Op::Extract {
+                    arg: m::Arg::new(result_ty(), m::val(answer.clone())),
+                    index: 0,
+                },
+            );
+            compare(
+                &mut body,
+                &label("ready.test"),
+                m::Ty::Int(32),
+                m::val(tag.clone()),
+                m::val(1),
+                "eq",
+            );
+            cond(
+                &mut body,
+                &label("ready.test"),
+                &label("ready"),
+                &label("not.ready"),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("ready")));
+            let mut body = vec![];
+            gep(
+                &mut body,
+                &label("poll.ptr"),
+                &llvm,
+                m::val(slot.clone()),
+                2,
+            );
+            gep(
+                &mut body,
+                &label("poll.tag.ptr"),
+                &poll_llvm,
+                loc(label("poll.ptr")),
+                0,
+            );
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                m::val(1),
+                loc(label("poll.tag.ptr")),
+            );
+            gep(
+                &mut body,
+                &label("payload.ptr"),
+                &poll_llvm,
+                loc(label("poll.ptr")),
+                1,
+            );
+            // Only Ready may inspect the scalar compatibility payload. Other
+            // poll outcomes never materialize a source T.
+            push(
+                &mut body,
+                Some(&label("payload")),
+                m::Op::Extract {
+                    arg: m::Arg::new(result_ty(), m::val(answer)),
+                    index: 1,
+                },
+            );
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                loc(label("payload")),
+                loc(label("payload.ptr")),
+            );
+            branch(&mut body, &label("done"));
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("not.ready")));
+            let mut body = vec![];
+            compare(
+                &mut body,
+                &label("pending.test"),
+                m::Ty::Int(32),
+                m::val(tag.clone()),
+                m::val(0),
+                "eq",
+            );
+            cond(
+                &mut body,
+                &label("pending.test"),
+                &label("done"),
+                &label("error"),
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("error")));
+            let mut body = vec![];
+            gep(
+                &mut body,
+                &label("error.flag"),
+                &llvm,
+                m::val(slot.clone()),
+                0,
+            );
+            store(
+                &mut body,
+                m::Ty::Int(1),
+                m::val(true),
+                loc(label("error.flag")),
+            );
+            gep(
+                &mut body,
+                &label("error.ptr"),
+                &llvm,
+                m::val(slot.clone()),
+                1,
+            );
+            gep(
+                &mut body,
+                &label("error.tag.ptr"),
+                &error_llvm,
+                loc(label("error.ptr")),
+                0,
+            );
+            push(
+                &mut body,
+                Some(&label("error.tag")),
+                m::Op::Binary {
+                    opcode: "sub".into(),
+                    ty: m::Ty::Int(32),
+                    left: m::val(tag),
+                    right: m::val(2),
+                },
+            );
+            store(
+                &mut body,
+                m::Ty::Int(32),
+                loc(label("error.tag")),
+                loc(label("error.tag.ptr")),
+            );
+            branch(&mut body, &label("done"));
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            self.event(m::Event::Label(label("done")));
+        }
+        if self.copy_values.contains_key(&output) {
+            self.copy_read(output, m::val(slot))?;
+        } else {
+            self.event(m::Event::Instruction(m::Inst::new(
+                Some(m::name(value(output))),
+                m::Op::Load {
+                    ty: llvm,
+                    ptr: m::val(slot),
+                    align: 0,
+                },
+            )));
+        }
+        Ok(())
+    }
     pub(super) fn task_instruction(&mut self, i: &Instruction) -> CompileResult<()> {
         if let InstructionKind::SuspendCall {
             function,
@@ -1440,6 +1684,66 @@ impl FunctionEmitter<'_> {
                 },
             )));
             return Ok(());
+        }
+        if let InstructionKind::TaskCreate { worker, arguments } = &i.kind {
+            let output = result(i)?;
+            let ty = llvm_type(&self.function.values[output.0 as usize])?;
+            let frame = self.temp();
+            let failed = self.temp();
+            let tagged = self.temp();
+            let mut body = vec![];
+            let args = arguments
+                .iter()
+                .map(|v| {
+                    Ok(m::Arg::new(
+                        llvm_type(&self.function.values[v.0 as usize])?,
+                        m::val(value(*v)),
+                    ))
+                })
+                .collect::<CompileResult<Vec<_>>>()?;
+            call(
+                &mut body,
+                Some(&m::name(&frame)),
+                m::Ty::Ptr,
+                m::global(name(*worker, "init")),
+                args,
+            );
+            compare(
+                &mut body,
+                &m::name(&failed),
+                m::Ty::Ptr,
+                m::val(frame.clone()),
+                m::Val::Null,
+                "eq",
+            );
+            push(
+                &mut body,
+                Some(&m::name(&tagged)),
+                m::Op::Insert {
+                    arg: m::Arg::new(ty.clone(), m::Val::Zero),
+                    index: 0,
+                    field: m::Arg::new(m::Ty::Int(1), m::val(failed)),
+                },
+            );
+            // The inactive success field is never exposed on Allocation.
+            push(
+                &mut body,
+                Some(&m::name(value(output))),
+                m::Op::Insert {
+                    arg: m::Arg::new(ty, m::val(tagged)),
+                    index: 2,
+                    field: m::Arg::new(m::Ty::Ptr, m::val(frame)),
+                },
+            );
+            for instruction in body {
+                self.event(m::Event::Instruction(instruction));
+            }
+            return Ok(());
+        }
+        if let InstructionKind::TaskPoll { task } | InstructionKind::TaskPollClose { task } = i.kind
+            && matches!(self.function.values[task.0 as usize],Type::Address{ref inner,..} if matches!(inner.as_ref(),Type::Managed(p) if matches!(p.as_ref(),Type::Task{..})))
+        {
+            return self.general_task_poll(i, task);
         }
         let (callee, argument, ty) = match i.kind {
             InstructionKind::TaskStart { worker, argument } => (

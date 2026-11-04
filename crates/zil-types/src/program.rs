@@ -440,7 +440,8 @@ pub(super) fn check_resolved_program_with_reuse(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resources, &mut remaining).map_err(|e| vec![e])?;
+    tasks::add_definition(&functions, &mut resources, &mut remaining, limits)
+        .map_err(|e| vec![e])?;
     registration::add_definitions(&functions, &mut resources, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
@@ -631,6 +632,10 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             type_identity(bytes, environment, closures);
         }
         Type::TaskI32 => bytes.push(33),
+        Type::Task { result } => {
+            bytes.push(34);
+            type_identity(bytes, result, closures);
+        }
         Type::SyncCell(kind) => bytes.extend_from_slice(&[
             30,
             match kind {

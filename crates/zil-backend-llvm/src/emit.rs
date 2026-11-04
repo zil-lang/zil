@@ -540,6 +540,9 @@ fn lower_function_batch(
                 continue;
             }
         }
+        if verified.uses_scalar_tasks() {
+            tasks::reserve_bridges(function, task_meter)?;
+        }
         if verified.uses_retained_registration() {
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
@@ -1459,7 +1462,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::RegistrationClose { .. } => {
                 self.registration_instruction(instruction)?
             }
-            InstructionKind::TaskStart { .. }
+            InstructionKind::TaskCreate { .. }
+            | InstructionKind::TaskStart { .. }
             | InstructionKind::TaskYield
             | InstructionKind::SuspendCall { .. }
             | InstructionKind::TaskValid { .. }
@@ -3217,7 +3221,7 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
-        Type::Registration { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
+        Type::Registration { .. } | Type::Task { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
@@ -3276,7 +3280,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
-                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                 || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
@@ -3285,7 +3289,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
-                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                 || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
@@ -3324,9 +3328,11 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer | Type::TaskI32 | Type::Registration { .. } | Type::OwnedStore { .. } => {
-            Ok(8)
-        }
+        Type::ByteBuffer
+        | Type::Task { .. }
+        | Type::TaskI32
+        | Type::Registration { .. }
+        | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 | Type::F32 => Ok(4),
         Type::I64 | Type::U64 | Type::Usize | Type::F64 => Ok(8),
@@ -3348,7 +3354,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
-                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                 || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
@@ -3357,7 +3363,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Managed(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
-                || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
                 || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
