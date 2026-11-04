@@ -41,9 +41,12 @@ fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
         return Ok(vec![]);
     }
     let mut slots = Vec::new();
+    // Nominal applications retain lifetime actuals at their full ordinals.
+    // Ordinary function instantiation currently elides its life-only formals.
+    let function = matches!(item.kind, ItemKind::Function(_) | ItemKind::Extern { .. });
     for parameter in parameters {
         budget.node(parameter.span, 0)?;
-        if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+        if !function || !matches!(parameter.kind, GenericParamKind::Lifetime) {
             slots.push(matches!(parameter.kind, GenericParamKind::Const(_)));
         }
     }

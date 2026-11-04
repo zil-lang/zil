@@ -619,6 +619,62 @@ mod source_tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
 
+    #[test]
+    fn stored_const_actuals_preserve_full_life_type_const_ordinals_and_bits() {
+        for (domain, literal, expected) in [
+            ("i32", "7", Constant::I32(7)),
+            ("u64", "18446744073709551615", Constant::U64(u64::MAX)),
+            ("bool", "true", Constant::Bool(true)),
+        ] {
+            let core = expand_text(&format!("struct Phantom<life s,T:Copy,#N:{domain}>{{n:T}}fn make<life s>(p:&'s i64)->Phantom<'s,i32,{literal}>{{return Phantom::<'s,i32,{literal}>{{n:42}}}}fn main(){{}}"))
+                .unwrap();
+            assert_eq!(
+                core.life_declarations[0].parameters,
+                vec![
+                    LifeParameterKind::Lifetime,
+                    LifeParameterKind::Type,
+                    LifeParameterKind::Const(expected.ty())
+                ]
+            );
+            assert_eq!(
+                core.life_instances[0].arguments,
+                vec![
+                    LifeNominalActual::Lifetime(0),
+                    LifeNominalActual::Type(Type::I32),
+                    LifeNominalActual::Const(expected)
+                ]
+            );
+        }
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "usize-const.zil",
+            "struct Phantom<life s,#N:usize>{n:i32}fn make<life s>(p:&'s i64)->Phantom<'s,4294967296>{return Phantom::<'s,4294967296>{n:42}}fn main(){}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let mut target = zil_base::TargetProfile::default();
+        target.pointer_width = 32;
+        let rejected = expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &Limits::default(),
+            &target,
+            crate::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &aliases,
+                declarations: crate::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap_err();
+        assert!(
+            rejected
+                .iter()
+                .any(|error| error.message.contains("outside its target integer domain")),
+            "{rejected:?}"
+        );
+    }
+
     const VIEW: &str = r#"
 struct View<life a> { p: &'a i64 }
 fn make<life a>(p: &'a i64) -> View<'a> {

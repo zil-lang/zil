@@ -178,6 +178,47 @@ pub(super) fn normalize(
     )
 }
 
+/// Reify only a value already checked by normalize, using its same integer
+/// parser/domain. In particular u64/usize never pass through a signed carrier.
+pub(super) fn normalized_value(actual: &TypeRef, budget: &mut Budget<'_>) -> R<zil_ir::Constant> {
+    let expression =
+        expression(actual).ok_or_else(|| error(actual.span, "normalized const carrier absent"))?;
+    budget.node(expression.span, 0)?;
+    match &expression.kind {
+        ExprKind::Literal(Literal::Bool(value)) => Ok(zil_ir::Constant::Bool(*value)),
+        ExprKind::Literal(Literal::Integer(text)) => {
+            budget.text(text, expression.span)?;
+            let (value, domain) = integer(text, expression.span)?;
+            let invalid = || {
+                error(
+                    expression.span,
+                    "normalized const scalar is outside its exact domain",
+                )
+            };
+            Ok(match domain {
+                Some("u8") => zil_ir::Constant::U8(u8::try_from(value).map_err(|_| invalid())?),
+                Some("u16") => zil_ir::Constant::U16(u16::try_from(value).map_err(|_| invalid())?),
+                Some("u64") => zil_ir::Constant::U64(u64::try_from(value).map_err(|_| invalid())?),
+                Some("usize") => {
+                    zil_ir::Constant::Usize(u64::try_from(value).map_err(|_| invalid())?)
+                }
+                Some("i32") => zil_ir::Constant::I32(i32::try_from(value).map_err(|_| invalid())?),
+                Some("i64") => zil_ir::Constant::I64(i64::try_from(value).map_err(|_| invalid())?),
+                _ => {
+                    return Err(error(
+                        expression.span,
+                        "normalized const scalar domain absent",
+                    ));
+                }
+            })
+        }
+        _ => Err(error(
+            expression.span,
+            "normalized const scalar value absent",
+        )),
+    }
+}
+
 pub(super) fn key(expression: &Expr) -> R<String> {
     match &expression.kind {
         ExprKind::Literal(Literal::Integer(text)) => {
