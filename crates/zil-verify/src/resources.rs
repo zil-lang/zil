@@ -301,6 +301,7 @@ pub(super) fn check_definitions(
             if !entries.insert(id)
                 || f.foreign.is_some()
                 || f.environment.is_some()
+                || f.call_kind != CallKind::Direct
                 || f.return_type != Type::Unit
                 || f.result_mode != PassingMode::Infer
                 || f.parameters.len() != 1

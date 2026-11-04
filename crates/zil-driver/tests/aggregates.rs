@@ -8198,7 +8198,7 @@ fn terminal340_package_terminal_independent_verify_and_wire() {
         let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
         if !text.contains("enum F") {
-            for case in 0..3 {
+            for case in 0..4 {
                 let mut raw = typed.clone();
                 match case {
                     0 => raw.resources.clear(),
@@ -8209,7 +8209,11 @@ fn terminal340_package_terminal_independent_verify_and_wire() {
                         };
                         *name = "Other".into();
                     }
-                    _ => raw.resources.push(raw.resources[0].clone()),
+                    2 => raw.resources.push(raw.resources[0].clone()),
+                    _ => {
+                        let drop = raw.resources[0].teardown.expect("real ordinary Drop entry");
+                        raw.functions[drop.0 as usize].call_kind = zil_ir::CallKind::Suspend;
+                    }
                 }
                 let mut claim = plan.clone();
                 claim.module_fingerprint = raw.fingerprint();
