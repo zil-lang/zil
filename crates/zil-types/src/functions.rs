@@ -21,6 +21,7 @@ impl Signature {
                 .life
                 .clone()
                 .unwrap_or_else(|| borrowed_fp::default_life(&self.parameters, &self.result));
+            let life = StorageLifeContract::from_flat(life)?;
             borrowed_fp::relation(&self.parameters, &self.result, &life, Span::default()).ok()?;
             return Some(Type::BorrowedFunctionPointer {
                 parameters: self.parameters.clone(),
@@ -49,6 +50,8 @@ impl Builder<'_, '_> {
                 .snapshot(borrowed_fp::metadata_work(life), expression.span)?;
         }
         let signature = self.resolve_callee(expression)?;
+        self.closures
+            .snapshot(borrowed_fp::pointer_work(signature), expression.span)?;
         if signature.cleanup {
             return Err(error(
                 "E-DROP-CALL",
