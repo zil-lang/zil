@@ -1,0 +1,196 @@
+//! Supertrait closure and candidate commitment. A candidate does not enter the
+//! implementation evidence set until every inherited premise has been proved.
+use super::*;
+
+impl<'a> Index<'a> {
+    fn inherited(
+        &self,
+        reference: &trait_instances::Reference,
+        host: Option<&str>,
+        budget: &mut Budget<'_>,
+    ) -> R<Vec<Bound>> {
+        let (_, declaration) = self.declarations[reference.key.name.as_str()];
+        let mut substitutions = BTreeMap::new();
+        if let Some(host) = host {
+            budget.text(host, reference.key.declaration)?;
+            substitutions.insert("Self".to_owned(), named(host, reference.key.declaration));
+        }
+        for (parameter, actual) in declaration.generics.iter().zip(&reference.arguments) {
+            budget.text(&parameter.name, actual.span)?;
+            budget.ty(actual)?;
+            substitutions.insert(parameter.name.clone(), actual.clone());
+        }
+        let mut result = Vec::new();
+        for bound in &declaration.bounds {
+            budget.substituted_type(bound, &substitutions)?;
+            let mut bound = bound.clone();
+            Substitution {
+                substitutions: &substitutions,
+            }
+            .ty(&mut bound);
+            if copy::is_bound(&bound) {
+                result.push(Bound::Copy);
+            } else if stores::is_bound(&bound) {
+                result.push(Bound::StoreElement);
+            } else {
+                let required = self.declaration(&bound, budget)?;
+                let (item, _) = self.declarations[required.name.as_str()];
+                result.push(Bound::Nominal(trait_instances::arguments(
+                    item.span, required, &bound, budget,
+                )?));
+            }
+        }
+        Ok(result)
+    }
+
+    pub(super) fn super_bounds(
+        &self,
+        roots: &[Bound],
+        budget: &mut Budget<'_>,
+        span: Span,
+        host: Option<&str>,
+    ) -> R<Vec<Bound>> {
+        fn visit(
+            index: &Index<'_>,
+            bound: &Bound,
+            output: &mut Vec<Bound>,
+            active: &mut BTreeSet<trait_instances::Key>,
+            budget: &mut Budget<'_>,
+            span: Span,
+            depth: usize,
+            host: Option<&str>,
+        ) -> R<()> {
+            budget.node(span, depth)?;
+            if let Bound::Nominal(reference) = bound {
+                if active.contains(&reference.key) {
+                    return Err(error(span, "active supertrait obligation cycle"));
+                }
+                if output
+                    .iter()
+                    .any(|b| matches!(b, Bound::Nominal(r) if r.key == reference.key))
+                {
+                    return Ok(());
+                }
+                let key = trait_instances::copy_key(&reference.key, budget, span)?;
+                active.insert(key);
+                for inherited in index.inherited(reference, host, budget)? {
+                    visit(
+                        index,
+                        &inherited,
+                        output,
+                        active,
+                        budget,
+                        span,
+                        depth + 1,
+                        host,
+                    )?;
+                }
+                active.remove(&reference.key);
+                trait_instances::copy_key(&reference.key, budget, span)?;
+                for actual in &reference.arguments {
+                    budget.ty(actual)?;
+                }
+                output.push(bound.clone());
+            } else {
+                let duplicate = output.iter().any(|b| {
+                    matches!(
+                        (b, bound),
+                        (Bound::Copy, Bound::Copy) | (Bound::StoreElement, Bound::StoreElement)
+                    )
+                });
+                if !duplicate {
+                    output.push(bound.clone());
+                }
+            }
+            Ok(())
+        }
+        let mut output = Vec::new();
+        let mut active = BTreeSet::new();
+        for bound in roots {
+            visit(self, bound, &mut output, &mut active, budget, span, 0, host)?;
+        }
+        Ok(output)
+    }
+
+    pub(super) fn validate_supertraits(&mut self, budget: &mut Budget<'_>) -> R<()> {
+        // Even unused declarations must have a well-founded published closure.
+        for (item, declaration) in self.declarations.values() {
+            let arguments = declaration
+                .generics
+                .iter()
+                .map(|p| GenericArg::Type(named(&p.name, p.span)))
+                .collect();
+            let application = TypeRef {
+                span: item.span,
+                kind: TypeKind::Named {
+                    path: vec![declaration.name.clone()],
+                    args: arguments,
+                },
+            };
+            budget.ty(&application)?;
+            let root = trait_instances::arguments(item.span, declaration, &application, budget)?;
+            self.super_bounds(&[Bound::Nominal(root)], budget, item.span, Some("Self"))?;
+        }
+        let candidates = std::mem::take(&mut self.implementations);
+        let mut active = BTreeSet::new();
+        for (key, host) in &candidates {
+            self.commit_super(key, host, &candidates, &mut active, budget, 0)?;
+        }
+        Ok(())
+    }
+
+    fn commit_super(
+        &mut self,
+        key: &trait_instances::Key,
+        host: &'a str,
+        candidates: &BTreeSet<(trait_instances::Key, &'a str)>,
+        active: &mut BTreeSet<(trait_instances::Key, &'a str)>,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<()> {
+        let span = key.declaration;
+        budget.node(span, depth)?;
+        let goal = (trait_instances::copy_key(key, budget, span)?, host);
+        if self.implementations.contains(&goal) {
+            return Ok(());
+        }
+        if !candidates.contains(&goal) {
+            return Err(error(
+                span,
+                format!(
+                    "type {host} does not satisfy required supertrait {}",
+                    key.name
+                ),
+            ));
+        }
+        if !active.insert(goal) {
+            return Err(error(span, "active supertrait implementation cycle"));
+        }
+        let reference = self.actual_reference(key, budget, span)?;
+        for bound in self.inherited(&reference, Some(host), budget)? {
+            match bound {
+                Bound::Copy => copy::require(
+                    &named(host, span),
+                    &self.nominals,
+                    &Bounds::new(),
+                    &BTreeSet::new(),
+                    budget,
+                )?,
+                Bound::StoreElement => self.store_element(
+                    &named(host, span),
+                    &Bounds::new(),
+                    &BTreeSet::new(),
+                    budget,
+                    callable::StoreCallbacks::None,
+                )?,
+                Bound::Nominal(reference) => {
+                    self.commit_super(&reference.key, host, candidates, active, budget, depth + 1)?
+                }
+            }
+        }
+        let goal = (trait_instances::copy_key(key, budget, span)?, host);
+        active.remove(&goal);
+        self.implementations.insert(goal);
+        Ok(())
+    }
+}

@@ -15,6 +15,74 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
+    for text in [
+        "trait Base{fn base(self:&Self)->i32;}trait Child:Base{fn child(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}impl Child for P{fn child()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.base()+p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-14}",
+        "trait Base{fn base(self:&Self)->i32;}trait Child:Base{}trait Top:Child{}struct P{n:i32}impl Top for P{}impl Child for P{}impl Base for P{fn base()->i32{return .n}}fn consume<T:Top>(p:&T)->i32{return p.base()}fn main()->i32{let p=P{n:7};return consume(&p)-7}",
+        "trait Base{}trait Child:Base{}fn unused<T:Child>(p:&T){}fn main(){}",
+        "trait Base<R>{fn base(self:&Self)->R;}trait Child:Base<i32>{fn child(self:&Self)->i32{return self.base()}}struct P{n:i32}impl Child for P{}impl Base<i32> for P{fn base()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-7}",
+        "trait Child:Copy{}struct P{n:i32}impl Child for P{}fn duplicate<T:Child>(p:T)->T{let q=p;return p}fn main()->i32{let p=duplicate(P{n:7});return p.n-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait Base{}trait Child:Base{}struct P{}impl Child for P{}fn main(){}",
+        "trait A:B{}trait B:A{}fn main(){}",
+        "trait A:A{}fn main(){}",
+        "trait Base{}trait Child:Base{}fn unused<T:Child>(p:&T)->i32{return p.missing()}fn main(){}",
+        "trait Base<R>{}trait Child:Base<i64>{}struct P{}impl Base<i32> for P{}impl Child for P{}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_const_module_namespaces_and_forwarding_preserve_actual_binders() {
+    let files = [
+        (
+            "main",
+            "import values;fn main()->i32{return values.forwarded::<7>()-7}",
+        ),
+        (
+            "values",
+            "pub struct N{n:i32}pub fn scalar<#N:i32>()->i32{return N}pub fn forwarded<#N:i32>()->i32{return scalar::<N>()}",
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&files);
+    for text in [
+        "struct N{n:i32}fn value<#N:i32>(x:N)->i32{return x.n+N}fn main()->i32{return value::<7>(N{n:2})-9}",
+        "struct N{n:i32}fn scalar<#N:i32>()->i32{return N}fn main()->i32{return scalar::<7>()-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
     let cases = [
         (

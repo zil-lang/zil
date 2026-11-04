@@ -19,6 +19,7 @@ fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_va
         "fn scoped<#N:i32>()->i32{let N:i32=8;let p=&N;return *p}fn main()->i32{return scoped::<7>()-8}",
         "fn array<#N:i32>(x:[i32;N])->[i32;N]{return x}fn main()->i32{let x=array::<2>([3,4]);return x[0]-3}",
         "fn inner<#N:i32>()->i32{return N}fn outer<#M:i32>()->i32{return inner::<M>()}fn main()->i32{return outer::<7>()-7}",
+        "enum E{A(i32),B(i32),C(i32),D(i32)}fn sink(n:i32){}fn arms<#N:i32>(e:E)->i32{match e{E.A(N)=>sink(N),E.B(N)=>sink(N),E.C(N)=>sink(N),E.D(N)=>sink(N)}return N}fn main()->i32{return arms::<7>(E.B(9))-7}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(

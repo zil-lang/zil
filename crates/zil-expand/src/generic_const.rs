@@ -457,6 +457,11 @@ pub(super) fn prepay_scopes(
         }
         fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
             self.map(statement.span)?;
+            if let StmtKind::Match { arms, .. } = &statement.kind {
+                for arm in arms {
+                    self.map(arm.span)?;
+                }
+            }
             super::super::ct_selection::walk_statement(self, statement, depth)
         }
         fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
