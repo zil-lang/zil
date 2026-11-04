@@ -18,11 +18,11 @@ struct Symbol {
     public: bool,
     function: bool,
     generic: bool,
-    const_slots: Vec<bool>,
 }
 struct Index {
     symbols: BTreeMap<ModuleId, BTreeMap<String, Symbol>>,
     imports: BTreeMap<ModuleId, BTreeMap<String, ModuleId>>,
+    const_parameters: BTreeMap<String, Vec<bool>>,
 }
 
 fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
@@ -104,6 +104,7 @@ pub(super) fn protect_alias_nominals<'a>(
         }
     }
     let mut symbols = BTreeMap::new();
+    let mut const_parameters = BTreeMap::new();
     for item in &module.items {
         let (name, generic) = match &item.kind {
             ItemKind::Aggregate(a) => (&a.name, !a.generics.is_empty()),
@@ -129,6 +130,11 @@ pub(super) fn protect_alias_nominals<'a>(
                 )
             })?;
         };
+        let slots = const_slots(item, budget)?;
+        if !slots.is_empty() {
+            budget.text(&canonical, item.span)?;
+            const_parameters.insert(canonical.clone(), slots);
+        }
         budget.text(name, item.span)?;
         symbols.insert(
             name.clone(),
@@ -137,7 +143,6 @@ pub(super) fn protect_alias_nominals<'a>(
                 public: item.public,
                 function: false,
                 generic,
-                const_slots: const_slots(item, budget)?,
             },
         );
     }
@@ -147,6 +152,7 @@ pub(super) fn protect_alias_nominals<'a>(
     let index = Index {
         symbols: BTreeMap::from([(module.id, symbols)]),
         imports: BTreeMap::from([(module.id, BTreeMap::new())]),
+        const_parameters,
     };
     // The borrowed preflight above precedes this full syntax clone. The same
     // lexical visitor as project normalization preserves local shadowing.
@@ -289,6 +295,7 @@ fn normalize(
     let mut index = Index {
         symbols: BTreeMap::new(),
         imports: BTreeMap::new(),
+        const_parameters: BTreeMap::new(),
     };
     let mut files = BTreeMap::<FileId, usize>::new();
     let mut functions = Functions::new();
@@ -319,6 +326,11 @@ fn normalize(
                 }
                 let canonical = format!("$module{}_{}", module.id.0, name);
                 budget.text(&canonical, item.span)?;
+                let slots = const_slots(item, &mut budget)?;
+                if !slots.is_empty() {
+                    budget.text(&canonical, item.span)?;
+                    index.const_parameters.insert(canonical.clone(), slots);
+                }
                 if function {
                     functions.insert(canonical.clone(), (module.id, name.to_owned(), true));
                 }
@@ -329,7 +341,6 @@ fn normalize(
                         public: item.public,
                         function,
                         generic,
-                        const_slots: const_slots(item, &mut budget)?,
                     },
                 );
             }
@@ -696,32 +707,18 @@ impl Visitor<'_, '_, '_> {
         depth: usize,
     ) -> R<()> {
         let is_const = if let (Mode::Normalize(index), Some(target)) = (&self.mode, target) {
-            let mut found = false;
-            for symbols in index.symbols.values() {
-                for symbol in symbols.values() {
-                    if symbol.const_slots.is_empty() {
-                        continue;
-                    }
-                    self.budget.node(
-                        match argument {
-                            GenericArg::Type(t) => t.span,
-                            GenericArg::Const(e) => e.span,
-                        },
-                        depth,
-                    )?;
-                    self.budget.text(
-                        &symbol.canonical,
-                        match argument {
-                            GenericArg::Type(t) => t.span,
-                            GenericArg::Const(e) => e.span,
-                        },
-                    )?;
-                    if symbol.canonical == target {
-                        found = symbol.const_slots.get(position).copied().unwrap_or(false);
-                    }
-                }
+            if index.const_parameters.is_empty() {
+                false
+            } else {
+                let span = match argument {
+                    GenericArg::Type(t) => t.span,
+                    GenericArg::Const(e) => e.span,
+                };
+                self.budget.node(span, depth)?;
+                self.budget.text(target, span)?;
+                index.const_parameters.get(target)
+                    .and_then(|slots| slots.get(position)).copied().unwrap_or(false)
             }
-            found
         } else {
             false
         };

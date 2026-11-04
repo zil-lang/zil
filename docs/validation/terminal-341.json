@@ -71,11 +71,19 @@
     "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
   },
   "identity": {
-    "production_rust_path_nul_bytes_nul_sha256": "cc5208dcc7c0bae970bc59fc37e62eef91d65d5b4db70d605203f081ed7163c2",
+    "production_rust_path_nul_bytes_nul_sha256": "77466b65416d58cac7ca92b18cefbda6954d49aebe7e55d9b254035c04486ac0",
     "test_rust_path_nul_bytes_nul_sha256": "d9302126eecf558fb86b5362d2042cff070c69ddca771de1242ecc8fc76390ce",
     "executables": {
-      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "8e994d437d779c30a1bb7f607e32bb5c72699f2a525ad40aaaa21185fd19dadf",
-      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "a332f67c8cd772fb69642df05a1a6d3f9bb3a5bd6d3827592f2f27c7cd846738"
-    }
-  }
+      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "e784b1cb9e400b22aadbac750e74915758a214db1b57120307a504f74f636cc7",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "dc5e58f22981bd5674e849ccd4f5d6afc35b52a1ad1b20ca0cfbb8f96229bbb1"
+    },
+    "algorithm": "SHA-256 of sorted repository-relative UTF-8 path, NUL, exact file bytes, NUL for each selected path",
+    "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
+    "production_file_count": 305,
+    "test_selection": [
+      "crates/zil-driver/tests/generics.rs",
+      "crates/zil-driver/tests/impl162_trait_bounds.rs"
+    ]
+  },
+  "modules_const_lookup_review_fix": "Prebuilt canonical const-parameter index replaces per-argument scan across all module symbols; construction and nonempty index lookups are prepaid, empty index path is constant time. All six terminal341 tests replayed after this fix."
 }
