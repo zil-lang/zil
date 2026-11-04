@@ -15,3 +15,5 @@
 
 源码正例、最近反例、两核/Wire、机器 O0/O2 和适用额度测试随各阶段提交。
 未实现项保留明确未完成状态；不以 Unsupported 当作能力交付。
+
+组合消费者补充：std.iter.find返回Option<含u64的Copy Record>通过Verify后暴露Enum物理布局/store遗漏。按已定原生x64整数布局加入U64/Usize 8/8叶与真实存储，不改变Copy、FFI或线程资格；保留该普通源作为原生回归。
