@@ -461,27 +461,35 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     let roots = module
         .resources
         .iter()
-        .map(|r| &r.payload)
-        .chain(module.functions.iter().flat_map(|f| {
-            f.values
+        .map(|r| (&r.payload, false))
+        .chain(
+            module
+                .functions
                 .iter()
-                .chain(f.locals.iter().map(|l| &l.ty))
-                .chain(std::iter::once(&f.return_type))
-        }))
+                .flat_map(|f| {
+                    f.values
+                        .iter()
+                        .chain(f.locals.iter().map(|l| &l.ty))
+                        .chain(std::iter::once(&f.return_type))
+                })
+                .map(|t| (t, false)),
+        )
         .chain(module.closures.iter().flat_map(|c| {
-            c.captures
-                .iter()
-                .chain(c.parameters.iter())
-                .chain(std::iter::once(&c.result))
+            c.captures.iter().map(|t| (t, true)).chain(
+                c.parameters
+                    .iter()
+                    .chain(std::iter::once(&c.result))
+                    .map(|t| (t, false)),
+            )
         }));
-    for root in roots {
-        let mut pending = vec![(root, false)];
+    for (root, blocked) in roots {
+        let mut pending = vec![(root, blocked)];
         while let Some((ty, blocked)) = pending.pop() {
             budget.spend(1)?;
             if blocked && matches!(ty, Type::AsyncRegistration { .. }) {
                 return Err(error(
                     None,
-                    "pollable registration roots inside ordinary Store/Package need an asynchronous storage consumer",
+                    "pollable registration roots in ordinary aggregate storage or closure captures require an asynchronous ownership consumer",
                 ));
             }
             let count = match ty {
@@ -523,13 +531,18 @@ pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                     children.push(element.as_ref());
                 }
                 Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
-                Type::Tuple(fields) => children.extend(fields),
+                Type::Tuple(fields) => {
+                    blocked = true;
+                    children.extend(fields);
+                }
                 Type::Enum { variants, .. } => {
+                    blocked = true;
                     for (_, fields) in variants {
                         children.extend(fields);
                     }
                 }
                 Type::ErrorUnion { error, result } => {
+                    blocked = true;
                     children.extend([error.as_ref(), result.as_ref()])
                 }
                 Type::AsyncRegistration { environment: inner }

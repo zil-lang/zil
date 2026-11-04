@@ -109,7 +109,7 @@ pub(super) fn add_definitions(
                 if blocked && matches!(t, Type::AsyncRegistration { .. }) {
                     return Err(unsupported(
                         f.span,
-                        "pollable registration roots inside ordinary Store/Package require an asynchronous storage consumer",
+                        "pollable registration roots in ordinary aggregate storage require an asynchronous ownership consumer",
                     ));
                 }
                 match t {
@@ -144,7 +144,7 @@ pub(super) fn add_definitions(
                     }
                     Type::Tuple(ts) => {
                         spend(left, ts.len())?;
-                        pending.extend(ts.iter().map(|t| (t, blocked)))
+                        pending.extend(ts.iter().map(|t| (t, true)))
                     }
                     Type::Record { fields, .. } | Type::Package { fields, .. } => {
                         spend(left, fields.len())?;
@@ -155,12 +155,12 @@ pub(super) fn add_definitions(
                         spend(left, variants.len())?;
                         for (_, ts) in variants {
                             spend(left, ts.len())?;
-                            pending.extend(ts.iter().map(|t| (t, blocked)))
+                            pending.extend(ts.iter().map(|t| (t, true)))
                         }
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        pending.extend([(error.as_ref(), blocked), (result.as_ref(), blocked)])
+                        pending.extend([(error.as_ref(), true), (result.as_ref(), true)])
                     }
                     _ => {}
                 }

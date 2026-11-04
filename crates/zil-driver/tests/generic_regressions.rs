@@ -4790,6 +4790,8 @@ fn async_registration_g8412_source_neighbors_and_unused_definitions() {
         original.replace("var count=37;", "unsafe {async_drain(c_null());} var count=37;"),
         original.replace("unsafe {", "{"),
         original.replace("async_registration_finish_destroy(give owner);", ""),
+        original.replace("async_registration_finish_destroy(give owner);", "let pair=(give owner,1);"),
+        original.replace("async_registration_finish_destroy(give owner);", "let cleanup=move()->i32=>{async_registration_finish_destroy(give owner);return 0};"),
         original.replace("async_registration_finish_destroy(give owner);", "registration_close(give owner);"),
         original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(owner);"),
         original.replace("async_registration_finish_destroy(give owner);", "async_registration_finish_destroy(give owner);async_registration_finish_destroy(give owner);"),
@@ -4876,7 +4878,7 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
         .iter()
         .position(|f| f.name == "main")
         .unwrap();
-    for variant in 0..10 {
+    for variant in 0..14 {
         let mut raw = typed.clone();
         match variant {
             0 => {
@@ -4981,6 +4983,38 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
                     .find(|i| matches!(i.kind, I::AsyncRegistrationStart { .. }))
                     .unwrap();
                 i.result = None;
+            }
+            10 | 11 | 12 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                let owner = Type::Managed(Box::new(payload));
+                let aggregate = match variant {
+                    10 => Type::Tuple(vec![owner, Type::I32]),
+                    11 => Type::Enum {
+                        name: "@user:pollable-enum".into(),
+                        variants: vec![("Owner".into(), vec![owner])],
+                    },
+                    _ => Type::ErrorUnion {
+                        error: Box::new(Type::I32),
+                        result: Box::new(owner),
+                    },
+                };
+                raw.functions[main].values.push(aggregate);
+            }
+            13 => {
+                let payload = raw
+                    .resources
+                    .iter()
+                    .find(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+                    .unwrap()
+                    .payload
+                    .clone();
+                raw.closures[0].captures[0] = Type::Managed(Box::new(payload));
             }
             _ => unreachable!(),
         }

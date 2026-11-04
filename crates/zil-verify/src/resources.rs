@@ -1789,10 +1789,7 @@ impl Transfer<'_> {
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
-                    if validate
-                        && f.call_kind == CallKind::Direct
-                        && state.debt[index] & LIVE != 0
-                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
+                    if validate && f.call_kind == CallKind::Direct && state.debt[index] & LIVE != 0
                     {
                         tasks::require_synchronous_drop(
                             self.module,
