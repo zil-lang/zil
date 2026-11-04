@@ -298,6 +298,7 @@ impl Builder<'_, '_> {
                     && !resource_head
                     && !(mutable && decl.ty == tasks::owner())
                     && !product_head
+                    && !owned_shapes::enumeration(&decl.ty)
                 {
                     return Err(unsupported(
                         e.span,
@@ -330,6 +331,7 @@ impl Builder<'_, '_> {
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
                     && !result.1.is_shared_resource_head_address()
                     && !result.1.is_package_address()
+                    && !reference_patterns::sum_address(&result.1)
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",

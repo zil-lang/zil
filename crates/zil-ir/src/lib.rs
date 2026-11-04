@@ -1470,6 +1470,13 @@ pub enum InstructionKind {
         variant: u32,
         index: u32,
     },
+    /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
+    /// nonempty field path retains parent storage, initialization and mutability.
+    BorrowFieldLocal {
+        local: LocalId,
+        path: Vec<u32>,
+        mutable: bool,
+    },
     /// Observe a complete live local through Enum-only checked projections.
     /// Empty path observes the root tag; the terminal type must be Enum.
     VariantTagLocal {
@@ -1487,6 +1494,18 @@ pub enum InstructionKind {
     /// claims checked independently. The address retains its parent local loan.
     BorrowVariantLocal {
         local: LocalId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
+    },
+    /// Observe the actual Enum addressed by this value through active prefixes.
+    /// Address identity, current tag epochs and permission are untrusted claims.
+    VariantTagAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+    },
+    /// Borrow an actual addressed payload, retaining its real parent loan.
+    BorrowVariantAddress {
+        address: ValueId,
         path: Vec<VariantProjection>,
         mutable: bool,
     },
@@ -2635,6 +2654,19 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, *variant);
             encode_u32(b, *index);
         }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for field in path {
+                encode_u32(b, *field);
+            }
+            b.push(u8::from(*mutable));
+        }
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {
             b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
@@ -2662,6 +2694,23 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, step.index);
             }
             b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
         }
         InstructionKind::UnpackVariant {
             local,

@@ -708,6 +708,7 @@ fn bind_lir(
         }
         if !(function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
+            || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
             || errors::supported_type(&function.return_type, lir.resources)
@@ -718,6 +719,7 @@ fn bind_lir(
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
                     || ty.is_scalar_or_address()
+                    || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
                     || packages::supported_value_type(ty, lir.resources)
                     || errors::supported_type(ty, lir.resources)
@@ -737,6 +739,7 @@ fn bind_lir(
             if !ty.is_copy_value()
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
+                && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()
@@ -1906,6 +1909,15 @@ impl FunctionEmitter<'_> {
                         vararg: None,
                     },
                 )));
+            }
+            InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                self.borrow_inline_field(instruction, *local, path)?
+            }
+            InstructionKind::VariantTagAddress { address, path } => {
+                self.variant_tag_address(instruction, *address, path)?
+            }
+            InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                self.borrow_variant_address(instruction, *address, path)?
             }
             InstructionKind::VariantTagLocal { local, path } => {
                 self.variant_tag_local(instruction, *local, path)?
@@ -3084,7 +3096,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
                 || ty.is_exclusive_task_head_address()
-                || ty.is_package_address() =>
+                || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::Enum { .. }) =>
         {
             Ok("ptr".into())
         }
@@ -3148,7 +3161,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
                 || ty.is_exclusive_task_head_address()
-                || ty.is_package_address() =>
+                || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::Enum { .. }) =>
         {
             Ok(8)
         }

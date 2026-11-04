@@ -41,6 +41,7 @@ use zil_base::{
 };
 use zil_ir::*;
 
+mod address_sums;
 mod borrowed_fp;
 mod borrows;
 mod byte_buffers;
@@ -981,6 +982,9 @@ fn check_function_signature_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+            sums::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
@@ -1023,6 +1027,9 @@ fn check_local_type(
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
         {
             packages::check_shared_product_type(module, inner, span, budget)
+        }
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+            sums::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
@@ -1176,6 +1183,7 @@ fn check_function(
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
+    let mut addressed_sums = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -1207,6 +1215,11 @@ fn check_function(
                     ));
                 }
             }
+            addressed_sums |= matches!(
+                instruction.kind,
+                InstructionKind::VariantTagAddress { .. }
+                    | InstructionKind::BorrowVariantAddress { .. }
+            );
             check_instruction(module, function, instruction, budget)?;
             if let InstructionKind::Store { local, .. }
             | InstructionKind::BindPackageCapture { local, .. } = instruction.kind
@@ -1312,6 +1325,9 @@ fn check_function(
         ));
     }
     let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
+    if addressed_sums {
+        address_sums::check(function, &successors, &reachable, budget)?;
+    }
     let (initialized_in, initialized_out) =
         initialization(function, &predecessors, &reachable, &parameters, budget)?;
     for (b, block) in function.blocks.iter().enumerate() {
@@ -1355,6 +1371,7 @@ fn check_function(
                 | InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1512,6 +1529,11 @@ fn check_instruction(
         | InstructionKind::DropPackage { .. }
         | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::BorrowFieldLocal { .. }
+        | InstructionKind::VariantTagAddress { .. }
+        | InstructionKind::BorrowVariantAddress { .. } => {
+            address_sums::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeOwnedArray { .. }
         | InstructionKind::ProjectOwnedArrayField { .. }
@@ -1678,6 +1700,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Enum { .. }) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
@@ -1695,6 +1719,8 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(inner, Type::Enum { .. }) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
@@ -2714,10 +2740,13 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TaskPollClose { task }
         | InstructionKind::TaskFinishDestroy { task } => ([Some(*task), None], &[]),
         InstructionKind::TaskYield => ([None, None], &[]),
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
         | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::RegisterDefer { .. }

@@ -526,6 +526,451 @@ fn terminal340_unsigned_native_wrapper_and_api_traps() {
     }
 }
 
+#[test]
+fn terminal340_addressed_sums_and_tuple_siblings_native() {
+    for text in [
+        "fn result()->i32{let(ref mut a,b)=(20,22);*a+=b;return *a}",
+        "fn result()->i32{let(ref mut a,b)=(1,42);return b}",
+        "enum E{Data(i32),None}fn inspect(value:&E)->i32{match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+        "enum E{Pair(i32,i32),None}fn mutate(value:&mut E)->i32{match *value{E.Pair(ref mut a,ref mut b)=>{*a+=*b;return *a},E.None()=>{return 0}}}fn result()->i32{var value=E.Pair(20,22);return mutate(&mut value)}",
+        "package P{manages bytes:ByteBuffer;n:i32}fn inspect(value:&Option<P>)->i32{match *value{Option.Some(ref p)=>{return p.n},Option.None()=>{return 0}}}fn result()->i32{let value:P?=Option.Some(P{bytes:bytes_new(),n:42});return inspect(&value)}",
+        "package P{manages bytes:ByteBuffer;n:i32}fn inspect(value:&Option<P>)->i32{match *value{Option.Some(_)=>{return 42},Option.None()=>{return 0}}}fn result()->i32{let value:P?=Option.Some(P{bytes:bytes_new(),n:1});return inspect(&value)}",
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{let value=E.Data(42);let p=select(&value);return *p}",
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{var value=E.Data(42);let p=select(&value);let n=*p;value=E.Data(1);return n}",
+        "fn result()->i32{var pair=(20,22);let(ref a,b)=pair;let f=()->i32=>*a;let n=f();pair=(1,2);return n+b}",
+        "enum E{Data(i32),None}fn worker(n:i32)->i32{return n}fn inspect(value:&mut E)->i32{let body=()->i32=>{*value=E.Data(42);return 0};thread_scope(worker,0,body);match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{var value=E.None;return inspect(&mut value)}",
+    ] {
+        review329_native(&[("main", text)], 42);
+    }
+}
+
+#[test]
+fn terminal340_addressed_sums_raw_and_permission_neighbors() {
+    for text in [
+        "enum E{Data(i32)}fn select(value:&E)->&i32{match *value{E.Data(ref p)=>{return p}}}fn result()->i32{var value=E.Data(42);let p=select(&value);value=E.Data(1);return *p}",
+        "enum E{Data(i32)}fn inspect(value:&E)->i32{match *value{E.Data(ref mut p)=>{return *p}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+        "fn result()->i32{var pair=(20,22);let(ref a,b)=pair;let f=()->i32=>*a;pair=(1,2);return f()+b}",
+        "fn result()->i32{var pair=(20,22);let(ref mut a,ref mut b)=pair;let whole=&pair;return *a+*b+whole.0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}\n{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    let input = source(
+        "enum E{Data(i32),Other(i32)}fn inspect(value:&E)->i32{match *value{E.Data(ref p)=>{return *p},E.Other(_)=>{return 0}}}fn result()->i32{let value=E.Data(42);return inspect(&value)}",
+    );
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_ok());
+    for mode in 0..3 {
+        let mut raw = typed.clone();
+        let f = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "inspect")
+            .unwrap();
+        if mode == 0 {
+            let block = f
+                .blocks
+                .iter_mut()
+                .find(|b| matches!(b.terminator, zil_ir::Terminator::Branch { .. }))
+                .unwrap();
+            let zil_ir::Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } = &mut block.terminator
+            else {
+                unreachable!()
+            };
+            *else_block = *then_block;
+        } else {
+            let i = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::BorrowVariantAddress { .. }))
+                .unwrap();
+            let InstructionKind::BorrowVariantAddress { path, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            if mode == 1 {
+                path[0].variant = 1
+            } else {
+                path[0].index = 1
+            }
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted forged address proof {mode}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let error =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-VERIFY-SUM-ADDRESS"),
+            "{mode}: {error:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn terminal340_addressed_tag_call_epoch_neighbors() {
+    for (prelude, call, mode) in [
+        ("fn observe()->i32{return 0}", "observe();", 0),
+        (
+            "fn worker(n:i32)->i32{return n}",
+            "let body=()->i32=>0;thread_scope(worker,0,body);",
+            1,
+        ),
+        ("", "let body=()->i32=>0;let shared=&body;shared();", 2),
+        (
+            "resource Mark{code:i32}impl Drop for Mark{fn drop(self:Self){}}",
+            "let owner=Mark{code:0};let body=move()->i32=>owner.code;body();",
+            3,
+        ),
+    ] {
+        let text = format!(
+            "enum E{{Data(i32),None}}{prelude}fn inspect(value:&E)->i32{{{call}match *value{{E.Data(ref p)=>{{return *p}},E.None()=>{{return 0}}}}}}fn result()->i32{{let value=E.Data(42);return inspect(&value)}}"
+        );
+        // The current observation is made after the call in this real source.
+        review329_native(&[("main", &text)], 42);
+        let input = source(&text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let mut raw = typed.clone();
+        let f = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "inspect")
+            .unwrap();
+        let (from, position) = f
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(block, b)| {
+                b.instructions
+                    .iter()
+                    .position(|i| match mode {
+                        0 => matches!(i.kind, InstructionKind::Call { .. }),
+                        1 => matches!(i.kind, InstructionKind::WithScopedThread { .. }),
+                        2 => matches!(i.kind, InstructionKind::CallClosureBorrowed { .. }),
+                        _ => matches!(i.kind, InstructionKind::CallClosureShared { .. }),
+                    })
+                    .map(|position| (block, position))
+            })
+            .unwrap_or_else(|| panic!("missing call form {mode}"));
+        let call = f.blocks[from].instructions.remove(position);
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|b| {
+                b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, InstructionKind::BorrowVariantAddress { .. }))
+            })
+            .unwrap();
+        let before = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::BorrowVariantAddress { .. }))
+            .unwrap();
+        block.instructions.insert(before, call);
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted stale tag across call form {mode}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let error =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-VERIFY-SUM-ADDRESS"),
+            "{mode}: {error:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn terminal340_addressed_tag_child_mutation_epoch() {
+    let text = "enum E{Data(i32),None}fn replace(value:&mut E){*value=E.None}fn inspect(value:&mut E)->i32{match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{var value=E.Data(42);return inspect(&mut value)}";
+    review329_native(&[("main", text)], 42);
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    let replace = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "replace")
+        .unwrap()
+        .id;
+    let f = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "inspect")
+        .unwrap();
+    let address = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let InstructionKind::VariantTagAddress { address, .. } = i.kind {
+                Some(address)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let child = zil_ir::ValueId(f.values.len() as u32);
+    f.values.push(f.values[address.0 as usize].clone());
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, InstructionKind::BorrowVariantAddress { .. }))
+        })
+        .unwrap();
+    let position = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::BorrowVariantAddress { .. }))
+        .unwrap();
+    let span = block.instructions[position].span;
+    block.instructions.splice(
+        position..position,
+        [
+            zil_ir::Instruction {
+                result: Some(child),
+                kind: InstructionKind::ReborrowAddress {
+                    address,
+                    mutable: true,
+                },
+                span,
+            },
+            zil_ir::Instruction {
+                result: None,
+                kind: InstructionKind::Call {
+                    function: replace,
+                    arguments: vec![child],
+                },
+                span,
+            },
+        ],
+    );
+    let fp = claim
+        .functions
+        .iter_mut()
+        .find(|p| p.function == f.id)
+        .unwrap();
+    fp.holds.push(zil_ir::ValueHold {
+        value: child,
+        roots: vec![zil_ir::HoldRoot::Parameter(0)],
+    });
+    claim.module_fingerprint = raw.fingerprint();
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    let errors =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-VERIFY-SUM-ADDRESS"),
+        "{errors:?}"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    // The nearest current observation after the legal child mutation succeeds.
+    let current = "enum E{Data(i32),None}fn replace(value:&mut E){*value=E.Data(42)}fn inspect(value:&mut E)->i32{replace(&mut *value);match *value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{var value=E.None;return inspect(&mut value)}";
+    review329_native(&[("main", current)], 42);
+}
+
+#[test]
+fn terminal340_addressed_budget_boundaries() {
+    use zil_driver::CompilationSession;
+    let text = include_str!("../../../tests/language-readiness/terminal/340/addressed.zil");
+    review329_native(&[("main", text)], 42);
+    let input = source(text);
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let mut low = 1;
+    let mut high = Limits::default().max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected budget result {status:?}"),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!(
+        "340 addressed/inline-field full-request analysis N={low}, N-1 rejects, fresh/warm agree"
+    );
+}
+
+#[test]
+fn terminal340_option_owned_reference_drop_once() {
+    for some in [true, false] {
+        for binding in ["ref payload", "_"] {
+            let result = if binding == "_" { "42" } else { "payload.n" };
+            let text = format!(
+                r#"extern "C" fn putchar(code:i32)->i32;resource Token{{code:i32}}impl Drop for Token{{fn drop(self:Self){{unsafe{{putchar(.code)}}}}}}package P{{manages token:Token;n:i32}}fn build(some:bool)->P?{{if some{{return Option.Some(P{{token:Token{{code:65}},n:42}})}}return Option.None}}fn work()->i32{{let owner=build({some});match owner{{Option.Some({binding})=>{{return {result}}},Option.None()=>{{return 42}}}}}}fn result()->i32{{return work()}}"#
+            );
+            review329_native_output(&[("main", &text)], if some { b"A42\n" } else { b"42\n" });
+        }
+    }
+}
+
+#[test]
+fn terminal340_inline_field_raw_authority_and_alias_neighbors() {
+    let input = source("fn result()->i32{let(ref mut a,b)=(20,22);*a+=b;return *a}");
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for mode in 0..3 {
+        let mut raw = typed.clone();
+        let f = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "result")
+            .unwrap();
+        if mode == 0 {
+            let local = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    if let InstructionKind::BorrowFieldLocal {
+                        local,
+                        mutable: true,
+                        ..
+                    } = i.kind
+                    {
+                        Some(local)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            f.locals[local.0 as usize].mutable = false;
+        } else {
+            let i = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| {
+                    matches!(
+                        i.kind,
+                        InstructionKind::BorrowFieldLocal { mutable: false, .. }
+                    )
+                })
+                .unwrap();
+            let InstructionKind::BorrowFieldLocal { path, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            path[0] = if mode == 1 { 0 } else { 2 };
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted forged inline field {mode}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify accepted forged inline field {mode}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn terminal340_local_variant_alias_and_nested_parent_neighbors() {
+    for first in ["ref a", "ref mut a"] {
+        let text = format!(
+            "enum E{{Pair(i32,i32)}}fn result()->i32{{var value=E.Pair(20,22);match value{{E.Pair({first},ref mut b)=>{{return *a+*b}}}}}}"
+        );
+        review329_native(&[("main", &text)], 42);
+        let input = source(&text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+        let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        let i = raw
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+            .filter(|i| matches!(i.kind, InstructionKind::BorrowVariantLocal { .. }))
+            .nth(1)
+            .unwrap();
+        let InstructionKind::BorrowVariantLocal { path, .. } = &mut i.kind else {
+            unreachable!()
+        };
+        path[0].index = 0;
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted local106 alias {first}"
+        );
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err());
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+    for text in [
+        "enum E{Data(i32)}fn selected(value:&mut E)->&mut i32{match *value{E.Data(ref mut p)=>{return p}}}fn result()->i32{var value=E.Data(20);let p=selected(&mut value);*p+=22;return *p}",
+        "enum Inner{Data(i32),None}enum Outer{Data(Inner),None}fn inspect(value:&mut Outer)->i32{match *value{Outer.Data(ref mut inner)=>{match *inner{Inner.Data(ref mut p)=>{*p+=22;return *p},Inner.None()=>{return 0}}},Outer.None()=>{return 0}}}fn result()->i32{var value=Outer.Data(Inner.Data(20));return inspect(&mut value)}",
+    ] {
+        review329_native(&[("main", text)], 42)
+    }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),
@@ -551,6 +996,9 @@ fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
 }
 
 fn review329_native(files: &[(&str, &str)], expected: i64) {
+    review329_native_output(files, format!("{expected}\n").as_bytes())
+}
+fn review329_native_output(files: &[(&str, &str)], expected: &[u8]) {
     use zil_driver::{NativeBackend, Optimization};
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -596,7 +1044,7 @@ fn review329_native(files: &[(&str, &str)], expected: i64) {
                 observed.status.success(),
                 "{backend:?}/{optimization:?}: {observed:?}"
             );
-            assert_eq!(observed.stdout, format!("{expected}\n").as_bytes());
+            assert_eq!(observed.stdout, expected);
             assert!(observed.stderr.is_empty());
         }
     }

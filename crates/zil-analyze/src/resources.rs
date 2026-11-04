@@ -419,6 +419,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::TaskPollClose { task }
         | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
         InstructionKind::TaskYield => (None, None, &[]),
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
@@ -505,6 +507,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
         | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -1038,7 +1041,8 @@ impl Flow<'_> {
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
-                | InstructionKind::BorrowVariantLocal { local, .. } => {
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(

@@ -849,6 +849,42 @@ impl Flow<'_> {
             let mut result = None;
             let mut bridge = Bridge::default();
             match &instruction.kind {
+                InstructionKind::BorrowLocalMut { local }
+                    if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+                {
+                    fn forget(at: &mut Content, t: &Type, b: &mut Budget) -> Check<()> {
+                        resources::charge_payload(t, b)?;
+                        if matches!(t, Type::Enum { .. }) && t.is_copy_value() {
+                            *at = content(t, None, &mut Vec::new(), false, b)?;
+                            return Ok(());
+                        }
+                        match (at, t) {
+                            (Content::Sum(vs, _), Type::Enum { variants, .. }) => {
+                                for (tag, fields) in vs {
+                                    for (child, t) in
+                                        fields.iter_mut().zip(&variants[*tag as usize].1)
+                                    {
+                                        forget(child, t, b)?;
+                                    }
+                                }
+                            }
+                            (Content::Product(children), Type::Package { fields, .. }) => {
+                                for (child, (_, t)) in children.iter_mut().zip(fields) {
+                                    forget(child, t, b)?;
+                                }
+                            }
+                            _ => {}
+                        }
+                        Ok(())
+                    }
+                    state.locals[local.0 as usize].cost(budget)?;
+                    forget(
+                        Arc::make_mut(&mut state.locals[local.0 as usize]),
+                        &self.f.locals[local.0 as usize].ty,
+                        budget,
+                    )?;
+                    self.kill(state, *local, budget)?;
+                }
                 InstructionKind::MakeManaged { .. }
                 | InstructionKind::ByteBufferNew
                 | InstructionKind::OwnedStoreNew { .. } => {
@@ -975,16 +1011,15 @@ impl Flow<'_> {
                                 ty,
                                 budget,
                             )?;
+                            budget.spend(
+                                path.len()
+                                    .saturating_add(state.facts.len())
+                                    .saturating_add(state.observations.len()),
+                            )?;
                             let prefix = path
                                 .iter()
                                 .map(|p| (p.variant, p.index))
                                 .collect::<Vec<_>>();
-                            budget.spend(
-                                prefix
-                                    .len()
-                                    .saturating_add(state.facts.len())
-                                    .saturating_add(state.observations.len()),
-                            )?;
                             state.facts.retain(|(root, observed, _)| {
                                 *root != *local || !observed.starts_with(&prefix)
                             });

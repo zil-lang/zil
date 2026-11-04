@@ -215,6 +215,33 @@ impl Tree {
     ) -> CompileResult<bool> {
         edit(self, budget)?.narrow_body(path, tag, equal, budget)
     }
+    fn forget_addressed_copy_tags(
+        self: &mut Arc<Self>,
+        ty: &Type,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
+        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+            *self = Self::unknown(ty, budget)?;
+            return Ok(());
+        }
+        match (&mut edit(self, budget)?.node, ty) {
+            (Node::Sum(vs), Type::Enum { variants, .. }) => {
+                for (tag, fields) in vs {
+                    for (child, t) in fields.iter_mut().zip(&variants[*tag as usize].1) {
+                        child.forget_addressed_copy_tags(t, budget)?;
+                    }
+                }
+            }
+            (Node::Product(children), Type::Package { fields, .. }) => {
+                for (child, (_, t)) in children.iter_mut().zip(fields) {
+                    child.forget_addressed_copy_tags(t, budget)?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     fn forget_copy_endpoint(
         self: &mut Arc<Self>,
         path: &[VariantProjection],
@@ -671,6 +698,16 @@ impl Plan {
         }
         let mut output = None;
         match &i.kind {
+            InstructionKind::BorrowLocalMut { local }
+                if matches!(f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+            {
+                facts
+                    .locals
+                    .get_mut(local)
+                    .ok_or_else(|| error("mutable Sum local absent"))?
+                    .forget_addressed_copy_tags(&f.locals[local.0 as usize].ty, budget)?;
+                facts.invalidate(*local, self, budget)?;
+            }
             InstructionKind::Constant(_) | InstructionKind::MakeAggregate { .. } => {}
             InstructionKind::MakeManaged { .. }
             | InstructionKind::ByteBufferNew
