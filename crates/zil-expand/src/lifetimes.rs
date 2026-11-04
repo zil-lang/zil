@@ -91,6 +91,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
+                self.budget.note_dynamic();
+            }
             if matches!(ty.kind, s::TypeKind::ForLifetime { .. }) {
                 let old_binders = std::mem::take(&mut self.binders);
                 let old_headers = std::mem::take(&mut self.headers);

@@ -6,6 +6,8 @@ use super::*;
 pub(super) mod associated;
 #[path = "generic_trait_constants.rs"]
 pub(super) mod constants;
+#[path = "generic_trait_dyn.rs"]
+pub(crate) mod dynamic;
 #[path = "generic_trait_solver.rs"]
 mod solver;
 #[path = "generic_trait_super.rs"]
@@ -146,7 +148,8 @@ impl<'a> Index<'a> {
     ) -> R<Self> {
         let mut declarations = BTreeMap::new();
         let implementations = BTreeSet::new();
-        let mut has_instances = false;
+        let has_dynamic = budget.has_dynamic();
+        let mut has_instances = has_dynamic;
         let mut has_defaults = false;
         let mut has_supertraits = false;
         let mut has_associated = false;
@@ -236,6 +239,7 @@ impl<'a> Index<'a> {
                     || has_supertraits
                     || has_associated
                     || has_generic_methods
+                    || has_dynamic
                 {
                     trait_instances::validate_declaration(
                         item,
@@ -382,7 +386,9 @@ impl<'a> Index<'a> {
                 index.references.insert(key, reference);
             }
         }
-        if validate && (!index.recipes.is_empty() || has_associated || has_generic_methods) {
+        if validate
+            && (!index.recipes.is_empty() || has_associated || has_generic_methods || has_dynamic)
+        {
             for (item, declaration) in index.declarations.values() {
                 budget.context.origin = index.origin(item, budget)?;
                 trait_instances::validate_declaration(item, declaration, &index.nominals, budget)?;
