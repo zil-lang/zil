@@ -1,5 +1,5 @@
 {
-  "status": "PassLimited",
+  "status": "ReviewFindingOpen",
   "reviewer": "/root/terminal_architecture",
   "source_commit": "0cb5e8da6692835b68c49bb00b51666d51b7321a",
   "scope": "Ordinary generic receiver methods with inferred/explicit type and const actuals, concrete provider specialization and exact declaring-module provenance.",
@@ -105,5 +105,7 @@
     "Full23+58 target and Clippy counts remain author evidence; reviewer independently ran only19 focused tests.",
     "Root Wire37/HRTB/Task/partial-pattern composition needs actual integrated replay.",
     "No full workspace, native Windows, Rust comparison or whole-language/product completion claim."
-  ]
+  ],
+  "prior_limited_replay_status": "PassLimited at cf41493a1; exact execution records below unchanged",
+  "new_followup": "review341-methods-dispatch-followup.json: substitution changes expression ordinals and can select the wrong provider; corrected checkpoint pending."
 }
