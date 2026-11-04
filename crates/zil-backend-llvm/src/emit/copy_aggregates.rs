@@ -205,6 +205,9 @@ pub(super) fn reserve_enum_metadata(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::AsyncRegistration {
+            environment: element,
+        }
         | Type::Registration {
             environment: element,
         }

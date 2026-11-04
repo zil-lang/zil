@@ -612,23 +612,41 @@ fn split_await(
     if let Some(marker) = result_marker {
         ready.push(marker);
     }
+    branch(&mut ready, &format!("{prefix}.close"));
+    pieces.push(block(&format!("{prefix}.ready"), ready));
+    let close_pc = pieces.len();
+    resumes.insert(close_pc);
+    let mut close = vec![];
     call(
-        &mut ready,
+        &mut close,
         Some(&format!("{prefix}.closed")),
         m::Ty::Int(1),
         m::global(name(child.worker, "poll_close")),
         vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
     );
-    // The checked closed child/teardown graph proves synchronous close;
-    // the child result is self-contained. General Pending close will retain
-    // this moved result in the parent's PendingExit responsibility instead.
     cond(
-        &mut ready,
+        &mut close,
         &format!("{prefix}.closed"),
         &format!("{prefix}.destroy"),
-        "task.trap",
+        &format!("{prefix}.close.pending"),
     );
-    pieces.push(block(&format!("{prefix}.ready"), ready));
+    pieces.push(block(&format!("{prefix}.close"), close));
+    let mut pending = vec![];
+    store(
+        &mut pending,
+        m::Ty::Int(32),
+        m::val(close_pc),
+        loc("task.pc"),
+    );
+    store(&mut pending, m::Ty::Int(32), m::val(0), loc("task.state"));
+    poll_result_typed(
+        &mut pending,
+        0,
+        m::Val::Zero,
+        &format!("{prefix}.close.pending"),
+        parent_result,
+    );
+    pieces.push(block(&format!("{prefix}.close.pending"), pending));
     let mut destroy = vec![];
     call(
         &mut destroy,
@@ -921,6 +939,38 @@ fn lower_worker(
                 );
                 pieces.push(current);
                 current = block(&next, vec![]);
+            } else if matches!(&i.op,m::Op::Call{callee:m::Val::Global(n),..} if n=="zil.async_registration.drop.marker")
+            {
+                let m::Op::Call { args, .. } = &i.op else {
+                    unreachable!()
+                };
+                let prefix = format!("async.drop.{}", pieces.len());
+                let loop_label = format!("{prefix}.poll");
+                branch(&mut current.instructions, &loop_label);
+                pieces.push(current);
+                let pc = pieces.len();
+                resumes.insert(pc);
+                let mut drain = vec![];
+                call(
+                    &mut drain,
+                    Some(&format!("{prefix}.ready")),
+                    m::Ty::Int(1),
+                    m::global("zil.async_registration.drop".into()),
+                    args.clone(),
+                );
+                cond(
+                    &mut drain,
+                    &format!("{prefix}.ready"),
+                    &format!("{prefix}.after"),
+                    &format!("{prefix}.pending"),
+                );
+                pieces.push(block(&loop_label, drain));
+                let mut pending = vec![];
+                store(&mut pending, m::Ty::Int(32), m::val(pc), loc("task.pc"));
+                store(&mut pending, m::Ty::Int(32), m::val(0), loc("task.state"));
+                poll_result_typed(&mut pending, 0, m::Val::Zero, &prefix, payload_ty);
+                pieces.push(block(&format!("{prefix}.pending"), pending));
+                current = block(&format!("{prefix}.after"), vec![]);
             } else if awaited(&i.op).is_some() {
                 let mut result_marker = None;
                 if let Some(plan) = verified.task_ownership(id) {
@@ -1331,6 +1381,14 @@ fn lower_worker(
         init_blocks,
     ));
     let mut cancel = vec![];
+    gep(&mut cancel, "cancel.state", &frame, loc("frame"), STATE);
+    load(
+        &mut cancel,
+        "cancel.previous",
+        m::Ty::Int(32),
+        loc("cancel.state"),
+    );
+    store(&mut cancel, m::Ty::Int(32), m::val(4), loc("cancel.state"));
     gep(&mut cancel, "cancel", &frame, loc("frame"), CANCEL);
     store(&mut cancel, m::Ty::Int(1), m::val(true), loc("cancel"));
     let mut cancel_blocks = vec![];
@@ -1359,6 +1417,13 @@ fn lower_worker(
         label = next;
         cancel = vec![];
     }
+    owners::request(&mut cancel, &frame, owners.as_ref());
+    store(
+        &mut cancel,
+        m::Ty::Int(32),
+        loc("cancel.previous"),
+        loc("cancel.state"),
+    );
     push(&mut cancel, None, m::Op::Return(None));
     cancel_blocks.push(block(&label, cancel));
     items.push(function(
@@ -1378,9 +1443,10 @@ fn lower_worker(
         m::val(4),
         "eq",
     );
-    cond(&mut close, "active", "pending", "close");
+    cond(&mut close, "active", "busy.pending", "close");
     let mut close_blocks = vec![block("entry", close)];
     let mut closed = vec![];
+    store(&mut closed, m::Ty::Int(32), m::val(4), loc("state"));
     // The independently admitted scalar lane has sequential Await only:
     // at most one direct child is active in each parent frame. Static site
     // order therefore agrees with the active creation order here. Owning or
@@ -1432,12 +1498,25 @@ fn lower_worker(
         closed = vec![];
     }
     owners::drain(&mut closed, &frame, owners.as_ref());
+    if owners.is_some() {
+        close_blocks.push(block(&label, closed));
+        label = "owners.closed".into();
+        closed = vec![];
+    }
     store(&mut closed, m::Ty::Int(32), m::val(3), loc("state"));
     ret(&mut closed, m::Ty::Int(1), m::val(true));
     close_blocks.push(block(&label, closed));
     let mut pending = vec![];
+    store(&mut pending, m::Ty::Int(32), m::val(5), loc("state"));
     ret(&mut pending, m::Ty::Int(1), m::val(false));
     close_blocks.push(block("pending", pending));
+    close_blocks.push(block(
+        "busy.pending",
+        vec![inst(
+            None,
+            m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), false))),
+        )],
+    ));
     items.push(function(
         name(id, "poll_close"),
         m::Ty::Int(1),

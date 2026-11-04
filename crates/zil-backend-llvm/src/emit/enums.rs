@@ -90,7 +90,10 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(payload.as_ref(), Type::Registration { .. })
+                || matches!(
+                    payload.as_ref(),
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                )
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Layout { size: 8, align: 8 }
@@ -100,9 +103,10 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             fields_layout(fields.iter().map(|(_, ty)| ty))?
         }
         Type::Managed(payload) => physical_layout(payload)?,
-        Type::Registration { .. } | Type::Task { .. } | Type::TaskI32 => {
-            Layout { size: 8, align: 8 }
-        }
+        Type::Registration { .. }
+        | Type::AsyncRegistration { .. }
+        | Type::Task { .. }
+        | Type::TaskI32 => Layout { size: 8, align: 8 },
         Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
