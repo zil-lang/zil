@@ -1,7 +1,9 @@
 //! Bounded, canonical CT-only wire. Field codecs below use explicit
 //! schema-order tags; no Debug/serde layout or runtime Wire31 dependency.
 use crate::ct_artifact::*;
-use crate::{BinaryOp, Constant, FunctionLifeContract, UnaryOp};
+use crate::{BinaryOp, Constant, StorageLifeContract, UnaryOp};
+#[path = "ct_wire_scopes.rs"]
+mod scopes;
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -504,7 +506,7 @@ macro_rules! base_id { ($($t:ident),+ $(,)?) => {$( impl Wire for $t {
     fn encode(&self,e:&mut Encoder)->Result<()> { self.0.encode(e) }
     fn decode(d:&mut Decoder<'_>)->Result<Self> { Ok(Self(u32::decode(d)?)) }
 } )+}; }
-base_id!(FileId, ModuleId, NodeId);
+base_id!(FileId, ModuleId, NodeId, CtAmbientScopeId);
 impl Wire for Span {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         self.file.encode(e)?;
@@ -533,8 +535,8 @@ const PROGRAM_MAGIC: &[u8; 8] = b"ZILCTP01";
 const VALUE_MAGIC: &[u8; 8] = b"ZILCTV01";
 const REGISTRY_MAGIC: &[u8; 8] = b"ZILCTR01";
 const FUNCTION_MAGIC: &[u8; 8] = b"ZILCTF01";
-const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v4";
-const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v4";
+const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v5";
+const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v5";
 fn fingerprint(domain: &[u8], body: &[u8]) -> Fingerprint {
     let mut hash = FingerprintBuilder::new();
     hash.update(domain);
@@ -1410,6 +1412,7 @@ impl Wire for CtTypeRef {
         e.descend(|e| {
             self.nodes.encode(e)?;
             self.root.encode(e)?;
+            self.ambient_classes.encode(e)?;
             Ok(())
         })
     }
@@ -1418,6 +1421,7 @@ impl Wire for CtTypeRef {
             Ok(Self {
                 nodes: <Vec<CtTypeNode> as Wire>::decode(d)?,
                 root: <CtTypeNodeId as Wire>::decode(d)?,
+                ambient_classes: Vec::<CtAmbientClassBinding>::decode(d)?,
             })
         })
     }
@@ -1671,29 +1675,6 @@ impl Wire for crate::StorageLifeShape {
     }
 }
 
-impl Wire for FunctionLifeContract {
-    fn encode(&self, e: &mut Encoder) -> Result<()> {
-        e.descend(|e| {
-            // Binder count is bounded before spending or allocating map data.
-            e.nodes(self.binder_count as usize)?;
-            self.binder_count.encode(e)?;
-            self.parameter_lives.encode(e)?;
-            self.result_life.encode(e)
-        })
-    }
-    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
-        d.descend(|d| {
-            let binder_count = u32::decode(d)?;
-            d.nodes(binder_count as usize)?;
-            Ok(Self {
-                binder_count,
-                parameter_lives: Vec::<Option<u32>>::decode(d)?,
-                result_life: Option::<u32>::decode(d)?,
-            })
-        })
-    }
-}
-
 impl Wire for CtTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
@@ -1807,7 +1788,7 @@ impl Wire for CtTypeNode {
             14 => Ok(Self::BorrowedFunctionPointer {
                 parameters: Vec::<CtTypeNodeId>::decode(d)?,
                 result: CtTypeNodeId::decode(d)?,
-                life: FunctionLifeContract::decode(d)?,
+                life: StorageLifeContract::decode(d)?,
             }),
             6 => Ok(Self::Address {
                 mutable: <bool as Wire>::decode(d)?,
@@ -2621,7 +2602,7 @@ impl Wire for CtTypeConstructor {
                 life: crate::StorageLifeShape::decode(d)?,
             }),
             10 => Ok(Self::BorrowedFunctionPointer {
-                life: FunctionLifeContract::decode(d)?,
+                life: StorageLifeContract::decode(d)?,
             }),
             0 => Ok(Self::Array),
             1 => Ok(Self::Tuple),
@@ -3352,6 +3333,7 @@ impl Wire for CtArtifactProgram {
             self.schema_version.encode(e)?;
             self.target_pointer_width.encode(e)?;
             self.source_fingerprint.encode(e)?;
+            self.ambient_life_scopes.encode(e)?;
             self.functions.encode(e)?;
             self.entry.encode(e)?;
             self.constants.encode(e)?;
@@ -3370,6 +3352,7 @@ impl Wire for CtArtifactProgram {
                 schema_version: <u32 as Wire>::decode(d)?,
                 target_pointer_width: <u16 as Wire>::decode(d)?,
                 source_fingerprint: <Fingerprint as Wire>::decode(d)?,
+                ambient_life_scopes: Vec::<CtAmbientLifeScope>::decode(d)?,
                 functions: <Vec<CtFunction> as Wire>::decode(d)?,
                 entry: <CtFunctionId as Wire>::decode(d)?,
                 constants: <Vec<CtConstant> as Wire>::decode(d)?,
