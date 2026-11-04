@@ -1321,7 +1321,7 @@ mod bounded_history_tests {
                         FileId(i),
                         ModuleId(i),
                         format!("history-{i}.zil"),
-                        format!("fn f{i}()->i32 {{ return {i}; }}"),
+                        format!("fn history_case_{i}()->i32 {{ return {i}; }}"),
                     )
                 })
                 .collect(),
@@ -1397,7 +1397,7 @@ mod bounded_history_tests {
             old.upgrade().is_some(),
             "unchanged input retains the current epoch"
         );
-        project.modules[0].text = "fn f0()->i32 { return 123 + 0; }".into();
+        project.modules[0].text = "fn history_case_0()->i32 { return 123 + 0; }".into();
         let mut observed = false;
         let edited = session.compile_project_with_observer(&project, &options, &mut |event| {
             if event.phase == Phase::Parse {
@@ -1426,7 +1426,7 @@ mod bounded_history_tests {
         let options = CompileOptions::default();
         let mut session = CompilationSession::with_capacity(8);
         for edit in 0..48 {
-            p.modules[0].text = format!("fn f0()->i32 {{ return {edit} + 0; }}");
+            p.modules[0].text = format!("fn history_case_0()->i32 {{ return {edit} + 0; }}");
             let current = session.compile_project(&p, &options);
             success(&current);
             equivalent(
@@ -1438,7 +1438,7 @@ mod bounded_history_tests {
             // previous source epochs are not immortal dependency receipts.
             assert_eq!(session.database.len(), 44);
             let mut invalid = p.clone();
-            invalid.modules[1].text = "fn f1()->i32 { return true; }".into();
+            invalid.modules[1].text = "fn history_case_1()->i32 { return true; }".into();
             let rejected = session.compile_project(&invalid, &options);
             assert_ne!(rejected.status, ResultCategory::Success);
             equivalent(
@@ -1507,7 +1507,7 @@ mod bounded_history_tests {
         let options = CompileOptions::default();
         let mut session = CompilationSession::with_capacity(8);
         success(&session.compile_project(&p, &options));
-        p.modules[0].text = "fn f0()->i32 { return 123; }".into();
+        p.modules[0].text = "fn history_case_0()->i32 { return 123; }".into();
         let edited = session.compile_project(&p, &options);
         success(&edited);
         equivalent(
@@ -1519,7 +1519,8 @@ mod bounded_history_tests {
 
         // An inserted declaration shifts later whole-program IDs. Initialization
         // identity follows the actual local semantic input instead of that ID.
-        p.modules[0].text = "fn inserted()->i32 {return 9;} fn f0()->i32 {return 123;}".into();
+        p.modules[0].text =
+            "fn inserted()->i32 {return 9;} fn history_case_0()->i32 {return 123;}".into();
         let inserted = session.compile_project(&p, &options);
         success(&inserted);
         equivalent(
@@ -1529,7 +1530,7 @@ mod bounded_history_tests {
         assert_eq!(session.analysis.last_stats().reused_functions, 41);
         assert_eq!(session.analysis.last_stats().executed_functions, 0);
 
-        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        p.modules[0].text = "pub fn history_case_0(x:i32)->i32 {return x;}".into();
         let public = session.compile_project(&p, &options);
         success(&public);
         equivalent(
@@ -1538,7 +1539,7 @@ mod bounded_history_tests {
         );
         assert!(session.analysis.last_stats().reused_functions >= 39);
         assert!(session.analysis.last_stats().executed_functions > 0);
-        p.modules[0].text = "fn f0()->i32 {return true;}".into();
+        p.modules[0].text = "fn history_case_0()->i32 {return true;}".into();
         let rejected = session.compile_project(&p, &options);
         assert_ne!(rejected.status, ResultCategory::Success);
         equivalent(
@@ -1556,7 +1557,7 @@ mod bounded_history_tests {
         let mut session = CompilationSession::default();
         success(&session.compile_project(&p, &options));
         let prior = session.analysis.last_stats();
-        p.modules[0].text = "pub fn f0(x:i32)->i32 {return x;}".into();
+        p.modules[0].text = "pub fn history_case_0(x:i32)->i32 {return x;}".into();
         let cancelled = CompileOptions::default();
         let stopped = session.compile_project_with_observer(&p, &cancelled, &mut |event| {
             if event.phase == Phase::Analyze {

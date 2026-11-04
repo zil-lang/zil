@@ -76,7 +76,7 @@ fn expand(s: &str, limits: &Limits) -> zil_base::CompileResult<zil_expand::Expan
 #[test]
 fn generic035_01_option_factories_match_and_context_native() {
     native(
-        "enum Option<T>{None,Some(T)} fn some<T>(value:T)->Option<T>{return Option.Some(value)} fn empty<T>()->Option<T>{return Option.None} fn unwrap<T>(value:Option<T>,fallback:T)->T{match value{Option.Some(n)=>{return n},Option.None()=>{return fallback}}} fn result()->i64{let a:Option<i64>=some(40);let b:Option<i64>=empty();return unwrap(a,0)+unwrap(b,2)}",
+        "enum LegacyOption<T>{None,Some(T)} fn some<T>(value:T)->LegacyOption<T>{return LegacyOption.Some(value)} fn empty<T>()->LegacyOption<T>{return LegacyOption.None} fn unwrap<T>(value:LegacyOption<T>,fallback:T)->T{match value{LegacyOption.Some(n)=>{return n},LegacyOption.None()=>{return fallback}}} fn result()->i64{let a:LegacyOption<i64>=some(40);let b:LegacyOption<i64>=empty();return unwrap(a,0)+unwrap(b,2)}",
         42,
     );
 }
@@ -90,37 +90,37 @@ fn generic035_02_result_two_arguments_and_explicit_numeric_context() {
 #[test]
 fn generic035_03_nested_enum_and_tuple_patterns() {
     native(
-        "enum Option<T>{None,Some(T)} enum Result<E,T>{Err(E),Ok(T)} fn pick<T>(v:Option<Result<bool,T>>,fallback:T)->T{match v{Option.None()=>{return fallback},Option.Some(Result.Ok(n))=>{return n},Option.Some(Result.Err(_))=>{return fallback}}} fn result()->i64{let a:Option<Result<bool,(i64,i64)>>=Option.Some(Result.Ok((30,10)));let b:Option<Result<bool,(i64,i64)>>=Option.Some(Result.Err(false));let c:Option<Result<bool,(i64,i64)>>=Option.None;let x=pick(a,(0,0));let y=pick(b,(1,1));let z=pick(c,(0,0));return x.0+x.1+y.0+y.1+z.0+z.1}",
+        "enum LegacyOption<T>{None,Some(T)} enum Result<E,T>{Err(E),Ok(T)} fn pick<T>(v:LegacyOption<Result<bool,T>>,fallback:T)->T{match v{LegacyOption.None()=>{return fallback},LegacyOption.Some(Result.Ok(n))=>{return n},LegacyOption.Some(Result.Err(_))=>{return fallback}}} fn result()->i64{let a:LegacyOption<Result<bool,(i64,i64)>>=LegacyOption.Some(Result.Ok((30,10)));let b:LegacyOption<Result<bool,(i64,i64)>>=LegacyOption.Some(Result.Err(false));let c:LegacyOption<Result<bool,(i64,i64)>>=LegacyOption.None;let x=pick(a,(0,0));let y=pick(b,(1,1));let z=pick(c,(0,0));return x.0+x.1+y.0+y.1+z.0+z.1}",
         42,
     );
 }
 #[test]
 fn generic035_04_record_and_array_payloads() {
     native(
-        "enum Option<T>{None,Some(T)} struct Packet{values:[i64;2];flag:bool;unit:();} fn some<T>(v:T)->Option<T>{return Option.Some(v)} fn result()->i64{let packet=Packet{values:[39,3],flag:true,unit:()};let value=some(packet);match value{Option.None()=>{return 0},Option.Some(p)=>{if p.flag{return p.values[0]+p.values[1]}return 0}}}",
+        "enum LegacyOption<T>{None,Some(T)} struct Packet{values:[i64;2];flag:bool;unit:();} fn some<T>(v:T)->LegacyOption<T>{return LegacyOption.Some(v)} fn result()->i64{let packet=Packet{values:[39,3],flag:true,unit:()};let value=some(packet);match value{LegacyOption.None()=>{return 0},LegacyOption.Some(p)=>{if p.flag{return p.values[0]+p.values[1]}return 0}}}",
         42,
     );
     native(
-        "enum Option<T>{None,Some(T)} fn some<T>(v:T)->Option<T>{return Option.Some(v)} fn result()->i64{let x:Option<[i64;2]>=some([39,3]);match x{Option.None()=>{return 0},Option.Some(a)=>{return a[0]+a[1]}}}",
+        "enum LegacyOption<T>{None,Some(T)} fn some<T>(v:T)->LegacyOption<T>{return LegacyOption.Some(v)} fn result()->i64{let x:LegacyOption<[i64;2]>=some([39,3]);match x{LegacyOption.None()=>{return 0},LegacyOption.Some(a)=>{return a[0]+a[1]}}}",
         42,
     );
 }
 #[test]
 fn generic035_05_instances_arrays_updates_and_local_context() {
     native(
-        "enum Option<T>{None,Some(T)} fn score(x:Option<i64>)->i64{match x{Option.None()=>{return 0},Option.Some(n)=>{return n}}} fn result()->i64{var values:[Option<i64>;3]=[Option.Some(10),Option.None,Option.Some(2)];values[1]=Option.Some(30);var x:Option<i64>=Option.None;var i=0;while i<3{x=values[i];i+=1}return score(values[0])+score(values[1])+score(x)}",
+        "enum LegacyOption<T>{None,Some(T)} fn score(x:LegacyOption<i64>)->i64{match x{LegacyOption.None()=>{return 0},LegacyOption.Some(n)=>{return n}}} fn result()->i64{var values:[LegacyOption<i64>;3]=[LegacyOption.Some(10),LegacyOption.None,LegacyOption.Some(2)];values[1]=LegacyOption.Some(30);var x:LegacyOption<i64>=LegacyOption.None;var i=0;while i<3{x=values[i];i+=1}return score(values[0])+score(values[1])+score(x)}",
         42,
     );
 }
 #[test]
 fn generic035_06_generic_match_move_states_and_shadowing() {
     native(
-        "enum Option<T>{None,Some(T)} fn keep<T>(v:Option<T>,x:T)->T{match v{Option.None()=>{},Option.Some(x)=>{x;}}return x} fn result()->i64{return keep(Option::<i64>.Some(40),42)}",
+        "enum LegacyOption<T>{None,Some(T)} fn keep<T>(v:LegacyOption<T>,x:T)->T{match v{LegacyOption.None()=>{},LegacyOption.Some(x)=>{x;}}return x} fn result()->i64{return keep(LegacyOption::<i64>.Some(40),42)}",
         42,
     );
     for text in [
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<T>)->(T,T){match v{Option.Some(x)=>{return (x,x)},Option.None()=>{return bad(v)}}} fn result()->i32=>0",
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<i32>,x:T)->T{match v{Option.None()=>{x;let x=1;},Option.Some(_)=>{}}return x} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<T>)->(T,T){match v{LegacyOption.Some(x)=>{return (x,x)},LegacyOption.None()=>{return bad(v)}}} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<i32>,x:T)->T{match v{LegacyOption.None()=>{x;let x=1;},LegacyOption.Some(_)=>{}}return x} fn result()->i32=>0",
     ] {
         reject(text, "E-GENERIC-ARGUMENT");
     }
@@ -130,7 +130,7 @@ fn generic035_07_uninstantiated_bad_definitions_and_layout_reject() {
     for text in [
         "enum Bad<T>{A,A} fn result()->i32=>0",
         "enum Bad<T>{A(Missing)} fn result()->i32=>0",
-        "enum Option<T>{None,Some(T)} enum Bad<T>{A(Option<T,i32>)} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} enum Bad<T>{A(LegacyOption<T,i32>)} fn result()->i32=>0",
         "enum Phantom<T>{Unit} enum Bad<T>{A(Phantom<Missing>)} fn result()->i32=>0",
     ] {
         reject(text, "E-GENERIC-ARGUMENT");
@@ -152,12 +152,12 @@ fn generic035_07_uninstantiated_bad_definitions_and_layout_reject() {
 #[test]
 fn generic035_08_missing_constraints_nominality_and_payload_mismatch_reject() {
     for text in [
-        "enum Option<T>{None,Some(T)} fn result()->i32{let x=Option.None;return 0}",
+        "enum LegacyOption<T>{None,Some(T)} fn result()->i32{let x=LegacyOption.None;return 0}",
         "enum Result<E,T>{Err(E),Ok(T)} fn result()->i32{let x=Result.Ok(1);return 0}",
-        "enum Option<T>{None,Some(T)} fn result()->i32{let x:Option<i64>=Option.Some(true);return 0}",
-        "enum Option<T>{None,Some(T)} fn result()->i32{let x=Option::<i32,i64>.Some(1);return 0}",
-        "enum Option<T>{None,Some(T)} fn result()->i32{let x=Option::<i32>.Missing;return 0}",
-        "enum Option<T>{None,Some(T)} enum Other<T>{None,Some(T)} fn result()->i32{let x:Option<i32>=Other.Some(1);return 0}",
+        "enum LegacyOption<T>{None,Some(T)} fn result()->i32{let x:LegacyOption<i64>=LegacyOption.Some(true);return 0}",
+        "enum LegacyOption<T>{None,Some(T)} fn result()->i32{let x=LegacyOption::<i32,i64>.Some(1);return 0}",
+        "enum LegacyOption<T>{None,Some(T)} fn result()->i32{let x=LegacyOption::<i32>.Missing;return 0}",
+        "enum LegacyOption<T>{None,Some(T)} enum Other<T>{None,Some(T)} fn result()->i32{let x:LegacyOption<i32>=Other.Some(1);return 0}",
     ] {
         reject(text, "E-GENERIC-ARGUMENT");
     }
@@ -165,25 +165,25 @@ fn generic035_08_missing_constraints_nominality_and_payload_mismatch_reject() {
 #[test]
 fn generic035_09_unused_generic_match_is_checked_before_erasure() {
     reject(
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<T>)->i32{match v{Option.Some(_)=>{return 1}}} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<T>)->i32{match v{LegacyOption.Some(_)=>{return 1}}} fn result()->i32=>0",
         "E-MATCH-NONEXHAUSTIVE",
     );
     reject(
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<T>)->i32{match v{_=>{return 1},Option.Some(_)=>{return 2}}} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<T>)->i32{match v{_=>{return 1},LegacyOption.Some(_)=>{return 2}}} fn result()->i32=>0",
         "E-MATCH-UNREACHABLE",
     );
     reject(
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<T>)->i32{match v{Option.None()=>{return 1},Option.Some(x)=>{return x+1}}} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<T>)->i32{match v{LegacyOption.None()=>{return 1},LegacyOption.Some(x)=>{return x+1}}} fn result()->i32=>0",
         "E-UNSUPPORTED",
     );
     reject(
-        "enum Option<T>{None,Some(T)} fn bad<T>(v:Option<T>)->i32{match v{Option.None()=>{return 1},Option.Some()=>{return 2}}} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(v:LegacyOption<T>)->i32{match v{LegacyOption.None()=>{return 1},LegacyOption.Some()=>{return 2}}} fn result()->i32=>0",
         "E-GENERIC-ARGUMENT",
     );
 }
 #[test]
 fn generic035_10_expansion_budgets_cover_unused_layout_and_instances() {
-    let text = "enum Option<T>{None,Some(T)} fn result()->i64{let x=Option::<i64>.Some(42);match x{Option.None()=>{return 0},Option.Some(n)=>{return n}}}";
+    let text = "enum LegacyOption<T>{None,Some(T)} fn result()->i64{let x=LegacyOption::<i64>.Some(42);match x{LegacyOption.None()=>{return 0},LegacyOption.Some(n)=>{return n}}}";
     assert!(expand(text, &Limits::default()).is_ok());
     for limits in [
         Limits {
@@ -216,7 +216,7 @@ fn generic035_10_expansion_budgets_cover_unused_layout_and_instances() {
 #[test]
 fn generic035_11_recursive_factories_and_nested_zero_argument_calls() {
     native(
-        "enum Option<T>{None,Some(T)} fn empty<T>()->Option<T>{return Option.None} fn relay<T>()->Option<T>{return empty()} fn some<T>(v:T,b:bool)->Option<T>{if b{return Option.Some(v)}return some(v,true)} fn result()->i64{let missing:Option<i64>=relay();let present=some::<i64>(42,false);match (missing,present){(Option.None(),Option.Some(n))=>{return n},(_,_)=>{return 0}}}",
+        "enum LegacyOption<T>{None,Some(T)} fn empty<T>()->LegacyOption<T>{return LegacyOption.None} fn relay<T>()->LegacyOption<T>{return empty()} fn some<T>(v:T,b:bool)->LegacyOption<T>{if b{return LegacyOption.Some(v)}return some(v,true)} fn result()->i64{let missing:LegacyOption<i64>=relay();let present=some::<i64>(42,false);match (missing,present){(LegacyOption.None(),LegacyOption.Some(n))=>{return n},(_,_)=>{return 0}}}",
         42,
     );
 }
@@ -243,13 +243,13 @@ fn generic035_13_full_example() {
 #[test]
 fn generic035_14_record_field_context_and_generic_record_payload() {
     native(
-        "enum Option<T>{None,Some(T)} struct Box<U>{value:U;} struct Holder{value:Option<i64>;} fn id<T>(x:T)->T=>x; fn result()->i64{let h=Holder{value:Option.None};let b=Option.Some(Box::<i64>{value:42});match (h.value,b){(Option.None(),Option.Some(v))=>{return id(v.value)},(_,_)=>{return 0}}}",
+        "enum LegacyOption<T>{None,Some(T)} struct Box<U>{value:U;} struct Holder{value:LegacyOption<i64>;} fn id<T>(x:T)->T=>x; fn result()->i64{let h=Holder{value:LegacyOption.None};let b=LegacyOption.Some(Box::<i64>{value:42});match (h.value,b){(LegacyOption.None(),LegacyOption.Some(v))=>{return id(v.value)},(_,_)=>{return 0}}}",
         42,
     );
 }
 #[test]
 fn generic035_15_explicit_and_inferred_applications_share_one_instance() {
-    let text = "enum Option<T>{None,Some(T)} fn id<T>(x:T)->T=>x; fn result()->i64{let x=Option::<i64>.Some(21);let a=id(x);let b=id::<Option<i64>>(x);match (a,b){(Option.Some(m),Option.Some(n))=>{return m+n},(_,_)=>{return 0}}}";
+    let text = "enum LegacyOption<T>{None,Some(T)} fn id<T>(x:T)->T=>x; fn result()->i64{let x=LegacyOption::<i64>.Some(21);let a=id(x);let b=id::<LegacyOption<i64>>(x);match (a,b){(LegacyOption.Some(m),LegacyOption.Some(n))=>{return m+n},(_,_)=>{return 0}}}";
     let core = expand(
         text,
         &Limits {
@@ -273,21 +273,21 @@ fn generic035_15_explicit_and_inferred_applications_share_one_instance() {
 #[test]
 fn generic035_16_unused_payload_literal_ranges_and_signed_minimum() {
     for text in [
-        "enum Option<T>{None,Some(T)} fn bad<T>(x:T)->Option<i32>{return Option.Some(5000000000)} fn result()->i32=>0",
-        "enum Option<T>{None,Some(T)} fn bad<T>(x:T)->Option<i64>{return Option.Some(-9223372036854775809)} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(x:T)->LegacyOption<i32>{return LegacyOption.Some(5000000000)} fn result()->i32=>0",
+        "enum LegacyOption<T>{None,Some(T)} fn bad<T>(x:T)->LegacyOption<i64>{return LegacyOption.Some(-9223372036854775809)} fn result()->i32=>0",
     ] {
         reject(text, "E-GENERIC-ARGUMENT");
     }
     native(
-        "enum Option<T>{None,Some(T)} fn minimum<T>(x:T)->Option<i64>{return Option.Some(-9223372036854775808)} fn result()->i64{match minimum(()){Option.None()=>{return 0},Option.Some(n)=>{return n}}}",
+        "enum LegacyOption<T>{None,Some(T)} fn minimum<T>(x:T)->LegacyOption<i64>{return LegacyOption.Some(-9223372036854775808)} fn result()->i64{match minimum(()){LegacyOption.None()=>{return 0},LegacyOption.Some(n)=>{return n}}}",
         i64::MIN,
     );
 }
 #[test]
 fn generic035_17_grouped_enum_types_remain_transparent() {
-    for ty in ["(Option<i64>)", "((Option<i64>))"] {
+    for ty in ["(LegacyOption<i64>)", "((LegacyOption<i64>))"] {
         let text = format!(
-            "enum Option<T>{{None,Some(T)}} fn result()->i64{{let x:{ty}=Option.Some(42);match x{{Option.None()=>{{return 0}},Option.Some(n)=>{{return n}}}}}}"
+            "enum LegacyOption<T>{{None,Some(T)}} fn result()->i64{{let x:{ty}=LegacyOption.Some(42);match x{{LegacyOption.None()=>{{return 0}},LegacyOption.Some(n)=>{{return n}}}}}}"
         );
         native(&text, 42);
     }

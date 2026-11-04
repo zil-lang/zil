@@ -119,6 +119,8 @@ fn fixture(windows: bool) -> (VerifiedModule, LirModule) {
             (Type::Bool, 1, 1),
             (Type::I32, 4, 4),
             (Type::I64, 8, 8),
+            (Type::F32, 4, 4),
+            (Type::F64, 8, 8),
             (Type::U8, 1, 1),
             (Type::U16, 2, 2),
             (Type::ForeignHandle, 8, 8),

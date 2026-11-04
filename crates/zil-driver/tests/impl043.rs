@@ -103,17 +103,17 @@ fn reject(files: &[(&str, &str)], code: &str) {
     assert!(!r.artifacts.contains_key("executable"));
 }
 const MODEL: &str = "
-pub enum Option<T>{None,Some(T)}
+pub enum LegacyOption<T>{None,Some(T)}
 pub enum Result<E,T>{Err(E),Ok(T)}
 pub struct Row<T>{pub value:T;pub weight:i64;}
 pub struct Secret{value:i64;pub visible:i64;}
 pub type Count=i64
 pub type Score=Result<bool,Count>
-pub type MaybeRow=Option<Row<Count>>
-pub fn some<T>(value:T)->Option<T>{return Option.Some(value)}
-pub fn empty<T>()->Option<T>{return Option.None}
+pub type MaybeRow=LegacyOption<Row<Count>>
+pub fn some<T>(value:T)->LegacyOption<T>{return LegacyOption.Some(value)}
+pub fn empty<T>()->LegacyOption<T>{return LegacyOption.None}
 pub fn ok<E,T>(value:T)->Result<E,T>{return Result.Ok(value)}
-pub fn unwrap<T>(value:Option<T>,fallback:T)->T{match value{Option.Some(v)=>{return v},Option.None()=>{return fallback}}}
+pub fn unwrap<T>(value:LegacyOption<T>,fallback:T)->T{match value{LegacyOption.Some(v)=>{return v},LegacyOption.None()=>{return fallback}}}
 pub fn secret(value:i64)->Secret{return Secret{value:value,visible:2}}
 pub fn read(value:Secret)->i64{return value.value}
 ";
@@ -123,12 +123,12 @@ fn module043_01_public_templates_aliases_and_two_consumers_native() {
         &[
             (
                 "main",
-                "import model\nimport process\nfn result()->i64{let row=model.Row::<i64>{value:5000000000,weight:40};let value:model.MaybeRow=model.some(row);let score=process.convert(value);let unused:model.Option<i64>=model.empty();let extra=model.unwrap(unused,2);match score{model.Score.Ok(n)=>{return n+extra},model.Score.Err(_)=>{return 0}}}",
+                "import model\nimport process\nfn result()->i64{let row=model.Row::<i64>{value:5000000000,weight:40};let value:model.MaybeRow=model.some(row);let score=process.convert(value);let unused:model.LegacyOption<i64>=model.empty();let extra=model.unwrap(unused,2);match score{model.Score.Ok(n)=>{return n+extra},model.Score.Err(_)=>{return 0}}}",
             ),
             ("model", MODEL),
             (
                 "process",
-                "import model as m\npub fn convert(value:m.MaybeRow)->m.Score{if let m.Option.Some(row)=value{return m.ok(row.value+row.weight)}return m.Result.Err(true)}",
+                "import model as m\npub fn convert(value:m.MaybeRow)->m.Score{if let m.LegacyOption.Some(row)=value{return m.ok(row.value+row.weight)}return m.Result.Err(true)}",
             ),
         ],
         5000000042,
@@ -239,11 +239,11 @@ fn module043_07_reexports_aliases_explicit_calls_and_shared_module_identity() {
         ),
         (
             "model",
-            "pub struct Pair{pub left:i64;pub right:i64;}\npub enum Option<T>{None,Some(T)}\npub fn some<T>(x:T)->Option<T> => Option.Some(x)",
+            "pub struct Pair{pub left:i64;pub right:i64;}\npub enum LegacyOption<T>{None,Some(T)}\npub fn some<T>(x:T)->LegacyOption<T> => LegacyOption.Some(x)",
         ),
         (
             "facade",
-            "import model\npub type Pair=model.Pair\npub type Maybe=model.Option<Pair>",
+            "import model\npub type Pair=model.Pair\npub type Maybe=model.LegacyOption<Pair>",
         ),
     ]);
     p.paths.insert(vec!["duplicate".into()], ModuleId(21));
@@ -282,13 +282,13 @@ fn module043_08_same_spelling_in_different_modules_is_not_the_same_type() {
         &[
             (
                 "main",
-                "import left\nimport right\nfn result()->i32{return left.read(right.Option::<i32>.Some(42))}",
+                "import left\nimport right\nfn result()->i32{return left.read(right.LegacyOption::<i32>.Some(42))}",
             ),
             (
                 "left",
-                "pub enum Option<T>{None,Some(T)}\npub fn read(x:Option<i32>)->i32{match x{Option.Some(v)=>{return v},Option.None()=>{return 0}}}",
+                "pub enum LegacyOption<T>{None,Some(T)}\npub fn read(x:LegacyOption<i32>)->i32{match x{LegacyOption.Some(v)=>{return v},LegacyOption.None()=>{return 0}}}",
             ),
-            ("right", "pub enum Option<T>{None,Some(T)}"),
+            ("right", "pub enum LegacyOption<T>{None,Some(T)}"),
         ],
         "E-GENERIC-ARGUMENT",
     );

@@ -1081,7 +1081,7 @@ mod tests {
             FileId(0),
             ModuleId(0),
             "enum.zil",
-            "enum Option<T>{None,Some(T)}fn main(){}",
+            "enum LegacyOption<T>{None,Some(T)}fn main(){}",
         );
         let parsed = Arc::new(zil_syntax::parse(&source));
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);

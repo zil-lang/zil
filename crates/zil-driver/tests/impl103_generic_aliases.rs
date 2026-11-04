@@ -211,7 +211,7 @@ fn type_arguments_compose_simultaneously_without_new_nominal_identity() {
         42,
     );
     native(
-        "struct Cell<T>{value:T;}enum Option<T>{None,Some(T)}type Entry<T>=Cell<T>;type Maybe<T>=Option<Entry<T>>;type Fixed=Maybe<i64>;fn keep<T>(x:Entry<T>)->Entry<T>{return x}fn value()->i64{let raw=Entry::<i64>{value:42};let x:Fixed=Maybe::<i64>.Some(keep(raw));match x{Fixed.Some(v)=>{return v.value},Fixed.None()=>{return 0}}}",
+        "struct Cell<T>{value:T;}enum LegacyOption<T>{None,Some(T)}type Entry<T>=Cell<T>;type Maybe<T>=LegacyOption<Entry<T>>;type Fixed=Maybe<i64>;fn keep<T>(x:Entry<T>)->Entry<T>{return x}fn value()->i64{let raw=Entry::<i64>{value:42};let x:Fixed=Maybe::<i64>.Some(keep(raw));match x{Fixed.Some(v)=>{return v.value},Fixed.None()=>{return 0}}}",
         42,
     );
 }
@@ -318,7 +318,7 @@ fn declarations_and_phantom_arguments_are_checked_even_when_unused() {
         "type Ignore<T>=i64;type Bad=Ignore<i32<i64>>;fn value(){}",
         "type Id<T>=T;fn value(x:Id){}",
         "struct Cell<T>{x:T;}type Entry<T>=Cell<T>;fn value(){let x=Entry{x:1}}",
-        "enum Option<T>{None,Some(T)}type Maybe<T>=Option<T>;fn value(x:Maybe<i64>){match x{Maybe.None()=>{},Maybe.Some(_)=>{}}}",
+        "enum LegacyOption<T>{None,Some(T)}type Maybe<T>=LegacyOption<T>;fn value(x:Maybe<i64>){match x{Maybe.None()=>{},Maybe.Some(_)=>{}}}",
     ] {
         rejection(text, ResultCategory::SafeReject, "E-GENERIC-ARGUMENT");
     }
