@@ -8176,3 +8176,114 @@ fn terminal340_package_terminal_source_types_and_analyze() {
         report.to_json()
     );
 }
+
+#[test]
+fn terminal340_package_terminal_resource_identity_raw_and_wire() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    for mode in 0..6 {
+        let mut raw = typed.clone();
+        match mode {
+            0 => {
+                raw.resources[0].name = "Other".into();
+                let Type::Record { name, .. } = &mut raw.resources[0].payload else {
+                    unreachable!()
+                };
+                *name = "Other".into();
+            }
+            1 => raw.resources.clear(),
+            2 => raw.resources.push(raw.resources[0].clone()),
+            3 => {
+                let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+                let mut local = f.locals[0].clone();
+                local.id = zil_ir::LocalId(f.locals.len() as u32);
+                local.name = "unused_other".into();
+                local.ty = Type::Managed(Box::new(Type::Record {
+                    name: "Other".into(),
+                    fields: vec![("code".into(), Type::I32)],
+                }));
+                f.locals.push(local);
+            }
+            4 => {
+                let Type::Record { fields, .. } = &mut raw.resources[0].payload else {
+                    unreachable!()
+                };
+                fields[0].1 = Type::I64;
+            }
+            _ => {
+                raw.resources[0].teardown =
+                    Some(raw.functions.iter().find(|f| f.name == "main").unwrap().id)
+            }
+        }
+        let result = zil_analyze::analyze(&raw, &limits);
+        assert!(
+            result.is_err(),
+            "Package resource neighbor {mode} was wrongly accepted"
+        );
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("resource")),
+            "neighbor {mode}: {errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(raw, plan.clone(), &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                "neighbor {mode}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_native_old_drop_store_and_failure() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    );
+    let alias = text.replace(
+        "packet.n+packet.owner.code-66",
+        "target.n+target.owner.code-66",
+    );
+    let other = text
+        .replace(
+            "    let target=",
+            "    var other=P{owner:R{code:67},n:0};let old=other.owner;\n    let target=",
+        )
+        .replace("packet.n+packet.owner.code-66", "packet.n+old.code-67");
+    for (name, text, expected) in [
+        ("whole Package", text, b"AB42\n".as_slice()),
+        (
+            "parent address survives",
+            alias.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "different actual same-type local",
+            other.as_str(),
+            b"ACB42\n".as_slice(),
+        ),
+        (
+            "failed RHS preparation",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+            ),
+            b"BA42\n".as_slice(),
+        ),
+    ] {
+        eprintln!("G1.3.4 native case {name}");
+        review329_native_entry_output(&[("main", text)], "main", expected);
+    }
+}

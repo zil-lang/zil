@@ -253,6 +253,9 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
     fee(b, module.resources.len())?;
     let mut teardown_entries = BTreeSet::new();
     for (index, r) in module.resources.iter().enumerate() {
+        if r.name.is_empty() {
+            return Err(error("Package resource definition has no nominal identity"));
+        }
         if let Type::Record { name, .. } = &r.payload {
             fee(b, name.len().saturating_add(r.name.len()))?;
             if *name != r.name {
