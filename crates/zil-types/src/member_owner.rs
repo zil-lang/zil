@@ -31,9 +31,7 @@ impl Builder<'_, '_> {
         if let Some(owner) = owner {
             // Equality short-circuits at shape/length/name mismatches; its
             // traversed common prefix is bounded by the complete owner tree.
-            let work = inference::type_snapshot_work(owner, span, self.limits)?;
-            self.closures
-                .snapshot(work.saturating_mul(2).saturating_add(2), span)?;
+            self.closures.snapshot_type(owner, 2, 2, span)?;
         }
         Ok(())
     }

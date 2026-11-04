@@ -623,8 +623,7 @@ impl Builder<'_, '_> {
                 self.closures
                     .snapshot(an.len().saturating_add(bn.len()), a.span)?;
                 for owner in [ao, bo].into_iter().flatten() {
-                    let work = inference::type_snapshot_work(owner, a.span, self.limits)?;
-                    self.closures.snapshot(work, a.span)?;
+                    self.closures.snapshot_type(owner, 1, 0, a.span)?;
                 }
                 Ok(an == bn && ao == bo && self.same_stable_place(a, b, depth + 1)?)
             }
