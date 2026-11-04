@@ -464,6 +464,18 @@
       ]
     },
     {
+      "code": "E-FLOAT-LITERAL",
+      "phases": [
+        "lex",
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
       "code": "E-GENERIC-ARGUMENT",
       "phases": [
         "expand"
@@ -702,6 +714,18 @@
       ],
       "requirements": [
         "ZIL-SCRIPT"
+      ]
+    },
+    {
+      "code": "E-NUMERIC-CONVERSION",
+      "phases": [
+        "expand",
+        "types",
+        "ct"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
       ]
     },
     {
