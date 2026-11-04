@@ -1,0 +1,84 @@
+{
+  "task": "G8.4.2.2",
+  "reviewer": "g1_3 (non-author)",
+  "verdict": "LimitedPassIndependent",
+  "head": "5b207389c70f8e2a2eb540667d2422675b238864",
+  "source_test_commit": "cf75321d06490cc5f1fc9e3517aa0fd272cc6e80",
+  "baseline": "feb55a30b47c3a49c00868576f65edad37473cca",
+  "production_changed": false,
+  "original_pc0_fixture_unchanged": true,
+  "original_pc0_sha256": "020b7beff946ba5d599aa3a2ed102fd47a056285c6c80299d9d09dfde6a18d47",
+  "test_source_sha256": "f05a41d07ae450505879bb1acd5173b8e0fc35bce6af1b4ab40f925407991a8c",
+  "design_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "normative_basis": "Design 12.1.1/12.1.3: only proved synchronous/Closed Direct autoDrop; explicit finish retains runtime CLOSED guard, cannot free early.",
+  "findings": [
+    "Two subject functions only: explicit close/finish plan setup and explicit Managed<Task> body cleanup. No production/schema/Cargo/budget expectation or fixture-byte changes.",
+    "Borrowed PC0 original Source negative retained. Derived main retains the Task through poll_close Pending and consumes it only after Ready. Its Source and direct Analyze still specifically reject initial frame borrowed input, not unknown autoDrop.",
+    "Benign source-derived raw candidate changes only actual TaskCreate worker and argument to the scalar safe neighbor; both kernels accept. The real benign Analyze claim is rebound to original borrowed raw candidate; Verify raw and decoded Wire specifically reject the borrowed initial-frame reason.",
+    "Managed<ByteBuffer>, Managed<Task<i32>>, Managed<Store<Element>> spelling unchanged. Task body uniquely transfers to explicit finish; old empty Task body is preserved as Source/Analyze E-TASK-ABI unknown synchronous-origin rejection. No arbitrary-input runtime completion claim.",
+    "Independent unchanged unused Task negative rejects actual unknown origin, and its explicit finish positive reaches independent Verify."
+  ],
+  "validation": [
+    {
+      "command": "cargo test --locked --offline -j2 -v -p zil-driver --test generic_regressions general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G8.4.2.2-review-tmp/default-pc0.log",
+      "log_sha256": "05ec88888548855219387890ee024fcdaa175d46e3cf23c93c22c2e359d895f2",
+      "binary": "/workspace/.zil-env/target343/debug/deps/generic_regressions-d00b6aceac9b1c62",
+      "binary_sha256": "bf70baf23c041127d74068b51d1f2a5c28723c0576951d8b072f4c6df9ca6bf5"
+    },
+    {
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test generic_regressions owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G8.4.2.2-review-tmp/default-kind.log",
+      "log_sha256": "b81dc5e72f79b50bd88ae2c6961a8c90e934942ce895f59c34bda7130e5fadd0",
+      "binary": "/workspace/.zil-env/target343/debug/deps/generic_regressions-d00b6aceac9b1c62",
+      "binary_sha256": "bf70baf23c041127d74068b51d1f2a5c28723c0576951d8b072f4c6df9ca6bf5"
+    },
+    {
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G8.4.2.2-review-tmp/api-pc0.log",
+      "log_sha256": "fe37e54d9e00ee6d70c568db526729c20a3275844c73cc27178b18e4c2247dc1",
+      "binary": "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "binary_sha256": "3e157938d5e369092a4b1e221ec94f3e3d2441b44302daf8c419fa3699d65149"
+    },
+    {
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G8.4.2.2-review-tmp/api-kind.log",
+      "log_sha256": "d829d9b6c7557b6595cdf304523fe2c67249136168fef49ce130f81471345324",
+      "binary": "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "binary_sha256": "3e157938d5e369092a4b1e221ec94f3e3d2441b44302daf8c419fa3699d65149"
+    },
+    {
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test generic_regressions task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof -- --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G8.4.2.2-review-tmp/unused-unknown.log",
+      "log_sha256": "eeb51df1b3ba8d51cd07d26b3a1e71c3bda1392451069a64007c76fcc67c2925",
+      "binary": "/workspace/.zil-env/target343/debug/deps/generic_regressions-d00b6aceac9b1c62",
+      "binary_sha256": "bf70baf23c041127d74068b51d1f2a5c28723c0576951d8b072f4c6df9ca6bf5"
+    }
+  ],
+  "total": {
+    "passed": 5,
+    "failed": 0
+  },
+  "cache_binding": {
+    "target": "/workspace/.zil-env/target343",
+    "setup": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target343; TMPDIR=/workspace/.zil-env/G8.4.2.2-review-tmp",
+    "reuse": "Reused author cache, independent executions; not a clean rebuild. -v default log resolves every Fresh workspace crate including zil-driver to /workspace/zil-G8.4.2.2; current frozen source/fixture hashes checked against author receipt and original baseline.",
+    "state": "All Cargo stopped and target343 released after review."
+  },
+  "author_receipt_sha256": "c5ea88fcf7b7453ae501287af6853855910a8daede79a907999681757aadc8fa",
+  "limits": [
+    "Selected compile/kernel fixtures only; no full gate or native B matrix repeated.",
+    "No runtime progress theorem for arbitrary incoming Task; explicit finish CLOSED guard remains the existing boundary.",
+    "G1.3.3 is separately authored by reviewer and is not part of this independent review."
+  ]
+}
