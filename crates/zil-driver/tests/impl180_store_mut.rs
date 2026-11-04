@@ -1507,3 +1507,132 @@ fn owning_store_call_raw_and_wire_reach_saved_closure_description_consumer() {
         "live element resource description",
     );
 }
+
+#[test]
+fn owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries() {
+    let text = format!(
+        "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn update(s:Store<Cell>){{let v=store_at_mut(s,0);replace(v)}}fn relay(s:Store<Cell>){{update(s)}}fn main()->i32{{{SETUP}relay(s);return store_at(s,0).owner.code-90}}"
+    );
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store-call-invalidation-budget.zil",
+        &text,
+    );
+    for (stage, expected_n) in [(Stage::Analyze, 23731), (Stage::Verify, 63080)] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = zil_driver::compile_source(&unit, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert_eq!(
+            low, expected_n,
+            "{stage:?}: actual call invalidation work changed"
+        );
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                zil_driver::compile_source(&unit, &options(work)),
+                warm.compile_source(&unit, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        },
+                        "{}",
+                        report.to_json()
+                    );
+                } else if stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!(
+            "G1.3.2 {stage:?} full-request N={low}; N-1 ResourceLimit; fresh/warm/retry agree"
+        );
+    }
+}
+
+#[test]
+fn owning_store_borrowed_closure_raw_and_wire_reach_descriptor_consumer() {
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{MODEL}fn replace(s:Store<Cell>){{let v=store_at_mut(s,0);v.owner=R{{code:90}}}}fn relay(s:Store<Cell>){{replace(s)}}fn caller(s:Store<Cell>,old:R)->i32{{let saved=()=>old.code;let borrowed=&saved;let n=borrowed();relay(s);return n}}fn main()->i32{{return 0}}"
+    );
+    let (mut module, plan) = candidate(&source);
+    let relay = module
+        .functions
+        .iter()
+        .find(|f| f.name == "relay")
+        .unwrap()
+        .id;
+    let f = module
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "caller")
+        .unwrap();
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind,I::Call{function,..}if function==relay))
+        })
+        .unwrap();
+    let first = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::CallClosureBorrowed { .. }))
+        .unwrap();
+    let end = first
+        + block.instructions[first..]
+            .iter()
+            .position(|i| matches!(i.kind, I::Store { .. }))
+            .unwrap()
+        + 1;
+    let reads = block.instructions.drain(first..end).collect::<Vec<_>>();
+    let call = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind,I::Call{function,..}if function==relay))
+        .unwrap();
+    block.instructions.splice(call + 1..call + 1, reads);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("live element resource description")),
+        "{errors:?}"
+    );
+    reject_candidate(
+        "borrowed-closure-desc-after-relay",
+        module,
+        plan,
+        "E-VERIFY-RESOURCE",
+        "live element resource description",
+    );
+}

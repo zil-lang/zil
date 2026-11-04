@@ -121,6 +121,45 @@ impl Program {
         graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
         b: &mut Budget,
     ) -> CompileResult<Self> {
+        // The nested transport producer is not implemented. Check the whole
+        // graph, including unused wrappers, rather than treating an absent
+        // outer description row as proof that no old instance is retained.
+        fee(b, module.closures.len())?;
+        for closure in &module.closures {
+            fee(b, closure.captures.len())?;
+            for capture in &closure.captures {
+                let id = match capture {
+                    Type::Closure(id) => Some(*id),
+                    Type::Address { inner, .. } => {
+                        if let Type::Closure(id) = inner.as_ref() {
+                            Some(*id)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                let Some(id) = id else {
+                    continue;
+                };
+                let inner = module
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| error("nested closure capture identity absent"))?;
+                fee(b, inner.captures.len())?;
+                if inner
+                    .captures
+                    .iter()
+                    .any(|field| matches!(field, Type::Desc(_)))
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "nested closure resource descriptions need their transitive carrier bridge",
+                        None,
+                    )]);
+                }
+            }
+        }
         let routes = origins::module(module, graphs, b)?;
         fee(b, module.functions.len())?;
         let mut definitions = Vec::with_capacity(module.functions.len());
@@ -369,7 +408,9 @@ impl Program {
                     Place::Value(value) => &flow.function.values[value.0 as usize],
                     _ => continue,
                 };
-                if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                if !(matches!(ty, Type::Desc(_) | Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
+                {
                     continue;
                 }
                 let fact = copied(state, *place, b)?;
