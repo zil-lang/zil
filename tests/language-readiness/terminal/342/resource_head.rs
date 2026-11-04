@@ -866,3 +866,29 @@ fn terminal342_store_resource_head_pays_work_and_rechecks_live_restored_cache() 
         }
     }
 }
+
+#[test]
+fn terminal342_stored_source_actuals_preserve_lifetime_type_const_positions() {
+    use zil_syntax::ast::{GenericArg, ItemKind, TypeKind};
+    let unit = source("type Alias<life a>=Carrier<'a,i64,7>;fn main(){}");
+    let parsed = zil_syntax::parse(&unit).into_result().unwrap();
+    let ItemKind::TypeAlias(alias) = &parsed.items[0].kind else {
+        panic!("alias");
+    };
+    let TypeKind::Named { args, .. } = &alias.value.as_ref().unwrap().kind else {
+        panic!("application");
+    };
+    assert!(
+        matches!(args.as_slice(),[GenericArg::Lifetime(name),GenericArg::Type(_),GenericArg::Const(_)]if name=="a")
+    );
+    // This preserves syntax only; the actual ordinary stored-borrow consumer
+    // must prove the scopes and loans before it may compile this source.
+    let unit = source(include_str!("slice_iter.zil"));
+    let parsed = zil_syntax::parse(&unit).into_result().unwrap();
+    let ItemKind::Aggregate(iter) = &parsed.items[0].kind else {
+        panic!("iterator record");
+    };
+    assert!(
+        matches!(&iter.fields[0].ty.kind,TypeKind::Reference{lifetime:Some(name),mutable:false,..}if name=="s")
+    );
+}

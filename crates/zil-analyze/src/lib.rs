@@ -33,6 +33,7 @@ mod resources;
 mod retained;
 mod scoped_thread;
 mod scopes;
+mod stored_borrows;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
