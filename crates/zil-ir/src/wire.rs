@@ -1127,6 +1127,51 @@ impl<'a> Writer<'a> {
                 self.u32(*variant)?;
                 self.u32(*index)?;
             }
+            InstructionKind::MakeOwnedTuple { fields } => {
+                self.u8(114)?;
+                self.count(fields.len(), self.limits.max_values)?;
+                for field in fields {
+                    self.u32(field.0)?;
+                }
+            }
+            InstructionKind::UnpackTuple { local, fields } => {
+                self.u8(115)?;
+                self.u32(local.0)?;
+                self.count(fields.len(), self.limits.max_locals)?;
+                for field in fields {
+                    self.u32(field.0)?;
+                }
+            }
+            InstructionKind::DropTuple { local } => {
+                self.u8(116)?;
+                self.u32(local.0)?;
+            }
+            InstructionKind::TakeTupleField { local, path }
+            | InstructionKind::TakeVariantField { local, path } => {
+                self.u8(
+                    if matches!(&instruction.kind, InstructionKind::TakeTupleField { .. }) {
+                        117
+                    } else {
+                        118
+                    },
+                )?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                    }
+                }
+            }
+
             InstructionKind::BorrowFieldLocal {
                 local,
                 path,
@@ -2439,6 +2484,51 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            114 => {
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut fields = Vec::with_capacity(count);
+                for _ in 0..count {
+                    fields.push(ValueId(self.u32()?));
+                }
+                InstructionKind::MakeOwnedTuple { fields }
+            }
+            115 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_locals, 4)?;
+                let mut fields = Vec::with_capacity(count);
+                for _ in 0..count {
+                    fields.push(LocalId(self.u32()?));
+                }
+                InstructionKind::UnpackTuple { local, fields }
+            }
+            116 => InstructionKind::DropTuple {
+                local: LocalId(self.u32()?),
+            },
+            tag @ (117 | 118) => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 5)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                if tag == 117 {
+                    InstructionKind::TakeTupleField { local, path }
+                } else {
+                    InstructionKind::TakeVariantField { local, path }
+                }
             }
             110 => {
                 let local = LocalId(self.u32()?);
