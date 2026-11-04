@@ -1,0 +1,482 @@
+{
+  "task": "G3.3.2",
+  "scope": "Source/producer investigation and unpublished interface request only; no acceptance implementation",
+  "baselines": {
+    "318": {
+      "source_sha": "318875a451c5eb53b5392d869f975ec96e2963b4",
+      "spec_sha256": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+      "normative_sha256": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8",
+      "CLI": "/workspace/.zil-env/target-mainline-release/release/zil",
+      "CLI_sha256": "180ea3a59fc95f2f4aa93d814d0296152c2ae7caee16fe3f23040872d50f36b0"
+    },
+    "438": {
+      "source_sha": "43881a0965c490a7086bf12199b9e9247c3df99f",
+      "design_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+      "probe": "/workspace/.zil-env/G8.4.1.3-review-tmp/source-probe-frozen43881",
+      "probe_sha256": "c19a26cb9e80d69d2a1e7b5241bc0c8ab819ae76d458d21af9a6f864ea0aa1db"
+    }
+  },
+  "commands": [
+    "existing318 zil check FILE --json",
+    "fixed438 source-probe-frozen43881 FILE",
+    "existing318 zil check ordinary-mode-control --stop-after types --emit-dir workspace TMPDIR --json"
+  ],
+  "source_count_per_baseline": 15,
+  "source_results": {
+    "fn-input-capture.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "e06e8797a8cbebf77f9b306d2033e9031eaf8dbe7d0c057e0c37b7f87d8acbb6",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+    },
+    "fn-ordinary-capture-control.zil": {
+      "318": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "438": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "source_sha256": "8d6e41b5cad01f5488c7919b62db0649562fdc23a5eb655cf08654f397d4c8e9",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fn-ordinary-capture-control.zil"
+    },
+    "fn-wrong-class.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "ad2fca15acf2db5845c793eba38a89a99c9c4c257511504bf0c9145a5cd12051",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fn-wrong-class.zil"
+    },
+    "fnmut-input-capture.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "fdac0387a121118102f43798522d7a49ff5af57ac0e0b64de3baf0d0b3e5b96d",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnmut-input-capture.zil"
+    },
+    "fnmut-ordinary-capture-control.zil": {
+      "318": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "438": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "source_sha256": "140745db1a58026335ce00ad759d961a4aad5ed46eccf63c8a3088a0eac2e975",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnmut-ordinary-capture-control.zil"
+    },
+    "fnmut-wrong-class.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "da7f593b4f01889eae2c5b779c54078dbdd77c48e40c682f69827ff7ea8a101d",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnmut-wrong-class.zil"
+    },
+    "fnonce-input-capture.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "a29aeb1c519a4cf3f6ebf875df5b0523844745c68338749c7a4d4f2369bf173b",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+    },
+    "fnonce-ordinary-capture-control.zil": {
+      "318": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "438": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "source_sha256": "ec89e7782b4e7ce882be800aac75a7b8bd8dbab279ae739d282a8fa047a6c396",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-ordinary-capture-control.zil"
+    },
+    "fnonce-wrong-class.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "annotated closure retained classes need their genuine enclosing definition context"
+          }
+        ]
+      },
+      "source_sha256": "27a8855c105aba704aaca6baef4fef84b93d21b7536c4dae1a35e6878fc99285",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-wrong-class.zil"
+    },
+    "qualified-input-control.zil": {
+      "318": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "438": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "source_sha256": "c068bcf2bded571580221e65f2aa1a5b46e568033065ba4a75a7b85dcbc504c8",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/qualified-input-control.zil"
+    },
+    "qualified-full-nominal-order-control.zil": {
+      "318": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "438": {
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      "source_sha256": "2c65fae9de3e5c361b0b52d43e1a0f11a59eed360387c5e6087e1da8126919e6",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/qualified-full-nominal-order-control.zil"
+    },
+    "fn-full-function-order-candidate.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+          }
+        ]
+      },
+      "source_sha256": "5f9c9e11a3bc24b6663880f3579f329f7577602bba44c577b43fe586c648cc2b",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fn-full-function-order-candidate.zil"
+    },
+    "fn-type-life-function-order-candidate.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime instance identity requires scoped canonical storage relation"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime instance identity requires scoped canonical storage relation"
+          }
+        ]
+      },
+      "source_sha256": "b67ceab9bb0a60cb1ac67a127508e37c01417072a698c0c975458c3d09f0e25c",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/fn-type-life-function-order-candidate.zil"
+    },
+    "scoped-type-actual-a.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime-bearing Type actual requires joint class substitution"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime-bearing Type actual requires joint class substitution"
+          }
+        ]
+      },
+      "source_sha256": "dd5691cb88fc3eb3823d85db4858bdd2862b683b0c6a588bd93a08c966efb4ed",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/scoped-type-actual-a.zil"
+    },
+    "scoped-type-actual-b.zil": {
+      "318": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime-bearing Type actual requires joint class substitution"
+          }
+        ]
+      },
+      "438": {
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "code": "E-UNSUPPORTED",
+            "message": "lifetime-bearing Type actual requires joint class substitution"
+          }
+        ]
+      },
+      "source_sha256": "21b4019eaaf61f8314106543cc055f2d13b47fdfa5615fb7499960d8d5b17264",
+      "source_path": "tests/language-readiness/terminal/342/fixed-context-producer/scoped-type-actual-b.zil"
+    }
+  },
+  "ordinary_mode_types_witnesses": {
+    "fn": {
+      "actual_kind": [
+        "Fn"
+      ],
+      "storage_life": [
+        "None"
+      ],
+      "typed_artifact_sha256": "35cb650277bb56320800797dcbd650ef80072efeeedd28da272bda9990710cc0",
+      "source": "tests/language-readiness/terminal/342/fixed-context-producer/fn-ordinary-capture-control.zil"
+    },
+    "fnmut": {
+      "actual_kind": [
+        "FnMut"
+      ],
+      "storage_life": [
+        "None"
+      ],
+      "typed_artifact_sha256": "fcdf63618326305a4ef94f0b95bbcc76ab5e9bb6979dd941184aeece19814b90",
+      "source": "tests/language-readiness/terminal/342/fixed-context-producer/fnmut-ordinary-capture-control.zil"
+    },
+    "fnonce": {
+      "actual_kind": [
+        "FnOnce"
+      ],
+      "storage_life": [
+        "None"
+      ],
+      "typed_artifact_sha256": "5696332bba0ac44279e93bc70d8de7cece80d29d7b7d042db27d57362ddddc45",
+      "source": "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-ordinary-capture-control.zil"
+    }
+  },
+  "producer_file_baseline_hashes": {
+    "crates/zil-expand/src/generic_stored_nominal.rs": {
+      "318": "90a02e090993191bb8b91c3ff29b7a69b1a6511c48233f54a6c578eb3465824e",
+      "438": "90a02e090993191bb8b91c3ff29b7a69b1a6511c48233f54a6c578eb3465824e",
+      "equal": true
+    },
+    "crates/zil-expand/src/stored_types.rs": {
+      "318": "255f2c043f9f740f14aa4e93069fbce2abc9ff2fa371cb9983bc713f8d182994",
+      "438": "255f2c043f9f740f14aa4e93069fbce2abc9ff2fa371cb9983bc713f8d182994",
+      "equal": true
+    },
+    "crates/zil-expand/src/generic_origins.rs": {
+      "318": "5eb887d4b6bf5b24713218688bacae7bb76c95283e8dae53fca00a920055a300",
+      "438": "5eb887d4b6bf5b24713218688bacae7bb76c95283e8dae53fca00a920055a300",
+      "equal": true
+    },
+    "crates/zil-expand/src/generic_expr_variants.rs": {
+      "318": "181213e468939952d15d531480444b205dfc42d1df27a4ffb7a452ee0988655e",
+      "438": "181213e468939952d15d531480444b205dfc42d1df27a4ffb7a452ee0988655e",
+      "equal": true
+    },
+    "crates/zil-expand/src/generic_rich_pointer.rs": {
+      "318": "f8814f19508c38915c71973e4aed98007f0dc5da32fc60b4c1aa60d880078325",
+      "438": "897e56799eed719a6e9d52142dd372f0ad41cbb931968f79c44eacdc0a6c7fcf",
+      "equal": false
+    },
+    "crates/zil-expand/src/source_context.rs": {
+      "318": "e9a550b4316b1e747967ed051b4fea4b6db98b0dc7efa3fce43265daf43e10f6",
+      "438": "e9a550b4316b1e747967ed051b4fea4b6db98b0dc7efa3fce43265daf43e10f6",
+      "equal": true
+    },
+    "crates/zil-expand/src/source_context_lineage.rs": {
+      "318": "2dfcfb2de53758a93d0620211bb0ce1cb8f8ac1e4f5956616744589a725bd564",
+      "438": "2dfcfb2de53758a93d0620211bb0ce1cb8f8ac1e4f5956616744589a725bd564",
+      "equal": true
+    },
+    "crates/zil-expand/src/generic_source_life.rs": {
+      "318": "29e5df01714f4e1d90d88fad8c8fe2a0580cfae11539f32972fd8c11c8fc6beb",
+      "438": null,
+      "equal": false
+    },
+    "crates/zil-expand/src/generics.rs": {
+      "318": "20f279d44e355f20600966df68da553c42d34d9104deafed1249002c977aba30",
+      "438": "d27843d4f1d81899489a5d8b118c276b4d23f9e15317ec1ee9c98dd289c332da",
+      "equal": false
+    },
+    "crates/zil-expand/src/lib.rs": {
+      "318": "8577ed044be038b1500c10d0685c0c4bacac4e1429522541d37d7fddef5f2862",
+      "438": "d4a872b45b1d58fde94a3d11a1b9516c04e07044723dfdd56ec5fcef7d9d08df",
+      "equal": false
+    },
+    "crates/zil-types/src/closures.rs": {
+      "318": "5d6d37fabcac361f70aa2a887ba98bc5e453d3df6c27611e6db0371712b9f0d4",
+      "438": "3e9d3deeae52e86959b2d1a99e3c9a0a75bdfe075466ceae3abc94952f9dc9d0",
+      "equal": false
+    }
+  },
+  "field_example": {
+    "enclosing_apply_life_only_s_fullordinal": 0,
+    "qualified_Tag_full_nominal_type_const_life_s_fullordinal": 2,
+    "complete_nominal_actuals": [
+      "Type(i64)",
+      "Const(usize,3)",
+      "Life(localclass0 mapped at this use to apply/s/full0)"
+    ],
+    "source_header_bridge": "apply/s/full0 -> actual enclosing Parameter0/[Pointee]/class0 -> Fixed0",
+    "outer_address": "independent elided enclosing header Borrow/Invocation; has no generic full ordinal and must not be equated to Tag class s",
+    "capture_slot_mapping": "Types resolves actual outer parameter to LocalId, matches Pending.captures[j].source, validates stored_type and inferred mode; source logical selection is not a guessed slot index"
+  },
+  "limitations": [
+    "All Fixed candidates and wrong-class neighbors stop at the same Expand guard. No new consumer or Typed proof claimed.",
+    "Full Type/Const/Life nominal order has a positive witness; mixed function scopes and qualified Type actuals have separate existing Unsupported producer fences.",
+    "No Native, Cargo build, new target, default limit or public schema changes.",
+    "Original private source_life full-ordinal checker is present in318 but absent in438; no full-pipeline equivalence claim.",
+    "Complete Typed/Wire context identity and source activation remain root-publication decisions; capture/loan/class checks must remain independent."
+  ],
+  "rust_goals": {
+    "safety": "Fail-closed source constraints preserved; exact missing consumers identified",
+    "runtime_memory": "No runtime change or comparative measurement",
+    "expression_maintenance": "Five control sources Verify; six intended Fixed sources remain unsupported; no feature admission",
+    "compile_cost": "Only existing tools and small source/Types probes; no quota/build/benchmark claim",
+    "breakthrough": "Reproducible producer boundary and executable future fixtures; no language implementation or relative Rust net breakthrough"
+  }
+}
