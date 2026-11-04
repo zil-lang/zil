@@ -1,4 +1,4 @@
-//! Definition-time State windows. These facts describe source positions and
+//! Definition-time borrow windows. These facts describe source positions and
 //! fresh borrow identities; neither a type slot nor a concrete instance grants
 //! an alias proof. Concrete Analyze and Verify still rebuild their own facts.
 use super::*;
@@ -67,12 +67,6 @@ fn tree_work(size: usize) -> usize {
 }
 
 impl Check<'_, '_, '_> {
-    fn alias_scope(&self) -> bool {
-        self.callable
-            .as_ref()
-            .is_some_and(|scope| scope.owned_state)
-    }
-
     fn alias_fee(&mut self, count: usize, span: Span) -> R<()> {
         for _ in 0..count {
             self.budget.node(span, 0)?;
@@ -302,29 +296,30 @@ impl Check<'_, '_, '_> {
                         return Ok(origins);
                     }
                 }
+                // Every ordinary local has a real storage position. An
+                // address parameter/local instead carries its seeded or
+                // propagated referent loans above; its pointer slot must not
+                // be mistaken for the object it points at.
                 self.budget.ty(&local.ty)?;
                 if let Some(scope) = &self.callable {
                     for binding in scope.bindings() {
                         self.budget.text(&binding.generic_name, expression.span)?;
                     }
                 }
-                let callback = self.callable.as_ref().is_some_and(|scope| {
-                    scope.bindings().any(|binding| {
-                        callable::parameter_mode(&local.ty, &binding.generic_name) == Some(None)
-                    })
-                });
-                if callback || self.package_local(expression, state).is_some() {
-                    self.alias_fee(1, expression.span)?;
-                    Ok(vec![Origin {
-                        position: Position {
-                            owner: local.id,
-                            field: None,
-                        },
-                        parents: Vec::new(),
-                    }])
-                } else {
-                    Ok(Vec::new())
+                if matches!(group(&local.ty).kind, TypeKind::Reference { .. }) {
+                    return Err(unsupported(
+                        expression.span,
+                        "generic address has no established symbolic borrow origin",
+                    ));
                 }
+                self.alias_fee(1, expression.span)?;
+                Ok(vec![Origin {
+                    position: Position {
+                        owner: local.id,
+                        field: None,
+                    },
+                    parents: Vec::new(),
+                }])
             }
             ExprKind::Member { object, member } => {
                 let mut origins = self.alias_origins(object, state, depth + 1)?;
@@ -432,9 +427,6 @@ impl Check<'_, '_, '_> {
         mutable: bool,
     ) -> R<()> {
         self.aliases.result.clear();
-        if !self.alias_scope() {
-            return Ok(());
-        }
         let origins = self.alias_origins(expression, state, 0)?;
         self.alias_fee(origins.len(), expression.span)?;
         self.aliases.result.reserve(origins.len());
@@ -455,6 +447,39 @@ impl Check<'_, '_, '_> {
             self.aliases.result.push(id);
         }
         Ok(())
+    }
+
+    /// Parameter windows are justified by their actual passing modes. Each
+    /// incoming reference names an external referent, distinct from the
+    /// local pointer slot; life spellings never supply this identity.
+    pub(super) fn alias_parameter(
+        &mut self,
+        state: &mut State,
+        local: usize,
+        mutable: bool,
+        span: Span,
+    ) -> R<()> {
+        self.alias_fee(2, span)?;
+        let owner = self.next_local;
+        self.next_local = owner.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "generic borrow root identity overflow",
+                Some(span),
+            )
+        })?;
+        let id = self.alias_new(
+            state,
+            Origin {
+                position: Position { owner, field: None },
+                parents: Vec::new(),
+            },
+            mutable,
+            span,
+        )?;
+        self.aliases.result.clear();
+        self.aliases.result.push(id);
+        self.alias_bind(state, local, span)
     }
 
     fn alias_origin_parents(&mut self, origins: &[Origin], span: Span) -> R<Vec<usize>> {

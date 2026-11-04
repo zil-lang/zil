@@ -156,8 +156,8 @@ fn mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses(
     reject(
         &called,
         ResultCategory::SafeReject,
-        Phase::Verify,
-        "E-BORROW-CONFLICT",
+        Phase::Expand,
+        "E-GENERIC-ARGUMENT",
     );
 }
 

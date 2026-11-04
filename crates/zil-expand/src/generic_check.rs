@@ -272,6 +272,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         life_origins: BTreeMap::new(),
     };
     for (id, parameter) in function.params.iter().enumerate() {
+        if let TypeKind::Reference { mutable, .. } = &group(&parameter.ty).kind {
+            check.alias_parameter(&mut state, id, *mutable, parameter.span)?;
+        }
         if check.life_allowed.is_some()
             && matches!(
                 group(&parameter.ty).kind,
@@ -2261,6 +2264,9 @@ impl Check<'_, '_, '_> {
                     ));
                 }
                 self.alias_use_local(state, id, e.span)?;
+                if !borrowing && !matches!(group(&ty).kind, TypeKind::Reference { .. }) {
+                    self.alias_read_place(e, state)?;
+                }
                 let scoped_copy = self.scoped_copy_local(id, e.span)?;
                 let owning_package = self
                     .callable
@@ -2456,6 +2462,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
+                if !borrowing {
+                    self.alias_read_place(e, state)?;
+                }
                 let actual_description = self.resource_desc_roots
                     && self.transferred_resource_expression(e, state)?.declaration;
                 if !borrowing && !actual_description && !self.known_copy(&ty)? {

@@ -1,0 +1,30 @@
+{
+  "task": "342",
+  "status": "MilestoneInProgress",
+  "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
+  "scope": "Definition-time ordinary generic borrow windows; full terminal obligations remain in progress",
+  "tests": {
+    "generic_regressions": {"passed": 33, "failed": 0},
+    "cross_function_borrows": {"passed": 37, "failed": 0},
+    "impl197_mixed_state": {"passed": 14, "failed": 0},
+    "review184_storage": {"passed": 4, "failed": 0},
+    "impl200_independent": {"passed": 10, "failed": 0}
+  },
+  "expected_migration": {
+    "source": "tests/language-readiness/mutable337/known-incomplete-unused-generic.zil",
+    "source_bytes_preserved": true,
+    "old_called": "Verify/SafeReject/E-BORROW-CONFLICT",
+    "new_unused_and_called": "Expand/SafeReject/E-GENERIC-ARGUMENT",
+    "first_run_expected_assertion_failure_retained_in_change_record": true
+  },
+  "budget": {
+    "default_limits_changed": false,
+    "331_original_expand": {"old": 757, "new": 779, "n_minus_one_resource_limit": true, "fresh_n_equal": true},
+    "322_original_phase_n": [99, 95, 714, 993],
+    "337_concrete_phase_n": [143, 124, 1178, 4818],
+    "legacy_single_field_state_expand": 2358
+  },
+  "known_incomplete": ["CopyT+mutable life admission pending next milestone", "HRTB and borrowed function pointers", "borrow storage and general lending", "explicit dyn", "general section 5.2 state"],
+  "formal_full_suite": "NotRunByImplementationAuthor",
+  "independent_review": "Pending"
+}

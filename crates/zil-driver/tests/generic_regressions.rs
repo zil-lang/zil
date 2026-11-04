@@ -1,5 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, compile_source};
+#[path = "../../../tests/language-readiness/terminal/342/loans.rs"]
+mod terminal342_loans;
 fn source(s: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review.zil", s)
 }
