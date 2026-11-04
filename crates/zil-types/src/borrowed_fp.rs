@@ -102,6 +102,143 @@ pub(super) fn metadata_work(life: &FunctionLifeContract) -> usize {
         .saturating_add(2)
 }
 
+<<<<<<< HEAD
+=======
+/// Pay the additional qualified-storage slot inspection from the live caller
+/// ledger. The ordinary recursive type eligibility walk is reserved by each
+/// existing full-signature caller; this new scan is a separate occurrence.
+pub(super) fn qualified_inputs(
+    life: &StorageLifeContract,
+    parameters: &[Type],
+    result: &Type,
+    mut charge: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    if life.classes.is_empty() {
+        return Ok(());
+    }
+    charge(parameters.len().saturating_add(1))?;
+    for ty in parameters.iter().chain(std::iter::once(result)) {
+        let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if let Type::BorrowedStorage { life, .. } = ty {
+            charge(life.slots.len().saturating_add(1))?;
+        }
+    }
+    Ok(())
+}
+
+/// Prepay a complete relation before traversal, clone or identity encoding.
+/// Semantic class/position validation is performed separately by consumers.
+pub(super) fn charge_contract(
+    life: &StorageLifeContract,
+    mut charge: impl FnMut(usize) -> R<()>,
+    multiplier: usize,
+) -> R<()> {
+    charge(
+        life.bindings
+            .len()
+            .saturating_add(life.classes.len().saturating_mul(8))
+            .saturating_add(2)
+            .saturating_mul(multiplier),
+    )?;
+    for row in &life.bindings {
+        charge(row.position.path.len().saturating_mul(multiplier))?;
+    }
+    for row in &life.classes {
+        charge(row.position.path.len().saturating_mul(multiplier))?;
+    }
+    Ok(())
+}
+
+/// Extra complete flat-to-rich construction pass when making a code value.
+pub(super) fn pointer_work(signature: &Signature) -> usize {
+    signature
+        .parameters
+        .len()
+        .saturating_add(1)
+        .saturating_mul(4)
+        .saturating_add(
+            signature
+                .storage_life
+                .as_ref()
+                .map_or(0, |life| metadata_work(life).saturating_mul(4)),
+        )
+        .saturating_add(signature.life.as_ref().map_or(0, |life| {
+            life.parameter_lives
+                .len()
+                .saturating_add(life.binder_count as usize)
+        }))
+}
+
+/// Abstract a static definition's complete incoming equations into fresh
+/// invocation formals. The actual definition relation remains unchanged.
+/// Caller prepays metadata, type walks, mapping storage and returned snapshots.
+pub(super) fn static_pointer_life(
+    parameters: &[Type],
+    result: &Type,
+    definition: &StorageLifeContract,
+) -> Option<StorageLifeContract> {
+    relation(parameters, result, definition, Span::default()).ok()?;
+    let mut fixed = vec![None; definition.fixed_binder_count as usize];
+    let mut invocation = vec![None; definition.invocation_binder_count as usize];
+    let mut next = 0u32;
+    fn map(
+        binder: StorageBinder,
+        fixed: &mut [Option<u32>],
+        invocation: &mut [Option<u32>],
+        next: &mut u32,
+    ) -> Option<StorageBinder> {
+        let slot = match binder {
+            StorageBinder::Fixed(n) => fixed.get_mut(n as usize)?,
+            StorageBinder::Invocation(n) => invocation.get_mut(n as usize)?,
+        };
+        let label = match *slot {
+            Some(label) => label,
+            None => {
+                let label = *next;
+                *next = next.checked_add(1)?;
+                *slot = Some(label);
+                label
+            }
+        };
+        Some(StorageBinder::Invocation(label))
+    }
+    let mut output = definition.clone();
+    let (mut borrowed, mut class) = (0, 0);
+    for base in (0..parameters.len())
+        .map(|index| StorageBase::Parameter(index as u32))
+        .chain(std::iter::once(StorageBase::Result))
+    {
+        while let Some(row) = output
+            .bindings
+            .get_mut(borrowed)
+            .filter(|row| row.position.base == base)
+        {
+            row.binder = map(row.binder, &mut fixed, &mut invocation, &mut next)?;
+            borrowed += 1;
+        }
+        while let Some(row) = output
+            .classes
+            .get_mut(class)
+            .filter(|row| row.position.base == base)
+        {
+            row.binder = map(row.binder, &mut fixed, &mut invocation, &mut next)?;
+            class += 1;
+        }
+    }
+    if borrowed != output.bindings.len() || class != output.classes.len() {
+        return None;
+    }
+    output.fixed_binder_count = 0;
+    output.invocation_binder_count = next;
+    relation(parameters, result, &output, Span::default()).ok()?;
+    Some(output)
+}
+
+>>>>>>> 034fbc80d (Infer static qualified function values from complete fresh invocation relations)
 pub(super) fn function_reference(
     signature: &Signature,
     expected: Option<&Type>,
