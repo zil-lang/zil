@@ -1096,6 +1096,13 @@ pub struct VariantProjection {
     pub variant: u32,
     pub index: u32,
 }
+/// One actual inline place step. Field never crosses Managed, Address or
+/// external stable storage; Variant always retains its selected tag and field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaceProjection {
+    Field(u32),
+    Variant(VariantProjection),
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
     /// Construct an empty owning prefix; no allocation. Element metadata is a
@@ -1504,6 +1511,35 @@ pub enum InstructionKind {
         value: ValueId,
         variant: u32,
         index: u32,
+    },
+    /// Construct a complete ordinary owning Tuple, preserving field order and
+    /// each actual input responsibility. No implicit allocation or clone.
+    MakeOwnedTuple {
+        fields: Vec<ValueId>,
+    },
+    /// Atomically consume a complete Tuple into exact distinct vacant locals.
+    /// Registers the actual destinations in reverse order; no SSA result.
+    UnpackTuple {
+        local: LocalId,
+        fields: Vec<LocalId>,
+    },
+    /// Conditionally drop only the Tuple's actual remaining initialized fields.
+    /// Independent CFG reconstruction qualifies storage state and cleanup age.
+    DropTuple {
+        local: LocalId,
+    },
+    /// Selectively transfer one initialized subtree of a real Tuple local.
+    /// Nonempty mixed path; every active tag and every field initialization is
+    /// checked anew. The parent retains storage and all remaining responsibility.
+    TakeTupleField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Selectively transfer one initialized subtree of a real Enum local.
+    /// Same path/loan rules as Tuple Take; every variant step names tag+field.
+    TakeVariantField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
     },
     /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
     /// nonempty field path retains parent storage, initialization and mutability.
@@ -2712,6 +2748,48 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, value.0);
             encode_u32(b, *variant);
             encode_u32(b, *index);
+        }
+        InstructionKind::MakeOwnedTuple { fields } => {
+            b.push(114);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            b.push(115);
+            encode_u32(b, local.0);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropTuple { local } => {
+            b.push(116);
+            encode_u32(b, local.0);
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => {
+            b.push(if matches!(i, InstructionKind::TakeTupleField { .. }) {
+                117
+            } else {
+                118
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                }
+            }
         }
         InstructionKind::BorrowFieldLocal {
             local,

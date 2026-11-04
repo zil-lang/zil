@@ -57,7 +57,7 @@ impl Builder<'_, '_> {
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
         matches!(ty, Type::Managed(_) | Type::Package { .. })
             || errors::owned(ty)
-            || owned_shapes::enumeration(ty)
+            || owned_shapes::sum(ty)
             || packages::owned_array_supported(ty)
             || self.owned_closure(ty)
     }
@@ -67,6 +67,8 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropManaged { local })
         } else if matches!(ty, Type::Package { .. }) {
             Some(InstructionKind::DropPackage { local })
+        } else if owned_shapes::tuple(ty) {
+            Some(InstructionKind::DropTuple { local })
         } else if owned_shapes::enumeration(ty) {
             Some(InstructionKind::DropEnum { local })
         } else if errors::owned(ty) {

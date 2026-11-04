@@ -78,6 +78,8 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::BorrowVariantLocal { local, .. }
         | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::RegisterDefer { local, .. }
         | InstructionKind::Store { local, .. }
@@ -170,7 +172,9 @@ pub(super) fn check_function(
                     | InstructionKind::BorrowVariantLocal { .. }
                     | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
+                    | InstructionKind::UnpackTuple { .. }
                     | InstructionKind::DropEnum { .. }
+                    | InstructionKind::DropTuple { .. }
             ) {
                 required = true;
             }
@@ -346,8 +350,8 @@ pub(super) fn check_function(
                                     ));
                                 }
                             }
-                            if let InstructionKind::UnpackVariant { ref fields, .. } =
-                                instruction.kind
+                            if let InstructionKind::UnpackVariant { ref fields, .. }
+                            | InstructionKind::UnpackTuple { ref fields, .. } = instruction.kind
                             {
                                 budget.spend(
                                     fields

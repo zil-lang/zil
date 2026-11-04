@@ -266,7 +266,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || reference_patterns::sum_address(&f.return_type)
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
-        || owned_shapes::enumeration(&f.return_type)
+        || owned_shapes::sum(&f.return_type)
         || packages::owned_array_supported(&f.return_type)
         || matches!(&f.return_type, Type::Managed(_) if resources::supported(&f.return_type)))
     {
@@ -310,7 +310,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
-            || owned_shapes::enumeration(&p.ty)
+            || owned_shapes::sum(&p.ty)
             || packages::owned_array_supported(&p.ty))
         {
             errors.push(unsupported(
@@ -1585,7 +1585,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                     } else if matches!(ty, Type::Package { .. })
                         || packages::owned_array_supported(&ty)
                         || errors::owned(&ty)
-                        || owned_shapes::enumeration(&ty)
+                        || owned_shapes::sum(&ty)
                     {
                         InstructionKind::TakeLocal { local }
                     } else {

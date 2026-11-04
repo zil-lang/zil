@@ -51,13 +51,28 @@
         "The earlier broad Analyze sum filter frozen-v34 fixture failure remains a separate root-owned compatibility migration; this stage did not rerun that broad target."
       ],
       "rust_goals": "Safety: actual tag-qualified storage, independent epochs/loan roots and observed drop-once cleanup. Abstraction cost: real pointer/GEP representation without wrapper allocation or payload copies. Ergonomics: owned Option borrowing and returned payload references compose through ordinary functions. Performance: bounded paid CFG/path state and exact fresh/warm request boundaries, with no formal throughput claim. Breakthrough: actual borrowed owning Sum inputs now retain the caller storage through nested/returned ref patterns."
+    },
+    {
+      "name": "nested-reference-conditions-and-complete-owned-tuples",
+      "source_parent": "0640529a7",
+      "result": "PassLimited",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture; cargo test -p zil-ir --lib; cargo test -p zil-analyze --lib sum_tests::; cargo test -p zil-verify --lib package_tests::sums; cargo test -p zil-verify --lib borrow",
+      "evidence": "Terminal24/0. IR60/0, Analyze Sum26/0, Verify Sum16/0 and borrow23/0. Actual nested Copy Tuple places compose through local Enum payloads, borrowed Enum/Tuple inputs and actual aggregate members; forged AddressField aliases reject Analyze/Verify/Wire. Ref if-let/while-let conditions preserve actual storage and lexical temporary cleanup. Native Clang/API O0/O2 complete Type::Tuple construction, atomic destructuring, nested Tuple, ordinary complete Tuple parameter/result, discarded Managed fields and failure of a later constructor field clean up real Token exactly once. Raw/Wire repeated/parent-alias Unpack destinations reject independently; source whole Tuple repeated move safely rejects. Owned Tuple full-request N23399 succeeds,N-1 ResourceLimit,fresh/warm retries agree. Prior N9050/N38035/N18127 are unchanged; addressed fixture changes from90036 to90248 under the new Tuple/place work, with N-1 rejection and fresh/warm agreement. The Analyze empty-address-table guard restores existing callback/store functions with no Address SSA table. Integration review caught a symbolic capture separation regression: suppressing Apart solely because coarse roots matched lost ParameterCapture obligations. The correction suppresses only independently grounded disjoint Root::Window intervals; existing impl187_borrowed_bytes24/0, including source and raw/Wire capture-alias controls, passes.",
+      "limitations": [
+        "114/115/116 consumers are implemented only for complete tuples; selective117/118 are explicitly denied while real partial state/cleanup consumers are being built.",
+        "General mixed move/ref and nonCopy Tuple ref patterns, direct ErrorUnion destructuring and independent review remain unfinished."
+      ],
+      "rust_goals": "Safety: real field intervals and independent atomic transfer checks, with executable drop-once failure cleanup. Abstraction cost: actual inline Tuple ABI without a Package disguise or wrapper allocation. Ergonomics: ordinary nested Tuple destruction and reference conditions compose. Compile cost: three prior boundaries remain stable; the addressed-fixture migration and new owned Tuple boundary have exact fresh/warm evidence. Breakthrough: true nonCopy Type::Tuple now traverses ordinary function arguments/results and destructuring with native cleanup.",
+      "retained_test_executable_sha256": "48adb3eb97b9f69039ea4326a9705bdeda71d2791fcb4be4ce9f2eb9665c5d1a"
     }
   ],
   "remaining": [
-    "general mixed move/ref and nonCopy Tuple patterns",
-    "nested Tuple/conditional reference-pattern place lowering",
-    "independent review",
-    "whole-language acceptance"
+    "selective117/118 real partial initialization and residual cleanup",
+    "general mixed move/ref and nonCopy Tuple reference patterns",
+    "direct ErrorUnion destructuring and owning arm cleanup",
+    "independent review of new stage",
+    "whole-language acceptance",
+    "partial-pattern budget/cache boundary"
   ],
   "rust_goals": {
     "safety": "Typed and independent Wire verifier accept real inferred source; nearest nominal mismatch rejects. General safety is unfinished.",

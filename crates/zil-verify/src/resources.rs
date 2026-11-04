@@ -375,7 +375,7 @@ impl Slots {
                 (ty, managed),
                 (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
             ) || (managed
-                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned_enum(ty))))
+                && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
                     if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))))
@@ -939,7 +939,10 @@ impl Transfer<'_> {
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
             }
             match &instruction.kind {
-                InstructionKind::MakeVariant { fields, .. } if result.is_some() => {
+                InstructionKind::MakeOwnedTuple { fields }
+                | InstructionKind::MakeVariant { fields, .. }
+                    if result.is_some() =>
+                {
                     budget.spend(fields.len())?;
                     for &value in fields {
                         self.consume(state, value, span, validate)?;
@@ -960,7 +963,8 @@ impl Transfer<'_> {
                         ));
                     }
                 }
-                InstructionKind::UnpackVariant { local, fields, .. } => {
+                InstructionKind::UnpackVariant { local, fields, .. }
+                | InstructionKind::UnpackTuple { local, fields } => {
                     let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");
                     budget.spend(fields.len())?;
                     // Check every destination before changing any debt. Copy
@@ -1600,6 +1604,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }

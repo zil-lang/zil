@@ -667,9 +667,18 @@ fn reconstruct(
                                 roots_join(&mut row, captures, budget)?;
                             }
                         }
+                        InstructionKind::AddressField { address, index } => {
+                            let precise = roots::inline_address_field(
+                                f,
+                                *address,
+                                *index,
+                                &values[address.0 as usize],
+                                budget,
+                            )?;
+                            roots_join(&mut row, &precise, budget)?;
+                        }
                         InstructionKind::DescribeAddress { address }
                         | InstructionKind::ReborrowAddress { address, .. }
-                        | InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
                         | InstructionKind::AddressIndex { address, .. } => {
                             roots_join(&mut row, &values[address.0 as usize], budget)?;

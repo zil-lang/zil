@@ -530,6 +530,7 @@ fn capture_transition(
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
         | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::DropOwnedArray { local }
         | InstructionKind::TakeOwnedArrayElement { local, .. }
@@ -723,6 +724,8 @@ fn pattern_window_transition(
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
         | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::DropPackage { local }
         | InstructionKind::DropManaged { local } => {
@@ -1169,6 +1172,8 @@ fn store_window_transition(
             Some(Root::Capture(index))
         }
         InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::TakeLocal { local }
         | InstructionKind::DropManaged { local }
@@ -1678,10 +1683,17 @@ fn infer_with_private(
                             }
                         }
                     }
+                    InstructionKind::AddressField { address, index } => {
+                        for root in &values[address.0 as usize] {
+                            budget.lookup(found.len(), "inline field root insertion")?;
+                            found.insert(inline_address_field_root(
+                                f, *address, *index, *root, budget,
+                            )?);
+                        }
+                    }
                     InstructionKind::DescribeAddress { address }
                     | InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. } => {
                         let source = values
                             .get(address.0 as usize)
@@ -1720,14 +1732,16 @@ fn infer_with_private(
                             state.insert(*local, source.clone());
                         }
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         budget.spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
                         state.remove(local);
                         for local in fields {
                             state.remove(local);
                         }
                     }
-                    InstructionKind::DropEnum { local }
+                    InstructionKind::DropTuple { local }
+                    | InstructionKind::DropEnum { local }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
                     | InstructionKind::BindPackageCapture { local, .. }
@@ -2070,6 +2084,7 @@ fn product_may_store_write(
                         | InstructionKind::DropPackage { local }
                         | InstructionKind::DropClosure { local }
                         | InstructionKind::DropOwnedArray { local }
+                        | InstructionKind::DropTuple { local }
                         | InstructionKind::DropEnum { local }
                         | InstructionKind::DropErrorUnion { local }
                         | InstructionKind::TakePackageField { local, .. }
@@ -2491,6 +2506,7 @@ fn parameter_product_windows(
                         InstructionKind::MakePackage { fields }
                         | InstructionKind::MakeAggregate { fields }
                         | InstructionKind::MakeVariant { fields, .. }
+                        | InstructionKind::MakeOwnedTuple { fields }
                         | InstructionKind::MakeOwnedArray { elements: fields } => {
                             children = fields;
                             true
@@ -3672,6 +3688,108 @@ fn address_root(
                 .ok_or_else(|| bad("address interval overflow"))?;
             if z > limit {
                 return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Window(origin, a, z)
+        }
+        root => root,
+    })
+}
+
+fn inline_address_field_root(
+    f: &TypedFunction,
+    address: ValueId,
+    index: u32,
+    root: Root,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+        return Err(bad("inline field base is not an address"));
+    };
+    b.type_work(inner, true, "inline address field shape")?;
+    if !inner.is_copy_value() || !matches!(inner.as_ref(), Type::Tuple(_) | Type::Record { .. }) {
+        return Ok(root);
+    }
+    fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "inline field interval node")?;
+        let mut total = 1u32;
+        let mut add = |t: &Type| -> CompileResult<()> {
+            total = total
+                .checked_add(width(t, b)?)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?
+                }
+            }
+            Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(total)
+    }
+    let mut begin = 1u32;
+    let ty = match inner.as_ref() {
+        Type::Tuple(fs) => {
+            b.spend(fs.len(), "inline tuple field lookup")?;
+            for t in fs.iter().take(index as usize) {
+                begin = begin
+                    .checked_add(width(t, b)?)
+                    .ok_or_else(|| bad("inline field interval overflow"))?;
+            }
+            fs.get(index as usize)
+        }
+        Type::Record { fields, .. } => {
+            b.spend(fields.len(), "inline record field lookup")?;
+            for (_, t) in fields.iter().take(index as usize) {
+                begin = begin
+                    .checked_add(width(t, b)?)
+                    .ok_or_else(|| bad("inline field interval overflow"))?;
+            }
+            fields.get(index as usize).map(|(_, t)| t)
+        }
+        _ => unreachable!(),
+    }
+    .ok_or_else(|| bad("inline address field out of range"))?;
+    let end = begin
+        .checked_add(width(ty, b)?)
+        .ok_or_else(|| bad("inline field interval overflow"))?;
+    Ok(match root.position() {
+        Root::Local(l) => Root::Projection(l, begin, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), begin, end),
+        Root::Projection(l, base, bound) => {
+            let a = base
+                .checked_add(begin)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            let z = base
+                .checked_add(end)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            if z > bound {
+                return Err(bad("inline field escapes parent interval"));
+            }
+            Root::Projection(l, a, z)
+        }
+        Root::Window(origin, base, bound) => {
+            let a = base
+                .checked_add(begin)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            let z = base
+                .checked_add(end)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            if z > bound {
+                return Err(bad("inline field escapes parent interval"));
             }
             Root::Window(origin, a, z)
         }

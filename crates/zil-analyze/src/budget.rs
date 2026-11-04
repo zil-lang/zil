@@ -244,6 +244,7 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 struct SumContext {
     blocked: bool,
     in_enum: bool,
+    in_tuple: bool,
     in_product: bool,
     in_error: bool,
     error_products: u8,
@@ -485,6 +486,7 @@ pub(super) fn preflight(
             let mut child = context;
             match ty {
                 Type::Enum { .. } => child.in_enum = true,
+                Type::Tuple(_) => child.in_tuple = true,
                 Type::Package { .. } => {
                     child.in_product = true;
                     if context.in_error {
@@ -497,6 +499,7 @@ pub(super) fn preflight(
                 }
                 Type::Managed(_) => {
                     let extension = context.in_enum
+                        || context.in_tuple
                         || context.product_sum
                         || (context.error_products >= 2
                             && (!legacy_product_union
@@ -1080,6 +1083,14 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::TakeVariantField { .. } => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "partial inline ownership consumer is under implementation",
+                            Some(instruction.span),
+                        )]);
+                    }
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {
                         budget.addressed_sums = true;
                         if local.0 as usize >= function.locals.len() {
@@ -1117,7 +1128,8 @@ pub(super) fn preflight(
                             "Sum path preflight",
                         )?;
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         sum_function = true;
                         count(0, fields.len(), limits.max_locals, "Unpack fields")?;
                         budget.input(fields.len().saturating_add(1), "Unpack target preflight")?;
@@ -1130,7 +1142,7 @@ pub(super) fn preflight(
                             return Err(bad("Unpack local outside table"));
                         }
                     }
-                    InstructionKind::DropEnum { local } => {
+                    InstructionKind::DropEnum { local } | InstructionKind::DropTuple { local } => {
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("DropEnum local outside table"));
@@ -1208,7 +1220,8 @@ pub(super) fn preflight(
                     | InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeVariant { fields, .. } => {
+                    | InstructionKind::MakeVariant { fields, .. }
+                    | InstructionKind::MakeOwnedTuple { fields } => {
                         budget.input(fields.len(), "aggregate operands")?;
                     }
                     InstructionKind::MakeClosure { captures, .. } => {
