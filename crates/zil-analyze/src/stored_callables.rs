@@ -18,9 +18,18 @@ pub(super) fn scalar(t: &Type) -> bool {
     )
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
-    module.closures.get(id.0 as usize).is_some_and(|d| {
-        d.lending_captures.is_empty() && d.storage_life.is_none() && scalar(&d.result)
-    })
+    module
+        .closures
+        .get(id.0 as usize)
+        .is_some_and(|d| d.lending_captures.is_empty() && scalar(&d.result))
+}
+pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
+    let t = if let Type::Address { inner, .. } = t {
+        inner.as_ref()
+    } else {
+        t
+    };
+    matches!(t, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
 }
 pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -30,14 +39,28 @@ pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     };
     matches!(t,Type::Closure(id)if finite(module,*id))
 }
+pub(super) fn capture(t: &Type) -> bool {
+    scalar(t)
+        || matches!(t, Type::Address { mutable: false, inner }
+        if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
+}
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
-        if !finite(module, d.id) || !d.captures.iter().all(scalar) {
+        if !finite(module, d.id)
+            || !d.captures.iter().all(|t| {
+                if d.storage_life.is_some() {
+                    capture(t)
+                } else {
+                    scalar(t)
+                }
+            })
+        {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "qualified callbacks require actual inline scalar environments and results",
+                "qualified callbacks require finite scalar/shared capture environments and scalar results",
                 None,
             )]);
         }
@@ -57,6 +80,28 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
             || f.return_type != d.result
         {
             return Err(bad("qualified callback complete actual entry differs"));
+        }
+        if let Some(life) = &d.storage_life {
+            b.spend(d.parameters.len(), "captured Fixed shared argument profile")?;
+            if d.parameters
+                .iter()
+                .any(|t| matches!(t, Type::Address { mutable: true, .. }))
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "captured Fixed exclusive arguments need capture target summary substitution",
+                    None,
+                )]);
+            }
+            super::signature_life::charge(life, b)?;
+            if f.storage_life.as_ref() != Some(life) {
+                return Err(bad(
+                    "actual captured closure entry relation differs from definition",
+                ));
+            }
+            super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
+        } else if f.storage_life.is_some() {
+            return Err(bad("closure definition omits actual entry relation"));
         }
         for (p, t) in f.parameters.iter().zip(&d.parameters) {
             if f.locals.get(p.0 as usize).map(|p| &p.ty) != Some(t) {
@@ -164,12 +209,29 @@ pub(super) fn types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if let InstructionKind::CallClosureOnce { callee, .. } = &i.kind
+        && let Some(Type::Closure(id)) = f.values.get(callee.0 as usize)
+        && let Some(d) = module.closures.get(id.0 as usize)
+        && d.storage_life.is_some()
+        && d.kind != CallableKind::FnOnce
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "captured Fixed Once adaptation needs its actual environment consumption ledger",
+            Some(i.span),
+        )]);
+    }
     if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
         let d = module
             .closures
             .get(closure.0 as usize)
             .ok_or_else(|| bad("qualified environment definition is absent"))?;
         b.spend(captures.len(), "qualified environment operands")?;
+        if d.storage_life.is_some() {
+            for ty in &d.captures {
+                b.type_work(ty, true, "actual captured environment type comparison")?;
+            }
+        }
         if captures.len() != d.captures.len()
             || d.captures
                 .iter()
@@ -193,8 +255,12 @@ pub(super) fn types(
                 .captures
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
+            if d.storage_life.is_some() {
+                b.type_work(t, true, "actual captured field type comparison")?;
+            }
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
                 if d.kind == zil_ir::CallableKind::Fn
+                    || !scalar(t)
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
                 {
