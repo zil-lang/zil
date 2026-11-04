@@ -557,6 +557,14 @@ pub(crate) fn reject_fixed_closure(
             self.budget.text(value, span).map_err(|e| vec![e])
         }
         fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            // With neither written arguments nor actual stored instances, a
+            // Named leaf has no retained class for this rejection query.
+            // Its ordinary annotation checks run on the normal Engine path.
+            if self.instances.is_empty()
+                && matches!(&ty.kind, TypeKind::Named { args, .. } if args.is_empty())
+            {
+                return Ok(());
+            }
             if matches!(ty.kind, TypeKind::ForLifetime { .. }) {
                 return self.budget.ty_depth(ty, depth).map_err(|e| vec![e]);
             }
