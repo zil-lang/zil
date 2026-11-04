@@ -8287,3 +8287,168 @@ fn terminal340_package_terminal_native_old_drop_store_and_failure() {
         review329_native_entry_output(&[("main", text)], "main", expected);
     }
 }
+
+#[test]
+fn terminal340_package_terminal_exact_rhs_provenance() {
+    let fresh = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+    );
+    let incoming = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+    );
+    let given = incoming.replace("result(create)", "result(give)");
+    let reversed = fresh.replace(
+        "package P{manages owner:R;n:i32}",
+        "package P{n:i32;manages owner:R}",
+    );
+    for (name, text, expected) in [
+        (
+            "old incoming to actual fresh",
+            fresh,
+            ResultCategory::Success,
+        ),
+        (
+            "old created to incoming",
+            incoming,
+            ResultCategory::SafeReject,
+        ),
+        (
+            "incoming exact give result",
+            given.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "actual owner is second field",
+            reversed.as_str(),
+            ResultCategory::Success,
+        ),
+    ] {
+        for stage in [Stage::Analyze, Stage::Verify] {
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: stage,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                expected,
+                "{name} {stage:?}: {}",
+                report.to_json()
+            );
+            if expected == ResultCategory::SafeReject {
+                assert_eq!(report.phase, Phase::Analyze);
+                assert!(
+                    report.diagnostics.iter().any(|d| d
+                        .message
+                        .contains("create result forwards an incoming responsibility")),
+                    "{}",
+                    report.to_json()
+                );
+            } else if stage == Stage::Verify {
+                assert_eq!(report.verification_runs, 1);
+            }
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_desc_closure_carriers_remain_live() {
+    let old = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+    );
+    for borrowed in [false, true] {
+        let saved = if borrowed {
+            "let saved=()->i32=>old.code;let borrowed=&saved;"
+        } else {
+            "let saved=()->i32=>old.code;"
+        };
+        let text = old
+            .replace("    let target=", &format!("    {saved}let target="))
+            .replace(
+                "return old.code",
+                if borrowed {
+                    "return borrowed()"
+                } else {
+                    "return saved()"
+                },
+            );
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "borrowed={borrowed}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Analyze);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("description required later")),
+            "borrowed={borrowed}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_exact_request_budget() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    for stage in [Stage::Analyze, Stage::Verify] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&input, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&input, &options(work)),
+                warm.compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        }
+                    );
+                } else if stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("G1.3.4 whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
+    }
+}
