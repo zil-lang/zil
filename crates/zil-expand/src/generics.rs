@@ -2074,14 +2074,23 @@ impl<'a> Engine<'a> {
                         self.signature_result(&target)?
                     }
                 } else {
-                    self.expr(callee, env, depth + 1)?;
+                    let callee_type = self.expr(callee, env, depth + 1)?;
                     if let Some(mut signature) = trait_signature {
                         if let Some(result) = &mut signature.return_type {
                             self.ty(result, depth + 1)?;
                         }
                         signature.return_type
                     } else {
-                        None
+                        // A dynamic call still has a statically known complete
+                        // signature. Preserve its result for following source
+                        // patterns; Types checks the actual call independently.
+                        match callee_type.as_ref().map(grouped).map(|ty| &ty.kind) {
+                            Some(TypeKind::Function { result, .. }) => {
+                                self.budget.ty(result)?;
+                                Some(*result.clone())
+                            }
+                            _ => None,
+                        }
                     }
                 }
             }
