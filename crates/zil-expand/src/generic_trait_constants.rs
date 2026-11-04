@@ -454,6 +454,8 @@ impl Engine<'_> {
             check::validate_parametric_with_bounds(
                 &checked,
                 check::ParametricTables {
+                    source_definition: Some(&checked),
+                    definition_equations: (!equations.is_empty()).then_some(equations),
                     nominals: &self.nominals,
                     enums: &self.enums,
                     signatures: &self.signatures,

@@ -2,16 +2,21 @@
 //! selected. Concrete bodies remain ordinary functions in the trait's module.
 use super::*;
 
-pub(crate) fn features(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool, bool)> {
+pub(crate) fn features_with_methods(
+    declaration: &TraitDecl,
+    budget: &mut Budget<'_>,
+) -> R<(bool, bool, bool)> {
     let mut found = false;
     let mut associated = false;
+    let mut methods = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
         associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+        methods |= matches!(&member.kind, ItemKind::Function(f) if !f.generics.is_empty());
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok((found, associated))
+    Ok((found, associated, methods))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
@@ -230,6 +235,8 @@ impl Engine<'_> {
         check::validate_parametric_with_bounds(
             &function,
             check::ParametricTables {
+                source_definition: Some(&function),
+                definition_equations: None,
                 nominals: &self.nominals,
                 enums: &self.enums,
                 signatures: &self.signatures,
@@ -538,7 +545,8 @@ mod tests {
             &limits,
             &alias.pattern_types,
             Budget::new(&limits),
-            &mut engine,
+            &mut engine,            false,
+            false,
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

@@ -10,6 +10,8 @@ mod factory;
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub source_definition: Option<&'a Function>,
+    pub definition_equations: Option<&'a BTreeMap<String,TypeRef>>,
     pub nominals: &'a BTreeMap<String, &'l Item>,
     pub enums: &'a BTreeMap<String, &'l EnumDecl>,
     pub signatures: &'a BTreeMap<String, Cow<'l, Function>>,
@@ -37,6 +39,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        source_definition,
+        definition_equations,
         nominals,
         enums,
         signatures,
@@ -106,6 +110,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         callable,
         owned_dispatch,
         definition: &function.name,
+        source_definition: source_definition.unwrap_or(function),
+        definition_equations,
         dependencies,
         bounds: match supplied_bounds {
             Some(bounds) => bounds,
@@ -729,6 +735,8 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    source_definition: &'s Function,
+    definition_equations: Option<&'s BTreeMap<String,TypeRef>>,
     variables: BTreeSet<String>,
     definition_bound_context: bool,
     callable: Option<callable::CallableTemplates>,
@@ -2283,7 +2291,7 @@ impl Check<'_, '_, '_> {
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
-        if method.name != name {
+        if method.name != name || !method.generics.is_empty() {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
@@ -2312,6 +2320,7 @@ impl Check<'_, '_, '_> {
                     trait_instances::CallTarget {
                         reference,
                         member: name.to_owned(),
+                        generic: !method.generics.is_empty(),
                     },
                 );
         }
@@ -2395,7 +2404,11 @@ impl Check<'_, '_, '_> {
     ) -> R<TypeRef> {
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        let mut ty = self.expr_inner(e, state, expected, borrowing)?;
+        if let Some(equations)=self.definition_equations {
+            self.budget.substituted_type(&ty,equations)?;
+            Substitution{substitutions:equations}.ty(&mut ty);
+        }
         match &e.kind {
             ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
@@ -3374,9 +3387,7 @@ impl Check<'_, '_, '_> {
                             // Only this declaration's original immutable const
                             // binder is compile-time evidence. A same-spelled
                             // runtime parameter or shadowing local is not.
-                            let source = self.signatures.get(self.definition).ok_or_else(|| {
-                                error(e.span, "symbolic const call has no declaration context")
-                            })?;
+                            let source = self.source_definition;
                             let (ordinal, binder) = consts::symbolic_parameter(source, name)
                                 .ok_or_else(|| {
                                     error(e.span, "const argument names a runtime value")

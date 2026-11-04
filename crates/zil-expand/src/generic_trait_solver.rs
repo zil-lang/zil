@@ -832,7 +832,7 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                let target = trait_instances::method_name_with(&reference, &method.name, !method.generics.is_empty(), budget, span)?;
                 if method.name != name && target != name {
                     continue;
                 }

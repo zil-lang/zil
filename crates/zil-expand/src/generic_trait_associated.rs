@@ -227,9 +227,137 @@ impl Index<'_> {
     }
 }
 
+fn method_substitutions(
+    index: &Index<'_>,
+    outer: &[GenericParam],
+    member: &Item,
+    bindings: Option<&Vec<trait_methods::Binding>>,
+    budget: &mut Budget<'_>,
+) -> R<Option<BTreeMap<String, TypeRef>>> {
+    let Some(bindings) = bindings else {
+        return Ok(None);
+    };
+    let ItemKind::Function(function) = &member.kind else {
+        return Ok(None);
+    };
+    let mut parameters = Vec::new();
+    for parameter in outer.iter().chain(&function.generics) {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        match &parameter.kind {
+            GenericParamKind::Type(bounds) => {
+                for bound in bounds {
+                    budget.ty(bound)?;
+                }
+            }
+            GenericParamKind::Const(ty) => budget.ty(ty)?,
+            GenericParamKind::Lifetime => {}
+        }
+        parameters.push(parameter.clone());
+    }
+    for clause in &function.where_clause {
+        budget.node(clause.span, 0)?;
+        let BoundSubject::Type(subject) = &clause.subject else {
+            continue;
+        };
+        let Some(subject) = plain(subject) else {
+            continue;
+        };
+        for parameter in &mut parameters {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            budget.text(subject, clause.span)?;
+            if parameter.name == subject {
+                if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                    for bound in &clause.bounds {
+                        budget.ty(bound)?;
+                        bounds.push(bound.clone());
+                    }
+                }
+                break;
+            }
+        }
+    }
+    let mut bounds = index.parameter_bounds(&parameters, budget)?;
+    let mut variables = BTreeSet::new();
+    for parameter in &parameters {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        if matches!(parameter.kind, GenericParamKind::Type(_)) {
+            variables.insert(parameter.name.clone());
+        }
+    }
+    for clause in &function.where_clause {
+        budget.node(clause.span, 0)?;
+        if let BoundSubject::Type(subject) = &clause.subject
+            && plain(subject).is_none()
+        {
+            index.add_subject_bounds(subject, &clause.bounds, &mut bounds, &variables, budget)?;
+        }
+    }
+    let mut result = index.projection_names(&bounds, budget, member.span)?;
+    for binding in bindings {
+        if !matches!(binding.kind, GenericParamKind::Type(_)) {
+            continue;
+        }
+        budget.text(&binding.original, member.span)?;
+        budget.text(&binding.name, member.span)?;
+        budget.text("\0constant:.", member.span)?;
+        let old_value = format!("\0constant:{}.", binding.original);
+        budget.text(&binding.name, member.span)?;
+        budget.text("\0constant:.", member.span)?;
+        let new_value = format!("\0constant:{}.", binding.name);
+        for key in result.keys() {
+            budget.node(member.span, 0)?;
+            budget.text(key, member.span)?;
+            budget.text(&binding.original, member.span)?;
+        }
+        result.retain(|key, _| {
+            key != &binding.original
+                && !key
+                    .strip_prefix(&binding.original)
+                    .is_some_and(|suffix| suffix.starts_with('.'))
+                && !key.starts_with(&old_value)
+        });
+        let mut aliases = Vec::new();
+        for (key, value) in &result {
+            budget.node(member.span, 0)?;
+            budget.text(key, member.span)?;
+            budget.text(&binding.name, member.span)?;
+            let suffix = if key == &binding.name {
+                Some(("", false))
+            } else if let Some(suffix) = key
+                .strip_prefix(&binding.name)
+                .filter(|suffix| suffix.starts_with('.'))
+            {
+                Some((suffix, false))
+            } else {
+                key.strip_prefix(&new_value).map(|suffix| (suffix, true))
+            };
+            if let Some((suffix, constant)) = suffix {
+                budget.text(&binding.original, member.span)?;
+                budget.text(suffix, member.span)?;
+                budget.ty(value)?;
+                let alias = if constant {
+                    budget.text("\0constant:.", member.span)?;
+                    format!("\0constant:{}.{}", binding.original, suffix)
+                } else {
+                    format!("{}{}", binding.original, suffix)
+                };
+                aliases.push((alias, value.clone()));
+            }
+        }
+        for (key, value) in aliases {
+            result.insert(key, value);
+        }
+    }
+    Ok(Some(result))
+}
+
 pub(crate) fn prepare(
     module: &Module,
     enabled: bool,
+    methods: Option<&BTreeMap<(usize, usize), Vec<trait_methods::Binding>>>,
     budget: &mut Budget<'_>,
 ) -> R<Option<Module>> {
     if !enabled {
@@ -240,7 +368,7 @@ pub(crate) fn prepare(
     }
     let index = Index::declarations_only(module, budget)?;
     let mut result = module.clone();
-    for item in &mut result.items {
+    for (owner, item) in result.items.iter_mut().enumerate() {
         let original_parameters = match &item.kind {
             ItemKind::Impl(i) => i.generics.as_slice(),
             ItemKind::Trait(t) => t.generics.as_slice(),
@@ -323,8 +451,16 @@ pub(crate) fn prepare(
         let substitutions = index.projection_names(&bounds, budget, item.span)?;
         match &mut item.kind {
             ItemKind::Trait(t) => {
-                for member in &mut t.members {
-                    budget.substituted_item(member, &substitutions)?;
+                for (ordinal, member) in t.members.iter_mut().enumerate() {
+                    let member_scope = method_substitutions(
+                        &index,
+                        &parameters,
+                        member,
+                        methods.and_then(|m| m.get(&(owner, ordinal))),
+                        budget,
+                    )?;
+                    let substitutions = member_scope.as_ref().unwrap_or(&substitutions);
+                    budget.substituted_item(member, substitutions)?;
                     if index.has_constants {
                         consts::prepay_scopes(member, &substitutions, budget)?;
                     }
@@ -365,8 +501,16 @@ pub(crate) fn prepare(
                         .ty(bound);
                     }
                 }
-                for member in &mut i.members {
-                    budget.substituted_item(member, &substitutions)?;
+                for (ordinal, member) in i.members.iter_mut().enumerate() {
+                    let member_scope = method_substitutions(
+                        &index,
+                        &parameters,
+                        member,
+                        methods.and_then(|m| m.get(&(owner, ordinal))),
+                        budget,
+                    )?;
+                    let substitutions = member_scope.as_ref().unwrap_or(&substitutions);
+                    budget.substituted_item(member, substitutions)?;
                     if index.has_constants {
                         consts::prepay_scopes(member, &substitutions, budget)?;
                     }
