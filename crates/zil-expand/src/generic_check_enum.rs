@@ -273,7 +273,10 @@ impl Check<'_, '_, '_> {
             PatternKind::Literal(Literal::Integer(v))
                 if integer(ty) && !dependent(ty, &self.variables) =>
             {
-                Pat::Ctor(Ctor::Integer(integer_value(v, ty, p.span)?), vec![])
+                Pat::Ctor(
+                    Ctor::Integer(integer_value(v, ty, p.span, self.budget)?),
+                    vec![],
+                )
             }
             PatternKind::Tuple(ps) => {
                 let TypeKind::Tuple(ts) = &group(ty).kind else {
@@ -698,9 +701,9 @@ fn specialize(rows: &[Vec<Pat>], c: &Ctor, arity: usize) -> Vec<Vec<Pat>> {
         })
         .collect()
 }
-fn integer_value(text: &str, ty: &TypeRef, span: Span) -> R<i64> {
+fn integer_value(text: &str, ty: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<i64> {
     let (actual, value) = checked_integer(text, Some(ty), false, span)?;
-    if type_key_bounded(&actual)? != type_key_bounded(ty)? {
+    if type_key_bounded(&actual, budget)? != type_key_bounded(ty, budget)? {
         return Err(error(
             span,
             "generic integer pattern suffix disagrees with its type",
