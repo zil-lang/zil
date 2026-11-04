@@ -190,6 +190,7 @@ pub fn expand_with_map_limits(
         &lower_limits,
         &products.trait_signatures,
         products.metered(),
+        &products.member_patterns,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
@@ -228,6 +229,7 @@ pub fn expand_program_module_with_limits(
         &lower_limits,
         &products.trait_signatures,
         products.metered(),
+        &products.member_patterns,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
@@ -416,6 +418,7 @@ pub fn expand_program_with_limits(
                 source_imports,
                 &products.trait_signatures,
                 products.metered(),
+                &products.member_patterns,
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -565,6 +568,7 @@ fn expand_inner(
     owner_limits: &Limits,
     signatures: &generics::trait_instances::Signatures,
     metered_trait_instances: bool,
+    member_patterns: &BTreeMap<String, s::TypeRef>,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     let legacy_limits = Limits::default();
@@ -584,6 +588,7 @@ fn expand_inner(
             &[],
             signatures,
             metered_trait_instances,
+            member_patterns,
         ),
         (lowering_limits, owner_limits),
         None,
@@ -615,12 +620,13 @@ fn expand_inner_project(
         &[CoreImport],
         &generics::trait_instances::Signatures,
         bool,
+        &BTreeMap<String, s::TypeRef>,
     ),
     budgets: (&Limits, &Limits),
     project_defaults: Option<&ProjectDefaults>,
 ) -> CompileResult<ExpandedModule> {
     let (limits, owner_limits) = budgets;
-    let (declarations, project_modules, imports, signatures, metered_trait_instances) = project;
+    let (declarations, project_modules, imports, signatures, metered_trait_instances, member_patterns) = project;
     let mut e = Expander::new(
         module.id,
         imports_resolved,
@@ -639,6 +645,7 @@ fn expand_inner_project(
         }
     }
     e.enum_sources = project_modules;
+    e.member_patterns = Some(member_patterns);
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -714,6 +721,7 @@ struct Expander<'a> {
     aggregates: Vec<CoreAggregate>,
     enums: Vec<CoreEnum>,
     enum_sources: &'a [&'a s::Module],
+    member_patterns: Option<&'a BTreeMap<String, s::TypeRef>>,
     named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
@@ -762,6 +770,7 @@ impl<'a> Expander<'a> {
             aggregates: Vec::new(),
             enums: Vec::new(),
             enum_sources: &[],
+            member_patterns: None,
             named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
@@ -1529,6 +1538,14 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "bool" => Type::Bool,
             "void" => Type::Unit,
             n => Type::Named(n.into()),
+        },
+        s::TypeKind::Union(members) => Type::Enum {
+            name: "@anonymous-sum:v1".into(),
+            variants: members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| (format!("Member{index}"), vec![type_ref(member)]))
+                .collect(),
         },
         s::TypeKind::Tuple(ts) if ts.is_empty() => Type::Unit,
         s::TypeKind::Tuple(ts) => Type::Tuple(ts.iter().map(type_ref).collect()),

@@ -142,6 +142,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
     fn copy_inner(&mut self, ty: &TypeRef) -> R<bool> {
         self.budget.ty(ty)?;
         match &grouped(ty).kind {
+            TypeKind::Union(fields) => { for field in fields { self.copy(field)?; } Ok(true) }
             TypeKind::Tuple(fields) => {
                 let mut storage = false;
                 for field in fields {

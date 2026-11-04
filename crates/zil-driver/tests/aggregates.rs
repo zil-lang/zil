@@ -3486,3 +3486,103 @@ fn ieee_float_usize_conversions_use_target_width_in_both_ct_vms() {
         assert!(report.native_codegen.is_none());
     }
 }
+
+#[test]
+fn anonymous_sum_source_and_native() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/basic.zil");
+    review329_native(&[("main", text)], 42);
+}
+
+#[test]
+fn anonymous_sum_aliases_generic_copy_and_full_member_identity() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/aliases.zil");
+    review329_native(&[("main", text)], 42);
+}
+
+#[test]
+fn anonymous_sum_ct_type_order_and_value_reification() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct-types.zil");
+    review329_native(&[("main", text)], 42);
+}
+
+#[test]
+fn anonymous_sum_rejects_duplicate_inexact_and_incomplete_source() {
+    for text in [
+        "fn unused(x:i32|i32){}fn result()->i32{return 0}",
+        "type Bad=i32|i32;fn result()->i32{return 0}",
+        "type Bad<T>=T|T;fn result()->i32{return 0}",
+        "type Int=i32;type Bad=Int|i32;fn result()->i32{return 0}",
+        "fn result()->i64|bool{return 42}",
+        "fn result()->i32|bool{return 1u8}",
+        "fn bad(x:i32|bool)->i32{match x{i64(n)=>{return 0},bool(b)=>{return 1}}}fn result()->i32{return 0}",
+        "fn bad(x:i32|bool)->i32{match x{i32(n)=>{return n}}}fn result()->i32{return 0}",
+        "fn bad(x:i32|bool)->i32{match x{i32(n)=>{return n},i32(n)=>{return n},bool(b)=>{return 0}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert!(matches!(report.status, ResultCategory::SafeReject), "{text}: {}", report.to_json());
+        assert!(report.native_codegen.is_none());
+    }
+}
+
+#[test]
+fn anonymous_sum_raw_canonical_shape_and_wire_are_independently_checked() {
+    let input = source(include_str!("../../../tests/language-readiness/terminal/344/anonymous/basic.zil"));
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::host_llvm(); let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap().module(), &typed);
+    for attack in 0..5 {
+        let mut damaged = typed.clone();
+        let Type::Enum { name, variants } = &mut damaged.functions[0].return_type else { panic!("sum result") };
+        match attack {
+            0 => { variants.swap(0, 1); for (i, (name, _)) in variants.iter_mut().enumerate() { *name=format!("Member{i}"); } },
+            1 => variants[1].1 = variants[0].1.clone(),
+            2 => variants[0].0="Invented".into(),
+            3 => *name="@anonymous-sum:untrusted".into(),
+            _ => { let nested=Type::Enum {name:name.clone(),variants:variants.clone()}; variants[1].1=vec![nested]; },
+        }
+        assert!(zil_analyze::analyze(&damaged, &limits).is_err(), "analysis attack {attack}");
+        let mut claims=plan.clone(); claims.module_fingerprint=damaged.fingerprint();
+        assert!(zil_verify::verify_module(damaged.clone(), claims.clone(), &target, &limits).is_err(), "raw attack {attack}");
+        let wire=zil_ir::wire::encode_module_candidate(&damaged, &claims, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err(), "Wire attack {attack}");
+    }
+}
+
+#[test]
+fn anonymous_sum_nominal_phantom_arguments_stay_distinct_across_ct_and_runtime() {
+    review329_native(&[("main",include_str!("../../../tests/language-readiness/terminal/344/anonymous/phantom.zil"))],42);
+}
+
+#[test]
+fn anonymous_sum_imported_member_aliases() {
+    review329_native(&[
+        ("main","import lib as m;fn choose(flag:bool)->m.Left|m.Right{if flag{return m.Left{value:20}}return m.Right{value:22}}fn score(x:m.Right|m.Left)->i32{match x{m.L(l)=>{return l.value},m.R(r)=>{return r.value}}}fn result()->i32{return score(choose(true))+score(choose(false))}"),
+        ("lib","pub struct Left{pub value:i32}pub struct Right{pub value:i32}pub type L=Left;pub type R=Right;"),
+    ],42);
+}
+
+#[test]
+fn anonymous_sum_budget_boundary_is_request_local() {
+    use zil_driver::CompilationSession;
+    let input=source(include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct-types.zil"));
+    let options=|n|CompileOptions{limits:Limits{max_analysis_steps:n,..Limits::default()},..CompileOptions::default()};
+    let (mut low,mut high)=(1usize,1_000_000usize);
+    assert_eq!(compile_source(&input,&options(high)).status,ResultCategory::Success);
+    while low<high {
+        let mid=low+(high-low)/2; let report=compile_source(&input,&options(mid));
+        match report.status {ResultCategory::Success=>high=mid,ResultCategory::ResourceLimit=>low=mid+1,_=>panic!("{}",report.to_json())}
+    }
+    let mut warm=CompilationSession::default();
+    assert_eq!(warm.compile_source(&input,&options(low)).status,ResultCategory::Success);
+    for (n,status) in [(low-1,ResultCategory::ResourceLimit),(low,ResultCategory::Success)] {
+        for report in [warm.compile_source(&input,&options(n)),CompilationSession::default().compile_source(&input,&options(n))] {
+            assert_eq!(report.status,status,"{}",report.to_json());
+        }
+        assert_eq!(warm.active_query_count(),0);
+    }
+    println!("344 anonymous source exact N={low}; N-1 ResourceLimit and warm/fresh agree");
+}

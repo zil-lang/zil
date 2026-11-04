@@ -6,6 +6,8 @@ use zil_verify::VerifiedCTIR;
 
 mod aggregate_metadata;
 mod ct_artifact;
+mod anonymous_type;
+pub use anonymous_type::canonicalize_anonymous_type;
 mod materialize;
 pub use aggregate_metadata::preflight_aggregate_metadata;
 pub use ct_artifact::{CtExecutionBudget, CtReadView, evaluate_ct_artifact};

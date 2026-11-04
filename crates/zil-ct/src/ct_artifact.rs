@@ -394,7 +394,7 @@ pub fn evaluate_ct_artifact(
         return Err(error("CT invocation argument count differs"));
     }
     for (index, (value, ty)) in arguments.iter().zip(&entry.parameter_types).enumerate() {
-        if !value_matches_type(value, ty, raw, 0) {
+        if !value_matches_type(value, ty, raw, 0, budget)? {
             return Err(error("CT invocation argument type differs"));
         }
         reader.authenticate_argument(index as u32, ty, value)?;
@@ -440,7 +440,7 @@ pub fn evaluate_ct_artifact(
             let produced = execute_instruction(raw, frame, inst, arguments, reader, budget)?;
             if let Some(id) = inst.result {
                 let value = produced.expect("verified CT value instruction has result");
-                if !value_matches_type(&value, &frame.function.values[id.0 as usize], raw, 0) {
+                if !value_matches_type(&value, &frame.function.values[id.0 as usize], raw, 0, budget)? {
                     return Err(error("CT read view returned a value of the wrong type"));
                 }
                 let mut added = budget.live_temporary_bytes.saturating_sub(bytes_before);
@@ -499,94 +499,80 @@ pub fn evaluate_ct_artifact(
     }
 }
 
-fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth: usize) -> bool {
-    if depth > raw.budget.max_call_depth as usize {
-        return false;
-    }
-    match (value, ty) {
-        (CtValue::Scalar(c), CtTy::Scalar(t)) => {
-            scalar_ty(c) == Some(*t)
-                && !matches!(c, Constant::Usize(v) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX))
+fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth: usize, budget: &mut CtExecutionBudget) -> CompileResult<bool> {
+    if depth > raw.budget.max_call_depth as usize { return Ok(false); }
+    let fields_match = |fields: &[CtValue], types: &[CtTy], budget: &mut CtExecutionBudget| -> CompileResult<bool> {
+        if fields.len() != types.len() { return Ok(false); }
+        for (value, ty) in fields.iter().zip(types) {
+            if !value_matches_type(value, ty, raw, depth + 1, budget)? { return Ok(false); }
         }
+        Ok(true)
+    };
+    Ok(match (value, ty) {
+        (CtValue::Scalar(c), CtTy::Scalar(t)) => scalar_ty(c) == Some(*t)
+            && !matches!(c, Constant::Usize(v) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX)),
         (CtValue::Text(v), CtTy::Text) => v.len() as u64 <= raw.budget.max_temporary_bytes,
-        (CtValue::Type(v), CtTy::Type) => type_ref_valid(v, raw),
+        (CtValue::Type(v), CtTy::Type) => type_ref_matches(v, raw, budget)?,
         (CtValue::Ident(v), CtTy::Ident) => {
-            !v.text.is_empty()
-                && v.text.len() as u64 <= raw.budget.max_temporary_bytes
+            !v.text.is_empty() && v.text.len() as u64 <= raw.budget.max_temporary_bytes
                 && v.member_owner.is_some() == v.member_owner_type.is_some()
-                && v.member_owner_type
-                    .as_ref()
-                    .is_none_or(|owner| type_ref_valid(owner, raw))
                 && match v.source {
-                    CtNameSource::Input(_) | CtNameSource::Definition(_) => {
-                        v.namespace != CtNameNamespace::Unbound
-                    }
-                    CtNameSource::Fresh { .. } | CtNameSource::Export => {
-                        v.namespace == CtNameNamespace::Unbound
-                    }
+                    CtNameSource::Input(_) | CtNameSource::Definition(_) => v.namespace != CtNameNamespace::Unbound,
+                    CtNameSource::Fresh { .. } | CtNameSource::Export => v.namespace == CtNameNamespace::Unbound,
                 }
+                && if let Some(owner) = &v.member_owner_type { type_ref_matches(owner, raw, budget)? } else { true }
         }
         (CtValue::TokenTree(v), CtTy::TokenTree) => token_tree_valid(v, raw),
-        (CtValue::TokenCursor(_), CtTy::TokenCursor)
-        | (CtValue::ShapeInfo(_), CtTy::ShapeInfo)
-        | (CtValue::FieldInfo(_), CtTy::FieldInfo)
-        | (CtValue::ImplInfo(_), CtTy::ImplInfo)
+        (CtValue::TokenCursor(_), CtTy::TokenCursor) | (CtValue::ShapeInfo(_), CtTy::ShapeInfo)
+        | (CtValue::FieldInfo(_), CtTy::FieldInfo) | (CtValue::ImplInfo(_), CtTy::ImplInfo)
         | (CtValue::LayoutInfo(_), CtTy::LayoutInfo) => true,
-        (CtValue::Syntax(tree), CtTy::Syntax(category)) => {
-            tree.category == *category && syntax_tree_valid(tree, raw)
-        }
-        (CtValue::Tuple(v), CtTy::Tuple(t)) => {
-            v.len() == t.len()
-                && v.iter()
-                    .zip(t)
-                    .all(|(v, t)| value_matches_type(v, t, raw, depth + 1))
-        }
+        (CtValue::Syntax(tree), CtTy::Syntax(category)) => tree.category == *category && syntax_tree_valid(tree, raw),
+        (CtValue::Tuple(v), CtTy::Tuple(t)) => fields_match(v, t, budget)?,
         (CtValue::Array(v), CtTy::Array { element, length }) => {
-            v.len() == *length as usize
-                && v.iter()
-                    .all(|v| value_matches_type(v, element, raw, depth + 1))
+            if v.len() != *length as usize { return Ok(false); }
+            for value in v { if !value_matches_type(value, element, raw, depth + 1, budget)? { return Ok(false); } }
+            true
         }
         (CtValue::List(v), CtTy::List(element)) => {
-            v.len() as u64 <= raw.budget.max_generated_nodes
-                && v.iter()
-                    .all(|v| value_matches_type(v, element, raw, depth + 1))
+            if v.len() as u64 > raw.budget.max_generated_nodes { return Ok(false); }
+            for value in v { if !value_matches_type(value, element, raw, depth + 1, budget)? { return Ok(false); } }
+            true
         }
         (CtValue::Record { schema, fields }, CtTy::Record(id)) => {
-            schema == id
-                && raw.record_schemas.get(id.0 as usize).is_some_and(|s| {
-                    fields.len() == s.fields.len()
-                        && fields
-                            .iter()
-                            .zip(&s.fields)
-                            .all(|(v, t)| value_matches_type(v, t, raw, depth + 1))
-                })
+            if schema != id { return Ok(false); }
+            if let Some(schema) = raw.record_schemas.get(id.0 as usize) { fields_match(fields, &schema.fields, budget)? } else { false }
         }
-        (
-            CtValue::Variant {
-                schema,
-                tag,
-                fields,
-            },
-            CtTy::Enum(id),
-        ) => {
-            schema == id
-                && raw
-                    .enum_schemas
-                    .get(id.0 as usize)
-                    .and_then(|s| s.variants.get(*tag as usize))
-                    .is_some_and(|ts| {
-                        fields.len() == ts.len()
-                            && fields
-                                .iter()
-                                .zip(ts)
-                                .all(|(v, t)| value_matches_type(v, t, raw, depth + 1))
-                    })
+        (CtValue::Variant { schema, tag, fields }, CtTy::Enum(id)) => {
+            if schema != id { return Ok(false); }
+            if let Some(fields_type) = raw.enum_schemas.get(id.0 as usize).and_then(|s| s.variants.get(*tag as usize)) {
+                fields_match(fields, fields_type, budget)?
+            } else { false }
         }
         _ => false,
-    }
+    })
 }
 
-fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
+// Detect this new profile during the existing structural validation walk.
+// Old Type values acquire neither a second classifier traversal nor a new fee.
+fn type_ref_matches(reference: &CtTypeRef, raw: &CtArtifactProgram, budget: &mut CtExecutionBudget) -> CompileResult<bool> {
+    let mut anonymous = false;
+    if !type_ref_valid(reference, raw, &mut anonymous) { return Ok(false); }
+    if anonymous {
+        let canonical = crate::canonicalize_anonymous_type(reference, budget)?;
+        let comparison_work = canonical.nodes.iter().fold(0u64, |work, node| work.saturating_add(128).saturating_add(match node {
+            CtTypeNode::Nominal { arguments, .. } => (arguments.len() as u64).saturating_mul(64),
+            CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => (v.len() as u64).saturating_mul(8),
+            CtTypeNode::FunctionPointer { parameters, .. } | CtTypeNode::ForeignCallback { parameters, .. } => (parameters.len() as u64).saturating_mul(8), _ => 0,
+        }));
+        budget.reserve_analysis_work(comparison_work)?;
+        let valid = canonical == *reference;
+        budget.release_temporary_bytes(16u64.saturating_add((canonical.nodes.len() as u64).saturating_mul(64)));
+        if !valid { return Err(error("anonymous Type value is not structurally canonical")); }
+    }
+    Ok(true)
+}
+
+fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mut bool) -> bool {
     if reference.nodes.len() as u64 > raw.budget.max_generated_nodes
         || reference.root.0 as usize >= reference.nodes.len()
     {
@@ -601,6 +587,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
                 CtTypeArgument::Scalar(c) => scalar_ty(c).is_some(),
             }),
             CtTypeNode::Tuple(v) => v.iter().all(|id| child(*id)),
+            CtTypeNode::AnonymousSum(v) => { *anonymous = true; v.len() >= 2 && v.iter().all(|id| child(*id)) },
             CtTypeNode::Array { element, .. }
             | CtTypeNode::Slice(element)
             | CtTypeNode::Managed(element)
@@ -691,61 +678,7 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
                     .ok_or_else(|| limit("CT type node ID overflow"))?,
             ))
         };
-        let mapped = match node {
-            CtTypeNode::Primitive(s) => CtTypeNode::Primitive(*s),
-            CtTypeNode::Builtin(b) => CtTypeNode::Builtin(*b),
-            CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal {
-                symbol: symbol.clone(),
-                arguments: arguments
-                    .iter()
-                    .map(|a| match a {
-                        CtTypeArgument::Type(id) => plus(*id).map(CtTypeArgument::Type),
-                        CtTypeArgument::Scalar(c) => Ok(CtTypeArgument::Scalar(c.clone())),
-                    })
-                    .collect::<CompileResult<Vec<_>>>()?,
-            },
-            CtTypeNode::Tuple(v) => CtTypeNode::Tuple(
-                v.iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-            ),
-            CtTypeNode::Array { element, length } => CtTypeNode::Array {
-                element: plus(*element)?,
-                length: *length,
-            },
-            CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
-                parameters: parameters
-                    .iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-                result: plus(*result)?,
-            },
-            CtTypeNode::Address { mutable, inner } => CtTypeNode::Address {
-                mutable: *mutable,
-                inner: plus(*inner)?,
-            },
-            CtTypeNode::Slice(inner) => CtTypeNode::Slice(plus(*inner)?),
-            CtTypeNode::Managed(inner) => CtTypeNode::Managed(plus(*inner)?),
-            CtTypeNode::Desc(inner) => CtTypeNode::Desc(plus(*inner)?),
-            CtTypeNode::OwnedStore(inner) => CtTypeNode::OwnedStore(plus(*inner)?),
-            CtTypeNode::ForeignCallback { parameters, result } => CtTypeNode::ForeignCallback {
-                parameters: parameters
-                    .iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-                result: plus(*result)?,
-            },
-            CtTypeNode::Opaque { identity } => CtTypeNode::Opaque {
-                identity: identity.clone(),
-            },
-            CtTypeNode::ErrorUnion { error, result } => CtTypeNode::ErrorUnion {
-                error: plus(*error)?,
-                result: plus(*result)?,
-            },
-        };
+        let mapped = crate::anonymous_type::remap(node, plus)?;
         out.push(mapped);
     }
     Ok(CtTypeNodeId(
@@ -789,6 +722,7 @@ fn construct_type(
             }
         }
         CtTypeConstructor::Tuple => CtTypeNode::Tuple(children),
+        CtTypeConstructor::AnonymousSum => CtTypeNode::AnonymousSum(children),
         CtTypeConstructor::FunctionPointer => {
             let result = children.pop().expect("verified function Type result");
             CtTypeNode::FunctionPointer {
@@ -810,10 +744,12 @@ fn construct_type(
         },
     };
     nodes.push(node);
-    Ok(CtTypeRef {
-        nodes,
-        root: CtTypeNodeId(last),
-    })
+    let value = CtTypeRef { nodes, root: CtTypeNodeId(last) };
+    if kind == CtTypeConstructor::AnonymousSum {
+        let canonical = crate::canonicalize_anonymous_type(&value, budget)?;
+        budget.release_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)));
+        Ok(canonical)
+    } else { Ok(value) }
 }
 fn project_meta(
     value: &CtValue,
@@ -1950,4 +1886,51 @@ mod tests {
             }
         );
     }
+    #[test]
+    fn anonymous_type_constructor_vm_wire_and_raw_admission() {
+        let mut program = raw();
+        program.budget.max_temporary_bytes = 1_000_000;
+        program.budget.max_analysis_work = 1_000_000;
+        program.budget.max_generated_nodes = 100_000;
+        let f = &mut program.functions[0];
+        f.result_type = CtTy::Scalar(CtScalarTy::Bool);
+        f.values = vec![CtTy::Type,CtTy::Type,CtTy::Type,CtTy::Type,CtTy::Scalar(CtScalarTy::Bool)];
+        let kinds = [
+            CtInstructionKind::TypePrimitive(CtScalarTy::I32),
+            CtInstructionKind::TypePrimitive(CtScalarTy::Bool),
+            CtInstructionKind::TypeConstruct{constructor:CtTypeConstructor::AnonymousSum,arguments:vec![CtValueId(1),CtValueId(0)]},
+            CtInstructionKind::TypeConstruct{constructor:CtTypeConstructor::AnonymousSum,arguments:vec![CtValueId(0),CtValueId(1)]},
+            CtInstructionKind::Binary{op:zil_ir::BinaryOp::Equal,left:CtValueId(2),right:CtValueId(3)},
+        ];
+        f.blocks[0].instructions=kinds.into_iter().enumerate().map(|(id,kind)|CtInstruction{result:Some(CtValueId(id as u32)),kind,span:Span::default()}).collect();
+        f.blocks[0].terminator=CtTerminator::Return(Some(CtValueId(4)));
+        let limits=Limits::default();
+        let wire=zil_ir::ct_wire::encode_program(&program,&limits).unwrap();
+        let decoded=zil_ir::ct_wire::decode_program(&wire,&limits).unwrap();
+        let authority=Authority{snapshot:program.snapshot.clone()};
+        let verified=verify_ct_artifact(decoded,&limits,&authority).unwrap();
+        let (result, _)=evaluate_ct_artifact(&verified,&[],&Reader,&mut CtExecutionBudget::new(program.budget)).unwrap();
+        assert_eq!(result,CtValue::Scalar(Constant::Bool(true)));
+        let mut wrong=program.clone();
+        let CtInstructionKind::TypeConstruct{arguments,..}=&mut wrong.functions[0].blocks[0].instructions[2].kind else {unreachable!()};
+        arguments.truncate(1);
+        assert!(verify_ct_artifact(wrong,&limits,&authority).is_err());
+        let mut repeated=program.clone();
+        let CtInstructionKind::TypeConstruct{arguments,..}=&mut repeated.functions[0].blocks[0].instructions[2].kind else {unreachable!()};
+        arguments[1]=arguments[0];
+        let verified=verify_ct_artifact(repeated,&limits,&authority).unwrap();
+        assert!(evaluate_ct_artifact(&verified,&[],&Reader,&mut CtExecutionBudget::new(program.budget)).is_err());
+        let canonical=crate::canonicalize_anonymous_type(&CtTypeRef{nodes:vec![
+            CtTypeNode::Primitive(CtScalarTy::I32),CtTypeNode::Primitive(CtScalarTy::Bool),
+            CtTypeNode::AnonymousSum(vec![CtTypeNodeId(0),CtTypeNodeId(1)])],root:CtTypeNodeId(2)},&mut CtExecutionBudget::new(program.budget)).unwrap();
+        for attack in 0..4 {
+            let mut bad=canonical.clone();
+            let CtTypeNode::AnonymousSum(members)=&mut bad.nodes[2] else {unreachable!()};
+            match attack {0=>members.swap(0,1),1=>members[1]=members[0],2=>members.truncate(1),_=>members[0]=CtTypeNodeId(2)}
+            let bytes=zil_ir::ct_wire::encode_value(&CtValue::Type(bad),&limits).unwrap();
+            let CtValue::Type(decoded)=zil_ir::ct_wire::decode_value(&bytes,&limits).unwrap() else {unreachable!()};
+            assert!(!type_ref_matches(&decoded,&program,&mut CtExecutionBudget::new(program.budget)).unwrap_or(false),"raw/Wire type attack {attack}");
+        }
+    }
+
 }

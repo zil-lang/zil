@@ -1294,6 +1294,7 @@ fn check_instruction(
                 T::Tuple => arguments
                     .iter()
                     .all(|id| value(*id).ok() == Some(&CtTy::Type)),
+                T::AnonymousSum => arguments.len() >= 2 && arguments.iter().all(|id| value(*id).ok() == Some(&CtTy::Type)),
                 T::FunctionPointer => {
                     !arguments.is_empty()
                         && arguments

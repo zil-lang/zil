@@ -171,7 +171,7 @@ pub(super) fn specialize_products<'a>(
     let (normalized, names_budget) =
         aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
     if let Some(normalized) = normalized {
-        if normalized
+        if normalized.pattern_types.is_empty() && normalized
             .module
             .items
             .iter()
@@ -1535,6 +1535,8 @@ impl<'a> Engine<'a> {
         depth: usize,
     ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
+        let anonymous_context = expected.filter(|ty| matches!(&grouped(ty).kind, TypeKind::Union(_)));
+        let expected = expected.filter(|ty| !matches!(&grouped(ty).kind, TypeKind::Union(_)));
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
@@ -2262,7 +2264,7 @@ impl<'a> Engine<'a> {
                         matches!(&grouped(payload).kind,TypeKind::Named{path,..} if path.as_slice()==[name]))
                         .or(error_context)
                 } else {
-                    expected.or(ty.as_ref())
+                    anonymous_context.or(expected).or(ty.as_ref())
                 };
                 self.expr_expected(else_value, env, alternative, depth + 1)?;
                 ty
@@ -2504,6 +2506,7 @@ fn original_type_observed(
                 .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
         ),
+        TypeKind::Union(ts) => TypeKind::Union(ts.iter().map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent)).collect::<R<_>>()?),
         TypeKind::Array { element, length } => TypeKind::Array {
             element: Box::new(original_type_observed(
                 element,
@@ -2662,6 +2665,15 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
         TypeKind::Reference { mutable, inner, .. } => {
             format!("R{mutable}<{}>", type_key_bounded(inner)?)
         }
+        TypeKind::Union(ts) => {
+            fn members(ty: &TypeRef, out: &mut Vec<String>) -> R<()> {
+                if let TypeKind::Union(parts) = &grouped(ty).kind { for part in parts { members(part, out)?; } }
+                else { out.push(type_key_bounded(ty)?); } Ok(())
+            }
+            let mut keys = Vec::new(); for member in ts { members(member, &mut keys)?; }
+            keys.sort();
+            format!("U{}:{}", keys.len(), keys.iter().map(|k| format!("{}:{k}", k.len())).collect::<String>())
+        }
         TypeKind::Tuple(ts) => format!(
             "({})",
             ts.iter()
@@ -2784,7 +2796,7 @@ fn context_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
-    if !matches!(grouped(pattern).kind, TypeKind::Error { .. }) {
+    if !matches!(grouped(pattern).kind, TypeKind::Error { .. } | TypeKind::Union(_)) {
         return Ok(false);
     }
     if context_unresolved(pattern, variables, found, budget)? {
@@ -2819,7 +2831,7 @@ fn independent_input(
     budget: &mut Budget<'_>,
 ) -> R<bool> {
     budget.ty(pattern)?;
-    if matches!(grouped(pattern).kind, TypeKind::Error { .. }) != union_pass {
+    if matches!(grouped(pattern).kind, TypeKind::Error { .. } | TypeKind::Union(_)) != union_pass {
         return Ok(false);
     }
     if union_pass {

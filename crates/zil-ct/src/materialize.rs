@@ -108,6 +108,13 @@ impl Reifier<'_> {
                     unreachable!("verified enum result shape")
                 };
                 let (variant_name, types) = &variants[variant as usize];
+                if name == "@anonymous-sum:v1" {
+                    let [payload_type] = types.as_slice() else { unreachable!("verified anonymous member") };
+                    let [payload]: [_; 1] = fields.try_into().unwrap_or_else(|_| unreachable!("verified anonymous payload"));
+                    crate::source::hint_type(ty, depth, self.nodes, self.work_left, self.limits)?;
+                    let value = self.child(payload, payload_type, span, depth + 1)?;
+                    return Ok(CoreExpr { id, span, kind: CoreExprKind::Ascribed { value: Box::new(value), ty: ty.clone() } });
+                }
                 // These are actual ordinary Core nodes, not a privileged tag.
                 self.node(span, depth + 1)?;
                 self.node(span, depth + 2)?;

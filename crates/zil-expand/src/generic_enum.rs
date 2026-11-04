@@ -235,6 +235,8 @@ fn shape(
                         | "usize"
                         | "i32"
                         | "i64"
+                        | "f32"
+                        | "f64"
                         | "bool"
                         | "void"
                         | "c_handle"
@@ -259,7 +261,7 @@ fn shape(
                 shape(ty, variables, nominals, budget, depth + 1)?;
             }
         }
-        TypeKind::Tuple(ts) => {
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => {
             for ty in ts {
                 shape(ty, variables, nominals, budget, depth + 1)?;
             }
@@ -520,6 +522,19 @@ impl Engine<'_> {
                     return Err(error(pattern.span, "match enum type cannot be inferred"));
                 };
                 let written = self.original_type(ty)?;
+                if matches!(&grouped(&written).kind, TypeKind::Union(_)) {
+                    if path.len() != 1 || arguments.len() != 1 { return Err(error(pattern.span, "anonymous member pattern needs one type name and one payload")); }
+                    let mut member = if let Some(alias) = self.pattern_types.get(&path[0]) {
+                        self.budget.ty(alias)?; alias.clone()
+                    } else { named(&path[0], pattern.span) };
+                    self.ty(&mut member, depth + 1)?;
+                    let marker = format!("$anonymous_pattern_{}", self.products.member_patterns.len());
+                    self.budget.text(&marker, pattern.span)?; self.budget.ty(&member)?;
+                    self.products.member_patterns.insert(marker.clone(), member.clone());
+                    path[0] = marker;
+                    self.enum_pattern(&mut arguments[0], Some(&member), env, depth + 1)?;
+                    return Ok(());
+                }
                 let TypeKind::Named { path: root, args } = &grouped(&written).kind else {
                     return Err(error(pattern.span, "constructor pattern requires enum"));
                 };
