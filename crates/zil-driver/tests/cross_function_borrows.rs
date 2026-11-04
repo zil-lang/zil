@@ -25,6 +25,9 @@ mod terminal342_borrowed_fp;
 #[path = "../../../tests/language-readiness/terminal/342/resource_head.rs"]
 mod terminal342_resource_head;
 
+#[path = "../../../tests/language-readiness/terminal/342/higher_rank.rs"]
+mod terminal342_higher_rank;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

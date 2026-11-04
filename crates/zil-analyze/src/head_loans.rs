@@ -669,7 +669,7 @@ pub(super) fn check(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.head_descriptions {
+    if !b.head_descriptions && !b.invocation_callbacks {
         return Ok(());
     }
     fee(b, module.functions.len())?;

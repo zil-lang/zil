@@ -111,14 +111,35 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     inner = nested;
                     rank += 1;
                 }
-                let s::TypeKind::Function { params, result } = &inner.kind else {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Expand,
-                        "higher-rank life currently requires a direct function pointer signature",
-                        Some(ty.span),
-                    )]);
+                let (params, result): (&[s::TypeRef], &s::TypeRef) = match &inner.kind {
+                    s::TypeKind::Function { params, result } => (params, result),
+                    s::TypeKind::Named { path, args } if matches!(path.as_slice(), [name] if matches!(name.as_str(), "Fn"|"FnMut"|"FnOnce")) =>
+                    {
+                        let [s::GenericArg::Type(parameters), s::GenericArg::Type(result)] =
+                            args.as_slice()
+                        else {
+                            return Err(vec![failure(
+                                ty.span,
+                                "higher-rank callable signature is incomplete",
+                            )]);
+                        };
+                        let s::TypeKind::Tuple(params) = &reference(parameters).kind else {
+                            return Err(vec![failure(
+                                ty.span,
+                                "higher-rank callable parameters require a tuple",
+                            )]);
+                        };
+                        (params, result)
+                    }
+                    _ => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Expand,
+                            "higher-rank life requires a direct function or callable bound signature",
+                            Some(ty.span),
+                        )]);
+                    }
                 };
-                for header in params.iter().chain(std::iter::once(result.as_ref())) {
+                for header in params.iter().chain(std::iter::once(result)) {
                     self.budget.node(header.span, rank).map_err(|e| vec![e])?;
                     self.headers.push(std::ptr::from_ref(reference(header)));
                 }
