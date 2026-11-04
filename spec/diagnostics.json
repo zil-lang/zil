@@ -12,6 +12,18 @@
       ]
     },
     {
+      "code": "E-ANONYMOUS-SUM",
+      "phases": [
+        "expand",
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-RECORD",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
       "code": "E-ARRAY-INFER",
       "phases": [
         "types"
