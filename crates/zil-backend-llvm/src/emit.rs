@@ -1288,6 +1288,9 @@ impl FunctionEmitter<'_> {
             if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
                 self.scoped_thread_functions(instruction, worker, body)?;
             }
+            if let InstructionKind::WithSyncCell { kind, body, .. } = instruction.kind {
+                self.sync_cell_functions(instruction, kind, body)?;
+            }
             if let InstructionKind::WithForeignCallback {
                 register,
                 close,
@@ -1434,6 +1437,12 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::WithScopedThread { argument, body, .. } => {
                 self.call_scoped_thread_helper(instruction, *argument, *body)?
+            }
+            InstructionKind::WithSyncCell { initial, body, .. } => {
+                self.call_sync_cell_helper(instruction, *initial, *body)?
+            }
+            InstructionKind::SyncI32 { op, address, value, ordering } => {
+                self.sync_i32(instruction, *op, *address, *value, *ordering)?
             }
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;

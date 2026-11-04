@@ -696,7 +696,7 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
-    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    ty.is_copy_value() || ty.is_shared_sync_cell_address() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
@@ -1028,7 +1028,7 @@ impl Graph {
             Type::I64 => I64,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if *ty == Type::ByteBuffer
+            ty if matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
@@ -3085,6 +3085,55 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         span,
                     );
                 }
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+                {
+                    self.visit(depth + 1, callee.span)?;
+                    *self.work_left = self.work_left.checked_sub(8).ok_or_else(|| limit("cell operation type construction budget exceeded", span))?;
+                    let address_ty = scoped_thread::sync_address(kind);
+                    if let Some(op) = op {
+                        let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+                        if arguments.len() != arity {
+                            return Err(error("E-CALL-ARITY", span, "incorrect synchronization operation arity"));
+                        }
+                        for (index, argument) in arguments.iter().enumerate() {
+                            let ty = if index == 0 { &address_ty } else { &Type::I32 };
+                            let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                            self.graph.thread_work(self.work_left, |graph| term.bind(graph, ty, argument.span))?;
+                        }
+                        return self.known(&if op == SyncI32Op::Store { Type::Unit } else { Type::I32 }, span);
+                    }
+                    let [initial, body] = arguments.as_slice() else {
+                        return Err(error("E-CALL-ARITY", span, "cell scope requires initial i32 and body"));
+                    };
+                    let term = self.expr_expected(initial, Some(&Type::I32), depth + 1)?;
+                    self.graph.thread_work(self.work_left, |graph| term.bind(graph, &Type::I32, initial.span))?;
+                    let term = self.expr(body, depth + 1)?;
+                    let signature = match term {
+                        LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                        LocalType::Scalar(variable) => self.graph.thread_query(self.work_left, |graph| graph.ty(variable))?
+                            .ok_or_else(|| error("E-SYNC-BODY", body.span, "cell body signature is unresolved"))?,
+                        LocalType::Closure(id, None, _) => {
+                            let pending = &self.closures[id.0 as usize];
+                            if pending.inference.arity() != 1 {
+                                return Err(error("E-SYNC-BODY", body.span, "cell body takes one sealed address"));
+                            }
+                            pending.inference.graph.thread_query(self.work_left, |graph| {
+                                let parameter = graph.ty(pending.inference.parameters[0])?
+                                    .ok_or_else(|| error("E-SYNC-BODY", body.span, "cell body parameter is unresolved"))?;
+                                let result = graph.ty(pending.inference.result)?
+                                    .ok_or_else(|| error("E-SYNC-BODY", body.span, "cell body result is unresolved"))?;
+                                Ok(Type::FunctionPointer { parameters: vec![parameter], result: Box::new(result) })
+                            })?
+                        }
+                        _ => return Err(error("E-SYNC-BODY", body.span, "cell scope requires a concrete closure")),
+                    };
+                    if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.as_slice() == [address_ty] && result.as_ref() == &Type::I32) {
+                        return Err(error("E-SYNC-BODY", body.span, "cell body has wrong sealed cell signature"));
+                    }
+                    self.transferred_closure(body, term);
+                    return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+                }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
                     self.visit(depth + 1, callee.span)?;
                     let [worker, argument, body] = arguments.as_slice() else {
@@ -3122,14 +3171,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             limit("thread shared payload construction budget exceeded", span)
                         })?;
                     }
-                    let payload_type = if shared_payload {
-                        Type::Address {
-                            mutable: false,
-                            inner: Box::new(Type::I32),
-                        }
-                    } else {
-                        Type::I32
-                    };
+                    let payload_type = worker_signature.parameters[0].clone();
                     // The accepted shapes are closed. Shared construction is
                     // prepaid above; graph traversal reserves the actual type.
                     self.graph.thread_query(self.work_left, |graph| {

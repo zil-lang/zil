@@ -1746,6 +1746,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                     }
                     return Ok((value, Type::I64));
                 }
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+                {
+                    return self.sync_call(kind, op, arguments, expected, e.span);
+                }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
                     return self.with_scoped_thread(arguments, expected, e.span);
                 }

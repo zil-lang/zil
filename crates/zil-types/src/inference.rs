@@ -1523,6 +1523,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Ok(Term::Resource(variable, matches!(ty, Type::Managed(_))))
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
+                && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
                 && !self.graph.symbolic_store_type(inner)
@@ -3210,6 +3211,41 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         &byte_buffer::result_type(name).expect("byte primitive"),
                         span,
                     );
+                }
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+                {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    let address_ty = scoped_thread::sync_address(kind);
+                    let result = if let Some(op) = op {
+                        let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+                        if arguments.len() != arity {
+                            return Err(error("E-CALL-ARITY", span, "incorrect synchronization operation arity"));
+                        }
+                        for (index, argument) in arguments.iter().enumerate() {
+                            let ty = if index == 0 { &address_ty } else { &Type::I32 };
+                            let term = self.expr_expected(argument, Some(ty), depth + 1, false)?;
+                            self.bind_term(&term, ty, argument.span)?;
+                        }
+                        if op == SyncI32Op::Store { Type::Unit } else { Type::I32 }
+                    } else {
+                        let [initial, body] = arguments.as_slice() else {
+                            return Err(error("E-CALL-ARITY", span, "cell scope requires initial i32 and body"));
+                        };
+                        let term = self.expr_expected(initial, Some(&Type::I32), depth + 1, false)?;
+                        self.bind_term(&term, &Type::I32, initial.span)?;
+                        let Term::Closure(id) = self.expr(body, depth + 1, false)? else {
+                            return Err(error("E-SYNC-BODY", body.span, "cell scope requires a concrete closure"));
+                        };
+                        if self.closures[id].parameters.len() != 1 {
+                            return Err(error("E-SYNC-BODY", body.span, "cell scope body takes one sealed cell address"));
+                        }
+                        self.graph.bind(self.closures[id].parameters[0], &address_ty, body.span)?;
+                        self.graph.bind(self.closures[id].result, &Type::I32, body.span)?;
+                        Type::Tuple(vec![Type::Bool, Type::I32])
+                    };
+                    return self.known_term(&result, span);
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
                     self.budget.node(depth + 1, callee.span)?;

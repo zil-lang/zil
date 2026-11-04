@@ -730,3 +730,216 @@ fn noinline_is_a_function_boundary_not_a_result_or_parameter_attribute() {
     assert!(validate_impl::<true>(&source).is_err());
     assert!(validate_impl::<false>(&source).is_err());
 }
+
+fn atomic_module() -> Module {
+    let mut atomic = function_item(
+        "atomic_increment",
+        vec![block(
+            "entry",
+            vec![
+                inst(
+                    Some("old"),
+                    Op::AtomicRmw {
+                        operation: AtomicRmwOp::Add,
+                        arg: Arg::new(Ty::Int(32), 1),
+                        ptr: Val::Local("cell".into()),
+                        align: 4,
+                        ordering: AtomicOrdering::SeqCst,
+                    },
+                ),
+                ret(Val::Local("old".into())),
+            ],
+        )],
+    );
+    let Item::Function(function) = &mut atomic else {
+        unreachable!()
+    };
+    function.signature.params.push(Param::new(Ty::Ptr, "cell"));
+    let mut result = module(vec![atomic]);
+    for (name, store) in [("atomic_set", true), ("atomic_get", false)] {
+        let operation = if store {
+            inst(
+                None,
+                Op::AtomicStore {
+                    arg: Arg::new(Ty::Int(32), 7),
+                    ptr: Val::Local("cell".into()),
+                    align: 4,
+                    ordering: AtomicOrdering::Release,
+                },
+            )
+        } else {
+            inst(
+                Some("loaded"),
+                Op::AtomicLoad {
+                    ty: Ty::Int(32),
+                    ptr: Val::Local("cell".into()),
+                    align: 4,
+                    ordering: AtomicOrdering::Acquire,
+                },
+            )
+        };
+        let mut item = function_item(
+            name,
+            vec![block(
+                "entry",
+                vec![
+                    operation,
+                    ret(if store {
+                        Val::Int(7)
+                    } else {
+                        Val::Local("loaded".into())
+                    }),
+                ],
+            )],
+        );
+        let Item::Function(function) = &mut item else {
+            unreachable!()
+        };
+        function.signature.params.push(Param::new(Ty::Ptr, "cell"));
+        result.items.push(item);
+    }
+    result
+}
+
+#[test]
+fn actual_atomics_have_typed_operands_and_valid_memory_orders() {
+    let source = atomic_module();
+    accepted(&source);
+    let text = source.to_text();
+    assert!(text.contains("atomicrmw add ptr %cell, i32 1 seq_cst, align 4"));
+    assert!(text.contains("store atomic i32 7, ptr %cell release, align 4"));
+    assert!(text.contains("load atomic i32, ptr %cell acquire, align 4"));
+    for (op, expected) in [
+        (
+            Op::AtomicLoad {
+                ty: Ty::Int(32),
+                ptr: Val::Local("cell".into()),
+                align: 4,
+                ordering: AtomicOrdering::Release,
+            },
+            "atomic load cannot have release ordering",
+        ),
+        (
+            Op::AtomicStore {
+                arg: Arg::new(Ty::Int(32), 1),
+                ptr: Val::Local("cell".into()),
+                align: 4,
+                ordering: AtomicOrdering::Acquire,
+            },
+            "atomic store cannot have acquire ordering",
+        ),
+        (
+            Op::AtomicLoad {
+                ty: Ty::Int(32),
+                ptr: Val::Local("cell".into()),
+                align: 0,
+                ordering: AtomicOrdering::Relaxed,
+            },
+            "atomic operand requires explicit natural alignment",
+        ),
+        (
+            Op::AtomicRmw {
+                operation: AtomicRmwOp::Add,
+                arg: Arg::new(Ty::Int(32), 1),
+                ptr: Val::Local("cell".into()),
+                align: 2,
+                ordering: AtomicOrdering::AcqRel,
+            },
+            "atomic operand requires explicit natural alignment",
+        ),
+    ] {
+        let mut invalid = source.clone();
+        let instruction = &mut body_mut(&mut invalid)[0].instructions[0];
+        instruction.result = (!matches!(op, Op::AtomicStore { .. })).then(|| "old".into());
+        instruction.op = op;
+        if instruction.result.is_none() {
+            body_mut(&mut invalid)[0].instructions[1] = ret(Val::Int(0));
+        }
+        rejected(
+            &invalid,
+            &format!("@atomic_increment / entry / 0: {expected}"),
+        );
+    }
+}
+
+#[cfg(feature = "native")]
+#[test]
+fn native_atomics_synchronize_real_threads_at_o0_and_o2() {
+    use std::{
+        fs,
+        process::Command,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let scratch = std::env::temp_dir().join(format!(
+        "zil343-atomic-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&scratch).unwrap();
+    let source = atomic_module();
+    accepted(&source);
+    fs::write(scratch.join("atomic.ll"), source.to_text()).unwrap();
+    // Machine-adapter harness only: source-language acceptance is tested by the
+    // driver separately. Every concurrent access reaches the generated RMW.
+    fs::write(
+        scratch.join("host.c"),
+        r#"
+#include <stdint.h>
+#include <pthread.h>
+extern int32_t atomic_increment(int32_t *);
+extern int32_t atomic_set(int32_t *);
+extern int32_t atomic_get(int32_t *);
+static int32_t value;
+static void *worker(void *unused) {
+    (void)unused;
+    for (int i=0; i<25000; ++i) atomic_increment(&value);
+    return 0;
+}
+int main(void) {
+    pthread_t threads[4];
+    atomic_set(&value);
+    for (int i=0; i<4; ++i) if (pthread_create(&threads[i],0,worker,0)) return 2;
+    for (int i=0; i<4; ++i) if (pthread_join(threads[i],0)) return 3;
+    return atomic_get(&value) == 100007 ? 0 : 4;
+}
+"#,
+    )
+    .unwrap();
+    for (opt, flag) in [
+        (crate::Optimization::O0, "-O0"),
+        (crate::Optimization::O2, "-O2"),
+    ] {
+        let object = crate::compile_module(
+            &source,
+            &crate::Config {
+                triple: "x86_64-unknown-linux-gnu",
+                optimization: opt,
+            },
+            &|| false,
+        )
+        .unwrap();
+        let object_path = scratch.join(format!("api{flag}.o"));
+        fs::write(&object_path, object.bytes).unwrap();
+        for (name, input) in [("api", object_path), ("text", scratch.join("atomic.ll"))] {
+            let executable = scratch.join(format!("{name}{flag}"));
+            let output = Command::new("clang")
+                .arg(flag)
+                .arg(&input)
+                .arg(scratch.join("host.c"))
+                .arg("-pthread")
+                .arg("-o")
+                .arg(&executable)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let status = Command::new(&executable).status().unwrap();
+            assert!(status.success(), "{name} {flag}: {status}");
+        }
+    }
+    fs::remove_dir_all(scratch).unwrap();
+}

@@ -11,8 +11,87 @@ impl Signature {
             && self.template.is_none()
             && self.receiver.is_none()
             && (self.parameters.as_slice() == [Type::I32]
-                || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32))
+                || matches!(self.parameters.as_slice(), [Type::Address { mutable: false, inner }] if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_))))
             && self.result == Type::I32
+    }
+}
+
+pub(super) fn sync_primitive(name: &str) -> Option<(SyncCellKind, Option<SyncI32Op>)> {
+    Some(match name {
+        "mutex_scope" => (SyncCellKind::MutexI32, None),
+        "atomic_scope" => (SyncCellKind::AtomicI32, None),
+        "mutex_load" => (SyncCellKind::MutexI32, Some(SyncI32Op::Load)),
+        "mutex_store" => (SyncCellKind::MutexI32, Some(SyncI32Op::Store)),
+        "mutex_fetch_add" => (SyncCellKind::MutexI32, Some(SyncI32Op::FetchAdd)),
+        "atomic_load" => (SyncCellKind::AtomicI32, Some(SyncI32Op::Load)),
+        "atomic_store" => (SyncCellKind::AtomicI32, Some(SyncI32Op::Store)),
+        "atomic_fetch_add" => (SyncCellKind::AtomicI32, Some(SyncI32Op::FetchAdd)),
+        _ => return None,
+    })
+}
+
+pub(super) fn sync_address(kind: SyncCellKind) -> Type {
+    Type::Address {
+        mutable: false,
+        inner: Box::new(Type::SyncCell(kind)),
+    }
+}
+
+impl Builder<'_, '_> {
+    pub(super) fn sync_call(
+        &mut self,
+        kind: SyncCellKind,
+        op: Option<SyncI32Op>,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        if let Some(op) = op {
+            let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+            if arguments.len() != arity {
+                return Err(error("E-CALL-ARITY", span, "incorrect synchronization operation arity"));
+            }
+            let address_ty = sync_address(kind);
+            let (address, actual) = self.expr(&arguments[0], Some(&address_ty))?;
+            self.same(&actual, &address_ty, arguments[0].span)?;
+            let value = if let Some(argument) = arguments.get(1) {
+                let (value, actual) = self.expr(argument, Some(&Type::I32))?;
+                self.same(&actual, &Type::I32, argument.span)?;
+                Some(value)
+            } else {
+                None
+            };
+            let ty = if op == SyncI32Op::Store { Type::Unit } else { Type::I32 };
+            if let Some(expected) = expected { self.same(&ty, expected, span)?; }
+            let value = self.value(InstructionKind::SyncI32 {
+                op, address, value, ordering: AtomicOrdering::SeqCst,
+            }, ty.clone(), span)?;
+            return Ok((value, ty));
+        }
+        let [initial, body] = arguments else {
+            return Err(error("E-CALL-ARITY", span, "cell scope requires initial i32 and body"));
+        };
+        let (initial_value, initial_ty) = self.expr(initial, Some(&Type::I32))?;
+        self.same(&initial_ty, &Type::I32, initial.span)?;
+        let (body_value, body_ty) = self.transfer_expr(body, None)?;
+        let Type::Closure(id) = body_ty else {
+            return Err(error("E-SYNC-BODY", body.span, "cell scope requires an actual concrete closure"));
+        };
+        self.closures.snapshot(1, span)?;
+        if self.closures.pending[id.0 as usize].inference.arity() != 1 {
+            return Err(error("E-SYNC-BODY", body.span, "cell scope body takes one shared sealed cell address"));
+        }
+        if self.closures.thread_parameter(id, 0)?.as_ref() != Some(&sync_address(kind)) {
+            return Err(error("E-SYNC-BODY", body.span, "cell scope parameter is not the actual sealed cell kind"));
+        }
+        self.closures.thread_expect_result(id, &Type::I32, body.span)?;
+        self.materialize_closure(id)?;
+        let ty = Type::Tuple(vec![Type::Bool, Type::I32]);
+        if let Some(expected) = expected { self.same(&ty, expected, span)?; }
+        let value = self.value(InstructionKind::WithSyncCell {
+            kind, initial: initial_value, body: body_value,
+        }, ty.clone(), span)?;
+        Ok((value, ty))
     }
 }
 
