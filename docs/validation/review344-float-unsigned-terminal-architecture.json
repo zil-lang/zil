@@ -1,0 +1,81 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "25620de91a63f160512ba950ff24207cf09045f0",
+  "production_merge": "d483d3863af8f693a61b63b638ba8fe05626cdd6",
+  "scope": "Composed IEEE f32/f64 and u64/target-width usize consumers, both CT VMs, guarded native conversion, mixed UInt/float Enum layout and CT Wire schema2 fixtures. Anonymous sums remain separate.",
+  "identity": {
+    "production_rust_count": 306,
+    "production_rust_sha256": "69bc21c9070f2c1d7902dff1ff2a724b8b2fc83639d6f4e417b6d8b31679f2f6",
+    "algorithm": "Exact Git blobs for crates/**/src/**/*.rs sorted by Python Path component order; UTF-8 path + NUL + bytes + NUL.",
+    "source_hashes": "All five input and four harness source hashes independently recomputed and matched author float_unsigned_milestone.",
+    "retained_harnesses": {
+      "/tmp/zil-terminal-review/aggregates-uint-float-344": "e1512808e1af1f674f568bddf4997d4eb80dcce5173d1b9c046d1bc0a712cd04",
+      "/tmp/zil-terminal-review/driver-uint-float-344": "a4e80cd9cd50a220761549611f9d4d7cd40cd27d9cf510f02fbf1c99da12ff6b",
+      "/tmp/zil-terminal-review/ct-uint-float-344": "7cafe2d57265d369a3a5d15366de73d156c88ff40fcdc8de7fd336479061d385",
+      "/tmp/zil-terminal-review/ir-uint-float-344": "7af7fc898381d303a5090522e5bb46ae7930a7dbc4e1142f68be9eea32c0a09a"
+    },
+    "binding": "All four exact retained harnesses copied and independently hashed against committed receipt before target reuse. Source and C fixtures are compiled into harnesses; actual native artifacts are built and run during replay."
+  },
+  "independent_execution": {
+    "environment": "Sourced /workspace/.zil-env/env.sh; every command uses --test-threads=1 --nocapture. No reviewer Cargo build or new target.",
+    "runs": [
+      {
+        "harness": "aggregates-uint-float-344",
+        "filter": "ieee_float_",
+        "passed": 10,
+        "failed": 0,
+        "filtered": 64,
+        "seconds": 2.0
+      },
+      {
+        "harness": "aggregates-uint-float-344",
+        "filter": "terminal340_",
+        "passed": 4,
+        "failed": 0,
+        "filtered": 70,
+        "seconds": 0.86
+      },
+      {
+        "harness": "driver-uint-float-344",
+        "filter": "ieee_float_",
+        "passed": 2,
+        "failed": 0,
+        "filtered": 79,
+        "seconds": 0.01
+      },
+      {
+        "harness": "ct-uint-float-344",
+        "filter": "ieee_float_",
+        "passed": 2,
+        "failed": 0,
+        "filtered": 36
+      },
+      {
+        "harness": "ir-uint-float-344",
+        "filter": "ct_wire::tests",
+        "passed": 19,
+        "failed": 0,
+        "filtered": 41,
+        "seconds": 0.01
+      }
+    ],
+    "native": "Float scope executes 16 successful source profiles and 32 invalid-conversion trap profiles across Clang/LlvmApi O0/O2, plus four real C ABI probes. Inherited UInt native tests also pass. C controls establish ABI observations, not safe-source authority.",
+    "budgets": {
+      "float_source_N": 2189,
+      "unsigned_request_N": 9050,
+      "controls": "N accepts, N-1 ResourceLimit; cold/warm/fresh agree and defaults unchanged."
+    }
+  },
+  "source_review": [
+    "Unsigned inputs use uitofp, including values above i64::MAX. Float-to-u64/usize guards use the exact exclusive 2^64 upper boundary before fptoui; representable predecessor succeeds and exact 2^64 traps on both backends.",
+    "Both ordinary and artifact CT numeric paths receive actual target_pointer_width. The32-bit usize bound accepts4294967295f64 and rejects4294967296f64 and an f32 value rounded to that boundary. Raw artifact tests are independently Verified but use a test authority and do not replace source authentication.",
+    "The stronger mixed Carrier.Value(Mixed{word:u64,amount:f64},usize) source retains the author-discovered omission: UInt enum physical-layout/preflight/store leaves now compose with float and execute in all four profiles.",
+    "Wire tests preserve every frozen binary fixture; comparison changes only the explicit schema2 envelope, inner version, target-width field and checksum domain. Stale schema1 and future versions reject. This closes the earlier malformed Registry fixture integration defect.",
+    "Prior raw-NaN/zero/subnormal exact-bit reification and generated spelling rejection controls pass again at this composed candidate."
+  ],
+  "limitations": [
+    "Anonymous tagged sums, broader special ABI reliability, native Windows and all Rust product-cost comparisons remain open. No reviewer full-workspace or Clippy execution is claimed.",
+    "Earlier c81 float and dac5 numeric reviews remain separate exact snapshots; this combined replay does not retroactively change their acceptance scope."
+  ]
+}
