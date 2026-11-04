@@ -404,3 +404,43 @@ fn ordinary_iterators_keep_callback_order_short_circuit_and_option_results() {
         );
     }
 }
+
+#[test]
+fn ordinary_string_unicode_encoding_and_owner_edits_are_native() {
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("string-unicode-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), include_str!("string_unicode.zil")).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+        }
+    }
+}
