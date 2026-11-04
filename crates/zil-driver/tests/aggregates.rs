@@ -2709,3 +2709,202 @@ fn large_copy_enum_error_long_source_names_are_prepaid_before_emission() {
     );
     eprintln!("338 enum source metadata Codegen exact limits short/long: {costs:?}");
 }
+
+#[test]
+fn large_copy_enum_error_default_stack_api_reliability() {
+    const LEGAL: &str = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture-var.zil"
+    );
+    const INVALID: &str = include_str!(
+        "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil"
+    );
+    const DEEP: &[&str] = &[
+        include_str!("../../../tests/language-readiness/terminal/344/depth20.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/depth32.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/projection32.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/depth48.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/projection48.zil"),
+    ];
+    if let Ok(profile) = std::env::var("ZIL_344_STACK_CHILD") {
+        // No stack_size override: Linux Rust worker threads use the default
+        // 2 MiB. A future abort kills this subprocess, never its parent harness.
+        std::thread::spawn(move || {
+            if profile == "frontend" {
+                for stage in [
+                    Stage::Parse,
+                    Stage::Core,
+                    Stage::Types,
+                    Stage::Analyze,
+                    Stage::Verify,
+                ] {
+                    let report = compile_source(
+                        &source(LEGAL),
+                        &CompileOptions {
+                            stop_after: stage,
+                            ..CompileOptions::default()
+                        },
+                    );
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(
+                        report.verification_runs,
+                        usize::from(stage == Stage::Verify)
+                    );
+                }
+                let rejected = compile_source(&source(INVALID), &CompileOptions::default());
+                assert_eq!(
+                    rejected.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    rejected.to_json()
+                );
+                assert_eq!(rejected.phase, Phase::Types);
+                assert!(
+                    rejected
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "E-CLOSURE-MUTABILITY")
+                );
+                assert_eq!(rejected.verification_runs, 0);
+                for input in DEEP {
+                    let report = compile_source(&source(input), &CompileOptions::default());
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.verification_runs, 1);
+                }
+                let input = source(LEGAL);
+                let ast = zil_syntax::parse(&input).into_result().unwrap();
+                let core = zil_expand::expand(&input, &ast).unwrap();
+                let defaults = Limits::default();
+                let target = TargetProfile::default();
+                let constraints = |steps| {
+                    zil_types::infer_source_closures(
+                        &core,
+                        &Limits {
+                            max_analysis_steps: steps,
+                            ..defaults.clone()
+                        },
+                    )
+                };
+                let (mut low, mut high) = (1, defaults.max_analysis_steps);
+                assert!(constraints(high).is_ok());
+                while low < high {
+                    let middle = low + (high - low) / 2;
+                    if constraints(middle).is_ok() {
+                        high = middle;
+                    } else {
+                        low = middle + 1;
+                    }
+                }
+                let errors = constraints(low - 1).unwrap_err();
+                assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+                assert_eq!(errors[0].phase, Phase::Types);
+                assert!(constraints(low).is_ok());
+                assert!(constraints(low).is_ok());
+                eprintln!("344 source constraint exact work N={low}; N/N-1/fresh checked");
+                let typed = zil_types::check(&core, &target, &defaults).unwrap();
+                let candidate = zil_analyze::analyze(&typed, &defaults).unwrap();
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&typed, &candidate, &defaults).unwrap();
+                assert_eq!(
+                    zil_verify::verify_module_bytes(&bytes, &target, &defaults)
+                        .unwrap()
+                        .module(),
+                    &typed
+                );
+                let mut damaged = typed.clone();
+                assert!(!damaged.closures[0].captures.is_empty());
+                damaged.closures[0].captures[0] = Type::Bool;
+                let mut claims = candidate;
+                claims.module_fingerprint = damaged.fingerprint();
+                let errors =
+                    zil_verify::verify_module(damaged, claims, &target, &defaults).unwrap_err();
+                assert_eq!(errors[0].phase, Phase::Verify);
+            } else {
+                use zil_driver::{NativeBackend, Optimization};
+                let (backend, optimization) = match profile.as_str() {
+                    "clang-O0" => (NativeBackend::Clang, Optimization::O0),
+                    "clang-O2" => (NativeBackend::Clang, Optimization::O2),
+                    "llvm-api-O0" => (NativeBackend::LlvmApi, Optimization::O0),
+                    "llvm-api-O2" => (NativeBackend::LlvmApi, Optimization::O2),
+                    _ => panic!("unknown 344 child profile"),
+                };
+                let directory = Temp::new();
+                let report = compile_source(
+                    &source(LEGAL),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        output: Some(directory.0.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                if backend == NativeBackend::LlvmApi {
+                    assert!(!codegen.object_reports.is_empty());
+                    assert!(
+                        codegen
+                            .object_reports
+                            .iter()
+                            .all(|r| r.contains("\"input_kind\":\"builder\""))
+                    );
+                }
+                let output = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+                assert_eq!(output.stdout, b"30\n");
+                assert!(output.stderr.is_empty());
+                eprintln!("344 default-stack {profile}: Verify1, native stdout30, fallback=null");
+            }
+        })
+        .join()
+        .unwrap();
+        return;
+    }
+    let mut profiles = vec!["frontend", "clang-O0", "clang-O2"];
+    if cfg!(feature = "llvm-api") {
+        profiles.extend(["llvm-api-O0", "llvm-api-O2"]);
+    }
+    for profile in profiles {
+        let child = Command::new("timeout")
+            .args(["-s", "KILL", "90s"])
+            .arg(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "large_copy_enum_error_default_stack_api_reliability",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env("ZIL_344_STACK_CHILD", profile)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{profile}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+        eprint!("{}", String::from_utf8_lossy(&child.stderr));
+    }
+}
