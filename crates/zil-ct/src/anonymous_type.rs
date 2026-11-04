@@ -304,6 +304,20 @@ fn canonical_type_key_mode(
     budget: &mut CtExecutionBudget,
     keep_key: bool,
 ) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    let before = budget.live_temporary_bytes();
+    let result = canonical_type_key_mode_inner(reference, budget, keep_key);
+    let keep = result.as_ref().map_or(0, |(ty, key)| {
+        retained_bytes(ty).saturating_add(key.capacity() as u64)
+    });
+    let added = budget.live_temporary_bytes().saturating_sub(before);
+    budget.release_temporary_bytes(added.saturating_sub(keep));
+    result
+}
+fn canonical_type_key_mode_inner(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+    keep_key: bool,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
     budget.reserve_analysis_work(reference.nodes.len() as u64)?;
     if scoped_graph(reference) {
         return scoped::canonical(reference, budget, keep_key);

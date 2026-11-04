@@ -449,6 +449,41 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    fn item_symbol(&mut self, module: usize, item: &s::Item) -> R<CtSymbolId> {
+        self.budget.work(
+            self.modules[module]
+                .syntax
+                .items
+                .len()
+                .saturating_add(self.modules[module].symbols.len()),
+            item.span,
+        )?;
+        let ordinal = self.modules[module]
+            .syntax
+            .items
+            .iter()
+            .position(|actual| std::ptr::eq(actual, item))
+            .ok_or_else(|| error(item.span, "CT declaration is not an actual original item"))?;
+        let symbol = CtSymbolId {
+            module: self.modules[module].source.module_id,
+            declaration: zil_base::NodeId(
+                u32::try_from(ordinal)
+                    .map_err(|_| error(item.span, "CT original declaration ordinal overflow"))?,
+            ),
+            generation_path: None,
+        };
+        if !self.modules[module]
+            .symbols
+            .iter()
+            .any(|(_, actual)| actual == &symbol)
+        {
+            return Err(error(
+                item.span,
+                "CT declaration is absent from frozen inventory",
+            ));
+        }
+        Ok(symbol)
+    }
     fn symbol(&mut self, module: usize, span: Span) -> R<CtSymbolId> {
         for (actual, symbol) in self.modules[module].symbols {
             self.budget.work(1, span)?;
@@ -608,7 +643,7 @@ pub(crate) fn compile_scoped(
             let mut found = None;
             for index in 0..compiler.declarations.len() {
                 let d = compiler.declarations[index];
-                if compiler.symbol(d.module, d.item.span)? == symbol {
+                if compiler.item_symbol(d.module, d.item)? == symbol {
                     found = Some(index);
                     break;
                 }
@@ -749,7 +784,7 @@ pub(crate) fn definitions_entry(
         if declaration.function.generics.is_empty()
             && compiler.ct_only_function(declaration.module, declaration.function)?
         {
-            entry = Some(compiler.symbol(declaration.module, declaration.item.span)?);
+            entry = Some(compiler.item_symbol(declaration.module, declaration.item)?);
             break;
         }
     }

@@ -318,6 +318,33 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
     ) -> CompileResult<EvaluatedData> {
+        let before = self.budget.live_temporary_bytes();
+        let query_capacity = self.budget.usage().queries.capacity();
+        let result =
+            self.evaluate_data_inner(entry, input_tokens, input, arguments, span, retain_context);
+        if result.is_err() {
+            let keep = (self
+                .budget
+                .usage()
+                .queries
+                .capacity()
+                .saturating_sub(query_capacity) as u64)
+                .saturating_mul(std::mem::size_of::<CtQueryDependency>() as u64);
+            let added = self.budget.live_temporary_bytes().saturating_sub(before);
+            self.budget
+                .release_temporary_bytes(added.saturating_sub(keep));
+        }
+        result
+    }
+    fn evaluate_data_inner(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+        retain_context: bool,
+    ) -> CompileResult<EvaluatedData> {
         let invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
             &entry,
             self.parsed,
@@ -362,7 +389,7 @@ impl<'a> Environment<'a> {
             index: &self.index,
             expected_functions: &expected.functions,
             expected_artifact: &expected,
-            invocation_context: Some(&invocation_context),
+            invocation_context: invocation_context.as_deref(),
         };
         let mut meter =
             zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
@@ -371,7 +398,10 @@ impl<'a> Environment<'a> {
         self.budget.reserve_analysis_work(meter.spent())?;
         let verified = result?;
         let reader = FrozenReadView {
-            invocation_context: Some(&invocation_context),
+            record_schemas: &expected.record_schemas,
+            enum_schemas: &expected.enum_schemas,
+            ambient_life_scopes: &expected.ambient_life_scopes,
+            invocation_context: invocation_context.as_deref(),
             index: &self.index,
             sources: self.sources,
             syntax: &syntax,
@@ -418,13 +448,15 @@ impl<'a> Environment<'a> {
             Some(value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings,
-                Some(invocation_context.clone()),
+                invocation_context.clone(),
                 &mut self.budget,
             )?)
         } else {
             None
         };
-        if context.is_none() {
+        if context.is_none()
+            && let Some(invocation_context) = invocation_context
+        {
             self.budget
                 .release_temporary_bytes(invocation_context.bytes);
         }
@@ -475,6 +507,9 @@ impl<'a> Environment<'a> {
     pub(super) fn type_syntax(&mut self, ty: &CtTypeRef) -> CompileResult<CtSyntaxTree> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &self.index,
             sources: self.sources,
@@ -595,6 +630,9 @@ mod tests {
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let mut reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -693,6 +731,9 @@ mod tests {
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -753,6 +794,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -862,6 +906,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -979,6 +1026,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -1061,6 +1111,9 @@ mod tests {
         };
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -1099,6 +1152,9 @@ mod tests {
         };
         token.text = "y".into();
         let changed_reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             input: Some(&changed),
             ..reader
@@ -1164,6 +1220,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -1286,6 +1345,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -1446,6 +1508,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
@@ -1511,6 +1576,9 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            record_schemas: &[],
+            enum_schemas: &[],
+            ambient_life_scopes: &[],
             invocation_context: None,
             index: &environment.index,
             sources: &sources,
