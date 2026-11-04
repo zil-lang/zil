@@ -693,24 +693,39 @@ impl Materializer<'_, '_> {
         expression: &s::Expr,
         expected: Option<CtTy>,
     ) -> CompileResult<CtValue> {
+        self.expression_data(module, owner, expression, expected)
+            .map(|output| output.value)
+    }
+    fn expression_data(
+        &mut self,
+        module: ModuleId,
+        owner: &CtSymbolId,
+        expression: &s::Expr,
+        expected: Option<CtTy>,
+    ) -> CompileResult<super::execute::EvaluatedData> {
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
-            return self.provider(
-                module,
-                path,
-                tree,
-                expression.span,
-                expected.as_ref().ok_or_else(|| {
-                    category(
-                        "provider output needs a Syntax receiving category",
-                        expression.span,
-                    )
-                })?,
-            );
+            return self
+                .provider(
+                    module,
+                    path,
+                    tree,
+                    expression.span,
+                    expected.as_ref().ok_or_else(|| {
+                        category(
+                            "provider output needs a Syntax receiving category",
+                            expression.span,
+                        )
+                    })?,
+                )
+                .map(|value| super::execute::EvaluatedData {
+                    value,
+                    context: None,
+                });
         }
         let input = self.environment.empty_input(expression.span)?;
         self.reject_runtime_capture(expression)?;
         let has_receiving_category = expected.is_some();
-        self.environment.evaluate(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
+        self.environment.evaluate_data(Entry::Expression { module, expression, definition: owner.clone(), expected, parameters: &[] },
             &input, None, &[], expression.span).map_err(|mut errors| {
                 if has_receiving_category {
                     for error in &mut errors {
@@ -1449,6 +1464,10 @@ impl Materializer<'_, '_> {
     ) -> CompileResult<()> {
         self.depth(depth, expression.span)?;
         match &mut expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(module, ty, owner, depth + 1)?;
+                self.expr(module, value, owner, depth + 1)?;
+            }
             s::ExprKind::MetaSplice(inner) => {
                 let value = self.expression_value(
                     module,
@@ -1497,8 +1516,24 @@ impl Materializer<'_, '_> {
                     // context. Selection happens before either VM runs.
                     return Ok(());
                 }
-                let value = self.expression_value(module, owner, inner, None)?;
-                let CtValue::Scalar(scalar) = value else {
+                let evaluated = self.expression_data(module, owner, inner, None)?;
+                if let Some(context) = evaluated.context {
+                    let replacement = self.data_expression(
+                        module,
+                        &evaluated.value,
+                        &context.ty,
+                        &context,
+                        expression.span,
+                        depth + 1,
+                    );
+                    self.environment.budget.release_value(&evaluated.value);
+                    self.environment
+                        .budget
+                        .release_temporary_bytes(context.bytes);
+                    *expression = replacement?;
+                    return Ok(());
+                }
+                let CtValue::Scalar(scalar) = evaluated.value else {
                     return Err(runtime(
                         "Type, Syntax, Ident and CT views cannot enter runtime expressions",
                         expression.span,
@@ -1809,3 +1844,6 @@ mod float_tests {
         assert!(zil_syntax::parse(&source).into_result().is_err());
     }
 }
+
+#[path = "materialize_value.rs"]
+mod data_value;

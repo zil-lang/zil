@@ -159,13 +159,13 @@ fn rejects_noncanonical_bool_and_oversized_sequence_before_allocation() {
     let mut bad = good.clone();
     // Envelope 12 bytes, CtValue::Scalar tag u8, Constant::Bool tag u8.
     bad[14] = 2;
-    resign(&mut bad, b"zil/ct-value/v1");
+    resign(&mut bad, VALUE_DOMAIN);
     assert_eq!(decode_value(&bad, &limits), Err(WireError::NonCanonical));
 
     let good = encode_value(&CtValue::List(vec![]), &limits).unwrap();
     let mut bad = good.clone();
     bad[13..17].copy_from_slice(&u32::MAX.to_le_bytes());
-    resign(&mut bad, b"zil/ct-value/v1");
+    resign(&mut bad, VALUE_DOMAIN);
     assert_eq!(decode_value(&bad, &limits), Err(WireError::Limit));
 }
 
@@ -174,17 +174,17 @@ fn rejects_unknown_tag_and_invalid_utf8_with_valid_digest() {
     let limits = Limits::default();
     let mut bad = encode_value(&CtValue::Scalar(Constant::Unit), &limits).unwrap();
     bad[12] = 255;
-    resign(&mut bad, b"zil/ct-value/v1");
+    resign(&mut bad, VALUE_DOMAIN);
     assert_eq!(decode_value(&bad, &limits), Err(WireError::UnknownTag));
 
     let mut bad = encode_value(&CtValue::Text("x".into()), &limits).unwrap();
     bad[17] = 255;
-    resign(&mut bad, b"zil/ct-value/v1");
+    resign(&mut bad, VALUE_DOMAIN);
     assert_eq!(decode_value(&bad, &limits), Err(WireError::InvalidUtf8));
 
     let mut bad = encode_value(&CtValue::Scalar(Constant::Bool(true)), &limits).unwrap();
     bad.remove(14);
-    resign(&mut bad, b"zil/ct-value/v1");
+    resign(&mut bad, VALUE_DOMAIN);
     assert_eq!(decode_value(&bad, &limits), Err(WireError::Truncated));
 }
 
@@ -539,8 +539,10 @@ fn over_depth_type_rejects_before_worker_stack_growth() {
 }
 
 #[test]
-fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_two() {
-    // Frozen bytes captured from the pre-iterative schema1 codec; no duplicate encoder is compiled.
+fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_three() {
+    // Preserve original schema1 bytes as old-domain rejection controls.
+    // Re-signed bytes below test unchanged payload layout only; they grant no
+    // artifact/source authentication or migration permission.
     let limits = Limits::default();
     let scalar = CtValue::Scalar(Constant::I32(3));
     let values = [
@@ -564,7 +566,7 @@ fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_two() {
             include_bytes!("fixtures/record.wire").as_slice(),
             include_bytes!("fixtures/variant-array.wire").as_slice(),
         ][index];
-        assert_eq!(decode_value(prior, &limits), Err(WireError::BadVersion));
+        assert_eq!(decode_value(prior, &limits), Err(WireError::BadFingerprint));
         let mut current = prior.to_vec();
         current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
         resign(&mut current, VALUE_DOMAIN);

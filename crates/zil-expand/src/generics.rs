@@ -1950,6 +1950,7 @@ impl<'a> Engine<'a> {
             store_success_context,
         };
         let result = match &mut e.kind {
+            ExprKind::Ascribed { .. } => return self.expr_variant_ascribed(e, env, depth),
             ExprKind::Literal(Literal::Integer(text)) => {
                 if let Some(ty) = expected.filter(|ty| check::integer(ty)) {
                     self.budget.ty(ty)?;
@@ -2970,6 +2971,10 @@ impl Substitution<'_> {
             return;
         }
         match &mut e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty);
+                self.expr(value);
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)

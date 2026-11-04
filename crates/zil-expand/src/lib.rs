@@ -1403,11 +1403,23 @@ impl Expander<'_> {
         };
         self.statement(kind, s.span)
     }
+    fn generated_ascription(&mut self, e: &s::Expr) -> CoreExprKind {
+        let s::ExprKind::Ascribed { ty, value } = &e.kind else {
+            unreachable!("ascription dispatch")
+        };
+        let ty = self.type_ref(ty);
+        let value = self.expr_expected(value, Some(&ty));
+        CoreExprKind::Ascribed {
+            ty,
+            value: Box::new(value),
+        }
+    }
     fn expr(&mut self, e: &s::Expr) -> CoreExpr {
         self.expr_expected(e, None)
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
+            s::ExprKind::Ascribed { .. } => self.generated_ascription(e),
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
                 s::Literal::Float(v) if v.starts_with("@bits:") => {

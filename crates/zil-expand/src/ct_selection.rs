@@ -532,6 +532,10 @@ pub fn walk_expression<V: Visitor + ?Sized>(
 ) -> CompileResult<()> {
     v.node(e.span, depth)?;
     match &e.kind {
+        s::ExprKind::Ascribed { ty, value } => {
+            v.ty(ty, depth + 1)?;
+            v.expression(value, depth + 1)?;
+        }
         s::ExprKind::Literal(l) => literal(v, l, e.span)?,
         s::ExprKind::Name(n) | s::ExprKind::ReceiverMember(n) => v.text(n, e.span)?,
         s::ExprKind::Group(e)

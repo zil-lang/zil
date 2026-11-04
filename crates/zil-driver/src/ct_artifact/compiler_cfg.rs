@@ -979,25 +979,92 @@ impl Builder<'_, '_> {
                     None
                 }
                 s::PatternKind::Constructor { path, .. } => {
-                    let CtTy::Enum(schema) = value.ty else {
-                        return Err(error(
-                            arm.span,
-                            "constructor pattern requires a CT enum value",
-                        ));
-                    };
-                    let (_, decl) = self.compiler.enum_sources[schema.0 as usize];
-                    let name = path
-                        .last()
-                        .ok_or_else(|| error(arm.span, "empty CT enum pattern path"))?;
-                    let mut found = None;
-                    for (index, variant) in decl.variants.iter().enumerate() {
-                        self.compiler.budget.work(1, arm.span)?;
-                        if variant.name == *name {
-                            found = Some(index as u32);
-                            break;
+                    let (tag, types) = match &value.ty {
+                        CtTy::AnonymousSum(members) => {
+                            let s::PatternKind::Constructor { arguments, .. } = &arm.pattern.kind
+                            else {
+                                unreachable!()
+                            };
+                            if arguments.len() != 1 {
+                                return Err(error(arm.span, "CT sum pattern needs one payload"));
+                            }
+                            let written = s::TypeRef {
+                                kind: s::TypeKind::Named {
+                                    path: path.clone(),
+                                    args: Vec::new(),
+                                },
+                                span: arm.pattern.span,
+                            };
+                            let member = self.compiler.ty(self.module, &written, depth + 1)?;
+                            let mut selected = None;
+                            for (index, candidate) in members.iter().enumerate() {
+                                self.compiler.budget.ty(candidate, 0, arm.span)?;
+                                self.compiler.budget.ty(&member, 0, arm.span)?;
+                                if candidate == &member {
+                                    if selected.replace(index as u32).is_some() {
+                                        return Err(error(
+                                            arm.span,
+                                            "ambiguous CT sum pattern type",
+                                        ));
+                                    }
+                                }
+                            }
+                            (
+                                selected.ok_or_else(|| {
+                                    error(arm.span, "CT sum pattern is not an exact member")
+                                })?,
+                                vec![member],
+                            )
                         }
-                    }
-                    let tag = found.ok_or_else(|| error(arm.span, "CT enum variant is absent"))?;
+                        CtTy::Enum(schema) => {
+                            let (name, owner_path) = path
+                                .split_last()
+                                .ok_or_else(|| error(arm.span, "empty CT enum pattern path"))?;
+                            if owner_path.is_empty() {
+                                return Err(error(
+                                    arm.span,
+                                    "CT enum pattern needs its complete owner",
+                                ));
+                            }
+                            let written = s::TypeRef {
+                                kind: s::TypeKind::Named {
+                                    path: owner_path.to_vec(),
+                                    args: Vec::new(),
+                                },
+                                span: arm.pattern.span,
+                            };
+                            let owner = self.compiler.ty(self.module, &written, depth + 1)?;
+                            if owner != value.ty {
+                                return Err(error(
+                                    arm.span,
+                                    "CT pattern owner differs from the actual enum instance",
+                                ));
+                            }
+                            let (_, decl) = self.compiler.enum_sources[schema.0 as usize];
+                            let mut selected = None;
+                            for (index, variant) in decl.variants.iter().enumerate() {
+                                self.compiler.budget.work(1, arm.span)?;
+                                if variant.name == *name {
+                                    selected = Some(index as u32);
+                                    break;
+                                }
+                            }
+                            let tag = selected
+                                .ok_or_else(|| error(arm.span, "CT enum variant is absent"))?;
+                            let types =
+                                &self.compiler.enums[schema.0 as usize].variants[tag as usize];
+                            for ty in types {
+                                self.compiler.budget.copy_ty(ty, 0, arm.span)?;
+                            }
+                            (tag, types.clone())
+                        }
+                        _ => {
+                            return Err(error(
+                                arm.span,
+                                "constructor pattern requires a CT enum or sum",
+                            ));
+                        }
+                    };
                     self.compiler.budget.work(covered.len(), arm.span)?;
                     if covered.contains(&tag) {
                         return Err(error(arm.span, "duplicate CT enum match arm"));
@@ -1031,7 +1098,7 @@ impl Builder<'_, '_> {
                         },
                         arm.span,
                     )?;
-                    Some((schema, tag))
+                    Some((types, tag))
                 }
                 s::PatternKind::Literal(literal) => {
                     let expected = s::Expr {
@@ -1064,11 +1131,10 @@ impl Builder<'_, '_> {
             self.scopes.push(Scope {
                 bindings: Vec::new(),
             });
-            if let Some((schema, tag)) = variant {
+            if let Some((types, tag)) = variant {
                 let s::PatternKind::Constructor { arguments, .. } = &arm.pattern.kind else {
                     unreachable!()
                 };
-                let types = self.compiler.enums[schema.0 as usize].variants[tag as usize].clone();
                 if arguments.len() != types.len() {
                     return Err(error(arm.span, "CT enum pattern field count differs"));
                 }
@@ -1112,6 +1178,7 @@ impl Builder<'_, '_> {
             match value.ty {
                 CtTy::Enum(schema)
                     if covered.len() == self.compiler.enums[schema.0 as usize].variants.len() => {}
+                CtTy::AnonymousSum(members) if covered.len() == members.len() => {}
                 _ => return Err(error(span, "CT match is not exhaustive")),
             }
         }
