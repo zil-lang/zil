@@ -51,11 +51,20 @@ pub(super) fn shared_input(t: &Type) -> bool {
 }
 pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
     b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
-    for ty in d.captures.iter().chain(&d.parameters) {
+    for ty in &d.parameters {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
         if !shared_input(ty) {
             return Err(unsupported(
-                "captured Fixed requires scalar or shared finite input/capture positions",
+                "captured Fixed requires shared/scalar parameters",
+                None,
+            ));
+        }
+    }
+    for ty in &d.captures {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if !(shared_input(ty) || d.kind == CallableKind::FnOnce && super::stored_owned::owner(ty)) {
+            return Err(unsupported(
+                "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,
             ));
         }

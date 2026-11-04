@@ -212,6 +212,7 @@ fn relation_inner(
                     return Err(invalid());
                 }
             }
+            t if capture && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
