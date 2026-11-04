@@ -2357,3 +2357,116 @@ fn g3_3_1_full_nominal_ordinals_and_enclosing_method_life_are_not_class_zero() {
         report.to_json()
     );
 }
+
+#[test]
+fn g3_3_1_borrow_intersection_keeps_unknown_class_without_choosing_an_upper() {
+    let text = "struct Phantom<life s>{n:i32}fn make<life x>(p:&'x i32,q:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p+*q}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x=make(pa,pb);return x.n}fn main()->i32{let a=20;let b=22;return value(&a,&b)}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    terminal_native_profiles(text, "main", 42);
+    for class in ["a", "b"] {
+        let annotated = text.replace("let x=", &format!("let x:Phantom<'{class}>="));
+        let report = compile_source(&source(&annotated), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand);
+    }
+}
+
+#[test]
+fn g3_3_1_flat_fact_growth_is_bounded_on_the_default_worker() {
+    const CHILD: &str = "ZIL_G3_3_1_FACT_DEFAULT_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        // Each expression is shallow. Only inferred source facts become deep.
+        let mut text = "struct Phantom<life s>{n:i32}struct Wrap<T:Copy>{item:T}fn wrap<T:Copy>(x:T)->Wrap<T>{return Wrap::<T>{item:x}}fn value<life a>(p:&'a i32)->i32{let saved=Phantom::<'a>{n:42};".to_owned();
+        for _ in 0..512 {
+            text.push_str("let saved=wrap(saved);");
+        }
+        text.push_str("return 0}fn main()->i32{let n=0;return value(&n)}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::ResourceLimit,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand);
+        return;
+    }
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "g3_3_1_flat_fact_growth_is_bounded_on_the_default_worker",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env_remove("RUST_MIN_STACK")
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "default worker subprocess: {:?}\n{}\n{}",
+        child.status,
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+#[test]
+fn g3_3_1_source_class_work_has_exact_fresh_and_warm_limits() {
+    for (label, init) in [
+        ("ordinary", "Phantom::<'a>{n:42}"),
+        (
+            "CT-projection",
+            "#((Phantom::<'b>{n:scalar(i32,0)},Phantom::<'a>{n:scalar(i32,42)}).1)",
+        ),
+    ] {
+        let text = format!(
+            "struct Phantom<life s>{{n:i32}}fn scalar(t:Type,n:i32)->i32{{return n}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let saved={init};let x:Phantom<'a>=saved;return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+        );
+        let options = |steps| CompileOptions {
+            stop_after: Stage::Lower,
+            limits: zil_base::Limits {
+                max_analysis_steps: steps,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&source(&text), &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = zil_driver::CompilationSession::default();
+        for (steps, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&source(&text), &options(steps)),
+                session.compile_source(&source(&text), &options(steps)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!("G3.3.1 {label} source-through-Lower N={low}/N-1/fresh/warm");
+    }
+}

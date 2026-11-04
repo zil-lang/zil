@@ -644,7 +644,7 @@ impl Check<'_, '_, '_> {
                                     _ => Fact::Unknown,
                                 });
                             }
-                            Fact::Named(self.head(&[name.clone()], e.span)?, args)
+                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, args)
                         }
                         _ => Fact::Unknown,
                     },
@@ -653,7 +653,7 @@ impl Check<'_, '_, '_> {
                         if name == "Self" {
                             self.self_type(scope, e.span)?.unwrap_or(Fact::Unknown)
                         } else {
-                            Fact::Named(self.head(&[name.clone()], e.span)?, vec![])
+                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, vec![])
                         }
                     }
                     _ => Fact::Unknown,
@@ -1038,12 +1038,15 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     if !budget.has_stored_lifetimes() {
         return Ok(());
     }
+    struct Inventory<'a> {
+        functions: Vec<&'a Function>,
+        records: Vec<&'a Aggregate>,
+        hosts: Vec<Option<usize>>,
+        standalone: Vec<bool>,
+    }
     fn inventory<'a>(
         items: &'a [Item],
-        functions: &mut Vec<&'a Function>,
-        records: &mut Vec<&'a Aggregate>,
-        hosts: &mut Vec<Option<usize>>,
-        standalone: &mut Vec<bool>,
+        found: &mut Inventory<'a>,
         host: Option<usize>,
         top: bool,
         budget: &mut Budget<'_>,
@@ -1054,24 +1057,14 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             match &item.kind {
                 ItemKind::Function(f) => {
                     budget.identity_work(3, item.span)?;
-                    functions.push(f);
-                    hosts.push(host);
-                    standalone.push(top);
+                    found.functions.push(f);
+                    found.hosts.push(host);
+                    found.standalone.push(top);
                 }
                 ItemKind::Aggregate(a) => {
-                    let index = records.len();
-                    records.push(a);
-                    inventory(
-                        &a.methods,
-                        functions,
-                        records,
-                        hosts,
-                        standalone,
-                        Some(index),
-                        false,
-                        budget,
-                        depth + 1,
-                    )?;
+                    let index = found.records.len();
+                    found.records.push(a);
+                    inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
                 }
                 ItemKind::Impl(i) => {
                     if i.generics
@@ -1083,17 +1076,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                             "ambient generic impl requires its actual enclosing source context",
                         ));
                     }
-                    inventory(
-                        &i.members,
-                        functions,
-                        records,
-                        hosts,
-                        standalone,
-                        host,
-                        false,
-                        budget,
-                        depth + 1,
-                    )?;
+                    inventory(&i.members, found, host, false, budget, depth + 1)?;
                 }
                 ItemKind::Trait(t) => {
                     if t.generics
@@ -1105,43 +1088,25 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                             "ambient trait requires its actual enclosing source context",
                         ));
                     }
-                    inventory(
-                        &t.members,
-                        functions,
-                        records,
-                        hosts,
-                        standalone,
-                        host,
-                        false,
-                        budget,
-                        depth + 1,
-                    )?;
+                    inventory(&t.members, found, host, false, budget, depth + 1)?;
                 }
                 _ => {}
             }
         }
         Ok(())
     }
-    let mut functions = Vec::new();
-    let mut records = Vec::new();
-    let mut hosts = Vec::new();
-    let mut standalone = Vec::new();
-    inventory(
-        &module.items,
-        &mut functions,
-        &mut records,
-        &mut hosts,
-        &mut standalone,
-        None,
-        true,
-        budget,
-        0,
-    )?;
+    let mut found = Inventory {
+        functions: Vec::new(),
+        records: Vec::new(),
+        hosts: Vec::new(),
+        standalone: Vec::new(),
+    };
+    inventory(&module.items, &mut found, None, true, budget, 0)?;
     let mut check = Check {
-        functions,
-        records,
-        hosts,
-        standalone,
+        functions: found.functions,
+        records: found.records,
+        hosts: found.hosts,
+        standalone: found.standalone,
         fact_depth: 0,
         budget,
     };
