@@ -950,6 +950,18 @@ impl Graph {
                 }
                 self.reserve_type(result, depth + 1, span)?;
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.spend_count(borrowed_fp::metadata_work(life), span)?;
+                for parameter in parameters {
+                    self.reserve_type(parameter, depth + 1, span)?;
+                }
+                self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
+            }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
             _ => {}
         }
@@ -1126,6 +1138,11 @@ impl Graph {
                     Type::FunctionPointer {
                         parameters: types,
                         result: result_type,
+                    }
+                    | Type::BorrowedFunctionPointer {
+                        parameters: types,
+                        result: result_type,
+                        ..
                     },
                 ) if parameters.len() == types.len() => {
                     for (parameter, ty) in parameters.into_iter().zip(types) {
@@ -1643,6 +1660,21 @@ impl Inference {
         Ok(true)
     }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(defaults, None, span)
+    }
+    pub fn resolve_borrowed(
+        &mut self,
+        life: &FunctionLifeContract,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(false, Some(life), span)
+    }
+    fn resolve_inner(
+        &mut self,
+        defaults: bool,
+        life: Option<&FunctionLifeContract>,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
         if defaults {
             self.graph.default_literals();
@@ -1660,6 +1692,15 @@ impl Inference {
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
         let old = supported_signature(&signature.0, &signature.1);
+        if let Some(life) = life {
+            self.graph
+                .spend_count(borrowed_fp::metadata_work(life), span)?;
+            for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+            borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
+            return Ok(signature);
+        }
         if !old {
             // The owned shape and hidden-callable checks are new traversals.
             // Pay them only after the old profile failed, before classification.
@@ -2226,6 +2267,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             LocalType::Address(inner, false) => {
                                 self.graph
                                     .shared_address(self.result, inner, expression.span)?;
+                            }
+                            LocalType::Address(inner, true) => {
+                                self.graph.address(
+                                    self.result,
+                                    inner,
+                                    Some(true),
+                                    expression.span,
+                                )?;
                             }
                             _ => self.graph.unify(
                                 self.result,
@@ -3729,6 +3778,26 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return self.known(&result, span);
             }
             let callee_type = callee_type.scalar(callee.span)?;
+            if let Some(Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }) = self.graph.ty(callee_type)?
+            {
+                if parameters.len() != arguments.len() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "indirect callback arity differs from its signature",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    self.expr_expected(argument, Some(parameter), depth + 1)?
+                        .bind(&mut self.graph, parameter, argument.span)?;
+                    if matches!(parameter, Type::Address { mutable: true, .. }) {
+                        self.mark_address_write(argument, depth + 1)?;
+                    }
+                }
+                return self.known(&result, span);
+            }
             let mut parameters = Vec::new();
             for argument in arguments {
                 parameters.push(self.expr(argument, depth + 1)?.scalar(argument.span)?);
@@ -4204,6 +4273,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.life {
+            self.graph
+                .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
+        }
         for ty in signature
             .parameters
             .iter()

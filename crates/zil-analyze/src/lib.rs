@@ -8,6 +8,7 @@
 //! CFG visits, instruction visits, matrix cells, and set elements traversed or
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
+mod borrowed_fp;
 mod budget;
 mod callable_fields;
 #[cfg(test)]

@@ -1139,6 +1139,23 @@ impl Resolver<'_> {
                     .collect::<R<_>>()?,
                 result: Box::new(self.ty(result, depth + 1, span)?),
             },
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty, depth + 1, span))
+                    .collect::<R<Vec<_>>>()?;
+                let result = Box::new(self.ty(result, depth + 1, span)?);
+                borrowed_fp::relation(&parameters, &result, life, span)?;
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                }
+            }
             Type::ForeignCallback { parameters, result } => {
                 let parameters = parameters
                     .iter()

@@ -724,6 +724,56 @@ impl Builder<'_, '_> {
                     ty.span,
                 )
             }
+            s::TypeKind::ForLifetime { .. } => {
+                let mut inner = ty;
+                let mut names = Vec::new();
+                while let s::TypeKind::ForLifetime {
+                    lifetime,
+                    inner: next,
+                } = &inner.kind
+                {
+                    self.compiler.budget.node(inner.span)?;
+                    self.compiler
+                        .budget
+                        .work(lifetime.len().saturating_add(1), ty.span)?;
+                    names.push(lifetime.as_str());
+                    inner = next;
+                }
+                let s::TypeKind::Function { params, result } = &inner.kind else {
+                    return Err(error(
+                        ty.span,
+                        "higher-rank Type constructor requires a function signature",
+                    ));
+                };
+                self.compiler.budget.work(
+                    names.len().saturating_add(
+                        params
+                            .len()
+                            .saturating_add(1)
+                            .saturating_mul(names.len().saturating_add(1)),
+                    ),
+                    ty.span,
+                )?;
+                let life = super::source_relation(&names, params, result);
+                let mut arguments = Vec::new();
+                for parameter in params {
+                    arguments.push(self.type_ref(module, parameter, depth + 1)?.id);
+                }
+                arguments.push(self.type_ref(module, result, depth + 1)?.id);
+                let constructor = if life.binder_count == 0 {
+                    CtTypeConstructor::FunctionPointer
+                } else {
+                    CtTypeConstructor::BorrowedFunctionPointer { life }
+                };
+                self.emit(
+                    CtInstructionKind::TypeConstruct {
+                        constructor,
+                        arguments,
+                    },
+                    CtTy::Type,
+                    ty.span,
+                )
+            }
             s::TypeKind::Function { params, result } => {
                 let mut arguments = Vec::new();
                 for t in params {

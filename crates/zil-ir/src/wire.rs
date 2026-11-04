@@ -502,6 +502,28 @@ impl<'a> Writer<'a> {
                     pending.push(Task::Type(result, depth + 1));
                     pending.push(Task::Types(parameters, depth + 1));
                 }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    self.u8(31)?;
+                    self.count(life.binder_count as usize, self.limits.max_locals)?;
+                    self.count(life.parameter_lives.len(), self.limits.max_locals)?;
+                    for tag in &life.parameter_lives {
+                        self.boolean(tag.is_some())?;
+                        if let Some(tag) = tag {
+                            self.u32(*tag)?;
+                        }
+                    }
+                    self.boolean(life.result_life.is_some())?;
+                    if let Some(tag) = life.result_life {
+                        self.u32(tag)?;
+                    }
+                    self.count(parameters.len(), self.limits.max_locals)?;
+                    pending.push(Task::Type(result, depth + 1));
+                    pending.push(Task::Types(parameters, depth + 1));
+                }
                 Type::Closure(id) => {
                     self.u8(10)?;
                     self.u32(id.0)?;
@@ -1692,6 +1714,10 @@ impl<'a> Reader<'a> {
                 start: usize,
                 foreign: bool,
             },
+            BorrowedFunction {
+                start: usize,
+                life: FunctionLifeContract,
+            },
             Record {
                 start: usize,
                 names: usize,
@@ -1768,6 +1794,16 @@ impl<'a> Reader<'a> {
                         Type::ForeignCallback { parameters, result }
                     } else {
                         Type::FunctionPointer { parameters, result }
+                    });
+                    continue;
+                }
+                Task::BorrowedFunction { start, life } => {
+                    let result = Box::new(values.pop().expect("read borrowed function result"));
+                    let parameters = values.split_off(start);
+                    values.push(Type::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
                     });
                     continue;
                 }
@@ -1863,6 +1899,38 @@ impl<'a> Reader<'a> {
                 4 => {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     pending.push(Task::Tuple(values.len()));
+                    pending.push(Task::Types {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
+                }
+                31 => {
+                    let binder_count = self.count(self.limits.max_locals, 0)? as u32;
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    let mut parameter_lives = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        parameter_lives.push(if self.boolean()? {
+                            Some(self.u32()?)
+                        } else {
+                            None
+                        });
+                    }
+                    let result_life = if self.boolean()? {
+                        Some(self.u32()?)
+                    } else {
+                        None
+                    };
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    pending.push(Task::BorrowedFunction {
+                        start: values.len(),
+                        life: FunctionLifeContract {
+                            binder_count,
+                            parameter_lives,
+                            result_life,
+                        },
+                    });
+                    pending.push(Task::Type(depth + 1));
                     pending.push(Task::Types {
                         left: count,
                         depth: depth + 1,

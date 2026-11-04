@@ -1135,6 +1135,7 @@ pub(super) fn check_entry_contract(core: &CoreModule) -> CompileResult<()> {
                     | Type::ForeignCallback { .. }
                     | Type::Tuple(_)
                     | Type::FunctionPointer { .. }
+                    | Type::BorrowedFunctionPointer { .. }
                     | Type::Address { .. }
                     | Type::Managed(_)
                     | Type::Desc(_)

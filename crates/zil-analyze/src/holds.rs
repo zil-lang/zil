@@ -1509,6 +1509,21 @@ fn infer_with_private(
                             .ok_or_else(|| bad("lending callee outside value table"))?;
                         extend(&mut found, actual, budget)?;
                     }
+                    InstructionKind::CallIndirect { callee, arguments } => {
+                        let ty = f
+                            .values
+                            .get(callee.0 as usize)
+                            .ok_or_else(|| bad("indirect callee outside value table"))?;
+                        for index in super::borrowed_fp::allowed(ty, budget)? {
+                            let argument = arguments
+                                .get(index)
+                                .ok_or_else(|| bad("indirect result parameter absent"))?;
+                            let actual = values
+                                .get(argument.0 as usize)
+                                .ok_or_else(|| bad("indirect argument outside value table"))?;
+                            extend(&mut found, actual, budget)?;
+                        }
+                    }
                     InstructionKind::Call {
                         function,
                         arguments,
@@ -2621,6 +2636,7 @@ pub(super) fn infer_module(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    super::borrowed_fp::targets(module, graphs, &result, budget)?;
     super::lifetimes::returns(module, graphs, &result, budget)?;
     if !budget.shared_product_capture {
         return Ok(result);

@@ -34,6 +34,7 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) borrowed_function_pointers: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -61,6 +62,7 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            borrowed_function_pointers: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -161,6 +163,17 @@ impl Budget {
             } => self.type_work(element, copy_check, context)?,
             Type::ErrorUnion { error, result } => {
                 self.type_work(error, copy_check, context)?;
+                self.type_work(result, copy_check, context)?;
+            }
+            Type::BorrowedFunctionPointer {
+                life,
+                parameters,
+                result,
+            } => {
+                self.spend(super::borrowed_fp::work(life), context)?;
+                for parameter in parameters {
+                    self.type_work(parameter, copy_check, context)?;
+                }
                 self.type_work(result, copy_check, context)?;
             }
             Type::FunctionPointer { parameters, result }
@@ -490,6 +503,7 @@ pub(super) fn preflight(
                 | Type::Desc(_)
                 | Type::Opaque { .. }
                 | Type::FunctionPointer { .. }
+                | Type::BorrowedFunctionPointer { .. }
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
@@ -610,6 +624,22 @@ pub(super) fn preflight(
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
                     pending.push((inner, depth + 1, store_element, None, resource_head, child))
+                }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    budget.borrowed_function_pointers = true;
+                    budget.input(
+                        super::borrowed_fp::work(life),
+                        "borrowed function pointer relation",
+                    )?;
+                    super::borrowed_fp::relation(parameters, result, life)?;
+                    pending.push((result, depth + 1, store_element, None, false, child));
+                    for parameter in parameters {
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
+                    }
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {

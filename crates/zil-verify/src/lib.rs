@@ -41,6 +41,7 @@ use zil_base::{
 };
 use zil_ir::*;
 
+mod borrowed_fp;
 mod borrows;
 mod byte_buffers;
 mod c_layout;
@@ -240,6 +241,7 @@ struct Budget {
     private_slot_functions: Option<Vec<bool>>,
     scoped_functions: Option<Vec<bool>>,
     shared_thread_functions: Option<Vec<bool>>,
+    borrowed_function_pointers: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -253,6 +255,7 @@ impl Budget {
             private_slot_functions: None,
             scoped_functions: None,
             shared_thread_functions: None,
+            borrowed_function_pointers: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -764,6 +767,23 @@ fn check_type_shape(
                 pending.push((error, depth + 1, context));
                 pending.push((result, depth + 1, context));
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.borrowed_function_pointers = true;
+                budget.spend(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )?;
+                borrowed_fp::relation(parameters, result, life, None)?;
+                pending.push((result, depth + 1, context));
+                for parameter in parameters {
+                    pending.push((parameter, depth + 1, context));
+                }
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
@@ -837,6 +857,17 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             Type::FunctionPointer { parameters, result } => {
                 pending.extend(parameters);
                 pending.push(result);
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                for parameter in parameters {
+                    check_signature_type(parameter, span)?;
+                }
+                check_signature_type(result, span)?;
             }
             Type::ForeignCallback { parameters, result } => {
                 native_values::callback_signature(parameters, result, span)?;
@@ -1931,26 +1962,61 @@ fn check_instruction(
                     "function pointer target requires a closure environment",
                 ));
             }
-            let mut parameters = Vec::with_capacity(target.parameters.len());
-            for parameter in &target.parameters {
-                let ty = local_type(target, *parameter, span)?;
-                check_type(ty, span)?;
-                parameters.push(ty.clone());
+            if let Some(
+                pointer @ Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                },
+            ) = instruction
+                .result
+                .and_then(|id| function.values.get(id.0 as usize))
+            {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                if target.parameters.len() != parameters.len() || target.return_type != **result {
+                    return Err(reject(
+                        "E-VERIFY-FUNCTION-LIFE",
+                        span,
+                        "borrowed pointer target has a different complete signature",
+                    ));
+                }
+                for (parameter, expected) in target.parameters.iter().zip(parameters) {
+                    if local_type(target, *parameter, span)? != expected {
+                        return Err(reject(
+                            "E-VERIFY-FUNCTION-LIFE",
+                            span,
+                            "borrowed pointer target parameter mode differs",
+                        ));
+                    }
+                }
+                Some(pointer.clone())
+            } else {
+                let mut parameters = Vec::with_capacity(target.parameters.len());
+                for parameter in &target.parameters {
+                    let ty = local_type(target, *parameter, span)?;
+                    check_type(ty, span)?;
+                    parameters.push(ty.clone());
+                }
+                check_type(&target.return_type, span)?;
+                Some(Type::FunctionPointer {
+                    parameters,
+                    result: Box::new(target.return_type.clone()),
+                })
             }
-            check_type(&target.return_type, span)?;
-            Some(Type::FunctionPointer {
-                parameters,
-                result: Box::new(target.return_type.clone()),
-            })
         }
         InstructionKind::CallIndirect { callee, arguments } => {
-            let Type::FunctionPointer { parameters, result } = value_type(function, *callee, span)?
-            else {
-                return Err(reject(
-                    "E-VERIFY-INDIRECT-CALL",
-                    span,
-                    "callee must be a function pointer",
-                ));
+            let (parameters, result) = match value_type(function, *callee, span)? {
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                } => (parameters, result),
+                _ => {
+                    return Err(reject(
+                        "E-VERIFY-INDIRECT-CALL",
+                        span,
+                        "callee must be a function pointer",
+                    ));
+                }
             };
             if arguments.len() != parameters.len() {
                 return Err(reject(

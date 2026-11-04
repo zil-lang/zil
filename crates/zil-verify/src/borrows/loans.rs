@@ -243,6 +243,7 @@ fn reconstruct(
                             }
                         }
                         InstructionKind::Call { arguments, .. }
+                        | InstructionKind::CallIndirect { arguments, .. }
                             if matches!(f.values[id], Type::Address { .. }) =>
                         {
                             row.insert(id);
@@ -513,6 +514,7 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosure { arguments, .. }
         | InstructionKind::CallClosureShared { arguments, .. }
@@ -815,7 +817,8 @@ pub(super) fn check(
                     (&flow.values[body.0 as usize], arguments)
                 }
                 InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
-                InstructionKind::Call { arguments, .. } => (&empty, arguments),
+                InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
             };
@@ -1128,6 +1131,7 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeClosure {
                     captures: arguments,

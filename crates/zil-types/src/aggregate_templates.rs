@@ -628,6 +628,9 @@ fn contextual_free(
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     found |= visit(t, b, owner, entries, charge)?;
@@ -731,6 +734,9 @@ pub(super) fn rebind_type(
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     visit(t, r, products, limits, span, charge, depth + 1)?;

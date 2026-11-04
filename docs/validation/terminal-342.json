@@ -2,13 +2,36 @@
   "task": "342",
   "status": "MilestoneInProgress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
-  "scope": "Definition-time ordinary generic windows and CopyT+mutable life; full terminal obligations remain in progress",
+  "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT; full terminal obligations remain in progress",
   "tests": {
-    "generic_regressions": {"last_complete_before_two_new_tests": 34, "focused_terminal_tests": 3, "failed": 0},
-    "cross_function_borrows": {"last_complete_before_two_new_tests": 40, "focused_terminal_tests": 5, "failed": 0},
-    "impl197_mixed_state": {"passed": 14, "failed": 0},
-    "review184_storage": {"passed": 4, "failed": 0},
-    "impl200_independent": {"passed": 10, "failed": 0}
+    "cross_function_borrows": {
+      "passed": 49,
+      "failed": 0
+    },
+    "generic_regressions": {
+      "passed": 35,
+      "failed": 0
+    },
+    "impl197_mixed_state": {
+      "passed": 14,
+      "failed": 0
+    },
+    "review184_storage": {
+      "passed": 4,
+      "failed": 0
+    },
+    "impl200_independent": {
+      "passed": 10,
+      "failed": 0
+    },
+    "impl033": {
+      "passed": 10,
+      "failed": 0
+    },
+    "impl260_compiler": {
+      "passed": 37,
+      "failed": 0
+    }
   },
   "expected_migration": {
     "source": "tests/language-readiness/mutable337/known-incomplete-unused-generic.zil",
@@ -19,16 +42,120 @@
   },
   "budget": {
     "default_limits_changed": false,
-    "331_original_expand": {"old": 757, "first_milestone": 779, "new": 786, "n_minus_one_resource_limit": true, "fresh_n_equal": true},
-    "342_mixed_select_phase_n": [1669, 248, 2227, 7927],
-    "322_original_phase_n": [99, 95, 714, 993],
-    "337_concrete_phase_n": [143, 124, 1178, 4818],
-    "legacy_single_field_state_expand": 2358
+    "331_original_expand": {
+      "old": 757,
+      "first_milestone": 779,
+      "new": 786,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true
+    },
+    "342_mixed_select_phase_n": [
+      1669,
+      258,
+      2227,
+      7927
+    ],
+    "322_original_phase_n": [
+      99,
+      98,
+      714,
+      993
+    ],
+    "337_concrete_phase_n": [
+      143,
+      129,
+      1178,
+      4818
+    ],
+    "legacy_single_field_state_expand": 2358,
+    "342_borrowed_pointer_phase_n": [
+      162,
+      133,
+      1487,
+      5938
+    ],
+    "old_types_migration": {
+      "322": [
+        95,
+        98
+      ],
+      "337": [
+        124,
+        129
+      ],
+      "342_mixed": [
+        248,
+        258
+      ],
+      "reason": "actual numeric signature relation clone and first-use canonical remap work"
+    }
   },
-  "native_342_mixed_mutable": {"sources": 9, "backends": ["Clang", "LlvmApi"], "optimizations": ["O0", "O2"], "successful_builds_and_runs": 36, "stdout": "42\n", "exit": 0},
-  "cache_342": {"module_ct": true, "live_and_restored": true, "current_body_mode_and_caller_conflicts_rechecked": true},
+  "native_342_mixed_mutable": {
+    "sources": 9,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "successful_builds_and_runs": 36,
+    "stdout": "42\n",
+    "exit": 0
+  },
+  "cache_342": {
+    "module_ct": true,
+    "live_and_restored": true,
+    "current_body_mode_and_caller_conflicts_rechecked": true
+  },
   "clippy_affected_targets_llvm_api": "Pass",
-  "known_incomplete": ["HRTB and borrowed function pointers", "borrow storage and general lending", "explicit dyn", "general section 5.2 state"],
+  "known_incomplete": [
+    "Generic higher-rank Fn definition obligations",
+    "borrow storage and general lending",
+    "explicit dyn",
+    "general section 5.2 state"
+  ],
   "formal_full_suite": "NotRunByImplementationAuthor",
-  "independent_review": "Pending"
+  "independent_review": {
+    "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
+    "borrowed_pointer": "Pending clean candidate"
+  },
+  "native_342_borrowed_pointer": {
+    "sources": 9,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "successful_builds_and_runs": 36,
+    "stdout": "42\n",
+    "exit": 0
+  },
+  "borrowed_pointer_controls": {
+    "actual_target_roots": true,
+    "full_signature_and_modes": true,
+    "simultaneous_indirect_arguments": true,
+    "fresh_invocation_loans": true,
+    "canonical_dense_binders": true,
+    "raw_and_runtime_wire": true,
+    "ct_type_syntax_and_dag_wire": true,
+    "oversized_ct_binder_resource_limit": true,
+    "live_and_restored_cache": true,
+    "suspend_target_integration": "RequiredAfter343"
+  },
+  "logs": [
+    "342-fp-complete-tests.log",
+    "342-fp-ct-final-tests.log",
+    "342-fp-clippy.log"
+  ],
+  "retained_harnesses": {
+    "cross_function_borrows-492a6902b3023121": "e1db6a8c1c3f65e0cdeb4fe56978e7f10854bd306c78b50976e98a77ebb71caf",
+    "generic_regressions-500f6ba56884c876": "e1f0ecd2df583ee6a2a560e00a20cb2664176480417559d8f407ef2b53cd844f",
+    "impl260_compiler-d260f466ad29d903": "4d459a9af06db3ed575d530c0a2f8865979ccb99aec986e7d31c086d5b8dbce2"
+  },
+  "test_command": "cargo test -p zil-driver --test cross_function_borrows --test generic_regressions --test impl197_mixed_state --test review184_storage --test impl200_independent --test impl033 --test impl260_compiler --features llvm-api --offline -- --nocapture"
 }

@@ -67,6 +67,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::I32 => Layout { size: 4, align: 4 },
         Type::I64
         | Type::FunctionPointer { .. }
+        | Type::BorrowedFunctionPointer { .. }
         | Type::ForeignHandle
         | Type::CWideString
         | Type::ForeignCallback { .. } => Layout { size: 8, align: 8 },
@@ -307,6 +308,9 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                 self.ty(result, depth + 1, false)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
                     self.ty(parameter, depth + 1, false)?;
@@ -628,6 +632,7 @@ impl FunctionEmitter<'_> {
             | Type::I32
             | Type::I64
             | Type::FunctionPointer { .. }
+            | Type::BorrowedFunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ForeignCallback { .. } => self.event(m::Event::Instruction(m::Inst::new(
