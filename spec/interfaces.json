@@ -466,7 +466,8 @@
       "instruction": {
         "125": "SuspendCall{function:FunctionId,arguments:Vec<ValueId>}; actual SSA result only at Ready"
       },
-      "responsibility": "Inputs initialized once; actual distinct stable child instance survives Pending, argument loans and partial/owned cleanup. Creation-order PendingExit drain; Direct Drop cannot suspend. No implicit recursion heap. Full actual layout/callee/Drop/effect identities prepaid and cache-bound."
+      "responsibility": "Inputs initialized once; actual distinct stable child instance survives Pending, argument loans and partial/owned cleanup. Creation-order PendingExit drain; Direct Drop cannot suspend. No implicit recursion heap. Full actual layout/callee/Drop/effect identities prepaid and cache-bound.",
+      "selection": "Explicit effects containing suspend or any resume(local|transfer) selects Suspend; explicit effects without suspend selects Direct and conflicts with resume. No effects clause derives from body. Transfer unsupported until separately checked; static Direct targets use adapters and retain ordinary bodies."
     }
   },
   "schemas": [
