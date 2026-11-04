@@ -1,0 +1,166 @@
+{
+  "task": "G8.4.2.1",
+  "status": "LimitedPassIndependent",
+  "reviewer": "g10_1_review, non-author",
+  "delivery_commit": "53ae712520f83c58d6b31959e61a60f47fc48339",
+  "production_commit": "4f0326d6f029ce6d4fd8b78e623d0cf83bd20c5a",
+  "baseline": "bcfeb475eac0f21f6c51c3ebd17bfa3ab6a2f8d7",
+  "tree": "/workspace/zil-G8.4.2.1",
+  "target": "target343 exclusively released by author; reused cache, not a clean build. Reviewer Cargo now stopped.",
+  "author_receipt_sha256": "75e61f41547b8a241e01fbdd5930920bef96c9045697ad5655c1e236d91d8f66",
+  "author_source_hashes_match": {
+    "crates/zil-analyze/src/budget.rs": true,
+    "crates/zil-analyze/src/tasks/drop_sync.rs": true,
+    "crates/zil-verify/src/lib.rs": true,
+    "crates/zil-verify/src/tasks/drop_sync.rs": true,
+    "crates/zil-driver/tests/impl180_store_mut.rs": true,
+    "crates/zil-driver/tests/generic_regressions.rs": true,
+    "crates/zil-verify/src/tests.rs": true
+  },
+  "source_sha256": {
+    "crates/zil-analyze/src/budget.rs": "f09563a3eb53f0251b84548bf5a23a181553cd7b890afa647168dff425babb0f",
+    "crates/zil-analyze/src/tasks/drop_sync.rs": "9e5f01bcb446678c50b30a2800c8c7e03ce209be3b12609050029132a6307fdc",
+    "crates/zil-verify/src/lib.rs": "5809025421232a970d10571887ab31d59fd1d4ad2579da11e797b68005496af5",
+    "crates/zil-verify/src/tasks/drop_sync.rs": "e79d6787455fa21d39ddeca8f6c4358e835ada5948b190019234e5548cc58265",
+    "crates/zil-driver/tests/impl180_store_mut.rs": "04fb7894d7b29a35b05328600635c49464a5f7561071491a78d3290d67b8c7b7",
+    "crates/zil-driver/tests/generic_regressions.rs": "60989f9c3f81114332297b4dc402b20e1401259d2b09bd4086b7b67e0151d5d5",
+    "crates/zil-verify/src/tests.rs": "5895a0a8eceb1dbce10e78eea7223b42a878b7cfe7e9c0c04ebaff8a526285ee"
+  },
+  "executions": [
+    {
+      "name": "store32",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test impl180_store_mut -- --nocapture",
+      "passed": 32,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/store32.log",
+      "log_sha256": "938ad265eb1fab4d5ea12c406ee215959267ed28ac3711cedf5bc7d0577ae99d",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/impl180_store_mut-4ebd16ce64ec1cb7": "e050a2835d4723462f3580c5d20254e3a62d87284654ac1eb9abcb71df239ec8"
+      }
+    },
+    {
+      "name": "async6",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions async_registration -- --nocapture --test-threads=1",
+      "passed": 6,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/async6.log",
+      "log_sha256": "35aa8de9682ec0a163ed0006db615d7e743cf204848b15166ccfd72fdd3d042c",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8": "b7bc01e1ac77668805333cb17e89055988e35656a4805ec93c0c9b6cfd42a8a5"
+      }
+    },
+    {
+      "name": "unused1",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof -- --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/unused1.log",
+      "log_sha256": "4a92a4ab0c8926cd3e0e61c12e7cf5b968253c67fe9ef5d6dd8c74f50bb3fc64",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8": "b7bc01e1ac77668805333cb17e89055988e35656a4805ec93c0c9b6cfd42a8a5"
+      }
+    },
+    {
+      "name": "public421",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions public42_unused_roles_and_unauthorized_pollable_candidates_raw_and_wire -- --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/public421.log",
+      "log_sha256": "b0c4af0220f7c130d80281b292e68e6713b63f5b414a4743ccdce16a3c96f9b8",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8": "b7bc01e1ac77668805333cb17e89055988e35656a4805ec93c0c9b6cfd42a8a5"
+      }
+    },
+    {
+      "name": "sync1",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --features llvm-api --test generic_regressions registration343_raw_wire_and_exact_kernel_budgets -- --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/sync1.log",
+      "log_sha256": "8551de8ce2db2e0a041fe1d55d7a23f4ca730d7c1eaa22fb2d4ca73876445560",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/generic_regressions-6ecdb24ac684ead8": "b7bc01e1ac77668805333cb17e89055988e35656a4805ec93c0c9b6cfd42a8a5"
+      }
+    },
+    {
+      "name": "inventory2",
+      "command": "cargo test --locked --offline -j2 -p zil-analyze -p zil-verify --lib task_origin_inventory -- --nocapture",
+      "passed": 2,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/inventory2.log",
+      "log_sha256": "75fa08c456f2d8e4745617df1bbb31e2f50b2a9b757802bb097c71661fc27ab3",
+      "binary_sha256": {
+        "/workspace/.zil-env/target343/debug/deps/zil_analyze-8dde3b1c204420d7": "94f51d26447c05bb3e224c237d3977b0afff4382c65ff27225bb293463c89705",
+        "/workspace/.zil-env/target343/debug/deps/zil_verify-e5c00ec0866c83e5": "d8a7b8e4f450e65dea72950bc56e78876873dd9857d0c14d09d2583a93498834"
+      }
+    }
+  ],
+  "total_tests": 43,
+  "checks": {
+    "clippy": {
+      "exit_code": 0,
+      "command": "cargo clippy --locked --offline -j2 -p zil-analyze -p zil-verify --all-targets -- -D warnings",
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/clippy.log",
+      "sha256": "6d70a84c4b470b87832fb7e23666b7fda729587bf64f9db5a9489a45724514d9"
+    },
+    "fmt": {
+      "exit_code": 0,
+      "command": "cargo fmt --all -- --check",
+      "log": "/workspace/.zil-env/G8.4.2.1-review-tmp/fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target343; TMPDIR=/workspace/.zil-env/G8.4.2.1-review-tmp; --locked --offline -j2",
+  "diagnosis": "The new Task-origin proof previously classified recursively charged ordinary owning types on every live Direct cleanup without any actual Type::Task root. The bcfeb failure measured Analyze-only full-request deltas +297; pre-fix Verify minima were not measured and are not inferred.",
+  "static_safety_review": [
+    "Each kernel derives its own private task_origin_roots during already paid raw type traversal. It is not wire metadata, a name classifier, or a producer permission. Budget is fresh for each request.",
+    "Analyze preflight traverses all function result/local/value roots, embedded conversion/OwnedStore element types, every resource payload and all closure captures/signatures. Verify resource check_definitions invokes check_type_shape on every resource payload; its independent function/closure/instruction shape passes cover the remaining actual roots, regardless of reachability.",
+    "The absence bit implies no actual new Task node in any accepted reachable type/capture structure. Existing closure-ID and shape validation still rejects malformed absent environments. A raw Named spelling is not an actual Task type and was not resolved by the old contains_kind query either.",
+    "With a real Task anywhere the original contains_kind, origin reconstruction and worker graph proof are unchanged. require_origin validates the local/value endpoint before the new no-Task return. The bit only avoids irrelevant proof work; it does not create synchronous cleanup authority.",
+    "Legacy TaskStart require_worker/require_workers is byte-unchanged and never gated. Independent async6 includes actual source-derived raw/Wire Legacy worker and Task carrier cleanup rejections. AsyncRegistration Direct cleanup and TaskCreate synchronous-allocation-failure guards remain unchanged.",
+    "Verify newly traverses Opaque.hidden in the bounded paid shape walk. Existing Opaque admission remains closed; inventory tests are representation components, not accepted raw/source modules.",
+    "No Store fixture, fixed budget assertion, default limit, public schema, normative file, root Cargo or worker permission rule changed."
+  ],
+  "budgets": {
+    "restored_local_store": {
+      "Analyze": 19754,
+      "Verify": 54842
+    },
+    "restored_product_store_relay": {
+      "Analyze": 23731,
+      "Verify": 63080
+    },
+    "actual_Task_async_unchanged": {
+      "Analyze": 6012,
+      "Verify": 7928
+    },
+    "sync_registration_now": {
+      "Analyze": 15589,
+      "Verify": 27650
+    },
+    "sync_registration_historical": {
+      "Analyze": 15739,
+      "Verify": 27876
+    },
+    "verification": "Independent tests execute N/N-1 with appropriate phase and fresh/warm/retry for Store and async; sync raw/Wire test measures its new lower exact boundary. Historical receipts remain unchanged."
+  },
+  "evidence_boundaries": {
+    "unused_Task_source": "Real unused Task owner input is rejected by Analyze for UnknownOrigin. Nearest explicit finish source passes Analyze and Verify under existing runtime CLOSED guard. This is not claimed as a new honest negative Verify candidate.",
+    "inventory_components": "Two library tests cover actual unused resource/capture, nested ErrorUnion/Managed/Opaque and Named negative shapes; these raw representations are not admission certificates.",
+    "R1_and_maywrite": "Common Store32 actually replays source-derived saved/borrowed closure raw/Wire rejection, same-type distinct Store and same-instance Copy payload native positive, with restored original exact assertions."
+  },
+  "production_unchanged_by_doc_seal": true,
+  "prior_failure_receipt": {
+    "path": "/tmp/zil-G8.4.2-G1.3.2-integration-review.json",
+    "sha256": "c18c20e6039840f1381e305697269a393b60a4d60bb15d680afc64df2b92734b",
+    "preserved": true
+  },
+  "blockers_remaining": [],
+  "limits": "Read-only finite correction review. No source edits, merge, full workspace/reference gate or formal acceptance. Runtime/RSS and relative compiler performance are unmeasured."
+}

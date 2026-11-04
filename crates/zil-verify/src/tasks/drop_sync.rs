@@ -72,6 +72,9 @@ fn contains_kind(
     Ok(false)
 }
 pub(crate) fn needs_proof(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<bool> {
+    if !budget.task_origin_roots {
+        return Ok(false);
+    }
     contains_kind(module, t, budget, false)
 }
 fn dependencies(
@@ -170,6 +173,12 @@ fn require_origin(
             .get(value.expect("value endpoint").0 as usize)
             .ok_or_else(|| reject("E-VERIFY-TASK", span, "Task callback value absent"))?
     };
+    // Preflight visits all actual type/capture/resource tables, including unused
+    // entries. Without a new Task root there is no new origin obligation. The
+    // separate Legacy TaskStart NoExternal constructor proof is never gated here.
+    if !budget.task_origin_roots {
+        return Ok(());
+    }
     if !contains_kind(module, ty, budget, false)? {
         return Ok(());
     }

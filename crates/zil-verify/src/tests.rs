@@ -706,3 +706,46 @@ fn decoded_candidate_facts_are_rechecked_even_with_correct_identity() {
         "E-VERIFY-INITIALIZATION-CLAIM"
     );
 }
+
+#[test]
+fn task_origin_inventory_observes_nested_unused_actual_types() {
+    // Raw shape/inventory component check, not an admission certificate.
+    let limits = Limits::default();
+    let task = Type::Task {
+        result: Box::new(Type::I32),
+        retained_life: RetainedLifeShape {
+            binder_count: 0,
+            ports: vec![],
+            retained: vec![],
+            nominal_arguments: vec![],
+        },
+    };
+    let nested = Type::ErrorUnion {
+        error: Box::new(Type::Unit),
+        result: Box::new(Type::Managed(Box::new(task.clone()))),
+    };
+    for ty in [
+        task,
+        nested.clone(),
+        Type::Opaque {
+            identity: zil_base::NodeId(17),
+            hidden: Box::new(nested),
+        },
+    ] {
+        let mut budget = Budget::new(&limits);
+        check_type_shape(&ty, &TargetProfile::default(), &limits, &mut budget).unwrap();
+        assert!(budget.task_origin_roots);
+    }
+    let mut budget = Budget::new(&limits);
+    check_type_shape(
+        &Type::Named("Task".into()),
+        &TargetProfile::default(),
+        &limits,
+        &mut budget,
+    )
+    .unwrap();
+    assert!(
+        !budget.task_origin_roots,
+        "a name spelling does not construct an actual Task type"
+    );
+}
