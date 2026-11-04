@@ -574,7 +574,7 @@ pub(super) fn check_claim_shape(
     let mut field_count = 0usize;
     for role in &claim.roles {
         if let Some(life) = &role.life {
-            budget.spend(crate::signature_life::work(life))?;
+            crate::signature_life::charge(life, budget)?;
             budget.borrowed_function_pointers = true;
             budget.invocation_callbacks = true;
         }
@@ -1047,7 +1047,7 @@ pub(super) fn check_module(
                 }
             }
             if let Some(life) = &proposed.life {
-                budget.spend(crate::signature_life::work(life))?;
+                crate::signature_life::charge(life, budget)?;
                 borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
                 borrowed_fp::relation(
                     &definition.parameters,

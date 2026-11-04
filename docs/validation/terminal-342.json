@@ -916,5 +916,75 @@
       "Option/SliceIter and generic definition obligations",
       "owned/captured/opaque State/lending/dyn/Task retained roots"
     ]
+  },
+  "rich40_scalar_runtime_checkpoint": {
+    "scope": "Published40 raw scalar-result rich BFP and persistent class equations; source/native and roles pending",
+    "public_format": "7ffbfc856, applied as5da384a24; private CT compile dependencies d0f246c94/5e7485f8d applied asb90ba2254/bd27fc7e1",
+    "worktree": "/workspace/zil-342-rich40",
+    "target": "/workspace/.zil-env/target342-40; fresh isolated target, no shared39 metadata",
+    "production_base_before_final_edits": "bd27fc7e1",
+    "crate_source_manifest": {
+      "selector": "git ls-files order, path starts crates/ and ends .rs or Cargo.toml; includes crate tests",
+      "encoding": "lowercase SHA256(bytes) + two spaces + relative path + newline; SHA256 of UTF-8 concatenation",
+      "files": 821,
+      "sha256": "32295d5ea8a31c295ca740610592aa48b37470c492028a94249ed22b07189e85"
+    },
+    "tests": {
+      "analyze_stored_flow": 8,
+      "verify_stored_flow": 7,
+      "analyze_signature_life": 1,
+      "both_kernel_lib_test_clippy": "Pass -D warnings",
+      "full_analyze_prior": "128 pass/2 fail solely historical schema39 helper assertions; no all-library pass claimed",
+      "full_driver": "NotRun; actual source producer/root integration pending"
+    },
+    "budget": {
+      "analyze": 3377,
+      "verify": 4053,
+      "neighbors": "N-1 ResourceLimit, repeat/fresh N identical",
+      "defaults_changed": false
+    },
+    "controls": [
+      "exact qualified []/[Pointee] boundary; no duplicate physical class rows",
+      "actual target relation implication, full parameter/result equality and ordinary Direct target",
+      "fresh formal variables each invocation; actual retained variables rigid",
+      "one phantom constructor persists across direct/indirect uses; second constructor nearest positive",
+      "wrong actual outer/class equation and wrong target implication reject both kernels/raw/Wire",
+      "same exclusive actual argument rejects independently of matching class equations; distinct inputs pass",
+      "actual target/parent loans remain separate from semantic class equations",
+      "live row/count reservation precedes every relation row/path walk"
+    ],
+    "scope_closed": [
+      "rich Address-result indirect substitution",
+      "qualified callback/closure roles and captured Fixed context",
+      "mutable stored actions/initialization/epochs/Take/refill",
+      "owning/nested/opaque class paths and general State/lending",
+      "source generic stored definition obligations and actual Option/SliceIter",
+      "rich CT5 context execution owned344"
+    ],
+    "native": "No40 native or source claim; accepted39 View/phantom evidence remains separate",
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "b8e4127d58c5101cc185007da18d9a96351ba80456f8c9a1729e3719e4281acc",
+      "tests/language-readiness/terminal/342/borrowed_fp.rs": "97f2ba8795f2bf1f95ad2581ae8e08f8b55bc9088672dac1b22c385696f4f693",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "b3c2fa233eea7e83e6332f6f02329391bfacd434bf0248b3d50085b0bf1c389a"
+    },
+    "logs": {
+      "342-rich40-kernel-rich-checkpoint.log": "6497a538ef38a3006dee3035bb9249e07818dea766b95293b261bd61e86780e1",
+      "342-rich40-signature-checkpoint.log": "e81242bb5d376edebfc320560ba087b45af6421762377c49ddf5e062a2bcafda",
+      "342-rich40-kernel-clippy-checkpoint.log": "5affe5bd49cac71e04c622ddd7abad642ba1f2fa06c44999fbced03549f6097f",
+      "342-rich40-analyze-all-first.log": "05ce98a2b92f2877ee1f315d32585f3007888172b7f98ee1fb9617e1856d6ff0",
+      "342-rich40-kernel-first-check.log": "f5ad8db34d314a2bf31d7403ee7fb40c3e8781703b7b640b04405b7e8f00a4fb",
+      "342-rich40-kernel-second-check.log": "bc05bd8c1e8edf107f994e32e083ae822e545f35f94351ffd183ff9e3fbafd56",
+      "342-rich40-kernel-composed-first.log": "ba28de22031ab5d256b12849fbbf11ee296dcba452182a6e55cfb6478b253508",
+      "342-rich40-verify-rich-first.log": "e7a14bf00f8a7c39821be6d79299408b116b98deddc46aa88d332fdfee26f31b",
+      "342-rich40-runtime-probe-build.log": "1adaf59d083990305528a85dae5914ea45a4801bee2edecabbc103d3198e177b",
+      "342-rich40-runtime-probe-build-corrected.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "342-rich40-runtime-probe-corrected.log": "438d4176463c8c18c368b3e72a60e3514042b9b6e39ba593fde343a502693316"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7": "9d8268538c51219848b718fbd02d724effd8410523ff457fbae249c10143c3c7",
+      "/workspace/.zil-env/target342-40/debug/deps/zil_verify-e5c00ec0866c83e5": "65033d3166825cf797544cd8a30e526c189437d600acdcf9971cf80e328fb5c7"
+    },
+    "independent_review": "Pending exact raw checkpoint",
+    "formal_full_workspace": "NotRunByImplementationAuthor"
   }
 }

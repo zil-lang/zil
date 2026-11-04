@@ -265,7 +265,7 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                 result,
                 life,
             } => {
-                b.spend(super::signature_life::work(life))?;
+                crate::signature_life::charge(life, b)?;
                 b.spend(parameters.len().saturating_add(1))?;
                 stack.extend(parameters.iter().map(|ty| (ty, depth + 1)));
                 stack.push((result, depth + 1));
@@ -695,10 +695,8 @@ fn relation(
     let mut local = None;
     for slot in &shape.slots {
         b.spend(slot.path.len().saturating_add(path.len()).saturating_add(1))?;
-        if slot.path == path {
-            if local.replace(slot.binder).is_some() {
-                return Err(err("duplicate actual stored leaf"));
-            }
+        if slot.path == path && local.replace(slot.binder).is_some() {
+            return Err(err("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| err("relation selected an absent physical stored leaf"))?;
@@ -740,7 +738,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
         }
         return Ok(());
     };
-    b.spend(super::signature_life::work(c))?;
+    crate::signature_life::charge(c, b)?;
     b.spend(f.parameters.len())?;
     if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
         return Err(err("stored signature contradicts another active profile"));
@@ -1884,6 +1882,98 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn rich_indirect_alias_is_rejected_in_raw_and_wire_even_with_matching_classes() {
+        let m = fixture::rich_marker_exclusive_call(true);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn rich_class_equations_use_the_same_verification_allowance() {
+        let m = fixture::rich_marker_pointer(false, false);
+        let c = fixture::class_candidate(&m);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let check = |n| super::super::verify_module(m.clone(), c.clone(), &m.target, &limit(n));
+        let expected = check(Limits::default().max_analysis_steps)
+            .unwrap()
+            .fingerprint();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if check(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = check(low - 1).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(check(low).unwrap().fingerprint(), expected);
+        assert_eq!(check(low).unwrap().fingerprint(), expected);
+        println!("342 rich class Verify N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn raw_and_wire_rich_pointer_and_persistent_phantom_class_equations() {
+        let good = [
+            fixture::rich_marker_pointer(false, false),
+            fixture::rich_marker_exclusive_call(false),
+            fixture::phantom_class_calls(false, false),
+            fixture::phantom_class_calls(true, false),
+        ];
+        for m in good {
+            let c = fixture::class_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        }
+        let bad = [
+            fixture::rich_marker_pointer(true, false),
+            fixture::rich_marker_pointer(false, true),
+            fixture::phantom_class_calls(false, true),
+            fixture::phantom_class_calls(true, true),
+        ];
+        for m in bad {
+            let c = fixture::class_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            let error = super::super::verify_module(m.clone(), c, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")
+                    || d.message.contains("entail actual target")),
+                "{error:?}"
+            );
+            let error = super::super::verify_module_bytes(&bytes, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")
+                    || d.message.contains("entail actual target")),
+                "{error:?}"
+            );
+        }
     }
     fn prove(module: &TypedModule) -> Check<()> {
         let limits = Limits::default();
