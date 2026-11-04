@@ -4815,7 +4815,22 @@ fn async_registration841_task_queued_cancel_native() {
                 "task_yield();",
                 "task_yield();async_registration_finish_destroy(give owner);",
             );
+            let child_sources: Vec<_> = [
+                include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil"),
+                include_str!("../../../tests/language-readiness/async-registration/queued-return.zil"),
+                include_str!("../../../tests/language-readiness/async-registration/queued-result.zil"),
+            ].into_iter().enumerate().map(|(index, source)| {
+                let wrapper = if index == 2 {
+                    "fn worker(seed:i32)->Answer contract{result(create);} {let answer=task_await(child,seed);return give answer}\n"
+                } else {
+                    "fn worker(seed:i32)->i32 {return task_await(child,seed)}\n"
+                };
+                source.replace("fn worker(seed:i32)", "fn child(seed:i32)").replace("fn drive(", &format!("{wrapper}fn drive("))
+            }).collect();
             for (mode, text) in [
+                ("child_cancel", child_sources[0].as_str()),
+                ("child_return", child_sources[1].as_str()),
+                ("child_result", child_sources[2].as_str()),
                 (
                     "cancel",
                     include_str!(
@@ -4895,10 +4910,10 @@ fn async_registration841_task_queued_cancel_native() {
                 };
                 for failure in runs {
                     let mut command = Command::new(&report.artifacts["executable"]);
-                    if mode == "return" || mode == "result" {
+                    if ["return", "result", "child_return", "child_result"].contains(&mode) {
                         command.env("ZIL_ASYNC_NORMAL", "1");
                     }
-                    if mode == "result" {
+                    if mode == "result" || mode == "child_result" {
                         command.env("ZIL_ASYNC_RESULT", "1");
                     }
                     if let Some((key, value)) = failure {
@@ -5214,5 +5229,132 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
         );
         accepts(low).unwrap();
         eprintln!("async_registration_g8412 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wire() {
+    use zil_ir::{
+        BasicBlock, BlockId, Constant, Instruction, InstructionKind as I, Terminator, Type, ValueId,
+    };
+    let text =
+        include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
+    let prefix = text.split("fn drive(").next().unwrap();
+    let text = format!(
+        "{prefix}\nfn sync(seed:i32)->i32 {{task_yield();return seed}}\nfn hidden()->i32 {{var task=task_start(sync,37);return 0}}\nfn main()->i32 {{var task=task_start(sync,37);return 0}}\n"
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let src = source(&text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let pollable = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap()
+        .id;
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let hidden = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "hidden")
+        .unwrap();
+    for variant in 0..3 {
+        let mut raw = typed.clone();
+        let mut claim = plan.clone();
+        let index = if variant == 1 { hidden } else { main };
+        if variant == 2 {
+            let f = &mut raw.functions[index];
+            let block = BlockId(f.blocks.len() as u32);
+            let argument = ValueId(f.values.len() as u32);
+            f.values.push(Type::I32);
+            let output = ValueId(f.values.len() as u32);
+            f.values.push(Type::Managed(Box::new(Type::TaskI32)));
+            let sync = typed
+                .functions
+                .iter()
+                .find(|f| f.name == "sync")
+                .unwrap()
+                .id;
+            f.blocks.push(BasicBlock {
+                id: block,
+                instructions: vec![
+                    Instruction {
+                        result: Some(argument),
+                        kind: I::Constant(Constant::I32(37)),
+                        span: f.span,
+                    },
+                    Instruction {
+                        result: Some(output),
+                        kind: I::TaskStart {
+                            worker: sync,
+                            argument,
+                        },
+                        span: f.span,
+                    },
+                ],
+                terminator: Terminator::Trap,
+            });
+            claim = zil_analyze::analyze(&raw, &limits).unwrap();
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+            let i = raw.functions[index]
+                .blocks
+                .last_mut()
+                .unwrap()
+                .instructions
+                .last_mut()
+                .unwrap();
+            let I::TaskStart { worker, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            *worker = pollable;
+        } else {
+            for i in raw.functions[index]
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+            {
+                if let I::TaskStart { worker, .. } = &mut i.kind {
+                    *worker = pollable;
+                }
+            }
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (module, candidate) = if decoded {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (raw.clone(), claim.clone())
+            };
+            for (kernel, errors) in [
+                (
+                    "Analyze",
+                    zil_analyze::analyze(&module, &limits).unwrap_err(),
+                ),
+                (
+                    "Verify",
+                    zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err(),
+                ),
+            ] {
+                assert_eq!(
+                    errors[0].category,
+                    ResultCategory::SafeReject,
+                    "variant={variant} decoded={decoded} {kernel}: {errors:?}"
+                );
+                assert!(
+                    errors[0].message.contains("pollable Task"),
+                    "variant={variant} decoded={decoded} {kernel}: {errors:?}"
+                );
+            }
+        }
     }
 }

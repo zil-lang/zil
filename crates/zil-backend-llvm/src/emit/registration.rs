@@ -773,7 +773,13 @@ pub(super) fn reserve_function(
                     callback,
                     ..
                 } => {
-                    for id in [register, close] {
+                    for id in [register, close].into_iter().chain(
+                        if let InstructionKind::AsyncRegistrationStart { poll_drain, .. } = i.kind {
+                            Some(poll_drain)
+                        } else {
+                            None
+                        },
+                    ) {
                         meter.spend(functions.len().saturating_add(32))?;
                         let foreign = functions
                             .get(&id)

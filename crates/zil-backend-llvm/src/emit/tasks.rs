@@ -742,6 +742,10 @@ fn reserve_frame_type(ty: &m::Ty, meter: &Meter, depth: usize) -> CompileResult<
         // Ordinary Enum payloads use one bounded array type, including a
         // zero-length area. Reserving a type does not enumerate array cells.
         m::Ty::Array(_, element) => reserve_frame_type(element, meter, depth + 1)?,
+        // The child stores the actual generated named type, not an expanded
+        // copy of its fields. Pay its cloned name here; physical layout and
+        // identity resolve the unique actual definition in task_abi.
+        m::Ty::Named(name) => meter.spend(name.len())?,
         m::Ty::Int(_) | m::Ty::Ptr => {}
         _ => {
             return invalid(
