@@ -643,6 +643,11 @@ pub enum CorePatternKind {
         mutable: bool,
         pattern: Box<CorePattern>,
     },
+    /// Explicit ErrorUnion tag selection; never a nominal-name authority.
+    ErrorArm {
+        is_error: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
