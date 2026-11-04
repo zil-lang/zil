@@ -456,11 +456,15 @@ impl<'a> Engine<'a> {
                     actuals.push(LifeNominalActual::Type(super::super::type_ref(ty)));
                     substitution.insert(formal.name.clone(), ty.clone());
                 }
-                (GenericParamKind::Const(_), _) => {
-                    return Err(unsupported(
-                        span,
-                        "stored nominal const actual needs complete scalar metadata",
-                    ));
+                (GenericParamKind::Const(domain), actual) => {
+                    let carrier = consts::argument(actual, Some(formal), &mut self.budget)?;
+                    let normalized = consts::normalize(formal, &carrier, &mut self.budget)?;
+                    let value = consts::normalized_value(&normalized, &mut self.budget)?;
+                    keys.push(type_key(&normalized, &mut self.budget)?);
+                    self.budget.ty(domain)?;
+                    parameters.push(LifeParameterKind::Const(super::super::type_ref(domain)));
+                    actuals.push(LifeNominalActual::Const(value));
+                    substitution.insert(formal.name.clone(), normalized);
                 }
                 _ => {
                     return Err(error(
@@ -519,6 +523,7 @@ impl<'a> Engine<'a> {
             format!("$stored_{}_{}", template, self.instances.len())
         };
         self.budget.substituted_item(item, &substitution)?;
+        consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
         let ItemKind::Aggregate(physical) = &mut instance.kind else {
