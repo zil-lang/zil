@@ -18,6 +18,7 @@ pub(crate) struct Budget<'a> {
     generic_methods: bool,
     dynamic_interfaces: bool,
     stored_lifetimes: bool,
+    source_identity: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -37,6 +38,7 @@ impl<'a> Budget<'a> {
             generic_methods: false,
             dynamic_interfaces: false,
             stored_lifetimes: false,
+            source_identity: false,
         }
     }
     pub(crate) fn has_dynamic(&self) -> bool {
@@ -50,6 +52,12 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn note_dynamic(&mut self) {
         self.dynamic_interfaces = true;
+    }
+    pub(crate) fn needs_source_identity(&self) -> bool {
+        self.dynamic_interfaces || self.source_identity
+    }
+    pub(crate) fn note_source_identity(&mut self) {
+        self.source_identity = true;
     }
     pub(crate) fn has_generic_methods(&self) -> bool {
         self.generic_methods
@@ -425,6 +433,7 @@ impl<'a> Budget<'a> {
         params: &[GenericParam],
         depth: usize,
         subs: Option<&BTreeMap<String, TypeRef>>,
+        nominal: bool,
     ) -> R<()> {
         for p in params {
             self.node(p.span, depth)?;
@@ -442,7 +451,11 @@ impl<'a> Budget<'a> {
                     }
                 }
                 GenericParamKind::Const(t) => self.ty_at(t, depth + 1, subs)?,
-                GenericParamKind::Lifetime => {}
+                GenericParamKind::Lifetime => {
+                    if nominal {
+                        self.note_source_identity();
+                    }
+                }
             }
         }
         Ok(())
@@ -487,7 +500,7 @@ impl<'a> Budget<'a> {
     ) -> R<()> {
         self.node(f.span, depth)?;
         self.text(&f.name, f.span)?;
-        self.generics(&f.generics, depth + 1, subs)?;
+        self.generics(&f.generics, depth + 1, subs, false)?;
         self.bounds(&f.where_clause, depth + 1, subs)?;
         for clause in &f.contract {
             self.node(clause.span, depth + 1)?;
@@ -541,7 +554,7 @@ impl<'a> Budget<'a> {
         match &item.kind {
             ItemKind::TypeAlias(a) => {
                 self.text(&a.name, item.span)?;
-                self.generics(&a.generics, depth + 1, subs)?;
+                self.generics(&a.generics, depth + 1, subs, false)?;
                 for t in &a.bounds {
                     self.ty_at(t, depth + 1, subs)?;
                 }
@@ -552,7 +565,7 @@ impl<'a> Budget<'a> {
             ItemKind::Function(f) => self.function(f, depth + 1, subs)?,
             ItemKind::Aggregate(a) => {
                 self.text(&a.name, item.span)?;
-                self.generics(&a.generics, depth + 1, subs)?;
+                self.generics(&a.generics, depth + 1, subs, true)?;
                 for f in &a.fields {
                     self.node(f.span, depth + 1)?;
                     self.text(&f.name, f.span)?;
@@ -569,7 +582,7 @@ impl<'a> Budget<'a> {
             ItemKind::Enum(e) => {
                 self.text(&e.name, item.span)?;
                 let old_header = self.enum_header.replace(item.span);
-                self.generics(&e.generics, depth + 1, subs)?;
+                self.generics(&e.generics, depth + 1, subs, true)?;
                 self.enum_header = old_header;
                 for v in &e.variants {
                     self.node(v.span, depth + 1)?;
@@ -598,7 +611,7 @@ impl<'a> Budget<'a> {
                 }
             }
             ItemKind::Impl(i) => {
-                self.generics(&i.generics, depth + 1, subs)?;
+                self.generics(&i.generics, depth + 1, subs, false)?;
                 self.bounds(&i.where_clause, depth + 1, subs)?;
                 self.ty_at(&i.target, depth + 1, subs)?;
                 if let Some(t) = &i.trait_type {
@@ -621,7 +634,7 @@ impl<'a> Budget<'a> {
             }
             ItemKind::Trait(t) => {
                 self.text(&t.name, item.span)?;
-                self.generics(&t.generics, depth + 1, subs)?;
+                self.generics(&t.generics, depth + 1, subs, false)?;
                 for bound in &t.bounds {
                     self.ty_at(bound, depth + 1, subs)?;
                 }

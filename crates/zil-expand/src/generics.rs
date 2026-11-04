@@ -86,11 +86,24 @@ pub(super) fn specialize_products<'a>(
     limits: &Limits,
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
+    specialize_products_with_context(module, limits, products, None)
+}
+pub(super) fn specialize_products_with_context<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products, true)
-            .map(|module| Cow::Owned(module.into_owned())),
-        None => specialize_products_prepared(module, &remaining, products, false),
+        Some(prepared) => {
+            specialize_products_prepared(&prepared, &remaining, products, true, context)
+                .map(|module| Cow::Owned(module.into_owned()))
+        }
+        None => specialize_products_prepared(module, &remaining, products, false, context),
     }
 }
 
@@ -99,6 +112,10 @@ fn specialize_products_prepared<'a>(
     limits: &Limits,
     products: &mut products::Products,
     inserted_option: bool,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -157,6 +174,9 @@ fn specialize_products_prepared<'a>(
         }
         for param in params(item) {
             if matches!(param.kind, GenericParamKind::Lifetime) {
+                if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
+                    names_budget.note_source_identity();
+                }
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -169,7 +189,7 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods || names_budget.has_dynamic() {
+    if has_generic_methods || names_budget.needs_source_identity() {
         if let Some(origins) = &mut products.origins {
             if inserted_option {
                 origins
@@ -182,6 +202,19 @@ fn specialize_products_prepared<'a>(
                     .map_err(|e| vec![e])?,
             );
         }
+    }
+    if names_budget.needs_source_identity()
+        && let Some((sources, context)) = context
+    {
+        let resolved = context
+            .resolve(sources, &mut names_budget)
+            .map_err(|e| vec![e])?;
+        products
+            .origins
+            .as_mut()
+            .expect("dyn source ledger")
+            .capture_identities(module, inserted_option, &resolved, &mut names_budget)
+            .map_err(|e| vec![e])?;
     }
     if names_budget.has_primitive_binders() && !has_alias {
         // The existing scoped normalizer also protects aliases. Without an
@@ -259,7 +292,7 @@ fn specialize_products_prepared<'a>(
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
-            && !names_budget.has_dynamic()
+            && !names_budget.needs_source_identity()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -284,7 +317,7 @@ fn specialize_products_prepared<'a>(
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
-        && !names_budget.has_dynamic()
+        && !names_budget.needs_source_identity()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -783,7 +816,10 @@ impl<'a> Engine<'a> {
             }
             result.items.push(item);
         }
-        self.products.origins = self.origins.map(|_| output_origins);
+        if let Some(original) = self.origins {
+            output_origins.identities = original.copy_identities(&mut self.budget, module.span)?;
+            self.products.origins = Some(output_origins);
+        }
         self.products.allowance = Some(self.budget.remaining_limits());
         *products = std::mem::take(&mut self.products);
         Ok(result)
