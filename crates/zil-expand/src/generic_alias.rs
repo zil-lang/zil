@@ -6,6 +6,7 @@ use super::*;
 pub(super) struct Normalized {
     pub(super) module: Module,
     pub(super) pattern_types: BTreeMap<String, TypeRef>,
+    pub(super) rich_aliases: Vec<TypeRef>,
 }
 
 pub(super) fn reserved_declaration_name(name: &str) -> bool {
@@ -176,10 +177,31 @@ pub(super) fn normalize_with_budget<'a>(
             )?;
         }
     }
+    let mut rich_aliases = Vec::new();
+    if resolver.budget.has_borrowed_keys() {
+        resolver
+            .budget
+            .identity_work(resolver.resolved.len(), module.span)?;
+        for alias in resolver.resolved.values() {
+            if rich_pointer::key(&alias.target, &mut resolver.budget)?.is_some() {
+                if !alias.parameters.is_empty() {
+                    return Err(unsupported(
+                        alias.target.span,
+                        "rich generic aliases require their declared symbolic context",
+                    ));
+                }
+                resolver.budget.ty(&alias.target)?;
+                // Outgoing inventory movement and the later preparation visit.
+                resolver.budget.identity_work(2, alias.target.span)?;
+                rich_aliases.push(alias.target.clone());
+            }
+        }
+    }
     Ok((
         Some(Normalized {
             module: output,
             pattern_types,
+            rich_aliases,
         }),
         resolver.budget,
     ))
@@ -367,6 +389,16 @@ impl Resolver<'_, '_> {
                 }
                 let parameters = self.nominals.get(&path[0]).copied();
                 for (index, arg) in args.iter_mut().enumerate() {
+                    if parameters
+                        .and_then(|p| p.get(index))
+                        .is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                        && !matches!(arg, GenericArg::Lifetime(_))
+                    {
+                        return Err(error(
+                            ty.span,
+                            "a nominal lifetime parameter requires a scoped lifetime actual",
+                        ));
+                    }
                     if let Some(parameter) = parameters.and_then(|parameters| parameters.get(index))
                         && let GenericParamKind::Const(domain) = &parameter.kind
                     {
@@ -420,10 +452,9 @@ impl Resolver<'_, '_> {
                                         "lifetime actual supplied for a non-lifetime parameter",
                                     ));
                                 }
-                                return Err(unsupported(
-                                    ty.span,
-                                    "scoped nominal lifetime substitution is not yet implemented",
-                                ));
+                                // Keep the scoped actual intact. The rich signature
+                                // producer resolves the actual declaration and emits
+                                // its qualified class relation before lowering.
                             }
                             GenericArg::Type(t) => self.target(t, variables, depth + 1)?,
                             GenericArg::Const(value) => {
