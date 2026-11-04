@@ -110,7 +110,22 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
                 return Ok(false);
             }
             for capture in &c.captures {
-                if !record(capture, budget)? {
+                if let Type::Managed(payload) = capture {
+                    if !record(payload, budget)? {
+                        return Ok(false);
+                    }
+                    budget.spend(module.resources.len())?;
+                    for _ in &module.resources {
+                        resources::charge_payload(payload, budget)?;
+                    }
+                    let Some(resource) = module.resources.iter().find(|r| r.payload == **payload)
+                    else {
+                        return Ok(false);
+                    };
+                    if let Some(drop) = resource.teardown {
+                        cleanup(module, drop, budget, None)?;
+                    }
+                } else if !record(capture, budget)? {
                     return Ok(false);
                 }
             }
@@ -380,6 +395,7 @@ pub(super) fn profile(
                 | InstructionKind::AsyncRegistrationPollClose { .. }
                 | InstructionKind::AsyncRegistrationFinishDestroy { .. }
                 | InstructionKind::MakeClosure { .. }
+                | InstructionKind::DropClosure { .. }
                 | InstructionKind::UnsafeEnter { .. }
                 | InstructionKind::UnsafeExit { .. }
                 | InstructionKind::Constant(_)

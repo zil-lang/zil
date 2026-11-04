@@ -4773,3 +4773,105 @@ fn async_registration_g8412_explicit_source_smoke() {
     let (raw, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
     zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn async_registration841_task_queued_cancel_native() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-async841-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("host.o");
+            let c = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/async-registration/queued-host.c"),
+                )
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(c.status.success(), "{c:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            for (mode, text) in [
+                (
+                    "cancel",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-cancel.zil"
+                    ),
+                ),
+                (
+                    "return",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-return.zil"
+                    ),
+                ),
+                (
+                    "result",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-result.zil"
+                    ),
+                ),
+            ] {
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper.clone()),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        emit_dir: Some(dir.join("artifacts")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let mut command = Command::new(&report.artifacts["executable"]);
+                if mode != "cancel" {
+                    command.env("ZIL_ASYNC_NORMAL", "1");
+                }
+                if mode == "result" {
+                    command.env("ZIL_ASYNC_RESULT", "1");
+                }
+                let actual = command.output().unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "{backend:?} {optimization:?}: {actual:?}"
+                );
+                assert_eq!(
+                    actual.stdout,
+                    b"queued late entry rejected; no-future before two frees\n"
+                );
+            }
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
