@@ -21,6 +21,7 @@ impl Builder<'_, '_> {
                 span,
             },
             None,
+            None,
         )?;
         // This is ordinary lexical storage, not a full-expression temporary.
         // Reserving a temporary would move registration storage before earlier
