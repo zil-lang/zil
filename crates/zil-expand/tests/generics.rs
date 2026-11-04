@@ -141,20 +141,20 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
         (
             "binding",
             include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
-            1036,
-            368,
+            1275,
+            496,
         ),
         (
             "argument",
             include_str!("../../../tests/generic-error-enum/pending/unique-call-argument.zil"),
-            1024,
-            361,
+            1205,
+            456,
         ),
         (
             "independent",
             "enum Choice<T>{None,Some(T)}fn sink<T>(value:Choice<T>!i32,witness:T)->i32{return 0}fn run<F:Fn()->i32>(f:F)->i32{f();return sink(Choice.None,true)}fn main()->i32{let f=()->i32=>1;return run(f)}",
-            1612,
-            536,
+            1812,
+            638,
         ),
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), name, text);
@@ -257,7 +257,7 @@ fn generic_enum_error_context_prepays_new_work() {
     let expected = zil_expand::expand(&source, &parsed).unwrap();
     // Same frozen source: pre322 work624/nodes242; the paid full-AST life
     // validation now yields work782/nodes310 without resetting the remainder.
-    for (work, amount) in [(true, 782), (false, 310)] {
+    for (work, amount) in [(true, 977), (false, 412)] {
         recorded.push(amount);
         let amount = budget_boundary::minimum(work, |limits| {
             zil_expand::expand_with_map_limits(&source, &parsed, limits)
@@ -528,7 +528,7 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
     // Historical fa34160 controls were scalar288/144 and owned554/279;
     // local preparation was558/281 before322. Same bytes now also pay the
     // complete type-position lifetime scan (see the attributed migration).
-    for (text, work, nodes) in [(scalar, 381, 194), (owned, 735, 376), (local, 730, 372)] {
+    for (text, work, nodes) in [(scalar, 509, 279), (owned, 976, 530), (local, 973, 531)] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "resource-budget.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let expected = zil_expand::expand(&source, &parsed).unwrap();

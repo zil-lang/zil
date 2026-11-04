@@ -7,21 +7,21 @@
 | 方面 | 当前实际工作 | 仍须完成的终态义务 |
 |---|---|---|
 | 基础类型与模式 | u64/目标usize、卫生Option、实际Enum输入地址与本地Tuple字段借用已集成；原ref mut同级字段误拒关闭 | 完整拥有Tuple已独审集成；混合move/ref、选择性移动和真实地址owned替换继续实现 |
-| 泛型/trait | const特化、supertrait、泛型impl与完整名义身份、预付约束遍历已独审；关联类型方程/投影fff也已独审合入 | 关联常量、泛型方法、更一般条件/投影与未用定义组合 |
+| 泛型/trait | const特化、supertrait、泛型impl与完整名义身份、预付约束遍历已独审；关联类型方程/投影也已独审合入 | 关联常量及闭合CT方程已独审合入；泛型方法、更一般条件/投影与未用定义组合继续施工 |
 | 借用/life | 普通泛型mutable life、HRTB薄指针/CT、真实借入资源头权限与原String源已集成；Mutex/Atomic body权限与实际别名代换已通过两核反例 | 高阶Fn参数life关系（schema36候选）、存储/lending、一般动态抽象和协议 |
 | Type/Syntax | 完整目标整数/IEEE、薄指针Type DAG；普通泛型Type返回与泛型记录反射、目标位宽无符号const已独审合入 | 一般关联反射、匿名Sum artifact值与全部泛型组合 |
 | 动态抽象与协议 | 既有有限dyn/角色/State保持，未删减终态要求 | 一般dyn异构调用与显式存储、一般状态转换/角色/别名替换 |
 | 外部回调 | 现有结构化强关闭保留，返回式Registration公共合同/表示已发布到施工树 | 安装helper返回后的实际拥有环境、全部原始入口静止、失败清理/晚通知与完整消费者 |
 | 异步并发 | 真Mutex/Atomic共享及真实pc/SSA稳定Task帧已独审集成；公共5入口SABI与物理布局及完整身份计费已独审合入 | 公共接口共同验收、拥有子帧/保留waker/异步draining、一般Mutex<T>/CAS/位宽/Transfer/Share |
 | 标准库与ZUI | 普通源加载、UTF8/事务编辑、Store有序remove、实际FnMut迭代/Option返回已独审合入；原String真实源码与失败清理通过 | Unicode编码/String扩展已独审合入；通用集合/Iterator/lending、布局/IME/渲染及真实产品闭环 |
-| 浮点/匿名Sum | IEEE含raw NaN、UInt/float边界、两后端及C ABI已独审集成，组合10测试通过 | 匿名结构Sum源/CT/完整责任链施工 |
+| 浮点/匿名Sum | IEEE含raw NaN、UInt/float边界、两后端及C ABI已独审集成，组合10测试通过 | 匿名结构Sum源/Type/泛型与完整身份计费已合入并完成独立组合复验；一般artifact值和拥有载荷继续施工 |
 | 验收与产品 | 默认2MiB栈生产修复已独审合入；完整全目标编译/Clippy曾通过；首轮默认全量4170通过/115失败（49目标），修复复验中 | 本轮正式全仓双配置门、同语义Rust成本比较、原生Windows执行 |
 
 ## 已发生的组合检查
 
 实际组合曾发现两项新问题并已修生产：340窗口profile误索引空address liveness表，原ZUI三源panic；343 SyncCell body在342头权限/分离关系中遗漏，原始alias先被Analyze错误接受，修三处后又被Verify独立路径错误接受。现有消费者保持原源，实际修复guard与各自调用/捕获效果代换；原失败记录保留。
 
-模式79、借用49、泛型回归44、generics19与trait53曾在同一组合通过；后续浮点10、CTWire19/current identity12通过。头权限最终组合cross_function_borrows57、generic_regressions44、impl236_zui_core9均通过，覆盖新Mutex/Atomic raw+Wire别名与共享权限反例。关联fff已独审并合入，作者完整数值组合19+54通过，主树接续复验中。限定检查不冒称本轮全仓正式验收；Clippy旧施工辅助代码的缺口另修，不改通过条件。
+模式79、借用49、泛型回归44、generics19与trait53曾在同一组合通过；后续浮点10、CTWire19/current identity12通过。头权限最终组合cross_function_borrows57、generic_regressions44、impl236_zui_core9均通过，覆盖新Mutex/Atomic raw+Wire别名与共享权限反例。关联类型已独审并合入，作者完整数值组合19+54通过，主树接续复验中。限定检查不冒称本轮全仓正式验收；Clippy旧施工辅助代码的缺口另修，不改通过条件。
 
 ## 环境与执行边界
 
@@ -31,4 +31,15 @@
 
 ## 当前全量失败与修复
 
-8981的首轮完整默认门Fail保留；不能把单组复验升级为全仓通过。发现的impl187符号捕获分离安全回归已生产修复并独审，原24反例/正控加nested relay共25通过。旧名称、手工布局、Wire版本和能力边界控制正按原语义迁移；新增Float×Task固定原子身份计费已补并验证。预算常数正在对最终组合重新测量，尚未宣称全仓验收。匿名Sum Type阶段首次复核发现排序计费遗漏，8c17修正版独审中；CT artifact3与119/120公共发布仅在施工树，不算消费者已完成。
+8981的首轮完整默认门Fail保留；不能把单组复验升级为全仓通过。发现的impl187符号捕获分离安全回归已生产修复并独审，原24反例/正控加nested relay共25通过。旧名称、手工布局、Wire版本和能力边界控制正按原语义迁移；新增Float×Task固定原子身份计费已补并验证。预算常数正在对最终组合重新测量，尚未宣称全仓验收。匿名Sum Type阶段首次复核发现排序计费遗漏，8c17修正版及31dcb组合均已独审；CT artifact3与119/120公共发布仅在施工树，不算消费者已完成。
+
+## 关联常量与匿名Sum组合后的继续回归
+
+31dcb匿名Sum组合的三份实际harness已由Astra独立复制并核对，12+2+5
+限定检查通过，其中48次实际native执行；const/关联类型/BFP相交身份保持。
+bfe682bfb再合入关联常量后，generics21、trait56（修正历史semantic-v3测试
+目录后）、独立Verify344及旧借用源/预算组已继续复验。完整aggregates目标
+发现并保留新的默认栈溢出：Expand::expr_expected帧约88KB，深层数组递归
+耗尽栈，正由344按原栈/原源定位修复。它不是本轮完整全仓通过。
+最新源码备份20261104T041016Z已核对15远端引用/5份源码WIP；主集成
+bfe682bfb实际存在于task/language-terminal-20261104，已验收main仍未升级。

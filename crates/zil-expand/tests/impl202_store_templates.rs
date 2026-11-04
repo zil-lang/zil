@@ -1,3 +1,5 @@
+#[path = "../test-support/budget_boundary.rs"]
+mod budget_boundary;
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::{
     CoreBlock, CoreExpr, CoreExprKind, CoreFunction, CoreModule, CoreStatementKind, CoreTypeBound,
@@ -255,14 +257,17 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
     // the new actual window walk is charged, with defaults unchanged.
     // Pre322 N1938 is retained here as history; full type-position lifetime
     // validation and its shared remainder now require N2358 (N-1/fresh below).
-    check(2764).unwrap();
-    let errors = check(2763).unwrap_err();
+    let exact = budget_boundary::minimum(true, |limits| check(limits.max_analysis_steps));
+    eprintln!("legacy State Expand N={exact}");
+    check(exact).unwrap();
+    let errors = check(exact - 1).unwrap_err();
     assert!(
         errors
             .iter()
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
-    check(2764).unwrap();
+    check(exact).unwrap();
+    assert_eq!(exact, 2766);
 }
 
 const ORDINARY: &str = r#"
@@ -335,7 +340,7 @@ fn ordinary_store_calls_stay_eager_with_a_measured_exact_budget() {
     let n = boundary(ORDINARY);
     eprintln!("ordinary_store_expand_n={n}");
     assert_eq!(
-        n, 2713,
+        n, 3360,
         "322 full type-position lifetime validation; source unchanged from pre202 N2255"
     );
 }

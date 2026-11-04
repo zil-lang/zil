@@ -9,3 +9,13 @@ Option别名、无捕获借入薄函数指针、关联类型声明、完整拥�
 泛型定义侧State别名检查更早拒绝的源，明确记录Expand/E-GENERIC-ARGUMENT及具体原因，不宣称到达Verify；现有独立raw/Wire攻击继续覆盖安全核。拥有字段替换仍因实际未清理责任拒绝，普通资源头Copy字段写的缺口交342，整owner替换交340，不把拒绝类别迁移当成功实现。
 
 旧预算常数需对当前完整源重新测量N/N−1/fresh，保持默认Limits。原记录数字及源码在Git历史保留，迁移收据须绑定最终生产源；测量辅助仍保留显式精确数字断言，不能把动态测得任意值自行标为预算验收。终态全量与产品条件未通过。
+
+The integrated associated-constant declaration walk adds real paid work on old
+sources. On bfe682bfb, measured Expand control minima become nominal inline
+1008/265 and where1111/309; plain864/330, alias1845/549 and combined2021/610;
+copy helpers811/447 and1090/646 (Expand/Types); legacy State2766 and ordinary
+Store3360. The preserved generic error controls are1275/496,1205/456,1812/638;
+direct enum977/412; concrete resource preparation509/279,976/530,973/531;
+generic Enum468/201. Defaults and sources stay fixed, with N−1 and fresh/warm
+checks retained. These limited repairs do not erase the actual aggregate stack
+abort in the same run, which remains a production blocker pending repair.

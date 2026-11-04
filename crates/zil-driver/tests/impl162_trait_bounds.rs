@@ -648,7 +648,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
             "{}",
             ct_report.to_json()
         );
-        let ct_store = ct_cache.join("semantic-v3");
+        let ct_store = ct_cache.join("semantic-v4");
         let mut replayed = 0;
         for entry in fs::read_dir(&ct_store).unwrap() {
             let path = entry.unwrap().path();

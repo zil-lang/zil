@@ -56,7 +56,7 @@ fn copy_generic_enum_instance_has_exact_attributed_work_and_node_boundaries() {
             expected
         );
     }
-    assert_eq!((work_n, node_n), (403, 165));
+    assert_eq!((work_n, node_n), (468, 201));
 }
 #[test]
 fn actual_owned_field_is_rejected_before_generic_identity_is_erased() {
