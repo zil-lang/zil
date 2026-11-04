@@ -1055,7 +1055,9 @@ impl<'a> Engine<'a> {
         // Inspect complete substituted value fields while their ordinary
         // template identity exists. Explicit Managed arguments remain owning
         // values; this never grants Copy or manufactures a resource header.
-        if let ItemKind::Enum(e) = &instance.kind {
+        if let ItemKind::Enum(e) = &instance.kind
+            && template != options::TEMPLATE
+        {
             for variant in &e.variants {
                 if let VariantFields::Tuple(fields) = &variant.fields {
                     for field in fields {
