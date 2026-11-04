@@ -67,6 +67,11 @@ impl<'a> Budget<'a> {
         &mut self,
         life: &zil_ir::StorageLifeContract,
     ) -> CompileResult<()> {
+        let zil_ir::StorageLifeContract {
+            fixed_binder_count: _,
+            invocation_binder_count: _,
+            bindings: _,
+        } = life;
         self.metadata(life.bindings.len().saturating_add(2))?;
         for row in &life.bindings {
             self.metadata(row.position.path.len().saturating_add(2))?;

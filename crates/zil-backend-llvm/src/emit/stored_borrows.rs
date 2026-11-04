@@ -38,6 +38,13 @@ fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
     Ok(())
 }
 fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileResult<()> {
+    // A public successor must update this visitor instead of silently adding
+    // unmetered semantic signature metadata.
+    let StorageLifeContract {
+        fixed_binder_count: _,
+        invocation_binder_count: _,
+        bindings: _,
+    } = life;
     pay(work, life.bindings.len().saturating_add(2))?;
     for row in &life.bindings {
         pay(work, row.position.path.len().saturating_add(2))?;
@@ -80,22 +87,77 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Array { element: inner, .. }
-        | Type::Slice { element: inner } => type_work(inner, work, limits, depth + 1)?,
+        | Type::Slice { element: inner }
+        | Type::OwnedStore { element: inner }
+        | Type::Registration { environment: inner }
+        | Type::Opaque { hidden: inner, .. } => type_work(inner, work, limits, depth + 1)?,
         Type::ErrorUnion { error, result } => {
             type_work(error, work, limits, depth + 1)?;
             type_work(result, work, limits, depth + 1)?;
         }
-        Type::FunctionPointer { parameters, result }
-        | Type::BorrowedFunctionPointer {
-            parameters, result, ..
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
         } => {
+            pay(work, life.parameter_lives.len().saturating_add(2))?;
             pay(work, parameters.len())?;
             for t in parameters {
                 type_work(t, work, limits, depth + 1)?;
             }
             type_work(result, work, limits, depth + 1)?;
         }
-        _ => {}
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            pay(work, parameters.len())?;
+            for t in parameters {
+                type_work(t, work, limits, depth + 1)?;
+            }
+            type_work(result, work, limits, depth + 1)?;
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            pay(
+                work,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_add(retained_life.retained.len())
+                    .saturating_add(retained_life.nominal_arguments.len())
+                    .saturating_add(1),
+            )?;
+            for port in &retained_life.ports {
+                pay(work, 2)?;
+                type_work(&port.leaf, work, limits, depth + 1)?;
+            }
+            for row in &retained_life.retained {
+                pay(work, row.path.len().saturating_add(2))?;
+            }
+            for row in &retained_life.nominal_arguments {
+                pay(work, row.path.len().saturating_add(4))?;
+            }
+            type_work(result, work, limits, depth + 1)?;
+        }
+        Type::Named(text) | Type::Unsupported(text) => pay(work, text.len())?,
+        Type::Dyn { .. }
+        | Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F32
+        | Type::F64
+        | Type::U8
+        | Type::U16
+        | Type::ByteBuffer
+        | Type::ForeignHandle
+        | Type::SyncCell(_)
+        | Type::TaskI32
+        | Type::CWideString
+        | Type::Closure(_) => {}
     }
     Ok(())
 }
@@ -114,6 +176,9 @@ pub(super) fn reserve_binding(
     limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
+    // Both stored-profile kernels structurally reject every other instruction
+    // in every block, including unreachable blocks. The only variable-length
+    // instruction payloads in that admitted profile are enumerated below.
     pay(work, module.functions.len())?;
     for f in &module.functions {
         pay(
@@ -144,7 +209,33 @@ pub(super) fn reserve_binding(
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
-                    _ => 1,
+                    InstructionKind::Constant(_)
+                    | InstructionKind::Load(_)
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::SliceLength { .. }
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. } => 1,
+                    _ => {
+                        return invalid(
+                            "E-CODEGEN-STORAGE-PROFILE",
+                            "stored profile instruction comparison has no prepaid consumer",
+                            Some(i.span),
+                        );
+                    }
                 };
                 pay(work, n.saturating_add(4))?;
             }
@@ -192,6 +283,13 @@ pub(super) fn reserve_emission(
     limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
+    pay(work, lir.functions.len())?;
+    let total_instructions = lir.functions.iter().try_fold(0usize, |n, f| {
+        pay(work, f.blocks.len())?;
+        f.blocks.iter().try_fold(n, |n, b| {
+            n.checked_add(b.instructions.len()).ok_or_else(exhausted)
+        })
+    })?;
     for f in lir.functions {
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             let count = match &i.kind {
@@ -200,6 +298,15 @@ pub(super) fn reserve_emission(
                 _ => 3,
             };
             pay(work, count.saturating_add(32))?;
+            if let InstructionKind::Constant(Constant::WideString(s)) = &i.kind {
+                let cost = s
+                    .len()
+                    .checked_add(1)
+                    .and_then(|n| n.checked_mul(total_instructions.saturating_add(1)))
+                    .and_then(|n| n.checked_mul(16))
+                    .ok_or_else(exhausted)?;
+                pay(work, cost)?;
+            }
             for v in operands(&i.kind).into_iter().chain(i.result) {
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;
             }
