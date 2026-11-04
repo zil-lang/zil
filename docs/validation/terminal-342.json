@@ -4,7 +4,7 @@
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress; finite HRTB callback invocation relations",
   "tests": {
-    "cross_function_borrows": 67,
+    "cross_function_borrows": 68,
     "generic_regressions": 35,
     "impl033": 10,
     "impl099_owned_bytes": 9,
@@ -390,5 +390,59 @@
       "explicit dyn"
     ],
     "formal_full_suite": "NotRunByImplementationAuthor"
+  },
+  "mutable_nested_product": {
+    "status": "AuthorScopedPass",
+    "base_commit": "13677ef8c",
+    "scope": "Actual mutable nested finite Product AddressField; stored borrowed leaves remain in progress",
+    "production_files": 351,
+    "production_sha256": "262fad55300f48b1d9c034bcc4148ef390afdba33a0d70435204577b854486f5",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "fixture": "tests/language-readiness/terminal/342/nested_product.zil",
+    "fixture_sha256": "2164f8bd6ad4266c8f3588eb0f0473dd14de967bbba404fde4faacef7fb8d9e8",
+    "test_file": "tests/language-readiness/terminal/342/resource_head.rs",
+    "test_sha256": "03afdf507d6e9af64a9b0ac8f5acb9bcb5e645b5f759140ab5c05363e42fef2b",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "4cb36d18692b87be01512e130c6dcdcd56efbdb32b5b3b8fef86c64d2a94290f",
+    "native": {
+      "runs": 4,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "exit": 0,
+      "stderr": ""
+    },
+    "controls": [
+      "actual nested std.string.String and string.clear(&mut session.text)",
+      "raw+decoded Wire shared head mode forgeries rejected in both kernels",
+      "shared source cannot request mutable child",
+      "live view blocks begin and parent replacement"
+    ],
+    "ten_existing_driver_targets": [
+      68,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "old_recorded_phase_n_unchanged": true,
+    "clippy": "cross_function_borrows with llvm-api -D warnings Pass",
+    "full_original_ui_input": "Requires combined root UInt/library loader; not claimed run by342",
+    "logs": {
+      "342-nested-product-first.log": "f36f5848387b640678b4c373f1efdb52e0735d3838727478dd8336e1ab6b0c97",
+      "342-nested-product-complete.log": "717eada0c6bf2540c0a6ef7c3598012c80b00763a133d594b127a2974d0b94f8",
+      "342-nested-product-clippy.log": "428f12c918c35fc0a58a04249565e15da60186d58bef501d3aca78487ed21937"
+    },
+    "independent_review": "Pending exact clean followup"
   }
 }

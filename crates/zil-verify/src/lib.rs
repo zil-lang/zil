@@ -1709,7 +1709,7 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
-            } else if !*mutable && matches!(field, Type::Package { .. }) {
+            } else if matches!(field, Type::Package { .. }) {
                 packages::check_shared_product_type(module, field, span, budget)?;
             } else if matches!(field, Type::Managed(_))
                 && resources::head_address(&Type::Address {
