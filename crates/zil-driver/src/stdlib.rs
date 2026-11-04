@@ -6,6 +6,7 @@ pub(super) fn source(path: &[String]) -> Option<&'static str> {
             "utf8" => Some(include_str!("../../../lib/std/utf8.zil")),
             "text_edit" => Some(include_str!("../../../lib/std/text_edit.zil")),
             "store" => Some(include_str!("../../../lib/std/store.zil")),
+            "iter" => Some(include_str!("../../../lib/std/iter.zil")),
             _ => None,
         },
         _ => None,

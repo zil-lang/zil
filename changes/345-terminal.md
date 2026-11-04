@@ -7,3 +7,5 @@ stdlib模块按明确版本随编译器分发，std.string/std.utf8/std.text_edi
 最近反例包括非法UTF8/过长序列/代理区、标量与字节边界混淆、分配失败改写旧值、活跃view时增长/移动、私有存储伪造、模块/缓存源码失配。产品场景仍按既有冻结门执行，原生Windows缺真实主机不以Wine或未运行工作流替代。
 
 std.store复用显式容量Store原语，新增有序remove：先完整准备suffix容量，失败前原输入保持；真正移出一个T并将suffix按原序恢复，所有拥有值按既有责任处理。不引入隐式扩容。实际带Drop消费者、活跃view反例与逐分配点失败验证后才接受。
+
+std.iter接同步Copy slice callback for_each/fold/any/all/position/find，依真实FnMut调用顺序和may合同；position/find返回卫生Option，空输入/提前退出/环境写入与相交回调反例必须执行。此源库段不替代一般Iterator关联类型或lending iterator终态。
