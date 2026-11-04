@@ -787,6 +787,16 @@ impl Plan {
                     ),
                 }))
             }
+            InstructionKind::TakeTupleField{local,path}|InstructionKind::TakeVariantField{local,path}=>{
+                let root=&f.locals[local.0 as usize].ty;
+                budget.type_work(root,true,"partial transfer exact root")?;
+                if root.is_copy_value() || !match i.kind {InstructionKind::TakeTupleField{..}=>matches!(root,Type::Tuple(_)),_=>matches!(root,Type::Enum{..})} {return Err(error("partial transfer requires exact owning Tuple or Enum root"));}
+                let endpoint=place_type(f,*local,path,budget)?;
+                budget.type_work(endpoint,true,"partial result exact Type")?;
+                if i.result.and_then(|v|f.values.get(v.0 as usize))!=Some(endpoint){return Err(error("partial transfer result differs from actual subtree Type"));}
+                output=Some(facts.locals.get_mut(local).ok_or_else(||error("partial source absent"))?.take_place(path,check,budget)?);
+                facts.invalidate(*local,self,budget)?;
+            }
             InstructionKind::TakeLocal { local } | InstructionKind::Load(local) => {
                 output = Some(facts.local(*local, budget)?);
                 if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
@@ -1062,6 +1072,40 @@ impl Plan {
         Ok(birth)
     }
 }
+fn place_type<'a>(f:&'a TypedFunction, local:LocalId,path:&[PlaceProjection],budget:&mut Budget)->CompileResult<&'a Type> {
+    let mut at=&f.locals.get(local.0 as usize).ok_or_else(||error("partial root absent"))?.ty;
+    budget.spend(path.len().saturating_add(1),"actual partial path shape")?;
+    if path.is_empty(){return Err(error("partial path must be nonempty"));}
+    for p in path { at=match(p,at){
+        (PlaceProjection::Field(i),Type::Tuple(fs))=>fs.get(*i as usize),
+        (PlaceProjection::Field(i),Type::Package{fields,..})=>fields.get(*i as usize).map(|(_,t)|t),
+        (PlaceProjection::Variant(p),Type::Enum{variants,..})=>variants.get(p.variant as usize).and_then(|(_,fs)|fs.get(p.index as usize)),
+        _=>None,
+    }.ok_or_else(||error("partial path is not an actual inline field or tagged payload"))?;}
+    Ok(at)
+}
+impl Tree {
+    fn take_place(self:&mut Arc<Self>,path:&[PlaceProjection],check:bool,budget:&mut Budget)->CompileResult<Arc<Self>> {
+        budget.spend(1,"partial initialization path step")?;
+        if check && self.missing{return Err(error("partial transfer prefix is unavailable"));}
+        let Some((first,rest))=path.split_first() else {
+            if check && !self.complete(budget)?{return Err(error("partial transfer requires the entire selected subtree initialized"));}
+            let out=self.copied(budget)?;
+            edit(self,budget)?.missing=true;
+            return Ok(out);
+        };
+        let at=edit(self,budget)?;
+        match (first,&mut at.node) {
+            (PlaceProjection::Field(index),Node::Product(fs))=>fs.get_mut(*index as usize).ok_or_else(||error("partial field absent"))?.take_place(rest,check,budget),
+            (PlaceProjection::Variant(p),Node::Sum(vs))=>{
+                if check && (vs.len()!=1 || !vs.contains_key(&p.variant)){return Err(error("partial transfer has no current exact active tag"));}
+                vs.get_mut(&p.variant).and_then(|fs|fs.get_mut(p.index as usize)).ok_or_else(||error("partial payload absent"))?.take_place(rest,check,budget)
+            }
+            _=>Err(error("partial initialization path differs from actual data shape")),
+        }
+    }
+}
+
 fn projection<'a>(
     mut ty: &'a Type,
     path: &[VariantProjection],
