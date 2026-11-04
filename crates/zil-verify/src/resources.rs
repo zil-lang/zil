@@ -72,6 +72,7 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);

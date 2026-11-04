@@ -90,6 +90,7 @@ pub(super) fn concrete(ty: &Type, charge: &mut impl FnMut() -> R<()>) -> R<bool>
         } => concrete(element, charge)?,
         Type::ErrorUnion { error, result } => concrete(error, charge)? && concrete(result, charge)?,
         Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
         | Type::ForeignCallback { parameters, result } => {
             for ty in parameters {
                 if !concrete(ty, charge)? {

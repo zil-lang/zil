@@ -185,6 +185,7 @@ impl<'a> Budget<'a> {
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => self.tree(t, depth + 1)?,
             Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.tree(t, depth + 1)?;

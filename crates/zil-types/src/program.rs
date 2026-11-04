@@ -563,6 +563,20 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             }
             type_identity(bytes, result, closures);
         }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            bytes.push(31);
+            bytes.extend_from_slice(&life.binder_count.to_le_bytes());
+            bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
+            for tag in &life.parameter_lives {
+                bytes.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag { bytes.extend_from_slice(&tag.to_le_bytes()); }
+            }
+            bytes.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life { bytes.extend_from_slice(&tag.to_le_bytes()); }
+            bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
+            for parameter in parameters { type_identity(bytes,parameter,closures); }
+            type_identity(bytes,result,closures);
+        }
         Type::Tuple(fields) => {
             bytes.push(5);
             bytes.extend_from_slice(&(fields.len() as u64).to_le_bytes());

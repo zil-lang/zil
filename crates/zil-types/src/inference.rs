@@ -490,6 +490,7 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.life { budget.work(life.parameter_lives.len().saturating_add(1), function.span)?; }
         state_snapshot(&function.state_parameters, function.span, budget)?;
         if !function.state_parameters.is_empty() && !function.callable_parameters.is_empty() {
             // The mixed header compares both declarations and the actual
@@ -588,6 +589,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
@@ -752,6 +754,12 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             }
             validate_type(result, depth + 1, span, budget)?;
         }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            budget.work(borrowed_fp::metadata_work(life),span)?;
+            for parameter in parameters { validate_type(parameter,depth+1,span,budget)?; }
+            validate_type(result,depth+1,span,budget)?;
+            borrowed_fp::relation(parameters,result,life,span)?;
+        }
         Type::Named(name) => {
             budget.work(name.len(), span)?;
             budget.store_shapes |= budget.inside_store;
@@ -829,6 +837,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
         ));
     }
     validate_type(&signature.result, 0, span, budget)?;
+    if let Some(life) = &signature.life { budget.work(life.parameter_lives.len().saturating_add(1), span)?; }
     for parameter in &signature.parameters {
         validate_type(parameter, 0, span, budget)?;
     }
@@ -2605,6 +2614,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 inner,
                                 statement.span,
                             )?;
+                        } else if let Term::Address(inner, true) = value {
+                            self.graph.address(self.closures[owner].result, inner, Some(true), statement.span)?;
                         } else {
                             self.unify(
                                 &value,
@@ -3606,8 +3617,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     }
                     Term::Scalar(callee) => {
                         let known = self.graph.ty(callee)?;
+                        if let Some(Type::BorrowedFunctionPointer { parameters, result, .. }) = &known {
+                            if parameters.len() != arguments.len() { return Err(error("E-CALL-ARITY", span, "indirect call arity differs from its signature")); }
+                            for (argument, parameter) in arguments.iter().zip(parameters) {
+                                let term = self.expr_expected(argument, Some(parameter), depth + 1, false)?;
+                                self.bind_term(&term, parameter, argument.span)?;
+                            }
+                            return self.known_term(result, span);
+                        }
                         let hints = match &known {
-                            Some(Type::FunctionPointer { parameters, .. }) => Some(parameters),
+                            Some(Type::FunctionPointer { parameters, .. } | Type::BorrowedFunctionPointer { parameters, .. }) => Some(parameters),
                             _ => None,
                         };
                         let mut parameters = Vec::new();
@@ -4029,6 +4048,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 if return_type.as_ref().is_some_and(|t| {
                     !(t.is_copy_value()
                         || lending::supported_result(t)
+                        || (matches!(expected, Some(Type::BorrowedFunctionPointer { .. })) && matches!(t, Type::Address { inner, .. } if inner.is_address_pointee()))
                         || closures::owned_signature_head(t))
                 }) || parameters.iter().any(|p| {
                     p.ty.as_ref().is_some_and(|t| {
@@ -4042,7 +4062,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 }
                 let callable_hint = self.callable_hint.take();
                 let pointer = match expected {
-                    Some(Type::FunctionPointer { parameters, result }) => {
+                    Some(Type::FunctionPointer { parameters, result } | Type::BorrowedFunctionPointer { parameters, result, .. }) => {
                         Some((parameters, result.as_ref()))
                     }
                     _ => None,

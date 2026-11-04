@@ -63,6 +63,7 @@ impl<'a> Budget<'a> {
                 self.copy_work(element, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.pay(t, depth)?;

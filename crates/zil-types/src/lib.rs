@@ -8,6 +8,7 @@ mod addresses;
 mod aggregate_templates;
 mod aggregates;
 mod byte_buffer;
+mod borrowed_fp;
 mod callable_fields;
 mod closures;
 mod conditions;
@@ -53,6 +54,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
     callable: Vec<CoreCallableParameter>,
@@ -119,6 +121,9 @@ fn signatures(
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
     for f in &core.functions {
+        if let Some(life) = &f.life {
+            foreign_work = foreign_work.checked_sub(life.parameter_lives.len().saturating_add(1)).ok_or_else(|| vec![Diagnostic::limit(Phase::Types, "function pointer signature relation budget exceeded", Some(f.span))])?;
+        }
         let i = concrete_index;
         if f.callable_parameters.is_empty()
             && f.type_parameters.is_empty()
@@ -169,6 +174,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
@@ -1558,7 +1564,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         (value, ty)
                     }
                 } else {
-                    self.function_reference(e)?
+                    self.function_reference(e, expected)?
                 }
             }
             CoreExprKind::Unary {
@@ -1918,7 +1924,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.make_variant(&ty, variant, &[], expected, e.span);
             }
             CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
-                self.function_reference(e)?
+                self.function_reference(e, expected)?
             }
             CoreExprKind::Member { object, .. }
                 if matches!(object.kind, CoreExprKind::Member { .. })
@@ -2200,7 +2206,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .ok()
                         .flatten();
                 }
-                if let Some(Type::FunctionPointer { result, .. }) = self.known_type(callee) {
+                if let Some(Type::FunctionPointer { result, .. } | Type::BorrowedFunctionPointer { result, .. }) = self.known_type(callee) {
                     return Some(*result);
                 }
                 self.resolve_callee(callee).ok().map(|s| s.result.clone())
@@ -2255,8 +2261,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.enums,
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
-        if let Some(Type::FunctionPointer { parameters, result }) = expected {
-            if !closures::supported_signature(parameters, result) {
+        if let Some(Type::FunctionPointer { parameters, result } | Type::BorrowedFunctionPointer { parameters, result, .. }) = expected {
+            if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                self.closures.snapshot(borrowed_fp::metadata_work(life), span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
+            } else if !closures::supported_signature(parameters, result) {
                 return Err(unsupported(
                     span,
                     "owned callback data signatures do not qualify for function pointers",
@@ -2275,7 +2284,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             pending.inference.expect_result(result, span)?;
             let (slot, mut pending) = self.closures.take_thin(id, span)?;
-            let (parameters, result) = pending.inference.resolve(false, span)?;
+            let (parameters, result) = if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+                pending.inference.resolve_borrowed(life, span)?
+            } else { pending.inference.resolve(false, span)? };
             let function_id = pending.function;
             let function = CoreFunction {
                 life: None,
@@ -2676,7 +2687,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let (value, ty) = self.expr(callee, None)?;
             (Some(value), ty)
         };
-        if let Type::FunctionPointer { parameters, result } = ty {
+        if let Type::FunctionPointer { parameters, result } | Type::BorrowedFunctionPointer { parameters, result, .. } = ty {
             return self.call_indirect(
                 callee_value.expect("function value"),
                 &parameters,

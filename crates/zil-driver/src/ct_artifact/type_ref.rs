@@ -144,7 +144,7 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::Named(_) | Type::Opaque { .. } | Type::Closure(_) | Type::Unsupported(_) => {
+            Type::BorrowedFunctionPointer { .. } | Type::Named(_) | Type::Opaque { .. } | Type::Closure(_) | Type::Unsupported(_) => {
                 Err(reject("type has no completed CT shape"))
             }
         }
