@@ -4,6 +4,7 @@
 //! Copy/Move/Borrow mode or extend a borrow; those decisions remain in zil-types.
 pub mod ct_selection;
 mod enums;
+mod dyn_lowering;
 mod foreign;
 mod generated_spans;
 mod generics;
@@ -229,6 +230,7 @@ pub struct ExpandedModule {
     generated_exports: Vec<NodeId>,
     imported_public_traits: BTreeSet<String>,
     trait_method_names: BTreeMap<(usize, usize), String>,
+    dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -295,11 +297,13 @@ fn expand_with_map_limits_target_impl(
         &products.trait_signatures,
         products.metered(),
         &products.member_patterns,
+        &products.dynamic,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
+    products.bind_dynamic_targets(&specialized, &expanded, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -351,11 +355,13 @@ pub fn expand_program_module_with_limits_target(
         &products.trait_signatures,
         products.metered(),
         &products.member_patterns,
+        &products.dynamic,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
         products.allowance = Some(lower_limits);
     }
+    products.bind_dynamic_targets(module, &expanded, limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -581,6 +587,7 @@ fn expand_program_with_limits_target_impl(
                 &products.trait_signatures,
                 products.metered(),
                 &products.member_patterns,
+                &products.dynamic,
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -654,6 +661,11 @@ fn expand_program_with_limits_target_impl(
                     Some(module.span),
                 )]
             })?;
+        if !products.dynamic.is_empty() {
+            products.allowance = Some(remaining);
+            products.bind_dynamic_targets(module, &expanded, limits)?;
+            remaining = products.allowance.clone().expect("dynamic target binding preserves allowance");
+        }
         let mut exports = source_exports(
             module,
             &expanded.core,
@@ -723,6 +735,7 @@ fn debit_trait_lowering(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // Private immutable lowering contexts remain explicit.
 fn expand_inner(
     source: &SourceUnit,
     module: &s::Module,
@@ -731,6 +744,7 @@ fn expand_inner(
     signatures: &generics::trait_instances::Signatures,
     metered_trait_instances: bool,
     member_patterns: &BTreeMap<String, s::TypeRef>,
+    dynamic_catalog: &generics::dynamic::Catalog,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     let legacy_limits = Limits::default();
@@ -751,6 +765,7 @@ fn expand_inner(
             signatures,
             metered_trait_instances,
             member_patterns,
+            dynamic_catalog,
         ),
         (lowering_limits, owner_limits),
         None,
@@ -768,6 +783,7 @@ type ProjectLowering<'a> = (
     &'a generics::trait_instances::Signatures,
     bool,
     &'a BTreeMap<String, s::TypeRef>,
+    &'a generics::dynamic::Catalog,
 );
 fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> Declarations<'a> {
     let mut declarations = BTreeMap::new();
@@ -796,6 +812,7 @@ fn expand_inner_project(
         signatures,
         metered_trait_instances,
         member_patterns,
+        dynamic_catalog,
     ) = project;
     let mut e = Expander::new(
         module.id,
@@ -816,6 +833,7 @@ fn expand_inner_project(
     }
     e.enum_sources = project_modules;
     e.member_patterns = Some(member_patterns);
+    e.dynamic_catalog = Some(dynamic_catalog);
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -870,6 +888,7 @@ fn expand_inner_project(
         generated_exports: e.generated_exports,
         imported_public_traits: e.imported_public_traits,
         trait_method_names: e.trait_method_names,
+        dyn_method_emissions: e.dyn_method_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
@@ -898,6 +917,8 @@ struct Expander<'a> {
     enums: Vec<CoreEnum>,
     enum_sources: &'a [&'a s::Module],
     member_patterns: Option<&'a BTreeMap<String, s::TypeRef>>,
+    dynamic_catalog: Option<&'a generics::dynamic::Catalog>,
+    dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
@@ -948,6 +969,8 @@ impl<'a> Expander<'a> {
             enums: Vec::new(),
             enum_sources: &[],
             member_patterns: None,
+            dynamic_catalog: None,
+            dyn_method_emissions: Vec::new(),
             named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
@@ -1077,6 +1100,10 @@ impl Expander<'_> {
                     };
                     let first = self.functions.len();
                     self.item(m, Some(&name), Some(&host), inherited.as_ref());
+                    if i.trait_type.is_some() && matches!(m.kind, s::ItemKind::Function(_)) && self.functions.len() > first {
+                        let target = self.functions.last().expect("emitted method").id;
+                        self.record_dyn_method(member_ordinal, target, m.span);
+                    }
                     if matches!(m.kind, s::ItemKind::Function(_))
                         && let Some(target) = self
                             .trait_method_names
@@ -1126,7 +1153,7 @@ impl Expander<'_> {
         self.unexecuted_attributes(&p.attributes, "parameter");
         CoreParameter {
             name: p.name.clone(),
-            ty: self.type_ref(&p.ty),
+            ty: self.dyn_type_ref(&p.ty),
             mode: mode(p),
             span: p.span,
         }
@@ -1279,7 +1306,7 @@ impl Expander<'_> {
                             s.span,
                         );
                     }
-                    let ty = ty.as_ref().map(|t| self.type_ref(t));
+                    let ty = ty.as_ref().map(|t| self.dyn_type_ref(t));
                     let initializer = self.expr_expected(value, ty.as_ref());
                     let pattern = self.pattern(pattern);
                     return self.statement(
@@ -1303,7 +1330,7 @@ impl Expander<'_> {
                     }
                 };
                 self.scoped_binding(&name, pattern.span);
-                let ty = ty.as_ref().map(|t| self.type_ref(t));
+                let ty = ty.as_ref().map(|t| self.dyn_type_ref(t));
                 let initializer = Some(self.expr_expected(value, ty.as_ref()));
                 CoreStatementKind::Binding {
                     name,
@@ -1467,7 +1494,7 @@ impl Expander<'_> {
         let s::ExprKind::Ascribed { ty, value } = &e.kind else {
             unreachable!("ascription dispatch")
         };
-        let ty = self.type_ref(ty);
+        let ty = self.dyn_type_ref(ty);
         let value = self.expr_expected(value, Some(&ty));
         CoreExprKind::Ascribed {
             ty,
@@ -1593,7 +1620,7 @@ impl Expander<'_> {
                             unreachable!()
                         };
                         let target = self.expr(target);
-                        let argument = self.type_ref(ty);
+                        let argument = self.dyn_type_ref(ty);
                         self.expr_node(
                             CoreExprKind::TypeApply {
                                 callee: Box::new(target),
@@ -1641,7 +1668,7 @@ impl Expander<'_> {
                         self.callable_work -= cost.work * 3;
                         self.member_owner_work += cost.work * 3;
                         self.member_owner_nodes -= cost.nodes;
-                        (name.clone(), Some(self.type_ref(owner)))
+                        (name.clone(), Some(self.dyn_type_ref(owner)))
                     }
                 };
                 CoreExprKind::Member {
@@ -1670,7 +1697,7 @@ impl Expander<'_> {
                         self.scoped_binding(&p.name, p.span);
                         CoreClosureParameter {
                             name: p.name.clone(),
-                            ty: p.ty.as_ref().map(|t| self.type_ref(t)),
+                            ty: p.ty.as_ref().map(|t| self.dyn_type_ref(t)),
                             mode: PassingMode::Infer,
                             span: p.span,
                         }
@@ -1680,7 +1707,7 @@ impl Expander<'_> {
                 self.return_type =
                     return_type
                         .as_ref()
-                        .map(|t| self.type_ref(t))
+                        .map(|t| self.dyn_type_ref(t))
                         .or_else(|| match expected {
                             Some(Type::FunctionPointer { result, .. }) => Some((**result).clone()),
                             _ => None,
