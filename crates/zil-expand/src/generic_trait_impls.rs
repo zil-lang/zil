@@ -503,29 +503,29 @@ impl<'a> Engine<'a> {
         let (_, declaration) = self.traits.declaration_item(&witness.reference);
         let self_substitution = BTreeMap::from([("Self".into(), witness.actual)]);
         for (ordinal, member) in implementation.members.iter_mut().enumerate() {
-            if let ItemKind::Function(function) = &mut member.kind {
-                if !function.params.first().is_some_and(|p| p.name == "self") {
-                    for candidate in &declaration.members {
-                        self.budget.node(candidate.span, 0)?;
-                        if let ItemKind::Function(signature) = &candidate.kind {
-                            self.budget.text(&signature.name, candidate.span)?;
-                            self.budget.text(&function.name, member.span)?;
-                            if signature.name == function.name {
-                                let signature = trait_instances::signature(
-                                    declaration,
-                                    candidate,
-                                    &witness.reference,
-                                    &mut self.budget,
-                                )?;
-                                if let Some(receiver) =
-                                    signature.params.first().filter(|p| p.name == "self")
-                                {
-                                    self.budget.ty(&receiver.ty)?;
-                                    self.budget.text(&receiver.name, receiver.span)?;
-                                    function.params.insert(0, receiver.clone());
-                                }
-                                break;
+            if let ItemKind::Function(function) = &mut member.kind
+                && !function.params.first().is_some_and(|p| p.name == "self")
+            {
+                for candidate in &declaration.members {
+                    self.budget.node(candidate.span, 0)?;
+                    if let ItemKind::Function(signature) = &candidate.kind {
+                        self.budget.text(&signature.name, candidate.span)?;
+                        self.budget.text(&function.name, member.span)?;
+                        if signature.name == function.name {
+                            let signature = trait_instances::signature(
+                                declaration,
+                                candidate,
+                                &witness.reference,
+                                &mut self.budget,
+                            )?;
+                            if let Some(receiver) =
+                                signature.params.first().filter(|p| p.name == "self")
+                            {
+                                self.budget.ty(&receiver.ty)?;
+                                self.budget.text(&receiver.name, receiver.span)?;
+                                function.params.insert(0, receiver.clone());
                             }
+                            break;
                         }
                     }
                 }

@@ -1856,14 +1856,15 @@ impl<'a> Engine<'a> {
                             member.clone_from(&target);
                             trait_signature = Some(signature);
                         }
-                        if trait_signature.is_none() && member.starts_with("$trait_") {
-                            if let Some(signature) = self.realized_method(
+                        if trait_signature.is_none()
+                            && member.starts_with("$trait_")
+                            && let Some(signature) = self.realized_method(
                                 projection_shape(&actual),
                                 member,
                                 callee.span,
-                            )? {
-                                trait_signature = Some(signature);
-                            }
+                            )?
+                        {
+                            trait_signature = Some(signature);
                         }
                         if trait_signature.is_none()
                             && !self.traits.recipes.is_empty()

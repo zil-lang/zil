@@ -86,6 +86,7 @@ impl<'a> Index<'a> {
         span: Span,
         host: Option<Host<'_>>,
     ) -> R<Vec<Bound>> {
+        #[allow(clippy::too_many_arguments)]
         fn visit(
             index: &Index<'_>,
             bound: &Bound,

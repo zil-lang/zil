@@ -42,6 +42,7 @@ impl<'a> Index<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn solve_active(
         &self,
         reference: &trait_instances::Reference,
@@ -259,6 +260,7 @@ impl<'a> Index<'a> {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn prove_premise(
         &self,
         subject: &TypeRef,
