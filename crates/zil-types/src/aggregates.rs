@@ -1027,10 +1027,6 @@ impl Resolver<'_> {
             } => {
                 tasks::require_closed_context(ty, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                let result = match result {
-                    Type::Desc(p) => Type::Managed(p),
-                    t => t,
-                };
                 Type::Task {
                     result: Box::new(result),
                     retained_life: retained_life.clone(),
@@ -2576,10 +2572,6 @@ impl Resolver<'_> {
             )),
             CoreAggregateTypeRecipe::Task { result } => {
                 let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
-                let result = match result {
-                    Type::Desc(p) => Type::Managed(p),
-                    t => t,
-                };
                 Ok(Type::Desc(Box::new(Type::Task {
                     result: Box::new(result),
                     retained_life: tasks::empty_context(),

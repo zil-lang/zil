@@ -111,6 +111,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
     let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
+    let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
     let functions = lir
         .functions
         .iter()
@@ -240,6 +241,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    text.append(task_cleanup_helpers);
     if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
     }
@@ -546,7 +548,9 @@ fn lower_function_batch(
         if verified.uses_retained_registration() {
             registration::reserve_function(function, closures, functions, task_meter)?;
         }
+        tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
         let emitted = FunctionEmitter {
+            task_ownership: verified.task_ownership(function.id),
             function,
             target: lir.target,
             functions,
@@ -1151,6 +1155,7 @@ fn entry_wrapper(
 }
 
 struct FunctionEmitter<'a> {
+    task_ownership: Option<&'a zil_verify::TaskOwnership>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
@@ -1384,8 +1389,14 @@ impl FunctionEmitter<'_> {
         )));
         for block in &self.function.blocks {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
-            for instruction in &block.instructions {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                if let Some(actions) = self.task_ownership.and_then(|p| p.actions_at(block.id, index)) {
+                    for &action in actions.before() { self.event(tasks::owner_marker(action)); }
+                }
                 self.instruction(instruction)?;
+                if let Some(actions) = self.task_ownership.and_then(|p| p.actions_at(block.id, index)) {
+                    for &action in actions.after() { self.event(tasks::owner_marker(action)); }
+                }
             }
             self.terminator(&block.terminator)?;
         }
@@ -3004,6 +3015,9 @@ impl FunctionEmitter<'_> {
     fn terminator(&mut self, terminator: &Terminator) -> CompileResult<()> {
         match terminator {
             Terminator::Return(value) => {
+                if let Some(index) = value.and_then(|v| self.task_ownership.and_then(|p| p.owner_for_value(v))) {
+                    self.event(tasks::owner_marker(zil_verify::TaskOwnerAction::Unlink(index)));
+                }
                 if let Some(slot) = &self.abi().result {
                     let bytes = slot.bytes;
                     let returned = value.ok_or_else(|| {

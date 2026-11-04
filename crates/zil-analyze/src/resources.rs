@@ -1397,6 +1397,9 @@ impl Flow<'_> {
                     }
                     forget_order(state, *local, budget)?;
                 }
+                InstructionKind::TaskPoll { .. } => {
+                    if out_shape.is_some_and(|s| s.owned) { produced = Some(Fact { life: BTreeSet::from([Life::Available]), birth: BTreeSet::from([Birth::Incoming]), sources: BTreeSet::new() }); }
+                }
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len(), "task transferred inputs")?;
                     for &v in arguments {

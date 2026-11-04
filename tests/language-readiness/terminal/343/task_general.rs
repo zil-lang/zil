@@ -405,6 +405,7 @@ fn general_task343_native_creation_failure_and_default_cleanup() {
     let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"));
     let observed = SOURCE.replace("putchar", "task_general_observe");
     let default = observed.replace("    task_finish_destroy(give task);", "");
+    let owning = include_str!("task-owned-argument-order.zil").replace("putchar", "task_general_observe");
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
             continue;
@@ -429,7 +430,11 @@ fn general_task343_native_creation_failure_and_default_cleanup() {
             let wrapper = dir.join("link.sh");
             fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&object),quote(&clang))).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            for text in [observed.as_str(), default.as_str()] {
+            for (text, success_bytes, failed_bytes) in [
+                (observed.as_str(), b"APRCF".as_slice(), b"A".as_slice()),
+                (default.as_str(), b"APRCF".as_slice(), b"A".as_slice()),
+                (owning.as_str(), b"AABF".as_slice(), b"ABA".as_slice()),
+            ] {
                 let report = compile_source(
                     &source(text),
                     &CompileOptions {
@@ -459,11 +464,7 @@ fn general_task343_native_creation_failure_and_default_cleanup() {
                     assert_eq!(actual.status.code(), Some(i32::from(fail)), "{actual:?}");
                     assert_eq!(
                         actual.stdout,
-                        if fail {
-                            b"A".as_slice()
-                        } else {
-                            b"APRCF".as_slice()
-                        },
+                        if fail { failed_bytes } else { success_bytes },
                         "{actual:?}"
                     );
                 }
@@ -603,4 +604,138 @@ fn general_task343_generated_ascribed_and_sequence_head_hints_preserve_types() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn owned_task343_native_input_before_poll_pending_and_completion() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case,fixture) in [("input",include_str!("task-owned-input.zil")),("argument",include_str!("task-owned-argument.zil")),("tuple",include_str!("task-owned-ssa.zil"))] {
+            for polls in 0..3 {
+                let text = fixture.replace("// POLLS", &"task_poll(&mut task);".repeat(polls));
+                let dir = std::env::temp_dir().join(format!("zil343-owned-input-{}-{case}-{polls}-{backend:?}-{optimization:?}", std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(&source(&text), &CompileOptions { backend, optimization, stop_after: Stage::Build, output: Some(dir.join("program")), ..CompileOptions::default() });
+                if case == "tuple" && report.status != ResultCategory::Success {
+                    let typed=zil_types::check(&expand(&text,&Limits::default()).unwrap().core,&zil_base::TargetProfile::default(),&Limits::default()).unwrap();
+                    for f in &typed.functions {if f.name=="worker" {for i in f.blocks.iter().flat_map(|b|&b.instructions) {if i.span.start==324 {eprintln!("tuple operation {:?}",i.kind);}}}}
+                }
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                let actual = std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+                assert_eq!(actual.stdout, b"A", "{actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+    }
+}
+
+#[test]
+fn owned_task343_native_dynamic_branch_order_matches_ordinary_teardown() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for text in [include_str!("task-owned-ordinary-trace.zil"), include_str!("task-owned-order.zil")] {
+                let dir=std::env::temp_dir().join(format!("zil343-owned-order-{}-{backend:?}-{optimization:?}",std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report=compile_source(&source(text), &CompileOptions {backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(),Some(0),"{actual:?}");
+                assert_eq!(actual.stdout,b"BACDABDC","{actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_task343_native_ready_result_moves_once() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature="llvm-api") {continue;}
+        for optimization in [Optimization::O0,Optimization::O2] {
+            let dir=std::env::temp_dir().join(format!("zil343-owned-result-{}-{backend:?}-{optimization:?}",std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            for (fixture,expected) in [(include_str!("task-owned-result.zil"),b"PRA".as_slice()),(include_str!("managed-generic-enum.zil"),b"A".as_slice())] {
+            let report=compile_source(&source(fixture), &CompileOptions{backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+            assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+            let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(actual.status.code(),Some(0),"{actual:?}");
+            assert_eq!(actual.stdout,expected,"{actual:?}");
+            }
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn owned_task343_prepared_temp_cancellation_matches_recoverable_failure_order() {
+    use zil_driver::{NativeBackend,Optimization,Stage};
+    for backend in [NativeBackend::Clang,NativeBackend::LlvmApi] {
+        if backend==NativeBackend::LlvmApi&&!cfg!(feature="llvm-api"){continue;}
+        for optimization in [Optimization::O0,Optimization::O2] {
+            for fixture in [include_str!("task-owned-argument-failure-order.zil"),include_str!("task-owned-argument-order.zil")] {
+                let dir=std::env::temp_dir().join(format!("zil343-temp-order-{}-{backend:?}-{optimization:?}",std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report=compile_source(&source(fixture),&CompileOptions{backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(),Some(0),"{actual:?}");assert_eq!(actual.stdout,b"AB","{actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
+    use zil_ir::{InstructionKind as I,CallKind,PassingMode};
+    let limits=Limits::default();let target=zil_base::TargetProfile::default();
+    for case in 0..4 {
+        let fixture=if case==3 {include_str!("task-owned-result.zil")} else {include_str!("task-owned-argument-order.zil")};
+        let typed=zil_types::check(&expand(fixture,&limits).unwrap().core,&target,&limits).unwrap();
+        let plan=zil_analyze::analyze(&typed,&limits).unwrap();
+        let verified=zil_verify::verify_module(typed.clone(),plan.clone(),&target,&limits).unwrap();
+        let worker=typed.functions.iter().find(|f|f.name=="worker").unwrap().id;
+        let ownership=verified.task_ownership(worker).expect("actual verified owning frame");
+        assert!(!ownership.owners().is_empty());assert!(!ownership.entry().is_empty());assert!(!ownership.boundaries().is_empty());
+        assert_eq!(ownership.owners().iter().map(|o|o.slot()).collect::<std::collections::BTreeSet<_>>().len(),ownership.owners().len());
+        assert_eq!(ownership.result_type().is_some(),case==3);
+        let mut raw=typed.clone();
+        match case {
+            0=>{let i=raw.functions.iter_mut().flat_map(|f|&mut f.blocks).flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,I::TaskCreate{..})).unwrap();if let I::TaskCreate{arguments,..}=&mut i.kind{arguments[1]=arguments[0];}},
+            1=>raw.functions[worker.0 as usize].call_kind=CallKind::Direct,
+            2=>{let drop=raw.resources.iter().find_map(|r|r.teardown).unwrap();raw.functions[drop.0 as usize].call_kind=CallKind::Suspend;},
+            3=>raw.functions[worker.0 as usize].result_mode=PassingMode::Create,
+            _=>unreachable!()
+        }
+        let errors=zil_analyze::analyze(&raw,&limits).unwrap_err();
+        assert!(errors.iter().any(|e|e.code=="E-TASK-ABI"||e.code=="E-RESOURCE"),"case={case}: {errors:?}");
+        let mut claim=plan;claim.module_fingerprint=raw.fingerprint();
+        for wire in [false,true] {
+            let input=if wire {zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&raw,&claim,&limits).unwrap(),&limits).unwrap().0}else{raw.clone()};
+            let errors=zil_verify::verify_module(input,claim.clone(),&target,&limits).unwrap_err();
+            let expected=if case==0 {"E-VERIFY-RESOURCE"}else{"E-VERIFY-TASK"};
+            assert_eq!(errors[0].code,expected,"case={case} wire={wire}: {errors:?}");
+        }
+    }
+}
+
+#[test]
+fn owned_task343_exact_kernel_ledger_covers_frame_obligations() {
+    let defaults=Limits::default();let target=zil_base::TargetProfile::default();
+    let typed=zil_types::check(&expand(include_str!("task-owned-argument-order.zil"),&defaults).unwrap().core,&target,&defaults).unwrap();
+    let plan=zil_analyze::analyze(&typed,&defaults).unwrap();
+    for verify in [false,true] {
+        let run=|n| {let limits=Limits{max_analysis_steps:n,..defaults.clone()};if verify{zil_verify::verify_module(typed.clone(),plan.clone(),&target,&limits).map(|_|())}else{zil_analyze::analyze(&typed,&limits).map(|_|())}};
+        let(mut lo,mut hi)=(1,defaults.max_analysis_steps);
+        while lo<hi {let mid=lo+(hi-lo)/2;if run(mid).is_ok(){hi=mid;}else{lo=mid+1;}}
+        run(lo).unwrap();assert_eq!(run(lo-1).unwrap_err()[0].category,ResultCategory::ResourceLimit);run(lo).unwrap();
+        eprintln!("owned Task343 exact verify={verify} N={lo}");
+    }
 }

@@ -1,5 +1,6 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod owned;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -81,7 +82,7 @@ pub(super) fn carrier(
     };
     require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
-    if matches!(payload.as_ref(),Type::Task{result, ..} if **result!=Type::I32) {
+    if let Type::Task { result, .. } = payload.as_ref() && !owned::result_type(result, budget)? {
         return Err(unsupported(
             "general owning task result lowering is not yet admitted by this frame profile",
             span,
@@ -158,6 +159,8 @@ pub(super) fn instruction(
             ty
         }
         InstructionKind::TaskStart { worker, argument } => {
+            let target = module.functions.get(worker.0 as usize).ok_or_else(bad)?;
+            if target.parameters.len() != 1 || local_type(target, target.parameters[0], span)? != &Type::I32 || target.return_type != Type::I32 { return Err(bad()); }
             if value_type(f, argument, span)? != &Type::I32 {
                 return Err(bad());
             }
@@ -176,6 +179,8 @@ pub(super) fn instruction(
             if arguments.len() != 1 || value_type(f, arguments[0], span)? != &Type::I32 {
                 return Err(bad());
             }
+            let target = module.functions.get(function.0 as usize).ok_or_else(bad)?;
+            if target.parameters.len() != 1 || local_type(target, target.parameters[0], span)? != &Type::I32 || target.return_type != Type::I32 { return Err(bad()); }
             profile(module, function, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(function);
@@ -250,11 +255,14 @@ fn profile_one(
         .ok_or_else(|| reject("E-VERIFY-TASK", span, "task worker is absent"))?;
     budget.spend(
         f.locals
-            .len()
-            .saturating_add(f.values.len())
+            .len().saturating_mul(2)
+            .saturating_add(f.values.len().saturating_mul(2))
             .saturating_add(module.resources.len())
             .saturating_add(1),
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_))) || f.values.iter().any(|t| matches!(t, Type::Managed(_))) {
+        return owned::profile(module, f, budget, span);
+    }
     let scalar = |t: &Type| {
         matches!(
             t,
