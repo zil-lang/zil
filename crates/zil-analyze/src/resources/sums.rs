@@ -1098,7 +1098,7 @@ impl Plan {
                 if matches!(
                     i.kind,
                     InstructionKind::BorrowVariantLocal { mutable: true, .. }
-                ) && matches!(ty, Type::Enum { .. })
+                ) && matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. })
                     && ty.is_copy_value()
                 {
                     facts
