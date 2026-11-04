@@ -20,3 +20,23 @@ prepares the whole suffix, then transfers owners using the existing Store
 operations with proved capacity. truncate drops the removed suffix in reverse
 index order; invalid bounds leave the input unchanged. Actual owning payloads,
 all preparation failure points, and active-view counterexamples are required.
+
+UI library continuation: ordinary `std.ui_layout` supplies validated integer
+pixel rectangles, intersection/hit testing and bounded row/column tracks. Track
+min/max sizes and equal flexible growth are explicit; validation and sizing
+finish before any output rectangle changes. Space exhaustion/invalid input
+returns an ordinary error without mutation. No implicit allocation, native
+handle or compiler permission is introduced. `std.ui_raster` will consume the
+same clipped coordinates for an explicit caller-owned RGBA framebuffer; input
+composition will reuse transactional UTF8/String editing. These library kernels
+are prerequisites, not evidence of a native window, IME service or full product.
+
+The layout/raster candidate executes both backends at O0/O2 (8 native builds/runs).
+Raster uses premultiplied RGBA and validates the entire affected destination
+before source-over blending; row padding and untouched pixels are preserved.
+The ordinary input composition candidate retains preedit separately, uses scalar
+indices/revision checks, and commits through String's transactional replacement.
+Its original consumer currently exposes the missing mutable nested Package-field
+borrow (`string.clear(&mut session.text)`);342 is implementing that actual language
+path. This UI source is preserved without flattening its nested String ownership.
+No native window/OS IME or complete ZUI acceptance is claimed by these kernels.
