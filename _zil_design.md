@@ -1321,6 +1321,8 @@ Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关
 
 共同40的完整可调用关系：BorrowedFunctionPointer、CoreCallableParameter.life、CallableRole.life及CT对应节点/构造器统一使用同一完整StorageLifeContract；DynSlot只保留storage_life，不再并列独立invocation_life。旧FunctionLifeContract仅为确切的平坦地址导出投影；存在Fixed、非空classes、capture或非空位置路径时不能以平坦投影擦除关系。完整签名先独立验证实际类型和声明上下文，再按Parameter、实际Capture、Result顺序遍历；外层Address先访问直接借用位置，再访问pointee语义类。每个实际借用位置和类型边界类恰覆盖一次，遇qualified边界使用其已核本地类，不另行展平子关系。Fixed/Invocation按联合遍历的首次出现分别密集编号，不用物理和元数据两份独立遍历编号。无用尾类、重复、缺漏、错误路径及矛盾映射拒绝。
 
+共同40的qualified边界例：`read(v:&View<'a>)->&'a i64`中，若View的真实Field0在本地shape中属于类0，则合同bindings仅为Parameter0空路径→Invocation0及Result空路径→Fixed0，classes为Parameter0/[Pointee]/class0→Fixed0；不再序列化Parameter0/[Field0]的重复life行。核通过已核本地shape和唯一类映射私下合成Field0的关系，真实字段访问、槽状态、目标及父loan仍逐项证明。额外展平的Field0声明行不规范。若源写成`v:&'a View<'a>`，外层Address也映射已建立的Fixed0；先收集实际输入类建立的关系，再按联合首次出现编号。未qualified的普通聚合仍枚举其真实借用叶。
+
 类映射保持实际完整关系，例如for<a,b> fn(&'a Tag<'b>, &'b i32)中Parameter0的外层Address与Pointee的Tag类分别映射Invocation0/1；不能仅凭外层地址标签合并。嵌套callable自身Invocation是词法屏障，外层只能显式关联其自由Fixed域。Fixed必须由实际输入/捕获保留类或完整包围上下文建立，结果单独出现不能创建它；捕获Fixed不能洗成新Invocation。调用先匹配不变语义类，再独立代入实际目标、槽和父loan；phantom无运行时目标或权限。薄指针无运行时环境，其自由Fixed必须来自真实包围语义上下文；显式forall仍每次调用新鲜。函数目标与角色转换分别核完整签名关系、实际返回根、模式、拥有/清理、CallKind/effects和线程/resume约束；同一ClosureId不等于同一角色关系。
 
 名义life实参的AST `GenericArg::Lifetime`须保留真实参数种类、声明序号、词法scope及联合规范关系，字符串只为语法。普通`SliceIter<life s,T:Copy>`与`Option<&'s T>`及trait方法为真实库消费者，不设Iterator内建特权。CT BorrowedStorage节点16/构造器12保存实际storage子节点及完整shape，codec界定类数、路径、增长、分配和DAG边。全名义phantom/lifetime实参仍须有封闭数值scope引用、参数位置及种类核验；不能丢弃实参或使用自由life名字冒充完成，在该消费者落地前显式Unsupported并继续施工。
