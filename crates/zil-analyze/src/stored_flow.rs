@@ -2886,6 +2886,38 @@ mod tests {
         }
     }
     #[test]
+    fn owned_fixed_once_has_one_exact_fresh_and_warm_request_budget() {
+        let m = fixture::captured_owned_fixed(false);
+        let limits = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if super::super::analyze(&m, &limits(mid)).is_ok() {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        let mut session = super::super::AnalysisSession::default();
+        for warm in [false, true] {
+            assert_eq!(session.analyze(&m, &limits(low)).unwrap(), expected);
+            if warm {
+                assert!(session.last_stats().reused_functions > 0);
+            }
+            let error = session.analyze(&m, &limits(low - 1)).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            assert_eq!(super::super::analyze(&m, &limits(low)).unwrap(), expected);
+        }
+        println!("G3.3.3 owned Fixed Analyze N={low}; N-1/fresh/warm identical");
+    }
+    #[test]
     fn owned_fixed_heads_require_actual_resource_definitions() {
         let m = fixture::captured_owned_fixed(false);
         let limits = Limits::default();
