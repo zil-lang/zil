@@ -74,14 +74,20 @@ function scenario(id, title, body) {
 }
 const hasError = (result, text) => result.errors.some(e => e.reason.includes(text));
 
-scenario('handoff-001', '分树读取主树工单', t => {
+scenario('handoff-001', '分树核对主树工程记录且不从历史状态派工', t => {
   const f = fixture(t), child = path.join(f.area, '003');
   git(f.root, 'worktree', 'add', '--quiet', '-b', '003', child);
   put(child, '.task/impl/003.md', '错误副本\n');
   const result = inspectHandoff(child);
   check(result.status, 'Pass'); check(result.authority.current_is_main, false);
   check(result.slices[0].status, '施工'); check(result.runtime.main_tree, fs.realpathSync(f.root));
-  check(result.next, [{id: '003', status: '施工', authoritative_task: '.task/impl/003.md'}]);
+  check(result.next, []);
+  check(result.recorded_open_slices, {scope: 'Open states recorded in main-tree engineering history; not live assignments.', records: [{id: '003', status: '施工', record_path: '.task/impl/003.md'}]});
+  check(result.live_plan, {branch: 'goal', path: 'goal.md', refresh_command: 'git fetch origin refs/heads/goal:refs/remotes/origin/goal', read_command: 'git show refs/remotes/origin/goal:goal.md'});
+  check(result.live_plan_checked, false); check(result.development_branches_checked, false);
+  check(result.authority.task_scope, 'Main-tree engineering and delivery records only; live planning authority is goal:goal.md.');
+  check(result.commands.plan, result.live_plan.read_command);
+  check(result.commands.engineering_contract, 'python3 tools/check-plan.py --self-test');
   const attempt = capture(process.execPath, [script], {cwd: child});
   check(attempt.status, 1); check(fs.existsSync(path.join(f.root, 'data/handoff.json')), false);
 });
@@ -296,6 +302,7 @@ scenario('handoff-014', '历史Unavailable与当前门及只读audit分离', t =
   const report = inspectHandoff(f.root);
   check(report.status, 'CurrentPass'); check(report.current_gate.status, 'CurrentPass');
   check(report.historical_status.status, 'Unavailable'); check(report.historical_status.claims_revalidated, false); check(report.next, []);
+  check(report.recorded_open_slices.records, []);
   check(report.slices[0].status, '施工'); check(report.slices[0].validation.availability, 'Unavailable');
   const created = capture(process.execPath, [script], {cwd: f.root}); check(created.status, 0);
   const saved = fs.readFileSync(path.join(f.root, 'data/handoff.json'));
