@@ -201,6 +201,7 @@ fn reserve_enum_metadata(
             reserve_enum_metadata(result, work, depth + 1, limits)?;
         }
         Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer { parameters, result, .. }
         | Type::ForeignCallback { parameters, result } => {
             for parameter in parameters {
                 reserve_enum_metadata(parameter, work, depth + 1, limits)?;
@@ -256,6 +257,7 @@ pub(super) fn reserve(
             reserve(result, work, depth + 1, limits)?;
         }
         Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer { parameters, result, .. }
         | Type::ForeignCallback { parameters, result } => {
             for parameter in parameters {
                 reserve(parameter, work, depth + 1, limits)?;

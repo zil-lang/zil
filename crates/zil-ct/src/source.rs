@@ -513,6 +513,13 @@ pub(super) fn hint_type(
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            *work = work.checked_sub((life.binder_count as usize).saturating_add(life.parameter_lives.len().saturating_mul(2)).saturating_add(2)).ok_or_else(limit)?;
+            if parameters.len() > limits.max_locals { return Err(limit()); }
+            for parameter in parameters { hint_type(parameter, depth + 1, nodes, work, limits)?; }
+            hint_type(result, depth + 1, nodes, work, limits)?;
+            Ok(false)
+        }
         Type::FunctionPointer { parameters, result }
         | Type::ForeignCallback { parameters, result } => {
             if parameters.len() > limits.max_locals {

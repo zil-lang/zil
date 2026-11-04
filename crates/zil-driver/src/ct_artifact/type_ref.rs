@@ -123,6 +123,12 @@ impl Builder<'_> {
                 let element = self.ty(element)?;
                 self.push(CtTypeNode::OwnedStore(element))
             }
+            Type::BorrowedFunctionPointer { parameters, result, life } => {
+                self.left = self.left.checked_sub((life.binder_count as usize).saturating_add(life.parameter_lives.len())).ok_or_else(||reject("CT borrowed pointer metadata exceeds node budget"))?;
+                let parameters=parameters.iter().map(|ty|self.ty(ty)).collect::<CompileResult<Vec<_>>>()?;
+                let result=self.ty(result)?;
+                self.push(CtTypeNode::BorrowedFunctionPointer {parameters,result,life:life.clone()})
+            }
             Type::FunctionPointer { parameters, result } => {
                 let parameters = parameters
                     .iter()
@@ -168,4 +174,16 @@ pub(super) fn from_checked_type(
         nodes: builder.nodes,
         root,
     })
+}
+
+/// Producer-only lexical lowering; a Type value carries no borrow permission.
+pub(super) fn source_relation(names:&[&str],parameters:&[zil_syntax::ast::TypeRef],result:&zil_syntax::ast::TypeRef)->zil_ir::FunctionLifeContract {
+    use zil_syntax::ast::TypeKind;
+    let tag=|mut ty:&zil_syntax::ast::TypeRef|{while let TypeKind::Group(inner)=&ty.kind{ty=inner;}match &ty.kind{TypeKind::Reference{lifetime:Some(name),..}=>names.iter().rposition(|n|*n==name).map(|i|i as u32),_=>None}};
+    let mut life=zil_ir::FunctionLifeContract{binder_count:0,parameter_lives:parameters.iter().map(tag).collect(),result_life:tag(result)};
+    let mut remap=vec![None;names.len()];
+    for label in life.parameter_lives.iter_mut().chain(std::iter::once(&mut life.result_life)){
+        if let Some(old)=*label{let dense=*remap[old as usize].get_or_insert_with(||{let n=life.binder_count;life.binder_count+=1;n});*label=Some(dense);}
+    }
+    life
 }

@@ -1886,16 +1886,15 @@ impl FunctionEmitter<'_> {
                     )?;
                     return Ok(());
                 }
-                let Type::FunctionPointer {
-                    result: return_type,
-                    ..
-                } = self.value_type(*callee)?
-                else {
+                let return_type = match self.value_type(*callee)? {
+                    Type::FunctionPointer { result, .. } | Type::BorrowedFunctionPointer { result, .. } => result,
+                    _ => {
                     return invalid(
                         "E-CODEGEN-CFG",
                         "indirect call requires a function pointer",
                         Some(instruction.span),
                     );
+                    }
                 };
                 let mut emitted_arguments = Vec::new();
                 for argument in arguments {
@@ -2905,7 +2904,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             aggregate_field_type(result)?,
         ])),
         Type::Closure(id) => Ok(environment_type(*id)),
-        Type::FunctionPointer { .. } => Ok("ptr".into()),
+        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }
@@ -2967,7 +2966,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
-        Type::FunctionPointer { .. } => Ok(8),
+        Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()
                 || matches!(inner.as_ref(), Type::Closure(_))

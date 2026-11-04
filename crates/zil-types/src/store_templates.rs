@@ -676,6 +676,7 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
                 self.ty(result, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
                     self.ty(parameter, depth + 1)?;

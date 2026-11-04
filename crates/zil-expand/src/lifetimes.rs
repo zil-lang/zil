@@ -91,6 +91,34 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, s::TypeKind::ForLifetime { .. }) {
+                let old_binders = std::mem::take(&mut self.binders);
+                let old_headers = std::mem::take(&mut self.headers);
+                let old_mutable_life = self.mutable_life;
+                self.mutable_life = true;
+                let mut inner = ty;
+                let mut rank = depth;
+                while let s::TypeKind::ForLifetime { lifetime, inner: nested } = &inner.kind {
+                    self.budget.node(inner.span, rank).map_err(|e| vec![e])?;
+                    self.budget.text(lifetime, inner.span).map_err(|e| vec![e])?;
+                    self.binders.push(lifetime.clone());
+                    inner = nested;
+                    rank += 1;
+                }
+                let s::TypeKind::Function { params, result } = &inner.kind else {
+                    return Err(vec![Diagnostic::unsupported(Phase::Expand,
+                        "higher-rank life currently requires a direct function pointer signature", Some(ty.span))]);
+                };
+                for header in params.iter().chain(std::iter::once(result.as_ref())) {
+                    self.budget.node(header.span, rank).map_err(|e| vec![e])?;
+                    self.headers.push(std::ptr::from_ref(reference(header)));
+                }
+                let result = ct_selection::walk_type(self, inner, rank);
+                self.binders = old_binders;
+                self.headers = old_headers;
+                self.mutable_life = old_mutable_life;
+                return result;
+            }
             if let s::TypeKind::Reference {
                 lifetime: Some(name),
                 mutable,
@@ -116,13 +144,6 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     )]);
                 }
             }
-            if matches!(ty.kind, s::TypeKind::ForLifetime { .. }) {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Expand,
-                    "higher-rank life is not implemented",
-                    Some(ty.span),
-                )]);
-            }
             ct_selection::walk_type(self, ty, depth)
         }
     }
@@ -138,6 +159,43 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         ct_selection::Visitor::item(&mut walk, item, 0)?;
     }
     Ok(())
+}
+
+/// Lower only the retained lexical relation. This raw type is still checked
+/// by Types and both independent CFG consumers before it grants any access.
+pub(super) fn pointer_type(ty: &s::TypeRef) -> Type {
+    fn reference(ty: &s::TypeRef) -> &s::TypeRef {
+        match &ty.kind { s::TypeKind::Group(inner) => reference(inner), _ => ty }
+    }
+    let mut names = Vec::new();
+    let mut inner = ty;
+    while let s::TypeKind::ForLifetime { lifetime, inner: nested } = &inner.kind {
+        names.push(lifetime.as_str());
+        inner = nested;
+    }
+    let s::TypeKind::Function { params, result } = &inner.kind else {
+        return Type::Unsupported("higher-rank life requires a direct function signature".into());
+    };
+    let tag = |ty: &s::TypeRef| match &reference(ty).kind {
+        s::TypeKind::Reference { lifetime: Some(name), .. } => names.iter().rposition(|n| *n == name).map(|i| i as u32),
+        _ => None,
+    };
+    let lower = |ty: &s::TypeRef| match &reference(ty).kind {
+        s::TypeKind::Reference { mutable, inner, .. } => Type::Address { mutable: *mutable, inner: Box::new(super::type_ref(inner)) },
+        _ => super::type_ref(ty),
+    };
+    let mut parameter_lives:Vec<_>=params.iter().map(tag).collect();
+    let mut remap=vec![None;names.len()];let mut next=0;
+    let mut result_life=tag(result);
+    for label in parameter_lives.iter_mut().chain(std::iter::once(&mut result_life)) {
+        if let Some(old)=*label {let entry=&mut remap[old as usize];let dense=*entry.get_or_insert_with(||{let dense=next;next+=1;dense});*label=Some(dense);}
+    }
+    if next==0 {return Type::FunctionPointer{parameters:params.iter().map(lower).collect(),result:Box::new(lower(result))};}
+    Type::BorrowedFunctionPointer {
+        parameters: params.iter().map(lower).collect(),
+        result: Box::new(lower(result)),
+        life: zil_ir::FunctionLifeContract { binder_count: next, parameter_lives, result_life },
+    }
 }
 
 pub(super) fn only_life(function: &s::Function) -> bool {

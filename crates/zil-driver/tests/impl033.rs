@@ -134,13 +134,13 @@ fn source_function_pointer_signature_and_environment_boundaries() {
         ),
         (
             "fn f(x:&i32)->i32=>*x;fn result()->i32{let p=f;return 0}",
-            ResultCategory::Unsupported,
-            "E-UNSUPPORTED",
+            ResultCategory::Success,
+            "",
         ),
         (
             "fn apply(p:fn(&i32)->i32,x:&i32)->i32=>p(x);fn result()->i32=>0",
-            ResultCategory::Unsupported,
-            "E-UNSUPPORTED",
+            ResultCategory::Success,
+            "",
         ),
         (
             "fn result()->i32{let n=3;let p:fn(i32)->i32=move(x:i32)=>x+n;return p(1)}",
@@ -155,7 +155,8 @@ fn source_function_pointer_signature_and_environment_boundaries() {
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(report.status, category, "{}", report.to_json());
-        assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json());
+        if category == ResultCategory::Success { assert!(report.diagnostics.is_empty()); }
+        else { assert_eq!(report.diagnostics[0].code, code, "{}", report.to_json()); }
         assert!(!report.artifacts.contains_key("executable"));
     }
 }

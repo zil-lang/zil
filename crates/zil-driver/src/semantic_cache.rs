@@ -469,6 +469,12 @@ fn charge_type(
             charge_type(error, nodes, bytes, maximum_depth, depth + 1)?;
             charge_type(result, nodes, bytes, maximum_depth, depth + 1)?;
         }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            *nodes = nodes.checked_sub((life.binder_count as usize).saturating_add(life.parameter_lives.len()))?;
+            *bytes = bytes.checked_sub(life.parameter_lives.len().checked_mul(std::mem::size_of::<Option<u32>>())?.checked_add(8)?)?;
+            for ty in parameters { charge_type(ty, nodes, bytes, maximum_depth, depth + 1)?; }
+            charge_type(result, nodes, bytes, maximum_depth, depth + 1)?;
+        }
         Type::FunctionPointer { parameters, result }
         | Type::ForeignCallback { parameters, result } => {
             for ty in parameters {

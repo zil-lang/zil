@@ -546,6 +546,16 @@ impl Materializer<'_, '_> {
                     depth + 1,
                 )?)],
             ),
+            CtTypeNode::BorrowedFunctionPointer{parameters,result,life}=>{
+                self.environment.budget.reserve_analysis_work((life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64))?;
+                self.environment.budget.reserve_generated_nodes(life.binder_count as u64)?;
+                self.environment.budget.reserve_temporary_bytes((life.binder_count as u64).saturating_mul(64))?;
+                let label=|mut ty:s::TypeRef,tag:Option<u32>|->CompileResult<s::TypeRef>{if let Some(tag)=tag{let s::TypeKind::Reference{lifetime,..}=&mut ty.kind else{return Err(category("borrowed pointer label names a non-address",span))};*lifetime=Some(format!("zil_life_{tag}"));}Ok(ty)};
+                let params=parameters.iter().enumerate().map(|(i,id)|label(self.owner_node(ty,*id,caller,span,depth+1)?,life.parameter_lives.get(i).copied().flatten())).collect::<CompileResult<Vec<_>>>()?;
+                let result=Box::new(label(self.owner_node(ty,*result,caller,span,depth+1)?,life.result_life)?);
+                let mut kind=s::TypeKind::Function{params,result};
+                for i in (0..life.binder_count).rev(){kind=s::TypeKind::ForLifetime{lifetime:format!("zil_life_{i}"),inner:Box::new(s::TypeRef{kind,span})};}kind
+            },
             CtTypeNode::FunctionPointer { parameters, result } => s::TypeKind::Function {
                 params: parameters
                     .iter()

@@ -56,6 +56,7 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_add(1))?;
                 pending.extend(parameters);

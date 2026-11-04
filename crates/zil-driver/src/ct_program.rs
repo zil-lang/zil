@@ -848,6 +848,7 @@ impl Collector<'_> {
                 self.ty(result, depth + 1)?;
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer { parameters, result, .. }
             | Type::ForeignCallback { parameters, result } => {
                 if parameters.len() > self.limits.max_locals {
                     return Err(vec![Diagnostic::limit(

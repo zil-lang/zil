@@ -1551,10 +1551,19 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             parameters: params.iter().map(type_ref).collect(),
             result: Box::new(type_ref(result)),
         },
-        s::TypeKind::Function { params, result } => Type::FunctionPointer {
-            parameters: params.iter().map(type_ref).collect(),
-            result: Box::new(type_ref(result)),
+        s::TypeKind::Function { params, result } => {
+            let parameters: Vec<_> = params.iter().map(type_ref).collect();
+            let result = Box::new(type_ref(result));
+            if parameters.iter().any(|p| matches!(p, Type::Address { .. })) || matches!(result.as_ref(), Type::Address { .. }) {
+                let life = zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: parameters.iter().map(|p| matches!(p, Type::Address { .. }).then_some(0)).collect(),
+                    result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
+                };
+                Type::BorrowedFunctionPointer { parameters, result, life }
+            } else { Type::FunctionPointer { parameters, result } }
         },
+        s::TypeKind::ForLifetime { .. } => lifetimes::pointer_type(t),
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }

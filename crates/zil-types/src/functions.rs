@@ -8,11 +8,15 @@ impl Signature {
             || !self.callable.is_empty()
             || self.foreign
             || self.cleanup
-            || !self.parameters.iter().all(Type::is_copy_value)
-            || !self.result.is_copy_value()
         {
             return None;
         }
+        if self.parameters.iter().any(|ty| matches!(ty, Type::Address { .. })) || matches!(self.result, Type::Address { .. }) {
+            let life = self.life.clone().unwrap_or_else(|| borrowed_fp::default_life(&self.parameters,&self.result));
+            borrowed_fp::relation(&self.parameters,&self.result,&life,Span::default()).ok()?;
+            return Some(Type::BorrowedFunctionPointer { parameters: self.parameters.clone(), result: Box::new(self.result.clone()), life });
+        }
+        if !self.parameters.iter().all(Type::is_copy_value) || !self.result.is_copy_value() { return None; }
         Some(Type::FunctionPointer {
             parameters: self.parameters.clone(),
             result: Box::new(self.result.clone()),
@@ -21,7 +25,10 @@ impl Signature {
 }
 
 impl Builder<'_, '_> {
-    pub(super) fn function_reference(&mut self, expression: &CoreExpr) -> R<(ValueId, Type)> {
+    pub(super) fn function_reference(&mut self, expression: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(Type::BorrowedFunctionPointer { life, .. }) = expected {
+            self.closures.snapshot(borrowed_fp::metadata_work(life), expression.span)?;
+        }
         let signature = self.resolve_callee(expression)?;
         if signature.cleanup {
             return Err(error(
@@ -37,7 +44,8 @@ impl Builder<'_, '_> {
                 "foreign function values require an explicit unsafe C ABI pointer type, which is not implemented",
             ));
         }
-        let ty = signature.pointer_type().ok_or_else(|| {
+        let pointer = borrowed_fp::function_reference(&signature,expected,expression.span)?;
+        let ty = pointer.or_else(|| signature.pointer_type()).ok_or_else(|| {
             unsupported(expression.span,
                 "function pointer parameters and result require pure Copy values; indirect address contracts are not implemented")
         })?;
@@ -73,7 +81,7 @@ impl Builder<'_, '_> {
         }
         let mut values = Vec::with_capacity(arguments.len());
         for (argument, parameter) in arguments.iter().zip(parameters) {
-            let (value, actual) = self.expr(argument, Some(parameter))?;
+            let (value, actual) = self.argument_expr(argument, parameter)?;
             self.same(&actual, parameter, argument.span)?;
             values.push(value);
         }

@@ -594,6 +594,11 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
             | CtTypeNode::Managed(element)
             | CtTypeNode::Desc(element)
             | CtTypeNode::OwnedStore(element) => child(*element),
+            CtTypeNode::BorrowedFunctionPointer { parameters, result, life } => {
+                child(*result) && parameters.iter().all(|id|child(*id)) && life.binder_count > 0
+                    && life.parameter_lives.len()==parameters.len()
+                    && life.parameter_lives.iter().flatten().chain(life.result_life.iter()).all(|tag|*tag<life.binder_count)
+            }
             CtTypeNode::FunctionPointer { parameters, result }
             | CtTypeNode::ForeignCallback { parameters, result } => {
                 child(*result) && parameters.iter().all(|id| child(*id))
@@ -700,6 +705,9 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
             CtTypeNode::Array { element, length } => CtTypeNode::Array {
                 element: plus(*element)?,
                 length: *length,
+            },
+            CtTypeNode::BorrowedFunctionPointer { parameters, result, life } => CtTypeNode::BorrowedFunctionPointer {
+                parameters: parameters.iter().copied().map(plus).collect::<CompileResult<Vec<_>>>()?, result:plus(*result)?,life:life.clone(),
             },
             CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
                 parameters: parameters

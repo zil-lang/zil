@@ -134,6 +134,10 @@ pub(super) fn checked_type(
             CtTypeNode::OwnedStore(element) => Type::OwnedStore {
                 element: Box::new(node(ty, *element, snapshot, index, depth + 1, max_depth)?),
             },
+            CtTypeNode::BorrowedFunctionPointer { parameters, result, life } => Type::BorrowedFunctionPointer {
+                parameters: parameters.iter().map(|id| node(ty,*id,snapshot,index,depth+1,max_depth)).collect::<CompileResult<Vec<_>>>()?,
+                result: Box::new(node(ty,*result,snapshot,index,depth+1,max_depth)?), life:life.clone(),
+            },
             CtTypeNode::FunctionPointer { parameters, result } => Type::FunctionPointer {
                 parameters: parameters
                     .iter()
