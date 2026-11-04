@@ -1,0 +1,42 @@
+--- a/shared341-dyn-public-draft.rs
++++ b/shared341-dyn-public-draft.rs
+@@ -37,13 +37,7 @@
+     // CT schema data; reject dangling schema IDs. Scalar lane is first, while
+     // shared344 full CT value context is wired, never accept an opaque hash.
+ }
+-#[derive(Clone,Debug,PartialEq,Eq)]
+-pub struct DynEnvironmentPort {
+-    // Full closed Address/Desc type, not just its size or a field ordinal.
+-    pub leaf:Type,
+-    pub mode:StoredBorrowMode,
+-    pub fixed_binder:u32,
+-}
++pub type DynEnvironmentPort = RetainedBorrowPort;
+ #[derive(Clone,Debug,PartialEq,Eq)]
+ pub struct DynSlot {
+     pub member:DynMember,
+@@ -69,12 +63,10 @@
+     pub inherited:Vec<DynTraitApplication>,
+     pub associated_types:Vec<DynAssociatedType>,
+     pub associated_constants:Vec<DynAssociatedConstant>,
+-    pub fixed_binder_count:u32,
+-    pub environment_ports:Vec<DynEnvironmentPort>,
++    pub retained_life:RetainedLifeShape,
+     pub slots:Vec<DynSlot>,
+ }
+-#[derive(Clone,Debug,PartialEq,Eq)]
+-pub struct DynPortBinding {pub port:u32,pub source:StoragePosition}
++pub type DynPortBinding = RetainedPortBinding;
+ #[derive(Clone,Debug,PartialEq,Eq)]
+ pub struct CoreDynEntry {pub slot:u32,pub module:ModuleId,pub function:NodeId}
+ #[derive(Clone,Debug,PartialEq,Eq)]
+@@ -103,8 +95,7 @@
+ }
+ 
+ // Required common projection split, not a physical place operation:
+-#[derive(Clone,Debug,PartialEq,Eq,PartialOrd,Ord)]
+-pub enum ContractProjection {Place(PlaceProjection),DynPort(u32)}
++// Use the single shared ContractProjection definition.
+ // StoragePosition.path: Vec<ContractProjection>.
+ // StorageLifeSlot.path remains Vec<PlaceProjection>.
+ 

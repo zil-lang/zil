@@ -1,0 +1,2021 @@
+diff --git a/crates/zil-ir/src/lib.rs b/crates/zil-ir/src/lib.rs
+--- a/crates/zil-ir/src/lib.rs
++++ b/crates/zil-ir/src/lib.rs
+@@ -9,6 +9,10 @@
+ 
+ pub mod ct_artifact;
+ pub mod ct_wire;
++mod dynamic;
++mod dynamic_fingerprint;
++pub use dynamic::*;
++use dynamic_fingerprint::*;
+ mod program;
+ pub mod wire;
+ pub use program::*;
+@@ -260,6 +264,11 @@
+ /// variants must be diagnosed as Unsupported until their checker is implemented.
+ #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+ pub enum Type {
++    /// Unsized pointee. Address<Dyn> is the fat (environment,vtable) address.
++    /// Raw references require the complete declaration/interface context.
++    Dyn {
++        interface: DynInterfaceId,
++    },
+     /// Relational shape; machine layout is exactly the actual storage layout.
+     BorrowedStorage {
+         storage: Box<Type>,
+@@ -361,7 +370,10 @@
+     Unsupported(String),
+ }
+ impl Type {
+-    /// Stable complete type identity, never a proof of type or access validity.
++    /// Raw structural identity, never a proof of type or access validity.
++    /// Table-bearing forms (Dyn and qualified nominal life inventory) require
++    /// a context-aware semantic key for exports/cross-request caches. Raw table
++    /// relocation numbers here are not independently meaningful identities.
+     /// Untrusted callers must validate and prepay the type traversal first.
+     pub fn fingerprint(&self) -> Fingerprint {
+         let mut bytes = FingerprintStream::new();
+@@ -411,7 +423,9 @@
+     /// Structural eligibility only; each checker separately proves sources,
+     /// bounds, liveness, permissions and the supported target profile.
+     pub fn is_address_pointee(&self) -> bool {
+-        self.is_copy_value() || matches!(self, Self::Slice { element } if element.is_copy_value())
++        self.is_copy_value()
++            || matches!(self, Self::Dyn { .. })
++            || matches!(self, Self::Slice { element } if element.is_copy_value())
+     }
+     /// Structural eligibility for a shared actual user-resource header. This
+     /// does not establish its nominal definition, initialization, provenance or
+@@ -596,6 +610,9 @@
+ 
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct CoreModule {
++    pub dyn_declarations: Vec<DynDeclaration>,
++    pub dyn_interfaces: Vec<DynInterface>,
++    pub dyn_vtables: Vec<CoreDynVtable>,
+     /// Raw nominal kind/full-actual inventory; no structural capability proof.
+     pub life_declarations: Vec<LifeNominalDeclaration>,
+     pub life_instances: Vec<LifeNominalInstance>,
+@@ -943,6 +960,20 @@
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub enum CoreExprKind {
++    /// Source is an actual borrowed concrete Self address, evaluated once.
++    MakeDynBorrow {
++        interface: DynInterfaceId,
++        vtable: DynVtableId,
++        source: Box<CoreExpr>,
++        mutable: bool,
++    },
++    /// Callee is evaluated once before nonreceiver arguments and supplies arg0.
++    CallDynSlot {
++        callee: Box<CoreExpr>,
++        interface: DynInterfaceId,
++        slot: u32,
++        arguments: Vec<CoreExpr>,
++    },
+     /// Compiler-normalized static foreign literal; still untrusted Core data.
+     Literal(Constant),
+     /// Internal value type context; ordinary checking must validate its child.
+@@ -1218,6 +1249,9 @@
+ 
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct TypedModule {
++    pub dyn_declarations: Vec<DynDeclaration>,
++    pub dyn_interfaces: Vec<DynInterface>,
++    pub dyn_vtables: Vec<DynVtable>,
+     /// Raw nominal kind/full-actual inventory; no structural capability proof.
+     pub life_declarations: Vec<LifeNominalDeclaration>,
+     pub life_instances: Vec<LifeNominalInstance>,
+@@ -1342,6 +1376,19 @@
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub enum InstructionKind {
++    MakeDynBorrow {
++        interface: DynInterfaceId,
++        vtable: DynVtableId,
++        source: ValueId,
++        mutable: bool,
++    },
++    /// arguments excludes the receiver supplied by this exact callee.
++    CallDynSlot {
++        callee: ValueId,
++        interface: DynInterfaceId,
++        slot: u32,
++        arguments: Vec<ValueId>,
++    },
+     /// Real stored-leaf selection from an actual storage Address.
+     LoadStoredBorrow {
+         storage: ValueId,
+@@ -2264,6 +2311,10 @@
+     bytes.extend_from_slice(&module.source_fingerprint.0);
+     encode_text(bytes, &module.target.to_json());
+     encode_life_inventory(bytes, &module.life_declarations, &module.life_instances);
++    encode_len(bytes, module.dyn_declarations.len());for row in &module.dyn_declarations{encode_dyn_declaration(bytes,row);}
++    encode_len(bytes, module.dyn_interfaces.len());for row in &module.dyn_interfaces{encode_dyn_interface(bytes,row);}
++    encode_len(bytes, module.dyn_vtables.len());for row in &module.dyn_vtables{encode_dyn_vtable(bytes,row);}
++
+     encode_len(bytes, module.functions.len());
+     for f in &module.functions {
+         encode_function(bytes, f);
+@@ -2578,6 +2629,10 @@
+ 
+ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
+     match t {
++        Type::Dyn { interface } => {
++            b.push(36);
++            encode_dyn_interface_id(b, interface);
++        }
+         Type::BorrowedStorage { storage, life } => {
+             b.push(35);
+             encode_storage_shape(b, life);
+@@ -2860,6 +2915,33 @@
+ }
+ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
+     match i {
++        InstructionKind::MakeDynBorrow {
++            interface,
++            vtable,
++            source,
++            mutable,
++        } => {
++            b.push(131);
++            encode_dyn_interface_id(b, interface);
++            encode_dyn_vtable_id(b, vtable);
++            encode_u32(b, source.0);
++            b.push(u8::from(*mutable));
++        }
++        InstructionKind::CallDynSlot {
++            callee,
++            interface,
++            slot,
++            arguments,
++        } => {
++            b.push(132);
++            encode_u32(b, callee.0);
++            encode_dyn_interface_id(b, interface);
++            encode_u32(b, *slot);
++            encode_len(b, arguments.len());
++            for argument in arguments {
++                encode_u32(b, argument.0);
++            }
++        }
+         InstructionKind::ConvertNumber { value, target } => {
+             b.push(98);
+             encode_u32(b, value.0);
+diff --git a/crates/zil-ir/src/wire.rs b/crates/zil-ir/src/wire.rs
+--- a/crates/zil-ir/src/wire.rs
++++ b/crates/zil-ir/src/wire.rs
+@@ -11,6 +11,8 @@
+ use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
+ 
+ pub const WIRE_VERSION: u32 = 39;
++#[path = "dynamic_wire.rs"]
++mod dynamic;
+ const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
+ const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
+ const CT_CLAIMS: &[u8; 4] = b"CERT";
+@@ -700,6 +702,10 @@
+             }
+             self.charge(1)?;
+             match ty {
++                Type::Dyn { interface } => {
++                    self.u8(36)?;
++                    self.dyn_interface_id(interface)?;
++                }
+                 Type::BorrowedStorage { storage, life } => {
+                     self.u8(35)?;
+                     self.storage_shape(life)?;
+@@ -915,6 +921,10 @@
+         self.fingerprint(module.source_fingerprint)?;
+         self.target(&module.target)?;
+         self.life_inventory(&module.life_declarations, &module.life_instances)?;
++        self.count(module.dyn_declarations.len(),self.limits.max_nodes)?;for row in &module.dyn_declarations{self.dyn_declaration(row)?;}
++        self.count(module.dyn_interfaces.len(),self.limits.max_nodes)?;for row in &module.dyn_interfaces{self.dyn_interface(row)?;}
++        self.count(module.dyn_vtables.len(),self.limits.max_nodes)?;for row in &module.dyn_vtables{self.dyn_vtable(row)?;}
++
+         self.count(module.functions.len(), self.limits.max_functions)?;
+         for function in &module.functions {
+             self.function(function)?;
+@@ -1255,6 +1265,33 @@
+                 self.count(fields.len(), self.limits.max_values)?;
+                 for field in fields {
+                     self.u32(field.0)?;
++                }
++            }
++            InstructionKind::MakeDynBorrow {
++                interface,
++                vtable,
++                source,
++                mutable,
++            } => {
++                self.u8(131)?;
++                self.dyn_interface_id(interface)?;
++                self.dyn_vtable_id(vtable)?;
++                self.u32(source.0)?;
++                self.boolean(*mutable)?;
++            }
++            InstructionKind::CallDynSlot {
++                callee,
++                interface,
++                slot,
++                arguments,
++            } => {
++                self.u8(132)?;
++                self.u32(callee.0)?;
++                self.dyn_interface_id(interface)?;
++                self.u32(*slot)?;
++                self.count(arguments.len(), self.limits.max_values)?;
++                for argument in arguments {
++                    self.u32(argument.0)?;
+                 }
+             }
+             InstructionKind::LoadStoredBorrow {
+@@ -2677,6 +2714,9 @@
+                 1 => Type::Bool,
+                 2 => Type::I32,
+                 3 => Type::I64,
++                36 => Type::Dyn {
++                    interface: self.dyn_interface_id()?,
++                },
+                 26 => Type::U64,
+                 27 => Type::Usize,
+                 28 => Type::F32,
+@@ -2901,6 +2941,10 @@
+         let source_fingerprint = self.fingerprint()?;
+         let target = self.target()?;
+         let (life_declarations, life_instances) = self.life_inventory()?;
++        let n=self.count(self.limits.max_nodes,1)?;let mut dyn_declarations=Vec::with_capacity(n);for _ in 0..n{dyn_declarations.push(self.dyn_declaration()?);}
++        let n=self.count(self.limits.max_nodes,1)?;let mut dyn_interfaces=Vec::with_capacity(n);for _ in 0..n{dyn_interfaces.push(self.dyn_interface()?);}
++        let n=self.count(self.limits.max_nodes,1)?;let mut dyn_vtables=Vec::with_capacity(n);for _ in 0..n{dyn_vtables.push(self.dyn_vtable()?);}
++
+         let count = self.count(self.limits.max_functions, 4)?;
+         let mut functions = Vec::with_capacity(count);
+         for _ in 0..count {
+@@ -2954,6 +2998,7 @@
+             });
+         }
+         Ok(TypedModule {
++            dyn_declarations,dyn_interfaces,dyn_vtables,
+             life_declarations,
+             life_instances,
+             resources,
+@@ -3626,6 +3671,28 @@
+                     mode,
+                 }
+             }
++            131 => InstructionKind::MakeDynBorrow {
++                interface: self.dyn_interface_id()?,
++                vtable: self.dyn_vtable_id()?,
++                source: ValueId(self.u32()?),
++                mutable: self.boolean()?,
++            },
++            132 => {
++                let callee = ValueId(self.u32()?);
++                let interface = self.dyn_interface_id()?;
++                let slot = self.u32()?;
++                let count = self.count(self.limits.max_values, 4)?;
++                let mut arguments = Vec::with_capacity(count);
++                for _ in 0..count {
++                    arguments.push(ValueId(self.u32()?));
++                }
++                InstructionKind::CallDynSlot {
++                    callee,
++                    interface,
++                    slot,
++                    arguments,
++                }
++            }
+             130 => InstructionKind::StoreStoredBorrow {
+                 storage: ValueId(self.u32()?),
+                 path: self.storage_path()?,
+diff --git a/crates/zil-ir/src/program.rs b/crates/zil-ir/src/program.rs
+--- a/crates/zil-ir/src/program.rs
++++ b/crates/zil-ir/src/program.rs
+@@ -19,6 +19,8 @@
+ pub struct CoreProgram {
+     pub root: ModuleId,
+     pub source_fingerprint: Fingerprint,
++    /// Each module carries its complete dyn/declaration inventory. Raw source
++    /// module IDs remain lookup/relocation data, never stable semantic names.
+     pub modules: Vec<ProgramModule>,
+ }
+ 
+@@ -61,6 +63,10 @@
+ pub struct TypedProgram {
+     /// Raw semantic Suspend exports; never a physical frame-layout assertion.
+     pub task_interfaces: Vec<TaskInterface>,
++    /// Unified callable CFG plus all source-module dyn/life inventories. Every
++    /// CoreDynEntry resolves through the same actual (module,NodeId)->FunctionId
++    /// map as ordinary calls. All slots and cleanup entries must relocate; a
++    /// missing/private/nonmatching entry rejects, never defaults to function0.
+     pub module: TypedModule,
+     pub interfaces: Vec<ScalarInterface>,
+     pub root_functions: Vec<ScalarFunction>,
+diff --git a/crates/zil-syntax/src/ast.rs b/crates/zil-syntax/src/ast.rs
+--- a/crates/zil-syntax/src/ast.rs
++++ b/crates/zil-syntax/src/ast.rs
+@@ -137,6 +137,8 @@
+     Dyn {
+         path: Vec<String>,
+         args: Vec<GenericArg>,
++        /// Explicit closed binding/finite slot list; never inferred from uses.
++        bindings: Vec<DynBinding>,
+     },
+     ForLifetime {
+         lifetime: String,
+@@ -146,6 +148,28 @@
+     MetaEval(Box<Expr>),
+     MetaSplice(Box<Expr>),
+     MetaBlock(Block),
++}
++
++#[derive(Clone, Debug, PartialEq)]
++pub struct DynBinding {
++    pub kind: DynBindingKind,
++    pub span: Span,
++}
++#[derive(Clone, Debug, PartialEq)]
++pub enum DynBindingKind {
++    Type {
++        member: Vec<String>,
++        value: TypeRef,
++    },
++    Constant {
++        member: Vec<String>,
++        ty: TypeRef,
++        value: Expr,
++    },
++    Method {
++        member: Vec<String>,
++        arguments: Vec<GenericArg>,
++    },
+ }
+ 
+ #[derive(Clone, Debug, PartialEq)]
+diff --git a/crates/zil-syntax/src/parser/types.rs b/crates/zil-syntax/src/parser/types.rs
+--- a/crates/zil-syntax/src/parser/types.rs
++++ b/crates/zil-syntax/src/parser/types.rs
+@@ -145,7 +145,11 @@
+         } else if self.eat_word("dyn") {
+             let path = self.qualified_kind(QuoteNameNamespace::Type)?;
+             let args = self.nominal_type_args(&path)?;
+-            TypeKind::Dyn { path, args }
++            TypeKind::Dyn {
++                path,
++                args,
++                bindings: Vec::new(),
++            }
+         } else if self.eat_word("for") {
+             self.expect(Symbol::Lt)?;
+             let lifetime = self.scoped(true, |p| {
+diff --git a/crates/zil-syntax/src/parser/items.rs b/crates/zil-syntax/src/parser/items.rs
+--- a/crates/zil-syntax/src/parser/items.rs
++++ b/crates/zil-syntax/src/parser/items.rs
+@@ -458,7 +458,20 @@
+         };
+         let value = if self.eat(Symbol::Eq) {
+             self.newlines();
+-            Some(self.ty()?)
++            let mut value = self.ty()?;
++            // Only a direct dyn alias RHS accepts this block. A function body
++            // after `-> &dyn Trait` is never consumed as a type binding block.
++            if matches!(value.kind, TypeKind::Dyn { .. }) && self.at(Symbol::LBrace) {
++                let bindings = self.dyn_bindings()?;
++                let TypeKind::Dyn {
++                    bindings: target, ..
++                } = &mut value.kind
++                else {
++                    unreachable!()
++                };
++                *target = bindings;
++            }
++            Some(value)
+         } else if associated {
+             None
+         } else {
+@@ -470,6 +483,53 @@
+             generics,
+             bounds,
+             value,
++        })
++    }
++    fn dyn_bindings(&mut self) -> P<Vec<DynBinding>> {
++        self.expect(Symbol::LBrace)?;
++        self.scoped(false, |p| {
++            let mut bindings = Vec::new();
++            p.separators();
++            while !p.at(Symbol::RBrace) && p.peek().kind != TokenKind::Eof {
++                let binding = p.nested(|p| {
++                    let start = p.peek().span;
++                    let kind = if p.eat_word("type") {
++                        let member = p.qualified_kind(QuoteNameNamespace::Type)?;
++                        p.expect(Symbol::Eq)?;
++                        DynBindingKind::Type {
++                            member,
++                            value: p.ty()?,
++                        }
++                    } else if p.eat_word("const") {
++                        let member = p.qualified_kind(QuoteNameNamespace::Value)?;
++                        p.expect(Symbol::Colon)?;
++                        let ty = p.ty()?;
++                        p.expect(Symbol::Eq)?;
++                        DynBindingKind::Constant {
++                            member,
++                            ty,
++                            value: p.expr(true)?,
++                        }
++                    } else if p.eat_word("fn") {
++                        let member = p.qualified_kind(QuoteNameNamespace::Value)?;
++                        p.expect(Symbol::ColonColon)?;
++                        let arguments = p.type_args()?;
++                        DynBindingKind::Method { member, arguments }
++                    } else {
++                        return p.fail(
++                        "E-PARSE-DYN-BINDING",
++                        "dyn bindings contain type/const equations or explicit method applications",
++                    );
++                    };
++                    let span = p.span_from(start);
++                    p.end()?;
++                    Ok(DynBinding { kind, span })
++                })?;
++                bindings.push(binding);
++                p.separators();
++            }
++            p.expect(Symbol::RBrace)?;
++            Ok(bindings)
+         })
+     }
+     fn const_decl(&mut self, associated: bool) -> P<ConstDecl> {
+diff --git a/crates/zil-syntax/src/parser/mod.rs b/crates/zil-syntax/src/parser/mod.rs
+--- a/crates/zil-syntax/src/parser/mod.rs
++++ b/crates/zil-syntax/src/parser/mod.rs
+@@ -459,6 +459,32 @@
+         );
+     }
+     #[test]
++    fn dyn_alias_bindings_are_explicit_and_do_not_consume_function_bodies() {
++        let result = parse_text(
++            "type Reader = dyn Read<bool> { type Item = i32; const COUNT:usize = 3; fn pick::<i32>; fn pick::<bool>; };\nfn read_it(x:&dyn Read)->&dyn Read { return x }",
++        );
++        assert!(result.is_ok(), "{:?}", result.diagnostics);
++        let ItemKind::TypeAlias(alias) = &result.module.items[0].kind else {
++            panic!()
++        };
++        let TypeKind::Dyn { bindings, .. } = &alias.value.as_ref().unwrap().kind else {
++            panic!()
++        };
++        assert_eq!(bindings.len(), 4);
++        assert!(matches!(bindings[0].kind, DynBindingKind::Type { .. }));
++        assert!(matches!(bindings[1].kind, DynBindingKind::Constant { .. }));
++        assert!(matches!(bindings[2].kind, DynBindingKind::Method { .. }));
++        let ItemKind::Function(function) = &result.module.items[1].kind else {
++            panic!()
++        };
++        assert!(matches!(function.body, FunctionBody::Block(_)));
++        rejected(
++            "type Reader=dyn Read { fn pick::<i32> {} };",
++            "E-PARSE-TERMINATOR",
++        );
++        rejected("type Reader=dyn Read { let x=3; };", "E-PARSE-DYN-BINDING");
++    }
++    #[test]
+     fn malformed_source_recovers_to_later_item() {
+         let result = parse_text("fn broken(x i32) {}\nfn good() -> i32 => 7");
+         assert!(!result.is_ok());
+diff --git a/crates/zil-ir/src/dynamic.rs b/crates/zil-ir/src/dynamic.rs
+--- /dev/null
++++ b/crates/zil-ir/src/dynamic.rs
+@@ -0,0 +1,218 @@
++//! Raw finite dynamic interfaces. These tables carry no verification authority.
++use crate::*;
++
++/// Request-local relocation only. Semantic identity resolves the complete table.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
++pub struct DynInterfaceId {
++    pub module: ModuleId,
++    pub index: u32,
++}
++#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
++pub struct DynVtableId {
++    pub module: ModuleId,
++    pub index: u32,
++}
++
++/// Shares the declaration-ID namespace and stable identity vocabulary with the
++/// nominal life inventory. Keys and stable identities must be jointly unique.
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynDeclaration {
++    pub id: LifeDeclarationId,
++    pub identity: LifeDeclarationIdentity,
++    pub kind: DynDeclarationKind,
++    pub parameters: Vec<LifeParameterKind>,
++    pub members: Vec<DynMemberDeclaration>,
++}
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum DynDeclarationKind {
++    Trait,
++    Impl,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynMemberDeclaration {
++    pub name: String,
++    pub kind: DynMemberKind,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynMemberKind {
++    Type,
++    Constant(Type),
++    Method(Vec<LifeParameterKind>),
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynGenericActual {
++    Type(Type),
++    Const(Constant),
++    Life(StorageBinder),
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynTraitApplication {
++    pub declaration: LifeDeclarationId,
++    /// Full original generic order. Life actuals use this interface's Fixed domain.
++    pub actuals: Vec<DynGenericActual>,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynMember {
++    pub application: DynTraitApplication,
++    pub ordinal: u32,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynAssociatedType {
++    pub member: DynMember,
++    pub ty: Type,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynAssociatedConstant {
++    pub member: DynMember,
++    pub ty: Type,
++    /// Exact closed scalar bits in the first executable lane; no opaque hash.
++    pub value: Constant,
++}
++/// Erased receiver at full signature position zero. The public callable type is
++/// Address<Dyn(enclosing interface)>; the selected entry instead receives the
++/// corresponding Address<concrete Self>. No self-reference cycle is serialized.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct DynReceiver {
++    pub mutable: bool,
++    pub mode: PassingMode,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynSlot {
++    pub member: DynMember,
++    /// Full method binder order; Life actuals use THIS slot's Invocation domain.
++    /// Every type/const application is concrete. There is no runtime quantifier.
++    pub actuals: Vec<DynGenericActual>,
++    pub receiver: DynReceiver,
++    /// Nonreceiver parameters only; receiver remains full signature position0.
++    pub parameters: Vec<Type>,
++    pub parameter_modes: Vec<PassingMode>,
++    pub result: Type,
++    pub result_mode: PassingMode,
++    pub call_kind: CallKind,
++    pub invocation_life: Option<FunctionLifeContract>,
++    pub storage_life: Option<StorageLifeContract>,
++    pub contract: DynContract,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynInterface {
++    pub id: DynInterfaceId,
++    pub application: DynTraitApplication,
++    pub inherited: Vec<DynTraitApplication>,
++    pub associated_types: Vec<DynAssociatedType>,
++    pub associated_constants: Vec<DynAssociatedConstant>,
++    pub retained_life: RetainedLifeShape,
++    pub slots: Vec<DynSlot>,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct CoreDynEntry {
++    pub slot: u32,
++    pub module: ModuleId,
++    pub function: NodeId,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynEntry {
++    pub slot: u32,
++    pub function: FunctionId,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct CoreDynVtable {
++    pub id: DynVtableId,
++    pub interface: DynInterfaceId,
++    pub self_type: Type,
++    pub implementation: LifeDeclarationId,
++    pub actuals: Vec<DynGenericActual>,
++    pub ports: Vec<RetainedPortBinding>,
++    pub entries: Vec<CoreDynEntry>,
++    pub cleanup: Option<CoreDynEntry>,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynVtable {
++    pub id: DynVtableId,
++    pub interface: DynInterfaceId,
++    pub self_type: Type,
++    pub implementation: LifeDeclarationId,
++    pub actuals: Vec<DynGenericActual>,
++    pub ports: Vec<RetainedPortBinding>,
++    pub entries: Vec<DynEntry>,
++    pub cleanup: Option<DynEntry>,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynRequirement {
++    Read(StoragePosition),
++    Write(StoragePosition),
++    Manage(StoragePosition),
++    Apart(StoragePosition, StoragePosition),
++    State {
++        position: StoragePosition,
++        ty: Type,
++        variant: u32,
++    },
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynGuarantee {
++    ManageResult,
++    State {
++        position: StoragePosition,
++        ty: Type,
++        variant: u32,
++    },
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynEffect {
++    Alloc,
++    Io,
++    Block,
++    Suspend,
++    Spawn,
++    Ffi,
++    Reenter,
++    Panic,
++    Call(StoragePosition),
++    Cleanup(Type),
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynCallAccess {
++    pub reads: Vec<StoragePosition>,
++    pub writes: Vec<StoragePosition>,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub enum DynResultSource {
++    Value,
++    Create,
++    Give,
++    Borrow {
++        sources: Vec<StoragePosition>,
++        mutable: bool,
++    },
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynCleanupContract {
++    pub environment: bool,
++    pub positions: Vec<StoragePosition>,
++    pub access: DynCallAccess,
++    pub effects: Vec<DynEffect>,
++}
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum DynResumeBound {
++    Local,
++    Transfer,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynThreadRequirements {
++    pub transfer: bool,
++    pub share: bool,
++}
++#[derive(Clone, Debug, PartialEq, Eq)]
++pub struct DynContract {
++    /// None means UNKNOWN, distinct from finite empty. Any construction/call
++    /// needing an unknown component fails closed until independently derived.
++    pub requires: Option<Vec<DynRequirement>>,
++    pub guarantees: Option<Vec<DynGuarantee>>,
++    pub hold: Option<Vec<StoragePosition>>,
++    pub call: Option<DynCallAccess>,
++    pub result: Option<DynResultSource>,
++    pub cleanup: Option<DynCleanupContract>,
++    pub effects: Option<Vec<DynEffect>>,
++    pub resume: Option<DynResumeBound>,
++    pub threads: Option<DynThreadRequirements>,
++}
+diff --git a/crates/zil-ir/src/dynamic_wire.rs b/crates/zil-ir/src/dynamic_wire.rs
+--- /dev/null
++++ b/crates/zil-ir/src/dynamic_wire.rs
+@@ -0,0 +1,887 @@
++//! Bounded raw dynamic table transport; shared life codecs live in wire.rs.
++use super::*;
++
++impl Writer<'_> {
++    pub(super) fn dyn_interface_id(&mut self, value: &DynInterfaceId) -> WireResult<()> {
++        self.u32(value.module.0)?;
++        self.u32(value.index)?;
++        Ok(())
++    }
++    pub(super) fn dyn_vtable_id(&mut self, value: &DynVtableId) -> WireResult<()> {
++        self.u32(value.module.0)?;
++        self.u32(value.index)?;
++        Ok(())
++    }
++    pub(super) fn dyn_declaration(&mut self, value: &DynDeclaration) -> WireResult<()> {
++        self.declaration_id(&value.id)?;
++        self.declaration_identity(&value.identity)?;
++        self.dyn_declaration_kind(&value.kind)?;
++        self.count(value.parameters.len(), self.limits.max_nodes)?;
++        for value in &value.parameters {
++            self.parameter_kind(value, 0)?;
++        }
++        self.count(value.members.len(), self.limits.max_nodes)?;
++        for value in &value.members {
++            self.dyn_member_declaration(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_member_declaration(
++        &mut self,
++        value: &DynMemberDeclaration,
++    ) -> WireResult<()> {
++        self.text(&value.name)?;
++        self.dyn_member_kind(&value.kind)?;
++        Ok(())
++    }
++    pub(super) fn dyn_trait_application(&mut self, value: &DynTraitApplication) -> WireResult<()> {
++        self.declaration_id(&value.declaration)?;
++        self.count(value.actuals.len(), self.limits.max_nodes)?;
++        for value in &value.actuals {
++            self.dyn_generic_actual(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_member(&mut self, value: &DynMember) -> WireResult<()> {
++        self.dyn_trait_application(&value.application)?;
++        self.u32(value.ordinal)?;
++        Ok(())
++    }
++    pub(super) fn dyn_associated_type(&mut self, value: &DynAssociatedType) -> WireResult<()> {
++        self.dyn_member(&value.member)?;
++        self.ty(&value.ty, 0)?;
++        Ok(())
++    }
++    pub(super) fn dyn_associated_constant(
++        &mut self,
++        value: &DynAssociatedConstant,
++    ) -> WireResult<()> {
++        self.dyn_member(&value.member)?;
++        self.ty(&value.ty, 0)?;
++        self.constant(&value.value)?;
++        Ok(())
++    }
++    pub(super) fn dyn_receiver(&mut self, value: &DynReceiver) -> WireResult<()> {
++        self.boolean(value.mutable)?;
++        self.dyn_passing_mode(&value.mode)?;
++        Ok(())
++    }
++    pub(super) fn dyn_slot(&mut self, value: &DynSlot) -> WireResult<()> {
++        self.dyn_member(&value.member)?;
++        self.count(value.actuals.len(), self.limits.max_nodes)?;
++        for value in &value.actuals {
++            self.dyn_generic_actual(value)?;
++        }
++        self.dyn_receiver(&value.receiver)?;
++        self.count(value.parameters.len(), self.limits.max_nodes)?;
++        for value in &value.parameters {
++            self.ty(value, 0)?;
++        }
++        self.count(value.parameter_modes.len(), self.limits.max_nodes)?;
++        for value in &value.parameter_modes {
++            self.dyn_passing_mode(value)?;
++        }
++        self.ty(&value.result, 0)?;
++        self.dyn_passing_mode(&value.result_mode)?;
++        self.dyn_call_kind(&value.call_kind)?;
++        self.boolean(value.invocation_life.is_some())?;
++        if let Some(value) = &value.invocation_life {
++            self.function_life(value)?;
++        }
++        self.boolean(value.storage_life.is_some())?;
++        if let Some(value) = &value.storage_life {
++            self.required_storage_contract(value)?;
++        }
++        self.dyn_contract(&value.contract)?;
++        Ok(())
++    }
++    pub(super) fn dyn_interface(&mut self, value: &DynInterface) -> WireResult<()> {
++        self.dyn_interface_id(&value.id)?;
++        self.dyn_trait_application(&value.application)?;
++        self.count(value.inherited.len(), self.limits.max_nodes)?;
++        for value in &value.inherited {
++            self.dyn_trait_application(value)?;
++        }
++        self.count(value.associated_types.len(), self.limits.max_nodes)?;
++        for value in &value.associated_types {
++            self.dyn_associated_type(value)?;
++        }
++        self.count(value.associated_constants.len(), self.limits.max_nodes)?;
++        for value in &value.associated_constants {
++            self.dyn_associated_constant(value)?;
++        }
++        self.retained_shape(&value.retained_life, 0)?;
++        self.count(value.slots.len(), self.limits.max_nodes)?;
++        for value in &value.slots {
++            self.dyn_slot(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_entry(&mut self, value: &DynEntry) -> WireResult<()> {
++        self.u32(value.slot)?;
++        self.u32(value.function.0)?;
++        Ok(())
++    }
++    pub(super) fn dyn_vtable(&mut self, value: &DynVtable) -> WireResult<()> {
++        self.dyn_vtable_id(&value.id)?;
++        self.dyn_interface_id(&value.interface)?;
++        self.ty(&value.self_type, 0)?;
++        self.declaration_id(&value.implementation)?;
++        self.count(value.actuals.len(), self.limits.max_nodes)?;
++        for value in &value.actuals {
++            self.dyn_generic_actual(value)?;
++        }
++        self.count(value.ports.len(), self.limits.max_nodes)?;
++        for value in &value.ports {
++            self.retained_port_binding(value)?;
++        }
++        self.count(value.entries.len(), self.limits.max_nodes)?;
++        for value in &value.entries {
++            self.dyn_entry(value)?;
++        }
++        self.boolean(value.cleanup.is_some())?;
++        if let Some(value) = &value.cleanup {
++            self.dyn_entry(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_call_access(&mut self, value: &DynCallAccess) -> WireResult<()> {
++        self.count(value.reads.len(), self.limits.max_nodes)?;
++        for value in &value.reads {
++            self.storage_position(value)?;
++        }
++        self.count(value.writes.len(), self.limits.max_nodes)?;
++        for value in &value.writes {
++            self.storage_position(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_cleanup_contract(&mut self, value: &DynCleanupContract) -> WireResult<()> {
++        self.boolean(value.environment)?;
++        self.count(value.positions.len(), self.limits.max_nodes)?;
++        for value in &value.positions {
++            self.storage_position(value)?;
++        }
++        self.dyn_call_access(&value.access)?;
++        self.count(value.effects.len(), self.limits.max_nodes)?;
++        for value in &value.effects {
++            self.dyn_effect(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_thread_requirements(
++        &mut self,
++        value: &DynThreadRequirements,
++    ) -> WireResult<()> {
++        self.boolean(value.transfer)?;
++        self.boolean(value.share)?;
++        Ok(())
++    }
++    pub(super) fn dyn_contract(&mut self, value: &DynContract) -> WireResult<()> {
++        self.boolean(value.requires.is_some())?;
++        if let Some(value) = &value.requires {
++            self.count((value).len(), self.limits.max_nodes)?;
++            for value in value {
++                self.dyn_requirement(value)?;
++            }
++        }
++        self.boolean(value.guarantees.is_some())?;
++        if let Some(value) = &value.guarantees {
++            self.count((value).len(), self.limits.max_nodes)?;
++            for value in value {
++                self.dyn_guarantee(value)?;
++            }
++        }
++        self.boolean(value.hold.is_some())?;
++        if let Some(value) = &value.hold {
++            self.count((value).len(), self.limits.max_nodes)?;
++            for value in value {
++                self.storage_position(value)?;
++            }
++        }
++        self.boolean(value.call.is_some())?;
++        if let Some(value) = &value.call {
++            self.dyn_call_access(value)?;
++        }
++        self.boolean(value.result.is_some())?;
++        if let Some(value) = &value.result {
++            self.dyn_result_source(value)?;
++        }
++        self.boolean(value.cleanup.is_some())?;
++        if let Some(value) = &value.cleanup {
++            self.dyn_cleanup_contract(value)?;
++        }
++        self.boolean(value.effects.is_some())?;
++        if let Some(value) = &value.effects {
++            self.count((value).len(), self.limits.max_nodes)?;
++            for value in value {
++                self.dyn_effect(value)?;
++            }
++        }
++        self.boolean(value.resume.is_some())?;
++        if let Some(value) = &value.resume {
++            self.dyn_resume_bound(value)?;
++        }
++        self.boolean(value.threads.is_some())?;
++        if let Some(value) = &value.threads {
++            self.dyn_thread_requirements(value)?;
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_declaration_kind(&mut self, value: &DynDeclarationKind) -> WireResult<()> {
++        match value {
++            DynDeclarationKind::Trait => {
++                self.u8(0)?;
++            }
++            DynDeclarationKind::Impl => {
++                self.u8(1)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_member_kind(&mut self, value: &DynMemberKind) -> WireResult<()> {
++        match value {
++            DynMemberKind::Type => {
++                self.u8(0)?;
++            }
++            DynMemberKind::Constant(value_0) => {
++                self.u8(1)?;
++                self.ty(value_0, 0)?;
++            }
++            DynMemberKind::Method(value_0) => {
++                self.u8(2)?;
++                self.count(value_0.len(), self.limits.max_nodes)?;
++                for value in value_0 {
++                    self.parameter_kind(value, 0)?;
++                }
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_generic_actual(&mut self, value: &DynGenericActual) -> WireResult<()> {
++        match value {
++            DynGenericActual::Type(value_0) => {
++                self.u8(0)?;
++                self.ty(value_0, 0)?;
++            }
++            DynGenericActual::Const(value_0) => {
++                self.u8(1)?;
++                self.constant(value_0)?;
++            }
++            DynGenericActual::Life(value_0) => {
++                self.u8(2)?;
++                self.storage_binder(value_0)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_requirement(&mut self, value: &DynRequirement) -> WireResult<()> {
++        match value {
++            DynRequirement::Read(value_0) => {
++                self.u8(0)?;
++                self.storage_position(value_0)?;
++            }
++            DynRequirement::Write(value_0) => {
++                self.u8(1)?;
++                self.storage_position(value_0)?;
++            }
++            DynRequirement::Manage(value_0) => {
++                self.u8(2)?;
++                self.storage_position(value_0)?;
++            }
++            DynRequirement::Apart(value_0, value_1) => {
++                self.u8(3)?;
++                self.storage_position(value_0)?;
++                self.storage_position(value_1)?;
++            }
++            DynRequirement::State {
++                position,
++                ty,
++                variant,
++            } => {
++                self.u8(4)?;
++                self.storage_position(position)?;
++                self.ty(ty, 0)?;
++                self.u32(*variant)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_guarantee(&mut self, value: &DynGuarantee) -> WireResult<()> {
++        match value {
++            DynGuarantee::ManageResult => {
++                self.u8(0)?;
++            }
++            DynGuarantee::State {
++                position,
++                ty,
++                variant,
++            } => {
++                self.u8(1)?;
++                self.storage_position(position)?;
++                self.ty(ty, 0)?;
++                self.u32(*variant)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_effect(&mut self, value: &DynEffect) -> WireResult<()> {
++        match value {
++            DynEffect::Alloc => {
++                self.u8(0)?;
++            }
++            DynEffect::Io => {
++                self.u8(1)?;
++            }
++            DynEffect::Block => {
++                self.u8(2)?;
++            }
++            DynEffect::Suspend => {
++                self.u8(3)?;
++            }
++            DynEffect::Spawn => {
++                self.u8(4)?;
++            }
++            DynEffect::Ffi => {
++                self.u8(5)?;
++            }
++            DynEffect::Reenter => {
++                self.u8(6)?;
++            }
++            DynEffect::Panic => {
++                self.u8(7)?;
++            }
++            DynEffect::Call(value_0) => {
++                self.u8(8)?;
++                self.storage_position(value_0)?;
++            }
++            DynEffect::Cleanup(value_0) => {
++                self.u8(9)?;
++                self.ty(value_0, 0)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_result_source(&mut self, value: &DynResultSource) -> WireResult<()> {
++        match value {
++            DynResultSource::Value => {
++                self.u8(0)?;
++            }
++            DynResultSource::Create => {
++                self.u8(1)?;
++            }
++            DynResultSource::Give => {
++                self.u8(2)?;
++            }
++            DynResultSource::Borrow { sources, mutable } => {
++                self.u8(3)?;
++                self.count(sources.len(), self.limits.max_nodes)?;
++                for value in sources {
++                    self.storage_position(value)?;
++                }
++                self.boolean(*mutable)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_resume_bound(&mut self, value: &DynResumeBound) -> WireResult<()> {
++        match value {
++            DynResumeBound::Local => {
++                self.u8(0)?;
++            }
++            DynResumeBound::Transfer => {
++                self.u8(1)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_passing_mode(&mut self, value: &PassingMode) -> WireResult<()> {
++        match value {
++            PassingMode::Copy => {
++                self.u8(0)?;
++            }
++            PassingMode::Move => {
++                self.u8(1)?;
++            }
++            PassingMode::Describe => {
++                self.u8(2)?;
++            }
++            PassingMode::Create => {
++                self.u8(3)?;
++            }
++            PassingMode::Give => {
++                self.u8(4)?;
++            }
++            PassingMode::Borrow => {
++                self.u8(5)?;
++            }
++            PassingMode::BorrowMut => {
++                self.u8(6)?;
++            }
++            PassingMode::Infer => {
++                self.u8(7)?;
++            }
++        }
++        Ok(())
++    }
++    pub(super) fn dyn_call_kind(&mut self, value: &CallKind) -> WireResult<()> {
++        match value {
++            CallKind::Direct => {
++                self.u8(0)?;
++            }
++            CallKind::Suspend => {
++                self.u8(1)?;
++            }
++        }
++        Ok(())
++    }
++}
++
++impl Reader<'_> {
++    pub(super) fn dyn_interface_id(&mut self) -> WireResult<DynInterfaceId> {
++        Ok(DynInterfaceId {
++            module: ModuleId(self.u32()?),
++            index: self.u32()?,
++        })
++    }
++    pub(super) fn dyn_vtable_id(&mut self) -> WireResult<DynVtableId> {
++        Ok(DynVtableId {
++            module: ModuleId(self.u32()?),
++            index: self.u32()?,
++        })
++    }
++    pub(super) fn dyn_declaration(&mut self) -> WireResult<DynDeclaration> {
++        Ok(DynDeclaration {
++            id: self.declaration_id()?,
++            identity: self.declaration_identity()?,
++            kind: self.dyn_declaration_kind()?,
++            parameters: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_1 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_1.push(self.parameter_kind(0)?);
++                }
++                values_1
++            },
++            members: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_2 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_2.push(self.dyn_member_declaration()?);
++                }
++                values_2
++            },
++        })
++    }
++    pub(super) fn dyn_member_declaration(&mut self) -> WireResult<DynMemberDeclaration> {
++        Ok(DynMemberDeclaration {
++            name: self.text()?,
++            kind: self.dyn_member_kind()?,
++        })
++    }
++    pub(super) fn dyn_trait_application(&mut self) -> WireResult<DynTraitApplication> {
++        Ok(DynTraitApplication {
++            declaration: self.declaration_id()?,
++            actuals: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_3 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_3.push(self.dyn_generic_actual()?);
++                }
++                values_3
++            },
++        })
++    }
++    pub(super) fn dyn_member(&mut self) -> WireResult<DynMember> {
++        Ok(DynMember {
++            application: self.dyn_trait_application()?,
++            ordinal: self.u32()?,
++        })
++    }
++    pub(super) fn dyn_associated_type(&mut self) -> WireResult<DynAssociatedType> {
++        Ok(DynAssociatedType {
++            member: self.dyn_member()?,
++            ty: self.ty(0)?,
++        })
++    }
++    pub(super) fn dyn_associated_constant(&mut self) -> WireResult<DynAssociatedConstant> {
++        Ok(DynAssociatedConstant {
++            member: self.dyn_member()?,
++            ty: self.ty(0)?,
++            value: self.constant()?,
++        })
++    }
++    pub(super) fn dyn_receiver(&mut self) -> WireResult<DynReceiver> {
++        Ok(DynReceiver {
++            mutable: self.boolean()?,
++            mode: self.dyn_passing_mode()?,
++        })
++    }
++    pub(super) fn dyn_slot(&mut self) -> WireResult<DynSlot> {
++        Ok(DynSlot {
++            member: self.dyn_member()?,
++            actuals: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_4 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_4.push(self.dyn_generic_actual()?);
++                }
++                values_4
++            },
++            receiver: self.dyn_receiver()?,
++            parameters: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_5 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_5.push(self.ty(0)?);
++                }
++                values_5
++            },
++            parameter_modes: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_6 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_6.push(self.dyn_passing_mode()?);
++                }
++                values_6
++            },
++            result: self.ty(0)?,
++            result_mode: self.dyn_passing_mode()?,
++            call_kind: self.dyn_call_kind()?,
++            invocation_life: if self.boolean()? {
++                Some(self.function_life()?)
++            } else {
++                None
++            },
++            storage_life: if self.boolean()? {
++                Some(self.required_storage_contract()?)
++            } else {
++                None
++            },
++            contract: self.dyn_contract()?,
++        })
++    }
++    pub(super) fn dyn_interface(&mut self) -> WireResult<DynInterface> {
++        Ok(DynInterface {
++            id: self.dyn_interface_id()?,
++            application: self.dyn_trait_application()?,
++            inherited: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_7 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_7.push(self.dyn_trait_application()?);
++                }
++                values_7
++            },
++            associated_types: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_8 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_8.push(self.dyn_associated_type()?);
++                }
++                values_8
++            },
++            associated_constants: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_9 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_9.push(self.dyn_associated_constant()?);
++                }
++                values_9
++            },
++            retained_life: self.retained_shape(0)?,
++            slots: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_10 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_10.push(self.dyn_slot()?);
++                }
++                values_10
++            },
++        })
++    }
++    pub(super) fn dyn_entry(&mut self) -> WireResult<DynEntry> {
++        Ok(DynEntry {
++            slot: self.u32()?,
++            function: FunctionId(self.u32()?),
++        })
++    }
++    pub(super) fn dyn_vtable(&mut self) -> WireResult<DynVtable> {
++        Ok(DynVtable {
++            id: self.dyn_vtable_id()?,
++            interface: self.dyn_interface_id()?,
++            self_type: self.ty(0)?,
++            implementation: self.declaration_id()?,
++            actuals: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_11 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_11.push(self.dyn_generic_actual()?);
++                }
++                values_11
++            },
++            ports: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_12 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_12.push(self.retained_port_binding()?);
++                }
++                values_12
++            },
++            entries: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_13 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_13.push(self.dyn_entry()?);
++                }
++                values_13
++            },
++            cleanup: if self.boolean()? {
++                Some(self.dyn_entry()?)
++            } else {
++                None
++            },
++        })
++    }
++    pub(super) fn dyn_call_access(&mut self) -> WireResult<DynCallAccess> {
++        Ok(DynCallAccess {
++            reads: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_14 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_14.push(self.storage_position()?);
++                }
++                values_14
++            },
++            writes: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_15 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_15.push(self.storage_position()?);
++                }
++                values_15
++            },
++        })
++    }
++    pub(super) fn dyn_cleanup_contract(&mut self) -> WireResult<DynCleanupContract> {
++        Ok(DynCleanupContract {
++            environment: self.boolean()?,
++            positions: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_16 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_16.push(self.storage_position()?);
++                }
++                values_16
++            },
++            access: self.dyn_call_access()?,
++            effects: {
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_17 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_17.push(self.dyn_effect()?);
++                }
++                values_17
++            },
++        })
++    }
++    pub(super) fn dyn_thread_requirements(&mut self) -> WireResult<DynThreadRequirements> {
++        Ok(DynThreadRequirements {
++            transfer: self.boolean()?,
++            share: self.boolean()?,
++        })
++    }
++    pub(super) fn dyn_contract(&mut self) -> WireResult<DynContract> {
++        Ok(DynContract {
++            requires: if self.boolean()? {
++                Some({
++                    let count = self.count(self.limits.max_nodes, 1)?;
++                    let mut values_18 = Vec::with_capacity(count);
++                    for _ in 0..count {
++                        values_18.push(self.dyn_requirement()?);
++                    }
++                    values_18
++                })
++            } else {
++                None
++            },
++            guarantees: if self.boolean()? {
++                Some({
++                    let count = self.count(self.limits.max_nodes, 1)?;
++                    let mut values_19 = Vec::with_capacity(count);
++                    for _ in 0..count {
++                        values_19.push(self.dyn_guarantee()?);
++                    }
++                    values_19
++                })
++            } else {
++                None
++            },
++            hold: if self.boolean()? {
++                Some({
++                    let count = self.count(self.limits.max_nodes, 1)?;
++                    let mut values_20 = Vec::with_capacity(count);
++                    for _ in 0..count {
++                        values_20.push(self.storage_position()?);
++                    }
++                    values_20
++                })
++            } else {
++                None
++            },
++            call: if self.boolean()? {
++                Some(self.dyn_call_access()?)
++            } else {
++                None
++            },
++            result: if self.boolean()? {
++                Some(self.dyn_result_source()?)
++            } else {
++                None
++            },
++            cleanup: if self.boolean()? {
++                Some(self.dyn_cleanup_contract()?)
++            } else {
++                None
++            },
++            effects: if self.boolean()? {
++                Some({
++                    let count = self.count(self.limits.max_nodes, 1)?;
++                    let mut values_21 = Vec::with_capacity(count);
++                    for _ in 0..count {
++                        values_21.push(self.dyn_effect()?);
++                    }
++                    values_21
++                })
++            } else {
++                None
++            },
++            resume: if self.boolean()? {
++                Some(self.dyn_resume_bound()?)
++            } else {
++                None
++            },
++            threads: if self.boolean()? {
++                Some(self.dyn_thread_requirements()?)
++            } else {
++                None
++            },
++        })
++    }
++    pub(super) fn dyn_declaration_kind(&mut self) -> WireResult<DynDeclarationKind> {
++        Ok(match self.u8()? {
++            0 => DynDeclarationKind::Trait,
++            1 => DynDeclarationKind::Impl,
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynDeclarationKind tag")),
++        })
++    }
++    pub(super) fn dyn_member_kind(&mut self) -> WireResult<DynMemberKind> {
++        Ok(match self.u8()? {
++            0 => DynMemberKind::Type,
++            1 => DynMemberKind::Constant(self.ty(0)?),
++            2 => DynMemberKind::Method({
++                let count = self.count(self.limits.max_nodes, 1)?;
++                let mut values_22 = Vec::with_capacity(count);
++                for _ in 0..count {
++                    values_22.push(self.parameter_kind(0)?);
++                }
++                values_22
++            }),
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynMemberKind tag")),
++        })
++    }
++    pub(super) fn dyn_generic_actual(&mut self) -> WireResult<DynGenericActual> {
++        Ok(match self.u8()? {
++            0 => DynGenericActual::Type(self.ty(0)?),
++            1 => DynGenericActual::Const(self.constant()?),
++            2 => DynGenericActual::Life(self.storage_binder()?),
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynGenericActual tag")),
++        })
++    }
++    pub(super) fn dyn_requirement(&mut self) -> WireResult<DynRequirement> {
++        Ok(match self.u8()? {
++            0 => DynRequirement::Read(self.storage_position()?),
++            1 => DynRequirement::Write(self.storage_position()?),
++            2 => DynRequirement::Manage(self.storage_position()?),
++            3 => DynRequirement::Apart(self.storage_position()?, self.storage_position()?),
++            4 => DynRequirement::State {
++                position: self.storage_position()?,
++                ty: self.ty(0)?,
++                variant: self.u32()?,
++            },
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynRequirement tag")),
++        })
++    }
++    pub(super) fn dyn_guarantee(&mut self) -> WireResult<DynGuarantee> {
++        Ok(match self.u8()? {
++            0 => DynGuarantee::ManageResult,
++            1 => DynGuarantee::State {
++                position: self.storage_position()?,
++                ty: self.ty(0)?,
++                variant: self.u32()?,
++            },
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynGuarantee tag")),
++        })
++    }
++    pub(super) fn dyn_effect(&mut self) -> WireResult<DynEffect> {
++        Ok(match self.u8()? {
++            0 => DynEffect::Alloc,
++            1 => DynEffect::Io,
++            2 => DynEffect::Block,
++            3 => DynEffect::Suspend,
++            4 => DynEffect::Spawn,
++            5 => DynEffect::Ffi,
++            6 => DynEffect::Reenter,
++            7 => DynEffect::Panic,
++            8 => DynEffect::Call(self.storage_position()?),
++            9 => DynEffect::Cleanup(self.ty(0)?),
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynEffect tag")),
++        })
++    }
++    pub(super) fn dyn_result_source(&mut self) -> WireResult<DynResultSource> {
++        Ok(match self.u8()? {
++            0 => DynResultSource::Value,
++            1 => DynResultSource::Create,
++            2 => DynResultSource::Give,
++            3 => DynResultSource::Borrow {
++                sources: {
++                    let count = self.count(self.limits.max_nodes, 1)?;
++                    let mut values_23 = Vec::with_capacity(count);
++                    for _ in 0..count {
++                        values_23.push(self.storage_position()?);
++                    }
++                    values_23
++                },
++                mutable: self.boolean()?,
++            },
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynResultSource tag")),
++        })
++    }
++    pub(super) fn dyn_resume_bound(&mut self) -> WireResult<DynResumeBound> {
++        Ok(match self.u8()? {
++            0 => DynResumeBound::Local,
++            1 => DynResumeBound::Transfer,
++            _ => return Err(malformed("E-WIRE-TAG", "unknown DynResumeBound tag")),
++        })
++    }
++    pub(super) fn dyn_passing_mode(&mut self) -> WireResult<PassingMode> {
++        Ok(match self.u8()? {
++            0 => PassingMode::Copy,
++            1 => PassingMode::Move,
++            2 => PassingMode::Describe,
++            3 => PassingMode::Create,
++            4 => PassingMode::Give,
++            5 => PassingMode::Borrow,
++            6 => PassingMode::BorrowMut,
++            7 => PassingMode::Infer,
++            _ => return Err(malformed("E-WIRE-TAG", "unknown PassingMode tag")),
++        })
++    }
++    pub(super) fn dyn_call_kind(&mut self) -> WireResult<CallKind> {
++        Ok(match self.u8()? {
++            0 => CallKind::Direct,
++            1 => CallKind::Suspend,
++            _ => return Err(malformed("E-WIRE-TAG", "unknown CallKind tag")),
++        })
++    }
++}
+diff --git a/crates/zil-ir/src/dynamic_fingerprint.rs b/crates/zil-ir/src/dynamic_fingerprint.rs
+--- /dev/null
++++ b/crates/zil-ir/src/dynamic_fingerprint.rs
+@@ -0,0 +1,417 @@
++//! Complete raw module metadata fingerprints, not cross-request Type identity.
++use super::*;
++pub(super) fn encode_dyn_interface_id(b: &mut impl FingerprintSink, value: &DynInterfaceId) {
++    encode_u32(b, value.module.0);
++    encode_u32(b, value.index);
++}
++pub(super) fn encode_dyn_vtable_id(b: &mut impl FingerprintSink, value: &DynVtableId) {
++    encode_u32(b, value.module.0);
++    encode_u32(b, value.index);
++}
++pub(super) fn encode_dyn_declaration(b: &mut impl FingerprintSink, value: &DynDeclaration) {
++    encode_declaration_id(b, &value.id);
++    encode_declaration_identity(b, &value.identity);
++    encode_dyn_declaration_kind(b, &value.kind);
++    encode_len(b, value.parameters.len());
++    for value in &value.parameters {
++        encode_parameter_kind(b, value);
++    }
++    encode_len(b, value.members.len());
++    for value in &value.members {
++        encode_dyn_member_declaration(b, value);
++    }
++}
++pub(super) fn encode_dyn_member_declaration(
++    b: &mut impl FingerprintSink,
++    value: &DynMemberDeclaration,
++) {
++    encode_text(b, &value.name);
++    encode_dyn_member_kind(b, &value.kind);
++}
++pub(super) fn encode_dyn_trait_application(
++    b: &mut impl FingerprintSink,
++    value: &DynTraitApplication,
++) {
++    encode_declaration_id(b, &value.declaration);
++    encode_len(b, value.actuals.len());
++    for value in &value.actuals {
++        encode_dyn_generic_actual(b, value);
++    }
++}
++pub(super) fn encode_dyn_member(b: &mut impl FingerprintSink, value: &DynMember) {
++    encode_dyn_trait_application(b, &value.application);
++    encode_u32(b, value.ordinal);
++}
++pub(super) fn encode_dyn_associated_type(b: &mut impl FingerprintSink, value: &DynAssociatedType) {
++    encode_dyn_member(b, &value.member);
++    encode_type(b, &value.ty);
++}
++pub(super) fn encode_dyn_associated_constant(
++    b: &mut impl FingerprintSink,
++    value: &DynAssociatedConstant,
++) {
++    encode_dyn_member(b, &value.member);
++    encode_type(b, &value.ty);
++    encode_constant(b, &value.value);
++}
++pub(super) fn encode_dyn_receiver(b: &mut impl FingerprintSink, value: &DynReceiver) {
++    b.push(u8::from(value.mutable));
++    encode_dyn_passing_mode(b, &value.mode);
++}
++pub(super) fn encode_dyn_slot(b: &mut impl FingerprintSink, value: &DynSlot) {
++    encode_dyn_member(b, &value.member);
++    encode_len(b, value.actuals.len());
++    for value in &value.actuals {
++        encode_dyn_generic_actual(b, value);
++    }
++    encode_dyn_receiver(b, &value.receiver);
++    encode_len(b, value.parameters.len());
++    for value in &value.parameters {
++        encode_type(b, value);
++    }
++    encode_len(b, value.parameter_modes.len());
++    for value in &value.parameter_modes {
++        encode_dyn_passing_mode(b, value);
++    }
++    encode_type(b, &value.result);
++    encode_dyn_passing_mode(b, &value.result_mode);
++    encode_dyn_call_kind(b, &value.call_kind);
++    b.push(u8::from(value.invocation_life.is_some()));
++    if let Some(value) = &value.invocation_life {
++        encode_function_life(b, value);
++    }
++    b.push(u8::from(value.storage_life.is_some()));
++    if let Some(value) = &value.storage_life {
++        encode_required_storage_contract(b, value);
++    }
++    encode_dyn_contract(b, &value.contract);
++}
++pub(super) fn encode_dyn_interface(b: &mut impl FingerprintSink, value: &DynInterface) {
++    encode_dyn_interface_id(b, &value.id);
++    encode_dyn_trait_application(b, &value.application);
++    encode_len(b, value.inherited.len());
++    for value in &value.inherited {
++        encode_dyn_trait_application(b, value);
++    }
++    encode_len(b, value.associated_types.len());
++    for value in &value.associated_types {
++        encode_dyn_associated_type(b, value);
++    }
++    encode_len(b, value.associated_constants.len());
++    for value in &value.associated_constants {
++        encode_dyn_associated_constant(b, value);
++    }
++    encode_retained_shape(b, &value.retained_life);
++    encode_len(b, value.slots.len());
++    for value in &value.slots {
++        encode_dyn_slot(b, value);
++    }
++}
++pub(super) fn encode_dyn_entry(b: &mut impl FingerprintSink, value: &DynEntry) {
++    encode_u32(b, value.slot);
++    encode_u32(b, value.function.0);
++}
++pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable) {
++    encode_dyn_vtable_id(b, &value.id);
++    encode_dyn_interface_id(b, &value.interface);
++    encode_type(b, &value.self_type);
++    encode_declaration_id(b, &value.implementation);
++    encode_len(b, value.actuals.len());
++    for value in &value.actuals {
++        encode_dyn_generic_actual(b, value);
++    }
++    encode_len(b, value.ports.len());
++    for value in &value.ports {
++        encode_retained_port_binding(b, value);
++    }
++    encode_len(b, value.entries.len());
++    for value in &value.entries {
++        encode_dyn_entry(b, value);
++    }
++    b.push(u8::from(value.cleanup.is_some()));
++    if let Some(value) = &value.cleanup {
++        encode_dyn_entry(b, value);
++    }
++}
++pub(super) fn encode_dyn_call_access(b: &mut impl FingerprintSink, value: &DynCallAccess) {
++    encode_len(b, value.reads.len());
++    for value in &value.reads {
++        encode_storage_position(b, value);
++    }
++    encode_len(b, value.writes.len());
++    for value in &value.writes {
++        encode_storage_position(b, value);
++    }
++}
++pub(super) fn encode_dyn_cleanup_contract(
++    b: &mut impl FingerprintSink,
++    value: &DynCleanupContract,
++) {
++    b.push(u8::from(value.environment));
++    encode_len(b, value.positions.len());
++    for value in &value.positions {
++        encode_storage_position(b, value);
++    }
++    encode_dyn_call_access(b, &value.access);
++    encode_len(b, value.effects.len());
++    for value in &value.effects {
++        encode_dyn_effect(b, value);
++    }
++}
++pub(super) fn encode_dyn_thread_requirements(
++    b: &mut impl FingerprintSink,
++    value: &DynThreadRequirements,
++) {
++    b.push(u8::from(value.transfer));
++    b.push(u8::from(value.share));
++}
++pub(super) fn encode_dyn_contract(b: &mut impl FingerprintSink, value: &DynContract) {
++    b.push(u8::from(value.requires.is_some()));
++    if let Some(value) = &value.requires {
++        encode_len(b, (value).len());
++        for value in value {
++            encode_dyn_requirement(b, value);
++        }
++    }
++    b.push(u8::from(value.guarantees.is_some()));
++    if let Some(value) = &value.guarantees {
++        encode_len(b, (value).len());
++        for value in value {
++            encode_dyn_guarantee(b, value);
++        }
++    }
++    b.push(u8::from(value.hold.is_some()));
++    if let Some(value) = &value.hold {
++        encode_len(b, (value).len());
++        for value in value {
++            encode_storage_position(b, value);
++        }
++    }
++    b.push(u8::from(value.call.is_some()));
++    if let Some(value) = &value.call {
++        encode_dyn_call_access(b, value);
++    }
++    b.push(u8::from(value.result.is_some()));
++    if let Some(value) = &value.result {
++        encode_dyn_result_source(b, value);
++    }
++    b.push(u8::from(value.cleanup.is_some()));
++    if let Some(value) = &value.cleanup {
++        encode_dyn_cleanup_contract(b, value);
++    }
++    b.push(u8::from(value.effects.is_some()));
++    if let Some(value) = &value.effects {
++        encode_len(b, (value).len());
++        for value in value {
++            encode_dyn_effect(b, value);
++        }
++    }
++    b.push(u8::from(value.resume.is_some()));
++    if let Some(value) = &value.resume {
++        encode_dyn_resume_bound(b, value);
++    }
++    b.push(u8::from(value.threads.is_some()));
++    if let Some(value) = &value.threads {
++        encode_dyn_thread_requirements(b, value);
++    }
++}
++pub(super) fn encode_dyn_declaration_kind(
++    b: &mut impl FingerprintSink,
++    value: &DynDeclarationKind,
++) {
++    match value {
++        DynDeclarationKind::Trait => {
++            b.push(0);
++        }
++        DynDeclarationKind::Impl => {
++            b.push(1);
++        }
++    }
++}
++pub(super) fn encode_dyn_member_kind(b: &mut impl FingerprintSink, value: &DynMemberKind) {
++    match value {
++        DynMemberKind::Type => {
++            b.push(0);
++        }
++        DynMemberKind::Constant(value_0) => {
++            b.push(1);
++            encode_type(b, value_0);
++        }
++        DynMemberKind::Method(value_0) => {
++            b.push(2);
++            encode_len(b, value_0.len());
++            for value in value_0 {
++                encode_parameter_kind(b, value);
++            }
++        }
++    }
++}
++pub(super) fn encode_dyn_generic_actual(b: &mut impl FingerprintSink, value: &DynGenericActual) {
++    match value {
++        DynGenericActual::Type(value_0) => {
++            b.push(0);
++            encode_type(b, value_0);
++        }
++        DynGenericActual::Const(value_0) => {
++            b.push(1);
++            encode_constant(b, value_0);
++        }
++        DynGenericActual::Life(value_0) => {
++            b.push(2);
++            encode_storage_binder(b, value_0);
++        }
++    }
++}
++pub(super) fn encode_dyn_requirement(b: &mut impl FingerprintSink, value: &DynRequirement) {
++    match value {
++        DynRequirement::Read(value_0) => {
++            b.push(0);
++            encode_storage_position(b, value_0);
++        }
++        DynRequirement::Write(value_0) => {
++            b.push(1);
++            encode_storage_position(b, value_0);
++        }
++        DynRequirement::Manage(value_0) => {
++            b.push(2);
++            encode_storage_position(b, value_0);
++        }
++        DynRequirement::Apart(value_0, value_1) => {
++            b.push(3);
++            encode_storage_position(b, value_0);
++            encode_storage_position(b, value_1);
++        }
++        DynRequirement::State {
++            position,
++            ty,
++            variant,
++        } => {
++            b.push(4);
++            encode_storage_position(b, position);
++            encode_type(b, ty);
++            encode_u32(b, *variant);
++        }
++    }
++}
++pub(super) fn encode_dyn_guarantee(b: &mut impl FingerprintSink, value: &DynGuarantee) {
++    match value {
++        DynGuarantee::ManageResult => {
++            b.push(0);
++        }
++        DynGuarantee::State {
++            position,
++            ty,
++            variant,
++        } => {
++            b.push(1);
++            encode_storage_position(b, position);
++            encode_type(b, ty);
++            encode_u32(b, *variant);
++        }
++    }
++}
++pub(super) fn encode_dyn_effect(b: &mut impl FingerprintSink, value: &DynEffect) {
++    match value {
++        DynEffect::Alloc => {
++            b.push(0);
++        }
++        DynEffect::Io => {
++            b.push(1);
++        }
++        DynEffect::Block => {
++            b.push(2);
++        }
++        DynEffect::Suspend => {
++            b.push(3);
++        }
++        DynEffect::Spawn => {
++            b.push(4);
++        }
++        DynEffect::Ffi => {
++            b.push(5);
++        }
++        DynEffect::Reenter => {
++            b.push(6);
++        }
++        DynEffect::Panic => {
++            b.push(7);
++        }
++        DynEffect::Call(value_0) => {
++            b.push(8);
++            encode_storage_position(b, value_0);
++        }
++        DynEffect::Cleanup(value_0) => {
++            b.push(9);
++            encode_type(b, value_0);
++        }
++    }
++}
++pub(super) fn encode_dyn_result_source(b: &mut impl FingerprintSink, value: &DynResultSource) {
++    match value {
++        DynResultSource::Value => {
++            b.push(0);
++        }
++        DynResultSource::Create => {
++            b.push(1);
++        }
++        DynResultSource::Give => {
++            b.push(2);
++        }
++        DynResultSource::Borrow { sources, mutable } => {
++            b.push(3);
++            encode_len(b, sources.len());
++            for value in sources {
++                encode_storage_position(b, value);
++            }
++            b.push(u8::from(*mutable));
++        }
++    }
++}
++pub(super) fn encode_dyn_resume_bound(b: &mut impl FingerprintSink, value: &DynResumeBound) {
++    match value {
++        DynResumeBound::Local => {
++            b.push(0);
++        }
++        DynResumeBound::Transfer => {
++            b.push(1);
++        }
++    }
++}
++pub(super) fn encode_dyn_passing_mode(b: &mut impl FingerprintSink, value: &PassingMode) {
++    match value {
++        PassingMode::Copy => {
++            b.push(0);
++        }
++        PassingMode::Move => {
++            b.push(1);
++        }
++        PassingMode::Describe => {
++            b.push(2);
++        }
++        PassingMode::Create => {
++            b.push(3);
++        }
++        PassingMode::Give => {
++            b.push(4);
++        }
++        PassingMode::Borrow => {
++            b.push(5);
++        }
++        PassingMode::BorrowMut => {
++            b.push(6);
++        }
++        PassingMode::Infer => {
++            b.push(7);
++        }
++    }
++}
++pub(super) fn encode_dyn_call_kind(b: &mut impl FingerprintSink, value: &CallKind) {
++    match value {
++        CallKind::Direct => {
++            b.push(0);
++        }
++        CallKind::Suspend => {
++            b.push(1);
++        }
++    }
++}

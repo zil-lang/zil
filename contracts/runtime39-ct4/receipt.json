@@ -1,0 +1,29 @@
+{
+  "crates/zil-base/src/lib.rs": {
+    "base": "d2ea0264216f82dab274ff4354c59b10e146d459ea025e102316d29574374161",
+    "candidate": "f1a8b993622e739ac74253c85aba9c09cb37879346586b98b72a923226e75889",
+    "base_commit": "b377f8e9f"
+  },
+  "crates/zil-ir/src/lib.rs": {
+    "base": "ea6e9db2227890a3f3c1ddf1836635726ca24be10389e5073f6ae6d3767fd4e0",
+    "candidate": "fe1d927ff0717830266030dbd5ae911bf44ed8a130fd992b557c032e9fe8c6de",
+    "base_commit": "b377f8e9f"
+  },
+  "crates/zil-ir/src/wire.rs": {
+    "base": "4dd45e65af9a0a3c21963f0c44446a7d8c87e7a14d26c50cdba8eb513483882b",
+    "candidate": "34da059e8753fc8c238dcb4d8a8bcf6ae26d160b63ca0f2978839bc81234cc02",
+    "base_commit": "b377f8e9f"
+  },
+  "runtime39-inventory.patch": "b43881318fae7160291be9875df9cbf5b809be7dc76a162711a3ce1ffe320268",
+  "crates/zil-ir/src/ct_artifact.rs": {
+    "base": "40f68e4aaa11ae0a392a35ad1d9a59477c6446e1b8524805a3200fc34200962b",
+    "candidate": "2674b091d3b1c1da0fe392591315db502b79f3d638aff604a83a48d32889fd5f",
+    "base_commit": "b46027807"
+  },
+  "crates/zil-ir/src/ct_wire.rs": {
+    "base": "09a9c528ddae59eaef659d6f695050c0be67b8424cff602bc0fb6e3f727bd952",
+    "candidate": "250f5b1beef0f9694f8e9a95d738feee2f08ce6fcedf01e0ab76622110308076",
+    "base_commit": "b46027807"
+  },
+  "ct4-scope.patch": "c990e08ff142aa93b6d33fa211372a835ff969f4864797d43afcbbf5ebca1eb1"
+}

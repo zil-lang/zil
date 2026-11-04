@@ -1,1 +1,0 @@
-fn main() -> bool => true

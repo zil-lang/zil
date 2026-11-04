@@ -1,1 +1,0 @@
-fn worker(value:i32)->i32{return value+1} fn main()->i32{let body=()->i32=>{let(c,w,b)=thread_scope(worker,4,()->i32=>6);if !c{return -100}return w+b};let(c,w,b)=thread_scope(worker,10,body);if !c{return 2}if w!=11||b!=11{return 3}return 0}

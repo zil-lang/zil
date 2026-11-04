@@ -1,0 +1,186 @@
+// Root-owned publication draft, not applied by341. Root reserves Type tag36,
+// Instruction tags131/132. Names below live in zil-ir; common storage types
+// come from342. Every row is untrusted; no ID/fingerprint is a permission.
+identity!(DynInterfaceId, DynVtableId);
+
+#[derive(Clone,Copy,Debug,PartialEq,Eq,PartialOrd,Ord)]
+pub struct DynDeclaration {
+    pub module:ModuleId,
+    pub ordinal:u32,
+    pub compiler:bool,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum DynGenericActual {
+    Type(Type),
+    Const(Constant),
+    Life(StorageBinder),
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+// application/inherited Life actuals must belong to this interface's FIXED
+// domain only; they may not borrow any slot's Invocation binder namespace.
+pub struct DynTraitApplication {
+    pub declaration:DynDeclaration,
+    pub actuals:Vec<DynGenericActual>,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynMember {
+    pub trait_application:DynTraitApplication,
+    pub ordinal:u32,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynAssociatedType {pub member:DynMember,pub ty:Type}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynAssociatedConstant {
+    pub member:DynMember,
+    pub value:ct_artifact::CtValue,
+    // Any schema-bearing value must resolve against explicit checked enclosing
+    // CT schema data; reject dangling schema IDs. Scalar lane is first, while
+    // shared344 full CT value context is wired, never accept an opaque hash.
+}
+pub type DynEnvironmentPort = RetainedBorrowPort;
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynSlot {
+    pub member:DynMember,
+    // Full ordered method type/const/life actuals. Life arguments refer to
+    // canonical invocation domains. No runtime type/const quantifier remains.
+    pub actuals:Vec<DynGenericActual>,
+    // Life entries use THIS slot invocation domain, with independently checked
+    // full kind/ordinal/count. They cannot alias another slot by numeric index.
+    // Complete signature INCLUDING receiver at position0.
+    pub parameters:Vec<Type>,
+    pub parameter_modes:Vec<PassingMode>,
+    pub result:Type,
+    pub result_mode:PassingMode,
+    pub call_kind:CallKind,
+    pub invocation_life:Option<FunctionLifeContract>,
+    pub storage_life:Option<StorageLifeContract>,
+    pub contract:DynContract,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynInterface {
+    pub id:DynInterfaceId,
+    pub application:DynTraitApplication,
+    pub inherited:Vec<DynTraitApplication>,
+    pub associated_types:Vec<DynAssociatedType>,
+    pub associated_constants:Vec<DynAssociatedConstant>,
+    pub retained_life:RetainedLifeShape,
+    pub slots:Vec<DynSlot>,
+}
+pub type DynPortBinding = RetainedPortBinding;
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct CoreDynEntry {pub slot:u32,pub module:ModuleId,pub function:NodeId}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynEntry {pub slot:u32,pub function:FunctionId}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct CoreDynVtable {
+    pub id:DynVtableId,
+    pub interface:DynInterfaceId,
+    pub self_type:Type,
+    pub implementation:DynDeclaration,
+    pub actuals:Vec<DynGenericActual>,
+    pub ports:Vec<DynPortBinding>,
+    pub entries:Vec<CoreDynEntry>,
+    pub cleanup:Option<CoreDynEntry>,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynVtable {
+    pub id:DynVtableId,
+    pub interface:DynInterfaceId,
+    pub self_type:Type,
+    pub implementation:DynDeclaration,
+    pub actuals:Vec<DynGenericActual>,
+    pub ports:Vec<DynPortBinding>,
+    pub entries:Vec<DynEntry>,
+    pub cleanup:Option<DynEntry>,
+}
+
+// Required common projection split, not a physical place operation:
+// Use the single shared ContractProjection definition.
+// StoragePosition.path: Vec<ContractProjection>.
+// StorageLifeSlot.path remains Vec<PlaceProjection>.
+
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum DynRequirement {
+    Read(StoragePosition),Write(StoragePosition),Manage(StoragePosition),
+    Apart(StoragePosition,StoragePosition),
+    State {position:StoragePosition,ty:Type,variant:u32},
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum DynGuarantee {
+    ManageResult,
+    State {position:StoragePosition,ty:Type,variant:u32},
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum DynEffect {
+    Alloc,Io,Block,Suspend,Spawn,Ffi,Reenter,Panic,
+    Call(StoragePosition),Cleanup(Type),
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynCallAccess {
+    pub reads:Vec<StoragePosition>,pub writes:Vec<StoragePosition>,
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum DynResultSource {
+    Value,Create,Give,
+    Borrow {sources:Vec<StoragePosition>,mutable:bool},
+}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynCleanupContract {
+    pub environment:bool,
+    pub positions:Vec<StoragePosition>,
+    pub access:DynCallAccess,
+    pub effects:Vec<DynEffect>,
+}
+#[derive(Clone,Copy,Debug,PartialEq,Eq)]
+pub enum DynResumeBound {Local,Transfer}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynThreadRequirements {pub transfer:bool,pub share:bool}
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub struct DynContract {
+    // None is explicitly UNKNOWN in candidate/raw data; never empty permission.
+    // Every component required by an exposed/runtime slot must be explicit or
+    // independently reconstructed before verified publication. Unknown is NOT
+    // top permission: any call/construction needing it fails closed, unless the
+    // obligation is independently shown irrelevant. Some(vec![]) is
+    // an actual finite empty claim and must be checked from the real entries.
+    pub requires:Option<Vec<DynRequirement>>,
+    pub guarantees:Option<Vec<DynGuarantee>>,
+    pub hold:Option<Vec<StoragePosition>>,
+    pub call:Option<DynCallAccess>,
+    pub result:Option<DynResultSource>,
+    pub cleanup:Option<DynCleanupContract>,
+    pub effects:Option<Vec<DynEffect>>,
+    pub resume:Option<DynResumeBound>,
+    pub threads:Option<DynThreadRequirements>,
+}
+// `invocation_life` covers a flat invocation relation only when sufficient;
+// participating storage/port signatures use the shared storage_life relation,
+// or an independently checked exact projection into the flat field. Root may
+// substitute an existing equivalent shared normalized contract data type, but
+// must retain the explicit Unknown vs finite-empty distinction above.
+
+// Type::Dyn {interface:DynInterfaceId} is unsized, like Slice. The ordinary
+// Type::Address {mutable,inner:Dyn(interface)} is a FAT ADDRESS (env,vtable),
+// not a pointer to a compiler-created temporary pair. Stored Address rules and
+// BorrowedStorage therefore cover it without root-Dyn wrapper exceptions.
+// CoreExprKind::MakeDynBorrow {interface,vtable,source:Box<CoreExpr>,mutable}
+// CoreExprKind::CallDynSlot {callee:Box<CoreExpr>,interface,slot,arguments:Vec<CoreExpr>}
+// InstructionKind::MakeDynBorrow {interface,vtable,source:ValueId,mutable}
+// InstructionKind::CallDynSlot {callee:ValueId,interface,slot,arguments:Vec<ValueId>}
+// `callee` is evaluated exactly once BEFORE arguments. It supplies receiver0;
+// arguments contains ONLY nonreceiver operands. Independent kernels reconstruct
+// the same callee's receiver/port roots; no duplicated raw receiver operand.
+// CoreModule/TypedModule/program carry explicit interface/vtable tables.
+
+// Validation: interface IDs dense/unique, member/slot actual kind+order exact;
+// all ordinary parameters/results closed; Self only in erased receiver ABI;
+// complete contracts; associated equations match proven committed values.
+// Each port has exactly one mapping, no duplicate/missing/extra. Mapping source
+// is ONLY actual concrete Self Parameter0 storage or actual Closure Capture,
+// never ordinary call args or Result. Port leaf/mode exactly matches actual
+// full Address/Desc shape and real permission; sharing a fixed class grants
+// no mutable authority. DynPort is terminal at an actual Address<Dyn> boundary;
+// it substitutes contracts, never enables GEP/ReadStoredBorrow. Fixed classes
+// reuse persistent source invariant uppers/owner+target roots; invocation may
+// bind Parameter0's outer address but never freshen port classes. Recursive
+// mappings/nested dyn/vtable cycles prepay depth/work before every expansion.

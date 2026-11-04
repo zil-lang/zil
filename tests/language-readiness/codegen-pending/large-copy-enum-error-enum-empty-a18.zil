@@ -1,1 +1,0 @@
-type Big=[[[[[[[[[[[[[[[[[[[u8;1];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];enum E{Data(Big),Empty}fn keep(e:E)->E{return e}fn consume(e:E)->i32{return 0}fn main()->i32{return consume(keep(E.Empty))}

@@ -1,1 +1,0 @@
-import model;fn main()->i32{let state=model.twice(model.pack(model.make(40),65));return state.hits-42}

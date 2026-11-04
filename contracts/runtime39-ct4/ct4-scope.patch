@@ -1,0 +1,528 @@
+--- a/crates/zil-ir/src/ct_artifact.rs
++++ b/crates/zil-ir/src/ct_artifact.rs
+@@ -3,10 +3,10 @@
+ use crate::{BinaryOp, Constant, UnaryOp};
+ use zil_base::{Fingerprint, ModuleId, NodeId, Span};
+ 
+-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 3;
+-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v3";
+-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v3";
+-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v3";
++pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 4;
++pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v4";
++pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v4";
++pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v4";
+ 
+ macro_rules! ct_id {
+     ($($name:ident),+ $(,)?) => {$(
+@@ -89,6 +89,15 @@
+     AnonymousSum(Vec<CtTy>),
+ }
+ 
++/// Numeric scope reference inside the enclosing complete CtTypeRef or schema
++/// life_context. The owner is a real binder-owning type node. This is a semantic
++/// backreference, NEVER a physical type child/cycle/layout edge.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct CtLifetimeArgument {
++    pub owner: CtTypeNodeId,
++    pub binder: crate::StorageBinder,
++}
++
+ /// Public user schemas are pure data. Built-in query result schemas are not
+ /// constructible through MakeRecord/MakeVariant; verifier checks their origin.
+ #[derive(Clone, Debug, PartialEq, Eq)]
+@@ -97,11 +106,20 @@
+     /// borrowed-function lifetime relations. This never represents a runtime
+     /// pointer value or grants declaration access/construction authority.
+     Type(CtTypeRef),
++    /// Required for EVERY type actual when schema.life_context is Some.
++    /// This ID belongs only to that one joint context, never a local Type graph.
++    TypeInContext(CtTypeNodeId),
+     Scalar(Constant),
++    Lifetime(CtLifetimeArgument),
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct CtRecordSchema {
+     pub name: CtSymbolId,
++    /// One JOINT closed type/lifetime context for the entire application.
++    /// None iff no argument (including nested/phantom arguments) uses a life.
++    /// Root identifies this exact nominal application under its retained scope.
++    /// All argument values must match the corresponding context projections.
++    pub life_context: Option<CtTypeRef>,
+     /// Complete actual arguments in declaration parameter order, including
+     /// phantom arguments. Data alone grants no declaration access or bounds.
+     pub arguments: Vec<CtSchemaArgument>,
+@@ -111,6 +129,11 @@
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub struct CtEnumSchema {
+     pub name: CtSymbolId,
++    /// One JOINT closed type/lifetime context for the entire application.
++    /// None iff no argument (including nested/phantom arguments) uses a life.
++    /// Root identifies this exact nominal application under its retained scope.
++    /// All argument values must match the corresponding context projections.
++    pub life_context: Option<CtTypeRef>,
+     pub arguments: Vec<CtSchemaArgument>,
+     pub variants: Vec<Vec<CtTy>>,
+     pub origin: CtSchemaOrigin,
+@@ -138,6 +161,11 @@
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub enum CtTypeNode {
++    /// One actual storage DAG edge; relation metadata creates no physical edge.
++    BorrowedStorage {
++        storage: CtTypeNodeId,
++        life: crate::StorageLifeShape,
++    },
+     Primitive(CtScalarTy),
+     Builtin(CtBuiltinType),
+     Nominal {
+@@ -188,6 +216,7 @@
+ pub enum CtTypeArgument {
+     Type(CtTypeNodeId),
+     Scalar(Constant),
++    Lifetime(CtLifetimeArgument),
+ }
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+@@ -438,6 +467,9 @@
+ }
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ pub enum CtTypeConstructor {
++    BorrowedStorage {
++        life: crate::StorageLifeShape,
++    },
+     /// Raw invocation relation; children remain actual Type arguments.
+     BorrowedFunctionPointer {
+         life: crate::FunctionLifeContract,
+--- a/crates/zil-ir/src/ct_wire.rs
++++ b/crates/zil-ir/src/ct_wire.rs
+@@ -533,8 +533,8 @@
+ const VALUE_MAGIC: &[u8; 8] = b"ZILCTV01";
+ const REGISTRY_MAGIC: &[u8; 8] = b"ZILCTR01";
+ const FUNCTION_MAGIC: &[u8; 8] = b"ZILCTF01";
+-const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v3";
+-const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v3";
++const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v4";
++const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v4";
+ fn fingerprint(domain: &[u8], body: &[u8]) -> Fingerprint {
+     let mut hash = FingerprintBuilder::new();
+     hash.update(domain);
+@@ -1237,6 +1237,44 @@
+     }
+ }
+ 
++impl Wire for crate::StorageBinder {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        match self {
++            Self::Fixed(i) => {
++                0u8.encode(e)?;
++                i.encode(e)
++            }
++            Self::Invocation(i) => {
++                1u8.encode(e)?;
++                i.encode(e)
++            }
++        }
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        match u8::decode(d)? {
++            0 => Ok(Self::Fixed(u32::decode(d)?)),
++            1 => Ok(Self::Invocation(u32::decode(d)?)),
++            _ => Err(WireError::UnknownTag),
++        }
++    }
++}
++impl Wire for CtLifetimeArgument {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            self.owner.encode(e)?;
++            self.binder.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            Ok(Self {
++                owner: CtTypeNodeId::decode(d)?,
++                binder: crate::StorageBinder::decode(d)?,
++            })
++        })
++    }
++}
++
+ impl Wire for CtSchemaArgument {
+     fn encode(&self, e: &mut Encoder) -> Result<()> {
+         e.descend(|e| match self {
+@@ -1244,6 +1282,14 @@
+                 0u8.encode(e)?;
+                 ty.encode(e)
+             }
++            Self::Lifetime(value) => {
++                2u8.encode(e)?;
++                value.encode(e)
++            }
++            Self::TypeInContext(value) => {
++                3u8.encode(e)?;
++                value.encode(e)
++            }
+             Self::Scalar(value) => {
+                 1u8.encode(e)?;
+                 value.encode(e)
+@@ -1254,6 +1300,8 @@
+         d.descend(|d| match u8::decode(d)? {
+             0 => Ok(Self::Type(CtTypeRef::decode(d)?)),
+             1 => Ok(Self::Scalar(Constant::decode(d)?)),
++            2 => Ok(Self::Lifetime(CtLifetimeArgument::decode(d)?)),
++            3 => Ok(Self::TypeInContext(CtTypeNodeId::decode(d)?)),
+             _ => Err(WireError::UnknownTag),
+         })
+     }
+@@ -1263,6 +1311,7 @@
+     fn encode(&self, e: &mut Encoder) -> Result<()> {
+         e.descend(|e| {
+             self.name.encode(e)?;
++            self.life_context.encode(e)?;
+             self.arguments.encode(e)?;
+             self.fields.encode(e)?;
+             self.origin.encode(e)?;
+@@ -1273,6 +1322,7 @@
+         d.descend(|d| {
+             Ok(Self {
+                 name: <CtSymbolId as Wire>::decode(d)?,
++                life_context: Option::<CtTypeRef>::decode(d)?,
+                 arguments: <Vec<CtSchemaArgument> as Wire>::decode(d)?,
+                 fields: <Vec<CtTy> as Wire>::decode(d)?,
+                 origin: <CtSchemaOrigin as Wire>::decode(d)?,
+@@ -1285,6 +1335,7 @@
+     fn encode(&self, e: &mut Encoder) -> Result<()> {
+         e.descend(|e| {
+             self.name.encode(e)?;
++            self.life_context.encode(e)?;
+             self.arguments.encode(e)?;
+             self.variants.encode(e)?;
+             self.origin.encode(e)?;
+@@ -1295,6 +1346,7 @@
+         d.descend(|d| {
+             Ok(Self {
+                 name: <CtSymbolId as Wire>::decode(d)?,
++                life_context: Option::<CtTypeRef>::decode(d)?,
+                 arguments: <Vec<CtSchemaArgument> as Wire>::decode(d)?,
+                 variants: <Vec<Vec<CtTy>> as Wire>::decode(d)?,
+                 origin: <CtSchemaOrigin as Wire>::decode(d)?,
+@@ -1366,6 +1418,254 @@
+             Ok(Self {
+                 nodes: <Vec<CtTypeNode> as Wire>::decode(d)?,
+                 root: <CtTypeNodeId as Wire>::decode(d)?,
++            })
++        })
++    }
++}
++
++impl Wire for crate::VariantProjection {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        self.variant.encode(e)?;
++        self.index.encode(e)
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        Ok(Self {
++            variant: u32::decode(d)?,
++            index: u32::decode(d)?,
++        })
++    }
++}
++impl Wire for crate::PlaceProjection {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            match self {
++                Self::Field(i) => {
++                    0u8.encode(e)?;
++                    i.encode(e)?
++                }
++                Self::Variant(v) => {
++                    1u8.encode(e)?;
++                    v.encode(e)?
++                }
++                Self::ErrorArm(b) => {
++                    2u8.encode(e)?;
++                    b.encode(e)?
++                }
++            }
++            Ok(())
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| match u8::decode(d)? {
++            0 => Ok(Self::Field(u32::decode(d)?)),
++            1 => Ok(Self::Variant(crate::VariantProjection::decode(d)?)),
++            2 => Ok(Self::ErrorArm(bool::decode(d)?)),
++            _ => Err(WireError::UnknownTag),
++        })
++    }
++}
++impl Wire for crate::StoredBorrowMode {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        (*self as u8).encode(e)
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        match u8::decode(d)? {
++            0 => Ok(Self::SharedAddress),
++            1 => Ok(Self::ExclusiveAddress),
++            2 => Ok(Self::ReadOnlyDescription),
++            3 => Ok(Self::WritableDescription),
++            _ => Err(WireError::UnknownTag),
++        }
++    }
++}
++impl Wire for crate::StorageLifeSlot {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            if self.path.len() > e.max_depth {
++                return Err(WireError::Limit);
++            }
++            self.path.encode(e)?;
++            self.binder.encode(e)?;
++            self.mode.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            let count = u32::decode(d)? as usize;
++            if count > d.max_depth || count > d.nodes_left {
++                return Err(WireError::Limit);
++            }
++            let allocation = count
++                .checked_mul(std::mem::size_of::<crate::PlaceProjection>())
++                .ok_or(WireError::Limit)?;
++            d.allocation(allocation)?;
++            let mut path = Vec::new();
++            path.try_reserve_exact(count)
++                .map_err(|_| WireError::Limit)?;
++            for _ in 0..count {
++                d.nodes(1)?;
++                path.push(crate::PlaceProjection::decode(d)?);
++            }
++            Ok(Self {
++                path,
++                binder: u32::decode(d)?,
++                mode: crate::StoredBorrowMode::decode(d)?,
++            })
++        })
++    }
++}
++impl Wire for crate::LifeTypeProjection {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            match self {
++                Self::Place(p) => {
++                    0u8.encode(e)?;
++                    p.encode(e)?;
++                }
++                Self::TypeArgument(i) => {
++                    1u8.encode(e)?;
++                    i.encode(e)?;
++                }
++                Self::Pointee => 2u8.encode(e)?,
++                Self::Element => 3u8.encode(e)?,
++                Self::Parameter(i) => {
++                    4u8.encode(e)?;
++                    i.encode(e)?;
++                }
++                Self::Result => 5u8.encode(e)?,
++                Self::Port(i) => {
++                    6u8.encode(e)?;
++                    i.encode(e)?;
++                }
++                Self::AssociatedType(i) => {
++                    7u8.encode(e)?;
++                    i.encode(e)?;
++                }
++            }
++            Ok(())
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| match u8::decode(d)? {
++            0 => Ok(Self::Place(crate::PlaceProjection::decode(d)?)),
++            1 => Ok(Self::TypeArgument(u32::decode(d)?)),
++            2 => Ok(Self::Pointee),
++            3 => Ok(Self::Element),
++            4 => Ok(Self::Parameter(u32::decode(d)?)),
++            5 => Ok(Self::Result),
++            6 => Ok(Self::Port(u32::decode(d)?)),
++            7 => Ok(Self::AssociatedType(u32::decode(d)?)),
++            _ => Err(WireError::UnknownTag),
++        })
++    }
++}
++fn encode_life_type_path(path: &[crate::LifeTypeProjection], e: &mut Encoder) -> Result<()> {
++    if path.len() > e.max_depth || path.len() > e.nodes_left {
++        return Err(WireError::Limit);
++    }
++    u32::try_from(path.len())
++        .map_err(|_| WireError::Limit)?
++        .encode(e)?;
++    for step in path {
++        e.nodes(1)?;
++        step.encode(e)?;
++    }
++    Ok(())
++}
++fn decode_life_type_path(d: &mut Decoder<'_>) -> Result<Vec<crate::LifeTypeProjection>> {
++    let count = u32::decode(d)? as usize;
++    if count > d.max_depth || count > d.nodes_left {
++        return Err(WireError::Limit);
++    }
++    d.allocation(
++        count
++            .checked_mul(std::mem::size_of::<crate::LifeTypeProjection>())
++            .ok_or(WireError::Limit)?,
++    )?;
++    let mut path = Vec::new();
++    path.try_reserve_exact(count)
++        .map_err(|_| WireError::Limit)?;
++    for _ in 0..count {
++        d.nodes(1)?;
++        path.push(crate::LifeTypeProjection::decode(d)?);
++    }
++    Ok(path)
++}
++impl Wire for crate::StorageRetainedBinding {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            encode_life_type_path(&self.path, e)?;
++            self.class.encode(e)?;
++            self.binder.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            Ok(Self {
++                path: decode_life_type_path(d)?,
++                class: u32::decode(d)?,
++                binder: u32::decode(d)?,
++            })
++        })
++    }
++}
++impl Wire for crate::LifeDeclarationId {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            self.module.encode(e)?;
++            self.declaration.encode(e)?;
++            self.compiler.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            Ok(Self {
++                module: ModuleId::decode(d)?,
++                declaration: NodeId::decode(d)?,
++                compiler: bool::decode(d)?,
++            })
++        })
++    }
++}
++impl Wire for crate::NominalLifeArgument {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            encode_life_type_path(&self.path, e)?;
++            self.declaration.encode(e)?;
++            self.argument.encode(e)?;
++            self.binder.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            Ok(Self {
++                path: decode_life_type_path(d)?,
++                declaration: crate::LifeDeclarationId::decode(d)?,
++                argument: u32::decode(d)?,
++                binder: u32::decode(d)?,
++            })
++        })
++    }
++}
++impl Wire for crate::StorageLifeShape {
++    fn encode(&self, e: &mut Encoder) -> Result<()> {
++        e.descend(|e| {
++            e.nodes(self.binder_count as usize)?;
++            self.binder_count.encode(e)?;
++            self.slots.encode(e)?;
++            self.retained.encode(e)?;
++            self.nominal_arguments.encode(e)
++        })
++    }
++    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
++        d.descend(|d| {
++            let binder_count = u32::decode(d)?;
++            d.nodes(binder_count as usize)?;
++            Ok(Self {
++                binder_count,
++                slots: Vec::<crate::StorageLifeSlot>::decode(d)?,
++                retained: Vec::<crate::StorageRetainedBinding>::decode(d)?,
++                nominal_arguments: Vec::<crate::NominalLifeArgument>::decode(d)?,
+             })
+         })
+     }
+@@ -1398,6 +1698,11 @@
+     fn encode(&self, e: &mut Encoder) -> Result<()> {
+         e.descend(|e| {
+             match self {
++                Self::BorrowedStorage { storage, life } => {
++                    16u8.encode(e)?;
++                    storage.encode(e)?;
++                    life.encode(e)?;
++                }
+                 Self::Primitive(v0) => {
+                     0u8.encode(e)?;
+                     v0.encode(e)?;
+@@ -1480,6 +1785,10 @@
+     }
+     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+         d.descend(|d| match u8::decode(d)? {
++            16 => Ok(Self::BorrowedStorage {
++                storage: CtTypeNodeId::decode(d)?,
++                life: crate::StorageLifeShape::decode(d)?,
++            }),
+             0 => Ok(Self::Primitive(<CtScalarTy as Wire>::decode(d)?)),
+             1 => Ok(Self::Builtin(<CtBuiltinType as Wire>::decode(d)?)),
+             2 => Ok(Self::Nominal {
+@@ -1533,6 +1842,10 @@
+                     0u8.encode(e)?;
+                     v0.encode(e)?;
+                 }
++                Self::Lifetime(v0) => {
++                    2u8.encode(e)?;
++                    v0.encode(e)?;
++                }
+                 Self::Scalar(v0) => {
+                     1u8.encode(e)?;
+                     v0.encode(e)?;
+@@ -1545,6 +1858,7 @@
+         d.descend(|d| match u8::decode(d)? {
+             0 => Ok(Self::Type(<CtTypeNodeId as Wire>::decode(d)?)),
+             1 => Ok(Self::Scalar(<Constant as Wire>::decode(d)?)),
++            2 => Ok(Self::Lifetime(CtLifetimeArgument::decode(d)?)),
+             _ => Err(WireError::UnknownTag),
+         })
+     }
+@@ -2258,6 +2572,10 @@
+     fn encode(&self, e: &mut Encoder) -> Result<()> {
+         e.descend(|e| {
+             match self {
++                Self::BorrowedStorage { life } => {
++                    12u8.encode(e)?;
++                    life.encode(e)?;
++                }
+                 Self::BorrowedFunctionPointer { life } => {
+                     10u8.encode(e)?;
+                     life.encode(e)?;
+@@ -2299,6 +2617,9 @@
+     }
+     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+         d.descend(|d| match u8::decode(d)? {
++            12 => Ok(Self::BorrowedStorage {
++                life: crate::StorageLifeShape::decode(d)?,
++            }),
+             10 => Ok(Self::BorrowedFunctionPointer {
+                 life: FunctionLifeContract::decode(d)?,
+             }),

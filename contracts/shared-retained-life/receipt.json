@@ -1,0 +1,39 @@
+{
+  "status": "ExternalDataModelProposalOnly",
+  "base": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+  "runtime_patch_sha256": "b8f2d12fa5f893ae4766ca9450deea912f4a046a8e10de81442b548ad3978bae",
+  "base_lib_sha256": "ea6e9db2227890a3f3c1ddf1836635726ca24be10389e5073f6ae6d3767fd4e0",
+  "candidate_lib_sha256": "b81d96f845b40f63c4ab2614cac58c4b3bf401e1cafea7ded5ec83d52808577a",
+  "scope": "Public data definitions only. No codec/consumer/kernel acceptance or compilation claim. Root owns final composed version and all publication. Existing source/worktrees untouched.",
+  "publication_note": "Replacing unimplemented DynPort by shared RetainedPort and appending class selection must be published in a new joint version with updated codecs; do not silently overwrite frozen38 identities.",
+  "ct_companion": {
+    "base": "0ff92dde47a3a91ec30026567730c0970a940d60",
+    "file": "crates/zil-ir/src/ct_artifact.rs",
+    "patch_sha256": "05de514855c7f8298617e8ee5420d1554d31bd91982242f9ed61f77727718e5e",
+    "scope": "Prospective data definitions against344 CT3 WIP only. No transport, consumer or acceptance claim. Requires a new CT schema/domain when publishing changed schema-record bytes.",
+    "namespace": "Contextual schema requires TypeInContext for all type actuals; standalone Type(CtTypeRef) is context-free only. Lifetime refs use the containing graph or explicit schema context, never mixed numeric owner namespaces."
+  },
+  "inventory_companion": {
+    "applies_after": "retained-life-model.patch",
+    "patch_sha256": "c60082c4e7b88c2744fbb40584666a6c0b8787b457900cb51c15cf4cd99bb7f2",
+    "scope": "Adds missing runtime nominal declaration/complete-instance table representation. All table, type, signature and interface consumers/codecs must be connected by root publication; no current compilation/kernel claim."
+  },
+  "revision": "Opaque shapes include nested result/port/associated-type class maps; common RetainedPortBinding. This supersedes earlier data-only model hashes; no published production changed.",
+  "files": {
+    "contract.md": "8190ecc74de1ea9b3a692f35b30b38084e95f46af2c71acf8a24d29ab68246ec",
+    "ct-life-model.patch": "05de514855c7f8298617e8ee5420d1554d31bd91982242f9ed61f77727718e5e",
+    "ct_artifact.rs.candidate": "4ccebe6f892f2d972e84209255d834958d4869eca56bfce05afe383804d5a3da",
+    "dyn-retained-model.patch": "76ae659d0fd09b8b0b2cd0220e3e61783d100f159e788d3afaa1b1b079585b33",
+    "dyn.rs.candidate": "827861aeb1ccf3a542e743c975a02ba7316f999ffea78b1ab14fcfc817080606",
+    "inventory.rs": "4ccbd8ec4054678ea8081ca3c30956042464c68029ace5639691ec1dfea2462d",
+    "lib.rs.candidate": "b81d96f845b40f63c4ab2614cac58c4b3bf401e1cafea7ded5ec83d52808577a",
+    "lib.rs.with-inventory": "b4b31f2abd2bc4a94a2b6fdb26ec4d227910c4dc5e53f44c8d078672e5417c77",
+    "model.rs": "d78d0b1ab85ee77b70f4b264ad61279f3fe32c90d6513f7aefe8c6a8d36be9ac",
+    "retained-life-inventory.patch": "c60082c4e7b88c2744fbb40584666a6c0b8787b457900cb51c15cf4cd99bb7f2",
+    "retained-life-model.patch": "b8f2d12fa5f893ae4766ca9450deea912f4a046a8e10de81442b548ad3978bae"
+  },
+  "versions": {
+    "runtime": "Root selected schema/Wire39, TypedModuleV39, TypeIdentityV39",
+    "ct": "Root selected successor4 of CT3, including changed program/provider/dependency/function/value identity domains"
+  }
+}
