@@ -494,6 +494,11 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if let Some(ty)=self.known_type(expression)
+            && !matches!(expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,..})
+            && arms.iter().any(|arm|self.partial_pattern_needed(&arm.pattern,&ty)) {
+            return self.partial_pattern_match(expression,arms,span);
+        }
         if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}))))
             || arms
                 .iter()

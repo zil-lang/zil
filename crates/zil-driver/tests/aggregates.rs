@@ -1150,6 +1150,25 @@ fn terminal340_owned_tuple_budget_boundaries() {
     );
 }
 
+#[test]
+fn terminal340_selective_mixed_patterns_native() {
+    let prefix=r#"extern "C" fn putchar(code:i32)->i32;resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages token:Token;n:i32}"#;
+    for(index,(body,expected))in[
+        ("fn result()->i32{let(a,b,c)=(Token{code:65},Token{code:66},Token{code:67});return 42}","ABC42\n"),
+        ("fn result()->i32{var value=(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});match value{(ref a,b,_)=>{return a.n+b.n}}}","BAC42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{var value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});match value{E.Data(ref a,b,_)=>{return a.n+b.n},E.None()=>{return 0}}}","BAC42\n"),
+        ("enum E{Data((P,P,i32)),None}fn result()->i32{var value=E.Data((P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},0));match value{E.Data((ref a,b,n))=>{return a.n+b.n+n},E.None()=>{return 0}}}","BA42\n"),
+        ("enum E{Data(P)}fn result()->i32{var value=(E.Data(P{token:Token{code:65},n:20}),P{token:Token{code:66},n:22});match value{(E.Data(ref a),b)=>{return a.n+b.n}}}","BA42\n"),
+        ("fn result()->i32{let(ref a,b)=(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22});return a.n+b.n}","BA42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{let value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});if let E.Data(ref a,b,_)=value{return a.n+b.n}return 0}","BAC42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{let value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});while let E.Data(ref a,b,_)=value{let n=a.n+b.n;break}return 42}","BAC42\n"),
+        ("fn inspect(value:&mut(P,i32))->i32{match *value{(ref p,ref mut n)=>{*n+=p.n;return *n}}}fn result()->i32{var value=(P{token:Token{code:65},n:20},22);return inspect(&mut value)}","A42\n"),
+    ].into_iter().enumerate(){
+        eprintln!("340 mixed native case {index}");
+        review329_native_output(&[("main",&format!("{prefix}{body}"))],expected.as_bytes());
+    }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),
