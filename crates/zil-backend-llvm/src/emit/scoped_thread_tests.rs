@@ -236,6 +236,7 @@ fn model() -> (m::Module, LirModule) {
     for f in lir.functions.iter().filter(|f| f.foreign.is_none()) {
         code.append(
             FunctionEmitter {
+                task_ownership: None,
                 function: f,
                 target: &lir.target,
                 functions: &functions,

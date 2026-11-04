@@ -334,3 +334,7 @@ pub(crate) fn bind_codegen(
     }
     Ok(())
 }
+
+pub(crate) fn prepay_owned_frame(function: &m::Function, left: &mut usize) -> CompileResult<()> {
+    identity::prepay_function(function, left)
+}

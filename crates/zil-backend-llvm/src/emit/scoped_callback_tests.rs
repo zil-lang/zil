@@ -255,6 +255,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     ]);
     code.append(
         FunctionEmitter {
+            task_ownership: None,
             function: &definitions[0],
             target: &target,
             functions: &functions,
