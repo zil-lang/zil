@@ -95,18 +95,8 @@ pub(super) fn carrier(
         Type::Task { .. } => format!("{TASK_RESOURCE_NAME_PREFIX}{}", payload.fingerprint()),
         _ => return Err(reject("E-VERIFY-TASK", span, "task payload absent")),
     };
-    budget.spend(module.resources.len().saturating_mul(2))?;
     if !module.target.is_supported_x64_llvm()
-        || module
-            .resources
-            .iter()
-            .filter(|r| r.payload == **payload)
-            .count()
-            != 1
-        || !module
-            .resources
-            .iter()
-            .any(|r| r.name == name && r.payload == **payload && r.teardown.is_none())
+        || !canonical_resource(&module.resources, payload, &name, budget)?
     {
         return Err(reject(
             "E-VERIFY-TASK",
@@ -263,6 +253,43 @@ pub(super) fn instruction(
         _ => unreachable!(),
     }))
 }
+fn has_await(blocks: &[BasicBlock], budget: &mut Budget) -> Check<bool> {
+    budget.spend(blocks.len().saturating_mul(2))?;
+    for block in blocks {
+        budget.spend(block.instructions.len())?;
+        if block
+            .instructions
+            .iter()
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+fn canonical_resource(
+    resources: &[ResourceDefinition],
+    payload: &Type,
+    name: &str,
+    budget: &mut Budget,
+) -> Check<bool> {
+    budget.spend(resources.len().saturating_mul(2))?;
+    let mut count = 0usize;
+    let mut canonical = false;
+    for resource in resources {
+        if std::mem::discriminant(&resource.payload) != std::mem::discriminant(payload) {
+            continue;
+        }
+        resources::charge_payload(&resource.payload, budget)?;
+        resources::charge_payload(payload, budget)?;
+        if resource.payload == *payload {
+            count = count.saturating_add(1);
+            budget.spend(resource.name.len().saturating_add(name.len()))?;
+            canonical |= resource.name == name && resource.teardown.is_none();
+        }
+    }
+    Ok(count == 1 && canonical)
+}
 fn profile_one(
     module: &TypedModule,
     id: FunctionId,
@@ -301,10 +328,7 @@ fn profile_one(
                 Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
             )
         })
-        || f.blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
+        || has_await(&f.blocks, budget)?
     {
         return owned::profile(module, f, budget, span);
     }
@@ -624,3 +648,6 @@ pub(super) fn interface_fingerprint(
     }
     Ok(hash.digest())
 }
+
+#[cfg(test)]
+mod budget_tests;
