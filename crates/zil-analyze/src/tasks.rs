@@ -1,5 +1,22 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+
+fn task_payload(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Managed(t)|Type::Desc(t)|Type::Address{inner:t,..}=>task_payload(t),
+        Type::TaskI32|Type::Task{..}=>Some(ty), _=>None,
+    }
+}
+fn task_create_type(result: &Type) -> Type {
+    Type::ErrorUnion {error:Box::new(Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]}),result:Box::new(Type::Managed(Box::new(Type::Task{result:Box::new(result.clone())})))}
+}
+fn task_poll_type(result: &Type) -> Type {
+    Type::Enum{name:format!("@std.task:v1:Poll:{}",result.fingerprint()),variants:vec![("Pending".into(),vec![]),("Ready".into(),vec![result.clone()])]}
+}
+fn task_poll_result(result: &Type) -> Type {
+    Type::ErrorUnion{error:Box::new(Type::Enum{name:"@std.task:v1:TaskPollState".into(),variants:["Complete","Cancelled","Invalid"].into_iter().map(|s|(s.into(),vec![])).collect()}),result:Box::new(task_poll_type(result))}
+}
+
 fn fail(span: zil_base::Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Analyze,
@@ -161,6 +178,12 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     )?;
     let mut task_definitions = 0;
     for r in &module.resources {
+        if matches!(r.payload,Type::Task{..}) || r.name.starts_with(TASK_RESOURCE_NAME_PREFIX) {
+            budget.type_work(&r.payload,false,"canonical general Task definition identity")?;
+            let Type::Task{result}=&r.payload else {return Err(bad("general Task canonical name has another payload"));};
+            budget.spend(module.resources.len(),"general Task uniqueness")?;
+            if r.teardown.is_some() || r.name!=format!("{TASK_RESOURCE_NAME_PREFIX}{}",result.fingerprint()) || module.resources.iter().filter(|other|other.payload==r.payload).count()!=1 {return Err(bad("general Task definition must be actual canonical unique sealed payload"));}
+        }
         if r.name == TASK_I32_RESOURCE_NAME || r.payload == Type::TaskI32 {
             task_definitions += 1;
             if r.name != TASK_I32_RESOURCE_NAME
@@ -198,7 +221,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     }
                     InstructionKind::ReadDesc { desc, .. }
                     | InstructionKind::WriteDesc { desc, .. }
-                        if matches!(ty(desc)?, Type::Desc(p) if **p == Type::TaskI32) =>
+                        if matches!(ty(desc)?, Type::Desc(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) =>
                     {
                         return Err(fail(
                             i.span,
@@ -209,7 +232,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         if i.result
                             .and_then(|v| f.values.get(v.0 as usize))
                             .is_some_and(
-                                |ty| matches!(ty, Type::Managed(p) if **p == Type::TaskI32),
+                                |ty| matches!(ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})),
                             ) =>
                     {
                         return Err(fail(
@@ -228,6 +251,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         | InstructionKind::TaskPollClose { .. }
                         | InstructionKind::TaskFinishDestroy { .. }
                 ) && task_definitions != 1
+                    && !crate::resources::uses(&i.kind).any(|v|f.values.get(v.0 as usize).is_some_and(|ty| matches!(task_payload(ty),Some(Type::Task{..}))))
                 {
                     return Err(fail(
                         i.span,
@@ -235,6 +259,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     ));
                 }
                 let expected = match i.kind {
+                    InstructionKind::TaskCreate{worker:id,ref arguments}=>{
+                        worker(module,id,budget,i.span)?;
+                        let target=&module.functions[id.0 as usize];
+                        budget.spend(arguments.len().saturating_add(1),"actual general task inputs")?;
+                        if arguments.len()!=target.parameters.len(){return Err(fail(i.span,"task_create input count differs"));}
+                        for (v,p) in arguments.iter().zip(&target.parameters){if ty(*v)?!=&target.locals[p.0 as usize].ty{return Err(fail(i.span,"task_create actual input type differs"));}}
+                        for _ in 0..4 {budget.type_work(&target.return_type,false,"general task result identity")?;}
+                        let output=task_create_type(&target.return_type);
+                        Some(output)
+                    }
                     InstructionKind::TaskStart {
                         worker: id,
                         argument,
@@ -268,7 +302,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         Some(Type::Unit)
                     }
                     InstructionKind::TaskValid { task } => {
-                        if !matches!(ty(task)?, Type::Desc(p) if **p == Type::TaskI32) {
+                        if !matches!(ty(task)?, Type::Desc(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) {
                             return Err(fail(
                                 i.span,
                                 "task validity requires its actual descriptor",
@@ -287,14 +321,14 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         }
                         Some(match i.kind {
                             InstructionKind::TaskPoll { .. } => {
-                                Type::Tuple(vec![Type::I32, Type::I32])
+                                match task_payload(ty(task)?) {Some(Type::Task{result})=>{for _ in 0..4{budget.type_work(result,false,"general task Poll identity")?;}task_poll_result(result)},_=>Type::Tuple(vec![Type::I32,Type::I32])}
                             }
-                            InstructionKind::TaskPollClose { .. } => Type::Bool,
+                            InstructionKind::TaskPollClose { .. } => if matches!(task_payload(ty(task)?),Some(Type::Task{..})){task_poll_type(&Type::Unit)}else{Type::Bool},
                             _ => Type::Unit,
                         })
                     }
                     InstructionKind::TaskFinishDestroy { task } => {
-                        if !matches!(ty(task)?, Type::Managed(p) if **p == Type::TaskI32) {
+                        if !matches!(ty(task)?, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) {
                             return Err(fail(i.span, "task destruction consumes its actual owner"));
                         }
                         Some(Type::Unit)
@@ -456,7 +490,7 @@ pub(super) fn loans(
                     {
                         let id = output.0 as usize;
                         let row = match i.kind {
-                            InstructionKind::BorrowLocalMut { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if **p == Type::TaskI32) => {
+                            InstructionKind::BorrowLocalMut { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) => {
                                 Set::from([id])
                             }
                             InstructionKind::ReborrowAddress {
@@ -563,7 +597,7 @@ pub(super) fn loans(
                     | InstructionKind::Store { local, .. }
                     | InstructionKind::StorageLive(local)
                     | InstructionKind::StorageDead(local)
-                        if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if **p == Type::TaskI32) =>
+                        if matches!(&f.locals[local.0 as usize].ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) =>
                     {
                         Some(local)
                     }

@@ -822,7 +822,8 @@ fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check
                 pending.extend(fields.iter().map(|field| (field, depth + 1)));
                 0
             }
-            Type::Array { element, .. }
+            Type::Task { result: element }
+            | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
@@ -960,7 +961,7 @@ fn check_type_shape(
                     }
                 }
             }
-            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+            Type::Task { result: inner } | Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
                 pending.push((inner, depth + 1, context));
             }
             Type::ErrorUnion { error, result } => {
@@ -1693,6 +1694,7 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::TaskStart { .. }
+        | InstructionKind::TaskCreate { .. }
         | InstructionKind::TaskYield
         | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
@@ -1945,7 +1947,7 @@ fn check_instruction(
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
-            } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
+            } else if matches!(inner, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) {
                 tasks::carrier(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
@@ -3020,6 +3022,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
         InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
+        InstructionKind::TaskCreate { arguments, .. } => ([None, None], arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }

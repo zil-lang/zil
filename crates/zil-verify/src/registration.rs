@@ -107,6 +107,12 @@ fn closed(
                         "ClosedEnvironment contains an external loan or unresolved position",
                     ));
                 }
+                Type::Task { .. } => {
+                    return Err(error(
+                        span,
+                        "a task result type does not prove its hidden frame ClosedEnvironment",
+                    ));
+                }
                 Type::Closure(id) => {
                     budget.spend(1)?;
                     closure_queue.push(*id)

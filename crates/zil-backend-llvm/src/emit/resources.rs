@@ -3,10 +3,10 @@
 use super::*;
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    if matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
+    if matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
         && resources
             .iter()
-            .any(|r| r.payload == Type::TaskI32 && r.teardown.is_none())
+            .any(|r| matches!(r.payload,Type::TaskI32|Type::Task{..}) && r.teardown.is_none())
     {
         return true;
     }
@@ -144,7 +144,7 @@ impl FunctionEmitter<'_> {
         };
         let teardown = definition.teardown;
         let byte_buffer = definition.payload == Type::ByteBuffer;
-        let task = definition.payload == Type::TaskI32;
+        let task = matches!(definition.payload,Type::TaskI32|Type::Task{..});
         let registration = matches!(definition.payload, Type::Registration { .. });
         let store_drop = if matches!(definition.payload, Type::OwnedStore { .. }) {
             Some(dynamic_store::helper(

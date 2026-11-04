@@ -771,6 +771,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::Desc(inner)
             | Type::Address { inner, .. }
             | Type::Opaque { hidden: inner, .. }
+            | Type::Task { result: inner }
             | Type::Registration { environment: inner }
             | Type::OwnedStore { element: inner }
             | Type::Array { element: inner, .. }
@@ -813,7 +814,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
-            | Type::TaskI32
+        | Type::TaskI32
             | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString

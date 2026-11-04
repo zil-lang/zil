@@ -12,6 +12,13 @@ pub(super) fn nominal_name(owner: u32, name: &str, variants: &[(String, Vec<Type
     {
         return format!("@builtin:Option:{}", payload.fingerprint());
     }
+    if name == "$stdTaskCreateError343" { return "@std.task:v1:TaskCreateError".into(); }
+    if name == "$stdTaskPollState343" { return "@std.task:v1:TaskPollState".into(); }
+    if name.starts_with("$generic_$stdTaskPoll343_")
+        && let [(pending, empty), (ready, payload)] = variants
+        && pending == "Pending" && empty.is_empty() && ready == "Ready"
+        && let [payload] = payload.as_slice()
+    { return format!("@std.task:v1:Poll:{}", payload.fingerprint()); }
     format!("@module{owner}:{name}")
 }
 
