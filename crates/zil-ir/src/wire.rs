@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 34;
+pub const WIRE_VERSION: u32 = 35;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -432,6 +432,10 @@ impl<'a> Writer<'a> {
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
                 Type::ForeignHandle => self.u8(20)?,
+                Type::SyncCell(kind) => {
+                    self.u8(30)?;
+                    self.u8(*kind as u8)?;
+                }
                 Type::CWideString => self.u8(21)?,
                 Type::Tuple(types) => {
                     self.u8(4)?;
@@ -1056,6 +1060,31 @@ impl<'a> Writer<'a> {
                 self.u32(worker.0)?;
                 self.u32(argument.0)?;
                 self.u32(body.0)?;
+            }
+            InstructionKind::WithSyncCell {
+                kind,
+                initial,
+                body,
+            } => {
+                self.u8(96)?;
+                self.u8(*kind as u8)?;
+                self.u32(initial.0)?;
+                self.u32(body.0)?;
+            }
+            InstructionKind::SyncI32 {
+                op,
+                address,
+                value,
+                ordering,
+            } => {
+                self.u8(97)?;
+                self.u8(*op as u8)?;
+                self.u32(address.0)?;
+                self.bool(value.is_some())?;
+                if let Some(value) = value {
+                    self.u32(value.0)?;
+                }
+                self.u8(*ordering as u8)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
@@ -1798,6 +1827,11 @@ impl<'a> Reader<'a> {
                 18 => Type::U8,
                 19 => Type::U16,
                 20 => Type::ForeignHandle,
+                30 => Type::SyncCell(match self.u8()? {
+                    0 => SyncCellKind::MutexI32,
+                    1 => SyncCellKind::AtomicI32,
+                    _ => return Err(malformed("E-WIRE-TYPE", "unknown sealed cell kind")),
+                }),
                 21 => Type::CWideString,
                 24 => Type::ByteBuffer,
                 4 => {
@@ -2733,6 +2767,37 @@ impl<'a> Reader<'a> {
                 worker: FunctionId(self.u32()?),
                 argument: ValueId(self.u32()?),
                 body: ValueId(self.u32()?),
+            },
+            96 => InstructionKind::WithSyncCell {
+                kind: match self.u8()? {
+                    0 => SyncCellKind::MutexI32,
+                    1 => SyncCellKind::AtomicI32,
+                    _ => return Err(malformed("E-WIRE-OPCODE", "unknown sealed cell kind")),
+                },
+                initial: ValueId(self.u32()?),
+                body: ValueId(self.u32()?),
+            },
+            97 => InstructionKind::SyncI32 {
+                op: match self.u8()? {
+                    0 => SyncI32Op::Load,
+                    1 => SyncI32Op::Store,
+                    2 => SyncI32Op::FetchAdd,
+                    _ => return Err(malformed("E-WIRE-OPCODE", "unknown cell operation")),
+                },
+                address: ValueId(self.u32()?),
+                value: if self.bool()? {
+                    Some(ValueId(self.u32()?))
+                } else {
+                    None
+                },
+                ordering: match self.u8()? {
+                    0 => AtomicOrdering::Relaxed,
+                    1 => AtomicOrdering::Acquire,
+                    2 => AtomicOrdering::Release,
+                    3 => AtomicOrdering::AcqRel,
+                    4 => AtomicOrdering::SeqCst,
+                    _ => return Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
+                },
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),
