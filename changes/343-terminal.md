@@ -90,3 +90,30 @@ Transfer/Share、拥有单元构造、返回登记、Suspend/SABI、取消排空
 | 至少一项突破 | 原本没有的受保护并发更新已由原源到实际机器运行；相对 Rust 的可重复产品净突破及四目标合取未建立。 |
 
 本提案及里程碑不变更父 B0、完整语言/ZUI 和既有 product-gates 状态。
+
+## Scalar cooperative SABI construction contract
+
+`task_start(worker, i32)` explicitly allocates one stable frame and returns a
+nullable `Managed(TaskI32)` head. `task_valid` observes allocation success through
+its descriptor. Allocation failure creates no frame and the null head drops as a
+no-op. The independently reconstructed initial worker profile contains only
+scalar storage, scalar operations and `TaskYield`; it admits no foreign code,
+callbacks, wakers, addresses or owned cleanup. This actual closed profile, rather
+than a producer flag, alone permits immediate close after a poll activation exits.
+
+`task_poll(&mut task)` returns `(status, value)`: Pending=0, Ready=1,
+Complete=2, Cancelled=3 and Invalid=4. Only Ready carries the worker result and it
+occurs once. The mutable borrow is of the actual owning head; generic Managed
+pointees acquire no address permission. `task_request_cancel` is sticky and
+idempotent. `task_poll_close` returns true only after the activation has exited;
+`task_finish_destroy(give task)` consumes a closed owner. Default Drop requests
+cancel, closes and destroys only this checked scalar task kind. Future tasks with
+external users cannot inherit its close proof.
+
+Each worker has distinct init/poll/request_cancel/poll_close/finish_destroy
+symbols. Source yields become saved instruction positions; actual scalar locals
+and SSA values live in the persistent frame. Actual reachable yields determine
+Suspend transitively. Ordinary calls, function references, thread workers and
+exported Direct entry signatures cannot grant execution of a Suspend function.
+This bounded frame is a continuation milestone, not completion of retained
+registration, general owned spills, wakers or no-future/drain obligations.

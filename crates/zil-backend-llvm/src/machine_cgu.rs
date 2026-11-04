@@ -58,6 +58,7 @@ fn small_caller_components(
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             remaining = remaining.checked_sub(1)?;
             if matches!(&instruction.kind, zil_ir::InstructionKind::Call { function, .. }
+                | zil_ir::InstructionKind::TaskStart { worker: function, .. }
                 | zil_ir::InstructionKind::WithScopedThread { worker: function, .. }
                 if source_ids.contains(function))
             {

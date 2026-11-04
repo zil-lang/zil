@@ -80,8 +80,21 @@ fn sync_name(name: &str) -> bool {
             | "atomic_fetch_add"
     )
 }
+fn task_name(name: &str) -> bool {
+    matches!(
+        name,
+        "TaskI32"
+            | "task_start"
+            | "task_yield"
+            | "task_valid"
+            | "task_poll"
+            | "task_request_cancel"
+            | "task_poll_close"
+            | "task_finish_destroy"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    sync_name(name)
+    task_name(name) || sync_name(name)
         || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
@@ -89,7 +102,9 @@ fn primitive_name(name: &str) -> bool {
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if sync_name(name) {
+    if task_name(name) {
+        Diagnostic::error(Phase::Expand, "E-TASK-NAME", Some(span), "sealed task names cannot be rebound")
+    } else if sync_name(name) {
         Diagnostic::error(
             Phase::Expand,
             "E-SYNC-NAME",
@@ -959,7 +974,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if sync_name(name) || name == "c_with_callback" || name == "thread_scope" {
+        if task_name(name) || sync_name(name) || name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }

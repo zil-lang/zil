@@ -483,6 +483,7 @@ fn charge_type(
         | Type::U8
         | Type::U16
         | Type::ByteBuffer
+        | Type::TaskI32
         | Type::SyncCell(_)
         | Type::ForeignHandle
         | Type::CWideString

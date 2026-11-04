@@ -77,6 +77,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {
             Layout { size: 8, align: 8 }
@@ -84,6 +85,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Desc(payload)
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
+                || payload.as_ref() == &Type::TaskI32
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Layout { size: 8, align: 8 }
@@ -93,6 +95,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
             fields_layout(fields.iter().map(|(_, ty)| ty))?
         }
         Type::Managed(payload) => physical_layout(payload)?,
+        Type::TaskI32 => Layout { size: 8, align: 8 },
         Type::ByteBuffer | Type::OwnedStore { .. } => Layout { size: 24, align: 8 },
         Type::ErrorUnion { error, result } => {
             fields_layout([&Type::Bool, error.as_ref(), result.as_ref()])?
@@ -320,6 +323,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
             | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString => {}

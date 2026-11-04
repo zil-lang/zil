@@ -792,6 +792,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::TaskI32
             | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString
