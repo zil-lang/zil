@@ -538,6 +538,10 @@ impl Plan {
                                     bad(span, "whole replacement RHS field provenance absent")
                                 })?;
                             state.fresh[field] = incoming;
+                            transfer
+                                .slots
+                                .product
+                                .replace_whole(local, value, state, b)?;
                         }
                         state.fresh[shell] = fresh;
                     }
