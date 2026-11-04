@@ -1020,13 +1020,22 @@ pub(super) fn check(
                         access.check(&positions, &flow.roots[*loan], *mutable, budget)?;
                     }
                 }
-                InstructionKind::ReadAddress { address }
+                InstructionKind::TaskValid { task } => {
+                    access.check(&empty, &facts.values[task.0 as usize], false, budget)?;
+                }
+                InstructionKind::TaskPoll { task: address }
+                | InstructionKind::TaskRequestCancel { task: address }
+                | InstructionKind::TaskPollClose { task: address }
+                | InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress { address, .. } => {
                     let write = matches!(
                         instruction.kind,
-                        InstructionKind::WriteAddress { .. }
+                        InstructionKind::TaskPoll { .. }
+                            | InstructionKind::TaskRequestCancel { .. }
+                            | InstructionKind::TaskPollClose { .. }
+                            | InstructionKind::WriteAddress { .. }
                             | InstructionKind::ReborrowAddress { mutable: true, .. }
                     );
                     access.check(

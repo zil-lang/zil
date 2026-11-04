@@ -643,6 +643,10 @@ impl State {
         Ok((slot, pending))
     }
 
+    pub(super) fn remaining_work(&self) -> usize {
+        self.work_left
+    }
+
     pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
@@ -1030,7 +1034,7 @@ impl Graph {
             Type::I64 => I64,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
                 || matches!(ty, Type::OwnedStore { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
@@ -1724,6 +1728,7 @@ impl LocalType {
             ) if (inner.is_address_pointee()
                 || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
@@ -2930,6 +2935,27 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         }
                         return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
                     }
+                    if *op == UnaryOp::BorrowMut
+                        && let LocalType::Resource(variable, _) = value
+                    {
+                        let payload = self
+                            .graph
+                            .ty(variable)?
+                            .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
+                        if payload != Type::TaskI32 {
+                            return Err(unsupported(
+                                span,
+                                "exclusive resource head requires TaskI32",
+                            ));
+                        }
+                        self.mark_address_write(operand, depth + 1)?;
+                        *self.work_left = self.work_left.checked_sub(1).ok_or_else(|| {
+                            limit("task head graph allocation budget exceeded", span)
+                        })?;
+                        let head = self.graph.fresh(VALUE, false);
+                        self.graph.bind(head, &tasks::owner(), span)?;
+                        return Ok(LocalType::Address(head, true));
+                    }
                     if matches!(value, LocalType::Address(..)) {
                         return Err(unsupported(
                             span,
@@ -3059,6 +3085,46 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                         self.mark_resource_write(first, arguments[0].span)?;
                     }
                     return self.known(&dynamic_store::result_type(name, &element), span);
+                }
+                if let Some(name) = tasks::primitive(callee) {
+                    self.visit(depth + 1, callee.span)?;
+                    *self.work_left = self.work_left.checked_sub(12).ok_or_else(|| {
+                        limit("task signature construction budget exceeded", span)
+                    })?;
+                    let offset = usize::from(name == "task_start");
+                    let parameters = tasks::parameters(name);
+                    if arguments.len() != parameters.len() + offset {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "task primitive argument count mismatch",
+                        ));
+                    }
+                    if offset != 0 {
+                        self.visit(depth + 1, arguments[0].span)?;
+                        if !self.direct(&arguments[0]) {
+                            return Err(error(
+                                "E-TASK-WORKER",
+                                span,
+                                "task worker must be a static function",
+                            ));
+                        }
+                        let signature = self.callee(&arguments[0])?;
+                        if !signature.scalar_thread_worker()
+                            || signature.parameters.as_slice() != [Type::I32]
+                        {
+                            return Err(error(
+                                "E-TASK-WORKER",
+                                span,
+                                "task worker requires fn(i32)->i32",
+                            ));
+                        }
+                    }
+                    for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                        let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                        term.bind(&mut self.graph, ty, argument.span)?;
+                    }
+                    return self.known(&tasks::result(name), span);
                 }
                 if let Some(name) = byte_buffer::primitive(callee) {
                     self.visit(depth + 1, callee.span)?;
