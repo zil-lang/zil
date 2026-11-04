@@ -7790,7 +7790,7 @@ fn terminal340_owner_replacement_error_arm_alias_abort_and_pins() {
     review329_native_output(&[("main", text)], b"BA42\n");
     let text =
         include_str!("../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil");
-    for neighbor in [
+    for (case, neighbor) in [
         text.replace("let input=&mut value", "let input=&value"),
         text.replace(
             "p.owner=R{code:66};return p.n+p.owner.code-66",
@@ -7804,8 +7804,26 @@ fn terminal340_owner_replacement_error_arm_alias_abort_and_pins() {
             "fn touch(p:&mut(F!P))->i32{{return 66}}{}",
             text.replace("p.owner=R{code:66}", "p.owner=R{code:touch(input)}")
         ),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let report = compile_source(&source(&neighbor), &CompileOptions::default());
+        let (phase, code) = if case == 0 {
+            (Phase::Types, "E-ADDRESS-PERMISSION")
+        } else if case == 1 {
+            // Describing this addressed Sum field remains an earlier producer
+            // boundary; do not count this as a new invalidation consumer.
+            (Phase::Analyze, "E-ANALYZE-IR")
+        } else {
+            (Phase::Analyze, "E-BORROW-CONFLICT")
+        };
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,
@@ -7928,7 +7946,7 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil"
     ));
-    for (stage, expected_n) in [(Stage::Analyze, 47040), (Stage::Verify, 98052)] {
+    for (stage, expected_n) in [(Stage::Analyze, 46908), (Stage::Verify, 97818)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
