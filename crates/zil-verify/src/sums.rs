@@ -8,7 +8,7 @@ pub(super) fn owned_enum(ty: &Type) -> bool {
 }
 
 pub(super) fn owned(ty: &Type) -> bool {
-    matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && !ty.is_copy_value()
+    matches!(ty, Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }) && !ty.is_copy_value()
 }
 
 fn bad(span: Option<Span>, message: impl Into<String>) -> Diagnostic {
@@ -24,6 +24,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![(ty, false, false)];
     while let Some((ty, in_error, in_product)) = pending.pop() {
         match ty {
+            Type::Tuple(_) if !ty.is_copy_value() => return Ok(true),
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
                 if (in_product || in_error) && owned(ty) {
@@ -68,6 +69,10 @@ pub(super) fn check_type_for(
         }
         match ty {
             Type::Managed(_) => resources::check_type_for(module, ty, span, budget)?,
+            Type::Tuple(fields) => {
+                budget.spend(fields.len())?;
+                for field in fields { pending.push(field); }
+            }
             Type::Package { name, fields } => {
                 budget.spend(name.len().saturating_add(fields.len().saturating_mul(2)))?;
                 let mut names = BTreeSet::new();
@@ -184,6 +189,29 @@ pub(super) fn check_instruction(
     let span = Some(i.span);
     budget.mark_sum(Some(f.id.0 as usize))?;
     match &i.kind {
+        InstructionKind::MakeOwnedTuple { fields } => {
+            let ty = i.result.and_then(|v| f.values.get(v.0 as usize)).ok_or_else(|| bad(span,"owned Tuple result absent"))?;
+            let Type::Tuple(types) = ty else {return Err(bad(span,"owned Tuple result requires actual Tuple"));};
+            resources::charge_payload(ty,budget)?;
+            if ty.is_copy_value() || fields.len()!=types.len() {return Err(bad(span,"owned Tuple fields or ownership mismatch"));}
+            for (v,t) in fields.iter().zip(types) {if value_type(f,*v,span)?!=t {return Err(bad(span,"owned Tuple exact field Type mismatch"));}}
+            Ok(Some(ty.clone()))
+        }
+        InstructionKind::UnpackTuple {local, fields} => {
+            let ty=local_type(f,*local,span)?;
+            let Type::Tuple(types)=ty else {return Err(bad(span,"UnpackTuple requires actual Tuple"));};
+            resources::charge_payload(ty,budget)?;
+            budget.spend(fields.len().saturating_mul(fields.len()+2))?;
+            if ty.is_copy_value() || fields.len()!=types.len() {return Err(bad(span,"UnpackTuple requires all owning Tuple fields"));}
+            let mut seen=BTreeSet::new();
+            for (l,t) in fields.iter().zip(types) {if *l==*local || !seen.insert(*l) || local_type(f,*l,span)?!=t {return Err(bad(span,"UnpackTuple exact distinct targets mismatch"));}}
+            Ok(None)
+        }
+        InstructionKind::DropTuple {local} => {
+            let ty=local_type(f,*local,span)?;
+            if !matches!(ty,Type::Tuple(_)) || ty.is_copy_value() {return Err(bad(span,"DropTuple requires owning Tuple"));}
+            Ok(None)
+        }
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {
             if path.len() > limits.max_call_depth {
@@ -434,6 +462,16 @@ fn content(
         } else {
             BTreeSet::from([parameter.map_or(Source::Unknown, |p| Source::Input(p, path.clone()))])
         }),
+        Type::Tuple(fields) => {
+            budget.spend(fields.len())?;
+            let mut children=Vec::with_capacity(fields.len());
+            for (index,ty) in fields.iter().enumerate() {
+                path.extend([0,index as u32]);
+                children.push(content(ty,parameter,path,bottom,budget)?);
+                path.truncate(path.len()-2);
+            }
+            Content::Product(children)
+        }
         Type::Package { fields, .. } => {
             budget.spend(fields.len())?;
             let mut children = Vec::with_capacity(fields.len());
@@ -890,7 +928,7 @@ impl Flow<'_> {
                 | InstructionKind::OwnedStoreNew { .. } => {
                     result = Some(Content::Leaf(BTreeSet::from([Source::Fresh])))
                 }
-                InstructionKind::MakePackage { fields } => {
+                InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple {fields} => {
                     budget.spend(fields.len())?;
                     result = Some(Content::Product(
                         fields
@@ -1039,20 +1077,16 @@ impl Flow<'_> {
                             .insert(instruction.result.expect("typed tag"));
                     }
                 }
-                InstructionKind::UnpackVariant {
-                    local,
-                    variant,
-                    fields,
-                } => {
-                    self.selected(
+                InstructionKind::UnpackVariant { local, variant: _, fields }
+                | InstructionKind::UnpackTuple { local, fields } => {
+                    let variant=if let InstructionKind::UnpackVariant {variant,..}=instruction.kind {Some(variant)} else {None};
+                    if variant.is_some() { self.selected(
                         state,
                         *local,
                         &[],
-                        Some(*variant),
-                        validate,
-                        instruction.span,
-                        budget,
-                    )?;
+                        variant, validate, instruction.span, budget,
+                    )?; }
+                    if validate && state.initialized[local.0 as usize]!=2 {return Err(bad(Some(instruction.span),"Unpack source is not initialized"));}
                     budget.spend(fields.len())?;
                     if validate && fields.iter().any(|l| state.initialized[l.0 as usize] != 1) {
                         return Err(bad(
@@ -1061,7 +1095,8 @@ impl Flow<'_> {
                         ));
                     }
                     let payload = match state.locals[local.0 as usize].as_ref() {
-                        Content::Sum(variants, _) => variants.get(variant),
+                        Content::Sum(variants, _) if variant.is_some() => variants.get(&variant.unwrap()),
+                        Content::Product(fields) if variant.is_none() => Some(fields),
                         _ => None,
                     };
                     let mut prepared = Vec::with_capacity(fields.len());
@@ -1093,7 +1128,7 @@ impl Flow<'_> {
                         state.initialized[target.0 as usize] = 2;
                     }
                 }
-                InstructionKind::DropEnum { local }
+                InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }

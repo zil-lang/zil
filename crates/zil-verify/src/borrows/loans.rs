@@ -1027,8 +1027,8 @@ pub(super) fn check(
                     access.check(&empty, &[root], false, budget)?;
                 }
                 InstructionKind::Store { local, .. }
-                | InstructionKind::DropEnum { local }
-                | InstructionKind::UnpackVariant { local, .. }
+                | InstructionKind::DropTuple {local} | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackTuple {local,..} | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }

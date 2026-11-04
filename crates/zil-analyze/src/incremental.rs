@@ -168,7 +168,7 @@ pub(super) enum Operation {
 impl Operation {
     pub(super) fn of(instruction: &InstructionKind) -> Self {
         match instruction {
-            InstructionKind::UnpackVariant { local, fields, .. } => Self::Unpack {
+            InstructionKind::UnpackVariant { local, fields, .. } | InstructionKind::UnpackTuple {local,fields} => Self::Unpack {
                 source: *local,
                 fields: fields.clone(),
             },
@@ -206,7 +206,7 @@ impl Operation {
             | InstructionKind::StorageDead(local)
             | InstructionKind::DropManaged { local }
             | InstructionKind::DropErrorUnion { local }
-            | InstructionKind::DropEnum { local }
+            | InstructionKind::DropTuple {local} | InstructionKind::DropEnum { local }
             | InstructionKind::DropPackage { local }
             | InstructionKind::DropOwnedArray { local }
             | InstructionKind::EndPackageCapture { local, .. }

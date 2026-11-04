@@ -971,6 +971,75 @@ fn terminal340_local_variant_alias_and_nested_parent_neighbors() {
     }
 }
 
+#[test]
+fn terminal340_nested_tuple_reference_places() {
+    for text in [
+        "fn result()->i32{var pair=(20,22);match pair{(ref mut a,ref mut b)=>{*a+=*b;return *a}}}",
+        "fn result()->i32{match (20,22){(ref mut a,b)=>{*a+=b;return *a}}}",
+        "enum E{Data((i32,i32)),None}fn result()->i32{var value=E.Data((20,22));match value{E.Data((ref mut a,ref mut b))=>{*a+=*b;return *a},E.None()=>{return 0}}}",
+        "enum E{Data((i32,i32)),None}fn inspect(value:&mut E)->i32{match *value{E.Data((ref mut a,ref mut b))=>{*a+=*b;return *a},E.None()=>{return 0}}}fn result()->i32{var value=E.Data((20,22));return inspect(&mut value)}",
+        "enum E{Data(i32)}fn result()->i32{var holder=(E.Data(20),0);match holder.0{E.Data(ref mut p)=>{*p+=22}}match holder.0{E.Data(n)=>{return n}}}",
+        "fn inspect(value:&mut(i32,i32))->i32{match *value{(ref mut a,ref mut b)=>{*a+=*b;return *a}}}fn result()->i32{var pair=(20,22);return inspect(&mut pair)}",
+        "enum E{Data(i32)}fn result()->i32{var holder=(20,E.Data(22));let(ref mut a,_)=holder;match holder.1{E.Data(ref b)=>{*a+=*b;return *a}}}",
+    ] {
+        review329_native(&[("main", text)], 42)
+    }
+    let text = "enum E{Data((i32,i32)),None}fn inspect(value:&mut E)->i32{match *value{E.Data((ref mut a,ref mut b))=>{*a+=*b;return *a},E.None()=>{return 0}}}fn result()->i32{var value=E.Data((20,22));return inspect(&mut value)}";
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    let i = raw
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::AddressField { index: 1, .. }))
+        .unwrap();
+    let InstructionKind::AddressField { index, .. } = &mut i.kind else {
+        unreachable!()
+    };
+    *index = 0;
+    assert!(zil_analyze::analyze(&raw, &limits).is_err());
+    claim.module_fingerprint = raw.fingerprint();
+    assert!(zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+}
+
+#[test]
+fn terminal340_reference_pattern_conditions() {
+    for text in [
+        "fn result()->i32{var value=Option.Some(20);if let Option.Some(ref mut n)=value{*n+=22}else{return 0}match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "fn result()->i32{var value=Option.Some(20);while let Option.Some(ref mut n)=value{*n+=22;break}match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        "enum E{Data(i32),None}fn work(value:&mut E)->i32{if let E.Data(ref mut n)=*value{*n+=22;return *n}return 0}fn result()->i32{var value=E.Data(20);return work(&mut value)}",
+        "fn result()->i32{var pair=(20,22);if let(ref mut a,b)=pair{*a+=b}return pair.0}",
+    ] { review329_native(&[("main",text)],42); }
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages token:Token;n:i32}fn build()->P?{return Option.Some(P{token:Token{code:65},n:21})}"#;
+    for body in [
+        "fn result()->i32{if let Option.Some(ref payload)=build(){return payload.n*2}return 0}",
+        "fn result()->i32{if let Option.None()=build(){return 0}return 42}",
+        "fn result()->i32{while let Option.Some(ref payload)=build(){let n=payload.n;break}return 42}",
+    ] {
+        review329_native_output(&[("main",&format!("{prefix}{body}"))],b"A42\n");
+    }
+}
+
+#[test]
+fn terminal340_owned_tuple_complete_transfers() {
+    let prefix=r#"extern "C" fn putchar(code:i32)->i32;resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages token:Token;n:i32}"#;
+    for body in [
+        "fn result()->i32{let(p,n)=(P{token:Token{code:65},n:20},22);return p.n+n}",
+        "fn result()->i32{let pair=(P{token:Token{code:65},n:20},22);return 42}",
+        "fn identity(pair:(P,i32))->(P,i32){return pair}fn result()->i32{let(p,n)=identity((P{token:Token{code:65},n:20},22));return p.n+n}",
+        "fn result()->i32{let((p,n),m)=((P{token:Token{code:65},n:0},20),22);return n+m}",
+        "fn result()->i32{let(_,n)=(Token{code:65},42);return n}",
+    ] {review329_native_output(&[("main",&format!("{prefix}{body}"))],b"A42\n");}
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

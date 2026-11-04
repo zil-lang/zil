@@ -5,6 +5,11 @@ use super::*;
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
         Type::Managed(_) => resources::supported(ty).then_some(true),
+        Type::Tuple(fields) => {
+            let mut owns = false;
+            for field in fields { owns |= shape(field)?; }
+            Some(owns)
+        }
         Type::Package { name, fields } => {
             if name.is_empty() {
                 return None;
@@ -56,11 +61,14 @@ fn shape(ty: &Type) -> Option<bool> {
 pub(super) fn value(ty: &Type) -> bool {
     shape(ty).is_some()
 }
+pub(super) fn tuple(ty: &Type) -> bool {
+    matches!(ty, Type::Tuple(_)) && shape(ty) == Some(true)
+}
 pub(super) fn enumeration(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && shape(ty) == Some(true)
 }
 pub(super) fn sum(ty: &Type) -> bool {
-    matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && shape(ty) == Some(true)
+    matches!(ty, Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }) && shape(ty) == Some(true)
 }
 pub(super) fn error_union(ty: &Type) -> bool {
     matches!(ty, Type::ErrorUnion { .. }) && shape(ty).is_some()
@@ -148,6 +156,9 @@ pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, spa
                         names(ty, remaining, span)?;
                     }
                 }
+            }
+            Type::Tuple(fields) => {
+                for ty in fields { names(ty, remaining, span)?; }
             }
             Type::ErrorUnion { error, result } => {
                 names(error, remaining, span)?;

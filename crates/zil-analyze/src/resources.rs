@@ -257,7 +257,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 description: false,
             }
         }
-        Type::Enum { .. } if budget.sum_type(ty)? => Shape {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sum_type(ty)? => Shape {
             owned: true,
             description: false,
         },
@@ -412,6 +412,9 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::MakeOwnedTuple{fields}=>(None,None,fields),
+        InstructionKind::UnpackTuple{..}|InstructionKind::DropTuple{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}=>(None,None,&[]),
+
         InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
@@ -1044,15 +1047,13 @@ impl Flow<'_> {
                         return Err(error("Sum observation needs a live local"));
                     }
                 }
-                InstructionKind::UnpackVariant {
-                    local,
-                    variant,
-                    fields,
-                } => {
+                InstructionKind::UnpackVariant { local, variant: _, fields }
+                | InstructionKind::UnpackTuple { local, fields } => {
+                    let variant = if let InstructionKind::UnpackVariant { variant, .. } = i.kind { variant } else { u32::MAX };
                     let plan = self
                         .sums
                         .ok_or_else(|| error("Unpack has no finite Sum plan"))?;
-                    plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    if matches!(i.kind, InstructionKind::UnpackVariant { .. }) {plan.validate_unpack(f, i, &state.sums, check, budget)?;}
                     let mut source = copied(state, Place::Local(*local), budget)?;
                     if check {
                         if !exact(&source, Life::Available) {
@@ -1089,7 +1090,7 @@ impl Flow<'_> {
                             .get(&Place::Local(*target))
                             .is_some_and(|s| s.owned)
                         {
-                            let birth = state.sums.unpack_birth(*local, *variant, index, budget)?;
+                            let birth = state.sums.unpack_birth(*local, variant, index, budget)?;
                             forget_order(state, *target, budget)?;
                             for (place, fact) in &state.cells {
                                 budget.spend(1, "Unpack actual initialization order")?;
@@ -1115,7 +1116,7 @@ impl Flow<'_> {
                         }
                     }
                 }
-                InstructionKind::MakeVariant { fields, .. }
+                InstructionKind::MakeOwnedTuple { fields } | InstructionKind::MakeVariant { fields, .. }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
                     for value in fields {
@@ -2116,7 +2117,7 @@ impl Flow<'_> {
                         replace(state, Place::Local(*local), source, budget)?;
                     }
                 }
-                InstructionKind::DropEnum { local }
+                InstructionKind::DropTuple { local } | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }

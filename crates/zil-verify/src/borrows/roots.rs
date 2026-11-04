@@ -398,3 +398,126 @@ pub(super) fn inline_field_root(
         .ok_or_else(|| limit("field interval overflow"))?;
     Ok(Root::Projection(local, start, end))
 }
+
+/// A GEP through an inline Copy aggregate keeps the parent's authority while
+/// narrowing the real storage interval used by the later read/reborrow.
+pub(super) fn inline_address_field(
+    f: &TypedFunction,
+    address: ValueId,
+    index: u32,
+    source: &[Root],
+    budget: &mut Budget,
+) -> Check<Vec<Root>> {
+    let Type::Address { inner, .. } = value_type(f, address, None)? else {
+        return Err(reject(
+            "E-VERIFY-ADDRESS",
+            None,
+            "inline field base is not an address",
+        ));
+    };
+    resources::charge_payload(inner, budget)?;
+    if !inner.is_copy_value() || !matches!(inner.as_ref(), Type::Tuple(_) | Type::Record { .. }) {
+        budget.spend(source.len())?;
+        return Ok(source.to_vec());
+    }
+    fn width(t: &Type, b: &mut Budget) -> Check<u32> {
+        b.spend(1)?;
+        let mut total = 1u32;
+        let mut add = |t: &Type| -> Check<()> {
+            total = total
+                .checked_add(width(t, b)?)
+                .ok_or_else(|| limit("inline field interval overflow"))?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?
+                }
+            }
+            Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(total)
+    }
+    let mut start = 1u32;
+    let target = match inner.as_ref() {
+        Type::Tuple(fs) => {
+            budget.spend(fs.len())?;
+            for t in fs.iter().take(index as usize) {
+                start = start
+                    .checked_add(width(t, budget)?)
+                    .ok_or_else(|| limit("inline field interval overflow"))?;
+            }
+            fs.get(index as usize)
+        }
+        Type::Record { fields, .. } => {
+            budget.spend(fields.len())?;
+            for (_, t) in fields.iter().take(index as usize) {
+                start = start
+                    .checked_add(width(t, budget)?)
+                    .ok_or_else(|| limit("inline field interval overflow"))?;
+            }
+            fields.get(index as usize).map(|(_, t)| t)
+        }
+        _ => unreachable!(),
+    }
+    .ok_or_else(|| reject("E-VERIFY-ADDRESS", None, "inline field is out of range"))?;
+    let end = start
+        .checked_add(width(target, budget)?)
+        .ok_or_else(|| limit("inline field interval overflow"))?;
+    budget.spend(source.len())?;
+    source
+        .iter()
+        .map(|root| {
+            Ok(match *root {
+                Root::Local(l) => Root::Projection(l, start, end),
+                Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+                Root::Projection(l, base, bound) => {
+                    let a = base
+                        .checked_add(start)
+                        .ok_or_else(|| limit("inline field interval overflow"))?;
+                    let z = base
+                        .checked_add(end)
+                        .ok_or_else(|| limit("inline field interval overflow"))?;
+                    if z > bound {
+                        return Err(reject(
+                            "E-VERIFY-ADDRESS",
+                            None,
+                            "inline field escapes parent interval",
+                        ));
+                    }
+                    Root::Projection(l, a, z)
+                }
+                Root::Window(origin, base, bound) => {
+                    let a = base
+                        .checked_add(start)
+                        .ok_or_else(|| limit("inline field interval overflow"))?;
+                    let z = base
+                        .checked_add(end)
+                        .ok_or_else(|| limit("inline field interval overflow"))?;
+                    if z > bound {
+                        return Err(reject(
+                            "E-VERIFY-ADDRESS",
+                            None,
+                            "inline field escapes parent interval",
+                        ));
+                    }
+                    Root::Window(origin, a, z)
+                }
+                root => root,
+            })
+        })
+        .collect()
+}

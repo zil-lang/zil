@@ -6,6 +6,7 @@ use std::sync::Arc;
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
         Type::Managed(_) => true,
+        Type::Tuple(fields) => fields.iter().any(owned),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned(t)),
         Type::Enum { variants, .. } => variants.iter().any(|(_, fs)| fs.iter().any(owned)),
         Type::ErrorUnion { error, result } => owned(error) || owned(result),
@@ -33,6 +34,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
                     )?;
                     Ok((false, true))
                 }
+            }
+            Type::Tuple(fields) => {
+                budget.spend(fields.len(), "ordinary Tuple fields")?;
+                let mut store=false; let mut owner=false;
+                for field in fields { let (s,o)=walk(module,field,budget)?;store|=s;owner|=o; }
+                Ok((store,owner))
             }
             Type::Package { name, fields } => {
                 if name.is_empty() {
@@ -145,6 +152,10 @@ impl Tree {
         budget.spend(2, "Sum tree allocation")?;
         let node = match ty {
             Type::Managed(_) => Node::Leaf(BTreeSet::from([Birth::Incoming])),
+            Type::Tuple(fields) => {
+                budget.spend(fields.len(), "Tuple tree children")?;
+                Node::Product(fields.iter().map(|t| Self::unknown(t, budget)).collect::<CompileResult<_>>()?)
+            }
             Type::Package { fields, .. } => {
                 budget.spend(fields.len(), "Sum Product children")?;
                 Node::Product(
@@ -478,12 +489,11 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<BTreeSet<Birth>> {
         let t = self.local(l, budget)?;
-        let Node::Sum(vs) = &t.node else {
-            return Err(error("Unpack source is not a Sum"));
-        };
-        let child = vs
-            .get(&variant)
-            .and_then(|fs| fs.get(index))
+        let child = match &t.node {
+            Node::Sum(vs) if variant != u32::MAX => vs.get(&variant).and_then(|fs| fs.get(index)),
+            Node::Product(fs) if variant == u32::MAX => fs.get(index),
+            _ => None,
+        }
             .ok_or_else(|| error("Unpack field absent"))?;
         Ok(child
             .birth()
@@ -755,7 +765,7 @@ impl Plan {
                     )])),
                 }))
             }
-            InstructionKind::MakePackage { fields } => {
+            InstructionKind::MakePackage { fields } | InstructionKind::MakeOwnedTuple { fields } => {
                 output = Some(Arc::new(Tree {
                     missing: false,
                     node: Node::Product(
@@ -926,6 +936,26 @@ impl Plan {
                 }
                 edit(facts.locals.get_mut(local).unwrap(), budget)?.missing = true;
                 facts.invalidate(*local, self, budget)?;
+            }
+            InstructionKind::UnpackTuple { local, fields } => {
+                let tree = facts.local(*local, budget)?;
+                let Type::Tuple(types) = &f.locals[local.0 as usize].ty else { return Err(error("UnpackTuple source requires Tuple")); };
+                if types.len()!=fields.len() || i.result.is_some() { return Err(error("UnpackTuple arity or result mismatch")); }
+                budget.spend(fields.len().saturating_mul(fields.len()+2), "Tuple atomic destination validation")?;
+                let mut targets=BTreeSet::new();
+                for (l,t) in fields.iter().zip(types) {
+                    if *l==*local || !targets.insert(*l) || f.locals[l.0 as usize].ty!=*t {return Err(error("Tuple destination type or alias mismatch"));}
+                    if check && facts.locals.get(l).is_some_and(|t| !t.missing) { return Err(error("Tuple destination is initialized")); }
+                }
+                let Node::Product(children)=&tree.node else {return Err(error("Tuple source tree requires product"));};
+                for (l,t) in fields.iter().zip(children) {facts.invalidate(*l,self,budget)?;facts.locals.insert(*l,t.copied(budget)?);}
+                edit(facts.locals.get_mut(local).unwrap(),budget)?.missing=true;
+                facts.invalidate(*local,self,budget)?;
+            }
+            InstructionKind::DropTuple { local } => {
+                if !matches!(f.locals[local.0 as usize].ty,Type::Tuple(_)) || !budget.sum_type(&f.locals[local.0 as usize].ty)? || i.result.is_some() {return Err(error("DropTuple requires owning Tuple and no result"));}
+                edit(facts.locals.get_mut(local).unwrap(),budget)?.missing=true;
+                facts.invalidate(*local,self,budget)?;
             }
             InstructionKind::DropEnum { local } => {
                 if !matches!(f.locals[local.0 as usize].ty, Type::Enum { .. })
