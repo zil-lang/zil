@@ -792,11 +792,27 @@ pub(crate) fn member_owner_type_cost(
                 }
                 core_shape(v, inner, span, depth + 1)?;
             }
+            Type::Task {
+                result,
+                retained_life,
+            } => {
+                if retained_life.binder_count != 0
+                    || !retained_life.ports.is_empty()
+                    || !retained_life.retained.is_empty()
+                    || !retained_life.nominal_arguments.is_empty()
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Expand,
+                        "retained Task classes require an implemented source frame mapping",
+                        Some(span),
+                    )]);
+                }
+                core_shape(v, result, span, depth + 1)?;
+            }
             Type::Managed(inner)
             | Type::Desc(inner)
             | Type::Address { inner, .. }
             | Type::Opaque { hidden: inner, .. }
-            | Type::Task { result: inner }
             | Type::Registration { environment: inner }
             | Type::OwnedStore { element: inner }
             | Type::Array { element: inner, .. }
