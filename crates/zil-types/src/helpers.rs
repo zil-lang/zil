@@ -290,6 +290,17 @@ pub(super) fn validate_template(
         if old {
             continue;
         }
+        if function.storage_life.is_some()
+            && matches!(&p.ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+        {
+            // The helper retains its own ordinary input relation separately
+            // from each callback role. Pay before recursive eligibility; the
+            // actual body and callers still enter both independent kernels.
+            prepay(&p.ty, p.span)?;
+            if stored::shared_address(&p.ty) {
+                continue;
+            }
+        }
         if !owned_state
             && matches!(p.mode, PassingMode::Infer | PassingMode::Move)
             && matches!(

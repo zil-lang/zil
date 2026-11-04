@@ -1521,15 +1521,7 @@ fn terminal_static_function_formation_prepays_wide_copy_result_types() {
 #[test]
 fn terminal_explicit_stored_closure_annotations_require_their_context() {
     let closed = "struct Tag<life a>{n:i32} type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32;fn read<life a>(v:&Tag<'a>)->i32{return v.n}fn main()->i32{let callback=(code:Code)->i32=>42;return callback(read)}";
-    // The nested Code binder is closed at the Types annotation boundary.
-    // Its closure-body kernel consumer remains a separate construction slice.
-    let report = compile_source(
-        &source(closed),
-        &CompileOptions {
-            stop_after: Stage::Types,
-            ..CompileOptions::default()
-        },
-    );
+    let report = compile_source(&source(closed), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -1537,6 +1529,7 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
         report.to_json()
     );
 
+    terminal_native_profiles(closed, "main", 42);
     for body in [
         "let f=(p:&Tag<'s>)->i32=>p.n;return f(&v)",
         "let f=()->Tag<'s> => v;return f().n",
@@ -1555,9 +1548,102 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
             report
                 .diagnostics
                 .iter()
-                .any(|d| d.message.contains("retained enclosing life context")),
+                .any(|d| d.message.contains("retained enclosing life context")
+                    || d.message.contains("genuine enclosing definition context")),
             "{}",
             report.to_json()
         );
+    }
+}
+#[test]
+fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
+    for body in ["42", "p.n+*q"] {
+        let text = format!("struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}");
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        terminal_native_profiles(&text, "result", 42);
+        if body == "p.n+*q" {
+            let options = |steps| CompileOptions {
+                stop_after: Stage::Lower,
+                limits: zil_base::Limits {
+                    max_analysis_steps: steps,
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+            while low < high {
+                let mid = low + (high - low) / 2;
+                let report = compile_source(&source(&text), &options(mid));
+                match report.status {
+                    ResultCategory::Success => high = mid,
+                    ResultCategory::ResourceLimit => low = mid + 1,
+                    _ => panic!("{}", report.to_json()),
+                }
+            }
+            let mut warm = zil_driver::CompilationSession::default();
+            for (steps, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                for report in [
+                    warm.compile_source(&source(&text), &options(steps)),
+                    compile_source(&source(&text), &options(steps)),
+                ] {
+                    assert_eq!(report.status, expected, "{}", report.to_json());
+                }
+                assert_eq!(warm.active_query_count(), 0);
+            }
+            eprintln!("qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh");
+        }
+    }
+    let unused = "struct Tag<life s>{n:i32} fn invoke<life s,life t,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'t i32)->i32{return f(p,q)} fn main()->i32{return 0}";
+    let report = compile_source(&source(unused), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert!(report.diagnostics.iter().any(|d| d.message.contains("cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+}
+
+fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
+    use zil_driver::{NativeBackend, Optimization};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = std::env::temp_dir().join(format!(
+                "zil-rich-role-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&out).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some(entry.into()),
+                    output: Some(out.join("program")),
+                    backend,
+                    optimization,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let actual = report.native_codegen.as_ref().unwrap();
+            assert_eq!(actual.backend, backend);
+            assert!(actual.fallback.is_none());
+            run(&report.artifacts["executable"], expected);
+            fs::remove_dir_all(out).unwrap();
+        }
     }
 }

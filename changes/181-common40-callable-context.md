@@ -132,3 +132,36 @@ fences, then exposed an invalid `>=>` test spelling; those logs remain retained.
 The final explicit parameter/result negatives reach the intended context guard.
 The original inferred/explicit static-code sources retain their eight native
 runs and whole-request N12633 controls.
+
+### Repeated inference and actual qualified callback execution
+
+Source inference runs before CT and again before ordinary Types. The first
+pass fills inferred closure parameter types in Core. `StorageLifeShape` binders
+are local to that qualified value; their nonzero count cannot identify an
+explicit source reference to an enclosing life. Rejecting that count on the
+second pass misclassifies inferred universal parameters. Original source
+annotations are checked while Expand still has their lexical names and genuine
+definition scope. Types retains the paid structural walk and the separate
+nonzero Fixed callable-context guard. Both safety kernels must independently
+prove each actual closure role and its body; no source/inference flag grants
+authority and no role is copied into a global closure definition contract.
+
+The intended machine slice is capture-free Fn with qualified input addresses
+and a scalar result. Lower and LLVM consume the verified stored profile and
+reserve the actual closure/call instructions, operand vectors, role relations
+and finite/flow effects. The same original mixed life/F source must pass all
+stages and both native backends at O0/O2 before this slice is reported working.
+
+The mixed life/F helper now passes Source through both kernels and native
+execution. The constant callback and an actual `p.n+*q` callback each execute on
+Clang/LLVM API at O0/O2 (eight runs, result42, no fallback). The independent
+Invocation-only Code annotation also executes all four profiles. An unused
+helper that equates distinct declared life classes rejects in Expand, and both
+explicit outer-class annotation negatives remain rejected. The actual-read
+source has whole Source-through-Lower N21782/N−1/warm/fresh; existing static
+Code controls retain N12633. Complete existing targets generics33 and
+generic_regressions83 pass; Types44 and rich stored-flow Analyze13/Verify12
+pass separately, including raw/Wire wrong-role and exclusive-alias neighbors.
+This is author integration evidence, pending independent review and the common
+terminal acceptance. Captures, enclosing Fixed, FnMut/FnOnce qualified roles,
+lending results and general CT5 scope consumers remain unfinished.

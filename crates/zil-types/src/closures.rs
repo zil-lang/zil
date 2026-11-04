@@ -1197,21 +1197,19 @@ impl Graph {
         }
         Ok(())
     }
-    /// An explicit annotation cannot silently turn an enclosing stored class
-    /// into an independent universal input of a context-free definition.
+    /// Core types may already contain inferred local storage binders. Source
+    /// lexical annotations are checked in Expand, before that distinction is
+    /// erased. A callable's free Fixed domain still needs an enclosing context.
     pub(super) fn annotation_context(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
         self.spend(span)?;
         if depth > self.depth_limit {
             return Err(limit("closure annotation depth exceeded", span));
         }
         match ty {
-            Type::BorrowedStorage { storage, life } => {
-                if life.binder_count != 0 {
-                    return Err(unsupported(
-                        span,
-                        "explicit stored closure annotation requires its retained enclosing life context",
-                    ));
-                }
+            Type::BorrowedStorage { storage, .. } => {
+                // StorageLifeShape binders are local to this value, not proof
+                // of a reference to an outer source definition. Inferred Core
+                // passes through this walk again before ordinary Types.
                 self.annotation_context(storage, depth + 1, span)?;
             }
             Type::BorrowedFunctionPointer { life, .. } => {
