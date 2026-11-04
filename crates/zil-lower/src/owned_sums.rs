@@ -36,8 +36,71 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    fn metadata(&mut self, count: usize) -> CompileResult<()> {
+        self.nodes = self.nodes.checked_add(count).ok_or_else(limit)?;
+        self.work = self.work.checked_add(count).ok_or_else(limit)?;
+        if self.nodes > self.limits.max_nodes || self.work > self.limits.max_analysis_steps {
+            return Err(limit());
+        }
+        Ok(())
+    }
+    fn stored_shape(&mut self, life: &zil_ir::StorageLifeShape) -> CompileResult<()> {
+        self.metadata(
+            life.slots
+                .len()
+                .saturating_add(life.retained.len())
+                .saturating_add(life.nominal_arguments.len())
+                .saturating_add(1),
+        )?;
+        for row in &life.slots {
+            self.metadata(row.path.len().saturating_add(2))?;
+        }
+        for row in &life.retained {
+            self.metadata(row.path.len().saturating_add(2))?;
+        }
+        for row in &life.nominal_arguments {
+            self.metadata(row.path.len().saturating_add(4))?;
+        }
+        Ok(())
+    }
+    pub(super) fn stored_contract(
+        &mut self,
+        life: &zil_ir::StorageLifeContract,
+    ) -> CompileResult<()> {
+        self.metadata(life.bindings.len().saturating_add(2))?;
+        for row in &life.bindings {
+            self.metadata(row.position.path.len().saturating_add(2))?;
+        }
+        Ok(())
+    }
+    /// The caller owns an immutable VerifiedModule. This only pays the actual
+    /// representation/metadata walks and recognizes a transparent layout; it
+    /// neither derives nor grants stored target permissions.
+    pub(super) fn borrowed(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
+        match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.pay(ty, depth)?;
+                self.stored_shape(life)?;
+                self.pay(storage, depth + 1)?;
+                self.copy_work(storage, depth + 2)?;
+                Ok(true)
+            }
+            Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) =>
+            {
+                self.pay(ty, depth)?;
+                self.borrowed(inner, depth + 1)
+            }
+            _ => Ok(false),
+        }
+    }
     fn copy_work(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.stored_shape(life)?;
+                self.pay(storage, depth)?;
+                self.copy_work(storage, depth + 1)?;
+            }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     self.pay(t, depth)?;
