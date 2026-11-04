@@ -289,3 +289,7 @@ A function borrowing an external carrier by &mut must restore its declared legal
 For signature StoragePosition traversal, an empty parameter path denotes that actual outer Address leaf if present. A nonempty path may unwrap the entry Address once and then traverse only inline storage/metadata-transparent borrowed-storage wrappers. It cannot silently dereference an Address/Desc encountered inside the path. Capture bases name actual current environment fields; any nested capture traversal is checked against the real layout and is not ordinary pointer-place authority.
 
 An Invocation binder meeting a stored class is bound to that existing class; it cannot narrow or freshen the stored class's invariant fixed upper. Fresh call substitution never grants write permission or changes a carrier's fixed bounds. CopyShared's independence from the pointer slot does not remove a real target owner/parent dependency, including when a separately supported target is actually owned by the same carrier.
+
+### HRTB export identity work proposal
+
+343审查联合program finish余额时发现新增interface_fingerprint的HRTB export/role扫描和数值关系序列化未从同一余额逐次收费；signature快照只支付自身遍历/复制。下一修正把该余额传到identity构建，预付新扫描与新增关系字节的growth/hash工作，保持字节顺序和语义身份不变，overflow/不足返回Types ResourceLimit；默认限额不变。以真实跨模块普通HRTB源的Types project N/N−1/fresh和既有live/restored接口缓存控制核验，记录必要旧预算迁移。
