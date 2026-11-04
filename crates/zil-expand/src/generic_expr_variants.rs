@@ -375,25 +375,36 @@ impl Engine<'_> {
                     Some(ItemKind::Aggregate(_))
                 )
             {
-                let mut types = Vec::new();
-                let declaration = self.templates.get(template).copied();
-                for (index, arg) in arguments.iter_mut().enumerate() {
-                    let parameter = declaration.and_then(|item| {
-                        params(item)
-                            .iter()
-                            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
-                            .nth(index)
-                    });
-                    if let GenericArg::Type(value) = arg
-                        && !parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
-                    {
-                        self.ty(value, depth + 1)?;
-                        types.push(value.clone());
-                    } else {
-                        types.push(consts::argument(arg, parameter, &mut self.budget)?);
+                if self.stored_nominals
+                    && self
+                        .templates
+                        .get(template)
+                        .is_some_and(|item| stored_nominal::has_life(item))
+                {
+                    let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
+                    t.kind = ExprKind::Name(name);
+                } else {
+                    let mut types = Vec::new();
+                    let declaration = self.templates.get(template).copied();
+                    for (index, arg) in arguments.iter_mut().enumerate() {
+                        let parameter = declaration.and_then(|item| {
+                            params(item)
+                                .iter()
+                                .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                                .nth(index)
+                        });
+                        if let GenericArg::Type(value) = arg
+                            && !parameter
+                                .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                        {
+                            self.ty(value, depth + 1)?;
+                            types.push(value.clone());
+                        } else {
+                            types.push(consts::argument(arg, parameter, &mut self.budget)?);
+                        }
                     }
+                    t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
                 }
-                t.kind = ExprKind::Name(self.instantiate(template, types, e.span)?);
             }
             let explicit_type = ty.as_ref().and_then(|t| match &t.kind {
                 ExprKind::Name(n) => Some(named(n, t.span)),

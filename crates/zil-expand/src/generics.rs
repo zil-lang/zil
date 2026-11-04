@@ -36,6 +36,8 @@ pub(super) mod record_enums;
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_nominal.rs"]
+mod stored_nominal;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -347,6 +349,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    life_scope: Vec<String>,
+    stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
     enums: BTreeMap<String, &'a EnumDecl>,
@@ -435,6 +439,8 @@ impl<'a> Engine<'a> {
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            life_scope: Vec::new(),
+            stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
             trait_calls: trait_instances::Calls::new(),
@@ -562,6 +568,11 @@ impl<'a> Engine<'a> {
                 {
                     continue;
                 }
+                if stored_nominal::has_life(item)
+                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                {
+                    continue;
+                }
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
@@ -653,7 +664,12 @@ impl<'a> Engine<'a> {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
-                let variables: BTreeSet<_> = a.generics.iter().map(|p| p.name.clone()).collect();
+                let variables: BTreeSet<_> = a
+                    .generics
+                    .iter()
+                    .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                    .map(|p| p.name.clone())
+                    .collect();
                 let bounds = engine
                     .traits
                     .parameter_bounds(&a.generics, &mut engine.budget)?;
@@ -1074,6 +1090,18 @@ impl<'a> Engine<'a> {
         }
         match &mut ty.kind {
             TypeKind::Named { path, args } => {
+                if self.stored_nominals
+                    && path.len() == 1
+                    && self
+                        .templates
+                        .get(&path[0])
+                        .is_some_and(|item| stored_nominal::has_life(item))
+                {
+                    let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
+                    *path = vec![name];
+                    args.clear();
+                    return Ok(());
+                }
                 let mut values = Vec::new();
                 let declaration = (path.len() == 1)
                     .then(|| self.templates.get(&path[0]).copied())
@@ -1134,6 +1162,17 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn item(&mut self, item: &mut Item) -> R<()> {
+        let old_life_scope = std::mem::take(&mut self.life_scope);
+        if self.stored_nominals
+            && let ItemKind::Function(function) = &item.kind
+        {
+            for parameter in &function.generics {
+                if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    self.life_scope.push(parameter.name.clone());
+                }
+            }
+        }
         let mut frame = BTreeMap::new();
         if self.traits.has_generic_methods
             && let ItemKind::Function(function) = &item.kind
@@ -1156,11 +1195,13 @@ impl<'a> Engine<'a> {
         let previous = std::mem::replace(&mut self.method_calls, frame);
         let result = self.item_inner(item);
         self.method_calls = previous;
+        self.life_scope = old_life_scope;
         result
     }
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                self.stored_signature(f)?;
                 let saved_anonymous = self.anonymous_function.take();
                 if self.anonymous_substitutions.contains_key(&f.name) {
                     self.budget.text(&f.name, f.span)?;
