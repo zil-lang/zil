@@ -1,0 +1,49 @@
+{
+  "status": "PassLimitedStaticRichInvocationSourceFormation",
+  "source": "f6f347be65498c002a036eff1af623c2292759fe",
+  "method": "Exact Git source audit, recomputed production/test identity and independent copied author-built Types/Driver harness replay; not reviewer rebuild.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/static-rich-f6-source-binding.json",
+    "sha256": "2f042227fdeda2082faf968edbb92ef2477f2c98cdc88dc50bb07cc8b4cc97d0"
+  },
+  "production_count": 430,
+  "production_manifest_sha256": "3375d01fb80d6cbaad6ce8cb2ab58f3411f7e1f4e21b00045e20848407beaa1d",
+  "harness_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/static-rich-f6-harnesses.json",
+    "sha256": "85b41bb915c0efb3e6cbd98be0b64ea546cd7b30ebcecfba5de849360cf05454"
+  },
+  "replays": [
+    {
+      "selector": "Types full library",
+      "result": "43/0, no filtered tests",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/static-rich-f6-types.log",
+        "sha256": "9b45dcf771f8f59d68b0132e3cd1d639760e068f6009110fb15374adaeb19255"
+      }
+    },
+    {
+      "selector": "terminal_static_function_",
+      "result": "2/0, 29 filtered",
+      "log": {
+        "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/static-rich-f6-generics.log",
+        "sha256": "a90c656da3fd9f59a6393785dff205b61b1317b0115a6ba6ace69482d05b8452"
+      }
+    }
+  ],
+  "actual_source_evidence": {
+    "inferred_static_code": "Four Clang/LLVM API O0/O2 native executions yielding42, no fallback; nearest distinct-rigid-class source rejects. Whole source analysis N12633/N-1/warm/fresh.",
+    "wide_Copy_result": "Real Source to Expand to Types with width4/32 nested record results. Actual BFP return type retained. Whole Types N1535/5459, N-1 ResourceLimit and fresh exact identity. This control is Types-only, not native support for these wider results."
+  },
+  "review": [
+    "Formation now reserves four full parameter uses and five result uses from the live ledger, explicitly covering the planner, two complete relation/eligibility visits, output snapshot and extra result Copy qualification. Qualified-slot planning and both relation inspections have a separate prepaid occurrence bound.",
+    "Graph::reserve_type_uses borrows only remaining/uses allowance and charges visited work even on failure. Builder and inference use the existing live charge_type_snapshot mechanism.",
+    "context_signature now prepays the complete new storage_life field before cloning. State signature lookup uses the live snapshot_signature path instead of a fresh full-quota planning budget.",
+    "Callable value/role relation admission rejects free Fixed domains in this no-enclosing-context Types lane. Static definition validation remains separate, preserves its actual Fixed/Invocation equations, then produces Invocation-only code relations with disjoint namespaces and original equalities.",
+    "The earlier semantic source/native replay stays valid; the two 034 accounting follow-ups are closed by these use-site changes and exact source controls."
+  ],
+  "related": "review-types40-static-qualified-source-terminal-architecture.json preserves034 successful tests and original accounting findings. Independent kernel rejection of unbound Fixed pointers is reviewed separately at9e6698; it is not retroactively attributed to this producer source.",
+  "limits": [
+    "Only closed static code values with the admitted qualified input relations are established. Genuine enclosing Fixed pointers/roles, bound receivers, general generic or State callable dependencies, rich borrowed results and CT5 scope authority remain separate.",
+    "No full Driver/workspace or full language completion claim."
+  ]
+}
