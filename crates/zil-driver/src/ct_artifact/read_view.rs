@@ -275,6 +275,7 @@ impl FrozenReadView<'_> {
                 result,
                 life,
             } => {
+                let life = super::scope_metadata::closed_signature(life, parameters.len(), budget)?;
                 budget.reserve_analysis_work(
                     (life.binder_count as u64)
                         .saturating_mul(8)
@@ -1091,6 +1092,7 @@ impl FrozenReadView<'_> {
                 Ok(CtTypeRef {
                     nodes: owner_type.nodes.clone(),
                     root: *root,
+                    ambient_classes: owner_type.ambient_classes.clone(),
                 })
             }
             CoreAggregateTypeRecipe::Concrete(ty) => {
@@ -1487,7 +1489,8 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life,
+                        life: zil_ir::StorageLifeContract::from_flat(life)
+                            .expect("bounded source signature"),
                     }
                 }
             }
@@ -1531,7 +1534,8 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life,
+                        life: zil_ir::StorageLifeContract::from_flat(life)
+                            .expect("bounded source signature"),
                     }
                 } else {
                     CtTypeNode::FunctionPointer { parameters, result }
@@ -1730,7 +1734,14 @@ impl FrozenReadView<'_> {
                 "checked generic field instance differs from source lineage",
             ));
         }
-        Self::compact_type_ref(CtTypeRef { nodes, root }, budget)
+        Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )
     }
     fn matches_checked_type(
         &self,
@@ -1864,11 +1875,8 @@ impl FrozenReadView<'_> {
                     life: actual,
                 },
             ) if parameters.len() == ids.len() => {
-                budget.reserve_analysis_work(
-                    (life.parameter_lives.len() as u64)
-                        .saturating_mul(2)
-                        .saturating_add(life.binder_count as u64),
-                )?;
+                super::scope_metadata::signature_cost(life, budget)?;
+                super::scope_metadata::signature_cost(actual, budget)?;
                 if life != actual {
                     return Ok(false);
                 }
@@ -2012,7 +2020,14 @@ impl FrozenReadView<'_> {
             budget,
             0,
         )?;
-        let value = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let value = Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )?;
         let next_alias = match value.nodes.get(value.root.0 as usize) {
             Some(CtTypeNode::Nominal { symbol, .. })
                 if matches!(
@@ -2038,6 +2053,13 @@ impl FrozenReadView<'_> {
         Ok(value)
     }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        if !ty.ambient_classes.is_empty() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "authenticated CT5 compaction requires contextual relocation",
+                None,
+            )]);
+        }
         for node in &ty.nodes {
             budget.reserve_analysis_work(1)?;
             if matches!(node, CtTypeNode::BorrowedStorage { .. })
@@ -2255,6 +2277,7 @@ impl FrozenReadView<'_> {
         let value = CtTypeRef {
             root: remap[ty.root.0 as usize],
             nodes,
+            ambient_classes: Vec::new(),
         };
         if value
             .nodes
@@ -2439,6 +2462,7 @@ impl CtReadView for FrozenReadView<'_> {
                 arguments: Vec::new(),
             }],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         };
         if matches!(&item.kind, ItemKind::TypeAlias(alias) if alias.generics.is_empty()) {
             return self.alias_value(requester, symbol, &handle, budget);
@@ -2599,7 +2623,14 @@ impl CtReadView for FrozenReadView<'_> {
             symbol: nominal.clone(),
             arguments,
         });
-        let applied = Self::compact_type_ref(CtTypeRef { nodes, root }, budget)?;
+        let applied = Self::compact_type_ref(
+            CtTypeRef {
+                nodes,
+                root,
+                ambient_classes: Vec::new(),
+            },
+            budget,
+        )?;
         if matches!(&item.kind, ItemKind::TypeAlias(_)) {
             return self.alias_value(requester, nominal, &applied, budget);
         }

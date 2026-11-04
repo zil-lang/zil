@@ -421,3 +421,13 @@ This checkpoint only unblocks composed builds. Full authenticated invocation
 context, rich CT graph validation, source capture/reification and actual VM
 backing-byte accounting remain work in progress. It does not replace the CT4
 source/native receipt or its later per-use owner-lookup accounting correction.
+
+The Driver CT compile adapter now also builds on the composed40 baseline.
+Compiler metadata, runtime source visitors, checked-type conversions, read-view
+comparison and program/value-context copies pay all rich binding/class paths.
+Returned value contexts retain the complete ambient inventory with its dynamic
+bytes. Closed new graphs initialize empty mappings; legacy assembly/compaction
+and reification explicitly reject contextual inputs until joint authenticated
+relocation is implemented. This is a compile checkpoint only. The retained
+CT4 source fixtures have not been attributed to this40 build, and no rich CT5
+signature/ambient/cache/native acceptance is claimed.

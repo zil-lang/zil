@@ -68,8 +68,13 @@ fn storage_cost(
     }
     Ok(bytes)
 }
-fn graph_cost(graph: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
-    let mut bytes = 0u64;
+pub(in crate::ct_artifact) fn graph_cost(
+    graph: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<u64> {
+    budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
+    let mut bytes = (graph.ambient_classes.len() as u64)
+        .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>() as u64);
     for node in &graph.nodes {
         budget.reserve_analysis_work(1)?;
         let (edges, bytes_per_edge) = match node {
@@ -94,8 +99,9 @@ fn graph_cost(graph: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResul
             bytes = bytes.saturating_add(storage_cost(life, budget)?);
         }
         if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
-            budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
-            bytes = bytes.saturating_add((life.parameter_lives.len() as u64).saturating_mul(8));
+            bytes = bytes.saturating_add(crate::ct_artifact::scope_metadata::signature_cost(
+                life, budget,
+            )?);
         }
     }
     Ok(bytes)
@@ -145,6 +151,37 @@ pub(super) fn schema_copy_cost(
     }
     Ok(bytes)
 }
+pub(in crate::ct_artifact) fn ambient_cost(
+    scopes: &[CtAmbientLifeScope],
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<u64> {
+    budget.reserve_analysis_work(scopes.len() as u64)?;
+    let mut bytes =
+        (scopes.len() as u64).saturating_mul(std::mem::size_of::<CtAmbientLifeScope>() as u64);
+    for scope in scopes {
+        budget.reserve_analysis_work(scope.binder_site.len() as u64)?;
+        bytes = bytes.saturating_add(scope.binder_site.len() as u64 * 4);
+        if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+            budget.reserve_analysis_work(actuals.len() as u64)?;
+            bytes = bytes.saturating_add(
+                (actuals.len() as u64).saturating_mul(std::mem::size_of::<CtScopeActual>() as u64),
+            );
+            for actual in actuals {
+                match actual {
+                    CtScopeActual::Type(graph) => {
+                        bytes = bytes.saturating_add(graph_cost(graph, budget)?)
+                    }
+                    CtScopeActual::Scalar(zil_ir::Constant::WideString(text)) => {
+                        budget.reserve_analysis_work(text.len() as u64)?;
+                        bytes = bytes.saturating_add(text.len() as u64 * 2);
+                    }
+                    CtScopeActual::Scalar(_) | CtScopeActual::Lifetime(_) => {}
+                }
+            }
+        }
+    }
+    Ok(bytes)
+}
 pub(super) fn program_copy_cost(
     program: &CtArtifactProgram,
     budget: &mut CtExecutionBudget,
@@ -157,7 +194,8 @@ pub(super) fn program_copy_cost(
         budget.reserve_analysis_work(value.len() as u64)?;
         Ok(value.len() as u64)
     }
-    let mut bytes = std::mem::size_of::<CtArtifactProgram>() as u64;
+    let mut bytes = (std::mem::size_of::<CtArtifactProgram>() as u64)
+        .saturating_add(ambient_cost(&program.ambient_life_scopes, budget)?);
     bytes = bytes.saturating_add(schema_copy_cost(
         &program.record_schemas,
         &program.enum_schemas,
@@ -203,9 +241,8 @@ pub(super) fn program_copy_cost(
                             bytes = bytes.saturating_add(storage_cost(life, budget)?);
                         }
                         if let CtTypeConstructor::BorrowedFunctionPointer { life } = constructor {
-                            budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
                             bytes = bytes.saturating_add(
-                                (life.parameter_lives.len() as u64).saturating_mul(8),
+                                crate::ct_artifact::scope_metadata::signature_cost(life, budget)?,
                             );
                         }
                         arguments.len()
@@ -280,6 +317,7 @@ pub(in crate::ct_artifact) struct ValueContext {
     pub ty: CtTy,
     pub bytes: u64,
     pub source_bindings: Vec<compiler::SourceLifeBinding>,
+    pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
 }
 #[derive(Clone)]
 pub(in crate::ct_artifact) struct ValueSourceScope {
@@ -295,7 +333,8 @@ impl ValueContext {
     ) -> CompileResult<Self> {
         let ty = &program.functions[program.entry.0 as usize].result_type;
         let mut bytes = schema_copy_cost(&program.record_schemas, &program.enum_schemas, budget)?
-            .saturating_add(ty_cost(ty, budget)?);
+            .saturating_add(ty_cost(ty, budget)?)
+            .saturating_add(ambient_cost(&program.ambient_life_scopes, budget)?);
         budget.reserve_analysis_work(source_bindings.len() as u64)?;
         for binding in source_bindings {
             budget.reserve_analysis_work(binding.parameters.len() as u64)?;
@@ -310,6 +349,7 @@ impl ValueContext {
             ty: ty.clone(),
             bytes,
             source_bindings: source_bindings.to_vec(),
+            ambient_life_scopes: program.ambient_life_scopes.clone(),
         })
     }
     pub(in crate::ct_artifact) fn type_with_scopes(
@@ -381,11 +421,25 @@ impl ValueContext {
         Ok((graph, scopes))
     }
     pub fn type_ref(&self, ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        if !self.ambient_life_scopes.is_empty() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT5 value reification requires authenticated ambient context",
+                None,
+            )]);
+        }
         fn append(
             out: &mut Vec<CtTypeNode>,
             mut graph: CtTypeRef,
             budget: &mut CtExecutionBudget,
         ) -> CompileResult<CtTypeNodeId> {
+            if !graph.ambient_classes.is_empty() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT5 value type assembly requires joint ambient relocation",
+                    None,
+                )]);
+            }
             budget.reserve_analysis_work(graph.nodes.len() as u64)?;
             budget.reserve_generated_nodes(graph.nodes.len() as u64)?;
             budget.reserve_temporary_bytes((graph.nodes.len() as u64).saturating_mul(128))?;
@@ -490,6 +544,10 @@ impl ValueContext {
         budget.reserve_temporary_bytes(128)?;
         let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| bad())?);
         nodes.push(node);
-        Ok(CtTypeRef { nodes, root })
+        Ok(CtTypeRef {
+            nodes,
+            root,
+            ambient_classes: Vec::new(),
+        })
     }
 }

@@ -151,10 +151,20 @@ impl Builder<'_> {
             } => {
                 self.left = self
                     .left
-                    .checked_sub(
-                        (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
-                    )
+                    .checked_sub(life.bindings.len().saturating_add(life.classes.len()))
                     .ok_or_else(|| reject("CT borrowed pointer metadata exceeds node budget"))?;
+                for row in &life.bindings {
+                    self.left = self
+                        .left
+                        .checked_sub(row.position.path.len())
+                        .ok_or_else(|| reject("CT signature metadata exceeds node budget"))?;
+                }
+                for row in &life.classes {
+                    self.left = self
+                        .left
+                        .checked_sub(row.position.path.len())
+                        .ok_or_else(|| reject("CT signature metadata exceeds node budget"))?;
+                }
                 let parameters = parameters
                     .iter()
                     .map(|ty| self.ty(ty))
@@ -217,6 +227,7 @@ pub(super) fn from_checked_type(
     let value = CtTypeRef {
         nodes: builder.nodes,
         root,
+        ambient_classes: Vec::new(),
     };
     if value
         .nodes
