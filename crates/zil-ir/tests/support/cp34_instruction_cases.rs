@@ -366,6 +366,15 @@ pub fn terminal_instructions(flag: bool) -> Vec<InstructionKind> {
         InstructionKind::DropTuple {
             local: LocalId(5806),
         },
+        InstructionKind::BorrowPlaceLocal {
+            local: LocalId(5809),
+            path: vec![PlaceProjection::Field(19), PlaceProjection::ErrorArm(flag)],
+            mutable: flag,
+        },
+        InstructionKind::PlaceTagLocal {
+            local: LocalId(5810),
+            path: vec![PlaceProjection::ErrorArm(!flag), PlaceProjection::Field(23)],
+        },
         InstructionKind::TakeTupleField {
             local: LocalId(5807),
             path: vec![

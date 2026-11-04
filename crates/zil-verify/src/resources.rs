@@ -976,7 +976,9 @@ impl Transfer<'_> {
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
-                | InstructionKind::BorrowFieldLocal { local, .. } => {
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. } => {
                     if let Some(debt) = slots.managed_local[local.0 as usize]
                         && validate
                         && state.debt[debt] != LIVE
@@ -985,6 +987,27 @@ impl Transfer<'_> {
                             span,
                             "Enum observation requires a live complete carrier",
                         ));
+                    }
+                }
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    let parent = slots.managed_local[local.0 as usize].ok_or_else(|| {
+                        bad(span, "selective source is not an actual owning local")
+                    })?;
+                    if validate {
+                        if state.debt[parent] != LIVE {
+                            return Err(bad(span, "selective source responsibility is not live"));
+                        }
+                        no_live_description(
+                            state,
+                            &self.after[b][i],
+                            Root::Local(*local),
+                            span,
+                            budget,
+                        )?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(INPUT);
                     }
                 }
                 InstructionKind::UnpackVariant { local, fields, .. }

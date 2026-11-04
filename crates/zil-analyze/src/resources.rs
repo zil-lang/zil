@@ -434,7 +434,9 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
         InstructionKind::TaskYield => (None, None, &[]),
         InstructionKind::MakeOwnedTuple { fields } => (None, None, fields),
-        InstructionKind::UnpackTuple { .. }
+        InstructionKind::BorrowPlaceLocal { .. }
+        | InstructionKind::PlaceTagLocal { .. }
+        | InstructionKind::UnpackTuple { .. }
         | InstructionKind::DropTuple { .. }
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => (None, None, &[]),
@@ -1069,7 +1071,9 @@ impl Flow<'_> {
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
-                | InstructionKind::BorrowFieldLocal { local, .. } => {
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(
@@ -1078,6 +1082,30 @@ impl Flow<'_> {
                         )
                     {
                         return Err(error("Sum observation needs a live local"));
+                    }
+                }
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    if check {
+                        if !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        ) {
+                            return Err(error("selective source is not a live owning local"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                    }
+                    if out_shape.is_some_and(|s| s.owned) {
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            birth: BTreeSet::from([Birth::Incoming]),
+                            sources: BTreeSet::new(),
+                        });
                     }
                 }
                 InstructionKind::UnpackVariant {

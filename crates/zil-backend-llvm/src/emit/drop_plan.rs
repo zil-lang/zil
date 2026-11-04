@@ -27,7 +27,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     }
 }
 pub(super) fn sum_address(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) && value_type(inner, resources))
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) && value_type(inner, resources))
 }
 fn has_store(ty: &Type) -> bool {
     match ty {
@@ -60,7 +60,7 @@ fn key(ty: &Type) -> zil_base::Fingerprint {
     ty.hash(&mut hash);
     hash.digest()
 }
-struct Budget<'a> {
+pub(super) struct Budget<'a> {
     limits: &'a zil_base::Limits,
     nodes: usize,
     work: usize,
@@ -73,7 +73,10 @@ impl<'a> Budget<'a> {
             work: 0,
         }
     }
-    fn pay(&mut self, depth: usize, work: usize) -> CompileResult<()> {
+    pub(super) fn spent(&self) -> usize {
+        self.work
+    }
+    pub(super) fn pay(&mut self, depth: usize, work: usize) -> CompileResult<()> {
         self.nodes = self.nodes.checked_add(1).ok_or_else(limit)?;
         self.work = self.work.checked_add(work).ok_or_else(limit)?;
         if depth > self.limits.max_call_depth
@@ -84,7 +87,7 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
-    fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
+    pub(super) fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
         self.pay(depth, 1)?;
         Ok(match ty {
             Type::Managed(t) => self.machine_weight(t, depth + 1)?,
@@ -162,7 +165,7 @@ impl<'a> Budget<'a> {
     }
 
     // Prepay the complete subtree before LLVM type construction or Type clones.
-    fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
+    pub(super) fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.pay(depth, 32)?;
         match ty {
             Type::Package { name, fields } | Type::Record { name, fields } => {
@@ -609,6 +612,22 @@ pub(super) fn functions(
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
                 match &instruction.kind {
+                    InstructionKind::TakeTupleField { local, .. }
+                    | InstructionKind::TakeVariantField { local, .. } => {
+                        partial_places::prepay(
+                            &f.locals[local.0 as usize].ty,
+                            f,
+                            lir.resources,
+                            &mut budget,
+                        )?;
+                    }
+                    InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    | InstructionKind::PlaceTagLocal { local, path } => {
+                        for _ in 0..=path.len() {
+                            budget.tree(&f.locals[local.0 as usize].ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_add(1).saturating_mul(64))?;
+                    }
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {
                         let ty = &f.locals[local.0 as usize].ty;
                         for _ in 0..=path.len() {

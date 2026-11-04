@@ -569,12 +569,15 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             encode_u32(b, local.0);
         }
         InstructionKind::TakeTupleField { local, path }
-        | InstructionKind::TakeVariantField { local, path } => {
+        | InstructionKind::TakeVariantField { local, path }
+        | InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => {
             assert!(v32, "schema31 cannot represent partial owning paths");
-            b.push(if matches!(i, InstructionKind::TakeTupleField { .. }) {
-                117
-            } else {
-                118
+            b.push(match i {
+                InstructionKind::TakeTupleField { .. } => 117,
+                InstructionKind::TakeVariantField { .. } => 118,
+                InstructionKind::BorrowPlaceLocal { .. } => 119,
+                _ => 120,
             });
             encode_u32(b, local.0);
             encode_len(b, path.len());
@@ -589,7 +592,14 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
                         encode_u32(b, part.variant);
                         encode_u32(b, part.index);
                     }
+                    PlaceProjection::ErrorArm(error) => {
+                        b.push(2);
+                        b.push(u8::from(*error));
+                    }
                 }
+            }
+            if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
             }
         }
         InstructionKind::BorrowFieldLocal {

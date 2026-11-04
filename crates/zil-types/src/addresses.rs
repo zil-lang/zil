@@ -314,7 +314,7 @@ impl Builder<'_, '_> {
                     && !resource_head
                     && !(mutable && decl.ty == tasks::owner())
                     && !product_head
-                    && !owned_shapes::enumeration(&decl.ty)
+                    && !owned_shapes::sum(&decl.ty)
                 {
                     return Err(unsupported(
                         e.span,

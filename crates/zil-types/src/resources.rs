@@ -210,7 +210,7 @@ impl Builder<'_, '_> {
         }
     }
     pub(super) fn finish_resource_temps(&mut self, span: Span) -> R<()> {
-        self.finish_resource_temps_from(0, span)
+        self.finish_resource_temps_from(self.resource_temp_floor, span)
     }
     pub(super) fn finish_resource_temps_from(&mut self, first: usize, span: Span) -> R<()> {
         let locals = self.resource_temps.split_off(first);
