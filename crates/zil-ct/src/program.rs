@@ -291,7 +291,14 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                         "defer is forbidden during compile-time execution",
                     )]);
                 }
-                InstructionKind::WithScopedThread { .. }
+                InstructionKind::TaskStart { .. }
+                | InstructionKind::TaskYield
+                | InstructionKind::TaskValid { .. }
+                | InstructionKind::TaskPoll { .. }
+                | InstructionKind::TaskRequestCancel { .. }
+                | InstructionKind::TaskPollClose { .. }
+                | InstructionKind::TaskFinishDestroy { .. }
+                | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
                 | InstructionKind::SyncI32 { .. } => {
                     return Err(vec![Diagnostic::error(

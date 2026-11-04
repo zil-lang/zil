@@ -2530,3 +2530,378 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
         }
     }
 }
+
+#[test]
+fn task343_source_to_persistent_native_frame() {
+    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_native_yields_resume_once() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-control.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-cancel.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-unused.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-move.zil"),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-task-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend);
+                assert!(codegen.fallback.is_none());
+                let actual = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(0),
+                    "{backend:?} {optimization:?}: {actual:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn task343_source_rejects_direct_paths_and_overlapping_heads() {
+    for text in [
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let f:fn(i32)->i32=worker;return f(7)}",
+        "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let r=thread_scope(worker,7,()->i32=>0);return r.1}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); let a=&mut task; let b=&mut task; task_poll(a); task_poll(b); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); let a=&mut task; task_finish_destroy(give task); task_poll(a); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {var task=task_start(worker,7); task_poll_close(&mut task);task_finish_destroy(give task); task_finish_destroy(give task); return 0}",
+        "fn worker(x:i32)->i32 {task_yield();return x} fn main()->i32 {let task=task_start(worker,7); task_poll(&mut task);return 0}",
+        "fn main()->i32 {let task_start=7;return task_start}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}\n{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn task343_raw_wire_and_exact_kernel_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let src = source(text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let target = zil_base::TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let verified = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert_eq!(verified.task_worker_ids().len(), 1);
+    zil_lower::lower(&verified).unwrap();
+    let worker = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "worker")
+        .unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    for variant in 0..9 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskStart { .. }))
+                    .unwrap();
+                if let I::TaskStart { worker, .. } = &mut op.kind {
+                    *worker = zil_ir::FunctionId(main as u32);
+                }
+            }
+            1 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskPoll { .. }))
+                    .unwrap();
+                let I::TaskPoll { task } = op.kind else {
+                    unreachable!()
+                };
+                forged.functions[main].values[task.0 as usize] =
+                    Type::Desc(Box::new(Type::TaskI32));
+            }
+            2 => {
+                let op = forged.functions[worker]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskYield))
+                    .unwrap();
+                let value = op.result.unwrap();
+                forged.functions[worker].values[value.0 as usize] = Type::Bool;
+            }
+            3 => forged.resources[0].teardown = Some(zil_ir::FunctionId(worker as u32)),
+            4 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskValid { .. }))
+                    .unwrap();
+                op.kind = I::FunctionRef {
+                    function: zil_ir::FunctionId(worker as u32),
+                };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] = Type::FunctionPointer {
+                    parameters: vec![Type::I32],
+                    result: Box::new(Type::I32),
+                };
+            }
+            5 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskPoll { .. }))
+                    .unwrap();
+                let I::TaskPoll { task: address } = op.kind else {
+                    unreachable!()
+                };
+                op.kind = I::ReadAddress { address };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] =
+                    Type::Managed(Box::new(Type::TaskI32));
+            }
+            6 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskStart { .. }))
+                    .unwrap();
+                op.kind = I::MakeManaged { fields: vec![] };
+            }
+            7 => {
+                forged.resources.clear();
+            }
+            8 => {
+                let duplicate = forged.resources[0].clone();
+                forged.resources.push(duplicate);
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw {variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let encoded = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for wire in [false, true] {
+            let (input, claim) = if wire {
+                zil_ir::wire::decode_module_candidate(&encoded, &limits).unwrap()
+            } else {
+                (forged.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw {variant} wire={wire}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &budget).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        let errors = accepts(low - 1).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::ResourceLimit,
+            "verify={verify}, N={low}: {errors:?}"
+        );
+        accepts(low).unwrap();
+        eprintln!("task343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_native_allocation_failure_drop_and_closed_destroy() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (index, text, failure, code, stdout) in [
+                (
+                    0,
+                    include_str!("../../../tests/language-readiness/terminal/343/task-null.zil"),
+                    true,
+                    Some(0),
+                    "AA",
+                ),
+                (
+                    1,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                    ),
+                    false,
+                    Some(0),
+                    "AVF",
+                ),
+                (
+                    2,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-early-destroy.zil"
+                    ),
+                    false,
+                    None,
+                    "A",
+                ),
+                (
+                    3,
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                    ),
+                    true,
+                    Some(10),
+                    "AN",
+                ),
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-task-failure-{}-{backend:?}-{optimization:?}-{index}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let observer = dir.join("observer.o");
+                let compiled = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(
+                        Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                    )
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(compiled.status.success(), "{compiled:?}");
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let mut command = Command::new(&report.artifacts["executable"]);
+                if failure {
+                    command.env("ZIL343_TASK_ALLOC_FAIL", "1");
+                }
+                let actual = command.output().unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    code,
+                    "{backend:?} {optimization:?} {index}: {actual:?}"
+                );
+                assert_eq!(
+                    actual.stdout,
+                    stdout.as_bytes(),
+                    "{backend:?} {optimization:?} {index}: {actual:?}"
+                );
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
