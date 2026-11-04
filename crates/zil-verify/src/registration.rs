@@ -96,7 +96,8 @@ fn closed(
         while let Some(t) = fields.pop() {
             budget.spend(1)?;
             match t {
-                Type::Address { .. }
+                Type::AsyncRegistration { .. }
+                | Type::Address { .. }
                 | Type::Dyn { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }

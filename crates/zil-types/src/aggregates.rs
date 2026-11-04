@@ -2821,6 +2821,9 @@ impl Resolver<'_> {
     ) -> R<Type> {
         self.charge(depth, span)?;
         match recipe {
+            CoreAggregateTypeRecipe::AsyncRegistration { .. } => {
+                Err(unsupported(span, "pollable registration recipe consumer is not implemented"))
+            }
             CoreAggregateTypeRecipe::Concrete(t) => {
                 // Concrete recipe syntax is in the aggregate declaration, not
                 // the caller's T/F scope. It cannot capture a same-spelled binder.

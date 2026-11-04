@@ -385,7 +385,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V41\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V42\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -430,6 +430,11 @@ pub enum Type {
     /// Stable retained callback payload; only an exact Managed/Desc wrapper is legal.
     /// The actual environment must independently resolve to a self-contained Closure.
     Registration {
+        environment: Box<Type>,
+    },
+    /// Untrusted pollable same-thread registration payload. It grants no
+    /// ClosedEnvironment, no-future, synchronous Drop or frame admission proof.
+    AsyncRegistration {
         environment: Box<Type>,
     },
     /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
@@ -514,7 +519,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V41\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V42\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -654,6 +659,7 @@ impl Type {
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::Registration { environment } => format!("Registration<{}>", environment.name()),
+            Self::AsyncRegistration { environment } => format!("AsyncRegistration<{}>", environment.name()),
             Self::TaskI32 => "TaskI32".into(),
             Self::Task { result, .. } => format!("Task<{}>", result.name()),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
@@ -811,6 +817,9 @@ pub enum CoreAggregateTypeRecipe {
     Registration {
         environment: Box<CoreAggregateTypeRecipe>,
     },
+    AsyncRegistration {
+        environment: Box<CoreAggregateTypeRecipe>,
+    },
     /// General sealed task application, retaining its full actual result recipe.
     Task {
         result: Box<CoreAggregateTypeRecipe>,
@@ -925,6 +934,9 @@ pub struct CoreStateBinding {
 pub enum ScopedCallbackRole {
     Register,
     Close,
+    AsyncRegister,
+    AsyncRequestClose,
+    AsyncPollDrain,
 }
 
 fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
@@ -932,6 +944,9 @@ fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
         None => 0,
         Some(ScopedCallbackRole::Register) => 1,
         Some(ScopedCallbackRole::Close) => 2,
+        Some(ScopedCallbackRole::AsyncRegister) => 3,
+        Some(ScopedCallbackRole::AsyncRequestClose) => 4,
+        Some(ScopedCallbackRole::AsyncPollDrain) => 5,
     }
 }
 
@@ -1970,6 +1985,24 @@ pub enum InstructionKind {
     RegistrationClose {
         registration: ValueId,
     },
+    /// Candidate only: the three actual foreign roles and unsafe source region
+    /// must be independently checked. Failed installation requires complete
+    /// synchronous raw/backend no-future before returning the nullable head.
+    AsyncRegistrationStart {
+        register: FunctionId,
+        request_close: FunctionId,
+        poll_drain: FunctionId,
+        callback: ValueId,
+        region: u32,
+    },
+    AsyncRegistrationValid { registration: ValueId },
+    /// Exclusive owning head; request never proves no-future or Closed.
+    AsyncRegistrationRequestClose { registration: ValueId },
+    /// Exclusive owning head -> ordinary Poll<Unit>. Pending retains all users,
+    /// environment and owning responsibility. Raw metadata grants no proof.
+    AsyncRegistrationPollClose { registration: ValueId },
+    /// Consumes the head; actual CLOSED state must dominate reclamation.
+    AsyncRegistrationFinishDestroy { registration: ValueId },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -2519,7 +2552,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V41\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V42\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2881,6 +2914,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         }
         Type::Registration { environment } => {
             b.push(32);
+            encode_type(b, environment);
+        }
+        Type::AsyncRegistration { environment } => {
+            b.push(37);
             encode_type(b, environment);
         }
         Type::TaskI32 => b.push(33),
@@ -3620,6 +3657,30 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
         }
         InstructionKind::RegistrationClose { registration } => {
             b.push(113);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::AsyncRegistrationStart { register, request_close, poll_drain, callback, region } => {
+            b.push(134);
+            encode_u32(b, register.0);
+            encode_u32(b, request_close.0);
+            encode_u32(b, poll_drain.0);
+            encode_u32(b, callback.0);
+            encode_u32(b, *region);
+        }
+        InstructionKind::AsyncRegistrationValid { registration } => {
+            b.push(135);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::AsyncRegistrationRequestClose { registration } => {
+            b.push(136);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::AsyncRegistrationPollClose { registration } => {
+            b.push(137);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            b.push(138);
             encode_u32(b, registration.0);
         }
         InstructionKind::ForeignFunctionRef { function } => {

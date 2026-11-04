@@ -327,7 +327,8 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
-                Type::Dyn { .. }
+                Type::AsyncRegistration { .. }
+                | Type::Dyn { .. }
                 | Type::Task { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)

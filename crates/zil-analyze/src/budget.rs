@@ -151,6 +151,9 @@ impl Budget {
         self.spend(2 + usize::from(copy_check), context)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
+            Type::AsyncRegistration { .. } => {
+                return Err(vec![Diagnostic::unsupported(Phase::Analyze, "pollable registration type consumer is not implemented", None)]);
+            }
             Type::Dyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
