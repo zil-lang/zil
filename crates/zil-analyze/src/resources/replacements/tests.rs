@@ -1,6 +1,8 @@
 use super::*;
 use crate::place_replacements::fixture;
-fn with_caller(fresh:bool)->TypedModule {fixture::module_with_relay_and_caller(fresh)}
+fn with_caller(fresh: bool) -> TypedModule {
+    fixture::module_with_relay_and_caller(fresh)
+}
 
 #[test]
 fn replacement_transfer_updates_actual_field_birth_through_two_calls() {

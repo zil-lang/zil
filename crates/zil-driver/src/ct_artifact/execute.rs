@@ -1848,8 +1848,7 @@ mod tests {
             snapshot: &environment.snapshot,
             limits: &limits,
         })
-        .err()
-        .expect("missing original scope must not bind a source lifetime");
+        .expect_err("missing original scope must not bind a source lifetime");
         assert!(
             errors
                 .iter()

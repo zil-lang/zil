@@ -1459,9 +1459,14 @@ pub(super) fn preflight(
                     | InstructionKind::ReservePlaceAddress { .. }
                     | InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
-                        if let InstructionKind::ReservePlaceLocal{path,..}|InstructionKind::ReservePlaceAddress{path,..}=&instruction.kind {
-                            count(0,path.len(),limits.max_call_depth,"replacement path")?;
-                            budget.input(path.len().saturating_mul(12).saturating_add(1),"replacement preflight/hash path")?;
+                        if let InstructionKind::ReservePlaceLocal { path, .. }
+                        | InstructionKind::ReservePlaceAddress { path, .. } = &instruction.kind
+                        {
+                            count(0, path.len(), limits.max_call_depth, "replacement path")?;
+                            budget.input(
+                                path.len().saturating_mul(12).saturating_add(1),
+                                "replacement preflight/hash path",
+                            )?;
                         }
                         budget.lookup(
                             budget.replacement_functions.len(),

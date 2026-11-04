@@ -1023,7 +1023,7 @@ impl Transfer<'_> {
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
             }
             if let Some(plan) = self.replacements {
-                plan.step(self,state,instruction,i,b,validate,written,budget)?;
+                plan.step(self, state, instruction, i, b, validate, written, budget)?;
             }
             match &instruction.kind {
                 InstructionKind::MakeOwnedTuple { fields }
@@ -2234,14 +2234,19 @@ fn run_function_with_sums(
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
-    run_function_data(module,f,graph,effects,validate,sum_rows,budget,None)
+    run_function_data(module, f, graph, effects, validate, sum_rows, budget, None)
 }
 #[allow(clippy::too_many_arguments)]
 fn run_function_data(
-    module:&TypedModule,f:&TypedFunction,graph:&FunctionGraph,effects:&[BTreeSet<Root>],
-    validate:bool,sum_rows:Option<&[Vec<sums::Bridge>]>,budget:&mut Budget,
-    replacements:Option<&replacements::Plan>,
-)->Check<BTreeSet<Root>>{
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    effects: &[BTreeSet<Root>],
+    validate: bool,
+    sum_rows: Option<&[Vec<sums::Bridge>]>,
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<BTreeSet<Root>> {
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
@@ -2249,9 +2254,11 @@ fn run_function_data(
     if slots.debt_count == 0 && slots.desc_count == 0 {
         return Ok(BTreeSet::new());
     }
-    let mut written = if let Some(plan)=replacements {
-        plan.writes(f.id,budget)?
-    } else { BTreeSet::new() };
+    let mut written = if let Some(plan) = replacements {
+        plan.writes(f.id, budget)?
+    } else {
+        BTreeSet::new()
+    };
     let after = liveness(f, graph, &slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
@@ -2441,9 +2448,14 @@ fn infer_effects(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
-    infer_effects_data(module,graphs,budget,None)
+    infer_effects_data(module, graphs, budget, None)
 }
-fn infer_effects_data(module:&TypedModule,graphs:&[FunctionGraph],budget:&mut Budget,replacements:Option<&replacements::Plan>)->Check<Vec<BTreeSet<Root>>>{
+fn infer_effects_data(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    budget: &mut Budget,
+    replacements: Option<&replacements::Plan>,
+) -> Check<Vec<BTreeSet<Root>>> {
     budget.spend(module.functions.len())?;
     let mut effects = vec![BTreeSet::new(); module.functions.len()];
     let dependents = effect_dependents(module, graphs, budget)?;
@@ -2458,7 +2470,16 @@ fn infer_effects_data(module:&TypedModule,graphs:&[FunctionGraph],budget:&mut Bu
             scheduled[index] = false;
             #[cfg(test)]
             TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let found = run_function_data(module,&module.functions[index],&graphs[index],&effects,false,None,budget,replacements)?;
+            let found = run_function_data(
+                module,
+                &module.functions[index],
+                &graphs[index],
+                &effects,
+                false,
+                None,
+                budget,
+                replacements,
+            )?;
             budget.spend(found.len().saturating_add(effects[index].len()))?;
             let before = effects[index].len();
             effects[index].extend(found);
@@ -2542,8 +2563,21 @@ pub(super) fn check_module(
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.
-    let replacements = if budget.replacements {Some(replacements::Plan::new(module,graphs,&sum_proofs.replacement_writes,budget)?)}else{None};
-    let effects = if let Some(plan)=&replacements {infer_effects_data(module,graphs,budget,Some(plan))?}else{infer_effects(module,graphs,budget)?};
+    let replacements = if budget.replacements {
+        Some(replacements::Plan::new(
+            module,
+            graphs,
+            &sum_proofs.replacement_writes,
+            budget,
+        )?)
+    } else {
+        None
+    };
+    let effects = if let Some(plan) = &replacements {
+        infer_effects_data(module, graphs, budget, Some(plan))?
+    } else {
+        infer_effects(module, graphs, budget)?
+    };
     for (function, graph) in module.functions.iter().zip(graphs) {
         run_function_data(
             module,

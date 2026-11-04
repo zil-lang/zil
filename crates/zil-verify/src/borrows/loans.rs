@@ -836,8 +836,8 @@ pub(super) fn check(
     {
         return Ok(Apart::new());
     }
-    let replacements=replacement_schedule(module,f,graph,budget)?;
-    let schedule=replacements.as_ref().map(|(_,s)|s);
+    let replacements = replacement_schedule(module, f, graph, budget)?;
+    let schedule = replacements.as_ref().map(|(_, s)| s);
     let apart = RefCell::new(Apart::new());
     let apart_ref = capture.is_some().then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
@@ -863,10 +863,10 @@ pub(super) fn check(
             }
             live_out[b].clone_from(&live);
             term_use(&mut live, &f.blocks[b].terminator);
-            for (position,instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
+            for (position, instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
                 reverse(&mut live, instruction, v);
-                retain_replacement_values(&mut live,schedule,b,position,budget)?;
+                retain_replacement_values(&mut live, schedule, b, position, budget)?;
             }
             if live != live_in[b] {
                 live_in[b] = live;
@@ -888,7 +888,7 @@ pub(super) fn check(
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
             reverse(&mut live, instruction, v);
-            retain_replacement_values(&mut live,schedule,b,i,budget)?;
+            retain_replacement_values(&mut live, schedule, b, i, budget)?;
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
         let mut capture_locals = if let Some(capture) = capture {
@@ -896,7 +896,15 @@ pub(super) fn check(
         } else {
             captures::State::new()
         };
-        let mut pins=if let Some(schedule)=schedule {let row=schedule.entries[b].as_ref().ok_or_else(||limit("replacement pin entry absent"))?;budget.spend(row.len())?;row.clone()}else{BTreeSet::new()};
+        let mut pins = if let Some(schedule) = schedule {
+            let row = schedule.entries[b]
+                .as_ref()
+                .ok_or_else(|| limit("replacement pin entry absent"))?;
+            budget.spend(row.len())?;
+            row.clone()
+        } else {
+            BTreeSet::new()
+        };
         for (i, instruction) in block.instructions.iter().enumerate() {
             let mut active = active(&flow, &locals, &after[i], v, budget)?;
             // Arguments and captured targets participate in the current call,
@@ -949,12 +957,30 @@ pub(super) fn check(
                 span,
                 apart: apart_ref,
             };
-            if let Some((inventory,_))=&replacements {
-                replacement_pins::check(f,instruction,facts,&flow,&locals,&pins,inventory,&access,budget)?;
+            if let Some((inventory, _)) = &replacements {
+                replacement_pins::check(
+                    f,
+                    instruction,
+                    facts,
+                    &flow,
+                    &locals,
+                    &pins,
+                    inventory,
+                    &access,
+                    budget,
+                )?;
                 match instruction.kind {
-                    InstructionKind::ReservePlaceLocal{reservation,..}|InstructionKind::ReservePlaceAddress{reservation,..}=>{budget.spend(pins.len().saturating_add(1))?;pins.insert(reservation);}
-                    InstructionKind::CommitPlaceReplace{reservation,..}|InstructionKind::AbortPlaceReservation{reservation}=>{budget.spend(pins.len().saturating_add(1))?;pins.remove(&reservation);}
-                    _=>{}
+                    InstructionKind::ReservePlaceLocal { reservation, .. }
+                    | InstructionKind::ReservePlaceAddress { reservation, .. } => {
+                        budget.spend(pins.len().saturating_add(1))?;
+                        pins.insert(reservation);
+                    }
+                    InstructionKind::CommitPlaceReplace { reservation, .. }
+                    | InstructionKind::AbortPlaceReservation { reservation } => {
+                        budget.spend(pins.len().saturating_add(1))?;
+                        pins.remove(&reservation);
+                    }
+                    _ => {}
                 }
             }
             if matches!(
