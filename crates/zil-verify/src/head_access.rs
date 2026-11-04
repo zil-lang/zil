@@ -403,15 +403,9 @@ fn body(
                     InstructionKind::WithForeignCallback { body, .. }
                     | InstructionKind::WithScopedThread { body, .. } => {
                         let target = closure_entry(module, &f.values[body.0 as usize])?;
-                        let args = match &operation.kind {
-                            InstructionKind::WithForeignCallback { callback, .. } => {
-                                std::slice::from_ref(callback)
-                            }
-                            _ => &[],
-                        };
                         generated = apply(
                             &contracts[target.0 as usize],
-                            args,
+                            &[],
                             Some(&values[body.0 as usize]),
                             &values,
                             &mut result.writes,

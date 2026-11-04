@@ -356,15 +356,9 @@ fn scan(
                     | InstructionKind::WithForeignCallback { body, .. } => {
                         let id = entry(module, &f.values[body.0 as usize])
                             .ok_or_else(|| bad("head scoped body is not a closure"))?;
-                        let args = match &instruction.kind {
-                            InstructionKind::WithForeignCallback { callback, .. } => {
-                                std::slice::from_ref(callback)
-                            }
-                            _ => &[],
-                        };
                         result = invoke(
                             &summaries[id.0 as usize],
-                            args,
+                            &[],
                             Some(&values[body.0 as usize]),
                             &values,
                             &mut summary.writes,

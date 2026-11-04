@@ -289,42 +289,49 @@ fn terminal342_head_module_cache_rechecks_current_body_and_actual_caller() {
 
 #[test]
 fn terminal342_head_calls_substitute_real_storage_separation_in_both_kernels() {
-    let source = "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let view=bytes_view(b);bytes_truncate(a,0);return view.len()}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}";
-    let module = typed(source);
-    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    zil_verify::verify_module(
-        module.clone(),
-        plan.clone(),
-        &module.target,
-        &Limits::default(),
-    )
-    .unwrap();
-    let mut changed = module.clone();
-    let entry = changed
-        .functions
-        .iter_mut()
-        .find(|f| f.name == "entry")
-        .unwrap();
-    for i in entry.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
-        if let InstructionKind::Call { arguments, .. } = &mut i.kind {
-            arguments[1] = arguments[0];
-        }
-    }
-    assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
-    let mut candidate = plan;
-    candidate.module_fingerprint = changed.fingerprint();
-    let wire =
-        zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default()).unwrap();
-    assert!(
+    for source in [
+        "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let view=bytes_view(b);bytes_truncate(a,0);return view.len()}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
+        "package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn worker(value:i32)->i32{return value}fn act(a:ByteBuffer,b:ByteBuffer)->i64{let body=()->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};let r=thread_scope(worker,0,body);return i64(r.2)}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}",
+        r#"extern "C" fn reg(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),scoped_callback_register());effects(ffi);};extern "C" fn close(token:c_handle) contract{provides(static_callbacks(),scoped_callback_close());effects(ffi);};package Text{manages data:ByteBuffer}fn size(p:&Text)->i64{return bytes_len(p.data)}fn act(a:ByteBuffer,b:ByteBuffer)->i64{var callback=(value:i32)->i32=>value;let body=()->i32=>{let view=bytes_view(b);bytes_truncate(a,0);return i32(view.len())};unsafe{let r=c_with_callback(reg,close,&mut callback,body);return i64(r.1)}}fn relay(a:ByteBuffer,b:ByteBuffer)->i64{return act(a,b)}fn entry(a:ByteBuffer,b:ByteBuffer)->i64{return relay(a,b)}"#,
+    ] {
+        let module = typed(source);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
         zil_verify::verify_module(
-            changed.clone(),
-            candidate,
-            &changed.target,
-            &Limits::default()
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits::default(),
         )
-        .is_err()
-    );
-    assert!(zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).is_err());
+        .unwrap();
+        let mut changed = module.clone();
+        let entry = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "entry")
+            .unwrap();
+        for i in entry.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let InstructionKind::Call { arguments, .. } = &mut i.kind {
+                arguments[1] = arguments[0];
+            }
+        }
+        assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
+        let mut candidate = plan;
+        candidate.module_fingerprint = changed.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &Limits::default())
+            .unwrap();
+        assert!(
+            zil_verify::verify_module(
+                changed.clone(),
+                candidate,
+                &changed.target,
+                &Limits::default()
+            )
+            .is_err()
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).is_err()
+        );
+    }
 }
 
 #[cfg(unix)]
