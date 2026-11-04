@@ -144,6 +144,26 @@ pub fn verify_ct_artifact_metered(
     meter.charge(initial_work.max(1), None)?;
     preflight(&raw, limits)?;
     check_type_metadata(&raw, limits, meter)?;
+    for instruction in raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+    {
+        if matches!(
+            instruction.kind,
+            CtInstructionKind::TypeConstruct {
+                constructor: CtTypeConstructor::BorrowedStorage { .. },
+                ..
+            }
+        ) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "CT4 stored type construction is not yet implemented",
+                Some(instruction.span),
+            )]);
+        }
+    }
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
@@ -1918,6 +1938,7 @@ mod tests {
     fn rejects_query_descriptor_forgery_through_record() {
         let mut p = raw();
         p.record_schemas.push(CtRecordSchema {
+            life_context: None,
             name: symbol(),
             arguments: Vec::new(),
             fields: vec![CtTy::Type],
