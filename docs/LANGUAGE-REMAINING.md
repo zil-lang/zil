@@ -1,6 +1,6 @@
 # 完整语言还缺什么
 
-## 当前终态施工候选（root37校正合流，正式全量重放中）
+## 当前共同基线（root37已完成本地双配置验收，终态仍在施工）
 
 这张表对应当前实际合流源码。下面336–339的旧表属于历史接受范围，不能继续当成当前缺口；作者未来公共表示和未合入源码也不能当成已完成能力。远端接受main仍为bcc5714f2，进度源码另有逐SHA核对的GitHub备份。
 
@@ -17,9 +17,9 @@
 | 标准库与ZUI | 普通字符串/Unicode、Store插入移除和回调迭代、整数布局、RGBA合成、输入预编辑/提交/取消及失败保留。 | lending迭代、完整集合和平台窗口、OS IME、字体/布局/渲染闭环。 |
 | 可靠性与产品 | 原大数组O0/普通大型按值ABI及默认2MiB API已修；默认栈深层调用正常通过或返回ResourceLimit。 | 更广特殊helper/FFI组合、完整浮点/匿名union，实际Windows及Rust同语义运行内存/维护/编译成本和突破实证。 |
 
-泛型方法错派发原例已修：e5b3e9ae6以实际callee位置保持替换前后绑定，原exit4变为0，Astra精确复核见d556e0ece。root组合五组73/60/23/59/15通过；旧0cb/261及其失败收据保持，上一全量4354/14与逐项修正见docs/validation/terminal-root37-corrections.json。当前完整重放仍待通过。
+泛型方法错派发原例已修：e5b3e9ae6以实际callee位置保持替换前后绑定，原exit4变为0，Astra精确复核见d556e0ece。root组合五组73/60/23/59/15通过；旧0cb/261及其失败收据保持，上一全量4354/14与逐项修正见docs/validation/terminal-root37-corrections.json。当前默认4372/0、参考4261/0及双Clippy通过，详见terminal-root37-integration-20261104.json。
 
-精确限定回放：aggregates112/cross73/generic59/impl18725/UI16，generics23/trait58；IR61/Vec13及重建历史Wire消费者通过。源码与原失败、精确预算、独审分见docs/validation/terminal-340.json、terminal-341.json、terminal-342.json及各review收据。正式全仓、B0/完整语言/ZUI和product-gates尚未由这些数字升级。
+精确限定回放：aggregates112/cross73/generic59/impl18725/UI16，generics23/trait58；IR61/Vec13及重建历史Wire消费者通过。源码与原失败、精确预算、独审分见docs/validation/terminal-340.json、terminal-341.json、terminal-342.json及各review收据。当前共同全仓已完成上述双配置检查；B0/完整语言/ZUI和product-gates仍不由这些数字升级。
 
 ## 历史336–339接受范围
 

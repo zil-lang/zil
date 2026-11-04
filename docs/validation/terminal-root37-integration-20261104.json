@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "status": "LocalLimitedAcceptance",
+  "date": "2026-11-04",
+  "scope": "Corrected integrated runtime37 source/compiler only; terminal implementation continues.",
+  "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+  "compiler_source_commit": "88589bca73067c788e0cfb0f9a5254192a4414fa",
+  "gates": [
+    {
+      "gate": "default",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "88589bca73067c788e0cfb0f9a5254192a4414fa",
+      "command": "cargo test --locked --workspace --no-fail-fast",
+      "log_sha256": "287de509aa23e58a0bcf5b292493dca5b6ef6eb68be4d13569b959e700ba949d",
+      "groups": 422,
+      "passed": 4372,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+      "command": "cargo test --locked --workspace --no-default-features --no-fail-fast",
+      "log_sha256": "e9bac0aab3b67dbc8bec87030d4b33a79977e801fc399e469d821de4f18fe633",
+      "groups": 422,
+      "passed": 4261,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "clippy-default",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+      "command": "cargo clippy --locked --workspace --all-targets -- -D warnings",
+      "log_sha256": "eac2c1780000e358e244425991051417fcf5483ee41126586feb20b447f46b44"
+    },
+    {
+      "gate": "clippy-reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+      "command": "cargo clippy --locked --workspace --all-targets --no-default-features -- -D warnings",
+      "log_sha256": "0d35f069fff8b59aac59d8586dc7d84f2269ce08f9491403d39fe005a38a674b"
+    },
+    {
+      "gate": "fmt",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+      "command": "cargo fmt --all -- --check",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "gate": "text-reference",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "88589bca73067c788e0cfb0f9a5254192a4414fa",
+      "command": "cargo test --locked -p zil-llvm-api --features text-reference",
+      "log_sha256": "8261d95bb00097b6a5672dfb27e521dc10ec8fcec239d48d3e95d0c9aac63242",
+      "groups": 10,
+      "passed": 68,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "changed-test-replay",
+      "status": "Pass",
+      "exit_code": 0,
+      "tested_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+      "command": "cargo test --locked -p zil-driver --test impl147_static_traits",
+      "log_sha256": "88a7129fb9fba2923476ea6e320b10fb3a2d1e64bf81a4ac7e6f53ed505efd72",
+      "groups": 1,
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    }
+  ],
+  "reuse": {
+    "default": "Production identical between885 and e47. Only impl147 test single-element loop wrapper was simplified for Clippy without changing the source string/assertions; whole12-test target reexecuted. All later pre-merge updates are docs/ancestry only.",
+    "independent": "ea56df0f9 reexecutes exact885 copied binaries: five targets230 and three stack/large-array cases. This is independent execution, not independent compilation."
+  },
+  "release_consumer": {
+    "status": "Pass",
+    "compiler_sha256": "0858680963f089c6aa923536f8aa77c981c09d766d5b6847c818a1f913264fad",
+    "source_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+    "builds": 16,
+    "executions": 128,
+    "actual_injected_failures": 56,
+    "summary_sha256": "a0bdba81c2297d08b6153b91b7c8f713abed05ccffc9d2f325a1ca4a0fc4f295",
+    "oracle": "existing177 consumer, actual LLVM API objects and real allocator failures"
+  },
+  "independent_review": "docs/validation/review-root885-corrected-baseline-terminal-architecture.json",
+  "prior_failures": [
+    "docs/validation/terminal-root37-corrections.json",
+    "docs/validation/terminal-root37-default-full.json"
+  ],
+  "tool_checks": {
+    "architecture": "15 crates/38 dependency edges Pass",
+    "documentation": "40/40",
+    "conformance_metadata": "377/377; zero compiler executions claimed by this check",
+    "plan": "Pass",
+    "migration_runner": "9/0",
+    "evidence_transport": "5/0",
+    "compact_results": "Pass"
+  },
+  "github_ci": {
+    "status": "NotStartedBillingBlocked",
+    "runs": [
+      41788649173,
+      41788649122
+    ],
+    "head": "e47c4b6882766e8c162253f9436dab1769355468",
+    "job_steps": 0,
+    "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased."
+  },
+  "known_incomplete": [
+    "Complete language/B0/ZUI terminal obligations remain open; task340–345 stay in construction.",
+    "Owning address126/reservation121–124 consumers, common stored-life/lending, dyn and general state protocols continue in author trees.",
+    "Owning generic Task, cancellation drain/waker, generic synchronization and Transfer/Share remain ongoing.",
+    "CT3 full value/nominal lifetime/phantom metadata and platform UI remain ongoing.",
+    "Native Windows and same-semantics Rust runtime/RSS/maintenance/compilation product gates have not run; no product-level net breakthrough claimed.",
+    "Historical301–312 missing objects/uncommitted sources are not restored; legacy handoff failures stay separate."
+  ]
+}
