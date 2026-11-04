@@ -1931,6 +1931,83 @@ mod tests {
         ));
     }
     #[test]
+    fn qualified_callback_exclusive_alias_fails_even_with_valid_class_equations() {
+        let m = fixture::qualified_fn_exclusive_call(false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::qualified_fn_exclusive_call(true);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn two_parameter_roles_with_one_closure_keep_distinct_rich_relations() {
+        let m = fixture::qualified_two_fn_roles(false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::qualified_two_fn_roles(true);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.message.contains("class equality")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.message.contains("class equality")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn qualified_fn_role_class_equations_are_checked_in_raw_and_wire() {
+        let m = fixture::qualified_fn_role(false, false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        for m in [
+            fixture::qualified_fn_role(true, false),
+            fixture::qualified_fn_role(false, true),
+        ] {
+            let c = fixture::class_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            let error = super::super::verify_module(m.clone(), c, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")),
+                "{error:?}"
+            );
+            let error = super::super::verify_module_bytes(&bytes, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
     fn unbound_pointer_fixed_is_rejected_in_raw_and_decoded_wire() {
         let m = fixture::phantom_class_calls(true, false);
         let c = fixture::class_candidate(&m);
