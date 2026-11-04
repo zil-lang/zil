@@ -133,6 +133,57 @@ impl Program {
             definitions,
         })
     }
+    pub(super) fn extend_shapes(
+        &self,
+        f: &TypedFunction,
+        shapes: &mut Shapes,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let routes = &self.routes[f.id.0 as usize].values;
+        for (value, row) in routes.iter().enumerate() {
+            fee(b, row.len().saturating_add(1))?;
+            let ty = &f.values[value];
+            if (head_address(ty) || ty.is_package_address())
+                && row
+                    .iter()
+                    .any(|place| matches!(place.root, origins::Root::StoreElement(_)))
+            {
+                b.lookup(shapes.len(), "actual Store address resource shape")?;
+                shapes.insert(
+                    Place::Value(ValueId(value as u32)),
+                    Shape {
+                        owned: false,
+                        description: true,
+                    },
+                );
+            }
+        }
+        for block in &f.blocks {
+            for i in &block.instructions {
+                fee(b, 1)?;
+                if let InstructionKind::Store { local, value } = i.kind {
+                    let row = &routes[value.0 as usize];
+                    fee(b, row.len())?;
+                    let ty = &f.locals[local.0 as usize].ty;
+                    if (head_address(ty) || ty.is_package_address())
+                        && row
+                            .iter()
+                            .any(|place| matches!(place.root, origins::Root::StoreElement(_)))
+                    {
+                        b.lookup(shapes.len(), "actual Store address local resource shape")?;
+                        shapes.insert(
+                            Place::Local(local),
+                            Shape {
+                                owned: false,
+                                description: true,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     fn targets(
         &self,
         f: &TypedFunction,
@@ -346,7 +397,10 @@ impl Program {
                 if parent.sources.iter().any(|source| {
                     matches!(
                         source.parent(),
-                        Source::Argument(_) | Source::BorrowedField(_) | Source::OwnedField(_)
+                        Source::Argument(_)
+                            | Source::BorrowedField(_)
+                            | Source::OwnedField(_)
+                            | Source::OwnedPackageField { .. }
                     )
                 }) {
                     return Err(vec![Diagnostic::unsupported(

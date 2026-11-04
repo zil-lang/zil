@@ -326,8 +326,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             description: false,
         },
         Type::Address { .. }
-            if (budget.head_descriptions || !budget.replacement_functions.is_empty())
-                && (head_address(ty) || ty.is_package_address()) =>
+            if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
         {
             Shape {
                 owned: false,
@@ -3057,7 +3056,10 @@ fn analyze_function_program(
         return Ok(Effect::default());
     }
     let sums = sums::Plan::new(f, budget)?;
-    let shapes = shapes(module, f, budget)?;
+    let mut shapes = shapes(module, f, budget)?;
+    if let Some(program) = replacements {
+        program.extend_shapes(f, &mut shapes, budget)?;
+    }
     if shapes.is_empty() && sums.is_none() {
         return Ok(Effect::default());
     }
