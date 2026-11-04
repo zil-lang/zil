@@ -119,6 +119,11 @@ pub struct CtTypeRef {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
+    /// One actual storage DAG edge plus complete untrusted leaf relation.
+    BorrowedStorage {
+        storage: CtTypeNodeId,
+        life: crate::StorageLifeShape,
+    },
     Primitive(CtScalarTy),
     Builtin(CtBuiltinType),
     Nominal {
@@ -412,6 +417,9 @@ pub enum CtTerminator {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeConstructor {
+    BorrowedStorage {
+        life: crate::StorageLifeShape,
+    },
     /// Raw invocation relation; children remain actual Type arguments.
     BorrowedFunctionPointer {
         life: crate::FunctionLifeContract,

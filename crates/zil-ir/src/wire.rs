@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 37;
+pub const WIRE_VERSION: u32 = 38;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -384,6 +384,85 @@ impl<'a> Writer<'a> {
         self.text(&target.rule_version)?;
         self.boolean(target.checked_arithmetic)
     }
+    fn storage_step(&mut self, p: PlaceProjection) -> WireResult<()> {
+        match p {
+            PlaceProjection::Field(i) => {
+                self.u8(0)?;
+                self.u32(i)
+            }
+            PlaceProjection::Variant(v) => {
+                self.u8(1)?;
+                self.u32(v.variant)?;
+                self.u32(v.index)
+            }
+            PlaceProjection::ErrorArm(e) => {
+                self.u8(2)?;
+                self.boolean(e)
+            }
+        }
+    }
+    fn storage_path(&mut self, path: &[PlaceProjection]) -> WireResult<()> {
+        self.count(path.len(), self.limits.max_call_depth)?;
+        for p in path {
+            self.storage_step(*p)?;
+        }
+        Ok(())
+    }
+    fn storage_shape(&mut self, shape: &StorageLifeShape) -> WireResult<()> {
+        self.count(shape.binder_count as usize, self.limits.max_nodes)?;
+        self.count(shape.slots.len(), self.limits.max_nodes)?;
+        for slot in &shape.slots {
+            self.storage_path(&slot.path)?;
+            self.u32(slot.binder)?;
+            self.u8(slot.mode as u8)?;
+        }
+        Ok(())
+    }
+    fn storage_contract(&mut self, contract: &Option<StorageLifeContract>) -> WireResult<()> {
+        self.boolean(contract.is_some())?;
+        if let Some(c) = contract {
+            self.count(c.fixed_binder_count as usize, self.limits.max_nodes)?;
+            self.count(c.invocation_binder_count as usize, self.limits.max_nodes)?;
+            self.count(c.bindings.len(), self.limits.max_nodes)?;
+            for binding in &c.bindings {
+                match binding.position.base {
+                    StorageBase::Parameter(i) => {
+                        self.u8(0)?;
+                        self.u32(i)?;
+                    }
+                    StorageBase::Capture(i) => {
+                        self.u8(1)?;
+                        self.u32(i)?;
+                    }
+                    StorageBase::Result => self.u8(2)?,
+                }
+                self.count(binding.position.path.len(), self.limits.max_call_depth)?;
+                for p in &binding.position.path {
+                    match p {
+                        ContractProjection::Place(p) => {
+                            self.u8(0)?;
+                            self.storage_step(*p)?;
+                        }
+                        ContractProjection::DynPort(i) => {
+                            self.u8(1)?;
+                            self.u32(*i)?;
+                        }
+                    }
+                }
+                match binding.binder {
+                    StorageBinder::Fixed(i) => {
+                        self.u8(0)?;
+                        self.u32(i)?;
+                    }
+                    StorageBinder::Invocation(i) => {
+                        self.u8(1)?;
+                        self.u32(i)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
     fn ty(&mut self, ty: &Type, depth: usize) -> WireResult<()> {
         // Keep the wire's preorder and accounting without consuming one Rust
         // stack frame per untrusted type level. Collection continuations visit
@@ -433,6 +512,11 @@ impl<'a> Writer<'a> {
             }
             self.charge(1)?;
             match ty {
+                Type::BorrowedStorage { storage, life } => {
+                    self.u8(35)?;
+                    self.storage_shape(life)?;
+                    pending.push(Task::Type(storage, depth + 1));
+                }
                 Type::Unit => self.u8(0)?,
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
@@ -680,6 +764,7 @@ impl<'a> Writer<'a> {
             for index in &closure.lending_captures {
                 self.u32(*index)?;
             }
+            self.storage_contract(&closure.storage_life)?;
         }
         self.count(module.resources.len(), self.limits.max_nodes)?;
         for resource in &module.resources {
@@ -789,6 +874,7 @@ impl<'a> Writer<'a> {
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
         self.u8(function.call_kind as u8)?;
+        self.storage_contract(&function.storage_life)?;
         self.boolean(function.reference_return_bound.is_some())?;
         if let Some(bound) = &function.reference_return_bound {
             self.count(bound.len(), self.limits.max_locals)?;
@@ -992,6 +1078,34 @@ impl<'a> Writer<'a> {
                 for field in fields {
                     self.u32(field.0)?;
                 }
+            }
+            InstructionKind::LoadStoredBorrow {
+                storage,
+                path,
+                mode,
+            } => {
+                self.u8(129)?;
+                self.u32(storage.0)?;
+                self.storage_path(path)?;
+                match mode {
+                    StoredBorrowLoad::CopyShared => self.u8(0)?,
+                    StoredBorrowLoad::CopyDescription => self.u8(1)?,
+                    StoredBorrowLoad::Reborrow { mutable } => {
+                        self.u8(2)?;
+                        self.boolean(*mutable)?;
+                    }
+                    StoredBorrowLoad::Take => self.u8(3)?,
+                }
+            }
+            InstructionKind::StoreStoredBorrow {
+                storage,
+                path,
+                value,
+            } => {
+                self.u8(130)?;
+                self.u32(storage.0)?;
+                self.storage_path(path)?;
+                self.u32(value.0)?;
             }
             InstructionKind::DescribeAddress { address } => {
                 self.u8(109)?;
@@ -1892,6 +2006,91 @@ impl<'a> Reader<'a> {
             checked_arithmetic,
         })
     }
+    fn storage_step(&mut self) -> WireResult<PlaceProjection> {
+        Ok(match self.u8()? {
+            0 => PlaceProjection::Field(self.u32()?),
+            1 => PlaceProjection::Variant(VariantProjection {
+                variant: self.u32()?,
+                index: self.u32()?,
+            }),
+            2 => PlaceProjection::ErrorArm(self.boolean()?),
+            _ => return Err(malformed("E-WIRE-TAG", "unknown stored place projection")),
+        })
+    }
+    fn storage_path(&mut self) -> WireResult<Vec<PlaceProjection>> {
+        let n = self.count(self.limits.max_call_depth, 2)?;
+        let mut out = Vec::with_capacity(n);
+        for _ in 0..n {
+            out.push(self.storage_step()?);
+        }
+        Ok(out)
+    }
+    fn storage_shape(&mut self) -> WireResult<StorageLifeShape> {
+        let binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let n = self.count(self.limits.max_nodes, 9)?;
+        let mut slots = Vec::with_capacity(n);
+        for _ in 0..n {
+            let path = self.storage_path()?;
+            let binder = self.u32()?;
+            let mode = match self.u8()? {
+                0 => StoredBorrowMode::SharedAddress,
+                1 => StoredBorrowMode::ExclusiveAddress,
+                2 => StoredBorrowMode::ReadOnlyDescription,
+                3 => StoredBorrowMode::WritableDescription,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown stored borrow mode")),
+            };
+            slots.push(StorageLifeSlot { path, binder, mode });
+        }
+        Ok(StorageLifeShape {
+            binder_count,
+            slots,
+        })
+    }
+    fn storage_contract(&mut self) -> WireResult<Option<StorageLifeContract>> {
+        if !self.boolean()? {
+            return Ok(None);
+        }
+        let fixed_binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let invocation_binder_count = self.count(self.limits.max_nodes, 0)? as u32;
+        let n = self.count(self.limits.max_nodes, 10)?;
+        let mut bindings = Vec::with_capacity(n);
+        for _ in 0..n {
+            let base = match self.u8()? {
+                0 => StorageBase::Parameter(self.u32()?),
+                1 => StorageBase::Capture(self.u32()?),
+                2 => StorageBase::Result,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown storage contract base")),
+            };
+            let n = self.count(self.limits.max_call_depth, 3)?;
+            let mut path = Vec::with_capacity(n);
+            for _ in 0..n {
+                path.push(match self.u8()? {
+                    0 => ContractProjection::Place(self.storage_step()?),
+                    1 => ContractProjection::DynPort(self.u32()?),
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown contract projection")),
+                });
+            }
+            let binder = match self.u8()? {
+                0 => StorageBinder::Fixed(self.u32()?),
+                1 => StorageBinder::Invocation(self.u32()?),
+                _ => {
+                    return Err(malformed(
+                        "E-WIRE-TAG",
+                        "unknown storage life binder domain",
+                    ));
+                }
+            };
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition { base, path },
+                binder,
+            });
+        }
+        Ok(Some(StorageLifeContract {
+            fixed_binder_count,
+            invocation_binder_count,
+            bindings,
+        }))
+    }
     fn ty(&mut self, depth: usize) -> WireResult<Type> {
         // Finish tasks assemble already charged children. Names and variants
         // have their own stacks so nested records/enums cannot consume a
@@ -1934,6 +2133,7 @@ impl<'a> Reader<'a> {
                 name: String,
             },
             Array,
+            BorrowedStorage(StorageLifeShape),
             Unary(u8),
             Address(bool),
             Opaque(NodeId),
@@ -2047,6 +2247,11 @@ impl<'a> Reader<'a> {
                     });
                     continue;
                 }
+                Task::BorrowedStorage(life) => {
+                    let storage = Box::new(values.pop().expect("read storage type"));
+                    values.push(Type::BorrowedStorage { storage, life });
+                    continue;
+                }
                 Task::Unary(tag) => {
                     let inner = Box::new(values.pop().expect("read unary type child"));
                     values.push(match tag {
@@ -2082,6 +2287,12 @@ impl<'a> Reader<'a> {
             self.charge(1)?;
             let tag = self.u8()?;
             let ty = match tag {
+                35 => {
+                    let life = self.storage_shape()?;
+                    pending.push(Task::BorrowedStorage(life));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
                 0 => Type::Unit,
                 1 => Type::Bool,
                 2 => Type::I32,
@@ -2345,6 +2556,7 @@ impl<'a> Reader<'a> {
                 result,
                 kind,
                 lending_captures: self.callable_indices()?,
+                storage_life: self.storage_contract()?,
             });
         }
         let count = self.count(self.limits.max_nodes, 6)?;
@@ -2529,6 +2741,7 @@ impl<'a> Reader<'a> {
             1 => CallKind::Suspend,
             _ => return Err(malformed("E-WIRE-TAG", "unknown function call kind")),
         };
+        let storage_life = self.storage_contract()?;
         let reference_return_bound = if self.boolean()? {
             Some(self.callable_indices()?)
         } else {
@@ -2641,6 +2854,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            storage_life,
             call_kind,
             reference_return_bound,
             callable_return_contract,
@@ -3011,6 +3225,29 @@ impl<'a> Reader<'a> {
                 }
                 InstructionKind::MakeManaged { fields }
             }
+            129 => {
+                let storage = ValueId(self.u32()?);
+                let path = self.storage_path()?;
+                let mode = match self.u8()? {
+                    0 => StoredBorrowLoad::CopyShared,
+                    1 => StoredBorrowLoad::CopyDescription,
+                    2 => StoredBorrowLoad::Reborrow {
+                        mutable: self.boolean()?,
+                    },
+                    3 => StoredBorrowLoad::Take,
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown stored load mode")),
+                };
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode,
+                }
+            }
+            130 => InstructionKind::StoreStoredBorrow {
+                storage: ValueId(self.u32()?),
+                path: self.storage_path()?,
+                value: ValueId(self.u32()?),
+            },
             109 => InstructionKind::DescribeAddress {
                 address: ValueId(self.u32()?),
             },

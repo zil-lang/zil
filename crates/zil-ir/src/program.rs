@@ -24,6 +24,7 @@ pub struct CoreProgram {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScalarFunction {
+    pub storage_life: Option<StorageLifeContract>,
     /// Declared address-return upper bound, included in signature identity.
     /// Verified actual result origins are published separately.
     pub reference_return_bound: Option<Vec<u32>>,
