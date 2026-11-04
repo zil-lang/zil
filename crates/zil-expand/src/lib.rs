@@ -1673,6 +1673,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
             if let [s::GenericArg::Type(resource)] = args.as_slice() {
                 match type_ref(resource) {
+                    Type::Desc(payload) if matches!(payload.as_ref(), Type::ByteBuffer | Type::OwnedStore { .. } | Type::TaskI32 | Type::Task { .. } | Type::Registration { .. }) => Type::Managed(payload),
                     Type::Managed(_) | Type::Desc(_) => Type::Unsupported(
                         "Managed requires an actual resource, not another carrier".into(),
                     ),
