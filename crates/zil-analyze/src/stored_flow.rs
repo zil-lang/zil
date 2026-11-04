@@ -845,7 +845,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(storage, &mut Vec::new(), &mut actual, b)?;
-    if actual.len() != life.slots.len() || actual.is_empty() {
+    if actual.len() != life.slots.len() || (actual.is_empty()&&life.nominal_arguments.is_empty()) {
         return Err(failure("physical stored slot coverage is incomplete"));
     }
     let mut seen = BTreeSet::new();
@@ -1954,7 +1954,8 @@ pub(super) fn derive(
         returns(f, facts, b)?;
         for (ty, roots) in f.values.iter().zip(&facts.values) {
             fee(b, 1)?;
-            if matches!(ty, Type::Address { .. } | Type::BorrowedStorage { .. }) && roots.is_empty()
+            let needs_target=matches!(ty,Type::Address{..})||matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
+            if needs_target && roots.is_empty()
             {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",

@@ -346,7 +346,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             }
         }
     }
-    if actual.is_empty() || actual.len() != shape.slots.len() {
+    if actual.len()!=shape.slots.len()||(actual.is_empty()&&shape.nominal_arguments.is_empty()) {
         return Err(err("stored physical leaf coverage is incomplete"));
     }
     let mut classes = Vec::new();
