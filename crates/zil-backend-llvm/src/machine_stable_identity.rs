@@ -400,6 +400,7 @@ fn prepare_inner(
                     | Op::AtomicLoad { .. }
                     | Op::AtomicStore { .. }
                     | Op::AtomicRmw { .. }
+                    | Op::AtomicCompareExchange { .. }
                     | Op::Gep { .. }
                     | Op::Insert { .. } => return None,
                     Op::Binary { ty, .. } | Op::Compare { ty, .. } | Op::Phi { ty, .. } => {
@@ -533,6 +534,16 @@ fn rename_op(op: &mut Op, names: &BTreeMap<String, String>) {
         | Op::AtomicStore { arg, ptr, .. }
         | Op::AtomicRmw { arg, ptr, .. } => {
             rename_value(&mut arg.value, names);
+            rename_value(ptr, names);
+        }
+        Op::AtomicCompareExchange {
+            expected,
+            desired,
+            ptr,
+            ..
+        } => {
+            rename_value(&mut expected.value, names);
+            rename_value(desired, names);
             rename_value(ptr, names);
         }
         Op::Binary { left, right, .. } | Op::Compare { left, right, .. } => {
