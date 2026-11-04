@@ -415,6 +415,9 @@ pub enum ExprKind {
     Name(String),
     ReceiverMember(String),
     Group(Box<Expr>),
+    /// Generated value type context. Source parsing does not create this form;
+    /// ordinary expansion and semantic kernels still check the full candidate.
+    Ascribed { ty: TypeRef, value: Box<Expr> },
     Tuple(Vec<Expr>),
     Array(Vec<Expr>),
     Unary {
