@@ -243,3 +243,12 @@ places a removed CT Type function before or after a used life-only View and
 removes a std.meta import; View retains original declaration ordinals1/0/2.
 The private capture unit pays exact work698/nodes33 and rejects N-1. These are
 frontend lineage controls, not dyn/safety/native acceptance.
+
+The first retained-row checkpoint34fc exposed an early-admission regression in
+root's broader generic suite: its capture discovery used the cloning preflight,
+which rejected an unmaterialized syntax island before CT. Correction8a22b6361
+uses a paid borrowed visitor and only discovers metadata requirements. The
+unchanged ordinary generic Type-return/record-reflection/Syntax source control
+passes, as do the retained-row and prior context controls. Corrected capture
+limits are work700/nodes35, including N-1 rejection; the earlier698/33 receipt
+remains historical. Generated/member lineage and executable Dyn stay open.
