@@ -1,0 +1,1099 @@
+{
+  "time_utc": "2026-11-04T14:09:38.459375+00:00",
+  "accepted_main": "4bc1d77b5ec3bccb5b789fd813e85386f03ae13f",
+  "rule": "Delete only clean obsolete worktrees and branches wholly contained in verified remote accepted main; source remains in main history. Ignore only generated __pycache__ pyc. No reset/clean/force push.",
+  "remote_candidates": [
+    {
+      "ref": "refs/heads/297",
+      "sha": "33542bff29621d271c3d82208ebb4770aeacf20e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review-330",
+      "sha": "76064979bf97fd78566420acf766349b7caa55aa",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review-332",
+      "sha": "5da59617996d66906b6406b2e219c514f988a148",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review329-by330",
+      "sha": "23653bb687740b86b1f1b8b0b8d82e39cfaecfd6",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review333-by332",
+      "sha": "bcd2e403ac4f86a0220b74f5dff69e3be434f074",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-336-338",
+      "sha": "3eb471be9a9ef68eca2d8efb1aaeb77656e90a54",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-339-provenance",
+      "sha": "b9177c458bb2ebebfc3a08ae5486b35df19a5c90",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-batch336-astra",
+      "sha": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/budget-migration-by324",
+      "sha": "32d7ffcb132f428b60fce0a6ca749ca12b5c2730",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/review324-by325",
+      "sha": "7582f91e4a7f9a387231508b3871ee8b1e0ecd57",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/review328-by324",
+      "sha": "24e5c1f86364bc12624fa1fe7ba0f7d04eecc0fa",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/review/318",
+      "sha": "ab4eccd14cbbe77d650ac465fc270f5f745a583c",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/review/319",
+      "sha": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/227",
+      "sha": "4810eba9aaf640cf92ab16aa119633f6f3da76d2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/235",
+      "sha": "eed2f4a4e67d1027432292eab569018fbd2ea851",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/236",
+      "sha": "f0017dae5334a6b4b5569e8fc84f54f16c1cea68",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/237",
+      "sha": "9a52e48d8ca221d202aca7ae1d7d65e04ce7f65b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238",
+      "sha": "12ece7641801ac396a3aa8e97799c36406e67ee1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238-privacy",
+      "sha": "25b0f201d760cf620ec1d5557a16152d9e01ac25",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238-regression",
+      "sha": "7b431f7d0b6707fede6e420e1352c2dd994c3586",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/240",
+      "sha": "378266bd17c70de218b45727216f80e8340fab83",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/241",
+      "sha": "565bc4019e04206d9003f554f8a09018cb8def0b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/243",
+      "sha": "cec25fbfb835589e1ce7207c3ea08d7b7f7efc34",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/251",
+      "sha": "f8116c84374c1bcd2c6239d0e7b6f023ffe8de9e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/257",
+      "sha": "7129a4687194a8b3f15ef3f8672ea2430f256ff6",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/266",
+      "sha": "fa34160bacb8ca5bd4c998467be6e6177e3a5aec",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/273",
+      "sha": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/276",
+      "sha": "cce1418cf926c00e7875815327df30ab4ebde6f2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/283",
+      "sha": "960fc28c6f39ecf3e94b31e66ad8f8b83f30f8a0",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/284",
+      "sha": "4732c90ec2e6d93742230136f717b13669494d1e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/293",
+      "sha": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/313",
+      "sha": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/314",
+      "sha": "d53b846af0e8075224697d4d600b8459362f0d6a",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/315",
+      "sha": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/316",
+      "sha": "165d802f24334a9cb0c0e817cb9ba14ab12a05b0",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/317",
+      "sha": "260839fd786af6cea1dafec0c42b78fc165c51b7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/320",
+      "sha": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/321",
+      "sha": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/322",
+      "sha": "88cbd7ca85e00eb5e99a523212e373c273ac35f2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/323",
+      "sha": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/324",
+      "sha": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/325",
+      "sha": "147c49819abb1a2afaf7e2458bdcd52c62c64269",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/327",
+      "sha": "aafdcc9c251959c59825f7d466ade226346b6e7d",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/328",
+      "sha": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/329",
+      "sha": "009cc29d3175d5e5af14d09df493e39c11e11736",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/330",
+      "sha": "ff2aefae514a7f44369da545e73ca229a16002df",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/331",
+      "sha": "0ecb774253de1824cf3688d852e6759b9b1bc727",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/333",
+      "sha": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/334",
+      "sha": "ce9a176da228d4946be6a1815f98ce60e22b727b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/335",
+      "sha": "437992b1eb6035afff40d386170f9c4a11ddc2c7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/336",
+      "sha": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/337",
+      "sha": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/338",
+      "sha": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/339",
+      "sha": "7423b4946e3787aa2a60764b473cde8307919bb7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-mainline-20261103",
+      "sha": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-mainline-20261104",
+      "sha": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-recovery-20261103",
+      "sha": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-callback-20261102",
+      "sha": "a3590dcdfeece419dd79fc80f05b96aa90feb471",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-sum-20261102",
+      "sha": "dddf3f3f99b6f3345e9775bfab89780dd642dc31",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-sum-evidence-20261102",
+      "sha": "8b0f9bdbc227c4c70be500b2e215979a98dfbbef",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/review318",
+      "sha": "b7267f6bd9e9a330260e84792e9d1958939e7f89",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/review319",
+      "sha": "dfb16b2e0a38b3e40f8d6599bafa1ed021d2ed61",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/zui-core-20261102",
+      "sha": "b6089f2a58959aa4d231df7f38658f1b09f35b1f",
+      "known": true,
+      "in_accepted_main": true
+    }
+  ],
+  "local_candidates": [
+    {
+      "path": "/workspace/zil-313",
+      "branch": "refs/heads/313",
+      "head": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-314",
+      "branch": "refs/heads/314",
+      "head": "d53b846af0e8075224697d4d600b8459362f0d6a",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-315",
+      "branch": "refs/heads/315",
+      "head": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-316",
+      "branch": "refs/heads/316",
+      "head": "165d802f24334a9cb0c0e817cb9ba14ab12a05b0",
+      "ignored_files": [
+        "tests/language-readiness/recovery/__pycache__/check.cpython-312.pyc"
+      ]
+    },
+    {
+      "path": "/workspace/zil-317",
+      "branch": "refs/heads/317",
+      "head": "260839fd786af6cea1dafec0c42b78fc165c51b7",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-320",
+      "branch": "refs/heads/320",
+      "head": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-321",
+      "branch": "refs/heads/321",
+      "head": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-322",
+      "branch": "refs/heads/322",
+      "head": "88cbd7ca85e00eb5e99a523212e373c273ac35f2",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-323",
+      "branch": "refs/heads/323",
+      "head": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-324",
+      "branch": "refs/heads/324",
+      "head": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-325",
+      "branch": "refs/heads/325",
+      "head": "147c49819abb1a2afaf7e2458bdcd52c62c64269",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-327",
+      "branch": "refs/heads/327",
+      "head": "4485360a1bd1ff5e2c68a3b95728952e9900d6ea",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-328",
+      "branch": "refs/heads/328",
+      "head": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-329",
+      "branch": "refs/heads/329",
+      "head": "009cc29d3175d5e5af14d09df493e39c11e11736",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-330",
+      "branch": "refs/heads/330",
+      "head": "ff2aefae514a7f44369da545e73ca229a16002df",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-331",
+      "branch": "refs/heads/331",
+      "head": "0ecb774253de1824cf3688d852e6759b9b1bc727",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-333",
+      "branch": "refs/heads/333",
+      "head": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-334",
+      "branch": "refs/heads/334",
+      "head": "ce9a176da228d4946be6a1815f98ce60e22b727b",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-335",
+      "branch": "refs/heads/335",
+      "head": "437992b1eb6035afff40d386170f9c4a11ddc2c7",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-336",
+      "branch": "refs/heads/336",
+      "head": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-337",
+      "branch": "refs/heads/337",
+      "head": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-338",
+      "branch": "refs/heads/338",
+      "head": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-339",
+      "branch": "refs/heads/339",
+      "head": "7423b4946e3787aa2a60764b473cde8307919bb7",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-budget-by324",
+      "branch": "refs/heads/budget-migration-by324",
+      "head": "32d7ffcb132f428b60fce0a6ca749ca12b5c2730",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-ci28",
+      "branch": "",
+      "head": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
+      "ignored_files": [
+        "tools/ci/__pycache__/compact_results.cpython-312.pyc",
+        "tools/ci/__pycache__/evidence_transport.cpython-312.pyc",
+        "tools/language/177/__pycache__/consumer.cpython-312.pyc"
+      ]
+    },
+    {
+      "path": "/workspace/zil-review-batch336-astra",
+      "branch": "refs/heads/review/batch336-astra",
+      "head": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review318",
+      "branch": "refs/heads/review/318",
+      "head": "ab4eccd14cbbe77d650ac465fc270f5f745a583c",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review319",
+      "branch": "refs/heads/review/319",
+      "head": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review324-by325",
+      "branch": "refs/heads/review324-by325",
+      "head": "7582f91e4a7f9a387231508b3871ee8b1e0ecd57",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review325-by323",
+      "branch": "refs/heads/review325-final-by323",
+      "head": "e1a0e44f4fcf884be6abecd263c73e6f158e0f38",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review328-by324",
+      "branch": "refs/heads/review328-by324",
+      "head": "24e5c1f86364bc12624fa1fe7ba0f7d04eecc0fa",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review329",
+      "branch": "refs/heads/review329-by330",
+      "head": "23653bb687740b86b1f1b8b0b8d82e39cfaecfd6",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review329-astra",
+      "branch": "refs/heads/review329-astra",
+      "head": "edddbaadb976405fff520ea126926319945e5d10",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review330",
+      "branch": "refs/heads/review/330",
+      "head": "76064979bf97fd78566420acf766349b7caa55aa",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review330-by333",
+      "branch": "refs/heads/review330-by333",
+      "head": "460985a3ac2b1a06978c05a83d4cdb2e616407e8",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review332",
+      "branch": "refs/heads/review/332",
+      "head": "5da59617996d66906b6406b2e219c514f988a148",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review333-by332",
+      "branch": "refs/heads/review333-by332",
+      "head": "bcd2e403ac4f86a0220b74f5dff69e3be434f074",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review335",
+      "branch": "refs/heads/review335-astra",
+      "head": "9b24f98d4ff2924e6c37581cc8a47755a722bc8b",
+      "ignored_files": []
+    },
+    {
+      "path": "/workspace/zil-review336-338",
+      "branch": "refs/heads/review/336-338",
+      "head": "3eb471be9a9ef68eca2d8efb1aaeb77656e90a54",
+      "ignored_files": [
+        "tests/language-readiness/review336-338/__pycache__/run338.cpython-312.pyc"
+      ]
+    },
+    {
+      "path": "/workspace/zil-review339-provenance",
+      "branch": "refs/heads/review/339-provenance",
+      "head": "b9177c458bb2ebebfc3a08ae5486b35df19a5c90",
+      "ignored_files": []
+    }
+  ],
+  "remote_deleted": [
+    {
+      "ref": "refs/heads/297",
+      "sha": "33542bff29621d271c3d82208ebb4770aeacf20e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review-330",
+      "sha": "76064979bf97fd78566420acf766349b7caa55aa",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review-332",
+      "sha": "5da59617996d66906b6406b2e219c514f988a148",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review329-by330",
+      "sha": "23653bb687740b86b1f1b8b0b8d82e39cfaecfd6",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261103-review333-by332",
+      "sha": "bcd2e403ac4f86a0220b74f5dff69e3be434f074",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-336-338",
+      "sha": "3eb471be9a9ef68eca2d8efb1aaeb77656e90a54",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-339-provenance",
+      "sha": "b9177c458bb2ebebfc3a08ae5486b35df19a5c90",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/20261104-review-batch336-astra",
+      "sha": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/budget-migration-by324",
+      "sha": "32d7ffcb132f428b60fce0a6ca749ca12b5c2730",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/review324-by325",
+      "sha": "7582f91e4a7f9a387231508b3871ee8b1e0ecd57",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/backup/review328-by324",
+      "sha": "24e5c1f86364bc12624fa1fe7ba0f7d04eecc0fa",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/review/318",
+      "sha": "ab4eccd14cbbe77d650ac465fc270f5f745a583c",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/review/319",
+      "sha": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/227",
+      "sha": "4810eba9aaf640cf92ab16aa119633f6f3da76d2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/235",
+      "sha": "eed2f4a4e67d1027432292eab569018fbd2ea851",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/236",
+      "sha": "f0017dae5334a6b4b5569e8fc84f54f16c1cea68",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/237",
+      "sha": "9a52e48d8ca221d202aca7ae1d7d65e04ce7f65b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238",
+      "sha": "12ece7641801ac396a3aa8e97799c36406e67ee1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238-privacy",
+      "sha": "25b0f201d760cf620ec1d5557a16152d9e01ac25",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/238-regression",
+      "sha": "7b431f7d0b6707fede6e420e1352c2dd994c3586",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/240",
+      "sha": "378266bd17c70de218b45727216f80e8340fab83",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/241",
+      "sha": "565bc4019e04206d9003f554f8a09018cb8def0b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/243",
+      "sha": "cec25fbfb835589e1ce7207c3ea08d7b7f7efc34",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/251",
+      "sha": "f8116c84374c1bcd2c6239d0e7b6f023ffe8de9e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/257",
+      "sha": "7129a4687194a8b3f15ef3f8672ea2430f256ff6",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/266",
+      "sha": "fa34160bacb8ca5bd4c998467be6e6177e3a5aec",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/273",
+      "sha": "7d5be625523cb8726dc4dd85725c6b572e80988c",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/276",
+      "sha": "cce1418cf926c00e7875815327df30ab4ebde6f2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/283",
+      "sha": "960fc28c6f39ecf3e94b31e66ad8f8b83f30f8a0",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/284",
+      "sha": "4732c90ec2e6d93742230136f717b13669494d1e",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/293",
+      "sha": "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/313",
+      "sha": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/314",
+      "sha": "d53b846af0e8075224697d4d600b8459362f0d6a",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/315",
+      "sha": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/316",
+      "sha": "165d802f24334a9cb0c0e817cb9ba14ab12a05b0",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/317",
+      "sha": "260839fd786af6cea1dafec0c42b78fc165c51b7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/320",
+      "sha": "4b42752fee6a4b900f027781a8906bdfec078842",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/321",
+      "sha": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/322",
+      "sha": "88cbd7ca85e00eb5e99a523212e373c273ac35f2",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/323",
+      "sha": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/324",
+      "sha": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/325",
+      "sha": "147c49819abb1a2afaf7e2458bdcd52c62c64269",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/327",
+      "sha": "aafdcc9c251959c59825f7d466ade226346b6e7d",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/328",
+      "sha": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/329",
+      "sha": "009cc29d3175d5e5af14d09df493e39c11e11736",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/330",
+      "sha": "ff2aefae514a7f44369da545e73ca229a16002df",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/331",
+      "sha": "0ecb774253de1824cf3688d852e6759b9b1bc727",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/333",
+      "sha": "fc9353c0e5917af6d204167ead6457aa04104ba7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/334",
+      "sha": "ce9a176da228d4946be6a1815f98ce60e22b727b",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/335",
+      "sha": "437992b1eb6035afff40d386170f9c4a11ddc2c7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/336",
+      "sha": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/337",
+      "sha": "97fb6e7686a01a1715a639d494c45048773fc6e1",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/338",
+      "sha": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/339",
+      "sha": "7423b4946e3787aa2a60764b473cde8307919bb7",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-mainline-20261103",
+      "sha": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-mainline-20261104",
+      "sha": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/language-recovery-20261103",
+      "sha": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-callback-20261102",
+      "sha": "a3590dcdfeece419dd79fc80f05b96aa90feb471",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-sum-20261102",
+      "sha": "dddf3f3f99b6f3345e9775bfab89780dd642dc31",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/owned-sum-evidence-20261102",
+      "sha": "8b0f9bdbc227c4c70be500b2e215979a98dfbbef",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/review318",
+      "sha": "b7267f6bd9e9a330260e84792e9d1958939e7f89",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/review319",
+      "sha": "dfb16b2e0a38b3e40f8d6599bafa1ed021d2ed61",
+      "known": true,
+      "in_accepted_main": true
+    },
+    {
+      "ref": "refs/heads/task/zui-core-20261102",
+      "sha": "b6089f2a58959aa4d231df7f38658f1b09f35b1f",
+      "known": true,
+      "in_accepted_main": true
+    }
+  ],
+  "local_worktrees_removed": [
+    "/workspace/zil-313",
+    "/workspace/zil-314",
+    "/workspace/zil-315",
+    "/workspace/zil-316",
+    "/workspace/zil-317",
+    "/workspace/zil-320",
+    "/workspace/zil-321",
+    "/workspace/zil-322",
+    "/workspace/zil-323",
+    "/workspace/zil-324",
+    "/workspace/zil-325",
+    "/workspace/zil-327",
+    "/workspace/zil-328",
+    "/workspace/zil-329",
+    "/workspace/zil-330",
+    "/workspace/zil-331",
+    "/workspace/zil-333",
+    "/workspace/zil-334",
+    "/workspace/zil-335",
+    "/workspace/zil-336",
+    "/workspace/zil-337",
+    "/workspace/zil-338",
+    "/workspace/zil-339",
+    "/workspace/zil-budget-by324",
+    "/workspace/zil-ci28",
+    "/workspace/zil-review-batch336-astra",
+    "/workspace/zil-review318",
+    "/workspace/zil-review319",
+    "/workspace/zil-review324-by325",
+    "/workspace/zil-review325-by323",
+    "/workspace/zil-review328-by324",
+    "/workspace/zil-review329",
+    "/workspace/zil-review329-astra",
+    "/workspace/zil-review330",
+    "/workspace/zil-review330-by333",
+    "/workspace/zil-review332",
+    "/workspace/zil-review333-by332",
+    "/workspace/zil-review335",
+    "/workspace/zil-review336-338",
+    "/workspace/zil-review339-provenance"
+  ],
+  "local_branches_deleted": [
+    "313",
+    "314",
+    "315",
+    "316",
+    "317",
+    "320",
+    "321",
+    "322",
+    "323",
+    "324",
+    "325",
+    "327",
+    "328",
+    "329",
+    "330",
+    "331",
+    "333",
+    "334",
+    "335",
+    "336",
+    "337",
+    "338",
+    "339",
+    "budget-migration-by324",
+    "review/batch336-astra",
+    "review/318",
+    "review/319",
+    "review324-by325",
+    "review325-final-by323",
+    "review328-by324",
+    "review329-by330",
+    "review329-astra",
+    "review/330",
+    "review330-by333",
+    "review/332",
+    "review333-by332",
+    "review335-astra",
+    "review/336-338",
+    "review/339-provenance"
+  ],
+  "status": "VerifiedRetiredMergedBranches"
+}
