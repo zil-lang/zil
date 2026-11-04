@@ -26,6 +26,8 @@ mod enums;
 mod helper_graph;
 #[path = "generic_options.rs"]
 mod options;
+#[path = "generic_origins.rs"]
+mod origins;
 #[path = "generic_products.rs"]
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
@@ -44,6 +46,8 @@ pub(super) mod trait_defaults;
 mod trait_impls;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
+#[path = "generic_trait_methods.rs"]
+mod trait_methods;
 #[path = "generic_where.rs"]
 mod where_copy;
 
@@ -77,9 +81,9 @@ pub(super) fn specialize_products<'a>(
 ) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products)
+        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products, true)
             .map(|module| Cow::Owned(module.into_owned())),
-        None => specialize_products_prepared(module, &remaining, products),
+        None => specialize_products_prepared(module, &remaining, products, false),
     }
 }
 
@@ -87,6 +91,7 @@ fn specialize_products_prepared<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
+    inserted_option: bool,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -94,6 +99,7 @@ fn specialize_products_prepared<'a>(
     let mut has_where = false;
     let mut has_defaults = false;
     let mut has_associated = false;
+    let mut has_generic_methods = false;
     let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
@@ -102,8 +108,10 @@ fn specialize_products_prepared<'a>(
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
-            let (defaults, associated) =
-                trait_defaults::features(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            let (defaults, associated, methods) =
+                trait_defaults::features_with_methods(declaration, &mut names_budget)
+                    .map_err(|e| vec![e])?;
+            has_generic_methods |= methods;
             has_associated |= associated;
             has_defaults |= defaults || associated;
             has_defaults |= !declaration.bounds.is_empty();
@@ -153,6 +161,10 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
+    if has_generic_methods {
+        if let Some(origins)=&mut products.origins {if inserted_option{origins.insert_option(module,&mut names_budget).map_err(|e|vec![e])?;}}
+        else {products.origins=Some(origins::Origins::single(module,inserted_option,&mut names_budget).map_err(|e|vec![e])?);}
+    }
     if names_budget.has_primitive_binders() && !has_alias {
         // The existing scoped normalizer also protects aliases. Without an
         // alias, trigger it only for actual builtin/type-binder collisions.
@@ -177,6 +189,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -184,7 +197,7 @@ fn specialize_products_prepared<'a>(
     if has_where {
         let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
         let (aliased, budget) =
-            aliases::normalize_with_budget(&normalized, names_budget).map_err(|e| vec![e])?;
+            aliases::normalize_with_origins(&normalized, names_budget, products.origins.as_mut()).map_err(|e| vec![e])?;
         return match aliased {
             Some(aliased) => specialize_with_budget(
                 &aliased.module,
@@ -193,6 +206,7 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+                has_generic_methods,
             ),
             None => specialize_with_budget(
                 &normalized,
@@ -201,13 +215,14 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+                has_generic_methods,
             ),
         }
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
     }
     let (normalized, names_budget) =
-        aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
+        aliases::normalize_with_origins(module, names_budget, products.origins.as_mut()).map_err(|e| vec![e])?;
     if let Some(normalized) = normalized {
         if normalized
             .module
@@ -216,6 +231,7 @@ fn specialize_products_prepared<'a>(
             .all(|item| params(item).is_empty())
             && !has_defaults
             && !has_impl_recipes
+            && !has_generic_methods
             && !normalized
                 .module
                 .items
@@ -232,6 +248,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -239,6 +256,7 @@ fn specialize_products_prepared<'a>(
     if module.items.iter().all(|item| params(item).is_empty())
         && !has_defaults
         && !has_impl_recipes
+        && !has_generic_methods
         && !module
             .items
             .iter()
@@ -254,6 +272,7 @@ fn specialize_products_prepared<'a>(
         names_budget,
         products,
         has_associated,
+        has_generic_methods,
     )
     .map(Cow::Owned)
     .map_err(|error| vec![error])
@@ -266,10 +285,21 @@ fn specialize_with_budget<'a>(
     mut budget: Budget<'a>,
     products: &mut products::Products,
     has_associated: bool,
+    has_generic_methods: bool,
 ) -> R<Module> {
-    let prepared = trait_bounds::associated::prepare(module, has_associated, &mut budget)?;
+    let mut origins=products.origins.take();
+    let methods = trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
+    let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
+    let prepared = trait_bounds::associated::prepare(
+        module,
+        has_associated,
+        methods.as_ref().map(|prepared| &prepared.bindings),
+        &mut budget,
+    )?;
     let module = prepared.as_ref().unwrap_or(module);
-    let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
+    let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
+    let module = lifted.as_ref().unwrap_or(module);
+    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
     }
@@ -277,7 +307,7 @@ fn specialize_with_budget<'a>(
     // Protect actual nominal identities in the original, still-scoped AST,
     // before substituting a caller binder into those aggregate fields.
     let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
-    let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
+    let mut engine = Engine::with_budget(&protected, limits, pattern_types, origins.as_ref(), engine.budget)?;
     if engine.nominal_binder_collision {
         return Err(error(
             module.span,
@@ -315,7 +345,9 @@ struct Engine<'a> {
     impl_definitions: BTreeMap<(usize, usize), String>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
-    pending: VecDeque<Item>,
+    pending: VecDeque<origins::Pending>,
+    origins: Option<&'a origins::Origins>,
+    current_origin: Option<origins::Origin>,
     limits: &'a Limits,
     budget: Budget<'a>,
 }
@@ -363,9 +395,10 @@ impl<'a> Engine<'a> {
         module: &'a Module,
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
+        origins: Option<&'a origins::Origins>,
         mut budget: Budget<'a>,
     ) -> R<Self> {
-        let traits = trait_bounds::Index::new(module, &mut budget)?;
+        let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
             pattern_types,
             traits,
@@ -395,6 +428,8 @@ impl<'a> Engine<'a> {
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
             pending: VecDeque::new(),
+            origins,
+            current_origin: None,
             limits,
             budget,
         };
@@ -546,6 +581,8 @@ impl<'a> Engine<'a> {
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
+                        source_definition: Some(f),
+                        definition_equations: None,
                         nominals: &engine.nominals,
                         enums: &engine.enums,
                         signatures: &engine.signatures,
@@ -630,7 +667,7 @@ impl<'a> Engine<'a> {
             span: module.span,
             items: vec![],
         };
-        for item in &module.items {
+        for (ordinal,item) in module.items.iter().enumerate() {
             if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()))
             {
                 continue;
@@ -640,13 +677,17 @@ impl<'a> Engine<'a> {
                     if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
-                self.pending.push_back(item.clone());
+                self.enqueue(item.clone(),self.origins.map(|origins|origins.get(ordinal,item.span)).transpose()?)?;
             }
         }
-        while let Some(mut item) = self.pending.pop_front() {
+        let mut output_origins=origins::Origins::default();
+        while let Some(origins::Pending{mut item,origin})=self.pending.pop_front(){
+            self.current_origin=origin;
             self.item(&mut item)?;
+            if self.origins.is_some(){self.budget.node(item.span,0)?;output_origins.entries.push(origin.ok_or_else(||error(item.span,"output provenance absent"))?);}
             result.items.push(item);
         }
+        self.products.origins=self.origins.map(|_|output_origins);
         self.products.allowance = Some(self.budget.remaining_limits());
         *products = std::mem::take(&mut self.products);
         Ok(result)
@@ -892,7 +933,8 @@ impl<'a> Engine<'a> {
         if let Some(arguments) = product_arguments {
             self.record_product(template, &generated, arguments, product_scope, span)?;
         }
-        self.pending.push_back(instance);
+        let origin=self.template_origin(item)?;
+        self.enqueue(instance,origin)?;
         Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
@@ -3280,6 +3322,15 @@ impl Substitution<'_> {
             *ty = value.clone();
             ty.span = span;
             return;
+        }
+        if let TypeKind::Named { path, .. } = &mut ty.kind
+            && path.len() > 1
+            && let Some(replacement) = self
+                .substitutions
+                .get(&path[0])
+                .and_then(trait_bounds::plain)
+        {
+            path[0] = replacement.to_owned();
         }
         match &mut ty.kind {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {

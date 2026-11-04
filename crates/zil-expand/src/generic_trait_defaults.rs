@@ -2,16 +2,21 @@
 //! selected. Concrete bodies remain ordinary functions in the trait's module.
 use super::*;
 
-pub(crate) fn features(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool, bool)> {
+pub(crate) fn features_with_methods(
+    declaration: &TraitDecl,
+    budget: &mut Budget<'_>,
+) -> R<(bool, bool, bool)> {
     let mut found = false;
     let mut associated = false;
+    let mut methods = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
         associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+        methods |= matches!(&member.kind, ItemKind::Function(f) if !f.generics.is_empty());
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok((found, associated))
+    Ok((found, associated, methods))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
@@ -168,15 +173,13 @@ impl Engine<'_> {
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
         };
-        if !function.generics.is_empty()
-            || !function.where_clause.is_empty()
-            || !function.contract.is_empty()
-        {
+        if !function.contract.is_empty() {
             return Err(unsupported(
                 member.span,
                 "generic or contract-bearing default method",
             ));
         }
+        let method_parameters = std::mem::take(&mut function.generics);
         if symbolic_arguments {
             for parameter in &declaration.generics {
                 self.budget.node(parameter.span, 0)?;
@@ -196,6 +199,7 @@ impl Engine<'_> {
             kind: GenericParamKind::Type(vec![]),
             span: member.span,
         });
+        function.generics.extend(method_parameters);
         let mut bounds = self
             .traits
             .parameter_bounds(&function.generics, &mut self.budget)?;
@@ -220,6 +224,20 @@ impl Engine<'_> {
                 member.span,
             )?,
         );
+        if !function.where_clause.is_empty() {
+            let mut variables = BTreeSet::new();
+            for parameter in type_parameters(&function) {
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+            }
+            self.traits.where_assumptions(
+                &function.where_clause,
+                &mut bounds,
+                &variables,
+                &mut self.budget,
+            )?;
+        }
         if self.traits.has_associated {
             self.traits
                 .associated_bounds(&mut bounds, &mut self.budget)?;
@@ -227,9 +245,12 @@ impl Engine<'_> {
         no_new_borrows(member, &mut self.budget)?;
         self.check_default_reference_result(&function, &bounds)?;
         let mut calls = trait_instances::Calls::new();
+        let checked = consts::definition(&function, &mut self.budget)?;
         check::validate_parametric_with_bounds(
-            &function,
+            &checked,
             check::ParametricTables {
+                source_definition: Some(&function),
+                definition_equations: None,
                 nominals: &self.nominals,
                 enums: &self.enums,
                 signatures: &self.signatures,
@@ -354,6 +375,9 @@ impl Engine<'_> {
             let ItemKind::Function(method) = &member.kind else {
                 continue;
             };
+            if !method.generics.is_empty() {
+                continue;
+            }
             if matches!(method.body, FunctionBody::Declaration) {
                 continue;
             }
@@ -539,6 +563,8 @@ mod tests {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine,
+            false,
+            false,
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

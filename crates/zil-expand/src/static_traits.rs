@@ -29,7 +29,7 @@ pub(super) fn reserved_trait(name: &str) -> bool {
         "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
     )
 }
-fn receiver_type(ty: &s::TypeRef) -> bool {
+pub(super) fn receiver_type(ty: &s::TypeRef) -> bool {
     match &ty.kind {
         s::TypeKind::Named { path, args } => path.as_slice() == ["Self"] && args.is_empty(),
         s::TypeKind::Reference { inner, .. } => plain_name(inner) == Some("Self"),
