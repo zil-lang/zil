@@ -2,53 +2,15 @@
 //! roots are checked only after the whole-module provenance fixed point.
 use super::*;
 
-pub(super) fn work(life: &FunctionLifeContract) -> usize {
-    (life.binder_count as usize)
-        .saturating_add(life.parameter_lives.len().saturating_mul(2))
-        .saturating_add(2)
+pub(super) fn work(life: &StorageLifeContract) -> usize {
+    super::signature_life::work(life)
 }
 pub(super) fn relation(
     parameters: &[Type],
     result: &Type,
-    life: &FunctionLifeContract,
+    life: &StorageLifeContract,
 ) -> CompileResult<()> {
-    let invalid = || bad("invalid invocation-local borrowed function pointer relation");
-    if life.binder_count == 0 || life.parameter_lives.len() != parameters.len() {
-        return Err(invalid());
-    }
-    let mut next = 0;
-    for (parameter, tag) in parameters.iter().zip(&life.parameter_lives) {
-        match parameter {
-            Type::Address { inner, .. } if inner.is_address_pointee() => {
-                let Some(tag) = tag.filter(|tag| *tag < life.binder_count && *tag <= next) else {
-                    return Err(invalid());
-                };
-                if tag == next {
-                    next += 1;
-                }
-            }
-            ty if ty.is_copy_value() && tag.is_none() => {}
-            _ => return Err(invalid()),
-        }
-    }
-    if next != life.binder_count {
-        return Err(invalid());
-    }
-    match result {
-        Type::Address { inner, mutable } if inner.is_address_pointee() => {
-            let Some(tag) = life.result_life.filter(|tag| *tag < life.binder_count) else {
-                return Err(invalid());
-            };
-            if !parameters.iter().zip(&life.parameter_lives).any(|(p, t)| {
-                *t == Some(tag) && matches!(p, Type::Address { mutable: m, .. } if !mutable || *m)
-            }) {
-                return Err(invalid());
-            }
-        }
-        ty if ty.is_copy_value() && life.result_life.is_none() => {}
-        _ => return Err(invalid()),
-    }
-    Ok(())
+    super::signature_life::relation(parameters, result, life)
 }
 pub(super) fn allowed(ty: &Type, budget: &mut Budget) -> CompileResult<Vec<usize>> {
     let Type::BorrowedFunctionPointer {
@@ -61,18 +23,25 @@ pub(super) fn allowed(ty: &Type, budget: &mut Budget) -> CompileResult<Vec<usize
     };
     budget.spend(work(life), "borrowed pointer input substitution")?;
     let mutable = matches!(result.as_ref(), Type::Address { mutable: true, .. });
+    budget.spend(
+        parameters
+            .len()
+            .saturating_mul(life.bindings.len().saturating_add(1)),
+        "borrowed pointer positional upper lookup",
+    )?;
+    let upper = super::signature_life::outer(life, StorageBase::Result);
     Ok(parameters
         .iter()
-        .zip(&life.parameter_lives)
         .enumerate()
-        .filter_map(|(i, (p, t))| {
-            (life.result_life.is_some()
-                && *t == life.result_life
-                && matches!(p, Type::Address { mutable: m, .. } if !mutable || *m))
+        .filter_map(|(i, p)| {
+            (upper.is_some()
+                && super::signature_life::outer(life, StorageBase::Parameter(i as u32)) == upper
+                && matches!(p,Type::Address{mutable:m,..}if !mutable||*m))
             .then_some(i)
         })
         .collect())
 }
+
 pub(super) fn targets(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
@@ -216,7 +185,7 @@ fn callback_returns(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     facts: &[Vec<ValueHold>],
     closure: &ClosureDefinition,
-    life: Option<&FunctionLifeContract>,
+    life: Option<&StorageLifeContract>,
     budget: &mut Budget,
 ) -> CompileResult<()> {
     budget.spend(
@@ -238,7 +207,10 @@ fn callback_returns(
         .enumerate()
         .filter_map(|(i, p)| {
             (matches!(p,Type::Address{mutable:m,..} if !mutable||*m)
-                && life.is_none_or(|life| life.parameter_lives[i] == life.result_life))
+                && life.is_none_or(|life| {
+                    super::signature_life::outer(life, StorageBase::Parameter(i as u32))
+                        == super::signature_life::outer(life, StorageBase::Result)
+                }))
             .then_some(i as u32)
         })
         .collect();

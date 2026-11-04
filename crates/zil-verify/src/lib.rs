@@ -84,6 +84,7 @@ mod retained;
 mod retained_tests;
 mod scoped_callback;
 mod scoped_thread;
+mod signature_life;
 mod slices;
 mod stored_borrows;
 mod stored_flow;
@@ -1070,11 +1071,7 @@ fn check_type_shape(
                 life,
             } => {
                 budget.borrowed_function_pointers = true;
-                budget.spend(
-                    (life.binder_count as usize)
-                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                        .saturating_add(2),
-                )?;
+                budget.spend(crate::signature_life::work(life))?;
                 borrowed_fp::relation(parameters, result, life, None)?;
                 pending.push((result, depth + 1, context));
                 for parameter in parameters {
