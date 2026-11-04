@@ -31,6 +31,73 @@ pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
     }
 }
 
+fn mentions_any(ty: &TypeRef, variables: &BTreeSet<&str>, budget: &mut Budget<'_>) -> R<bool> {
+    use super::super::ct_selection::Visitor;
+    struct Mentions<'a, 'b, 'l> {
+        names: &'a BTreeSet<&'a str>,
+        budget: &'b mut Budget<'l>,
+        found: bool,
+    }
+    impl Visitor for Mentions<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let TypeKind::Named { path, .. } = &ty.kind
+                && path.len() == 1
+            {
+                for _ in 0..self
+                    .names
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                {
+                    self.node(ty.span, depth)?;
+                    self.text(&path[0], ty.span)?;
+                }
+                self.found |= self.names.contains(path[0].as_str());
+            }
+            super::super::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut visitor = Mentions {
+        names: variables,
+        budget,
+        found: false,
+    };
+    visitor.ty(ty, 0).map_err(|mut e| e.remove(0))?;
+    Ok(visitor.found)
+}
+fn binder_names<'a>(
+    names: impl Iterator<Item = &'a str>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<BTreeSet<&'a str>> {
+    let mut result = BTreeSet::new();
+    for name in names {
+        budget.node(span, 0)?;
+        budget.text(name, span)?;
+        result.insert(name);
+    }
+    Ok(result)
+}
+fn prepay_shadow(
+    parameters: &[GenericParam],
+    name: &str,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    for parameter in parameters {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        budget.text(name, span)?;
+    }
+    Ok(())
+}
+
 impl<'a> Index<'a> {
     pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
         Self::build(module, budget, true)
@@ -384,6 +451,7 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
+                    prepay_shadow(parameters, copy::BOUND, bound.span, budget)?;
                     if parameters.iter().any(|p| {
                         matches!(p.kind, GenericParamKind::Type(_)) && p.name == copy::BOUND
                     }) {
@@ -407,13 +475,19 @@ impl<'a> Index<'a> {
                     continue;
                 }
                 let declaration = self.declaration(bound, budget)?;
+                prepay_shadow(parameters, &declaration.name, bound.span, budget)?;
                 if parameters.iter().any(|p| p.name == declaration.name) {
                     return Err(error(
                         bound.span,
                         "trait bound resolves to a shadowing type parameter",
                     ));
                 }
-                let reference = if parameters.iter().any(|p| callable::refers(bound, &p.name)) {
+                let names_in_scope = binder_names(
+                    parameters.iter().map(|p| p.name.as_str()),
+                    bound.span,
+                    budget,
+                )?;
+                let reference = if mentions_any(bound, &names_in_scope, budget)? {
                     let mut structural = Bounds::new();
                     let mut variables = BTreeSet::new();
                     for parameter in parameters {
@@ -497,10 +571,9 @@ impl<'a> Index<'a> {
                     continue;
                 }
                 let mut instantiated;
-                let bound = if found
-                    .keys()
-                    .any(|variable| callable::refers(bound, variable))
-                {
+                let names_in_scope =
+                    binder_names(found.keys().map(String::as_str), bound.span, budget)?;
+                let bound = if mentions_any(bound, &names_in_scope, budget)? {
                     budget.substituted_type(bound, found)?;
                     instantiated = bound.clone();
                     Substitution {

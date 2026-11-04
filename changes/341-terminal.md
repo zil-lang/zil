@@ -114,3 +114,12 @@ Wire and both native backends, beyond the generic expression rewrite alone.
 Ten focused tests and all 72 tests in the two existing targets pass. The exact
 source/harness hashes and new symbolic-argument budget ledger are in the receipt;
 independent review of this corrected source remains pending.
+
+
+Review of `088cfc64d` independently replayed all ten controls and confirmed the
+source/harness binding. It identified unpaid binder-by-bound scans in symbolic
+argument detection and spelling-shadow checks. The correction uses one charged
+type traversal against a prepaid binder set and prepays each shadow scan. Exact
+boundary increases are reported in the receipt; request limits are unchanged.
+Associated projection construction remains a separate work stream and is not
+part of this accounting checkpoint.

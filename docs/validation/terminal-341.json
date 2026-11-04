@@ -28,10 +28,10 @@
     "wire_independent_verify": "Pass",
     "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; symbolic trait arguments local/project",
     "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback; symbolic trait arguments local/project",
-    "expand_const_exact_steps": 1256,
+    "expand_const_exact_steps": 1262,
     "request_supertrait": {
-      "work": 3262,
-      "nodes": 853
+      "work": 3311,
+      "nodes": 864
     },
     "request_const_match_shadow": {
       "work": 2414,
@@ -47,18 +47,18 @@
       "old_unbound_work": 319,
       "primitive_binder_work": 1850
     },
-    "expand_generic_impl_exact_steps": 5320,
+    "expand_generic_impl_exact_steps": 5398,
     "request_generic_impl": {
       "work": 6271,
-      "nodes": 1792
+      "nodes": 1811
     },
     "generic_impls": "Pass: nominal applied heads, inline and direct/applied where premises, concrete/generic superclass proof, unused method definitions, overlap and unconstrained binders, ordered fixed trait instances, function constructor matching/coherence, project foreign-trait/local-Self and foreign-trait/foreign-outer-Self rejection",
     "impl_cycles": "Repeated active goal SafeReject; nonrepeating growing where subject ResourceLimit at work12000; unused generic conditional definitions checked under their declared bounds",
     "trait_dispatch_shared_span": "Pass: two receiver expressions and distinct impl/item/member/function nodes share source Span; raw AST -> Types/Analyze/Verify/Wire and actual Clang/LLVM API O0/O2 through downstream static dispatch publication",
     "supertrait_argument_formation": "Pass: unknown actual, non-Copy actual with Copy premise and nested Box<R> failure; nearest ordinary struct and Self from declared Copy premise success",
     "request_symbolic_trait_arguments": {
-      "work": 8894,
-      "nodes": 2292
+      "work": 9216,
+      "nodes": 2390
     },
     "symbolic_trait_arguments": "Pass: declared symbolic arguments, forwarding, same Self with bool/i32 trait applications from one generic impl and distinct native signatures, project-module composition, unused invalid bodies",
     "recipe_admission": "Unused unknown trait and generic builtin Drop impls reject before recipe filtering; retained nearest local-trait positive reaches native code"
@@ -86,11 +86,11 @@
     "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
   },
   "identity": {
-    "production_rust_path_nul_bytes_nul_sha256": "7265ea864851da5ba7074f472dbd6bb780195ceab72c5889153402625aabbe85",
+    "production_rust_path_nul_bytes_nul_sha256": "28f5d833afdc735468b0ce9ff7ce94bb928a306d35ee1a9ee461caf03a1a4123",
     "test_rust_path_nul_bytes_nul_sha256": "aa4b551f7ee16f9554d96401d393ef7bdabd918a438f0d270bed793788729a1a",
     "executables": {
-      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "a21734c620d5039329f34c5fd73a55714e3e95e41b126ad122404aacfd3cf865",
-      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "2964e36500194ff006388c799f96b44da929e05f45efaeb9b5dfe826decd382e"
+      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "44affe30edde881556960c0316060199b0c25f788ce657824c4e98bb46cc8fa5",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "4c75ba48252e3e136e8a786f1b5889ca93917fbeab14573db10b01ee86c3cbb8"
     },
     "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
     "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
@@ -105,5 +105,34 @@
     "status": "ChangesRequested",
     "exact_targeted_tests_passed": 9,
     "findings": "Inherited downstream static dispatch still used source Span identity; unused unknown/builtin generic impls could be filtered silently. Both are corrected in current source and controlled through retained source/raw/Wire/native cases. Exact corrected milestone review pending."
+  },
+  "review_088cfc64d": {
+    "status": "ChangesRequested",
+    "exact_targeted_tests_passed": 10,
+    "review_commit": "7d0bbd102",
+    "findings": "Downstream ordinal and recipe admission corrections independently replayed and source hashes matched. Symbolic argument detection repeated a full bound walk for each binder without scan prepayment. Current source replaces this with one charged traversal against a prepaid binder set and explicitly prepays spelling-shadow scans. Corrected accounting review pending."
+  },
+  "bound_scan_accounting_migration": {
+    "previous": "088cfc64d",
+    "before": {
+      "const_expand": 1256,
+      "impl_expand": 5320,
+      "super_request_work": 3262,
+      "super_request_nodes": 853,
+      "impl_request_nodes": 1792,
+      "symbolic_request_work": 8894,
+      "symbolic_request_nodes": 2292
+    },
+    "after": {
+      "const_expand": 1262,
+      "impl_expand": 5398,
+      "super_request_work": 3311,
+      "super_request_nodes": 864,
+      "impl_request_nodes": 1811,
+      "symbolic_request_work": 9216,
+      "symbolic_request_nodes": 2390
+    },
+    "limits": "unchanged",
+    "exact_N_minus_1_cold_warm_fresh_persisted": "Pass"
   }
 }
