@@ -10,6 +10,18 @@ pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
     pub(super) live: Option<&'a Live>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum StoreInvalidation {
+    Input(u32),
+    BorrowedCapture(u32),
+}
+struct Invocation<'a> {
+    callee: usize,
+    arguments: &'a [ValueId],
+    captures: Option<&'a origins::Slots>,
+    carrier: Option<Place>,
+    sealed: bool,
+}
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
@@ -301,6 +313,101 @@ impl Program {
         }
         Ok(())
     }
+    fn invalidate_store(
+        &self,
+        flow: &Flow<'_>,
+        state: &State,
+        effect: &mut Effect,
+        parents: &BTreeSet<Source>,
+        point: CheckPoint<'_>,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let CheckPoint {
+            validate: check,
+            live,
+        } = point;
+        if parents.is_empty() {
+            return Err(error(
+                "Store replacement has no actual parent responsibility family",
+            ));
+        }
+        fee(b, parents.len())?;
+        let nonlocal = |source: Source| {
+            matches!(
+                source.parent(),
+                Source::Argument(_) | Source::BorrowedField(_)
+            )
+        };
+        if parents.iter().any(|source| {
+            matches!(
+                source.parent(),
+                Source::OwnedField(_) | Source::OwnedPackageField { .. }
+            )
+        }) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "owned Store capture replacement needs its exact capture instance mapping",
+                None,
+            )]);
+        }
+        if parents.iter().any(|source| nonlocal(*source))
+            && (flow.function.callable_contract.is_some()
+                || flow.function.callable_return_contract.is_some())
+        {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "Store instance invalidation needs a public callable envelope",
+                None,
+            )]);
+        }
+        if check {
+            let live =
+                live.ok_or_else(|| error("Store replacement description liveness missing"))?;
+            for place in live {
+                let ty = match place {
+                    Place::Local(local) => &flow.function.locals[local.0 as usize].ty,
+                    Place::Value(value) => &flow.function.values[value.0 as usize],
+                    _ => continue,
+                };
+                if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                    continue;
+                }
+                let fact = copied(state, *place, b)?;
+                fee(
+                    b,
+                    fact.sources
+                        .len()
+                        .saturating_mul(parents.len().saturating_add(1)),
+                )?;
+                if fact.sources.iter().any(|source| {
+                    !matches!(source, Source::StoreParent(_))
+                        && parents.iter().any(|parent| {
+                            source.parent() == parent.parent()
+                                || (nonlocal(*source) && nonlocal(*parent))
+                        })
+                }) {
+                    return Err(error(
+                        "Store field replacement invalidates a live element resource description",
+                    ));
+                }
+            }
+        }
+        for source in parents {
+            let invalidation = match source.parent() {
+                Source::Argument(p) => Some(StoreInvalidation::Input(p)),
+                Source::BorrowedField(c) => Some(StoreInvalidation::BorrowedCapture(c)),
+                _ => None,
+            };
+            if let Some(invalidation) = invalidation {
+                b.lookup(
+                    effect.invalidated_stores.len(),
+                    "actual Store instance invalidation effect",
+                )?;
+                effect.invalidated_stores.insert(invalidation);
+            }
+        }
+        record_write(parents, effect, false, check, b)
+    }
     #[allow(clippy::too_many_arguments)]
     fn update(
         &self,
@@ -393,56 +500,20 @@ impl Program {
                 // initialization. Preserve its parent debt; no field is taken,
                 // no prefix is extended and no fresh privilege is manufactured.
                 let parent = copied(state, Place::Value(value), b)?;
-                fee(b, parent.sources.len())?;
-                if parent.sources.iter().any(|source| {
-                    matches!(
-                        source.parent(),
-                        Source::Argument(_)
-                            | Source::BorrowedField(_)
-                            | Source::OwnedField(_)
-                            | Source::OwnedPackageField { .. }
-                    )
-                }) {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "Store replacement through a borrowed/captured parent needs its instance invalidation summary",
-                        None,
-                    )]);
-                }
                 if check {
                     live_sources(state, &parent, b)?;
-                    let live = live
-                        .ok_or_else(|| error("Store replacement description liveness missing"))?;
-                    for place in live {
-                        let ty = match place {
-                            Place::Local(local) => &flow.function.locals[local.0 as usize].ty,
-                            Place::Value(value) => &flow.function.values[value.0 as usize],
-                            _ => continue,
-                        };
-                        if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
-                            continue;
-                        }
-                        let fact = copied(state, *place, b)?;
-                        fee(
-                            b,
-                            fact.sources
-                                .len()
-                                .saturating_mul(parent.sources.len().saturating_add(1)),
-                        )?;
-                        if fact.sources.iter().any(|source| {
-                            !matches!(source, Source::StoreParent(_))
-                                && parent
-                                    .sources
-                                    .iter()
-                                    .any(|root| source.parent() == root.parent())
-                        }) {
-                            return Err(error(
-                                "Store field replacement invalidates a live element resource description",
-                            ));
-                        }
-                    }
                 }
-                record_write(&parent.sources, effect, false, check, b)?;
+                self.invalidate_store(
+                    flow,
+                    state,
+                    effect,
+                    &parent.sources,
+                    CheckPoint {
+                        validate: check,
+                        live,
+                    },
+                    b,
+                )?;
             }
         }
         Ok(())
@@ -483,19 +554,26 @@ impl Program {
         }
         Ok(out)
     }
-    #[allow(clippy::too_many_arguments)]
     fn call(
         &self,
         flow: &Flow<'_>,
         state: &mut State,
         effect: &mut Effect,
-        callee: usize,
-        arguments: &[ValueId],
-        captures: Option<&origins::Slots>,
-        check: bool,
-        live: Option<&Live>,
+        invocation: Invocation<'_>,
+        point: CheckPoint<'_>,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        let Invocation {
+            callee,
+            arguments,
+            captures,
+            carrier,
+            sealed,
+        } = invocation;
+        let CheckPoint {
+            validate: check,
+            live,
+        } = point;
         let rows = &flow.effects[callee].replacements;
         fee(b, rows.len())?;
         for (target, birth) in rows {
@@ -515,15 +593,45 @@ impl Program {
             }
             let incoming = self.substitute_birth(state, arguments, birth, b)?;
             for at in selected {
-                if matches!(at.root, origins::Root::StoreElement(_)) {
+                if sealed && matches!(at.root, origins::Root::StoreElement(_)) {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
-                        "Store field replacement through a helper needs its resource description summary bridge",
+                        "Store instance invalidation across a sealed callback scope needs its simultaneous descriptor proof",
                         None,
                     )]);
                 }
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
+        }
+        let invalidations = &flow.effects[callee].invalidated_stores;
+        fee(b, invalidations.len())?;
+        if sealed && !invalidations.is_empty() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "Store instance invalidation across a sealed callback scope needs its simultaneous descriptor proof",
+                None,
+            )]);
+        }
+        for invalidation in invalidations {
+            let parents = match invalidation {
+                StoreInvalidation::Input(p) => {
+                    let value = arguments
+                        .get(*p as usize)
+                        .ok_or_else(|| error("Store invalidation input absent"))?;
+                    copied(state, Place::Value(*value), b)?.sources
+                }
+                StoreInvalidation::BorrowedCapture(_) => {
+                    let carrier = carrier
+                        .ok_or_else(|| error("Store invalidation capture carrier absent"))?;
+                    let fact = copied(state, carrier, b)?;
+                    fee(b, fact.sources.len())?;
+                    fact.sources
+                        .into_iter()
+                        .filter(|source| matches!(source, Source::StoreParent(_)))
+                        .collect()
+                }
+            };
+            self.invalidate_store(flow, state, effect, &parents, point, b)?;
         }
         Ok(())
     }
@@ -590,11 +698,14 @@ impl Program {
                     flow,
                     state,
                     effect,
-                    function.0 as usize,
-                    arguments,
-                    None,
-                    check,
-                    live,
+                    Invocation {
+                        callee: function.0 as usize,
+                        arguments,
+                        captures: None,
+                        carrier: None,
+                        sealed: false,
+                    },
+                    point,
                     b,
                 )?;
             }
@@ -605,11 +716,14 @@ impl Program {
                         flow,
                         state,
                         effect,
-                        entry,
-                        &[],
-                        Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]),
-                        check,
-                        live,
+                        Invocation {
+                            callee: entry,
+                            arguments: &[],
+                            captures: Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]),
+                            carrier: Some(Place::Value(value)),
+                            sealed: true,
+                        },
+                        point,
                         b,
                     )?;
                 }
@@ -621,11 +735,14 @@ impl Program {
                     flow,
                     state,
                     effect,
-                    entry,
-                    &[],
-                    Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]),
-                    check,
-                    live,
+                    Invocation {
+                        callee: entry,
+                        arguments: &[],
+                        captures: Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]),
+                        carrier: Some(Place::Value(*body)),
+                        sealed: true,
+                    },
+                    point,
                     b,
                 )?;
             }
@@ -641,11 +758,14 @@ impl Program {
                     flow,
                     state,
                     effect,
-                    entry,
-                    arguments,
-                    facts.local_slots.get(callee),
-                    check,
-                    live,
+                    Invocation {
+                        callee: entry,
+                        arguments,
+                        captures: facts.local_slots.get(callee),
+                        carrier: Some(Place::Local(*callee)),
+                        sealed: false,
+                    },
+                    point,
                     b,
                 )?;
             }
@@ -659,11 +779,14 @@ impl Program {
                     flow,
                     state,
                     effect,
-                    entry,
-                    arguments,
-                    Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
-                    check,
-                    live,
+                    Invocation {
+                        callee: entry,
+                        arguments,
+                        captures: Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
+                        carrier: Some(Place::Value(*callee)),
+                        sealed: false,
+                    },
+                    point,
                     b,
                 )?;
             }
