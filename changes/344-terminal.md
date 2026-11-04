@@ -47,3 +47,23 @@ A 32-layer ladder-initialized projection then exposes cumulative Types
 Keep scalar/operator arms available to 340; split only Call/If/Sequence there,
 and the six aggregate branches into private helpers. Retain the original
 post-dispatch expected-type check and early-return behavior exactly.
+
+## Floating-point terminal semantics
+
+Root froze IEEE binary32/binary64 with raw-bit constants and exact operand
+types, unsuffixed float defaults to f64, contextual/suffixed f32/f64 literals,
+checked finite literal overflow, gradual underflow, signed zero and normal
+IEEE infinity/NaN arithmetic. Comparison is ordered except `!=` includes
+unordered operands; no fast math, reassociation or contraction. Numeric
+conversion with a floating endpoint has a separate checked operation; existing
+integer-only conversion invariants remain. Float-to-integer requires a finite,
+integral mathematical value in range and guards before LLVM fptosi/fptoui.
+Finite conversion overflow to infinity rejects/traps, with underflow allowed.
+
+The machine event model gains explicit float types and raw-bit constants,
+floating arithmetic/predicates and validated numeric casts, consumed identically
+by textual LLVM and the LLVM API. Raw bits use constant bitcasts rather than
+host-decimal serialization. Nearest counterexamples include mixed numeric types,
+non-numeric casts, fractional/NaN/infinite/out-of-range integer conversions and
+integer machine instructions applied to float types. Actual CT/native O0/O2
+agreement and edge values are required before declaring this capability closed.
