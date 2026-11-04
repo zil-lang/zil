@@ -498,12 +498,34 @@ impl Materializer<'_, '_> {
                             span,
                             depth + 1,
                         )?)),
-                        CtTypeArgument::Lifetime(_) => {
-                            return Err(vec![Diagnostic::unsupported(
-                                Phase::Ct,
-                                "CT4 scoped lifetime spelling requires its joint context",
-                                Some(span),
-                            )]);
+                        CtTypeArgument::Lifetime(value) => {
+                            let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Ct,
+                                    "fixed lifetime spelling requires its genuine source context",
+                                    Some(span),
+                                )]);
+                            };
+                            let Some(CtTypeNode::BorrowedFunctionPointer { life, .. }) =
+                                ty.nodes.get(value.owner.0 as usize)
+                            else {
+                                return Err(runtime(
+                                    "lifetime metadata has no invocation owner",
+                                    span,
+                                ));
+                            };
+                            if binder >= life.binder_count {
+                                return Err(runtime(
+                                    "lifetime metadata ordinal exceeds its owner",
+                                    span,
+                                ));
+                            }
+                            self.environment.budget.reserve_analysis_work(32)?;
+                            self.environment.budget.reserve_temporary_bytes(32)?;
+                            args.push(s::GenericArg::Lifetime(format!(
+                                "zil_life_{}_{}",
+                                value.owner.0, binder
+                            )));
                         }
                         CtTypeArgument::Scalar(value) => {
                             if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_))
@@ -631,7 +653,7 @@ impl Materializer<'_, '_> {
                                 span,
                             ));
                         };
-                        *lifetime = Some(format!("zil_life_{tag}"));
+                        *lifetime = Some(format!("zil_life_{}_{tag}", id.0));
                     }
                     Ok(ty)
                 };
@@ -652,7 +674,7 @@ impl Materializer<'_, '_> {
                 let mut kind = s::TypeKind::Function { params, result };
                 for i in (0..life.binder_count).rev() {
                     kind = s::TypeKind::ForLifetime {
-                        lifetime: format!("zil_life_{i}"),
+                        lifetime: format!("zil_life_{}_{i}", id.0),
                         inner: Box::new(s::TypeRef { kind, span }),
                     };
                 }

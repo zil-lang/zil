@@ -2476,6 +2476,311 @@ mod tests {
         }
     }
     #[test]
+    fn ct4_closed_invocation_metadata_rejects_equal_sibling_owner_reuse() {
+        let mut p = anonymous_value_program();
+        let owner = CtSymbolId {
+            declaration: NodeId(30),
+            ..symbol()
+        };
+        let tag = CtSymbolId {
+            declaration: NodeId(31),
+            ..symbol()
+        };
+        let mut nodes = Vec::new();
+        for base in [0, 3] {
+            nodes.push(CtTypeNode::Nominal {
+                symbol: tag.clone(),
+                arguments: vec![CtTypeArgument::Lifetime(CtLifetimeArgument {
+                    owner: CtTypeNodeId(base + 2),
+                    binder: zil_ir::StorageBinder::Invocation(0),
+                })],
+            });
+            nodes.push(CtTypeNode::Address {
+                mutable: false,
+                inner: CtTypeNodeId(base),
+            });
+            nodes.push(CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(base + 1)],
+                result: CtTypeNodeId(base + 1),
+                life: zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: vec![Some(0)],
+                    result_life: Some(0),
+                },
+            });
+        }
+        nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
+        let graph = crate::canonicalize_anonymous_type(
+            &CtTypeRef {
+                nodes,
+                root: CtTypeNodeId(6),
+            },
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        let roots = graph
+            .nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| {
+                matches!(n, CtTypeNode::BorrowedFunctionPointer { .. })
+                    .then_some(CtTypeNodeId(i as u32))
+            })
+            .collect::<Vec<_>>();
+        p.record_schemas.push(CtRecordSchema {
+            name: owner,
+            life_context: None,
+            arguments: vec![CtSchemaArgument::Type(graph)],
+            fields: vec![CtTy::Scalar(CtScalarTy::I32)],
+            origin: CtSchemaOrigin::UserPure,
+        });
+        let limits = Limits::default();
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        assert!(verify_ct_artifact(p.clone(), &limits, &authority).is_ok());
+        let key = crate::artifact_type_key(
+            &CtTy::Record(CtRecordSchemaId(0)),
+            &p.record_schemas,
+            &[],
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        assert!(!key.is_empty());
+        let encoded = zil_ir::ct_wire::encode_program(&p, &limits).unwrap();
+        assert!(
+            verify_ct_artifact(
+                zil_ir::ct_wire::decode_program(&encoded, &limits).unwrap(),
+                &limits,
+                &authority
+            )
+            .is_ok()
+        );
+        let CtSchemaArgument::Type(graph) = &mut p.record_schemas[0].arguments[0] else {
+            unreachable!()
+        };
+        let CtTypeNode::Nominal { arguments, .. } = &mut graph.nodes[0] else {
+            unreachable!()
+        };
+        let CtTypeArgument::Lifetime(value) = &mut arguments[0] else {
+            unreachable!()
+        };
+        value.owner = roots[1];
+        assert!(verify_ct_artifact(p.clone(), &limits, &authority).is_err());
+        assert!(
+            crate::artifact_type_key(
+                &CtTy::Record(CtRecordSchemaId(0)),
+                &p.record_schemas,
+                &[],
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn ct4_joint_nominal_scope_keys_wire_and_exact_argument_projections() {
+        use zil_ir::{
+            LifeDeclarationId, LifeTypeProjection as P, NominalLifeArgument, StorageBinder as B,
+            StorageLifeShape,
+        };
+        let mut p = anonymous_value_program();
+        let owner = CtSymbolId {
+            declaration: NodeId(30),
+            ..symbol()
+        };
+        let inner = CtSymbolId {
+            declaration: NodeId(31),
+            ..symbol()
+        };
+        let lifetime = |n| CtLifetimeArgument {
+            owner: CtTypeNodeId(3),
+            binder: B::Fixed(n),
+        };
+        let row = |path, decl: &CtSymbolId, argument, binder| NominalLifeArgument {
+            path,
+            declaration: LifeDeclarationId {
+                module: decl.module,
+                declaration: decl.declaration,
+                compiler: false,
+            },
+            argument,
+            binder,
+        };
+        let context = CtTypeRef {
+            root: CtTypeNodeId(3),
+            nodes: vec![
+                CtTypeNode::Primitive(CtScalarTy::I32),
+                CtTypeNode::Nominal {
+                    symbol: inner.clone(),
+                    arguments: vec![
+                        CtTypeArgument::Lifetime(lifetime(0)),
+                        CtTypeArgument::Lifetime(lifetime(1)),
+                    ],
+                },
+                CtTypeNode::Nominal {
+                    symbol: owner.clone(),
+                    arguments: vec![
+                        CtTypeArgument::Type(CtTypeNodeId(0)),
+                        CtTypeArgument::Type(CtTypeNodeId(1)),
+                        CtTypeArgument::Lifetime(lifetime(0)),
+                        CtTypeArgument::Lifetime(lifetime(1)),
+                        CtTypeArgument::Lifetime(lifetime(0)),
+                    ],
+                },
+                CtTypeNode::BorrowedStorage {
+                    storage: CtTypeNodeId(2),
+                    life: StorageLifeShape {
+                        binder_count: 2,
+                        slots: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![
+                            row(vec![], &owner, 2, 0),
+                            row(vec![], &owner, 3, 1),
+                            row(vec![], &owner, 4, 0),
+                            row(vec![P::TypeArgument(1)], &inner, 0, 0),
+                            row(vec![P::TypeArgument(1)], &inner, 1, 1),
+                        ],
+                    },
+                },
+            ],
+        };
+        let normalized =
+            crate::canonicalize_anonymous_type(&context, &mut CtExecutionBudget::new(p.budget))
+                .unwrap();
+        assert_eq!(normalized, context);
+        p.record_schemas.push(CtRecordSchema {
+            name: owner,
+            life_context: Some(context.clone()),
+            arguments: vec![
+                CtSchemaArgument::TypeInContext(CtTypeNodeId(0)),
+                CtSchemaArgument::TypeInContext(CtTypeNodeId(1)),
+                CtSchemaArgument::Lifetime(lifetime(0)),
+                CtSchemaArgument::Lifetime(lifetime(1)),
+                CtSchemaArgument::Lifetime(lifetime(0)),
+            ],
+            fields: vec![CtTy::Scalar(CtScalarTy::I32)],
+            origin: CtSchemaOrigin::UserPure,
+        });
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        let limits = Limits::default();
+        let key = crate::artifact_type_key(
+            &CtTy::Record(CtRecordSchemaId(0)),
+            &p.record_schemas,
+            &[],
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        let encoded = zil_ir::ct_wire::encode_program(&p, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&encoded, &limits).unwrap();
+        let verified = verify_ct_artifact(decoded, &limits, &authority).unwrap();
+        assert!(
+            evaluate_ct_artifact(
+                &verified,
+                &[],
+                &Reader,
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .is_ok()
+        );
+        for attack in 0..7 {
+            let mut bad = p.clone();
+            let schema = &mut bad.record_schemas[0];
+            match attack {
+                0 => {
+                    schema.arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+                        root: CtTypeNodeId(0),
+                        nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+                    })
+                }
+                1 => schema.arguments[0] = CtSchemaArgument::TypeInContext(CtTypeNodeId(1)),
+                2 => {
+                    schema.arguments[2] = CtSchemaArgument::Lifetime(CtLifetimeArgument {
+                        owner: CtTypeNodeId(2),
+                        binder: B::Fixed(0),
+                    })
+                }
+                3 => schema.life_context = None,
+                4 => {
+                    let CtTypeNode::BorrowedStorage { life, .. } =
+                        &mut schema.life_context.as_mut().unwrap().nodes[3]
+                    else {
+                        unreachable!()
+                    };
+                    life.nominal_arguments.pop();
+                }
+                5 => {
+                    let CtTypeNode::Nominal { arguments, .. } =
+                        &mut schema.life_context.as_mut().unwrap().nodes[1]
+                    else {
+                        unreachable!()
+                    };
+                    arguments[0] = CtTypeArgument::Lifetime(CtLifetimeArgument {
+                        owner: CtTypeNodeId(2),
+                        binder: B::Fixed(0),
+                    });
+                }
+                _ => {
+                    let CtTypeNode::BorrowedStorage { life, .. } =
+                        &mut schema.life_context.as_mut().unwrap().nodes[3]
+                    else {
+                        unreachable!()
+                    };
+                    life.nominal_arguments[0].declaration.compiler = true;
+                }
+            }
+            assert!(
+                verify_ct_artifact(bad, &limits, &authority).is_err(),
+                "joint scope attack {attack}"
+            );
+        }
+        let mut different = p.clone();
+        let schema = &mut different.record_schemas[0];
+        schema.arguments[4] = CtSchemaArgument::Lifetime(lifetime(1));
+        let nodes = &mut schema.life_context.as_mut().unwrap().nodes;
+        let CtTypeNode::Nominal { arguments, .. } = &mut nodes[2] else {
+            unreachable!()
+        };
+        arguments[4] = CtTypeArgument::Lifetime(lifetime(1));
+        let CtTypeNode::BorrowedStorage { life, .. } = &mut nodes[3] else {
+            unreachable!()
+        };
+        life.nominal_arguments[2].binder = 1;
+        assert_ne!(
+            key,
+            crate::artifact_type_key(
+                &CtTy::Record(CtRecordSchemaId(0)),
+                &different.record_schemas,
+                &[],
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .unwrap()
+        );
+        assert!(verify_ct_artifact(different, &limits, &authority).is_ok());
+        let run = |work| {
+            let mut candidate = p.clone();
+            candidate.budget.max_analysis_work = work;
+            verify_ct_artifact(candidate, &limits, &authority)
+        };
+        let (mut low, mut high) = (1, p.budget.max_analysis_work);
+        while low < high {
+            let mid = (low + high) / 2;
+            if run(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        assert!(run(low).is_ok());
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert!(run(low).is_ok());
+        eprintln!("344 CT4 joint verification N={low}/N-1/fresh");
+    }
+    #[test]
     fn anonymous_value_nominal_phantom_const_identity_cycles_and_budget() {
         let mut p = anonymous_value_program();
         let owner = CtSymbolId {

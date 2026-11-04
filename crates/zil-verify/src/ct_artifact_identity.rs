@@ -2,6 +2,8 @@
 use super::*;
 #[path = "ct_artifact_graph_identity.rs"]
 mod graph;
+#[path = "ct_artifact_scoped_graph.rs"]
+mod scoped;
 
 fn pending_scoped_identity() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
@@ -75,7 +77,7 @@ impl Identity<'_, '_> {
         id: u32,
         symbol: &CtSymbolId,
         arguments: &[CtSchemaArgument],
-        _depth: usize,
+        context: Option<&CtTypeRef>,
     ) -> Check<()> {
         self.meter
             .charge(self.visiting.len().saturating_add(1), None)?;
@@ -95,6 +97,11 @@ impl Identity<'_, '_> {
             self.put(out, &path.0)?;
         }
         self.number(out, arguments.len() as u64)?;
+        if let Some(context) = context {
+            self.context(out, symbol, arguments, context)?;
+            self.visiting.pop();
+            return Ok(());
+        }
         for argument in arguments {
             match argument {
                 CtSchemaArgument::Type(ty) => {
@@ -190,9 +197,6 @@ impl Identity<'_, '_> {
                 let schema = records
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(None, "CT complete record schema is missing"))?;
-                if schema.life_context.is_some() {
-                    return Err(pending_scoped_identity());
-                }
 
                 self.nominal(
                     &mut out,
@@ -200,7 +204,7 @@ impl Identity<'_, '_> {
                     id.0,
                     &schema.name,
                     &schema.arguments,
-                    depth,
+                    schema.life_context.as_ref(),
                 )?;
             }
             CtTy::Enum(id) => {
@@ -208,11 +212,15 @@ impl Identity<'_, '_> {
                 let schema = enums
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(None, "CT complete enum schema is missing"))?;
-                if schema.life_context.is_some() {
-                    return Err(pending_scoped_identity());
-                }
 
-                self.nominal(&mut out, true, id.0, &schema.name, &schema.arguments, depth)?;
+                self.nominal(
+                    &mut out,
+                    true,
+                    id.0,
+                    &schema.name,
+                    &schema.arguments,
+                    schema.life_context.as_ref(),
+                )?;
             }
             CtTy::AnonymousSum(members) => self.members(members, depth, &mut out)?,
             _ => {}
@@ -278,14 +286,14 @@ pub(super) fn check_argument_graphs(
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    for (arguments, context) in raw
+    for (name, arguments, context) in raw
         .record_schemas
         .iter()
-        .map(|s| (s.arguments.as_slice(), &s.life_context))
+        .map(|s| (&s.name, s.arguments.as_slice(), &s.life_context))
         .chain(
             raw.enum_schemas
                 .iter()
-                .map(|s| (s.arguments.as_slice(), &s.life_context)),
+                .map(|s| (&s.name, s.arguments.as_slice(), &s.life_context)),
         )
     {
         if let Some(context) = context {
@@ -295,7 +303,15 @@ pub(super) fn check_argument_graphs(
             {
                 return Err(limit(None, "CT4 context exceeds node quota"));
             }
-            return Err(pending_scoped_identity());
+            let mut identity = Identity {
+                raw,
+                limits,
+                meter,
+                bytes: 0,
+                visiting: Vec::new(),
+            };
+            identity.context(&mut Vec::new(), name, arguments, context)?;
+            continue;
         }
         for arg in arguments {
             match arg {

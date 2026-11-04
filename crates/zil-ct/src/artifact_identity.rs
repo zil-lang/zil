@@ -120,13 +120,6 @@ impl Keys<'_> {
                     .records
                     .get(id.0 as usize)
                     .ok_or_else(|| bad("CT record identity schema is missing"))?;
-                if schema.life_context.is_some() {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Ct,
-                        "CT4 joint schema identity is not yet implemented",
-                        None,
-                    )]);
-                }
 
                 self.nominal(
                     &mut out,
@@ -134,7 +127,7 @@ impl Keys<'_> {
                     id.0,
                     &schema.name,
                     &schema.arguments,
-                    depth,
+                    schema.life_context.as_ref(),
                 )?;
             }
             CtTy::Enum(id) => {
@@ -142,15 +135,15 @@ impl Keys<'_> {
                     .enums
                     .get(id.0 as usize)
                     .ok_or_else(|| bad("CT enum identity schema is missing"))?;
-                if schema.life_context.is_some() {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Ct,
-                        "CT4 joint schema identity is not yet implemented",
-                        None,
-                    )]);
-                }
 
-                self.nominal(&mut out, true, id.0, &schema.name, &schema.arguments, depth)?;
+                self.nominal(
+                    &mut out,
+                    true,
+                    id.0,
+                    &schema.name,
+                    &schema.arguments,
+                    schema.life_context.as_ref(),
+                )?;
             }
             CtTy::AnonymousSum(members) => self.members(&mut out, members, depth)?,
 
@@ -194,6 +187,69 @@ impl Keys<'_> {
         self.release(key.capacity() as u64);
         Ok(())
     }
+    fn context(
+        &mut self,
+        out: &mut Vec<u8>,
+        symbol: &CtSymbolId,
+        args: &[CtSchemaArgument],
+        context: &CtTypeRef,
+    ) -> CompileResult<()> {
+        self.budget
+            .reserve_analysis_work(context.nodes.len() as u64 + args.len() as u64 + 1)?;
+        let root = context
+            .nodes
+            .get(context.root.0 as usize)
+            .ok_or_else(|| bad("joint context root is missing"))?;
+        let CtTypeNode::BorrowedStorage { storage, .. } = root else {
+            return Err(bad("joint nominal context has no actual fixed owner"));
+        };
+        let CtTypeNode::Nominal {
+            symbol: actual,
+            arguments,
+        } = context
+            .nodes
+            .get(storage.0 as usize)
+            .ok_or_else(|| bad("joint nominal application is missing"))?
+        else {
+            return Err(bad(
+                "joint context root does not select a nominal application",
+            ));
+        };
+        if symbol != actual || args.len() != arguments.len() {
+            return Err(bad("joint nominal context owner or argument arity differs"));
+        }
+        for (argument, actual) in args.iter().zip(arguments) {
+            let same = match (argument, actual) {
+                (CtSchemaArgument::TypeInContext(a), CtTypeArgument::Type(b)) => a == b,
+                (CtSchemaArgument::Scalar(a), CtTypeArgument::Scalar(b)) => {
+                    self.scalar(&mut Vec::new(), a)?;
+                    a == b
+                }
+                (CtSchemaArgument::Lifetime(a), CtTypeArgument::Lifetime(b)) => a == b,
+                _ => false,
+            };
+            if !same {
+                return Err(bad(
+                    "joint schema argument differs from its exact ordered context projection",
+                ));
+            }
+        }
+        let (canonical, key) = crate::anonymous_type::canonical_type_key(context, self.budget)?;
+        self.budget.reserve_analysis_work(
+            (canonical.nodes.len() + context.nodes.len()) as u64 + key.len() as u64,
+        )?;
+        let result = if &canonical != context {
+            Err(bad("joint context is not canonical"))
+        } else {
+            self.bytes(out, &[2])
+                .and_then(|()| self.number(out, key.len() as u64))
+                .and_then(|()| self.bytes(out, &key))
+        };
+        self.budget.release_temporary_bytes(
+            crate::anonymous_type::retained_bytes(&canonical).saturating_add(key.capacity() as u64),
+        );
+        result
+    }
     fn nominal(
         &mut self,
         out: &mut Vec<u8>,
@@ -201,7 +257,7 @@ impl Keys<'_> {
         id: u32,
         symbol: &CtSymbolId,
         args: &[CtSchemaArgument],
-        _depth: usize,
+        context: Option<&CtTypeRef>,
     ) -> CompileResult<()> {
         self.budget
             .reserve_analysis_work(self.visiting.len() as u64 + args.len() as u64 + 1)?;
@@ -218,6 +274,11 @@ impl Keys<'_> {
         self.visiting.push((enumeration, id));
         self.symbol(out, symbol)?;
         self.number(out, args.len() as u64)?;
+        if let Some(context) = context {
+            self.context(out, symbol, args, context)?;
+            self.visiting.pop();
+            return Ok(());
+        }
         for arg in args {
             match arg {
                 CtSchemaArgument::Type(ty) => {
@@ -230,16 +291,27 @@ impl Keys<'_> {
                             .saturating_add(key.len() as u64),
                     )?;
                     let same = ty == &canonical;
-                    let copied = if same {
+                    let fixed = crate::anonymous_type::scoped_graph(ty)
+                        && ty
+                            .nodes
+                            .iter()
+                            .any(|n| matches!(n, CtTypeNode::BorrowedStorage { .. }));
+                    let copied = if fixed {
+                        Err(bad("fixed nominal argument requires its one joint context"))
+                    } else if same {
                         self.number(out, key.len() as u64)
                             .and_then(|()| self.bytes(out, &key))
                     } else {
                         Err(bad("nominal type argument graph is not canonical"))
                     };
                     self.budget.release_temporary_bytes(
-                        16u64
-                            .saturating_add((canonical.nodes.len() as u64).saturating_mul(64))
-                            .saturating_add(key.len() as u64),
+                        crate::anonymous_type::retained_bytes(&canonical).saturating_add(
+                            if crate::anonymous_type::scoped_graph(&canonical) {
+                                key.capacity() as u64
+                            } else {
+                                key.len() as u64
+                            },
+                        ),
                     );
                     copied?;
                 }

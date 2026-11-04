@@ -6149,6 +6149,29 @@ fn ct3_enum_match_checks_actual_owner_source() {
 }
 
 #[test]
+fn ct4_invocation_scoped_nominal_metadata_retains_pending_source_boundary() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil"
+    );
+    let outcome = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        outcome.status,
+        ResultCategory::Unsupported,
+        "{}",
+        outcome.to_json()
+    );
+    assert!(
+        outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Expand
+                && d.message.contains("scoped nominal lifetime substitution")),
+        "{}",
+        outcome.to_json()
+    );
+}
+
+#[test]
 fn ct3_phantom_callable_metadata_stays_separate_from_data() {
     let function = include_str!(
         "../../../tests/language-readiness/codegen-pending/ct3-phantom-fn-metadata.zil"

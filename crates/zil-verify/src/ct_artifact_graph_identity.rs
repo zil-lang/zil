@@ -10,6 +10,10 @@ impl Identity<'_, '_> {
             return Err(limit(None, "nominal type graph exceeds node quota"));
         }
         self.reserve(count.saturating_mul(64))?;
+        if ty.nodes.iter().any(|n|matches!(n,CtTypeNode::BorrowedStorage {..})||matches!(n,CtTypeNode::Nominal {arguments,..}if arguments.iter().any(|a|matches!(a,CtTypeArgument::Lifetime(_))))) {
+            return self.scoped_graph(ty,false);
+        }
+
         let mut keys: Vec<Vec<u8>> = Vec::new();
         let mut widths: Vec<usize> = Vec::new();
         let mut depths: Vec<usize> = Vec::new();
@@ -174,7 +178,7 @@ impl Identity<'_, '_> {
         }
         Ok(keys.pop().expect("nonempty metadata graph"))
     }
-    fn graph_life(
+    pub(super) fn graph_life(
         &mut self,
         nodes: &[CtTypeNode],
         parameters: &[CtTypeNodeId],
@@ -247,7 +251,7 @@ impl Identity<'_, '_> {
         }
         Ok(())
     }
-    fn graph_symbol(&mut self, out: &mut Vec<u8>, symbol: &CtSymbolId) -> Check<()> {
+    pub(super) fn graph_symbol(&mut self, out: &mut Vec<u8>, symbol: &CtSymbolId) -> Check<()> {
         self.number(out, u64::from(symbol.module.0))?;
         self.number(out, u64::from(symbol.declaration.0))?;
         self.put(out, &[u8::from(symbol.generation_path.is_some())])?;

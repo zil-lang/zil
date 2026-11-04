@@ -222,10 +222,22 @@ impl Compiler<'_> {
         depth: usize,
         nodes: &mut Vec<CtTypeNode>,
     ) -> R<CtTypeNodeId> {
+        self.meta_scoped(module, ty, depth, nodes, &[])
+    }
+    fn meta_scoped(
+        &mut self,
+        module: usize,
+        ty: &s::TypeRef,
+        depth: usize,
+        nodes: &mut Vec<CtTypeNode>,
+        lifetimes: &[(String, CtLifetimeArgument)],
+    ) -> R<CtTypeNodeId> {
         self.budget.depth(depth, ty.span)?;
         let span = ty.span;
         let node = match &ty.kind {
-            s::TypeKind::Group(inner) => return self.meta_source(module, inner, depth + 1, nodes),
+            s::TypeKind::Group(inner) => {
+                return self.meta_scoped(module, inner, depth + 1, nodes, lifetimes);
+            }
             s::TypeKind::Named { path, args } => {
                 if path.len() == 1 && args.is_empty() {
                     if let Some(graph) = self.metadata_binding(&path[0], span)? {
@@ -251,7 +263,7 @@ impl Compiler<'_> {
                     let old_metadata = std::mem::take(&mut self.metadata_bindings);
                     let old_data = std::mem::take(&mut self.bindings);
                     let old_scalars = std::mem::take(&mut self.scalar_bindings);
-                    let result = self.meta_source(
+                    let result = self.meta_scoped(
                         owner,
                         alias
                             .value
@@ -259,6 +271,7 @@ impl Compiler<'_> {
                             .ok_or_else(|| error(span, "metadata alias has no value"))?,
                         depth + 1,
                         nodes,
+                        &[],
                     );
                     self.active_aliases.pop();
                     self.metadata_bindings = old_metadata;
@@ -279,12 +292,25 @@ impl Compiler<'_> {
                     self.budget.node(span)?;
                     match (&parameter.kind, arg) {
                         (s::GenericParamKind::Type(_), s::GenericArg::Type(inner)) => arguments
-                            .push(CtTypeArgument::Type(self.meta_source(
+                            .push(CtTypeArgument::Type(self.meta_scoped(
                                 module,
                                 inner,
                                 depth + 1,
                                 nodes,
+                                lifetimes,
                             )?)),
+                        (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
+                            let mut found = None;
+                            for (bound, value) in lifetimes.iter().rev() {
+                                self.budget
+                                    .work(name.len().min(bound.len()).saturating_add(1), span)?;
+                                if name == bound {
+                                    found = Some(*value);
+                                    break;
+                                }
+                            }
+                            arguments.push(CtTypeArgument::Lifetime(found.ok_or_else(||error(span,"nominal lifetime is not bound by its actual enclosing metadata scope"))?));
+                        }
                         (s::GenericParamKind::Const(_), arg) => {
                             arguments.push(CtTypeArgument::Scalar(
                                 self.source_scalar_argument(parameter, arg, span)?,
@@ -309,7 +335,7 @@ impl Compiler<'_> {
             s::TypeKind::Tuple(parts) | s::TypeKind::Union(parts) => {
                 let mut fields = Vec::new();
                 for part in parts {
-                    fields.push(self.meta_source(module, part, depth + 1, nodes)?);
+                    fields.push(self.meta_scoped(module, part, depth + 1, nodes, lifetimes)?);
                 }
                 if matches!(ty.kind, s::TypeKind::Union(_)) {
                     CtTypeNode::AnonymousSum(fields)
@@ -318,7 +344,7 @@ impl Compiler<'_> {
                 }
             }
             s::TypeKind::Array { element, length } => {
-                let element = self.meta_source(module, element, depth + 1, nodes)?;
+                let element = self.meta_scoped(module, element, depth + 1, nodes, lifetimes)?;
                 match length {
                     Some(value) => CtTypeNode::Array {
                         element,
@@ -330,11 +356,17 @@ impl Compiler<'_> {
             s::TypeKind::Function { params, result } => {
                 let mut parameters = Vec::new();
                 for parameter in params {
-                    parameters.push(self.meta_source(module, parameter, depth + 1, nodes)?);
+                    parameters.push(self.meta_scoped(
+                        module,
+                        parameter,
+                        depth + 1,
+                        nodes,
+                        lifetimes,
+                    )?);
                 }
                 CtTypeNode::FunctionPointer {
                     parameters,
-                    result: self.meta_source(module, result, depth + 1, nodes)?,
+                    result: self.meta_scoped(module, result, depth + 1, nodes, lifetimes)?,
                 }
             }
             s::TypeKind::ForLifetime { .. } => {
@@ -357,11 +389,67 @@ impl Compiler<'_> {
                     span,
                 )?;
                 let life = source_relation(&names, params, result);
+                let placeholder = CtTypeNodeId(
+                    u32::MAX
+                        .checked_sub(
+                            u32::try_from(lifetimes.len())
+                                .map_err(|_| error(span, "metadata scope ID overflow"))?,
+                        )
+                        .ok_or_else(|| error(span, "metadata scope ID overflow"))?,
+                );
+                let first = nodes.len();
+                let mut scoped = Vec::new();
+                for (name, value) in lifetimes {
+                    self.budget.text(name, span)?;
+                    self.budget.work(32, span)?;
+                    scoped.push((name.clone(), *value));
+                }
+                for (parameter, label) in params.iter().zip(&life.parameter_lives) {
+                    let mut parameter = parameter;
+                    while let s::TypeKind::Group(inner) = &parameter.kind {
+                        parameter = inner;
+                    }
+                    if let (
+                        s::TypeKind::Reference {
+                            lifetime: Some(name),
+                            ..
+                        },
+                        Some(binder),
+                    ) = (&parameter.kind, label)
+                    {
+                        self.budget.text(name, span)?;
+                        self.budget.work(32, span)?;
+                        scoped.push((
+                            name.clone(),
+                            CtLifetimeArgument {
+                                owner: placeholder,
+                                binder: zil_ir::StorageBinder::Invocation(*binder),
+                            },
+                        ));
+                    }
+                }
                 let mut parameters = Vec::new();
                 for p in params {
-                    parameters.push(self.meta_source(module, p, depth + 1, nodes)?);
+                    parameters.push(self.meta_scoped(module, p, depth + 1, nodes, &scoped)?);
                 }
-                let result = self.meta_source(module, result, depth + 1, nodes)?;
+                let result = self.meta_scoped(module, result, depth + 1, nodes, &scoped)?;
+                let owner = CtTypeNodeId(
+                    u32::try_from(nodes.len())
+                        .map_err(|_| error(span, "metadata owner ID overflow"))?,
+                );
+                self.budget.work(nodes.len().saturating_sub(first), span)?;
+                for node in &mut nodes[first..] {
+                    if let CtTypeNode::Nominal { arguments, .. } = node {
+                        self.budget.work(arguments.len(), span)?;
+                        for argument in arguments {
+                            if let CtTypeArgument::Lifetime(value) = argument
+                                && value.owner == placeholder
+                            {
+                                value.owner = owner;
+                            }
+                        }
+                    }
+                }
                 if life.binder_count == 0 {
                     CtTypeNode::FunctionPointer { parameters, result }
                 } else {
@@ -372,13 +460,36 @@ impl Compiler<'_> {
                     }
                 }
             }
-            s::TypeKind::Reference { mutable, inner, .. } => CtTypeNode::Address {
-                mutable: *mutable,
-                inner: self.meta_source(module, inner, depth + 1, nodes)?,
-            },
+            s::TypeKind::Reference {
+                mutable,
+                inner,
+                lifetime,
+            } => {
+                if let Some(name) = lifetime {
+                    let mut found = false;
+                    for (bound, _) in lifetimes.iter().rev() {
+                        self.budget
+                            .work(name.len().min(bound.len()).saturating_add(1), span)?;
+                        if name == bound {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        return Err(error(
+                            span,
+                            "address lifetime is not bound by its actual metadata scope",
+                        ));
+                    }
+                }
+                CtTypeNode::Address {
+                    mutable: *mutable,
+                    inner: self.meta_scoped(module, inner, depth + 1, nodes, lifetimes)?,
+                }
+            }
             s::TypeKind::Error { error, result } => CtTypeNode::ErrorUnion {
-                error: self.meta_source(module, error, depth + 1, nodes)?,
-                result: self.meta_source(module, result, depth + 1, nodes)?,
+                error: self.meta_scoped(module, error, depth + 1, nodes, lifetimes)?,
+                result: self.meta_scoped(module, result, depth + 1, nodes, lifetimes)?,
             },
             _ => {
                 return Err(error(
