@@ -147,6 +147,7 @@ pub(super) fn variant_root(
                     }
                 }
             }
+            Type::ErrorUnion{error,result}=>{add(error)?;add(result)?;},
             _ => {}
         }
         Ok(count)
@@ -235,6 +236,7 @@ pub(super) fn address_roots(
                     }
                 }
             }
+            Type::ErrorUnion{error,result}=>{add(error)?;add(result)?;},
             _ => {}
         }
         Ok(n)
@@ -353,6 +355,7 @@ pub(super) fn inline_field_root(
                     }
                 }
             }
+            Type::ErrorUnion{error,result}=>{add(error)?;add(result)?;},
             _ => {}
         }
         Ok(n)
@@ -416,7 +419,10 @@ pub(super) fn inline_address_field(
         ));
     };
     resources::charge_payload(inner, budget)?;
-    if !inner.is_copy_value() || !matches!(inner.as_ref(), Type::Tuple(_) | Type::Record { .. }) {
+    if !matches!(
+        inner.as_ref(),
+        Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+    ) {
         budget.spend(source.len())?;
         return Ok(source.to_vec());
     }
@@ -435,7 +441,7 @@ pub(super) fn inline_address_field(
                     add(t)?
                 }
             }
-            Type::Record { fields, .. } => {
+            Type::Record { fields, .. } | Type::Package{fields,..} => {
                 for (_, t) in fields {
                     add(t)?
                 }
@@ -447,6 +453,7 @@ pub(super) fn inline_address_field(
                     }
                 }
             }
+            Type::ErrorUnion{error,result}=>{add(error)?;add(result)?;},
             _ => {}
         }
         Ok(total)
@@ -462,7 +469,7 @@ pub(super) fn inline_address_field(
             }
             fs.get(index as usize)
         }
-        Type::Record { fields, .. } => {
+        Type::Record { fields, .. } | Type::Package{fields,..} => {
             budget.spend(fields.len())?;
             for (_, t) in fields.iter().take(index as usize) {
                 start = start
@@ -520,4 +527,122 @@ pub(super) fn inline_address_field(
             })
         })
         .collect()
+}
+
+pub(super) fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> Check<Root> {
+    use zil_ir::PlaceProjection;
+    fn width(t: &Type, b: &mut Budget) -> Check<u32> {
+        b.spend(1)?;
+        let mut n = 1u32;
+        let mut add = |t: &Type| -> Check<()> {
+            n = n
+                .checked_add(width(t, b)?)
+                .ok_or_else(|| limit("mixed interval overflow"))?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?;
+                }
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(n)
+    }
+    let mut ty = local_type(f, local, None)?;
+    let mut start = 0u32;
+    for step in path {
+        b.spend(1)?;
+        start = start
+            .checked_add(1)
+            .ok_or_else(|| limit("mixed interval overflow"))?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(i), Type::Tuple(fs)) => {
+                for t in fs.iter().take(*i as usize) {
+                    start = start
+                        .checked_add(width(t, b)?)
+                        .ok_or_else(|| limit("mixed interval overflow"))?;
+                }
+                fs.get(*i as usize)
+            }
+            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+                for (_, t) in fields.iter().take(*i as usize) {
+                    start = start
+                        .checked_add(width(t, b)?)
+                        .ok_or_else(|| limit("mixed interval overflow"))?;
+                }
+                fields.get(*i as usize).map(|(_, t)| t)
+            }
+            (PlaceProjection::Variant(p), Type::Enum { variants, .. }) => {
+                for (_, fs) in variants.iter().take(p.variant as usize) {
+                    for t in fs {
+                        start = start
+                            .checked_add(width(t, b)?)
+                            .ok_or_else(|| limit("mixed interval overflow"))?;
+                    }
+                }
+                let fs = &variants
+                    .get(p.variant as usize)
+                    .ok_or_else(|| {
+                        reject("E-VERIFY-PLACE", None, "mixed actual place route invalid")
+                    })?
+                    .1;
+                for t in fs.iter().take(p.index as usize) {
+                    start = start
+                        .checked_add(width(t, b)?)
+                        .ok_or_else(|| limit("mixed interval overflow"))?;
+                }
+                fs.get(p.index as usize)
+            }
+            (PlaceProjection::ErrorArm(e), Type::ErrorUnion { error, result }) => {
+                if !*e {
+                    start = start
+                        .checked_add(width(error, b)?)
+                        .ok_or_else(|| limit("mixed interval overflow"))?;
+                }
+                Some(if *e { error.as_ref() } else { result.as_ref() })
+            }
+            _ => None,
+        }
+        .ok_or_else(|| reject("E-VERIFY-PLACE", None, "mixed actual place route invalid"))?;
+    }
+    let length = if header {
+        if !matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+            return Err(reject(
+                "E-VERIFY-PLACE",
+                None,
+                "mixed actual place route invalid",
+            ));
+        }
+        1
+    } else {
+        width(ty, b)?
+    };
+    let end = start
+        .checked_add(length)
+        .ok_or_else(|| limit("mixed interval overflow"))?;
+    Ok(Root::Projection(local, start, end))
 }

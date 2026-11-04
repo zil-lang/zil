@@ -1150,6 +1150,68 @@ fn terminal340_owned_tuple_budget_boundaries() {
     );
 }
 
+#[test]
+fn terminal340_selective_mixed_patterns_native() {
+    let prefix=r#"extern "C" fn putchar(code:i32)->i32;resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages token:Token;n:i32}"#;
+    for(index,(body,expected))in[
+        ("fn result()->i32{let(a,b,c)=(Token{code:65},Token{code:66},Token{code:67});return 42}","ABC42\n"),
+        ("fn result()->i32{var value=(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});match value{(ref a,b,_)=>{return a.n+b.n}}}","BAC42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{var value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});match value{E.Data(ref a,b,_)=>{return a.n+b.n},E.None()=>{return 0}}}","BAC42\n"),
+        ("enum E{Data((P,P,i32)),None}fn result()->i32{var value=E.Data((P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},0));match value{E.Data((ref a,b,n))=>{return a.n+b.n+n},E.None()=>{return 0}}}","BA42\n"),
+        ("enum E{Data(P)}fn result()->i32{var value=(E.Data(P{token:Token{code:65},n:20}),P{token:Token{code:66},n:22});match value{(E.Data(ref a),b)=>{return a.n+b.n}}}","BA42\n"),
+        ("fn result()->i32{let(ref a,b)=(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22});return a.n+b.n}","BA42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{let value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});if let E.Data(ref a,b,_)=value{return a.n+b.n}return 0}","BAC42\n"),
+        ("enum E{Data(P,P,P),None}fn result()->i32{let value=E.Data(P{token:Token{code:65},n:20},P{token:Token{code:66},n:22},P{token:Token{code:67},n:0});while let E.Data(ref a,b,_)=value{let n=a.n+b.n;break}return 42}","BAC42\n"),
+        ("fn inspect(value:&mut(P,i32))->i32{match *value{(ref p,ref mut n)=>{*n+=p.n;return *n}}}fn result()->i32{var value=(P{token:Token{code:65},n:20},22);return inspect(&mut value)}","A42\n"),
+    ].into_iter().enumerate(){
+        eprintln!("340 mixed native case {index}");
+        review329_native_output(&[("main",&format!("{prefix}{body}"))],expected.as_bytes());
+    }
+}
+
+#[test]
+fn terminal340_selective_patterns_raw_wire_neighbors() {
+    use zil_ir::{LocalId,PlaceProjection,ValueHold,ValueId};
+    let text="resource R{n:i32}package P{manages r:R;n:i32}enum E{Data(P,P,i32),None}fn result()->i32{var value=E.Data(P{r:R{n:1},n:20},P{r:R{n:2},n:22},0);match value{E.Data(ref a,b,0)=>{return a.n+b.n},E.Data(_,_,_)=>{return 0},E.None()=>{return 0}}}";
+    let input=source(text);let ast=zil_syntax::parse(&input).into_result().unwrap();let core=zil_expand::expand(&input,&ast).unwrap();
+    let target=TargetProfile::default();let limits=Limits::default();let typed=zil_types::check(&core,&target,&limits).unwrap();let plan=zil_analyze::analyze(&typed,&limits).unwrap();
+    let bytes=zil_ir::wire::encode_module_candidate(&typed,&plan,&limits).unwrap();zil_verify::verify_module_bytes(&bytes,&target,&limits).unwrap();
+    for mode in 0..5 {
+        let mut raw=typed.clone();let mut claim=plan.clone();
+        let f=raw.functions.iter_mut().find(|f|f.name=="result").unwrap();
+        let(b,pos)=f.blocks.iter().enumerate().find_map(|(b,block)|block.instructions.iter().position(|i|matches!(i.kind,InstructionKind::TakeVariantField{..})).map(|i|(b,i))).unwrap();
+        let original=f.blocks[b].instructions[pos].clone();
+        let InstructionKind::TakeVariantField{local,path}= &original.kind else{unreachable!()};let(local,path)=(*local,path.clone());
+        if mode<3 {
+            let mut extra=original.clone();let id=ValueId(f.values.len() as u32);
+            let result_type=if mode==2{f.locals[local.0 as usize].ty.clone()}else if mode==1{let Type::Package{fields,..}=&f.values[original.result.unwrap().0 as usize]else{unreachable!()};fields[0].1.clone()}else{f.values[original.result.unwrap().0 as usize].clone()};
+            extra.result=Some(id);f.values.push(result_type);
+            extra.kind=if mode==2{InstructionKind::TakeLocal{local}}else{let mut p=path.clone();if mode==1{p.push(PlaceProjection::Field(0));}InstructionKind::TakeVariantField{local,path:p}};
+            f.blocks[b].instructions.insert(pos+1,extra);
+            claim.functions[f.id.0 as usize].holds.push(ValueHold{value:id,roots:Vec::new()});
+        }else if mode==3 {
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(&i.kind,InstructionKind::BorrowPlaceLocal{path,..} if matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Package{..})) && path.len()==1)).unwrap();
+            let InstructionKind::BorrowPlaceLocal{path:ref mut borrowed,..}=i.kind else{unreachable!()};*borrowed=path.clone();
+        }else {
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::TakeVariantField{..})).unwrap();
+            let InstructionKind::TakeVariantField{path,..}=&mut i.kind else{unreachable!()};path[0]=PlaceProjection::ErrorArm(true);
+        }
+        assert!(zil_analyze::analyze(&raw,&limits).is_err(),"Analyze accepted selective forgery {mode}");
+        claim.module_fingerprint=raw.fingerprint();
+        let errors=zil_verify::verify_module(raw.clone(),claim.clone(),&target,&limits).unwrap_err();
+        assert!(errors.iter().all(|e|e.category==ResultCategory::SafeReject||e.category==ResultCategory::Unsupported),"{mode}: {errors:?}");
+        let bytes=zil_ir::wire::encode_module_candidate(&raw,&claim,&limits).unwrap();assert!(zil_verify::verify_module_bytes(&bytes,&target,&limits).is_err(),"Wire accepted selective forgery {mode}");
+    }
+    for body in [
+        "fn result()->i32{var value=(P{r:R{n:1},n:20},P{r:R{n:2},n:22});match value{(ref a,b)=>{let n=a.n+b.n}}let whole=&value;return 42}",
+        "fn consume(value:(P,P))->i32{return 42}fn result()->i32{var value=(P{r:R{n:1},n:20},P{r:R{n:2},n:22});match value{(ref a,b)=>{let n=a.n+b.n}}return consume(value)}",
+    ] {
+        let report=compile_source(&source(&format!("resource R{{n:i32}}package P{{manages r:R;n:i32}}{body}")),&CompileOptions::default());
+        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+    }
+    let _=LocalId(0);
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

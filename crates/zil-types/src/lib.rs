@@ -29,6 +29,7 @@ mod managed_slots;
 mod member_owner;
 mod names;
 mod owned_enums;
+mod partial_patterns;
 mod owned_shapes;
 mod owning_factory;
 mod packages;

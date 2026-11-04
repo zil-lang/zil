@@ -4,7 +4,7 @@ use super::*;
 use zil_ir::VariantProjection;
 
 impl FunctionEmitter<'_> {
-    fn enum_tag_at(&mut self, ty: &Type, pointer: &str, output: String) -> CompileResult<()> {
+    pub(super) fn enum_tag_at(&mut self, ty: &Type, pointer: &str, output: String) -> CompileResult<()> {
         let Type::Enum { variants, .. } = ty else {
             return invalid(
                 "E-CODEGEN-CFG",
@@ -45,7 +45,7 @@ impl FunctionEmitter<'_> {
         self.trap_if(&invalid);
         Ok(())
     }
-    fn guard_enum_variant(&mut self, ty: &Type, pointer: &str, variant: u32) -> CompileResult<()> {
+    pub(super) fn guard_enum_variant(&mut self, ty: &Type, pointer: &str, variant: u32) -> CompileResult<()> {
         let tag = self.temp();
         self.enum_tag_at(ty, pointer, tag.clone())?;
         let mismatch = self.temp();
@@ -61,7 +61,7 @@ impl FunctionEmitter<'_> {
         self.trap_if(&mismatch);
         Ok(())
     }
-    fn variant_field_pointer(
+    pub(super) fn variant_field_pointer(
         &mut self,
         ty: &Type,
         pointer: &str,
@@ -340,6 +340,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
+        self.partial_flags(local,false,false)?;
         for (index, target) in targets.iter().enumerate().rev() {
             let field = &fields[index];
             if let Some(loaded) = &values[index] {
@@ -361,6 +362,7 @@ impl FunctionEmitter<'_> {
                         align: 1,
                     },
                 )));
+                self.partial_flags(*target,false,true)?;
                 self.package_flags(*target, false, true)?;
                 self.owned_array_flags(*target, false, true)?;
             }
@@ -435,6 +437,7 @@ impl FunctionEmitter<'_> {
                 align: 1,
             },
         )));
+        self.partial_flags(local,false,false)?;
         for (index, target) in targets.iter().enumerate().rev() {
             let field = &fields[index];
             if let Some(value) = &loaded[index] {
@@ -456,6 +459,7 @@ impl FunctionEmitter<'_> {
                         align: 1,
                     },
                 )));
+                self.partial_flags(*target,false,true)?;
                 self.package_flags(*target, false, true)?;
                 self.owned_array_flags(*target, false, true)?;
             }
@@ -467,6 +471,7 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
+        if self.drop_partial_place(local)? {return Ok(());}
         let ty = self.local_type(local)?.clone();
         if !matches!(ty, Type::Tuple(_) | Type::Enum { .. }) || ty.is_copy_value() {
             return invalid(

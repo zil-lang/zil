@@ -914,7 +914,7 @@ fn check_function_signature_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) => {
             sums::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_package_address() => {
@@ -957,7 +957,7 @@ fn check_local_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) => {
             sums::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } if ty.is_package_address() => {
@@ -1301,6 +1301,7 @@ fn check_function(
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
                 | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal{local,..}|InstructionKind::PlaceTagLocal{local,..}|InstructionKind::TakeTupleField{local,..}|InstructionKind::TakeVariantField{local,..}
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1421,12 +1422,7 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
-        InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
-            return Err(unsupported(
-                "partial inline ownership consumer is under implementation",
-                span,
-            ));
-        }
+
 
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
@@ -1459,6 +1455,7 @@ fn check_instruction(
         | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
+        InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}=>sums::place_instruction(module,function,instruction,budget)?,
         InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::VariantTagAddress { .. }
         | InstructionKind::BorrowVariantAddress { .. } => {
@@ -1486,7 +1483,8 @@ fn check_instruction(
             local_type(function, *local, span)?;
             None
         }
-        InstructionKind::MakeOwnedTuple { .. }
+        InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..}
+        | InstructionKind::MakeOwnedTuple { .. }
         | InstructionKind::UnpackTuple { .. }
         | InstructionKind::DropTuple { .. }
         | InstructionKind::VariantTagLocal { .. }
@@ -1629,7 +1627,7 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
-            } else if matches!(inner, Type::Enum { .. }) {
+            } else if matches!(inner, Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) {
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
@@ -1648,7 +1646,7 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
-            } else if matches!(inner, Type::Enum { .. }) {
+            } else if matches!(inner, Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) {
                 sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
@@ -1755,6 +1753,8 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
+            } else if budget.sums && matches!(field,Type::Tuple(_)|Type::Package{..}|Type::Enum{..}|Type::ErrorUnion{..}) {
+                sums::check_type_for(module,field,span,budget)?;
             } else if !*mutable && matches!(field, Type::Package { .. }) {
                 packages::check_shared_product_type(module, field, span, budget)?;
             } else if !*mutable
@@ -2626,7 +2626,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
         InstructionKind::MakeOwnedTuple { fields } => ([None, None], fields),
-        InstructionKind::UnpackTuple { .. }
+        InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}
+        | InstructionKind::UnpackTuple { .. }
         | InstructionKind::DropTuple { .. }
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),

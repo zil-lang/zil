@@ -50,6 +50,11 @@ impl Builder<'_, '_> {
             &mut self.match_work_left,
             self.limits.max_call_depth,
         )?;
+        if reference_patterns::has_reference(pattern)
+            && !matches!(initializer.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,..})
+            && self.known_type(initializer).as_ref().is_some_and(|ty|self.partial_pattern_needed(pattern,ty)) {
+            return self.partial_pattern_binding(pattern,mutable,expected,initializer);
+        }
         if reference_patterns::has_reference(pattern) {
             return self.reference_binding(pattern, mutable, expected, initializer);
         }
@@ -118,11 +123,17 @@ impl Builder<'_, '_> {
                     return Ok(());
                 }
                 self.closures.snapshot(types.len(), p.span)?;
+                // One destructuring binding registers fields in reverse order
+                // so the aggregate's declaration-order cleanup is preserved.
                 let mut targets = Vec::new();
-                for t in types {
-                    let name = format!("$tuple340${}", self.function.locals.len());
-                    targets.push(self.local(&name, t.clone(), true, p.span)?);
+                for (field,t) in fields.iter().zip(types).rev() {
+                    let (name,writable)=match &field.kind {
+                        CorePatternKind::Name(name)=>(name.clone(),mutable),
+                        _=>(format!("$tuple340${}",self.function.locals.len()),true),
+                    };
+                    targets.push(self.local(&name,t.clone(),writable,field.span)?);
                 }
+                targets.reverse();
                 self.emit(
                     InstructionKind::UnpackTuple {
                         local: root,
@@ -132,7 +143,7 @@ impl Builder<'_, '_> {
                     p.span,
                 )?;
                 for ((p, t), l) in fields.iter().zip(types).zip(targets) {
-                    self.owned_tuple_pattern(p, l, t, mutable)?;
+                    if !matches!(p.kind,CorePatternKind::Name(_)|CorePatternKind::Wildcard){self.owned_tuple_pattern(p,l,t,mutable)?;}
                 }
                 Ok(())
             }
