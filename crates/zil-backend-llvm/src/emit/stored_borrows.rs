@@ -255,6 +255,36 @@ pub(super) fn reserve_binding(
         if let Some(c) = &f.storage_life {
             contract(c, work)?;
         }
+        if let Some(c) = &f.callable_contract {
+            pay(work, c.roles.len())?;
+            for role in &c.roles {
+                pay(
+                    work,
+                    role.hold
+                        .len()
+                        .saturating_add(role.call.len())
+                        .saturating_add(role.writes.len())
+                        .saturating_add(8),
+                )?;
+            }
+            match &c.traces {
+                zil_ir::CallableTraces::Finite(traces) => {
+                    pay(work, traces.len().saturating_add(1))?;
+                    for trace in traces {
+                        pay(work, trace.calls.len().saturating_mul(2).saturating_add(1))?;
+                    }
+                }
+                zil_ir::CallableTraces::Flow(flow) => {
+                    pay(work, flow.nodes.len().saturating_add(1))?;
+                    for node in &flow.nodes {
+                        pay(work, node.calls.len().saturating_mul(2).saturating_add(1))?;
+                        if let zil_ir::CallableFlowNext::Edges(edges) = &node.next {
+                            pay(work, edges.len())?;
+                        }
+                    }
+                }
+            }
+        }
         type_work(&f.return_type, work, limits, 0)?;
         for l in &f.locals {
             pay(work, l.name.len())?;
@@ -269,8 +299,14 @@ pub(super) fn reserve_binding(
                 let n = match &i.kind {
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::MakeAggregate { fields: arguments } => arguments.len(),
-                    InstructionKind::CallIndirect { arguments, .. } => {
+                    InstructionKind::CallIndirect { arguments, .. }
+                    | InstructionKind::CallClosure { arguments, .. }
+                    | InstructionKind::CallClosureBorrowed { arguments, .. }
+                    | InstructionKind::CallClosureShared { arguments, .. } => {
                         arguments.len().saturating_add(1)
+                    }
+                    InstructionKind::MakeClosure { captures, .. } => {
+                        captures.len().saturating_add(1)
                     }
                     InstructionKind::FunctionRef { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
@@ -314,7 +350,19 @@ pub(super) fn reserve_binding(
 fn operands(i: &InstructionKind) -> Vec<ValueId> {
     match i {
         InstructionKind::Call { arguments, .. }
-        | InstructionKind::MakeAggregate { fields: arguments } => arguments.clone(),
+        | InstructionKind::MakeAggregate { fields: arguments }
+        | InstructionKind::MakeClosure {
+            captures: arguments,
+            ..
+        }
+        | InstructionKind::CallClosureShared { arguments, .. } => arguments.clone(),
+        InstructionKind::CallIndirect { callee, arguments }
+        | InstructionKind::CallClosure { callee, arguments }
+        | InstructionKind::CallClosureBorrowed {
+            callee, arguments, ..
+        } => std::iter::once(*callee)
+            .chain(arguments.iter().copied())
+            .collect(),
         InstructionKind::Store { value, .. }
         | InstructionKind::Unary { operand: value, .. }
         | InstructionKind::ConvertInteger { value, .. }
@@ -361,7 +409,17 @@ pub(super) fn reserve_emission(
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             let count = match &i.kind {
                 InstructionKind::Call { arguments, .. }
-                | InstructionKind::MakeAggregate { fields: arguments } => arguments.len(),
+                | InstructionKind::MakeAggregate { fields: arguments }
+                | InstructionKind::MakeClosure {
+                    captures: arguments,
+                    ..
+                }
+                | InstructionKind::CallClosureShared { arguments, .. } => arguments.len(),
+                InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosure { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. } => {
+                    arguments.len().saturating_add(1)
+                }
                 _ => 3,
             };
             pay(work, count.saturating_add(32))?;
@@ -373,6 +431,9 @@ pub(super) fn reserve_emission(
                     .and_then(|n| n.checked_mul(16))
                     .ok_or_else(exhausted)?;
                 pay(work, cost)?;
+            }
+            if let InstructionKind::CallClosureShared { callee, .. } = &i.kind {
+                type_work(&f.locals[callee.0 as usize].ty, work, limits, 0)?;
             }
             for v in operands(&i.kind).into_iter().chain(i.result) {
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;

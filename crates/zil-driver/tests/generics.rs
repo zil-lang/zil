@@ -1521,15 +1521,7 @@ fn terminal_static_function_formation_prepays_wide_copy_result_types() {
 #[test]
 fn terminal_explicit_stored_closure_annotations_require_their_context() {
     let closed = "struct Tag<life a>{n:i32} type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32;fn read<life a>(v:&Tag<'a>)->i32{return v.n}fn main()->i32{let callback=(code:Code)->i32=>42;return callback(read)}";
-    // The nested Code binder is closed at the Types annotation boundary.
-    // Its closure-body kernel consumer remains a separate construction slice.
-    let report = compile_source(
-        &source(closed),
-        &CompileOptions {
-            stop_after: Stage::Types,
-            ..CompileOptions::default()
-        },
-    );
+    let report = compile_source(&source(closed), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -1561,3 +1553,15 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
         );
     }
 }
+#[test]
+fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};let f=(p,q)=>42;return invoke(&f,&v,x)} fn result()->i32{let n=21;return apply(&n)} fn main()->i32{return result()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
