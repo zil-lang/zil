@@ -9,6 +9,7 @@ use zil_ir::ct_artifact::{
 use zil_verify::{CtArtifactAuthority, CtSymbolUsage};
 
 pub(super) struct FrozenAuthority<'a> {
+    pub invocation_context: Option<&'a super::invocation_context::FrozenInvocationContext>,
     pub source_fingerprint: Fingerprint,
     pub snapshot: &'a CtSnapshotRequest,
     pub input: &'a CtInputTable,
@@ -38,6 +39,19 @@ pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
 }
 
 impl CtArtifactAuthority for FrozenAuthority<'_> {
+    fn scope_parameter_count(
+        &self,
+        scope: &zil_ir::ct_artifact::CtAmbientLifeScope,
+    ) -> Option<usize> {
+        self.invocation_context?.parameter_count(scope)
+    }
+    fn scope_parameter_kind(
+        &self,
+        scope: &zil_ir::ct_artifact::CtAmbientLifeScope,
+        ordinal: usize,
+    ) -> Option<zil_verify::CtScopeParameterKind> {
+        self.invocation_context?.parameter_kind(scope, ordinal)
+    }
     fn source_fingerprint(&self) -> Fingerprint {
         self.source_fingerprint
     }

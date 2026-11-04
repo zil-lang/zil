@@ -615,15 +615,11 @@ impl Materializer<'_, '_> {
                                         .ok_or_else(|| {
                                             runtime("source lifetime definition is absent", span)
                                         })?;
-                                    if this
-                                        .environment
-                                        .index
-                                        .symbol_at(definition.module, item.span)
-                                        .as_ref()
-                                        != Some(definition)
+                                    if definition.generation_path.is_some()
+                                        || !this.environment.index.contains(definition)
                                     {
                                         return Err(runtime(
-                                            "source lifetime owner differs from its frozen declaration",
+                                            "source lifetime owner is not an actual original declaration",
                                             span,
                                         ));
                                     }
@@ -1289,7 +1285,28 @@ impl Materializer<'_, '_> {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
-            let owner = self.owner(module, item.span, inherited)?;
+            let owner = if self.track_declarations && inherited.is_none() && !generated {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.environment.index.symbol_lookup_work())?;
+                let symbol =
+                    CtSymbolId {
+                        module,
+                        declaration: zil_base::NodeId(u32::try_from(ordinal).map_err(|_| {
+                            category("original declaration index overflow", item.span)
+                        })?),
+                        generation_path: None,
+                    };
+                if !self.environment.index.contains(&symbol) {
+                    return Err(category(
+                        "original declaration absent from frozen inventory",
+                        item.span,
+                    ));
+                }
+                symbol
+            } else {
+                self.owner(module, item.span, inherited)?
+            };
             if self.environment.ct_only.contains(&owner)
                 && matches!(
                     item.kind,
@@ -1966,6 +1983,7 @@ pub(crate) fn materialize(
         target,
         &capture_remaining,
     )?;
+    environment.bind_source_origins(declaration_origins.as_deref())?;
     environment.classify_definitions()?;
     let mut output = modules
         .iter()

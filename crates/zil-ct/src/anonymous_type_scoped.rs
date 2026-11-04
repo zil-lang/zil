@@ -281,6 +281,14 @@ fn run(
     let mut outputs: Vec<Built> = Vec::new();
     let mut scopes: Vec<Owner> = Vec::new();
     let mut tokens = 0usize;
+    let mut ambient_tokens: Vec<(usize, u32, CtAmbientLifeReference)> = Vec::new();
+    work.pay(reference.ambient_classes.len() as u64, 0)?;
+    for row in &reference.ambient_classes {
+        if !matches!(reference.nodes.get(row.owner.0 as usize),Some(CtTypeNode::BorrowedStorage{life,..}) if row.class<life.binder_count)
+        {
+            return Err(bad("ambient class mapping has no actual Fixed owner/class"));
+        }
+    }
     while let Some(task) = tasks.pop() {
         work.pay(1, 0)?;
         match task {
@@ -315,6 +323,35 @@ fn run(
                     });
                     token
                 });
+                if let CtTypeNode::BorrowedStorage { life, .. } = node {
+                    work.pay(reference.ambient_classes.len() as u64, 0)?;
+                    let rows = reference
+                        .ambient_classes
+                        .iter()
+                        .filter(|row| row.owner == id)
+                        .count();
+                    if rows != life.binder_count as usize {
+                        return Err(bad("free Fixed classes require complete ambient mappings"));
+                    }
+                    work.pay(
+                        (rows as u64).saturating_mul(reference.ambient_classes.len() as u64),
+                        rows as u64
+                            * std::mem::size_of::<(usize, u32, CtAmbientLifeReference)>() as u64,
+                    )?;
+                    for class in 0..life.binder_count {
+                        let mut matching = reference
+                            .ambient_classes
+                            .iter()
+                            .filter(|row| row.owner == id && row.class == class);
+                        let row = matching
+                            .next()
+                            .ok_or_else(|| bad("ambient class mapping is missing"))?;
+                        if matching.next().is_some() {
+                            return Err(bad("ambient class mapping is duplicated"));
+                        }
+                        ambient_tokens.push((token.expect("Fixed owner token"), class, row.source));
+                    }
+                }
                 let width = edge_width(node);
                 work.pay(width as u64, width as u64 * 128)?;
                 let mut ids = children(node);
@@ -411,7 +448,18 @@ fn run(
                         let life = flat_life(life, parameters.len(), work.budget)?;
                         work.life(&mut key, &life)?
                     }
-                    CtTypeNode::BorrowedStorage { life, .. } => work.storage(&mut key, life)?,
+                    CtTypeNode::BorrowedStorage { life, .. } => {
+                        work.storage(&mut key, life)?;
+                        work.number(&mut key, u64::from(life.binder_count))?;
+                        work.pay(ambient_tokens.len() as u64, 0)?;
+                        for (owner, class, source) in &ambient_tokens {
+                            if Some(*owner) == token {
+                                work.number(&mut key, u64::from(*class))?;
+                                work.number(&mut key, u64::from(source.scope.0))?;
+                                work.number(&mut key, u64::from(source.parameter))?;
+                            }
+                        }
+                    }
                     CtTypeNode::Array { length, .. } => {
                         work.number(&mut key, u64::from(*length))?
                     }
@@ -512,10 +560,27 @@ fn run(
         }
         nodes.push(pending.node);
     }
+    work.pay(
+        ambient_tokens.len() as u64,
+        ambient_tokens.len() as u64 * std::mem::size_of::<CtAmbientClassBinding>() as u64,
+    )?;
+    let mut ambient_classes = ambient_tokens
+        .into_iter()
+        .map(|(token, class, source)| CtAmbientClassBinding {
+            owner: owners[token],
+            class,
+            source,
+        })
+        .collect::<Vec<_>>();
+    work.pay(
+        (ambient_classes.len() as u64).saturating_mul(ambient_classes.len() as u64),
+        0,
+    )?;
+    ambient_classes.sort_by_key(|row| (row.owner, row.class));
     let ty = CtTypeRef {
         root: CtTypeNodeId(u32::try_from(nodes.len() - 1).map_err(|_| bound())?),
         nodes,
-        ambient_classes: Vec::new(),
+        ambient_classes,
     };
     let key = if keep_key { built.key } else { Vec::new() };
     // The returned value/key remain live after scratch is released.
@@ -535,7 +600,12 @@ fn edge_width(node: &CtTypeNode) -> usize {
 }
 pub(super) fn retained_bytes(ty: &CtTypeRef) -> u64 {
     ty.nodes.iter().fold(
-        32u64.saturating_add(ty.nodes.len() as u64 * std::mem::size_of::<CtTypeNode>() as u64),
+        (std::mem::size_of::<CtTypeRef>() as u64)
+            .saturating_add(ty.nodes.len() as u64 * std::mem::size_of::<CtTypeNode>() as u64)
+            .saturating_add(
+                ty.ambient_classes.len() as u64
+                    * std::mem::size_of::<CtAmbientClassBinding>() as u64,
+            ),
         |n, node| {
             n.saturating_add(match node {
                 CtTypeNode::BorrowedStorage { life, .. } => shape_bytes(life),

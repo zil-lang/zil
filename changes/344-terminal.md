@@ -431,3 +431,22 @@ and reification explicitly reject contextual inputs until joint authenticated
 relocation is implemented. This is a compile checkpoint only. The retained
 CT4 source fixtures have not been attributed to this40 build, and no rich CT5
 signature/ambient/cache/native acceptance is claimed.
+
+### CT5 authentic Definition scope transport WIP
+
+Build the immutable invocation source witness before compiler attribution from
+341's actual captured original declaration rows. Top-level materialization and
+lexical scope lookup select the actual original ordinal, with spans used only to
+reject a diagnostic mismatch. Complete full-kind generic ordinals are retained.
+The producer serializes genuine Definition scope rows and per-Fixed-class ambient
+maps. Occurrence normalization relocates those maps with the complete owner
+subtree; the independent kernel checks authenticated Lifetime ordinals, mapping
+order/uniqueness, free-class coverage and first actual scope use. Value contexts
+retain this same witness and ambient table through ordinary source reification.
+
+The existing three phantom/joint/generic originals reached actual12 native
+profiles in the first WIP replay. This remains an unfinished checkpoint: its
+construction occurred during development and is not an exact frozen acceptance
+receipt. Rich callable, specialization/member/generated-scope admission,
+contextual key normalization, repeated/shared-span adversarial controls and
+actual VM frame/vector/deep-descriptor byte accounting remain under construction.

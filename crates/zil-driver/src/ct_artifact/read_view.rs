@@ -27,6 +27,7 @@ fn phase(message: &str) -> Vec<Diagnostic> {
 }
 
 pub(super) struct FrozenReadView<'a> {
+    pub invocation_context: Option<&'a super::invocation_context::FrozenInvocationContext>,
     pub index: &'a SourceIndex,
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
