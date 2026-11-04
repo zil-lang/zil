@@ -270,37 +270,33 @@ pub(super) fn check(
         };
         for (successor, truth) in edges.into_iter().take(count) {
             let mut edge = copy(&output, b)?;
-            if let Terminator::Branch { condition, .. } = f.blocks[block].terminator {
-                if let Some(InstructionKind::Binary { op, left, right }) =
+            if let Terminator::Branch { condition, .. } = f.blocks[block].terminator
+                && let Some(InstructionKind::Binary { op, left, right }) =
                     definitions.get(&condition).copied()
-                {
-                    if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
-                        for (tag, literal) in [(*left, *right), (*right, *left)] {
-                            if let (
-                                Some((address, path)),
-                                Some(InstructionKind::Constant(Constant::I32(variant))),
-                            ) = (observations.get(&tag), definitions.get(&literal).copied())
-                            {
-                                if *variant >= 0
-                                    && output.reads.contains(&tag)
-                                    && truth == Some(*op == BinaryOp::Equal)
-                                {
-                                    b.spend(
-                                        path.len().saturating_add(1).saturating_mul(
-                                            edge.selected
-                                                .len()
-                                                .checked_ilog2()
-                                                .map_or(1, |n| n as usize + 2),
-                                        ),
-                                    )?;
-                                    let route = path
-                                        .iter()
-                                        .map(|p| (p.variant, p.index))
-                                        .collect::<Vec<_>>();
-                                    edge.selected.insert((*address, route, *variant as u32));
-                                }
-                            }
-                        }
+                && matches!(op, BinaryOp::Equal | BinaryOp::NotEqual)
+            {
+                for (tag, literal) in [(*left, *right), (*right, *left)] {
+                    if let (
+                        Some((address, path)),
+                        Some(InstructionKind::Constant(Constant::I32(variant))),
+                    ) = (observations.get(&tag), definitions.get(&literal).copied())
+                        && *variant >= 0
+                        && output.reads.contains(&tag)
+                        && truth == Some(*op == BinaryOp::Equal)
+                    {
+                        b.spend(
+                            path.len().saturating_add(1).saturating_mul(
+                                edge.selected
+                                    .len()
+                                    .checked_ilog2()
+                                    .map_or(1, |n| n as usize + 2),
+                            ),
+                        )?;
+                        let route = path
+                            .iter()
+                            .map(|p| (p.variant, p.index))
+                            .collect::<Vec<_>>();
+                        edge.selected.insert((*address, route, *variant as u32));
                     }
                 }
             }
