@@ -70,6 +70,10 @@ fn has_scoped_type(ty: &Type, budget: &mut Budget) -> Check<bool> {
 fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
     match instruction {
         InstructionKind::Load(local)
+        | InstructionKind::BorrowPlaceLocal { local, .. }
+        | InstructionKind::PlaceTagLocal { local, .. }
+        | InstructionKind::TakeTupleField { local, .. }
+        | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::ReadVariantLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
@@ -164,7 +168,11 @@ pub(super) fn check_function(
             }
             if matches!(
                 instruction.kind,
-                InstructionKind::VariantTagLocal { .. }
+                InstructionKind::BorrowPlaceLocal { .. }
+                    | InstructionKind::PlaceTagLocal { .. }
+                    | InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::TakeVariantField { .. }
+                    | InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
                     | InstructionKind::BorrowVariantLocal { .. }
                     | InstructionKind::BorrowFieldLocal { .. }

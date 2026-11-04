@@ -186,7 +186,8 @@ fn reconstruct(
                         | InstructionKind::BorrowOwnedArrayElement { .. }
                         | InstructionKind::BorrowPackageField { .. }
                         | InstructionKind::BorrowVariantLocal { .. }
-                        | InstructionKind::BorrowFieldLocal { .. } => {
+                        | InstructionKind::BorrowFieldLocal { .. }
+                        | InstructionKind::BorrowPlaceLocal { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -976,6 +977,23 @@ pub(super) fn check(
                 InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
+                InstructionKind::BorrowPlaceLocal {
+                    local,
+                    path,
+                    mutable,
+                } => {
+                    let root = super::roots::mixed_root(f, *local, path, false, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::PlaceTagLocal { local, path } => {
+                    let root = super::roots::mixed_root(f, *local, path, true, budget)?;
+                    access.check(&empty, &[root], false, budget)?;
+                }
+                InstructionKind::TakeTupleField { local, path }
+                | InstructionKind::TakeVariantField { local, path } => {
+                    let root = super::roots::mixed_root(f, *local, path, false, budget)?;
+                    access.check(&empty, &[root], true, budget)?;
+                }
                 InstructionKind::BorrowFieldLocal {
                     local,
                     path,
@@ -1122,7 +1140,7 @@ pub(super) fn check(
                 InstructionKind::TakeLocal { local } => {
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
-                        || crate::sums::owned_enum(&f.locals[local.0 as usize].ty)
+                        || crate::sums::owned(&f.locals[local.0 as usize].ty)
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))

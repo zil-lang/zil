@@ -2,6 +2,7 @@
 //! Nothing in this module reads producer responsibility/tag annotations.
 use super::*;
 use std::collections::{BTreeMap, VecDeque};
+mod partial_places;
 
 pub(super) fn owned_enum(ty: &Type) -> bool {
     matches!(ty, Type::Enum { .. }) && !ty.is_copy_value()
@@ -185,6 +186,94 @@ fn projected_type<'a>(
     Ok(ty)
 }
 
+pub(super) fn place_type<'a>(
+    f: &'a TypedFunction,
+    local: LocalId,
+    path: &[PlaceProjection],
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<&'a Type> {
+    let mut at = local_type(f, local, span)?;
+    if path.is_empty() || path.len() > budget.limits.max_call_depth {
+        return Err(bad(
+            span,
+            "selective transfer requires a nonempty bounded actual path",
+        ));
+    }
+    budget.spend(path.len().saturating_add(1))?;
+    for step in path {
+        at = match (step, at) {
+            (PlaceProjection::Field(index), Type::Tuple(fields)) => fields.get(*index as usize),
+            (PlaceProjection::Field(index), Type::Package { fields, .. }) => {
+                fields.get(*index as usize).map(|(_, t)| t)
+            }
+            (PlaceProjection::Variant(p), Type::Enum { variants, .. }) => variants
+                .get(p.variant as usize)
+                .and_then(|(_, fs)| fs.get(p.index as usize)),
+            (PlaceProjection::ErrorArm(e), Type::ErrorUnion { error, result }) => {
+                Some(if *e { error.as_ref() } else { result.as_ref() })
+            }
+            _ => None,
+        }
+        .ok_or_else(|| {
+            bad(
+                span,
+                "selective path crosses absent, non-inline or differently typed storage",
+            )
+        })?;
+    }
+    Ok(at)
+}
+pub(super) fn place_instruction(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    b: &mut Budget,
+) -> Check<Option<Type>> {
+    b.mark_sum(Some(f.id.0 as usize))?;
+    let span = Some(i.span);
+    let (local, path) = match &i.kind {
+        InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => (*local, path),
+        _ => unreachable!(),
+    };
+    let root = local_type(f, local, span)?;
+    check_type_for(module, root, span, b)?;
+    let endpoint = if path.is_empty() {
+        root
+    } else {
+        place_type(f, local, path, span, b)?
+    };
+    resources::charge_payload(endpoint, b)?;
+    match &i.kind {
+        InstructionKind::BorrowPlaceLocal { mutable, .. } => {
+            if path.is_empty() || (*mutable && !f.locals[local.0 as usize].mutable) {
+                return Err(bad(
+                    span,
+                    "precise mixed borrow requires a nonempty path and actual mutable authority",
+                ));
+            }
+            if *mutable && matches!(endpoint, Type::Managed(_)) {
+                return Err(bad(span, "ordinary resource head address remains shared"));
+            }
+            check_type_for(module, endpoint, span, b)?;
+            Ok(Some(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(endpoint.clone()),
+            }))
+        }
+        InstructionKind::PlaceTagLocal { .. } => {
+            if !matches!(endpoint, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+                return Err(bad(
+                    span,
+                    "mixed tag read must end at an actual Enum or ErrorUnion",
+                ));
+            }
+            Ok(Some(Type::I32))
+        }
+        _ => unreachable!(),
+    }
+}
 pub(super) fn check_instruction(
     f: &TypedFunction,
     i: &Instruction,
@@ -194,6 +283,25 @@ pub(super) fn check_instruction(
     let span = Some(i.span);
     budget.mark_sum(Some(f.id.0 as usize))?;
     match &i.kind {
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => {
+            let root = local_type(f, *local, span)?;
+            resources::charge_payload(root, budget)?;
+            if root.is_copy_value()
+                || !match i.kind {
+                    InstructionKind::TakeTupleField { .. } => matches!(root, Type::Tuple(_)),
+                    _ => matches!(root, Type::Enum { .. } | Type::ErrorUnion { .. }),
+                }
+            {
+                return Err(bad(
+                    span,
+                    "selective transfer requires the exact owning Tuple or Enum root",
+                ));
+            }
+            let endpoint = place_type(f, *local, path, span, budget)?;
+            resources::charge_payload(endpoint, budget)?;
+            Ok(Some(endpoint.clone()))
+        }
         InstructionKind::MakeOwnedTuple { fields } => {
             let ty = i
                 .result
@@ -274,7 +382,14 @@ pub(super) fn check_instruction(
             }
             let ty = projected_type(f, *local, path, span, budget)?;
             resources::charge_payload(ty, budget)?;
-            if (!ty.is_copy_value() && !matches!(ty, Type::Package { .. }))
+            if (!ty.is_copy_value()
+                && !matches!(
+                    ty,
+                    Type::Tuple(_)
+                        | Type::Package { .. }
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
+                ))
                 || (*mutable && !f.locals[local.0 as usize].mutable)
             {
                 return Err(bad(
@@ -346,6 +461,7 @@ enum Source {
 /// Tags are per carrier; alternatives are not cross-multiplied with other Sums.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Content {
+    Missing(Box<Content>),
     Copy,
     Leaf(BTreeSet<Source>),
     Product(Vec<Content>),
@@ -356,6 +472,7 @@ impl Content {
     fn cost(&self, budget: &mut Budget) -> Check<()> {
         budget.spend(1)?;
         match self {
+            Self::Missing(child) => child.cost(budget)?,
             Self::Leaf(sources) => {
                 budget.spend(sources.len())?;
                 for source in sources {
@@ -393,7 +510,19 @@ impl Content {
     fn merge(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
         other.cost(budget)?;
         let mut changed = false;
+        if matches!(other, Self::Missing(_)) && !matches!(self, Self::Missing(_)) {
+            self.cost(budget)?;
+            let previous = std::mem::replace(self, Self::Copy);
+            *self = Self::Missing(Box::new(previous));
+            changed = true;
+        }
         match (self, other) {
+            (Self::Missing(a), Self::Missing(b)) => {
+                changed |= a.merge(b, budget)?;
+            }
+            (Self::Missing(a), b) => {
+                changed |= a.merge(b, budget)?;
+            }
             (Self::Leaf(a), Self::Leaf(b)) => {
                 let old = a.len();
                 a.extend(b.iter().cloned());
@@ -431,6 +560,237 @@ impl Content {
         }
         Ok(changed)
     }
+    fn retain_missing(&mut self, old: &Content, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        if let Self::Missing(child) = old {
+            if !matches!(self, Self::Missing(_)) {
+                b.spend(1)?;
+                let previous = std::mem::replace(self, Self::Copy);
+                *self = Self::Missing(Box::new(previous));
+            }
+            let Self::Missing(at) = self else {
+                unreachable!()
+            };
+            return at.retain_missing(child, b);
+        }
+        match (self, old) {
+            (Self::Product(a), Self::Product(c)) => {
+                for (a, c) in a.iter_mut().zip(c) {
+                    a.retain_missing(c, b)?;
+                }
+            }
+            (Self::Sum(a, _), Self::Sum(c, _)) => {
+                for (tag, fs) in c {
+                    b.spend(a.len().saturating_add(1))?;
+                    if let Some(at) = a.get_mut(tag) {
+                        for (a, c) in at.iter_mut().zip(fs) {
+                            a.retain_missing(c, b)?;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn forget_copy_tags(&mut self, ty: &Type, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        if let Self::Missing(child) = self {
+            return child.forget_copy_tags(ty, b);
+        }
+        resources::charge_payload(ty, b)?;
+        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+            let old = self.duplicate(b)?;
+            let mut unknown = content(ty, None, &mut Vec::new(), false, b)?;
+            unknown.retain_missing(&old, b)?;
+            *self = unknown;
+            return Ok(());
+        }
+        match (self, ty) {
+            (Self::Product(fs), Type::Tuple(ts)) => {
+                for (f, t) in fs.iter_mut().zip(ts) {
+                    f.forget_copy_tags(t, b)?;
+                }
+            }
+            (Self::Product(fs), Type::Package { fields, .. }) => {
+                for (f, (_, t)) in fs.iter_mut().zip(fields) {
+                    f.forget_copy_tags(t, b)?;
+                }
+            }
+            (Self::Sum(vs, route), Type::Enum { variants, .. }) => {
+                *route = None;
+                for (v, fs) in vs {
+                    for (f, t) in fs.iter_mut().zip(&variants[*v as usize].1) {
+                        f.forget_copy_tags(t, b)?;
+                    }
+                }
+            }
+            (Self::Sum(vs, route), Type::ErrorUnion { error, result }) => {
+                *route = None;
+                for (v, fs) in vs {
+                    if let Some(f) = fs.first_mut() {
+                        f.forget_copy_tags(if *v == 0 { error } else { result }, b)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    fn forget_place_copy_tags(
+        &mut self,
+        path: &[PlaceProjection],
+        ty: &Type,
+        b: &mut Budget,
+    ) -> Check<()> {
+        b.spend(1)?;
+        if let Self::Missing(child) = self {
+            return child.forget_place_copy_tags(path, ty, b);
+        }
+        let Some((first, rest)) = path.split_first() else {
+            return self.forget_copy_tags(ty, b);
+        };
+        match (first, self, ty) {
+            (PlaceProjection::Field(i), Self::Product(fs), Type::Tuple(ts)) => {
+                fs[*i as usize].forget_place_copy_tags(rest, &ts[*i as usize], b)
+            }
+            (PlaceProjection::Field(i), Self::Product(fs), Type::Package { fields, .. }) => {
+                fs[*i as usize].forget_place_copy_tags(rest, &fields[*i as usize].1, b)
+            }
+            (PlaceProjection::Variant(p), Self::Sum(vs, route), Type::Enum { variants, .. }) => {
+                *route = None;
+                if let Some(fs) = vs.get_mut(&p.variant) {
+                    fs[p.index as usize].forget_place_copy_tags(
+                        rest,
+                        &variants[p.variant as usize].1[p.index as usize],
+                        b,
+                    )?;
+                }
+                Ok(())
+            }
+            (
+                PlaceProjection::ErrorArm(e),
+                Self::Sum(vs, route),
+                Type::ErrorUnion { error, result },
+            ) => {
+                *route = None;
+                if let Some(fs) = vs.get_mut(&if *e { 0 } else { 1 }) {
+                    fs[0].forget_place_copy_tags(rest, if *e { error } else { result }, b)?;
+                }
+                Ok(())
+            }
+            _ => Err(bad(
+                None,
+                "mutable mixed invalidation differs from actual storage",
+            )),
+        }
+    }
+    fn viewed<'a>(&'a self, path: &[PlaceProjection], b: &mut Budget) -> Check<&'a Content> {
+        b.spend(1)?;
+        if matches!(self, Self::Missing(_)) {
+            return Err(bad(
+                None,
+                "place path crosses a subtree already moved on an incoming path",
+            ));
+        }
+        let Some((first, rest)) = path.split_first() else {
+            return Ok(self);
+        };
+        let child = match (first, self) {
+            (PlaceProjection::Field(i), Self::Product(fs)) => fs.get(*i as usize),
+            (PlaceProjection::Variant(p), Self::Sum(vs, _)) => {
+                vs.get(&p.variant).and_then(|fs| fs.get(p.index as usize))
+            }
+            (PlaceProjection::ErrorArm(e), Self::Sum(vs, _)) => {
+                vs.get(&if *e { 0 } else { 1 }).and_then(|fs| fs.first())
+            }
+            _ => None,
+        }
+        .ok_or_else(|| bad(None, "place path differs from actual initialized data"))?;
+        child.viewed(rest, b)
+    }
+    fn take_place(
+        &mut self,
+        path: &[PlaceProjection],
+        validate: bool,
+        b: &mut Budget,
+    ) -> Check<Content> {
+        b.spend(1)?;
+        if let Self::Missing(child) = self {
+            if validate {
+                return Err(bad(
+                    None,
+                    "selective transfer prefix or subtree is already moved on an incoming path",
+                ));
+            }
+            return if path.is_empty() {
+                child.duplicate(b)
+            } else {
+                child.take_place(path, false, b)
+            };
+        }
+        let Some((first, rest)) = path.split_first() else {
+            if validate && !self.complete(b)? {
+                return Err(bad(
+                    None,
+                    "selective transfer requires the complete selected initialized subtree",
+                ));
+            }
+            let output = self.duplicate(b)?;
+            b.spend(1)?;
+            let previous = std::mem::replace(self, Self::Copy);
+            *self = Self::Missing(Box::new(previous));
+            return Ok(output);
+        };
+        match (first, self) {
+            (PlaceProjection::Field(index), Self::Product(fields)) => fields
+                .get_mut(*index as usize)
+                .ok_or_else(|| bad(None, "selective initialization field absent"))?
+                .take_place(rest, validate, b),
+            (PlaceProjection::Variant(p), Self::Sum(variants, _)) => variants
+                .get_mut(&p.variant)
+                .and_then(|fs| fs.get_mut(p.index as usize))
+                .ok_or_else(|| bad(None, "selective payload has no current content"))?
+                .take_place(rest, validate, b),
+            (PlaceProjection::ErrorArm(e), Self::Sum(variants, _)) => variants
+                .get_mut(&if *e { 0 } else { 1 })
+                .and_then(|fs| fs.first_mut())
+                .ok_or_else(|| bad(None, "selective error/success content absent"))?
+                .take_place(rest, validate, b),
+            _ => Err(bad(
+                None,
+                "selective initialization path differs from actual content",
+            )),
+        }
+    }
+    fn complete(&self, budget: &mut Budget) -> Check<bool> {
+        budget.spend(1)?;
+        match self {
+            Self::Missing(_) => Ok(false),
+            Self::Product(fs) => {
+                for f in fs {
+                    if !f.complete(budget)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Self::Sum(vs, _) => {
+                if vs.is_empty() {
+                    return Ok(false);
+                }
+                for fs in vs.values() {
+                    for f in fs {
+                        if !f.complete(budget)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            _ => Ok(true),
+        }
+    }
     fn fresh(&self) -> u8 {
         match self {
             Self::Leaf(sources)
@@ -446,6 +806,7 @@ impl Content {
     fn returned(&mut self, budget: &mut Budget) -> Check<()> {
         self.cost(budget)?;
         match self {
+            Self::Missing(child) => child.returned(budget)?,
             Self::Leaf(sources) => {
                 *sources = sources
                     .iter()
@@ -557,6 +918,7 @@ struct State {
     values: Vec<Arc<Content>>,
     facts: BTreeSet<Fact>,
     observations: BTreeSet<ValueId>,
+    partial: Option<partial_places::State>,
 }
 
 impl State {
@@ -569,6 +931,9 @@ impl State {
                 .saturating_add(self.observations.len())
                 .saturating_add(self.facts.len()),
         )?;
+        if let Some(p) = &self.partial {
+            p.cost(budget)?;
+        }
         for (_, path, _) in &self.facts {
             budget.spend(path.len())?;
         }
@@ -581,6 +946,9 @@ impl State {
     fn merge(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
         other.cost(budget)?;
         let mut changed = false;
+        if let (Some(a), Some(b)) = (&mut self.partial, &other.partial) {
+            changed |= a.join(b, budget)?;
+        }
         for (a, b) in self.initialized.iter_mut().zip(&other.initialized) {
             let old = *a;
             *a |= *b;
@@ -642,6 +1010,8 @@ struct Flow<'a> {
     definitions: Vec<Option<(usize, usize)>>,
     observers: Vec<Option<(LocalId, Prefix)>>,
     summaries: &'a [Content],
+    partial: bool,
+    place_meta: Option<partial_places::Meta>,
 }
 
 impl Flow<'_> {
@@ -695,6 +1065,9 @@ impl Flow<'_> {
             current = &fields[step.index as usize];
             prefix.push((step.variant, step.index));
         }
+        if validate && self.partial && matches!(current, Content::Missing(_)) {
+            return Err(bad(Some(span), "Sum endpoint has already been moved"));
+        }
         if let Some(tag) = last {
             self.require_tag(state, local, &prefix, current, tag, validate, span, budget)?;
         }
@@ -727,6 +1100,9 @@ impl Flow<'_> {
         Ok(())
     }
     fn edge(&self, state: &mut State, block: usize, next: usize, budget: &mut Budget) -> Check<()> {
+        if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
+            meta.edge(p, &self.f.blocks[block].terminator, next, budget)?;
+        }
         let Terminator::Branch {
             condition,
             then_block,
@@ -893,6 +1269,9 @@ impl Flow<'_> {
                     .collect::<Check<_>>()?,
                 None,
             ),
+            Content::Missing(child) => {
+                Content::Missing(Box::new(self.instantiate(child, args, state, budget)?))
+            }
             Content::Copy => Content::Copy,
         })
     }
@@ -912,6 +1291,29 @@ impl Flow<'_> {
             budget.spend(1)?;
             let mut result = None;
             let mut bridge = Bridge::default();
+            if validate
+                && self.partial
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = instruction.kind
+                && (state.initialized[local.0 as usize] != 2
+                    || !state.locals[local.0 as usize].complete(budget)?)
+            {
+                return Err(bad(
+                    Some(instruction.span),
+                    "whole borrow requires complete initialized storage",
+                ));
+            }
+
+            if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
+                meta.step(p, instruction, budget)?;
+                if partial_places::invalidates(&instruction.kind) {
+                    for (local, content) in state.locals.iter_mut().enumerate() {
+                        content.cost(budget)?;
+                        Arc::make_mut(content)
+                            .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                    }
+                }
+            }
             match &instruction.kind {
                 InstructionKind::BorrowLocalMut { local }
                     if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
@@ -999,7 +1401,94 @@ impl Flow<'_> {
                     state.locals[local.0 as usize] = state.values[value.0 as usize].clone();
                     state.initialized[local.0 as usize] = 2;
                 }
+                InstructionKind::PlaceTagLocal { local, path }
+                | InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                    if validate {
+                        if state.initialized[local.0 as usize] != 2 {
+                            return Err(bad(
+                                Some(instruction.span),
+                                "mixed place root is not initialized",
+                            ));
+                        }
+                        state
+                            .partial
+                            .as_ref()
+                            .ok_or_else(|| bad(None, "mixed place tag state absent"))?
+                            .require(*local, path, budget)?;
+                        let endpoint = state.locals[local.0 as usize].viewed(path, budget)?;
+                        if matches!(instruction.kind, InstructionKind::BorrowPlaceLocal { .. })
+                            && !endpoint.complete(budget)?
+                        {
+                            return Err(bad(
+                                Some(instruction.span),
+                                "mixed borrow requires every selected descendant initialized",
+                            ));
+                        }
+                    }
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowPlaceLocal { mutable: true, .. }
+                    ) {
+                        state.locals[local.0 as usize].cost(budget)?;
+                        Arc::make_mut(&mut state.locals[local.0 as usize]).forget_place_copy_tags(
+                            path,
+                            &self.f.locals[local.0 as usize].ty,
+                            budget,
+                        )?;
+                    }
+                }
+                InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
+                    if self.partial =>
+                {
+                    if validate && !state.locals[local.0 as usize].complete(budget)? {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "whole borrow requires complete initialized storage",
+                        ));
+                    }
+                }
+                InstructionKind::TakeTupleField { local, path }
+                | InstructionKind::TakeVariantField { local, path } => {
+                    if validate {
+                        if state.initialized[local.0 as usize] != 2 {
+                            return Err(bad(
+                                Some(instruction.span),
+                                "selective source storage is not initialized",
+                            ));
+                        }
+                        state
+                            .partial
+                            .as_ref()
+                            .ok_or_else(|| bad(None, "selective tag state is absent"))?
+                            .require(*local, path, budget)?;
+                    }
+                    state.locals[local.0 as usize].cost(budget)?;
+                    let selected = Arc::make_mut(&mut state.locals[local.0 as usize])
+                        .take_place(path, validate, budget);
+                    result = Some(match selected {
+                        Ok(value) => value,
+                        Err(e)
+                            if !validate && e.category == zil_base::ResultCategory::SafeReject =>
+                        {
+                            let ty =
+                                place_type(self.f, *local, path, Some(instruction.span), budget)?;
+                            content(ty, None, &mut Vec::new(), true, budget)?
+                        }
+                        Err(e) => return Err(e),
+                    });
+                    self.kill(state, *local, budget)?;
+                }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    if validate
+                        && self.partial
+                        && !state.locals[local.0 as usize].complete(budget)?
+                    {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "whole local transfer/read requires every subtree initialized",
+                        ));
+                    }
                     result = Some(state.locals[local.0 as usize].duplicate(budget)?);
                     if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
                         self.kill(state, *local, budget)?;
@@ -1126,6 +1615,15 @@ impl Flow<'_> {
                             instruction.span,
                             budget,
                         )?;
+                    }
+                    if validate
+                        && self.partial
+                        && !state.locals[local.0 as usize].complete(budget)?
+                    {
+                        return Err(bad(
+                            Some(instruction.span),
+                            "atomic unpack requires every subtree initialized",
+                        ));
                     }
                     if validate && state.initialized[local.0 as usize] != 2 {
                         return Err(bad(
@@ -1291,6 +1789,7 @@ fn run(
         values,
         facts: BTreeSet::new(),
         observations: BTreeSet::new(),
+        partial: None,
     };
     for (index, local) in f.parameters.iter().enumerate() {
         state.initialized[local.0 as usize] = 2;
@@ -1302,11 +1801,19 @@ fn run(
             budget,
         )?);
     }
+    let mut partial = false;
     let mut definitions = vec![None; f.values.len()];
     let mut observers = vec![None; f.values.len()];
     for (b, block) in f.blocks.iter().enumerate() {
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
+            partial |= matches!(
+                instruction.kind,
+                InstructionKind::BorrowPlaceLocal { .. }
+                    | InstructionKind::PlaceTagLocal { .. }
+                    | InstructionKind::TakeTupleField { .. }
+                    | InstructionKind::TakeVariantField { .. }
+            );
             if let Some(v) = instruction.result {
                 definitions[v.0 as usize] = Some((b, i));
                 if let InstructionKind::VariantTagLocal { local, path } = &instruction.kind {
@@ -1317,12 +1824,21 @@ fn run(
             }
         }
     }
+    if partial {
+        state.partial = Some(partial_places::State::default());
+    }
     let flow = Flow {
         f,
         module,
         definitions,
         observers,
         summaries,
+        partial,
+        place_meta: if partial {
+            Some(partial_places::Meta::new(f, budget)?)
+        } else {
+            None
+        },
     };
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(state);

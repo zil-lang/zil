@@ -1,5 +1,6 @@
 //! Reference bindings are addresses of real storage, never copies of a payload.
 use super::*;
+type PatternBindings = Vec<(String, ValueId, Type, Span)>;
 pub(super) fn has_reference(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { .. } => true,
@@ -138,7 +139,31 @@ impl Builder<'_, '_> {
             ));
         }
         let mut bindings = Vec::new();
-        self.binding_place(p, &place, expected, &mut bindings)?;
+        if let CoreExprKind::Unary {
+            op: UnaryOp::Dereference,
+            operand,
+        } = &place.kind
+        {
+            let (address, t) = self.expr(operand, None)?;
+            let Type::Address {
+                mutable: available,
+                inner,
+            } = t
+            else {
+                unreachable!("checked borrowed pattern place")
+            };
+            self.reference_address_test(
+                p,
+                address,
+                &mut Vec::new(),
+                &inner,
+                available,
+                self.current.unwrap(),
+                &mut bindings,
+            )?;
+        } else {
+            self.binding_place(p, &place, expected, &mut bindings)?;
+        }
         for (name, value, ty, span) in bindings {
             let local = self.local(&name, ty, mutable, span)?;
             self.store(local, value, span)?;
@@ -241,7 +266,17 @@ impl Builder<'_, '_> {
         p: &CorePattern,
         e: &CoreExpr,
         fail: BlockId,
-    ) -> R<(bool, Vec<(String, ValueId, Type, Span)>)> {
+    ) -> R<(bool, PatternBindings)> {
+        if !matches!(
+            e.kind,
+            CoreExprKind::Unary {
+                op: UnaryOp::Dereference,
+                ..
+            }
+        ) && self.known_type(e).as_ref().is_some_and(owned_shapes::sum)
+        {
+            return self.partial_pattern_condition(p, e, fail);
+        }
         let mut bindings = Vec::new();
         if let CoreExprKind::Unary {
             op: UnaryOp::Dereference,
@@ -529,7 +564,7 @@ impl Builder<'_, '_> {
 }
 
 pub(super) fn sum_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Enum{..}) && owned_shapes::value(inner))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}) && owned_shapes::value(inner))
 }
 impl Builder<'_, '_> {
     fn reference_address_match(
@@ -594,6 +629,7 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_arguments)]
     fn reference_address_test(
         &mut self,
         p: &CorePattern,

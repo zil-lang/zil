@@ -298,7 +298,7 @@ impl Builder<'_, '_> {
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
                     && !product_head
-                    && !owned_shapes::enumeration(&decl.ty)
+                    && !owned_shapes::sum(&decl.ty)
                 {
                     return Err(unsupported(
                         e.span,

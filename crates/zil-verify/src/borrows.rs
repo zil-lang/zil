@@ -406,6 +406,10 @@ fn check(
             | InstructionKind::BorrowPackageField { local, .. }
             | InstructionKind::BorrowVariantLocal { local, .. }
             | InstructionKind::BorrowFieldLocal { local, .. }
+            | InstructionKind::BorrowPlaceLocal { local, .. }
+            | InstructionKind::PlaceTagLocal { local, .. }
+            | InstructionKind::TakeTupleField { local, .. }
+            | InstructionKind::TakeVariantField { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -638,6 +642,9 @@ fn reconstruct(
                         }
                         InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             row.push(Root::Local(*local));
+                        }
+                        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                            row.push(roots::mixed_root(f, *local, path, false, budget)?);
                         }
                         InstructionKind::BorrowFieldLocal { local, path, .. } => {
                             row.push(roots::inline_field_root(f, *local, path, budget)?);
