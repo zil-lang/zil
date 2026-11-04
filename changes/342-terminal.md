@@ -123,3 +123,7 @@ Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及
 补充限定unit回放保留初次失败：Analyze122通过、两项impl253旧v34冻结Wire在当前36解码按预期E-WIRE-VERSION，历史字节不改，统一codec迁移归root。Types32通过。Verify343通过、shared Product Store精确预算控制失败：新的BorrowLocal closure来源保留真实captured根，原Store控制无间接N15662→15663、间接N18453→18455；本轮保留原module/plan并仅迁移精确已测阈值，仍检查raw/Wire N−1/fresh。不以放松判断处理该失败。
 
 最终unit回放 Types32/0、Verify344/0；两核原shared Product其余N4238/4652/6505保持，Store+1/+2在raw/Wire与N−1/fresh均通过。lint等价修正后完整cross67/0再次通过，最终绑定harness SHA256 59225b1025574c67449b13762b997b33427088e03302009f7202df8f65f3538b，详细精简receipt在docs/validation/terminal-342.json的higher_rank_callbacks。两项Analyze历史Wire版本不匹配继续单列，不记为通过。
+
+## 后续独立提案：实际 mutable 嵌套 Product head
+
+真实345 ui_input Composition 的普通字段 text:std.string.String，经 &mut Composition 的 `string.clear(&mut session.text)` 被Types既有shared-only子Product门拒绝。保留源/API，不展开String或改成按值借出；当前Types和两个核已接受实际Address<Package>签名及父来源/贷款。本步只把实际mutable父地址投影到已逐层资格核验的有限子Product，Verify独立核子Product完整真实类型，不能升级shared父权限或替换拥有责任。沿既有AddressField/DescribeAddress与实际父窗口，不新增opcode或登记许可。以普通嵌套Text/String完整机器正例、shared伪造raw/Wire、活view撞clear/父替换反例检查。未泛化到存储Address/Desc叶，不替代随后固定life位置合同。
