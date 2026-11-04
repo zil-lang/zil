@@ -1067,6 +1067,17 @@ impl Expander<'_> {
                 }
                 let id = self.id();
                 self.map_node(id, item.span, ExpansionRole::Source, Vec::new());
+                let fields = a
+                    .fields
+                    .iter()
+                    .map(|f| CoreField {
+                        name: f.name.clone(),
+                        ty: self.dyn_type_ref(&f.ty),
+                        public: f.public,
+                        manages: f.manages,
+                        span: f.span,
+                    })
+                    .collect();
                 self.aggregates.push(CoreAggregate {
                     teardown: self.drop_implementations.get(&a.name).cloned(),
                     id,
@@ -1076,17 +1087,7 @@ impl Expander<'_> {
                         s::AggregateKind::Resource => AggregateKind::Resource,
                         s::AggregateKind::Package => AggregateKind::Package,
                     },
-                    fields: a
-                        .fields
-                        .iter()
-                        .map(|f| CoreField {
-                            name: f.name.clone(),
-                            ty: type_ref(&f.ty),
-                            public: f.public,
-                            manages: f.manages,
-                            span: f.span,
-                        })
-                        .collect(),
+                    fields,
                     span: item.span,
                 });
                 let host = Type::Named(a.name.clone());

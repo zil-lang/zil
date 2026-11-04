@@ -194,6 +194,8 @@ pub(super) fn normalize_with_budget<'a>(
                 // Outgoing inventory movement and the later preparation visit.
                 resolver.budget.identity_work(2, alias.target.span)?;
                 rich_aliases.push(alias.target.clone());
+            } else {
+                rich_pointer::reject_unhandled(&alias.target, &mut resolver.budget, &[])?;
             }
         }
     }

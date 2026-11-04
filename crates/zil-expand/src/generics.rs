@@ -778,6 +778,7 @@ impl<'a> Engine<'a> {
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
         self.products.borrowed_signatures = self.budget.has_borrowed_keys();
+        self.products.storage.borrowed_signatures = self.products.borrowed_signatures;
         self.collect_products(module)?;
         // Aliases are checked even when they have no runtime use. These are
         // complete paid originals retained by alias normalization, not bodies
