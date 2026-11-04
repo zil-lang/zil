@@ -1,4 +1,7 @@
 //! Structurally migrated raw/Wire34 operands from the independent Analyze 253 review.
+#[path = "../../zil-ir/test-support/schema35_fixture.rs"]
+mod schema35_fixture;
+
 use zil_base::{Limits, TargetProfile};
 
 #[test]
@@ -18,6 +21,8 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
             "E-VERIFY-CALLABLE-CONTRACT",
         ),
     ] {
+        let migrated = schema35_fixture::migrate(bytes, &limits);
+        let bytes = migrated.as_slice();
         let (typed, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
         for result in [
             zil_verify::verify_module(typed, plan, &target, &limits),
@@ -30,7 +35,10 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
     // A genuine Fn call borrows its live local before the by-value transfer
     // to Return. The callback's i32 argument stays an actual i32.
     let (mut typed, mut plan) = zil_ir::wire::decode_module_candidate(
-        include_bytes!("../../../tests/impl254/v34/control_callback_i32_argument.wire"),
+        &schema35_fixture::migrate(
+            include_bytes!("../../../tests/impl254/v34/control_callback_i32_argument.wire"),
+            &limits,
+        ),
         &limits,
     )
     .unwrap();

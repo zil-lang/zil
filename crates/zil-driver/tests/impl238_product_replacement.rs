@@ -1,4 +1,7 @@
 //! Author source-to-machine coverage for stable ordinary Product replacement.
+#[path = "../../zil-ir/test-support/schema35_fixture.rs"]
+mod schema35_fixture;
+
 use std::{
     fs,
     path::PathBuf,
@@ -154,7 +157,8 @@ fn review318_nested_missing_child_and_same_root_raw_attacks() {
 fn review318_frozen223_product_parameter_has_real_exclusive_authority() {
     let bytes = include_bytes!("review223_fixtures/v34/mutable-product.wire");
     let limits = Limits::default();
-    let (module, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+    let migrated = schema35_fixture::migrate(bytes, &limits);
+    let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, &limits).unwrap();
     let write = module.functions.iter().find(|f| f.name == "write").unwrap();
     let zil_ir::Type::Address {
         mutable: true,

@@ -1,4 +1,7 @@
 //! Rebuildable Wire34 loan-revival mutation, preserving the historical Wire30/31/32 bytes.
+#[path = "../../zil-ir/test-support/schema35_fixture.rs"]
+mod schema35_fixture;
+
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::InstructionKind;
 
@@ -43,12 +46,10 @@ fn control_and_minimal_transfer_mutation() {
     for errors in [&raw, &wire] {
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
     }
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/impl254/v34/loan_revival.wire"
-    );
-    if std::env::var_os("ZIL_GENERATE_IMPL254_WIRE").is_some() {
-        std::fs::write(path, &bytes).unwrap();
-    }
-    assert_eq!(std::fs::read(path).unwrap(), bytes);
+    let frozen = include_bytes!("../../../tests/impl254/v34/loan_revival.wire");
+    let migrated = schema35_fixture::migrate(frozen, &limits);
+    let errors = zil_verify::verify_module_bytes(&migrated, &target, &limits).unwrap_err();
+    assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+    // Only the test transport migration changes; historical bytes stay immutable.
+    assert_eq!(migrated, bytes);
 }

@@ -90,7 +90,7 @@ fn owned_sum_literal_opcodes_preserve_all_raw_fields_and_truncation_rejects() {
                 "cut={cut}"
             );
         }
-        for unknown in [96, 254] {
+        for unknown in [254, 255] {
             let mut bad = bytes.clone();
             bad[1] = unknown;
             assert_eq!(
