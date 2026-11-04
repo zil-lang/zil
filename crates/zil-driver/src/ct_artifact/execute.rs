@@ -307,7 +307,7 @@ impl<'a> Environment<'a> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let expected = compiler::compile(CompileRequest {
+        let (expected,source_bindings) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: self.target.pointer_width,
             modules: &modules,
             source_fingerprint: self.source_fingerprint,
@@ -393,6 +393,7 @@ impl<'a> Environment<'a> {
             ) {
             Some(value_context::ValueContext::capture(
                 verified.program(),
+                &source_bindings,
                 &mut self.budget,
             )?)
         } else {

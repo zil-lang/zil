@@ -402,6 +402,9 @@ impl<'a> Compiler<'a> {
                     }
                     s::ItemKind::Aggregate(a) => {
                         if !self.checking_generics {
+                            if a.generics.iter().any(|p|matches!(p.kind,s::GenericParamKind::Lifetime)) {
+                                return self.source_scoped_nominal(module,owner,item,args,depth+1,ty.span);
+                            }
                             let arguments = self.source_nominal_arguments(
                                 module,
                                 &a.generics,
@@ -486,6 +489,9 @@ impl<'a> Compiler<'a> {
                     }
                     s::ItemKind::Enum(e) => {
                         if !self.checking_generics {
+                            if e.generics.iter().any(|p|matches!(p.kind,s::GenericParamKind::Lifetime)) {
+                                return self.source_scoped_nominal(module,owner,item,args,depth+1,ty.span);
+                            }
                             let arguments = self.source_nominal_arguments(
                                 module,
                                 &e.generics,

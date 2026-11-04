@@ -106,13 +106,7 @@ impl<'a> Compiler<'a> {
             self.budget.node(span)?;
             match arg {
                 CtSchemaArgument::Type(graph) => self.budget.metadata(graph, span)?,
-                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Ct,
-                        "CT4 scoped instance argument copy is not yet implemented",
-                        Some(span),
-                    )]);
-                }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => self.budget.work(32,span)?,
                 CtSchemaArgument::Scalar(_) => self.budget.work(32, span)?,
             }
         }
@@ -194,6 +188,9 @@ impl<'a> Compiler<'a> {
         depth: usize,
         span: Span,
     ) -> R<CtTy> {
+        self.closed_nominal_context(owner,item,arguments,None,depth,span)
+    }
+    pub(super) fn closed_nominal_context(&mut self,owner:usize,item:&'a s::Item,arguments:Vec<CtSchemaArgument>,context:Option<(CtTypeRef,Vec<u32>)>,depth:usize,span:Span)->R<CtTy> {
         self.budget.depth(depth, span)?;
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(a) if a.kind == s::AggregateKind::Struct => &a.generics,
@@ -205,7 +202,11 @@ impl<'a> Compiler<'a> {
                 ));
             }
         };
-        self.nominal_parameters(parameters, span)?;
+        if context.is_some() {
+            for parameter in parameters {
+                if !matches!(parameter.kind,s::GenericParamKind::Lifetime) {self.nominal_parameters(std::slice::from_ref(parameter),span)?;}
+            }
+        } else {self.nominal_parameters(parameters, span)?;}
         if parameters.len() != arguments.len() {
             return Err(error(span, "closed nominal argument count differs"));
         }
@@ -219,6 +220,13 @@ impl<'a> Compiler<'a> {
                     self.budget.metadata(graph, span)?;
                     metadata_bindings.push((parameter.name.clone(), graph.clone()));
                 }
+                (s::GenericParamKind::Type(_),CtSchemaArgument::TypeInContext(id))=>{
+                    let graph=&context.as_ref().ok_or_else(||error(span,"scoped type actual has no context"))?.0;
+                    let graph=self.metadata_subgraph(graph,*id,span)?;
+                    self.metadata_copy(&graph,depth+1,span)?;
+                    metadata_bindings.push((parameter.name.clone(),graph));
+                }
+                (s::GenericParamKind::Lifetime,CtSchemaArgument::Lifetime(_)) if context.is_some()=>{}
                 (s::GenericParamKind::Const(ty), CtSchemaArgument::Scalar(value)) => {
                     let scalar = self.scalar_argument_type(ty, span)?;
                     self.budget.work(32, span)?;
@@ -261,7 +269,15 @@ impl<'a> Compiler<'a> {
                 } else {
                     &self.enums[id].arguments
                 };
-                if *old_args == arguments {
+                let old_context=if record {&self.records[id].life_context}else{&self.enums[id].life_context};
+                if let Some(graph)=old_context {self.budget.metadata(graph,span)?;}
+                if let Some((graph,_))=&context {self.budget.metadata(graph,span)?;}
+                if *old_args == arguments && old_context.as_ref()==context.as_ref().map(|c|&c.0) {
+                    if let Some((_,parameters))=&context {
+                        let binding=self.source_life_bindings.iter().find(|b|b.enumeration!=record&&b.schema as usize==id).ok_or_else(||error(span,"scoped schema lost its source binding"))?;
+                        self.budget.work(binding.parameters.len()+parameters.len(),span)?;
+                        if &binding.parameters!=parameters {return Err(vec![Diagnostic::unsupported(Phase::Ct,"different ambient lifetimes require distinct serialized source scope identity",Some(span))]);}
+                    }
                     return Ok(if record {
                         CtTy::Record(CtRecordSchemaId(id as u32))
                     } else {
@@ -279,7 +295,7 @@ impl<'a> Compiler<'a> {
             // Only symbolic definitions use the legacy CtTy actual vector.
             self.record_arguments.push(Vec::new());
             self.records.push(CtRecordSchema {
-                life_context: None,
+                life_context:context.as_ref().map(|c|c.0.clone()),
                 name,
                 arguments,
                 fields: Vec::new(),
@@ -292,7 +308,7 @@ impl<'a> Compiler<'a> {
             };
             self.enum_sources.push((owner, e));
             self.enums.push(CtEnumSchema {
-                life_context: None,
+                life_context:context.as_ref().map(|c|c.0.clone()),
                 name,
                 arguments,
                 variants: Vec::new(),
@@ -300,6 +316,11 @@ impl<'a> Compiler<'a> {
             });
             CtTy::Enum(CtEnumSchemaId((self.enums.len() - 1) as u32))
         };
+        if let Some((_,parameters))=context {
+            let definition=self.source_life_scope.as_ref().ok_or_else(||error(span,"scoped schema has no source owner"))?.definition.clone();
+            self.budget.work(parameters.len()+32,span)?;
+            self.source_life_bindings.push(SourceLifeBinding {enumeration:!record,schema:match id {CtTy::Record(id)=>id.0,CtTy::Enum(id)=>id.0,_=>unreachable!()},definition,parameters});
+        }
         let old_meta = std::mem::replace(&mut self.metadata_bindings, metadata_bindings);
         let old_data = std::mem::take(&mut self.bindings);
         let old_scalars = std::mem::replace(&mut self.scalar_bindings, scalar_bindings);

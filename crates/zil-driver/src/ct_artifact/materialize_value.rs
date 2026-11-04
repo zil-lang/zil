@@ -90,14 +90,14 @@ impl Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<s::TypeRef> {
         let before = self.environment.budget.live_temporary_bytes();
-        let graph = context.type_ref(ty, &mut self.environment.budget);
+        let graph = context.type_with_scopes(ty, &mut self.environment.budget);
         let graph_bytes = self
             .environment
             .budget
             .live_temporary_bytes()
             .saturating_sub(before);
         let result = (|| {
-            let graph = graph?;
+            let (graph,scopes) = graph?;
             // Pay the newly generated AST's complete storage independently of
             // the intermediate graph, which is released immediately below.
             let mut name_bytes = 0u64;
@@ -122,7 +122,10 @@ impl Materializer<'_, '_> {
             self.environment.budget.reserve_temporary_bytes(
                 name_bytes.saturating_add((graph.nodes.len() as u64).saturating_mul(256)),
             )?;
-            self.owner_node(&graph, graph.root, module, span, depth + 1)
+            let old=std::mem::replace(&mut self.data_source_scopes,scopes);
+            let result=self.owner_node(&graph, graph.root, module, span, depth + 1);
+            self.data_source_scopes=old;
+            result
         })();
         self.environment.budget.release_temporary_bytes(graph_bytes);
         result

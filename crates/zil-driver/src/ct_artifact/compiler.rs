@@ -264,6 +264,19 @@ enum PendingTypes {
     Data(Vec<CtTy>),
     Metadata(Vec<CtTypeRef>),
 }
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub(crate) struct SourceLifeBinding {
+    pub enumeration:bool,
+    pub schema:u32,
+    pub definition:CtSymbolId,
+    /// Class -> original generic parameter ordinal, including intervening kinds.
+    pub parameters:Vec<u32>,
+}
+struct SourceLifeScope {
+    definition:CtSymbolId,
+    span:Span,
+    binders:Vec<(String,u32)>,
+}
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
@@ -274,6 +287,8 @@ struct Compiler<'a> {
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
     scalar_bindings: Vec<(String, Constant)>,
+    source_life_scope:Option<SourceLifeScope>,
+    source_life_bindings:Vec<SourceLifeBinding>,
     active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
     checking_generics: bool,
@@ -321,6 +336,8 @@ impl<'a> Compiler<'a> {
             bindings: Vec::new(),
             metadata_bindings: Vec::new(),
             scalar_bindings: Vec::new(),
+            source_life_scope:None,
+            source_life_bindings:Vec::new(),
             active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
             checking_generics: false,
@@ -569,6 +586,9 @@ impl<'a> Compiler<'a> {
 }
 
 pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
+    compile_scoped(request).map(|(program,_)|program)
+}
+pub(crate) fn compile_scoped(request:CompileRequest<'_>)->R<(CtArtifactProgram,Vec<SourceLifeBinding>)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
@@ -603,6 +623,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             expected,
             parameters,
         } => {
+            compiler.source_life_scope=compiler.source_life_scope(&definition,expression.span)?;
             let module = compiler.module_index(module, expression.span)?;
             compiler.budget.node(expression.span)?;
             Budget::take(
@@ -662,7 +683,8 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
             .first()
             .map_or(Span::new(zil_base::FileId(0), 0, 0), |m| m.syntax.span),
     )?;
-    Ok(CtArtifactProgram {
+    let source_bindings=std::mem::take(&mut compiler.source_life_bindings);
+    Ok((CtArtifactProgram {
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: request.target_pointer_width,
         source_fingerprint: request.source_fingerprint,
@@ -679,7 +701,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
         input_tokens: request.input_tokens.clone(),
         snapshot: request.snapshot.clone(),
         budget: compiler.budget.declared(),
-    })
+    },source_bindings))
 }
 
 /// The raw program retains the shared remaining ledger across classification.
@@ -761,3 +783,6 @@ mod scalar_arguments;
 
 #[path = "compiler_metadata_copy.rs"]
 mod metadata_copy;
+
+#[path = "compiler_scoped_metadata.rs"]
+mod scoped_metadata;
