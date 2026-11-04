@@ -92,6 +92,7 @@ fn specialize_products_prepared<'a>(
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     let mut has_defaults = false;
+    let mut has_associated = false;
     let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
@@ -100,8 +101,10 @@ fn specialize_products_prepared<'a>(
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
-            has_defaults |=
-                trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            let (defaults, associated) =
+                trait_defaults::features(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            has_associated |= associated;
+            has_defaults |= defaults || associated;
             has_defaults |= !declaration.bounds.is_empty();
         }
         if let ItemKind::Impl(implementation) = &item.kind
@@ -172,6 +175,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
+            has_associated,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -187,8 +191,16 @@ fn specialize_products_prepared<'a>(
                 &aliased.pattern_types,
                 budget,
                 products,
+                has_associated,
             ),
-            None => specialize_with_budget(&normalized, limits, &BTreeMap::new(), budget, products),
+            None => specialize_with_budget(
+                &normalized,
+                limits,
+                &BTreeMap::new(),
+                budget,
+                products,
+                has_associated,
+            ),
         }
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -218,6 +230,7 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
+            has_associated,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -233,18 +246,28 @@ fn specialize_products_prepared<'a>(
     {
         return Ok(Cow::Borrowed(module));
     }
-    specialize_with_budget(module, limits, &BTreeMap::new(), names_budget, products)
-        .map(Cow::Owned)
-        .map_err(|error| vec![error])
+    specialize_with_budget(
+        module,
+        limits,
+        &BTreeMap::new(),
+        names_budget,
+        products,
+        has_associated,
+    )
+    .map(Cow::Owned)
+    .map_err(|error| vec![error])
 }
 
 fn specialize_with_budget<'a>(
     module: &'a Module,
     limits: &'a Limits,
     pattern_types: &'a BTreeMap<String, TypeRef>,
-    budget: Budget<'a>,
+    mut budget: Budget<'a>,
     products: &mut products::Products,
+    has_associated: bool,
 ) -> R<Module> {
+    let prepared = trait_bounds::associated::prepare(module, has_associated, &mut budget)?;
+    let module = prepared.as_ref().unwrap_or(module);
     let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
@@ -872,6 +895,15 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
+            *ty = self.traits.normalize_associated(
+                ty,
+                &trait_bounds::Bounds::new(),
+                &BTreeSet::new(),
+                &mut self.budget,
+            )?;
+            return self.ty(ty, depth + 1);
+        }
         match &mut ty.kind {
             TypeKind::Named { path, args } => {
                 let mut values = Vec::new();
@@ -1082,6 +1114,19 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.complete_trait_defaults(i, item.span)?;
+                let source_target = if self.traits.has_associated {
+                    self.budget.ty(&i.target)?;
+                    self.budget.text("Self", item.span)?;
+                    let substitutions = BTreeMap::from([("Self".into(), i.target.clone())]);
+                    for member in &mut i.members {
+                        self.budget.substituted_item(member, &substitutions)?;
+                        substitute_item(member, &substitutions)?;
+                    }
+                    self.budget.ty(&i.target)?;
+                    Some(i.target.clone())
+                } else {
+                    None
+                };
                 self.ty(&mut i.target, 0)?;
                 if self.traits.has_instances
                     && let Some(application) = &i.trait_type
@@ -1090,7 +1135,7 @@ impl<'a> Engine<'a> {
                 {
                     let reference = self.traits.reference(application, &mut self.budget)?;
                     let (_, declaration) = self.traits.declaration_item(&reference);
-                    if !declaration.generics.is_empty() {
+                    if !declaration.generics.is_empty() || self.traits.has_associated {
                         let mut implemented = BTreeSet::new();
                         for member in &i.members {
                             let ItemKind::Function(actual) = &member.kind else {
@@ -1119,6 +1164,9 @@ impl<'a> Engine<'a> {
                                 }
                             }
                             if let Some(required) = required {
+                                if self.traits.has_associated && declaration.generics.is_empty() {
+                                    self.budget.item(required)?;
+                                }
                                 let mut signature = trait_instances::signature(
                                     declaration,
                                     required,
@@ -1126,6 +1174,26 @@ impl<'a> Engine<'a> {
                                     &mut self.budget,
                                 )?
                                 .into_owned();
+                                if let Some(source_target) = &source_target {
+                                    self.budget.text("Self", member.span)?;
+                                    self.budget.ty(source_target)?;
+                                    let substitutions =
+                                        BTreeMap::from([("Self".into(), source_target.clone())]);
+                                    for p in &mut signature.params {
+                                        self.budget.substituted_type(&p.ty, &substitutions)?;
+                                        Substitution {
+                                            substitutions: &substitutions,
+                                        }
+                                        .ty(&mut p.ty);
+                                    }
+                                    if let Some(t) = &mut signature.return_type {
+                                        self.budget.substituted_type(t, &substitutions)?;
+                                        Substitution {
+                                            substitutions: &substitutions,
+                                        }
+                                        .ty(t);
+                                    }
+                                }
                                 for p in &mut signature.params {
                                     self.ty(&mut p.ty, 0)?;
                                 }
@@ -1179,6 +1247,10 @@ impl<'a> Engine<'a> {
                 }
                 for item in &mut i.members {
                     self.item(item)?;
+                }
+                if self.traits.has_associated {
+                    i.members
+                        .retain(|member| !matches!(member.kind, ItemKind::TypeAlias(_)));
                 }
             }
             _ => {}
@@ -2085,6 +2157,11 @@ impl<'a> Engine<'a> {
                                 };
                                 if let (Some(result), Some(expected)) =
                                     (&function.return_type, expected)
+                                    && (!self.traits.has_associated
+                                        || !trait_bounds::associated::contains(
+                                            result,
+                                            &mut self.budget,
+                                        )?)
                                 {
                                     let expected = self.original_type(expected)?;
                                     unify(
@@ -2183,6 +2260,11 @@ impl<'a> Engine<'a> {
                             };
                             if let (Some(result), Some(expected)) =
                                 (&function.return_type, expected)
+                                && (!self.traits.has_associated
+                                    || !trait_bounds::associated::contains(
+                                        result,
+                                        &mut self.budget,
+                                    )?)
                             {
                                 let expected = self.original_type(expected)?;
                                 unify(
@@ -3069,6 +3151,14 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
             if let Some(t) = &mut f.return_type {
                 visitor.ty(t);
             }
+            for clause in &mut f.where_clause {
+                if let BoundSubject::Type(subject) = &mut clause.subject {
+                    visitor.ty(subject);
+                }
+                for bound in &mut clause.bounds {
+                    visitor.ty(bound);
+                }
+            }
             let mut scoped = Cow::Borrowed(substitutions);
             for parameter in &f.params {
                 if let Cow::Owned(next) = consts::scoped_name(&parameter.name, &scoped) {
@@ -3109,6 +3199,14 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
                 }
             }
         }
+        ItemKind::TypeAlias(alias) => {
+            for bound in &mut alias.bounds {
+                visitor.ty(bound);
+            }
+            if let Some(value) = &mut alias.value {
+                visitor.ty(value);
+            }
+        }
         _ => {}
     }
     Ok(())
@@ -3116,12 +3214,27 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
 struct Substitution<'a> {
     substitutions: &'a BTreeMap<String, TypeRef>,
 }
+fn substitution_name<'a>(path: &'a [String]) -> Cow<'a, str> {
+    if path.len() == 1 {
+        Cow::Borrowed(&path[0])
+    } else {
+        Cow::Owned(path.join("."))
+    }
+}
 impl Substitution<'_> {
     fn ty(&self, ty: &mut TypeRef) {
+        if trait_bounds::associated::parts(ty).is_some()
+            && let Ok(key) = trait_bounds::associated::equation_key(ty)
+            && let Some(value) = self.substitutions.get(&key)
+        {
+            let span = ty.span;
+            *ty = value.clone();
+            ty.span = span;
+            return;
+        }
         if let TypeKind::Named { path, args } = &ty.kind
-            && path.len() == 1
             && args.is_empty()
-            && let Some(value) = self.substitutions.get(&path[0])
+            && let Some(value) = self.substitutions.get(substitution_name(path).as_ref())
             && consts::expression(value).is_none()
         {
             let span = ty.span;

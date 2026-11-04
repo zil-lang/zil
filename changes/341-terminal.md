@@ -123,3 +123,35 @@ type traversal against a prepaid binder set and prepays each shadow scan. Exact
 boundary increases are reported in the receipt; request limits are unchanged.
 Associated projection construction remains a separate work stream and is not
 part of this accounting checkpoint.
+
+
+The associated type checkpoint represents each projection as a private opaque
+atom containing its actual symbolic host, trait identity, ordered arguments and
+member. Generic definition checking obtains Copy, StoreElement or nominal
+qualifications only from that associated declaration. Impl equations cannot
+rescue unused bodies. Required/default equations and their declared bounds are
+checked before use, including unused definitions, aliases, acyclic chains,
+cycles, unbounded/non-Copy RHS values, duplicate members and argument formation.
+Lexical module normalization preserves a renamed binder root through `T.Item`.
+Trait and impl binder substitutions remain distinct when their spellings match.
+
+The concrete normalizer uses the same active-goal set as impl premise solving.
+It reads an equation only after the selected witness's complete premise tree
+has succeeded. A separate definition-local equation map checks method
+conformance under the declaration's assumptions and never enters candidate
+proof evidence. Static publication freezes ordinary concrete signatures and
+removes associated impl members; Core/Typed/Wire retain their existing schema.
+The retained source selects two associated results and machine signatures on one
+Self through distinct ordered trait instances. Local and project sources reach
+actual Clang and LLVM API O0/O2, raw Types/Analyze/Verify and Wire verification.
+Exact request N/N−1, cold/warm/fresh and persisted-cache controls are recorded.
+The two existing targets pass 19 + 54 tests; eleven focused controls pass.
+
+Associated constants, generic methods, generic associated items and remaining
+qualified/applied/nested projection forms remain active obligations. Root also
+requested explicit ordinary generic Type/Syntax-return and concrete generic
+record CT/reflection coverage; the existing CT compiler controls and concrete
+native Type selectors are not a claim that those whole bridges are complete.
+Rust safety and actual static machine behavior have the limited evidence above;
+runtime/RSS, maintenance and compile-cost comparisons and product gates remain
+unmeasured. Independent review of this associated checkpoint is pending.

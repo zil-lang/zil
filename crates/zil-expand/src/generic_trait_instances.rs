@@ -208,8 +208,35 @@ pub(crate) fn validate_declaration(
             }
         }
     }
+    let mut members = BTreeSet::new();
     for member in &declaration.members {
         budget.node(member.span, 0)?;
+        let member_name = match &member.kind {
+            ItemKind::Function(f) => Some(f.name.as_str()),
+            ItemKind::TypeAlias(a) => Some(a.name.as_str()),
+            _ => None,
+        };
+        if let Some(name) = member_name {
+            budget.text(name, member.span)?;
+            if !members.insert(name) {
+                return Err(error(member.span, "duplicate trait member"));
+            }
+        }
+        if let ItemKind::TypeAlias(alias) = &member.kind {
+            if !alias.generics.is_empty() || !member.attributes.is_empty() {
+                return Err(unsupported(
+                    member.span,
+                    "generic or attributed associated type",
+                ));
+            }
+            if let Some(value) = &alias.value {
+                known_type(value, &variables, nominals, budget, 0)?;
+            }
+            for bound in &alias.bounds {
+                budget.ty(bound)?;
+            }
+            continue;
+        }
         let ItemKind::Function(method) = &member.kind else {
             return Err(unsupported(
                 member.span,
@@ -245,6 +272,18 @@ pub(crate) fn known_type(
     match &ty.kind {
         TypeKind::Named { path, args } => {
             budget.ty(ty)?;
+            if let Some((_, host, application)) = trait_bounds::associated::parts(ty) {
+                known_type(host, variables, nominals, budget, depth + 1)?;
+                let TypeKind::Named { args, .. } = &application.kind else {
+                    unreachable!()
+                };
+                for argument in args {
+                    if let GenericArg::Type(argument) = argument {
+                        known_type(argument, variables, nominals, budget, depth + 1)?;
+                    }
+                }
+                return Ok(());
+            }
             if path.len() != 1 {
                 return Err(error(
                     ty.span,

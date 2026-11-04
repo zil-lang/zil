@@ -2,6 +2,8 @@
 //! immutable during specialization and never treats a same-named method as an
 //! implementation. All emitted calls still enter Types and independent Verify.
 use super::*;
+#[path = "generic_trait_associated.rs"]
+pub(super) mod associated;
 #[path = "generic_trait_solver.rs"]
 mod solver;
 #[path = "generic_trait_super.rs"]
@@ -17,6 +19,7 @@ pub(super) struct Index<'a> {
     pub(super) has_instances: bool,
     pub(super) has_defaults: bool,
     has_supertraits: bool,
+    pub(super) has_associated: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
@@ -111,6 +114,7 @@ impl<'a> Index<'a> {
         let mut has_instances = false;
         let mut has_defaults = false;
         let mut has_supertraits = false;
+        let mut has_associated = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -138,11 +142,13 @@ impl<'a> Index<'a> {
                     has_instances = true;
                 }
                 ItemKind::Trait(declaration) => {
-                    let defaults = trait_defaults::present(declaration, budget)?;
+                    let (defaults, associated) = trait_defaults::features(declaration, budget)?;
+                    has_associated |= associated;
                     has_defaults |= defaults;
                     has_supertraits |= !declaration.bounds.is_empty();
                     has_instances |= !declaration.generics.is_empty()
                         || defaults
+                        || associated
                         || !declaration.bounds.is_empty();
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
@@ -166,6 +172,7 @@ impl<'a> Index<'a> {
             has_instances,
             has_defaults,
             has_supertraits,
+            has_associated,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
@@ -173,20 +180,62 @@ impl<'a> Index<'a> {
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() || has_defaults || has_supertraits {
+                if !declaration.generics.is_empty()
+                    || has_defaults
+                    || has_supertraits
+                    || has_associated
+                {
                     trait_instances::validate_declaration(
                         item,
                         declaration,
                         &index.nominals,
                         budget,
                     )?;
-                    let bounds = index.parameter_bounds(&declaration.generics, budget)?;
+                    let mut bounds = index.parameter_bounds(&declaration.generics, budget)?;
+                    if has_associated {
+                        let mut arguments = Vec::new();
+                        for parameter in &declaration.generics {
+                            budget.text(&parameter.name, parameter.span)?;
+                            arguments
+                                .push(GenericArg::Type(named(&parameter.name, parameter.span)));
+                        }
+                        budget.text(&declaration.name, item.span)?;
+                        let application = TypeRef {
+                            kind: TypeKind::Named {
+                                path: vec![declaration.name.clone()],
+                                args: arguments,
+                            },
+                            span: item.span,
+                        };
+                        let reference = index.pattern_reference(&application, budget)?;
+                        budget.text("Self", item.span)?;
+                        let inherited = index.inherited_bounds(
+                            vec![Bound::Nominal(reference)],
+                            "Self",
+                            budget,
+                            item.span,
+                        )?;
+                        bounds.insert("Self".into(), inherited);
+                        index.associated_bounds(&mut bounds, budget)?;
+                    }
                     let variables = declaration
                         .generics
                         .iter()
                         .map(|p| p.name.clone())
                         .chain(std::iter::once("Self".to_owned()))
                         .collect();
+                    if has_associated
+                        && let Some(Bound::Nominal(reference)) =
+                            bounds.get("Self").and_then(|b| b.first())
+                    {
+                        index.validate_associated_defaults(
+                            declaration,
+                            reference,
+                            &bounds,
+                            &variables,
+                            budget,
+                        )?;
+                    }
                     for member in &declaration.members {
                         if let ItemKind::Function(method) = &member.kind {
                             for parameter in &method.params {
@@ -256,7 +305,7 @@ impl<'a> Index<'a> {
                 index.references.insert(key, reference);
             }
         }
-        if validate && !index.recipes.is_empty() {
+        if validate && (!index.recipes.is_empty() || has_associated) {
             for (item, declaration) in index.declarations.values() {
                 trait_instances::validate_declaration(item, declaration, &index.nominals, budget)?;
             }
@@ -360,6 +409,9 @@ impl<'a> Index<'a> {
         }
         for member in &declaration.members {
             budget.node(member.span, 0)?;
+            if matches!(member.kind, ItemKind::TypeAlias(_)) {
+                continue;
+            }
             let ItemKind::Function(method) = &member.kind else {
                 return Err(unsupported(
                     member.span,
@@ -531,6 +583,9 @@ impl<'a> Index<'a> {
                 };
                 result.insert(parameter.name.clone(), names);
             }
+        }
+        if self.has_associated {
+            self.associated_bounds(&mut result, budget)?;
         }
         Ok(result)
     }
@@ -887,8 +942,18 @@ impl<'a> Index<'a> {
         let mut pending = vec![ty];
         while let Some(ty) = pending.pop() {
             budget.node(ty.span, 0)?;
+            if associated::parts(ty).is_some() {
+                self.normalize_associated(ty, available, variables, budget)?;
+                continue;
+            }
             match &grouped(ty).kind {
                 TypeKind::Named { path, args } => {
+                    if path.len() != 1 || path.as_slice() == ["$ambiguous_associated_projection"] {
+                        return Err(error(
+                            ty.span,
+                            "associated type requires one unambiguous declared trait bound",
+                        ));
+                    }
                     if path.as_slice() == [stores::BOUND] {
                         return Err(error(ty.span, "StoreElement is a bound, not a value type"));
                     }
