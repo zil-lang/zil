@@ -223,7 +223,8 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                 budget.spend(1)?;
                 let target = match i.kind {
                     InstructionKind::Call { function, .. }
-                    | InstructionKind::FunctionRef { function } => Some(function),
+                    | InstructionKind::FunctionRef { function }
+                    | InstructionKind::ForeignFunctionRef { function } => Some(function),
                     InstructionKind::WithScopedThread { worker, .. } => Some(worker),
                     _ => None,
                 };

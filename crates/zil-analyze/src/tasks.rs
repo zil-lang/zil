@@ -260,7 +260,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 budget.spend(1, "Suspend Direct boundary exclusion")?;
                 let direct = match i.kind {
                     InstructionKind::Call { function, .. }
-                    | InstructionKind::FunctionRef { function } => Some(function),
+                    | InstructionKind::FunctionRef { function }
+                    | InstructionKind::ForeignFunctionRef { function } => Some(function),
                     InstructionKind::WithScopedThread { worker, .. } => Some(worker),
                     _ => None,
                 };

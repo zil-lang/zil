@@ -157,3 +157,11 @@ libraries and the changed test target pass lint.
 | Expression and maintenance | Ordinary source branches, loops, owner moves and mutable helper parameters resume after poll returns. General owned spills, public SABI, registration and wakers remain under construction. |
 | Compile cost | New work consumes the existing cumulative balance, including parallel lowering. Matched Rust compile-cost comparison is unmeasured. |
 | At least one advance | Source suspension now produces a real persistent native continuation; no product-level four-goal or net-performance conclusion follows. |
+
+Independent review of the first scalar candidate found a missing Direct boundary:
+`c_callback(yielding_worker)` could still create `ForeignFunctionRef`. Both
+kernels now reject that target using their independently derived Suspend graph.
+The retained original source and a tenth raw/decoded-Wire mutation exercise this
+case. Its ordinary non-Suspend static callback neighbor is accepted and builds
+on both backends at O0/O2. The first candidate is superseded by this correction;
+its passing tests alone did not establish that boundary.

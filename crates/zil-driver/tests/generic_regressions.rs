@@ -2553,6 +2553,7 @@ fn task343_native_yields_resume_once() {
         include_str!("../../../tests/language-readiness/terminal/343/task-cancel.zil"),
         include_str!("../../../tests/language-readiness/terminal/343/task-unused.zil"),
         include_str!("../../../tests/language-readiness/terminal/343/task-move.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-static-callback.zil"),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -2600,6 +2601,7 @@ fn task343_native_yields_resume_once() {
 #[test]
 fn task343_source_rejects_direct_paths_and_overlapping_heads() {
     for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/task-reject-foreign-ref.zil"),
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let f:fn(i32)->i32=worker;return f(7)}",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let r=thread_scope(worker,7,()->i32=>0);return r.1}",
@@ -2646,7 +2648,7 @@ fn task343_raw_wire_and_exact_kernel_budgets() {
         .iter()
         .position(|f| f.name == "main")
         .unwrap();
-    for variant in 0..9 {
+    for variant in 0..10 {
         let mut forged = typed.clone();
         match variant {
             0 => {
@@ -2730,6 +2732,22 @@ fn task343_raw_wire_and_exact_kernel_budgets() {
             8 => {
                 let duplicate = forged.resources[0].clone();
                 forged.resources.push(duplicate);
+            }
+            9 => {
+                let op = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::TaskValid { .. }))
+                    .unwrap();
+                op.kind = I::ForeignFunctionRef {
+                    function: zil_ir::FunctionId(worker as u32),
+                };
+                let result = op.result.unwrap();
+                forged.functions[main].values[result.0 as usize] = Type::ForeignCallback {
+                    parameters: vec![Type::I32],
+                    result: Box::new(Type::I32),
+                };
             }
             _ => unreachable!(),
         }
