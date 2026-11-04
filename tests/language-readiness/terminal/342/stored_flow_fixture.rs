@@ -1527,7 +1527,7 @@ pub(super) fn captured_fixed_helper(kind: CallableKind, wrong_actual: bool) -> T
         }]),
     });
     let caller = &mut m.functions[1];
-    caller.values.push(env);
+    if !once { caller.values.push(env); }
     // Replace direct invocation with an actual ordinary helper Call.
     caller.blocks[0].instructions.pop();
     if !once {
