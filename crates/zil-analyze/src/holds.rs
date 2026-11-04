@@ -3,6 +3,7 @@
 //! states and roots are introduced only by executable borrow/capture operations.
 use super::*;
 use std::collections::BTreeMap;
+mod captured_lending;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
@@ -678,15 +679,24 @@ fn capture_transition(
 
 // Actual pattern projections carry their own fresh window. The parent address
 // delegates authority; sibling windows still require real disjoint intervals.
+struct PatternFacts<'a> {
+    values: &'a [Roots],
+    state: &'a State,
+    captures: Option<&'a captured_lending::Facts>,
+}
 fn pattern_window_transition(
     module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
-    values: &[Roots],
-    state: &State,
+    facts: PatternFacts<'_>,
     live: &resources::Live,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let PatternFacts {
+        values,
+        state,
+        captures,
+    } = facts;
     let projected =
         |address: ValueId, path: &[VariantProjection], b: &mut Budget| -> CompileResult<Roots> {
             b.spend(values[address.0 as usize].len(), "pattern projected roots")?;
@@ -840,7 +850,11 @@ fn pattern_window_transition(
         }
         if overlaps(&roots, held, b)? {
             if let Some(parent) = parent
-                && delegated(f, parent, *active, b)?
+                && if let Some(captures) = captures {
+                    captured_lending::delegated(f, parent, *active, captures, b)?
+                } else {
+                    delegated(f, parent, *active, b)?
+                }
             {
                 continue;
             }
@@ -1494,7 +1508,7 @@ fn infer_with_private(
             budget.spend(1, "owned callback window function lookup")?;
             budget.owned_callback_window_functions[f.id.0 as usize]
         };
-    let mut pattern_windows = false;
+    let mut pattern_windows = budget.owning_address_captures;
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
@@ -1555,6 +1569,19 @@ fn infer_with_private(
     };
     loop {
         let mut changed = false;
+        let capture_facts = if budget.owning_address_captures {
+            Some(captured_lending::reconstruct(
+                module,
+                f,
+                predecessors,
+                reachable,
+                &values,
+                summaries,
+                budget,
+            )?)
+        } else {
+            None
+        };
         for (b, block) in f.blocks.iter().enumerate() {
             budget.spend(1, "Hold fixed point")?;
             if !reachable[b] {
@@ -1601,6 +1628,11 @@ fn infer_with_private(
                     }
                 }
             }
+            let mut capture_state = if let Some(facts) = &capture_facts {
+                captured_lending::input(facts, b, budget)?
+            } else {
+                captured_lending::Locals::new()
+            };
             for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
                 if !capture_afters.is_empty() {
@@ -1629,8 +1661,11 @@ fn infer_with_private(
                         module,
                         f,
                         instruction,
-                        &values,
-                        &state,
+                        PatternFacts {
+                            values: &values,
+                            state: &state,
+                            captures: capture_facts.as_ref(),
+                        },
                         &address_afters[b][position],
                         budget,
                     )?;
@@ -1835,7 +1870,22 @@ fn infer_with_private(
                                 matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
                             }) =>
                         {
-                            found.insert(Root::Local(*callee));
+                            if capture_facts.is_some() {
+                                let d = captured_lending::entry(module, f, &instruction.kind)
+                                    .ok_or_else(|| bad("lending closure missing"))?;
+                                budget
+                                    .lookup(capture_state.len(), "external lending actual local")?;
+                                let environment = Roots::from([Root::Local(*callee)]);
+                                found = captured_lending::result(
+                                    d,
+                                    &summaries[d.function.0 as usize],
+                                    capture_state.get(callee),
+                                    &environment,
+                                    budget,
+                                )?;
+                            } else {
+                                found.insert(Root::Local(*callee));
+                            }
                         }
                         InstructionKind::CallClosureBorrowed { callee, .. }
                             if instruction.result.is_some_and(|value| {
@@ -1845,7 +1895,19 @@ fn infer_with_private(
                             let actual = values
                                 .get(callee.0 as usize)
                                 .ok_or_else(|| bad("lending callee outside value table"))?;
-                            extend(&mut found, actual, budget)?;
+                            if let Some(captures) = &capture_facts {
+                                let d = captured_lending::entry(module, f, &instruction.kind)
+                                    .ok_or_else(|| bad("borrowed lending closure missing"))?;
+                                found = captured_lending::result(
+                                    d,
+                                    &summaries[d.function.0 as usize],
+                                    Some(&captures.values[callee.0 as usize]),
+                                    actual,
+                                    budget,
+                                )?;
+                            } else {
+                                extend(&mut found, actual, budget)?;
+                            }
                         }
                         InstructionKind::CallIndirect { callee, arguments } => {
                             let ty = f
@@ -1911,6 +1973,14 @@ fn infer_with_private(
                         .get_mut(result.0 as usize)
                         .ok_or_else(|| bad("Hold result outside table"))?;
                     changed |= extend(value, &found, budget)?;
+                }
+                if let Some(captures) = &capture_facts {
+                    captured_lending::local_step(
+                        &mut capture_state,
+                        instruction,
+                        &captures.values,
+                        budget,
+                    )?;
                 }
                 if thread_windows {
                     changed |= thread_access_step(
@@ -3133,7 +3203,16 @@ fn infer_module_inner(
                 let callee = match instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
                     _ => super::borrowed_fp::invocation_call(module, function, &instruction.kind)
-                        .map(|(d, _)| d.function),
+                        .map(|(d, _)| d.function)
+                        .or_else(|| {
+                            budget
+                                .owning_address_captures
+                                .then(|| {
+                                    captured_lending::entry(module, function, &instruction.kind)
+                                })
+                                .flatten()
+                                .map(|d| d.function)
+                        }),
                 };
                 if let Some(callee) = callee
                     && instruction.result.is_some_and(|value| {
@@ -3167,7 +3246,9 @@ fn infer_module_inner(
         TEST_SOLVES.with(|n| n.set(n.get() + 1));
         let function = &module.functions[index];
         let (predecessors, reachable) = &graphs[index];
-        let values = infer(
+        let mut actual = Vec::new();
+        let capture_returns = budget.owning_address_captures;
+        let values = infer_with_private(
             module,
             &summaries,
             function,
@@ -3178,6 +3259,7 @@ fn infer_module_inner(
                 .is_some_and(|id| store_profiles.get(id.0 as usize).copied().unwrap_or(false))
                 || ordinary_store_function(index, budget)?,
             budget,
+            capture_returns.then_some(&mut actual),
         )?;
         let mut changed = false;
         if matches!(function.return_type, Type::Address { .. }) {
@@ -3192,6 +3274,19 @@ fn infer_module_inner(
                         budget.spend(1, "return parameter origin")?;
                         if let HoldRoot::Parameter(index) = root {
                             result.insert(Root::Parameter(*index));
+                        }
+                    }
+                    if capture_returns {
+                        let row = &actual[value.0 as usize];
+                        budget.spend(row.len(), "external lending concrete return roots")?;
+                        for root in row {
+                            if matches!(
+                                root.position(),
+                                Root::Capture(_) | Root::Window(HoldRoot::Capture(_), ..)
+                            ) {
+                                budget.lookup(result.len(), "external lending return summary")?;
+                                result.insert(*root);
+                            }
                         }
                     }
                 }
@@ -3287,6 +3382,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    storage_life: None,
                     call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
@@ -3317,6 +3413,11 @@ mod frontier_tests {
             })
             .collect();
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: zil_base::ModuleId(0),
@@ -3544,6 +3645,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(id),
@@ -3571,6 +3673,11 @@ mod product_parameter_dependency_tests {
             callable_return_contract: None,
         };
         let mut module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
@@ -4070,6 +4177,7 @@ fn mixed_address_root(
     Ok(match root {
         Root::Local(l) => Root::Projection(l, start, end),
         Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+        Root::Capture(c) => Root::Window(HoldRoot::Capture(c), start, end),
         Root::Projection(l, offset, limit) => {
             let a = offset
                 .checked_add(start)

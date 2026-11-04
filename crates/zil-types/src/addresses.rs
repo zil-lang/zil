@@ -310,6 +310,7 @@ impl Builder<'_, '_> {
                     ));
                 }
                 if !decl.ty.is_copy_value()
+                    && !stored::shared_value(&decl.ty)
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
                     && !(mutable
@@ -347,6 +348,7 @@ impl Builder<'_, '_> {
             } => {
                 let result = self.expr(operand, None)?;
                 if !matches!(&result.1, Type::Address { inner, .. } if inner.is_address_pointee())
+                    && !stored::shared_address(&result.1)
                     && !result.1.is_shared_resource_head_address()
                     && !result.1.is_package_address()
                     && !reference_patterns::sum_address(&result.1)
@@ -557,7 +559,11 @@ impl Builder<'_, '_> {
             )),
         }
     }
-    fn projection_base(&mut self, object: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
+    pub(super) fn projection_base(
+        &mut self,
+        object: &CoreExpr,
+        mutable: bool,
+    ) -> R<(ValueId, Type)> {
         if matches!(self.known_type(object), Some(Type::Address { .. }))
             || dynamic_store::borrow_expression(object)
         {

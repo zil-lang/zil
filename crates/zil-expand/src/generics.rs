@@ -36,6 +36,8 @@ pub(super) mod record_enums;
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_nominal.rs"]
+mod stored_nominal;
 #[path = "generic_store.rs"]
 mod stores;
 #[path = "generic_trait_bounds.rs"]
@@ -84,11 +86,24 @@ pub(super) fn specialize_products<'a>(
     limits: &Limits,
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
+    specialize_products_with_context(module, limits, products, None)
+}
+pub(super) fn specialize_products_with_context<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products, true)
-            .map(|module| Cow::Owned(module.into_owned())),
-        None => specialize_products_prepared(module, &remaining, products, false),
+        Some(prepared) => {
+            specialize_products_prepared(&prepared, &remaining, products, true, context)
+                .map(|module| Cow::Owned(module.into_owned()))
+        }
+        None => specialize_products_prepared(module, &remaining, products, false, context),
     }
 }
 
@@ -97,6 +112,10 @@ fn specialize_products_prepared<'a>(
     limits: &Limits,
     products: &mut products::Products,
     inserted_option: bool,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -155,6 +174,9 @@ fn specialize_products_prepared<'a>(
         }
         for param in params(item) {
             if matches!(param.kind, GenericParamKind::Lifetime) {
+                if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
+                    names_budget.note_source_identity();
+                }
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
@@ -167,7 +189,7 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods || names_budget.has_dynamic() {
+    if has_generic_methods || names_budget.needs_source_identity() {
         if let Some(origins) = &mut products.origins {
             if inserted_option {
                 origins
@@ -180,6 +202,19 @@ fn specialize_products_prepared<'a>(
                     .map_err(|e| vec![e])?,
             );
         }
+    }
+    if names_budget.needs_source_identity()
+        && let Some((sources, context)) = context
+    {
+        let resolved = context
+            .resolve(sources, &mut names_budget)
+            .map_err(|e| vec![e])?;
+        products
+            .origins
+            .as_mut()
+            .expect("dyn source ledger")
+            .capture_identities(module, inserted_option, &resolved, &mut names_budget)
+            .map_err(|e| vec![e])?;
     }
     if names_budget.has_primitive_binders() && !has_alias {
         // The existing scoped normalizer also protects aliases. Without an
@@ -257,7 +292,7 @@ fn specialize_products_prepared<'a>(
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
-            && !names_budget.has_dynamic()
+            && !names_budget.needs_source_identity()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -282,7 +317,7 @@ fn specialize_products_prepared<'a>(
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
-        && !names_budget.has_dynamic()
+        && !names_budget.needs_source_identity()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -347,6 +382,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    life_scope: Vec<String>,
+    stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
     enums: BTreeMap<String, &'a EnumDecl>,
@@ -435,6 +472,8 @@ impl<'a> Engine<'a> {
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            life_scope: Vec::new(),
+            stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
             trait_calls: trait_instances::Calls::new(),
@@ -562,6 +601,11 @@ impl<'a> Engine<'a> {
                 {
                     continue;
                 }
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && matches!(item.kind, ItemKind::Aggregate(_))
+                {
+                    continue;
+                }
                 // This parameter/name was already charged by item preflight.
                 // Borrow the existing nominal index; do not add a global scan,
                 // name copy or a hygiene pass to the noncolliding old path.
@@ -653,7 +697,12 @@ impl<'a> Engine<'a> {
                 enums::validate_declaration(e, item.span, &engine.nominals, &mut engine.budget)?;
             }
             if let ItemKind::Aggregate(a) = &item.kind {
-                let variables: BTreeSet<_> = a.generics.iter().map(|p| p.name.clone()).collect();
+                let variables: BTreeSet<_> = a
+                    .generics
+                    .iter()
+                    .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+                    .map(|p| p.name.clone())
+                    .collect();
                 let bounds = engine
                     .traits
                     .parameter_bounds(&a.generics, &mut engine.budget)?;
@@ -748,6 +797,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        self.prepare_stored_headers()?;
         let mut output_origins = origins::Origins::default();
         while let Some(origins::Pending {
             mut item,
@@ -767,7 +817,10 @@ impl<'a> Engine<'a> {
             }
             result.items.push(item);
         }
-        self.products.origins = self.origins.map(|_| output_origins);
+        if let Some(original) = self.origins {
+            output_origins.identities = original.copy_identities(&mut self.budget, module.span)?;
+            self.products.origins = Some(output_origins);
+        }
         self.products.allowance = Some(self.budget.remaining_limits());
         *products = std::mem::take(&mut self.products);
         Ok(result)
@@ -1083,6 +1136,15 @@ impl<'a> Engine<'a> {
         }
         match &mut ty.kind {
             TypeKind::Named { path, args } => {
+                if self.stored_nominals
+                    && path.len() == 1
+                    && self.stored_declaration(&path[0], ty.span)?
+                {
+                    let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
+                    *path = vec![name];
+                    args.clear();
+                    return Ok(());
+                }
                 let mut values = Vec::new();
                 let declaration = (path.len() == 1)
                     .then(|| self.templates.get(&path[0]).copied())
@@ -1143,6 +1205,17 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn item(&mut self, item: &mut Item) -> R<()> {
+        let old_life_scope = std::mem::take(&mut self.life_scope);
+        if self.stored_nominals
+            && let ItemKind::Function(function) = &item.kind
+        {
+            for parameter in &function.generics {
+                if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    self.life_scope.push(parameter.name.clone());
+                }
+            }
+        }
         let mut frame = BTreeMap::new();
         if self.traits.has_generic_methods
             && let ItemKind::Function(function) = &item.kind
@@ -1165,11 +1238,19 @@ impl<'a> Engine<'a> {
         let previous = std::mem::replace(&mut self.method_calls, frame);
         let result = self.item_inner(item);
         self.method_calls = previous;
+        self.life_scope = old_life_scope;
         result
     }
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                if self.stored_signature(f)? {
+                    self.budget.function_snapshot(f)?;
+                    self.budget.text(&f.name, f.span)?;
+                    self.stored_lookup_fee(self.signatures.len(), f.name.len(), f.span)?;
+                    self.signatures
+                        .insert(f.name.clone(), Cow::Owned(f.clone()));
+                }
                 let saved_anonymous = self.anonymous_function.take();
                 if self.anonymous_substitutions.contains_key(&f.name) {
                     self.budget.text(&f.name, f.span)?;
@@ -1271,6 +1352,17 @@ impl<'a> Engine<'a> {
                 self.store_parameter = saved_store;
                 self.product_owner = saved_product_owner;
                 self.anonymous_function = saved_anonymous;
+                if self.stored_nominals {
+                    for name in self.products.storage.functions.keys() {
+                        self.budget.text(name, f.span)?;
+                        self.budget.text(&f.name, f.span)?;
+                    }
+                    if self.products.storage.functions.contains_key(&f.name) {
+                        f.generics.retain(|parameter| {
+                            !matches!(parameter.kind, GenericParamKind::Lifetime)
+                        });
+                    }
+                }
             }
             ItemKind::Aggregate(a) => {
                 let saved = (

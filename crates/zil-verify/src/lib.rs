@@ -86,6 +86,7 @@ mod scoped_callback;
 mod scoped_thread;
 mod slices;
 mod stored_borrows;
+mod stored_flow;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
@@ -106,6 +107,7 @@ pub struct VerifiedModule {
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
     task_ownership: Arc<std::collections::BTreeMap<FunctionId, TaskOwnership>>,
@@ -201,6 +203,11 @@ impl VerifiedModule {
     /// program and its actual closed Suspend workers on the current request.
     pub fn uses_retained_registration(&self) -> bool {
         self.uses_retained_registration
+    }
+    /// Enables downstream work reservation for the actual checked profile.
+    /// Layout and instructions must still bind to this immutable module.
+    pub fn uses_stored_borrows(&self) -> bool {
+        self.uses_stored_borrows
     }
     pub fn task_interfaces(&self) -> &[TaskInterface] {
         self.inputs
@@ -301,7 +308,10 @@ struct Budget {
     shared_thread_functions: Option<Vec<bool>>,
     borrowed_function_pointers: bool,
     invocation_callbacks: bool,
+    owning_address_captures: bool,
     head_descriptions: bool,
+    stored_borrows: bool,
+    stored_context: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -323,7 +333,10 @@ impl Budget {
             shared_thread_functions: None,
             borrowed_function_pointers: false,
             invocation_callbacks: false,
+            owning_address_captures: false,
             head_descriptions: false,
+            stored_borrows: false,
+            stored_context: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -425,6 +438,7 @@ fn verify_inputs(
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
             uses_scalar_tasks: checked.uses_scalar_tasks,
             uses_retained_registration: checked.uses_retained_registration,
+            uses_stored_borrows: checked.uses_stored_borrows,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
             task_exports: checked.task_exports,
@@ -482,6 +496,7 @@ struct CheckedModule {
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -500,12 +515,6 @@ fn check_module(
             "E-VERIFY-SCHEMA",
             None,
             "unknown module or candidate schema version",
-        ));
-    }
-    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
-        return Err(unsupported(
-            "stored declaration/instance inventory consumer is not yet implemented",
-            None,
         ));
     }
     check_target(&module.target, expected_target)?;
@@ -553,6 +562,12 @@ fn check_module(
     }
 
     let mut budget = Budget::new(limits);
+    budget.stored_context = true;
+    if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
+        stored_flow::inventory(module, limits, &mut budget)?;
+        stored_flow::inventory(module, limits, &mut budget)?;
+        budget.stored_borrows = true;
+    }
     budget.function_count = module.functions.len();
     resources::check_definitions(module, limits, &mut budget)?;
     for text in [
@@ -567,10 +582,8 @@ fn check_module(
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
         if function.storage_life.is_some() {
-            return Err(unsupported(
-                "stored-borrow signature consumer is not yet implemented",
-                Some(function.span),
-            ));
+            stored_flow::header(function, &mut budget)?;
+            budget.stored_borrows = true;
         }
         budget.current_function = Some(index);
         for ty in std::iter::once(&function.return_type)
@@ -740,6 +753,9 @@ fn check_module(
     }
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
+    if budget.stored_borrows {
+        stored_flow::qualifications(module, limits, &mut budget)?;
+    }
     let fingerprint = module.fingerprint();
     if plan.module_fingerprint != fingerprint
         || plan.target_fingerprint != module.target.fingerprint()
@@ -777,7 +793,14 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    borrows::check_module(module, plan, &graphs, &mut budget)?;
+    if budget.stored_borrows {
+        for f in &module.functions {
+            stored_flow::header(f, &mut budget)?;
+        }
+        stored_flow::check(module, &graphs, plan, &mut budget)?;
+    } else {
+        borrows::check_module(module, plan, &graphs, &mut budget)?;
+    }
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok(CheckedModule {
@@ -785,6 +808,7 @@ fn check_module(
         uses_owned_sum_extension: budget.sums,
         uses_scalar_tasks: budget.tasks,
         uses_retained_registration: budget.registrations,
+        uses_stored_borrows: budget.stored_borrows,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
         task_exports: budget.task_exports,
@@ -948,11 +972,16 @@ fn check_type_shape(
             native_values::target(target, None)?;
         }
         match ty {
-            Type::BorrowedStorage { .. } => {
-                return Err(unsupported(
-                    "stored-borrow type consumer is not yet implemented",
-                    None,
-                ));
+            Type::BorrowedStorage { storage, .. } => {
+                if !budget.stored_context {
+                    return Err(unsupported(
+                        "stored type requires an actual runtime nominal inventory context",
+                        None,
+                    ));
+                }
+                stored_flow::physical(ty, limits, budget)?;
+                budget.stored_borrows = true;
+                pending.push((storage, depth + 1, context));
             }
             Type::Dyn { .. } => {
                 return Err(unsupported(
@@ -1109,6 +1138,9 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
     let mut pending = Vec::new();
     while let Some(ty) = first.take().or_else(|| pending.pop()) {
         match ty {
+            // Qualification and every physical leaf have already passed the
+            // bounded module preflight and exact instance correspondence.
+            Type::BorrowedStorage { .. } => {}
             Type::Unit
             | Type::Bool
             | Type::I32
@@ -1201,6 +1233,9 @@ fn check_signature_type(ty: &Type, span: Option<Span>) -> Check<()> {
         return Ok(());
     }
     match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
+            Ok(())
+        }
         Type::Address { inner, .. } => slices::check_pointee(inner, span),
         _ => check_type(ty, span),
     }
@@ -1257,6 +1292,9 @@ fn check_local_type(
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
     let checked = match ty {
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) => {
+            Ok(())
+        }
         ty if ty.is_shared_sync_cell_address() => Ok(()),
         Type::Closure(id) if (id.0 as usize) < module.closures.len() => Ok(()),
         Type::Closure(_) => Err(reject(
@@ -1752,6 +1790,9 @@ fn check_instruction(
     budget: &mut Budget,
 ) -> Check<()> {
     let span = Some(instruction.span);
+    if budget.stored_borrows {
+        stored_flow::instruction_work(function, instruction, budget)?;
+    }
     let expected = match &instruction.kind {
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
             return Err(unsupported(
@@ -2109,6 +2150,7 @@ fn check_instruction(
                 ));
             };
             let projected = match inner.as_ref() {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
                 Type::Managed(payload)
                     if resources::head_address(value_type(function, *address, span)?) =>
                 {
@@ -2519,7 +2561,11 @@ fn check_instruction(
                 ));
             }
             check_type(ty, span)?;
-            let expected = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let expected = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,

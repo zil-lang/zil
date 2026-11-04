@@ -330,6 +330,7 @@ mod tests {
     // capabilities or claims that an empty CFG is acceptable to the compiler.
     fn typed_function(function: &ast::Function, id: u32, module: u32) -> TypedFunction {
         TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -368,6 +369,11 @@ mod tests {
 
     fn typed(functions: Vec<TypedFunction>) -> TypedModule {
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: zil_base::SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: CURRENT,

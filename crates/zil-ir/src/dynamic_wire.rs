@@ -84,10 +84,6 @@ impl Writer<'_> {
         self.ty(&value.result, 0)?;
         self.dyn_passing_mode(&value.result_mode)?;
         self.dyn_call_kind(&value.call_kind)?;
-        self.boolean(value.invocation_life.is_some())?;
-        if let Some(value) = &value.invocation_life {
-            self.function_life(value)?;
-        }
         self.boolean(value.storage_life.is_some())?;
         if let Some(value) = &value.storage_life {
             self.required_storage_contract(value)?;
@@ -548,11 +544,6 @@ impl Reader<'_> {
             result: self.ty(0)?,
             result_mode: self.dyn_passing_mode()?,
             call_kind: self.dyn_call_kind()?,
-            invocation_life: if self.boolean()? {
-                Some(self.function_life()?)
-            } else {
-                None
-            },
             storage_life: if self.boolean()? {
                 Some(self.required_storage_contract()?)
             } else {

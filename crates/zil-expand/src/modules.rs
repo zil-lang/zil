@@ -257,7 +257,17 @@ pub(super) fn specialize(
     limits: &Limits,
     products: &mut generics::products::Products,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits, products).map_err(|e| vec![e])
+    specialize_with_context(sources, modules, imports, limits, products, None)
+}
+pub(super) fn specialize_with_context(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(sources, modules, imports, limits, products, context).map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
@@ -265,6 +275,7 @@ fn normalize(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
     products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
@@ -292,8 +303,35 @@ fn normalize(
             budget.text(&edge.alias, edge.span)?;
         }
     }
-    let mut origins = (budget.has_generic_methods() || budget.has_dynamic())
+    let mut origins = (budget.has_generic_methods() || budget.needs_source_identity())
         .then(generics::origins::Origins::default);
+    if budget.needs_source_identity()
+        && let Some(context) = context
+    {
+        let resolved = context.resolve(sources, &mut budget)?;
+        for module in modules {
+            let mut snapshot = generics::origins::Origins::single(module, false, &mut budget)?;
+            snapshot.capture_identities(module, false, &resolved, &mut budget)?;
+            let output = origins.as_mut().expect("dyn provenance ledger");
+            for (key, identity) in snapshot.identities {
+                for _ in 0..output
+                    .identities
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                {
+                    budget.node(module.span, 0)?;
+                }
+                if output.identities.insert(key, identity).is_some() {
+                    return Err(error(
+                        "E-SOURCE-IDENTITY",
+                        module.span,
+                        "duplicate source declaration context",
+                    ));
+                }
+            }
+        }
+    }
     let mut index = Index {
         symbols: BTreeMap::new(),
         imports: BTreeMap::new(),
@@ -403,7 +441,9 @@ fn normalize(
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
                 || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())));
     }
-    has_trait_instances |= budget.has_enum_profiles() || budget.has_primitive_binders();
+    has_trait_instances |= budget.has_enum_profiles()
+        || budget.has_primitive_binders()
+        || budget.needs_source_identity();
     let instance_limits = if has_trait_instances {
         budget.remaining_limits()
     } else {
@@ -495,6 +535,25 @@ fn normalize(
         } else {
             files[&item.span.file]
         };
+        if let Some(origins) = &mut products.origins
+            && !origins.identities.is_empty()
+        {
+            let origin = origins.get(ordinal, item.span)?;
+            for _ in 0..origins
+                .modules
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+            {
+                budget.node(item.span, 0)?;
+            }
+            budget.node(item.span, 0)?;
+            origins
+                .modules
+                .entry(output[position].0.id)
+                .or_default()
+                .push(origin);
+        }
         output[position].0.items.push(item);
     }
     for (module, edges) in &mut output {
@@ -533,6 +592,9 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
+    products
+        .storage
+        .restore_functions(&functions, &mut budget)?;
     if has_trait_instances {
         products.allowance = Some(budget.remaining_limits());
     }

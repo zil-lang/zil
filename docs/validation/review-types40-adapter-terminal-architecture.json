@@ -1,0 +1,37 @@
+{
+  "status": "PassLimitedTypes40AdapterWithInterfaceFollowup",
+  "source": "853d2b3932b3738fa032cdc7f812a051aebb0562",
+  "method": "Read-only source review and independent replay of copied parent-built Types unit executable. Current Types production bytes matched853 when copied; no independent rebuild.",
+  "source_binding": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/types40-853-source-binding.json",
+    "sha256": "0924b027624b97a7d2164c5ae2687b7d26d3c82e9145b23479d0fc9cc4926e7f"
+  },
+  "production_files": 435,
+  "production_digest": "2ebbac54bd1076bf0ef6459539d168ad807efc2a047b540faeed0ba375e6be44",
+  "replay": {
+    "harness": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/types40-853-unit",
+      "sha256": "f799b650e316c8666198b950519b268dfff1644b4913b64bba164808165c68c9"
+    },
+    "result": "39 passed,0 failed,0 ignored,0 filtered",
+    "log": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/types40-853-unit.log",
+      "sha256": "d04884832808888a40fb65f812519f8d0894db6a94b935bdf978ae60e67dd54c"
+    },
+    "construction": {
+      "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/types40-853-harness.json",
+      "sha256": "a0e1ba522a1a188ec106f02ead0c29211e2afa7d50e2cf17c64435e7b940c17b"
+    }
+  },
+  "review": [
+    "The flat-only borrowed pointer/role producer validates canonical direct Parameter/Result rows in the rich contract itself. Fixed domains, semantic class rows and nonempty paths remain rejected; no flattening grants support.",
+    "Complete function storage contract rows and paths are prepaid before clone or identity use. This corrects the three row-scan-before-debit sites recorded in review-root-view443-terminal-architecture.json.",
+    "Callable/interface identity domains advance and serialize the full rich relation rather than only former direct labels. Rich source/kernels remain separately implemented."
+  ],
+  "open_finding": {
+    "location": "crates/zil-types/src/program.rs::interface_fingerprint / type_identity(Type::Closure)",
+    "finding": "The added type_snapshot_work prepayment visits a Closure ID as one node, but interface encoding recursively visits that actual definition captures, parameters and result, including nested closure definitions. Its complete width/occurrence cost is not covered by that reservation. New rich closure storage_life and lending_captures also need complete contextual identity as production opens.",
+    "parent_response": "Confirmed; implementing a bounded exact occurrence walk with validated closure IDs/cycle/depth guards and complete metadata encoding, plus exact-budget and identity controls."
+  },
+  "scope": "Actual Types adapter/unit behavior only. No rich callable source/native, CT5 authenticated context, complete interface accounting or whole-language completion."
+}

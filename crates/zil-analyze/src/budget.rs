@@ -23,6 +23,7 @@ pub(super) struct Budget {
     pub(super) helper_depth: usize,
     pub(super) shared_product_capture: bool,
     pub(super) address_capture: bool,
+    pub(super) owning_address_captures: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
@@ -42,6 +43,7 @@ pub(super) struct Budget {
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
+    pub(super) stored_borrows: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -59,6 +61,7 @@ impl Budget {
             helper_depth: limits.max_call_depth,
             shared_product_capture: false,
             address_capture: false,
+            owning_address_captures: false,
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
@@ -77,6 +80,7 @@ impl Budget {
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,
+            stored_borrows: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -152,12 +156,25 @@ impl Budget {
                     None,
                 )]);
             }
-            Type::BorrowedStorage { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "stored-borrow type consumer is not yet implemented",
-                    None,
-                )]);
+            Type::BorrowedStorage { storage, life } => {
+                self.spend(
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_add(1),
+                    context,
+                )?;
+                for row in &life.slots {
+                    self.spend(row.path.len(), context)?;
+                }
+                for row in &life.retained {
+                    self.spend(row.path.len(), context)?;
+                }
+                for row in &life.nominal_arguments {
+                    self.spend(row.path.len(), context)?;
+                }
+                self.type_work(storage, copy_check, context)?;
             }
             Type::Tuple(fields) => {
                 for field in fields {
@@ -297,6 +314,13 @@ fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
 }
 
 pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> CompileResult<()> {
+    // Complete qualified shapes and exact inventory were checked during the
+    // bounded raw preflight. Actual stored permissions use their own CFG pass.
+    if matches!(ty, Type::BorrowedStorage { .. })
+        || matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))
+    {
+        return Ok(());
+    }
     if matches!(ty, Type::Address { inner, .. }
         if super::resources::product::nested(inner))
     {
@@ -503,11 +527,10 @@ pub(super) fn preflight(
         )]);
     }
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "stored declaration/instance inventory consumer is not yet implemented",
-            None,
-        )]);
+        super::stored_flow::inventory(module, limits, budget)?;
+        // The second walk pays identity encoding from this same ledger.
+        super::stored_flow::inventory(module, limits, budget)?;
+        budget.stored_borrows = true;
     }
     count(0, module.functions.len(), limits.max_functions, "function")?;
     budget.input(1, "module preflight")?;
@@ -594,7 +617,6 @@ pub(super) fn preflight(
         // no Store/Sum child; retain that exact profile and fee path.
         let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
             && store_element.is_none()
-            && capture_owner.is_none()
             && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
@@ -684,12 +706,17 @@ pub(super) fn preflight(
                 _ => {}
             }
             match ty {
-                Type::BorrowedStorage { .. } => {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "stored-borrow type consumer is not yet implemented",
-                        None,
-                    )]);
+                Type::BorrowedStorage { storage, .. } => {
+                    super::stored_flow::qualification(module, ty, limits, budget)?;
+                    budget.stored_borrows = true;
+                    pending.push((
+                        storage,
+                        depth + 1,
+                        store_element,
+                        capture_owner,
+                        resource_head,
+                        child,
+                    ));
                 }
                 Type::Dyn { .. } => {
                     return Err(vec![Diagnostic::unsupported(
@@ -912,6 +939,16 @@ pub(super) fn preflight(
             "closure lending capture",
         )?;
         budget.input(closure.lending_captures.len(), "closure lending metadata")?;
+        if closure
+            .lending_captures
+            .iter()
+            .any(|i| *i as usize >= closure.captures.len())
+            || closure.lending_captures.windows(2).any(|w| w[0] >= w[1])
+        {
+            return Err(bad(
+                "closure lending capture indices must be ordered, unique actual slots",
+            ));
+        }
         count(
             0,
             closure.parameters.len(),
@@ -965,6 +1002,23 @@ pub(super) fn preflight(
                         None,
                     )]);
                 }
+                continue;
+            }
+            if let Type::Address { inner, .. } = ty
+                && matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                )
+            {
+                super::resources::sums::admit(module, inner, budget)?;
+                if closure.kind == zil_ir::CallableKind::Fn
+                    && matches!(ty, Type::Address { mutable: true, .. })
+                {
+                    return Err(bad(
+                        "exclusive owning-base capture requires an exclusive environment entry",
+                    ));
+                }
+                budget.owning_address_captures = true;
                 continue;
             }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
@@ -1050,11 +1104,8 @@ pub(super) fn preflight(
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
         if function.storage_life.is_some() {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "stored-borrow signature consumer is not yet implemented",
-                Some(function.span),
-            )]);
+            super::stored_flow::header(function, budget)?;
+            budget.stored_borrows = true;
         }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));

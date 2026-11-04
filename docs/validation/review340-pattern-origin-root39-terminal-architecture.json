@@ -1,0 +1,68 @@
+{
+  "status": "PassLimitedCorrectedGenericPatternOriginsOn39",
+  "source_commit": "03faea4fbc4d3c2b85c1e3bc667d21eb205943ba",
+  "execution_kind": "Independent replay of exact retained author-built LLVM API harnesses; not an independent rebuild. The independent four-crate source rebuild is separately recorded in review340-pattern-origin-correction-terminal-architecture.json.",
+  "binding": {
+    "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-source-binding.json",
+    "source_manifest_sha256": "e68ae63b9f25e5bfcb60f5759e7826e1be1d63ebbf1189111dc4f17cc72227fe",
+    "algorithm": "sorted path UTF8 NUL lowercase SHA256(file bytes) LF",
+    "production_count": 418,
+    "production_sha256": "ad88b3c522cfe0f589c6b060505250353ecf0fa7e2a9efaf171ebf955233d520",
+    "test_count": 17,
+    "test_sha256": "1ef5691e5c308cbc4ad1d6b109ec26aafd14642690840cc27cdd995b1210c0e7",
+    "harness_binding": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-harnesses.json",
+    "harness_binding_sha256": "748874c02178de7d15d7bcdb7b88cf1fdd5e2c2319d5c2db5c8b54d75375dd8e"
+  },
+  "replays": [
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-aggregates",
+      "sha256": "566c9131a68ab34186e3df0b641a26dfebda064776dda921009d90ef482d72c1",
+      "filter": "terminal340",
+      "passed": 40,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-aggregates.log",
+      "log_sha256": "18265c11c5579e7294163fb1de8ecdd98a6b2045ea0def23dcf916c827802763"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-impl187",
+      "sha256": "cd7a223b5421205a6164980d594a43a9c5e5394bb2ee7f76de1b128c6982e74c",
+      "filter": null,
+      "passed": 25,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-impl187.log",
+      "log_sha256": "73f4270bcd08cf458d70af2bb3dcebb9477c13432d6a24b3d1247a24cee3e483"
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-expand",
+      "sha256": "69b902c386fc4cbb9ac3005fbd222735e0ab6730b1e230fe94d3fb656bc94635",
+      "filter": null,
+      "passed": 21,
+      "failed": 0,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-expand.log",
+      "log_sha256": "49f80e1b9e8cd6a0656c37b2a178c4f13a82ffa546b8daf47f1618159c640610"
+    }
+  ],
+  "total": {
+    "passed": 86,
+    "failed": 0
+  },
+  "scope": [
+    "Actual source-pipeline rejection of unused generic stale pattern references and acceptance of the nearest correctly ordered source; instantiated positive executes compiler-emitted Clang and LLVM API O0/O2.",
+    "Retained terminal controls exercise ordinary ErrorUnion/Option/mixed-place patterns, source-derived raw and decoded Wire boundaries, native residual cleanup, unsigned arithmetic and exact fresh/warm budgets.",
+    "Source audit of6279/cb3 and independent unchanged-source probes remain separately bound; this replay establishes their combined39 Driver/native integration."
+  ],
+  "boundaries": {
+    "error_union_patterns": 83726,
+    "error_member_disjointness": 37839,
+    "generic_pattern_path": 8103,
+    "N_minus_one_and_fresh_warm": "Pass in retained tests"
+  },
+  "history": [
+    "Original019 retained64/0 did not cover the subsequently reproduced unused-definition failure; that historical failure and original source artifacts remain recorded.",
+    "The corrected source preserves actual scrutinee origins, mutable authority, projected paths, arm snapshots and temporary lifetime expiry rather than rejecting the entire pattern feature."
+  ],
+  "limits": [
+    "Captured owning-base Address qualification, complete nested Package/Product partial roots, actual reservation121\u2013124 pin/commit consumers and physical CT ErrorUnion values remain open.",
+    "No whole aggregate target, full workspace, Clippy, Rust comparison, nativeWindows or product-completion claim."
+  ]
+}

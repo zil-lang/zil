@@ -1,7 +1,9 @@
 //! Private declaration provenance assigned by actual module traversal. Spans
 //! and generated spellings are never owner authority.
 use super::*;
-use crate::source_context::{DeclarationOrigin, DeclarationPlacement, SourceIdentityContext};
+use crate::source_context::{
+    DeclarationOrigin, DeclarationPlacement, ResolvedSourceIdentityContext,
+};
 use zil_base::ModuleId;
 use zil_base::NodeId;
 use zil_ir::LifeDeclarationIdentity;
@@ -28,6 +30,9 @@ pub(crate) struct Origin {
 pub(crate) struct Origins {
     pub(crate) entries: Vec<Origin>,
     pub(crate) identities: BTreeMap<DeclId, DeclarationOrigin>,
+    /// Actual output placement after project redistribution. The source
+    /// declaration identity remains in Origin and is never a final vector index.
+    pub(crate) modules: BTreeMap<ModuleId, Vec<Origin>>,
 }
 impl Origin {
     pub(crate) fn source(module: ModuleId, ordinal: usize, span: Span) -> R<Self> {
@@ -93,6 +98,7 @@ impl Origins {
         Ok(Self {
             entries,
             identities: BTreeMap::new(),
+            modules: BTreeMap::new(),
         })
     }
     pub(crate) fn insert_option(&mut self, module: &Module, budget: &mut Budget<'_>) -> R<()> {
@@ -128,12 +134,59 @@ impl Origins {
             .copied()
             .ok_or_else(|| error(span, "declaration provenance absent"))
     }
+    pub(crate) fn in_module(
+        &self,
+        module: ModuleId,
+        index: usize,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Origin> {
+        for _ in 0..self
+            .modules
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2)
+        {
+            budget.node(span, 0)?;
+        }
+        let origin = if self.modules.is_empty() {
+            self.get(index, span)?
+        } else {
+            *self
+                .modules
+                .get(&module)
+                .and_then(|entries| entries.get(index))
+                .ok_or_else(|| error(span, "output module declaration origin absent"))?
+        };
+        if origin.declaration.module != module {
+            return Err(error(span, "output declaration owner differs"));
+        }
+        Ok(origin)
+    }
+    pub(crate) fn identity(
+        &self,
+        declaration: DeclId,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<&DeclarationOrigin> {
+        for _ in 0..self
+            .identities
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2)
+        {
+            budget.node(span, 0)?;
+        }
+        self.identities
+            .get(&declaration)
+            .ok_or_else(|| error(span, "original declaration identity absent"))
+    }
 
     pub(crate) fn capture_identities(
         &mut self,
         module: &Module,
         inserted_option: bool,
-        context: SourceIdentityContext<'_>,
+        context: &ResolvedSourceIdentityContext<'_>,
         budget: &mut Budget<'_>,
     ) -> R<()> {
         if self.entries.len() != module.items.len() {
@@ -143,7 +196,7 @@ impl Origins {
             ));
         }
         let mut supplied = None;
-        match context.declarations {
+        match context.declarations() {
             DeclarationPlacement::Unavailable => {
                 return Err(unsupported(
                     module.span,
@@ -170,26 +223,12 @@ impl Origins {
                 }
             }
         }
-        let mut module_path = None;
-        if module.id == context.root {
-            module_path = Some(&[][..]);
-        } else {
-            for (path, owner) in context.modules {
-                budget.node(module.span, 0)?;
-                if *owner == module.id && module_path.is_none() {
-                    module_path = Some(path.as_slice());
-                }
-            }
-        }
-        let module_path = module_path.ok_or_else(|| {
-            unsupported(
-                module.span,
-                "declaration metadata requires an explicit logical module identity",
-            )
-        })?;
+        let module_path = context.module_path(module.id, budget, module.span)?;
         if context.package.is_empty() {
             return Err(error(module.span, "source package namespace is empty"));
         }
+        let mut seen_ids = BTreeSet::new();
+        let mut seen_identities = BTreeSet::new();
         for (index, (item, origin)) in module.items.iter().zip(&self.entries).enumerate() {
             budget.node(item.span, 0)?;
             if origin.declaration.module != module.id {
@@ -204,35 +243,70 @@ impl Origins {
             let captured = if let Some(supplied) = supplied {
                 let captured = &supplied.items[ordinal];
                 pay_identity(&captured.identity, budget, item.span)?;
-                budget.text(context.package, item.span)?;
+                budget.text(&context.package, item.span)?;
                 if captured.identity.package != context.package {
                     return Err(error(
                         item.span,
                         "declaration package differs from request context",
                     ));
                 }
+                for part in module_path {
+                    budget.node(item.span, 0)?;
+                    budget.text(part, item.span)?;
+                }
+                if captured.identity.module_path != module_path {
+                    return Err(error(
+                        item.span,
+                        "aligned declaration canonical module differs",
+                    ));
+                }
+                if !captured.identity.generation_path.is_empty() {
+                    return Err(unsupported(
+                        item.span,
+                        "generated declaration lineage requires the actual materialization ledger",
+                    ));
+                }
+                let (kind, name) = declaration_shape(item);
+                budget.text(kind, item.span)?;
+                let path = &captured.identity.declaration_path;
+                if path.len() != 2 || path[0] != kind {
+                    return Err(error(
+                        item.span,
+                        "aligned original declaration kind differs",
+                    ));
+                }
+                if let Some(name) = name {
+                    budget.text(name, item.span)?;
+                    if path[1] != name {
+                        return Err(error(
+                            item.span,
+                            "aligned original declaration binding differs",
+                        ));
+                    }
+                }
+                for _ in 0..12usize
+                    .saturating_mul(seen_ids.len().checked_ilog2().map_or(1, |n| n as usize + 2))
+                {
+                    budget.node(item.span, 0)?;
+                }
+                if !seen_ids.insert(captured.declaration) {
+                    return Err(error(item.span, "duplicate aligned source declaration"));
+                }
+                for _ in 0..12usize.saturating_mul(
+                    seen_identities
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2),
+                ) {
+                    pay_identity(&captured.identity, budget, item.span)?;
+                }
+                if !seen_identities.insert(&captured.identity) {
+                    return Err(error(item.span, "duplicate aligned declaration identity"));
+                }
                 captured.clone()
             } else {
-                let (kind, actual_name) = match &item.kind {
-                    ItemKind::Function(f) => ("function", Some(f.name.as_str())),
-                    ItemKind::Extern { function, .. } => ("extern", Some(function.name.as_str())),
-                    ItemKind::Aggregate(a) => (
-                        match a.kind {
-                            AggregateKind::Struct => "struct",
-                            AggregateKind::Package => "package",
-                            AggregateKind::Resource => "resource",
-                        },
-                        Some(a.name.as_str()),
-                    ),
-                    ItemKind::Enum(e) => ("enum", Some(e.name.as_str())),
-                    ItemKind::Trait(t) => ("trait", Some(t.name.as_str())),
-                    ItemKind::TypeAlias(a) => ("alias", Some(a.name.as_str())),
-                    ItemKind::Const(c) => ("const", Some(c.name.as_str())),
-                    ItemKind::Impl(_) => ("impl", None),
-                    ItemKind::Import(_) => ("import", None),
-                    ItemKind::Meta(_) => ("meta", None),
-                };
-                budget.text(context.package, item.span)?;
+                let (kind, actual_name) = declaration_shape(item);
+                budget.text(&context.package, item.span)?;
                 for part in module_path {
                     budget.node(item.span, 0)?;
                     budget.text(part, item.span)?;
@@ -370,5 +444,27 @@ impl Engine<'_> {
             .traits
             .origin(item, &mut self.budget)?
             .is_some_and(|origin| origin.provider))
+    }
+}
+
+fn declaration_shape(item: &Item) -> (&'static str, Option<&str>) {
+    match &item.kind {
+        ItemKind::Function(f) => ("function", Some(f.name.as_str())),
+        ItemKind::Extern { function, .. } => ("extern", Some(function.name.as_str())),
+        ItemKind::Aggregate(a) => (
+            match a.kind {
+                AggregateKind::Struct => "struct",
+                AggregateKind::Package => "package",
+                AggregateKind::Resource => "resource",
+            },
+            Some(a.name.as_str()),
+        ),
+        ItemKind::Enum(e) => ("enum", Some(e.name.as_str())),
+        ItemKind::Trait(t) => ("trait", Some(t.name.as_str())),
+        ItemKind::TypeAlias(a) => ("alias", Some(a.name.as_str())),
+        ItemKind::Const(c) => ("const", Some(c.name.as_str())),
+        ItemKind::Impl(_) => ("impl", None),
+        ItemKind::Import(_) => ("import", None),
+        ItemKind::Meta(_) => ("meta", None),
     }
 }

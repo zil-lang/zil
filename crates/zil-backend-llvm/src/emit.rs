@@ -28,6 +28,7 @@ mod scoped_thread;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
+mod stored_borrows;
 mod tasks;
 use std::collections::{BTreeMap, BTreeSet};
 use zil_llvm_api::model as m;
@@ -108,8 +109,15 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     closed_scalar_collection: bool,
     jobs: usize,
 ) -> CompileResult<(m::Module, bool, usize)> {
+    let mut remaining_work = verified.limits().max_analysis_steps;
+    if verified.uses_stored_borrows() {
+        stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
+    }
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
-    let copy_plans = copy_aggregates::plan(lir, verified.limits())?;
+    let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
+    if verified.uses_stored_borrows() {
+        stored_borrows::reserve_emission(lir, verified.limits(), &mut copy_plans.remaining_work)?;
+    }
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
     let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
     let functions = lir
@@ -754,6 +762,7 @@ fn bind_lir(
                     || matches!(ty, Type::Closure(_))
                     || ty.is_shared_sync_cell_address()
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    || sum_capture_address(ty)
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -781,6 +790,7 @@ fn bind_lir(
             );
         }
         if !(function.return_type.is_copy_value()
+            || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
@@ -792,6 +802,7 @@ fn bind_lir(
             || function.parameters.iter().any(|id| {
                 let ty = &function.locals[id.0 as usize].ty;
                 !(ty.is_copy_value()
+                    || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
                     || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
@@ -811,6 +822,7 @@ fn bind_lir(
         {
             let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
+                && !stored_borrows::representation_type(ty)
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !drop_plan::sum_address(ty, lir.resources)
@@ -1476,8 +1488,12 @@ impl FunctionEmitter<'_> {
                     Some(instruction.span),
                 );
             }
-            InstructionKind::LoadStoredBorrow { .. }
-            | InstructionKind::StoreStoredBorrow { .. } => {
+            InstructionKind::LoadStoredBorrow {
+                storage,
+                path,
+                mode,
+            } => self.stored_load(instruction, *storage, path, *mode)?,
+            InstructionKind::StoreStoredBorrow { .. } => {
                 return invalid(
                     "E-CODEGEN-STORAGE",
                     "stored-borrow instruction consumer is not yet implemented",
@@ -3264,6 +3280,7 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
+        Type::BorrowedStorage { storage, .. } => llvm_type(storage),
         Type::Registration { .. } | Type::Task { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
@@ -3313,6 +3330,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -3348,12 +3366,16 @@ fn aggregate_field_type(ty: &Type) -> CompileResult<m::Ty> {
         llvm_type(ty)
     }
 }
+fn sum_capture_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+}
 fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
             || ty.is_shared_sync_cell_address()
+            || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
@@ -3368,6 +3390,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
 }
 fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> CompileResult<u32> {
     match ty {
+        Type::BorrowedStorage { storage, .. } => alignment(storage, closures),
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
@@ -3387,6 +3410,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
+                || matches!(inner.as_ref(), Type::BorrowedStorage { .. })
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -3438,6 +3462,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
                     && !field.is_shared_sync_cell_address()
+                    && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())

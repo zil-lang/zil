@@ -573,6 +573,13 @@ fn reconstruct(
     let mut product_captures = false;
     loop {
         let mut changed = false;
+        let capture_facts = if budget.owning_address_captures {
+            Some(captures::reconstruct_roots(
+                module, f, graph, &values, budget,
+            )?)
+        } else {
+            None
+        };
         for (b, block) in f.blocks.iter().enumerate() {
             budget.spend(1)?;
             if !reachable[b] {
@@ -604,6 +611,11 @@ fn reconstruct(
             }
             state_cost(&state, budget)?;
             inputs[b].clone_from(&state);
+            let mut capture_state = if let Some(facts) = &capture_facts {
+                captures::input_state(facts, b, budget)?
+            } else {
+                captures::State::new()
+            };
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 if let Some(result) = instruction.result {
@@ -752,12 +764,49 @@ fn reconstruct(
                             | InstructionKind::CallClosureMut { callee, .. }
                                 if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                             {
-                                row.push(Root::Local(*callee));
+                                if capture_facts.is_some() {
+                                    let d = captures::lending_entry(module, f, &instruction.kind)
+                                        .ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-LENDING",
+                                            Some(instruction.span),
+                                            "lending closure missing",
+                                        )
+                                    })?;
+                                    lookup(budget, capture_state.len())?;
+                                    row = captures::lending_result(
+                                        d,
+                                        &summaries[d.function.0 as usize],
+                                        capture_state.get(callee),
+                                        &[Root::Local(*callee)],
+                                        budget,
+                                    )?;
+                                } else {
+                                    row.push(Root::Local(*callee));
+                                }
                             }
                             InstructionKind::CallClosureBorrowed { callee, .. }
                                 if matches!(f.values[result.0 as usize], Type::Address { .. }) =>
                             {
-                                roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                                if let Some(capture_facts) = &capture_facts {
+                                    let d = captures::lending_entry(module, f, &instruction.kind)
+                                        .ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-LENDING",
+                                            Some(instruction.span),
+                                            "borrowed lending closure missing",
+                                        )
+                                    })?;
+                                    row = captures::lending_result(
+                                        d,
+                                        &summaries[d.function.0 as usize],
+                                        Some(&capture_facts.values[callee.0 as usize]),
+                                        &values[callee.0 as usize],
+                                        budget,
+                                    )?;
+                                } else {
+                                    roots_join(&mut row, &values[callee.0 as usize], budget)?;
+                                }
                             }
                             InstructionKind::CallIndirect { callee, arguments } => {
                                 for index in
@@ -811,6 +860,14 @@ fn reconstruct(
                     changed |= roots_join(&mut values[result.0 as usize], &row, budget)?;
                 }
                 local_transfer(&mut state, instruction, &values, budget)?;
+                if let Some(capture_facts) = &capture_facts {
+                    captures::local_transfer(
+                        &mut capture_state,
+                        instruction,
+                        &capture_facts.values,
+                        budget,
+                    )?;
+                }
             }
             state_cost(&state, budget)?;
             state_cost(&outputs[b], budget)?;
@@ -866,7 +923,14 @@ fn reconstruct_module(
                 let callee = match instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
                     _ => borrowed_fp::invocation_call(module, f, &instruction.kind)
-                        .map(|(d, _)| d.function),
+                        .map(|(d, _)| d.function)
+                        .or_else(|| {
+                            budget
+                                .owning_address_captures
+                                .then(|| captures::lending_entry(module, f, &instruction.kind))
+                                .flatten()
+                                .map(|d| d.function)
+                        }),
                 };
                 let Some(callee) = callee else {
                     continue;
@@ -923,6 +987,9 @@ fn reconstruct_module(
                             .iter()
                             .filter_map(|root| match root.coarse() {
                                 HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                HoldRoot::Capture(_) if budget.owning_address_captures => {
+                                    Some(*root)
+                                }
                                 _ => None,
                             })
                             .collect();
@@ -1158,14 +1225,14 @@ pub(super) fn check_module(
                 if function.environment.is_some() && !invocation {
                     budget.spend(roots.len().saturating_add(1))?;
                     for root in roots {
-                        let Root::Capture(index) = root else {
+                        let HoldRoot::Capture(index) = root.coarse() else {
                             return Err(reject(
                                 "E-BORROW-ESCAPE",
                                 Some(function.span),
                                 "lending result must borrow actual environment storage, not an activation local or explicit parameter",
                             ));
                         };
-                        lending_sources.insert(*index);
+                        lending_sources.insert(index);
                     }
                 } else if roots
                     .iter()

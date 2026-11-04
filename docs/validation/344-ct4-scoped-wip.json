@@ -1,0 +1,79 @@
+{
+  "status": "WIP construction checkpoint; no CT4 source or complete stored-life acceptance",
+  "parent": "122e67531",
+  "unified_base": "29d4dd9045e4bbde3402515b6f0294fd34f49eb0",
+  "schema": {
+    "runtime": 39,
+    "ct": 4
+  },
+  "implemented": [
+    "Occurrence-sensitive CT graph normalization with fresh owner tokens and joint relocation after whole-member sorting; no node-only scope cache or child interner.",
+    "Independent Verify scope/domain/ordinal admission and relative scope keys; lifetime owner refs are separate from physical edges.",
+    "Exact ordered TypeInContext/Lifetime projection in one fixed nominal context; closed Invocation metadata remains standalone Type.",
+    "Noncompiler phantom-only fixed shapes validate all actual lifetime rows in normative nominal preorder; no phantom-created target or access authority.",
+    "Private source lexical Invocation metadata bindings and owner-specific AST reification names; source path remains blocked earlier in ordinary Expand."
+  ],
+  "tests": [
+    {
+      "command": "cargo test -p zil-ct --lib -- --nocapture",
+      "result": "54/0, all existing target tests; raw joint-context + closed Invocation controls included"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates ct3_ -- --nocapture --test-threads=1",
+      "result": "9/0; preserved 40 actual Clang/LLVM API O0/O2 executions across10 prior CT3 programs"
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates ct4_invocation_scoped -- --nocapture --test-threads=1",
+      "result": "1/0 explicitly asserts current Unsupported Expand scoped nominal lifetime substitution boundary; NOT a positive source acceptance"
+    },
+    {
+      "command": "cargo clippy -p zil-ct -p zil-verify --lib -- -D warnings",
+      "result": "Pass"
+    }
+  ],
+  "budgets": {
+    "independent_joint_context_analysis": "N10349 / N-1 ResourceLimit / fresh N pass",
+    "producer_occurrence_normalizer": "measured N / N-1 ResourceLimit / fresh N pass",
+    "defaults": "unchanged"
+  },
+  "pending": [
+    "Actual source ForLifetime nominal alias/substitution/key bridge; fixture retained with explicit Unsupported boundary.",
+    "Physical stored Address/Desc slots, nested retained carrier class mappings and complete metadata-Type-argument qualification.",
+    "Compiler declaration lineage inventory, fixed context source handle extraction and CT typed queries.",
+    "Full source/raw/cache/budget/default-stack/native CT4 review; no independent acceptance claimed.",
+    "CT physical ErrorUnion values and owned anonymous Sum cleanup remain separate uncompleted obligations."
+  ],
+  "sources": {
+    "crates/zil-ct/src/anonymous_type.rs": "d66235864be2c93ffe98e4f62999229427ed1731b889cf80cb37b5a5a8e34a8c",
+    "crates/zil-ct/src/anonymous_type_scoped.rs": "69ad39f2c64026a4946d218b44929be7d0d620c7f1a9982f45738c6ae6aa5b16",
+    "crates/zil-ct/src/artifact_identity.rs": "9a0bacd447c3375a7ea805c5bbd238aa6958f674a70b95e1068d1f820153c919",
+    "crates/zil-ct/src/ct_artifact.rs": "1b252226e2ea9a04e90543b519082688df8f554e87806e06a81e95217951b29c",
+    "crates/zil-driver/src/ct_artifact/compiler_metadata.rs": "5f7580187a0429bf482cfad5da17378851884319c4f6985178ed2a2b5ddf0c33",
+    "crates/zil-driver/src/ct_artifact/materialize.rs": "a835808e4241dc35ac9d581bfa06039371621a151dde3a1db29dfac65dbdd153",
+    "crates/zil-driver/tests/aggregates.rs": "5ed9f1ddc02948aaf8a501a80924b32a1be4e962ae698bd9856514e20159b94d",
+    "crates/zil-verify/src/ct_artifact_graph_identity.rs": "19717099bf5bf824481892eabdbe9a1d1b9cd7950c49347ef2c71bbd7932afde",
+    "crates/zil-verify/src/ct_artifact_identity.rs": "25237ef4bdc89dcc8f52a1a0368d5745e5315fddb7e374bff8f8ced0550bba8b",
+    "crates/zil-verify/src/ct_artifact_scoped_graph.rs": "c95232e5d2a848c84b3a43d409a7cc6f978163b64874fdf418ace56828198113",
+    "tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil": "f235084111cdb412cd65f59185bcf6302b6d31510c70f00d06b74bd56e1b5448"
+  },
+  "logs": {
+    "/tmp/344-ct4-key-ct-lib-final.log": "629243000e9fd7dd1dc850f5bc2840dd34c445f650036b5101e124d4ee213359",
+    "/tmp/344-ct4-raw-two-final.log": "57291dc3f00a662513b0ae1ea56b9c36ee1d28968909f6aba451edb9b403e2b7",
+    "/tmp/344-ct4-source9-after-scoped.log": "6bae662daa743644872cfe3f3687399c65ce7118e6b6b17e4ab7f290d0144a63",
+    "/tmp/344-ct4-source-invocation-first.log": "dae4999431ad03c8064b81f436bf7e9cd652c00d4d9ab2ad8c9af32678e79076",
+    "/tmp/344-ct4-source-pending-final.log": "e24531a1edb047ecf668142a1675f4898026839299e6a018f1bf0baecbd68e3d",
+    "/tmp/344-ct4-key-clippy-final.log": "d06c738267e1088ba11c7daf488565087a3ec17a2d80c68f5a7f7c34aa16338c"
+  },
+  "harnesses": {
+    "aggregates": {
+      "path": "/workspace/.zil-env/target344/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "484aa2e2f09af4d48dbc7cc7e5cbadbde5544b2db0354331c3a99177137110ab"
+    },
+    "ct": {
+      "path": "/workspace/.zil-env/target344/debug/deps/zil_ct-06d11309bb052277",
+      "sha256": "52ca7375bb34f2f4ba819a058eb32abe157a4fab3f7e3201dd324759564a9e04"
+    }
+  },
+  "construction": "Primary344 files rebuilt in the listed Cargo logs, same target344, debug0/incremental0/jobs1; retained harness paths are mutable until reviewer copies them. No clean, larger thread stack, new Cargo test target, or default budget increase.",
+  "rust_goals": "The real scoped metadata model retains phantom identity and separates it from value/access authority; producer and verifier remain independent, and new work is paid from existing balances. This is an expressiveness/safety construction milestone, with no runtime performance or complete Rust replacement claim."
+}

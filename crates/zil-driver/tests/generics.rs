@@ -8,6 +8,334 @@ use std::{
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
+const STORED_VIEW: &str =
+    include_str!("../../../tests/language-readiness/terminal/342/stored_view.zil");
+
+#[test]
+fn terminal_stored_view_source_keeps_actual_targets_through_direct_calls() {
+    for text in [
+        STORED_VIEW.to_owned(),
+        STORED_VIEW
+            .replace("life a", "life renamed")
+            .replace("'a", "'renamed"),
+        STORED_VIEW
+            .replace(
+                "fn make",
+                "fn relay<life b>(p:&'b i64)->View<'b>{return make(p)}\nfn make",
+            )
+            .replace("let v = make(&n)", "let v = relay(&n)"),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for text in [
+        STORED_VIEW
+            .replace("let n: i64", "var n: i64")
+            .replace("return i32(*q);", "n=43; return i32(*q);"),
+        STORED_VIEW.replace(
+            "return View::<'a> { p: p };",
+            "let local:i64=0; return View::<'a> { p: &local };",
+        ),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.phase, Phase::Analyze | Phase::Verify)),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal_stored_project_same_named_helpers_keep_distinct_relations() {
+    let modules = [
+        (
+            "main.zil",
+            "import a;import b;fn main()->i32{let x:i64=20;let y:i64=22;let va=a.make(&x);let vb=b.make(&x,&y);let pa=a.read(&va);let pb=b.read(&vb);return i32(*pa+*pb)}",
+        ),
+        (
+            "a.zil",
+            "struct View<life a>{p:&'a i64}pub fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}pub fn read<life a>(v:&View<'a>)->&'a i64{return v.p}",
+        ),
+        (
+            "b.zil",
+            "struct View<life a>{p:&'a i64}pub fn make<life a>(unused:&i64,p:&'a i64)->View<'a>{return View::<'a>{p:p}}pub fn read<life a>(v:&View<'a>)->&'a i64{return v.p}",
+        ),
+    ];
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: modules
+            .into_iter()
+            .enumerate()
+            .map(|(index, (name, text))| {
+                SourceUnit::new(FileId(index as u32), ModuleId(index as u32), name, text)
+            })
+            .collect(),
+        paths: [
+            (vec!["a".into()], ModuleId(1)),
+            (vec!["b".into()], ModuleId(2)),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    let report = zil_driver::compile_project(&project, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let unit = source(STORED_VIEW);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(typed.life_instances.len(), 1);
+    assert!(typed.functions.iter().any(|f| {
+        f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, zil_ir::InstructionKind::LoadStoredBorrow { .. }))
+    }));
+    let mut low = 1;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let tight = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        if zil_types::check(&core, &target, &tight).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let tight = Limits {
+        max_analysis_steps: high,
+        ..limits.clone()
+    };
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    assert_eq!(
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: high - 1,
+                ..limits.clone()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::ResourceLimit
+    );
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    eprintln!("stored source Types work N={high}; N-1 ResourceLimit; fresh N stable");
+    let mut wrong = core.clone();
+    wrong.aggregates[0].fields[0].ty = zil_ir::Type::I64;
+    assert!(zil_types::check(&wrong, &target, &limits).is_err());
+    let mut wrong = core.clone();
+    let mut duplicate = wrong.life_declarations[0].clone();
+    duplicate.id.declaration.0 += 1;
+    wrong.life_declarations.push(duplicate);
+    assert!(zil_types::check(&wrong, &target, &limits).is_err());
+    let program = zil_ir::CoreProgram {
+        root: core.module_id,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![zil_ir::ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let normalized = zil_types::resolve_program_shapes(&program, &limits).unwrap();
+    let again = zil_types::resolve_program_shapes(&normalized, &limits).unwrap();
+    assert_eq!(
+        again, normalized,
+        "normalization changes the actual stored identity"
+    );
+    let mut exported = program.clone();
+    let make = exported.modules[0]
+        .core
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    let make_id = exported.modules[0].core.functions[make].id;
+    exported.modules[0].exports.push(make_id);
+    let first = zil_types::check_program(&exported, &target, &limits).unwrap();
+    let contract = exported.modules[0].core.functions[make]
+        .storage_life
+        .as_mut()
+        .unwrap();
+    contract.invocation_binder_count += 1;
+    contract.bindings.last_mut().unwrap().binder = zil_ir::StorageBinder::Invocation(1);
+    let altered = zil_types::check_program(&exported, &target, &limits).unwrap();
+    assert_ne!(
+        first.interfaces[0].signature_fingerprint, altered.interfaces[0].signature_fingerprint,
+        "an untrusted exported relation was erased from interface identity"
+    );
+}
+
+#[test]
+fn terminal341_retained_declaration_rows_survive_ct_removal() {
+    let scalar = "fn scalar(marker:Type,n:i32)->i32{return n}";
+    let view = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}";
+    let main = "fn main()->i32{return #(scalar(i32,0))}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-retained-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for (index, (text, expected)) in [
+        (format!("{scalar}{view}{main}"), 1),
+        (format!("import std.meta;{scalar}{view}{main}"), 2),
+        (format!("{view}{scalar}{main}"), 0),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                emit_dir: Some(directory.join(index.to_string())),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        assert!(dump.contains("life_declarations: ["), "{dump}");
+        let declaration = dump.split("life_declarations: [").nth(1).unwrap();
+        assert!(
+            declaration
+                .split_whitespace()
+                .collect::<String>()
+                .contains(&format!("declaration:NodeId({expected},)")),
+            "{declaration}"
+        );
+        assert!(declaration.contains("\"View\""), "{declaration}");
+        assert!(!dump.contains("name: \"$module0_scalar\""), "{dump}");
+        if index == 1 {
+            assert!(dump.contains("imports: []"), "{dump}");
+        }
+    }
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
+    let text = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}fn main(){}";
+    let directory = std::env::temp_dir().join(format!(
+        "zil-context341-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut packages = Vec::new();
+    for path in ["first-location.zil", "other/location.zil"] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), path, text);
+        let options = CompileOptions {
+            stop_after: Stage::Core,
+            emit_dir: Some(directory.join(packages.len().to_string())),
+            ..CompileOptions::default()
+        };
+        let report = compile_source(&source, &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+        let package = dump
+            .split("package: \"")
+            .filter_map(|part| part.strip_prefix("closed-snapshot:v1:"))
+            .next()
+            .expect("Driver did not pass original context")
+            .split('"')
+            .next()
+            .unwrap()
+            .to_owned();
+        packages.push(package);
+    }
+    assert_eq!(
+        packages[0], packages[1],
+        "native file labels changed logical snapshot identity"
+    );
+    let transformed = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "transformed.zil",
+        format!("#if(true){{fn selected(){{}}}}{text}"),
+    );
+    let report = compile_source(
+        &transformed,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(directory.join("must-not-publish")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("explicit source lineage")),
+        "{}",
+        report.to_json()
+    );
+    assert!(report.commands.is_empty());
+    assert!(!directory.join("must-not-publish").exists());
+    let _ = fs::remove_dir_all(directory);
+}
+
 #[test]
 fn terminal341_generic_methods_specialize_ordinary_calls() {
     for text in [

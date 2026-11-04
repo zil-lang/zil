@@ -48,6 +48,80 @@ pub(crate) struct Materialized {
     pub previews: Vec<Preview>,
     pub required_imports: Vec<(ModuleId, CoreImport)>,
     pub usage: CtUsageReceipt,
+    /// Rows move with actual original items. No generated/member lineage is
+    /// inferred from the output's names, spans or new vector positions.
+    pub declaration_origins: Option<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>,
+    pub lineage_remaining: Option<Limits>,
+}
+impl Materialized {
+    pub(crate) fn retain_items(
+        &mut self,
+        index: usize,
+        mut keep: impl FnMut(&s::Item) -> bool,
+    ) -> CompileResult<()> {
+        let module = &mut self.modules[index];
+        let Some(origins) = &mut self.declaration_origins else {
+            module.items.retain(keep);
+            return Ok(());
+        };
+        let rows = origins
+            .get_mut(index)
+            .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+        if rows.module != module.id || rows.items.len() != module.items.len() {
+            return Err(category(
+                "declaration-origin placement differs before import removal",
+                module.span,
+            ));
+        }
+        let count = rows.items.len();
+        let remaining = self
+            .lineage_remaining
+            .as_mut()
+            .ok_or_else(|| category("declaration lineage ledger absent", module.span))?;
+        // The original rows are moved, not cloned; reserve the complete visit
+        // and destination vector before filtering either aligned collection.
+        remaining.max_analysis_steps =
+            remaining
+                .max_analysis_steps
+                .checked_sub(count)
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "declaration lineage move work exhausted",
+                        Some(module.span),
+                    )]
+                })?;
+        remaining.max_nodes = remaining.max_nodes.checked_sub(count).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "declaration lineage move nodes exhausted",
+                Some(module.span),
+            )]
+        })?;
+        self.usage.analysis_work = self
+            .usage
+            .analysis_work
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage work count overflow", module.span))?;
+        self.usage.generated_nodes = self
+            .usage
+            .generated_nodes
+            .checked_add(count as u64)
+            .ok_or_else(|| category("declaration lineage node count overflow", module.span))?;
+        let mut input = std::mem::take(&mut rows.items).into_iter();
+        let mut moved = Vec::with_capacity(count);
+        module.items.retain(|item| {
+            let row = input.next().expect("checked aligned declaration count");
+            if keep(item) {
+                moved.push(row);
+                true
+            } else {
+                false
+            }
+        });
+        rows.items = moved;
+        Ok(())
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Preview {
@@ -123,7 +197,10 @@ struct Materializer<'a, 'b> {
     previews: Vec<Preview>,
     required_imports: Vec<(ModuleId, CoreImport)>,
     runtime_scopes: Vec<BTreeSet<String>>,
+    data_source_scopes: Vec<super::execute::value_context::ValueSourceScope>,
     max_depth: usize,
+    track_declarations: bool,
+    declaration_lineage_preserved: bool,
 }
 
 impl super::hygiene::Context for Materializer<'_, '_> {
@@ -433,11 +510,14 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
-            CtTypeNode::BorrowedStorage { .. } => {
-                return Err(category(
-                    "stored-borrow Type needs a closed scoped source reconstruction",
-                    span,
-                ));
+            CtTypeNode::BorrowedStorage { storage, .. } => {
+                if !self.data_source_scopes.iter().any(|s| s.owner == id) {
+                    return Err(category(
+                        "stored-borrow Type has no genuine scoped source handle",
+                        span,
+                    ));
+                }
+                return self.owner_node(ty, *storage, caller, span, depth + 1);
             }
             CtTypeNode::Primitive(primitive) => named(
                 match primitive {
@@ -498,12 +578,114 @@ impl Materializer<'_, '_> {
                             span,
                             depth + 1,
                         )?)),
-                        CtTypeArgument::Lifetime(_) => {
-                            return Err(vec![Diagnostic::unsupported(
-                                Phase::Ct,
-                                "CT4 scoped lifetime spelling requires its joint context",
-                                Some(span),
-                            )]);
+                        CtTypeArgument::Lifetime(value) => {
+                            if let zil_ir::StorageBinder::Fixed(binder) = value.binder {
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
+                                let scope = self
+                                    .data_source_scopes
+                                    .iter()
+                                    .find(|s| s.owner == value.owner)
+                                    .ok_or_else(|| {
+                                        runtime(
+                                            "fixed lifetime has no authentic source handle",
+                                            span,
+                                        )
+                                    })?;
+                                let ordinal =
+                                    *scope.parameters.get(binder as usize).ok_or_else(|| {
+                                        runtime("fixed lifetime source ordinal is absent", span)
+                                    })?;
+                                let definition = scope.definition.clone();
+                                fn name<'a>(
+                                    this: &'a Materializer<'_, '_>,
+                                    definition: &CtSymbolId,
+                                    ordinal: u32,
+                                    span: Span,
+                                ) -> CompileResult<&'a str> {
+                                    let (_, parsed) = this.parsed_source(definition.module)?;
+                                    let item = parsed
+                                        .module
+                                        .items
+                                        .get(definition.declaration.0 as usize)
+                                        .ok_or_else(|| {
+                                            runtime("source lifetime definition is absent", span)
+                                        })?;
+                                    if this
+                                        .environment
+                                        .index
+                                        .symbol_at(definition.module, item.span)
+                                        .as_ref()
+                                        != Some(definition)
+                                    {
+                                        return Err(runtime(
+                                            "source lifetime owner differs from its frozen declaration",
+                                            span,
+                                        ));
+                                    }
+                                    let s::ItemKind::Function(function) = &item.kind else {
+                                        return Err(category(
+                                            "source lifetime owner is not an original function",
+                                            span,
+                                        ));
+                                    };
+                                    let parameter = function
+                                        .generics
+                                        .get(ordinal as usize)
+                                        .ok_or_else(|| {
+                                            runtime("source lifetime full ordinal is absent", span)
+                                        })?;
+                                    if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                                        return Err(runtime(
+                                            "source lifetime full ordinal selects a different parameter kind",
+                                            span,
+                                        ));
+                                    }
+                                    Ok(&parameter.name)
+                                }
+                                self.environment.budget.reserve_analysis_work(
+                                    self.environment
+                                        .index
+                                        .symbol_lookup_work()
+                                        .saturating_add(self.sources.len() as u64)
+                                        .saturating_mul(2),
+                                )?;
+                                let length = name(self, &definition, ordinal, span)?.len();
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(length as u64 + 1)?;
+                                self.environment
+                                    .budget
+                                    .reserve_temporary_bytes(length as u64)?;
+                                args.push(s::GenericArg::Lifetime(
+                                    name(self, &definition, ordinal, span)?.to_owned(),
+                                ));
+                                continue;
+                            }
+                            let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
+                                unreachable!()
+                            };
+                            let Some(CtTypeNode::BorrowedFunctionPointer { life, .. }) =
+                                ty.nodes.get(value.owner.0 as usize)
+                            else {
+                                return Err(runtime(
+                                    "lifetime metadata has no invocation owner",
+                                    span,
+                                ));
+                            };
+                            if binder >= life.binder_count {
+                                return Err(runtime(
+                                    "lifetime metadata ordinal exceeds its owner",
+                                    span,
+                                ));
+                            }
+                            self.environment.budget.reserve_analysis_work(32)?;
+                            self.environment.budget.reserve_temporary_bytes(32)?;
+                            args.push(s::GenericArg::Lifetime(format!(
+                                "zil_life_{}_{}",
+                                value.owner.0, binder
+                            )));
                         }
                         CtTypeArgument::Scalar(value) => {
                             if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_))
@@ -631,7 +813,7 @@ impl Materializer<'_, '_> {
                                 span,
                             ));
                         };
-                        *lifetime = Some(format!("zil_life_{tag}"));
+                        *lifetime = Some(format!("zil_life_{}_{tag}", id.0));
                     }
                     Ok(ty)
                 };
@@ -652,7 +834,7 @@ impl Materializer<'_, '_> {
                 let mut kind = s::TypeKind::Function { params, result };
                 for i in (0..life.binder_count).rev() {
                     kind = s::TypeKind::ForLifetime {
-                        lifetime: format!("zil_life_{i}"),
+                        lifetime: format!("zil_life_{}_{i}", id.0),
                         inner: Box::new(s::TypeRef { kind, span }),
                     };
                 }
@@ -1088,13 +1270,14 @@ impl Materializer<'_, '_> {
         inherited: Option<&CtSymbolId>,
         depth: usize,
         generated: bool,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<Option<Vec<usize>>> {
         self.depth(
             depth,
             items.first().map_or(Span::default(), |item| item.span),
         )?;
         let mut output = Vec::new();
-        for mut item in std::mem::take(items) {
+        let mut retained = self.track_declarations.then(Vec::new);
+        for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
@@ -1109,6 +1292,7 @@ impl Materializer<'_, '_> {
             }
             match &mut item.kind {
                 s::ItemKind::Meta(s::MetaItem::Emit(expression)) => {
+                    self.declaration_lineage_preserved = false;
                     let value = self.expression_value(
                         module,
                         &owner,
@@ -1123,7 +1307,7 @@ impl Materializer<'_, '_> {
                             item.span,
                         ));
                     };
-                    self.items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
+                    self.nested_items(module, &mut generated_items, Some(&owner), depth + 1, true)?;
                     output.extend(generated_items);
                 }
                 s::ItemKind::Meta(s::MetaItem::If {
@@ -1131,21 +1315,52 @@ impl Materializer<'_, '_> {
                     else_items,
                     ..
                 }) => {
-                    self.items(module, then_items, Some(&owner), depth + 1, generated)?;
-                    self.items(module, else_items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, then_items, Some(&owner), depth + 1, generated)?;
+                    self.nested_items(module, else_items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 s::ItemKind::Meta(s::MetaItem::For { items, .. }) => {
-                    self.items(module, items, Some(&owner), depth + 1, generated)?;
+                    self.declaration_lineage_preserved = false;
+                    self.nested_items(module, items, Some(&owner), depth + 1, generated)?;
                     output.push(item);
                 }
                 _ => {
                     self.item(module, &mut item, &owner, depth + 1)?;
+                    if let Some(retained) = &mut retained {
+                        self.environment.budget.reserve_analysis_work(1)?;
+                        self.environment
+                            .budget
+                            .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
+                        retained.push(ordinal);
+                    }
                     output.push(item);
                 }
             }
         }
         *items = output;
+        Ok(retained)
+    }
+    fn nested_items(
+        &mut self,
+        module: ModuleId,
+        items: &mut Vec<s::Item>,
+        inherited: Option<&CtSymbolId>,
+        depth: usize,
+        generated: bool,
+    ) -> CompileResult<()> {
+        let original_count = items.len();
+        let retained = self.items(module, items, inherited, depth, generated)?;
+        if let Some(retained) = retained {
+            self.environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            if retained.into_iter().ne(0..original_count) {
+                // The current public ledger has top-level rows only. Member
+                // ordinals cannot be recovered after deleting nested items.
+                self.declaration_lineage_preserved = false;
+            }
+        }
         Ok(())
     }
     fn item(
@@ -1181,7 +1396,7 @@ impl Materializer<'_, '_> {
                         self.expr(module, e, owner, depth + 1)?;
                     }
                 }
-                self.items(module, &mut a.methods, Some(owner), depth + 1, false)?;
+                self.nested_items(module, &mut a.methods, Some(owner), depth + 1, false)?;
             }
             s::ItemKind::Enum(e) => {
                 for variant in &mut e.variants {
@@ -1215,11 +1430,11 @@ impl Materializer<'_, '_> {
             }
             s::ItemKind::Trait(t) => {
                 self.associated_constants(module, &mut t.members, &t.generics, owner)?;
-                self.items(module, &mut t.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut t.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Impl(i) => {
                 self.associated_constants(module, &mut i.members, &i.generics, owner)?;
-                self.items(module, &mut i.members, Some(owner), depth + 1, false)?
+                self.nested_items(module, &mut i.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}
         }
@@ -1717,7 +1932,22 @@ pub(crate) fn materialize(
     target: &TargetProfile,
     limits: &Limits,
     registry: Option<&CtLockedProviderRegistry>,
+    original_declarations: bool,
 ) -> CompileResult<Materialized> {
+    let (mut declaration_origins, capture_remaining) = if original_declarations {
+        zil_expand::source_context::capture_original(
+            sources,
+            modules,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root,
+                aliases: paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            limits,
+        )?
+    } else {
+        (None, limits.clone())
+    };
     let mut environment = Environment::new(
         sources,
         parsed,
@@ -1726,7 +1956,7 @@ pub(crate) fn materialize(
         root,
         fingerprint,
         target,
-        limits,
+        &capture_remaining,
     )?;
     environment.classify_definitions()?;
     let mut output = modules
@@ -1742,16 +1972,76 @@ pub(crate) fn materialize(
         previews: Vec::new(),
         required_imports: Vec::new(),
         runtime_scopes: Vec::new(),
+        data_source_scopes: Vec::new(),
         max_depth: limits.max_call_depth,
+        track_declarations: declaration_origins.is_some(),
+        declaration_lineage_preserved: true,
     };
-    for module in &mut output {
-        materializer.items(module.id, &mut module.items, None, 0, false)?;
+    for (index, module) in output.iter_mut().enumerate() {
+        let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
+        if !materializer.declaration_lineage_preserved {
+            declaration_origins = None;
+        }
+        if let Some(origins) = &mut declaration_origins {
+            let rows = origins
+                .get_mut(index)
+                .ok_or_else(|| category("declaration-origin module absent", module.span))?;
+            if rows.module != module.id {
+                return Err(category(
+                    "declaration-origin module owner differs",
+                    module.span,
+                ));
+            }
+            let original_count = rows.items.len();
+            materializer
+                .environment
+                .budget
+                .reserve_analysis_work(original_count as u64)?;
+            let mut retained = retained
+                .ok_or_else(|| category("retained declaration positions absent", module.span))?
+                .into_iter()
+                .peekable();
+            let mut moved = Vec::new();
+            for (ordinal, row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
+                if retained.peek() == Some(&ordinal) {
+                    materializer
+                        .environment
+                        .budget
+                        .reserve_temporary_bytes(std::mem::size_of_val(&row) as u64)?;
+                    moved.push(row);
+                    retained.next();
+                }
+            }
+            if retained.next().is_some() || moved.len() != module.items.len() {
+                return Err(category(
+                    "retained declaration positions differ from output",
+                    module.span,
+                ));
+            }
+            rows.items = moved;
+        }
     }
+    if !materializer.declaration_lineage_preserved {
+        declaration_origins = None;
+    }
+    let lineage_remaining =
+        original_declarations.then(|| materializer.environment.remaining_limits_for_input());
+    let mut usage = materializer.environment.budget.usage().clone();
+    usage.analysis_work = usage
+        .analysis_work
+        .checked_add((limits.max_analysis_steps - capture_remaining.max_analysis_steps) as u64)
+        .ok_or_else(|| category("declaration capture work count overflow", Span::default()))?;
+    usage.generated_nodes = usage
+        .generated_nodes
+        .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
+        .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
     Ok(Materialized {
         modules: output,
         previews: materializer.previews,
         required_imports: materializer.required_imports,
-        usage: environment.budget.usage().clone(),
+        usage,
+        declaration_origins,
+        lineage_remaining,
     })
 }
 
@@ -1890,3 +2180,81 @@ mod float_tests {
 
 #[path = "materialize_value.rs"]
 mod data_value;
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+    fn run(text: &str) -> CompileResult<Materialized> {
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        let syntax = &parsed.module;
+        materialize(
+            std::slice::from_ref(&source),
+            std::slice::from_ref(&parsed),
+            &[syntax],
+            &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+            None,
+        )
+    }
+    #[test]
+    fn ct4_materialization_binds_original_full_lifetime_ordinal() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        );
+        for (text, name) in [
+            (text.to_owned(), "s"),
+            (
+                text.replace("result<life s>", "result<T:Copy,life renamed>")
+                    .replace("'s", "'renamed")
+                    .replace("return result(&n)", "return result::<i32>(&n)"),
+                "renamed",
+            ),
+        ] {
+            let output = run(&text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == "result" => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, value } = &value.kind else {
+                panic!("missing full type ascription {value:?}")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Record { fields, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { value, .. } = &fields[0].value.as_ref().unwrap().kind
+            else {
+                unreachable!()
+            };
+            assert!(matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="42"));
+            assert_eq!(args.len(), 1);
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual) if actual==name));
+            assert!(output.usage.analysis_work > 0);
+        }
+        let collision = "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}";
+        let errors = run(collision).err().expect("ambient collision must reject");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("different ambient lifetimes")),
+            "{errors:?}"
+        );
+    }
+}

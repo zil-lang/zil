@@ -202,3 +202,84 @@ unimplemented semantic operations before cloning them. Captured Dyn environments
 do not satisfy ClosedEnvironment. The targeted Types check after this adapter
 has15 remaining Task retained-shape errors on d2ad18d81, all separately assigned;
 there is no successful Types build or dyn source acceptance at this checkpoint.
+
+Root5873c4aed publishes the contextual APIs and the snapshot namespace rule.
+Driver now calls those APIs with the complete original source request and its
+logical alias map. Unchanged parsed AST uses Original; selection/materialization
+uses Unavailable until an aligned numeric lineage producer exists. This never
+joins source spans or reconstructs original IDs from a transformed vector.
+
+Four direct context controls pass: complete alias groups distinguish two
+equal-byte modules from two aliases of one module; raw module-ID/source-vector /
+native-path relocation preserves the default namespace; explicit package mode
+keeps every module's canonical path, including entry; duplicate IDs/paths,
+empty components and an empty nonroot alias reject. Exact standalone snapshot
+namespace limits are work221/nodes5, with N-1 ResourceLimit. This is a naming
+context check, not a performance result or a type/permission proof.
+
+The actual Driver source control also passes: a life-only View factory reaches
+Core and carries its closed-snapshot identity independently of its native
+filename. A #if-transformed variant fails closed in Expand for missing lineage,
+executes no native command and publishes no executable. These are frontend and
+handoff controls. Genuine generated/filtered Aligned production, full dyn source
+tables/coercions/calls, contextual type keys, independent safety/native consumers
+and their raw/Wire/budget/cache controls remain unfinished.
+
+Retained-original lineage now has a concrete producer. The bounded
+capture_original API reuses the Original capture encoding before CT, returns
+the actual rows and remaining limits, and avoids constructing a namespace when
+the paid discovery finds no identity consumer. The materializer carries input
+positions while it removes CT-only declarations. Import pruning moves the same
+rows with the same AST items. Final Expand receives Aligned rows and continues
+the capture/CT/move budget, including a second paid snapshot resolution from the
+complete original graph. No source coordinate or output ordinal is an original
+declaration identity.
+
+This slice preserves original top-level declarations only. Generated item
+expansion, selection and nested member-list changes invalidate the usable rows;
+those routes still require a genuine generation/member ledger. Expression and
+type reification preserve the enclosing original row. The actual source control
+places a removed CT Type function before or after a used life-only View and
+removes a std.meta import; View retains original declaration ordinals1/0/2.
+The private capture unit pays exact work698/nodes33 and rejects N-1. These are
+frontend lineage controls, not dyn/safety/native acceptance.
+
+The first retained-row checkpoint34fc exposed an early-admission regression in
+root's broader generic suite: its capture discovery used the cloning preflight,
+which rejected an unmaterialized syntax island before CT. Correction8a22b6361
+uses a paid borrowed visitor and only discovers metadata requirements. The
+unchanged ordinary generic Type-return/record-reflection/Syntax source control
+passes, as do the retained-row and prior context controls. Corrected capture
+limits are work700/nodes35, including N-1 rejection; the earlier698/33 receipt
+remains historical. Generated/member lineage and executable Dyn stay open.
+
+The schema39 source-provider checkpoint emits actual Dyn declaration, interface
+and vtable rows in Core. Explicit Dyn syntax resolves its module-normalized
+registered trait and ordered type actuals; final declaration IDs and identities
+come from the actual Origins inventory. Impl-member lowering records the actual
+emitted ordinary function ID. Binding uses the selected impl origin, concrete
+Self and declared member against committed catalog slots; inherited slots retain
+their separately committed impl, and defaults target the emitted ordinary
+wrapper. No generated target-name parsing or Span join selects a provider.
+
+This is a narrow borrowed receiver/scalar profile. Trait actuals, nonreceiver
+parameters and results are scalar; unresolved associated bindings, richer
+retained/phantom arguments, lending/port relations and explicit generic slots
+remain Unsupported. Unknown contract components remain None, including effects,
+Hold and cleanup claims. The actual Types/kernel boundary remains closed before
+Build publishes an executable; metadata publication is not dyn acceptance.
+
+Actual Core source controls cover Read<i32>/Read<bool> on the same Self, an
+inherited default with repeated declaration spans, and same-named a.Read/b.Read
+project declarations. A mixed (Self,&dyn Read<i32>) ordinary inherent header
+also checks contextual Self lowering. The final Self traversal and every actual
+host copy are prepaid on the same ledger before substitution; this closes the
+independent early accounting finding. The simple complete Core request has
+work3475/nodes739, with N-1 ResourceLimit. Source context absence and a richer
+nominal type actual fail explicitly. Existing Expand library tests pass35/0;
+the focused Driver project control passes1/0. Clippy passes with the existing
+WIP dead-code warnings explicitly allowed; no strict warnings-free crate claim
+or runtime/performance comparison follows. Full contextual type keys, concrete
+coercions,131/132 source operations, both safety kernels and both native backends
+remain unfinished. The next common40 migration preserves this checkpoint as
+schema39 evidence and removes the independent flat slot life field.

@@ -34,6 +34,7 @@ mod retained;
 mod scoped_thread;
 mod scopes;
 mod stored_borrows;
+mod stored_flow;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
@@ -113,6 +114,19 @@ fn analyze_budgeted(
             blocks,
             holds: Vec::new(),
         });
+    }
+    if budget.stored_borrows {
+        for f in &module.functions {
+            stored_flow::header(f, budget)?;
+        }
+        for (f, package) in module.functions.iter().zip(&package_functions) {
+            scopes::check(module, f, *package, budget)?;
+        }
+        let actual = stored_flow::infer(module, &hold_graphs, budget)?;
+        for (function, holds) in plan.functions.iter_mut().zip(actual) {
+            function.holds = holds;
+        }
+        return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
@@ -422,6 +436,11 @@ mod tests {
             span: s(),
         });
         TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             closures: vec![],
             schema_version: zil_base::SCHEMA_VERSION,
@@ -429,6 +448,7 @@ mod tests {
             source_fingerprint: Fingerprint::ZERO,
             target: TargetProfile::default(),
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,

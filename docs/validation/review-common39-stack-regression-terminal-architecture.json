@@ -1,0 +1,35 @@
+{
+  "status": "ConfirmedDefaultStackRegressionInCommon39Baseline",
+  "method": "Independent retained-executable replay; no rebuild, stack-size override, limit increase or expectation migration. Exact full test function bytes match the two committed baseline identities.",
+  "test": "nested_calls_reach_verify_or_resource_limit_on_default_worker_stack",
+  "replays": [
+    {
+      "source": "88589bca7",
+      "test_function_sha256": "7289068d482373bad619059a53c5e55cc39d95a299449db358a2530f3a901fc4",
+      "harness": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-aggregates",
+      "harness_sha256": "7c31f6957da2a3d06a18068085274e2f612e088988a394cfe219965afbefbe40",
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-nested-stack-recomparison.log",
+      "log_sha256": "f4116fd39ee393f1272308d3ffe737f4e2cda1856b733a23ebc57feaa8554527",
+      "result": "1/0 default-worker stack"
+    },
+    {
+      "source": "03faea4fb",
+      "test_function_sha256": "7289068d482373bad619059a53c5e55cc39d95a299449db358a2530f3a901fc4",
+      "harness": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-aggregates",
+      "harness_sha256": "566c9131a68ab34186e3df0b641a26dfebda064776dda921009d90ef482d72c1",
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/errorarm39fixed340-nested-stack.log",
+      "log_sha256": "d62565646ed78df40d06940fd23715d12d54e809d7707f29d1f12e79a0196da5",
+      "result": "FAIL conversion child: default-worker stack overflow"
+    },
+    {
+      "source": "03fa plus author capture WIP, diagnostic binary only",
+      "harness": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-wip-stack-aggregates",
+      "harness_sha256": "ee386ec452e7ede7ff1653aa29b1ec9e3c41249e02d2deb445a5cee9a93c56ba",
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/capture340-wip-nested-stack.log",
+      "log_sha256": "333be3eb63f17f1c7dfe760c983d3804bebc906050f8bd2f610044333c8e6865",
+      "result": "FAIL same conversion child",
+      "binding_note": "Author confirms original source/depth sequence unchanged in this binary. After reviewer copy author added phase/depth diagnostic instrumentation; those subsequent current source bytes are not attributed to this retained binary."
+    }
+  ],
+  "scope": "Root885 prior37 passes, exact03fa common39 baseline and later dirty340 capture WIP fail conversion child. This establishes a baseline regression before capture WIP; phase/frame localization and repair remain pending."
+}

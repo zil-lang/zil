@@ -243,6 +243,26 @@ impl Engine<'_> {
         context: ExprExpectedContext<'_>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        // Reserved bare/grouped numeric names cannot select a trait member or
+        // another primitive family. Keep their recursive argument visit out
+        // of the ordinary call-state and Task-construction stack frames.
+        if let ExprKind::Call { callee, arguments } = &mut e.kind
+            && let Some(name) = crate::integer_conversion_name(callee)
+        {
+            return self
+                .expr_call_conversion(arguments, e.span, env, name, depth)
+                .map(|result| result.expect("numeric conversion handler"));
+        }
+        self.expr_call_selected(e, env, context, depth)
+    }
+    #[inline(never)]
+    fn expr_call_selected(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        context: ExprExpectedContext<'_>,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
         let mut state = CallArguments {
             method: self.expr_call_method(e, env, depth)?,
             hints: None,

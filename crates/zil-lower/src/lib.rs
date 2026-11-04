@@ -59,6 +59,17 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     let use_sum_extension = verified.uses_owned_sum_extension();
     let mut sum_budget = owned_sums::Budget::new(verified.limits());
     for closure in &module.closures {
+        for ty in &closure.captures {
+            if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+                && !sum_budget.admits(ty, &module.resources, 0)?
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Lower,
+                    "captured owning-base address needs a complete admitted pointee",
+                    None,
+                )]);
+            }
+        }
         // An owning callback signature is an ordinary complete data boundary.
         // Charge its actual type trees to the same request budget used by
         // ordinary function signatures. Capture admission remains separate.
@@ -110,7 +121,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -136,6 +147,11 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
     }
     for function in &module.functions {
+        if verified.uses_stored_borrows()
+            && let Some(life) = &function.storage_life
+        {
+            sum_budget.stored_contract(life)?;
+        }
         if !forwarded_callable_signature(function) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
@@ -143,7 +159,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 Some(function.span),
             )]);
         }
-        let old_return = function.return_type.is_copy_value()
+        let old_return = sum_budget.borrowed(&function.return_type, 0)?
+            || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
@@ -169,7 +186,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         }
         for id in &function.parameters {
             let ty = &function.locals[id.0 as usize].ty;
-            let old = ty.is_copy_value()
+            let old = sum_budget.borrowed(ty, 0)?
+                || ty.is_copy_value()
                 || ty.is_scalar_or_address()
                 || resource_type(ty, &module.resources)
                 || package_value_type(ty, &module.resources)
@@ -200,7 +218,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             .chain(function.values.iter())
         {
             let concrete_closure = callable_parameter_type(ty, &module.closures);
-            if !ty.is_copy_value()
+            if !sum_budget.borrowed(ty, 0)?
+                && !ty.is_copy_value()
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
@@ -509,12 +528,18 @@ mod tests {
 
     fn checked(target: TargetProfile) -> VerifiedModule {
         let module = TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             resources: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(1),
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
@@ -624,6 +649,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -650,6 +676,7 @@ mod tests {
             span: Span::default(),
         });
         module.closures.push(ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),

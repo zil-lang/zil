@@ -67,6 +67,7 @@ impl<'a> Visibility<'a> {
             Type::Managed(p) | Type::Desc(p) => p.as_ref(),
             other => other,
         };
+        let ty = stored::physical(ty);
         let (Type::Record { name, .. } | Type::Package { name, .. }) = ty else {
             return Ok(());
         };
@@ -163,6 +164,16 @@ impl<'a> Visibility<'a> {
                             _ => None,
                         }
                     }
+                    InstructionKind::LoadStoredBorrow { storage, path, .. }
+                    | InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                        match (function.values.get(storage.0 as usize), path.first()) {
+                            (
+                                Some(Type::Address { inner, .. }),
+                                Some(PlaceProjection::Field(index)),
+                            ) => Some((inner.as_ref(), *index)),
+                            _ => None,
+                        }
+                    }
                     InstructionKind::ReadPackageField { local, index }
                     | InstructionKind::DescribePackageField { local, index }
                     | InstructionKind::TakePackageField { local, index }
@@ -214,6 +225,21 @@ pub(super) fn resolve_program(
     let mut normalized = Vec::new();
     for module in &program.modules {
         inference::unconsumed_inventory(&module.core).map_err(|e| vec![e])?;
+        let work = inference::life_inventory_snapshot_work(
+            &module.core,
+            &Limits {
+                max_analysis_steps: remaining,
+                ..limits.clone()
+            },
+        )
+        .map_err(|e| vec![e])?;
+        remaining = remaining.checked_sub(work).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Types,
+                "stored inventory snapshot budget exceeded",
+                None,
+            )]
+        })?;
         let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
             core,
@@ -249,6 +275,7 @@ fn resolve_indexed(
     limits: &Limits,
     remaining: &mut usize,
 ) -> CompileResult<CoreModule> {
+    stored::inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     let mut declarations = BTreeMap::new();
     for d in &core.aggregates {
         if d.kind != AggregateKind::Package && d.fields.iter().any(|f| f.manages) {
@@ -397,7 +424,56 @@ fn resolve_indexed(
     }
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
+    let mut stored_instances = BTreeMap::new();
+    for (inventory, aggregates, module) in std::iter::once((
+        core.life_instances.as_slice(),
+        core.aggregates.as_slice(),
+        core.module_id,
+    ))
+    .chain(
+        project
+            .iter()
+            .copied()
+            .filter(|source| source.module_id != core.module_id)
+            .map(|source| {
+                (
+                    source.life_instances.as_slice(),
+                    source.aggregates.as_slice(),
+                    source.module_id,
+                )
+            }),
+    ) {
+        for instance in inventory {
+            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                continue;
+            };
+            let Type::Record { name, .. } = storage.as_ref() else {
+                continue;
+            };
+            aggregate_templates::spend(
+                remaining,
+                name.len()
+                    .saturating_add(1)
+                    .saturating_mul(stored_instances.len().saturating_add(1)),
+                Span::default(),
+            )
+            .map_err(|e| vec![e])?;
+            let actual =
+                stored::aggregate(aggregates, module, name, remaining).map_err(|e| vec![e])?;
+            if stored_instances
+                .insert(actual.name.as_str(), instance)
+                .is_some()
+            {
+                return Err(vec![error(
+                    "E-STORED-IDENTITY",
+                    Span::default(),
+                    "duplicate project stored instance",
+                )]);
+            }
+        }
+    }
     let mut resolver = Resolver {
+        stored_instances,
         generic,
         generic_types: BTreeMap::new(),
         generic_active: BTreeSet::new(),
@@ -593,6 +669,43 @@ fn resolve_indexed(
             field.ty = resolver.field_type(field, 0).map_err(|e| vec![e])?;
         }
     }
+    let mut resolved_life_instances = Vec::new();
+    for instance in &core.life_instances {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+            unreachable!("checked stored inventory");
+        };
+        let Type::Record { name, .. } = storage.as_ref() else {
+            unreachable!("checked stored inventory");
+        };
+        aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
+            .map_err(|e| vec![e])?;
+        let actual = stored::aggregate(
+            &core.aggregates,
+            core.module_id,
+            name,
+            &mut resolver.remaining,
+        )
+        .map_err(|e| vec![e])?;
+        let ty = resolver
+            .ty(&Type::Named(actual.name.clone()), 0, Span::default())
+            .map_err(|e| vec![e])?;
+        let mut arguments = Vec::new();
+        for argument in &instance.arguments {
+            resolver.charge(0, Span::default()).map_err(|e| vec![e])?;
+            arguments.push(match argument {
+                LifeNominalActual::Type(ty) => LifeNominalActual::Type(
+                    resolver.ty(ty, 0, Span::default()).map_err(|e| vec![e])?,
+                ),
+                LifeNominalActual::Const(value) => LifeNominalActual::Const(value.clone()),
+                LifeNominalActual::Lifetime(class) => LifeNominalActual::Lifetime(*class),
+            });
+        }
+        resolved_life_instances.push(LifeNominalInstance {
+            declaration: instance.declaration,
+            ty,
+            arguments,
+        });
+    }
     *remaining = resolver.remaining;
     drop(resolver);
     for application in &mut core.aggregate_applications {
@@ -607,6 +720,7 @@ fn resolve_indexed(
     core.aggregates = aggregates;
     core.functions = functions;
     core.enums = resolved_enums;
+    core.life_instances = resolved_life_instances;
     Ok(core)
 }
 
@@ -623,6 +737,7 @@ fn owned_mode_type(ty: &Type) -> Type {
 }
 
 struct Resolver<'a> {
+    stored_instances: BTreeMap<&'a str, &'a LifeNominalInstance>,
     generic: aggregate_templates::Index,
     generic_types: BTreeMap<String, Type>,
     generic_active: BTreeSet<aggregate_templates::Family>,
@@ -821,6 +936,18 @@ impl Resolver<'_> {
                     ));
                 }
                 if let Some(cached) = self.cache.get(name) {
+                    if matches!(cached, Type::BorrowedStorage { .. }) {
+                        let cost = inference::type_snapshot_work(
+                            cached,
+                            span,
+                            &Limits {
+                                max_analysis_steps: self.remaining,
+                                ..self.generic_limits.clone()
+                            },
+                        )?;
+                        aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                        return Ok(cached.clone());
+                    }
                     let mut pending = vec![cached];
                     while let Some(t) = pending.pop() {
                         if self.remaining == 0 {
@@ -905,11 +1032,23 @@ impl Resolver<'_> {
                     ty
                 } else {
                     let d = self.declarations[name];
+                    if !self.stored_instances.is_empty() {
+                        aggregate_templates::spend(
+                            &mut self.remaining,
+                            name.len()
+                                .saturating_add(1)
+                                .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                            span,
+                        )?;
+                    }
+                    let stored_instance = self.stored_instances.get(name.as_str()).copied();
                     let mut fields = Vec::new();
                     let mut new_shape = false;
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
+                            || (stored_instance.is_some()
+                                && matches!(ty, Type::Address { mutable: false, .. }))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
                                 && d.name.starts_with("$generic_")
@@ -972,12 +1111,42 @@ impl Resolver<'_> {
                         let payload = Type::Record { name, fields };
                         if d.kind == AggregateKind::Resource {
                             Type::Desc(Box::new(payload))
+                        } else if let Some(instance) = stored_instance {
+                            let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                                unreachable!()
+                            };
+                            let work = inference::type_snapshot_work(
+                                &instance.ty,
+                                span,
+                                &Limits {
+                                    max_analysis_steps: self.remaining,
+                                    ..self.generic_limits.clone()
+                                },
+                            )?;
+                            aggregate_templates::spend(&mut self.remaining, work, span)?;
+                            let qualified = Type::BorrowedStorage {
+                                storage: Box::new(payload),
+                                life: life.clone(),
+                            };
+                            stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                            qualified
                         } else {
                             payload
                         }
                     }
                 };
                 self.active.remove(name);
+                if matches!(result, Type::BorrowedStorage { .. }) {
+                    let cost = inference::type_snapshot_work(
+                        &result,
+                        span,
+                        &Limits {
+                            max_analysis_steps: self.remaining,
+                            ..self.generic_limits.clone()
+                        },
+                    )?;
+                    aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                }
                 self.cache.insert(name.clone(), result.clone());
                 result
             }
@@ -1161,6 +1330,34 @@ impl Resolver<'_> {
                     inner: Box::new(inner),
                 }
             }
+            Type::BorrowedStorage { .. } => {
+                let work = inference::type_snapshot_work(
+                    ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: self.remaining,
+                        ..self.generic_limits.clone()
+                    },
+                )?;
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    work.saturating_mul(self.stored_instances.len().saturating_add(1)),
+                    span,
+                )?;
+                let name = self
+                    .stored_instances
+                    .iter()
+                    .find_map(|(name, instance)| (&instance.ty == ty).then_some(*name))
+                    .ok_or_else(|| {
+                        error(
+                            "E-STORED-IDENTITY",
+                            span,
+                            "qualified stored type has no matching actual nominal inventory",
+                        )
+                    })?;
+                aggregate_templates::spend(&mut self.remaining, name.len(), span)?;
+                self.ty(&Type::Named(name.to_owned()), depth + 1, span)?
+            }
             Type::ErrorUnion {
                 error: failure,
                 result,
@@ -1211,6 +1408,11 @@ impl Resolver<'_> {
                     .map(|ty| self.ty(ty, depth + 1, span))
                     .collect::<R<Vec<_>>>()?;
                 let result = Box::new(self.ty(result, depth + 1, span)?);
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    borrowed_fp::metadata_work(life),
+                    span,
+                )?;
                 borrowed_fp::relation(&parameters, &result, life, span)?;
                 Type::BorrowedFunctionPointer {
                     parameters,
@@ -1465,6 +1667,7 @@ pub(super) fn field(ty: &Type, name: &str, span: Span) -> R<(u32, Type)> {
         Type::Managed(payload) => payload.as_ref(),
         other => other,
     };
+    let ty = stored::physical(ty);
     let selected = match ty {
         Type::Tuple(fields) => name
             .parse::<usize>()
@@ -1781,6 +1984,7 @@ impl Builder<'_, '_> {
         } else {
             ty
         };
+        let payload = stored::physical(payload);
         let (Type::Record { fields: decl, .. } | Type::Package { fields: decl, .. }) = payload
         else {
             return Err(error(
@@ -1900,6 +2104,60 @@ impl Builder<'_, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
+        if self
+            .known_type(object)
+            .as_ref()
+            .is_some_and(|ty| stored::shared_value(ty) || stored::shared_address(ty))
+        {
+            let (storage, address_ty) = self.projection_base(object, false)?;
+            let Type::Address { inner, .. } = &address_ty else {
+                unreachable!()
+            };
+            self.closures.snapshot_type(inner, 2, 2, e.span)?;
+            self.member_owner(inner, owner.as_ref(), e.span)?;
+            let (index, ty) = field(inner, member, e.span)?;
+            if matches!(ty, Type::Address { mutable: false, .. }) {
+                return Ok((
+                    self.value(
+                        InstructionKind::LoadStoredBorrow {
+                            storage,
+                            path: vec![PlaceProjection::Field(index)],
+                            mode: StoredBorrowLoad::CopyShared,
+                        },
+                        ty.clone(),
+                        e.span,
+                    )?,
+                    ty,
+                ));
+            }
+            if !ty.is_copy_value() {
+                return Err(unsupported(
+                    e.span,
+                    "nested stored field requires its complete projection consumer",
+                ));
+            }
+            let field_address = self.value(
+                InstructionKind::AddressField {
+                    address: storage,
+                    index,
+                },
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(ty.clone()),
+                },
+                e.span,
+            )?;
+            return Ok((
+                self.value(
+                    InstructionKind::ReadAddress {
+                        address: field_address,
+                    },
+                    ty.clone(),
+                    e.span,
+                )?,
+                ty,
+            ));
+        }
         if matches!(self.known_type(object), Some(Type::Package { .. }))
             && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()

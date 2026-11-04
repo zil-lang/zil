@@ -95,6 +95,11 @@
         "while-let": "stale and fresh Accepted, emitted only main, unsupported empty",
         "addressed-match": "stale and fresh both Unsupported: generic address has no established symbolic borrow origin"
       }
+    },
+    "mutability_neighbors": {
+      "receipt": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/mutability-receipt.json",
+      "sha256": "237bd99e152a1cd39ad01ff41d6fff17506dd89f05659b9e76a1c1bd52a65867",
+      "observed": "immutable parameter ref-mut Accepted and erased, nearest mutable local Accepted; shared and exclusive addressed variants both reject missing symbolic borrow origin"
     }
   }
 }
