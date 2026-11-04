@@ -660,17 +660,19 @@ mod tests {
             nodes.push(CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(base + 1)],
                 result: CtTypeNodeId(base + 1),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 1,
                     parameter_lives: vec![Some(0)],
                     result_life: Some(0),
-                },
+                })
+                .unwrap(),
             });
         }
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
         CtTypeRef {
             root: CtTypeNodeId(6),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]

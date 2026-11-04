@@ -560,6 +560,7 @@ mod tests {
         CtTypeRef {
             root: CtTypeNodeId(nodes.len() as u32 - 1),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]
@@ -644,16 +645,18 @@ mod tests {
     #[test]
     fn anonymous_type_borrowed_code_keeps_complete_life_and_signature_identity() {
         use zil_ir::FunctionLifeContract;
-        let one = FunctionLifeContract {
+        let one = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 1,
             parameter_lives: vec![Some(0), Some(0)],
             result_life: Some(0),
-        };
-        let two = FunctionLifeContract {
+        })
+        .unwrap();
+        let two = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 2,
             parameter_lives: vec![Some(0), Some(1)],
             result_life: Some(0),
-        };
+        })
+        .unwrap();
         let input = graph(vec![
             CtTypeNode::Primitive(CtScalarTy::I32),
             CtTypeNode::Address {
