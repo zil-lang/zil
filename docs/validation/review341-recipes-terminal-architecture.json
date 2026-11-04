@@ -1,0 +1,71 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "8ecd5eb6b73f9c2be61a16912343e6e82c3a14d0",
+  "scope": "Scalar const functions, concrete supertraits and first-order nominal conditional impl recipes. Prior checkpoint findings and executions remain recorded in review341-terminal-architecture.json; this acceptance does not relabel those earlier snapshots.",
+  "identity": {
+    "production_rust_count": 307,
+    "production_rust_sha256": "da0e7958457bc06780c2843dfaaa3c15418ca989e24157050c61578ec9f12f09",
+    "test_rust_sha256": "654d9a3449041119dfd7191338d44689a58b84d06d1b8b2ae55cfad3cd492655",
+    "algorithm": "Independently recomputed exact Git blobs using the committed receipt selection and Python Path component sorting; UTF-8 repository-relative path + NUL + bytes + NUL. Both digests match the author receipt.",
+    "retained_harnesses": {
+      "/tmp/zil-terminal-review/generics-341-recipes": "e51b6cc60ccb32c7f8fff8e26e2651ac034eba55520509019125595d1129da07",
+      "/tmp/zil-terminal-review/traits-341-recipes": "06825b864b52e0dcc5b268e8cc1fd18561d6b3f25f6a14833e0293d656cd67ad"
+    },
+    "binding": "Both exact-candidate harnesses were copied from the author receipt paths and hashed before target reuse. Fixture contents are compiled into these harnesses; native tests build and execute fresh machine artifacts."
+  },
+  "independent_execution": {
+    "commands": [
+      "source /workspace/.zil-env/env.sh && TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/generics-341-recipes terminal341 --nocapture --test-threads=1",
+      "source /workspace/.zil-env/env.sh && TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/traits-341-recipes terminal341 --nocapture --test-threads=1"
+    ],
+    "generics": {
+      "passed": 3,
+      "failed": 0,
+      "filtered": 16,
+      "seconds": 0.15
+    },
+    "traits": {
+      "passed": 6,
+      "failed": 0,
+      "filtered": 46,
+      "seconds": 1.92
+    },
+    "controls": [
+      "Unused const definitions, exact const types/forwarding, non-place const rejection, lexical runtime shadowing and repeated source spans.",
+      "Unknown/non-Copy/nested-invalid inherited arguments reject before publication; declared Self Copy and ordinary struct neighbors succeed.",
+      "Applied nominal heads, inline/direct/applied where premises, actual superclass obligations, invalid unused methods, overlap, unconstrained binders, admitted function constructors and module ownership boundaries.",
+      "Active repeated obligations reject; nonrepeating growing obligations exhaust the ordinary work budget without becoming evidence.",
+      "Actual Typed/Analyze/Verify and decoded Wire, local/project Clang and LlvmApi O0/O2 machine executions, persisted caches with current Verify, and a raw AST with identical receiver spans but distinct dispatch targets through both native backends.",
+      "Exact N/N-1/cold/warm/fresh controls for each reported work/node ledger."
+    ],
+    "exact_budgets": {
+      "const_expand": 1256,
+      "generic_impl_expand": 5282,
+      "supertrait_request": {
+        "work": 3262,
+        "nodes": 853
+      },
+      "const_match_shadow_request": {
+        "work": 2414,
+        "nodes": 823
+      },
+      "generic_impl_request": {
+        "work": 6271,
+        "nodes": 1784
+      }
+    }
+  },
+  "resolved_review_findings": [
+    "Canonical const-only module index replaces the uncharged all-symbol scan; map copies and substituted expression growth are prepaid.",
+    "Const binding identity uses original declaration scope and ordinals/local IDs, including runtime-name shadowing; spans remain diagnostic data.",
+    "Inherited trait applications validate actual formation and required structural premises under declaration-local bounds, before publishing their closure.",
+    "Impl binder/member searches are charged; candidate premises and inherited obligations are proved before a witness can be materialized.",
+    "Head matching, overlap and occurs checks cover the admitted constructor domain; unsupported constructors reject before recipe publication.",
+    "Trait dispatch now uses declaration-local structural expression ordinals. Ephemeral addresses only map immutable nodes to ordinals; clones replay the same structural traversal after equivalent Self normalization. Repeated source coordinates do not merge dispatch targets."
+  ],
+  "limitations": [
+    "u64/usize const integration, general CT const expressions/inference, aggregate/trait const consumers, associated projections, generic methods and broader generic trait obligations remain active work.",
+    "No reviewer full workspace run, Clippy, native Windows or Rust product-cost comparison is claimed; this is not full-language acceptance."
+  ]
+}
