@@ -419,7 +419,7 @@ fn frozen_vec_oracle_and_archived_encoders_have_pinned_independent_sources() {
 }
 
 #[test]
-fn every_raw_encoding_variant_matches_the_frozen_vec_oracle() {
+fn retained_legacy_variants_match_independent_vec_oracle_with_current_envelope() {
     for flag in [false, true] {
         let mut input = module(flag);
         equal(&input);

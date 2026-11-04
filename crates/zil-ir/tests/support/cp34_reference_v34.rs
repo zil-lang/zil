@@ -1,4 +1,6 @@
-// Independent Vec-based current TypedV38 reference; callable contract domain5.
+// Independent Vec-based TypedV39 reference for the retained legacy cases.
+// New nonempty life/dyn inventories and storage instructions are tested separately.
+// Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V38\0"
+        b"ZIL-TYPED-MODULE-V39\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -41,6 +43,15 @@ fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     encode_u32(&mut bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
     encode_text(&mut bytes, &module.target.to_json());
+    assert!(module.life_declarations.is_empty());
+    assert!(module.life_instances.is_empty());
+    assert!(module.dyn_declarations.is_empty());
+    assert!(module.dyn_interfaces.is_empty());
+    assert!(module.dyn_vtables.is_empty());
+    if v32 {
+        // Five empty table counts are part of the new module envelope.
+        bytes.extend_from_slice(&[0; 40]);
+    }
     encode_len(&mut bytes, module.functions.len());
     for f in &module.functions {
         encode_function(&mut bytes, f, v32);
@@ -67,6 +78,10 @@ fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
         encode_len(&mut bytes, closure.lending_captures.len());
         for index in &closure.lending_captures {
             encode_u32(&mut bytes, *index);
+        }
+        assert!(closure.storage_life.is_none());
+        if v32 {
+            bytes.push(0);
         }
     }
     encode_len(&mut bytes, module.resources.len());
@@ -121,9 +136,8 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::F64 => b.push(29),
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
-        Type::Task { result } => {
-            b.push(34);
-            encode_type(b, result);
+        Type::Task { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => {
+            panic!("new contextual carriers are outside this retained legacy oracle")
         }
         Type::Registration { environment } => {
             b.push(32);
@@ -270,7 +284,9 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
             "schema31 cannot represent Suspend selection"
         );
     }
+    assert!(f.storage_life.is_none());
     if v32 {
+        b.push(0); // absent storage relation in retained legacy fixtures
         b.push(u8::from(f.reference_return_bound.is_some()));
         if let Some(bound) = &f.reference_return_bound {
             encode_len(b, bound.len());
@@ -421,6 +437,18 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::MakeDynBorrow { .. }
+        | InstructionKind::CallDynSlot { .. }
+        | InstructionKind::LoadStoredBorrow { .. }
+        | InstructionKind::StoreStoredBorrow { .. }
+        | InstructionKind::BorrowPlaceAddress { .. }
+        | InstructionKind::PlaceTagAddress { .. }
+        | InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => {
+            panic!("new storage/dyn/reservation operations are outside this retained legacy oracle")
+        }
         InstructionKind::ConvertNumber { value, target } => {
             assert!(v32, "schema31 cannot represent floating conversions");
             b.push(98);
