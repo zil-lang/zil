@@ -79,6 +79,7 @@ mod resources;
 pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
+mod class_flow;
 mod retained;
 #[cfg(test)]
 mod retained_tests;
@@ -1072,6 +1073,10 @@ fn check_type_shape(
             } => {
                 budget.borrowed_function_pointers = true;
                 budget.spend(crate::signature_life::work(life))?;
+                for ty in parameters.iter().chain(std::iter::once(result.as_ref())) {
+                    stored_flow::type_work(ty, limits, budget)?;
+                }
+                borrowed_fp::signature_work(parameters, result, budget)?;
                 borrowed_fp::relation(parameters, result, life, None)?;
                 pending.push((result, depth + 1, context));
                 for parameter in parameters {

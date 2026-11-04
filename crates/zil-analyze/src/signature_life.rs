@@ -89,10 +89,6 @@ pub(super) fn relation(
             if let Type::BorrowedStorage { storage, life } = target {
                 if !matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
                     || !life.retained.is_empty()
-                    || life
-                        .slots
-                        .iter()
-                        .any(|s| s.mode != StoredBorrowMode::SharedAddress)
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
