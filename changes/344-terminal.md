@@ -33,3 +33,17 @@ Clang/API O0/O2 native execution. Add a deeper nearest legal projection case and
 an actual low-limit failure; budgets retain their existing meaning. Broader
 large callable/helper/foreign and floating/anonymous-union obligations remain
 open until real source and machine evidence closes them.
+
+## Deeper legal control
+
+After the first split, both preserved sources return normally at 2 MiB. A new
+20-layer length-one array closure then reaches Types and exposes the equivalent
+large-frame recursion in `closures::InferBuilder::expr_raw`. Apply the same
+per-variant split there; keep its `visit` charge and all graph work unchanged.
+This is a second reproduced failure, not an assumption about the first abort.
+
+A 32-layer ladder-initialized projection then exposes cumulative Types
+`Builder::expr_raw/aggregate` frames (expr_raw alone: 0xb3e8 = 46056 bytes).
+Keep scalar/operator arms available to 340; split only Call/If/Sequence there,
+and the six aggregate branches into private helpers. Retain the original
+post-dispatch expected-type check and early-return behavior exactly.
