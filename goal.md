@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
-| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / g10_1_review | 局部 Store 替换已[合入][e41]；G1.3.2 与异步共同验收，双配置全量通过、release 待收齐；G1.3.3 借入 ErrorUnion 活动臂替换已独审，待集成。 |
+| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / g10_1_review | 局部 Store 替换已[合入][e41]；G1.3.2 跨 helper 失效修正已[合入][e42]；G1.3.3 借入 ErrorUnion 活动臂替换已独审，待集成。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
@@ -36,12 +36,12 @@
 | G6.3 | 状态协议与拥有存储、替换及异步责任共同运行 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.2、G8.4、G8.6。 |
 | G7.1 | 安装函数返回后稳定拥有真实闭包环境的Registration、显式强关闭及失败清理 | 已合入 | — | — | [已合入证据][e37]；限同步关闭，不覆盖跨线程排空。 |
 | G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 待排期 | P1 | 待派 | 依赖 G3.4、G8.5。 |
-| G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 待排期 | P1 | 待派 | 与 G8.4 联合实施；需证明关闭后 raw 入口静止。 |
-| G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 待排期 | P1 | 待派 | 依赖 G7.2、G7.3、G8.4、G8.6。 |
+| G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 部分实现 | P1 | root | 同线程稳定拥有环境、晚通知 gate 与 provider 排空已[合入][e42]；一般跨线程环境待补。 |
+| G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 部分实现 | P1 | root | 有限 Task 失败/取消/返回时排空已[合入][e42]；更一般组合依赖 G7.2、G8.6。 |
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
 | G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 已合入 | — | — | [本批验收][e41]；有限静态拥有 Task/child 已通过共同验收；通用 frame port/拥有 Sum 仍另列。 |
 | G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 已合入 | — | — | [本批验收][e41]；源码 CAS、两核/Wire、原生争用与错误次序控制已通过共同验收。 |
-| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 实现待验 | P1 | root | 297步回归及旧夹具/Task控制已修正并独审；共同源码69a756a默认4641/0、参考4529/0，release消费者验收进行中。首轮10个失败保留。 |
+| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 部分实现 | P1 | root | 有限同线程登记、Pending 清理及 Task 责任已由 PR37 [合入][e42]；跨线程、借入 frame port、一般拥有组合仍缺。 |
 | G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
 | G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.1、G6.2、G8.2、G8.4。 |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
@@ -51,15 +51,15 @@
 | G9.5 | 字体/文本布局、渲染呈现及输入到绘制的真实闭环 | 待排期 | P2 | 待派 | 与 G9.4 协调；需实际字体、呈现和输入链路。 |
 | G9.6 | 真实ZUI应用集成、资源失败/关闭及维护场景 | 待排期 | P2 | 待派 | 依赖 G9.3、G9.4、G9.5 及必要语言能力。 |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | C40精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | [本批验收][e41]；PR36 已合入 main；默认4617/0、reference4505/0、text70/0及release145命令通过。Actions因账单/额度未启动。 |
+| G10.1 | 精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | [共同41][e41]、[共同42][e42] 均已合入；42默认4641/0、参考4529/0、text70/0、release145命令通过。Actions因账单/额度未启动。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
 
-[design]: https://github.com/zil-lang/zil/blob/ace4e70eb10fc86490da7e4c51fd1441b4a3d384/_zil_design.md
-[gates]: https://github.com/zil-lang/zil/blob/ace4e70eb10fc86490da7e4c51fd1441b4a3d384/validation/product-gates.json
+[design]: https://github.com/zil-lang/zil/blob/b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3/_zil_design.md
+[gates]: https://github.com/zil-lang/zil/blob/b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
 [e37]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-root37-integration-20261104.json
@@ -67,3 +67,4 @@
 [ui]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-345-ui.json
 [ui-review]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/review345-ui-terminal-architecture.json
 [e41]: https://github.com/zil-lang/zil/blob/ace4e70eb10fc86490da7e4c51fd1441b4a3d384/docs/validation/G10.1-common41-acceptance.json
+[e42]: https://github.com/zil-lang/zil/blob/b5685e2adb7462cdbaf16d6e4aabc4041e58e2d3/docs/validation/G8.4.2-common42-acceptance.json
