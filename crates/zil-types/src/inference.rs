@@ -852,7 +852,9 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
                 validate_pattern(field, depth + 1, budget)?;
             }
         }
-        CorePatternKind::Reference { pattern, .. } => validate_pattern(pattern, depth + 1, budget)?,
+        CorePatternKind::Reference { pattern, .. } | CorePatternKind::ErrorArm { pattern, .. } => {
+            validate_pattern(pattern, depth + 1, budget)?
+        }
         CorePatternKind::Tuple(fields) => {
             for field in fields {
                 validate_pattern(field, depth + 1, budget)?;

@@ -316,7 +316,8 @@ impl Dependencies<'_, '_, '_> {
         self.budget.node(pattern.span, depth)?;
         match &pattern.kind {
             s::PatternKind::Name(name) => self.bind_name(name, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => self.bind(pattern, depth + 1)?,
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => self.bind(pattern, depth + 1)?,
             s::PatternKind::RecordConstructor { fields, .. } => {
                 for field in fields {
                     self.budget.node(field.span, depth + 1)?;

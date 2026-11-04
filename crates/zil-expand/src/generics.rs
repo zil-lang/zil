@@ -1048,7 +1048,9 @@ impl<'a> Engine<'a> {
         if let Some(arguments) = product_arguments {
             self.record_product(template, &generated, arguments, product_scope, span)?;
         }
-        if self.budget.has_anonymous_sums() && matches!(instance.kind, ItemKind::Function(_)) {
+        if (self.budget.has_anonymous_sums() || self.budget.has_type_member_patterns())
+            && matches!(instance.kind, ItemKind::Function(_))
+        {
             self.budget.text(&generated, span)?;
             self.budget.node(span, 0)?;
             // Transfer the already bounded substitution map; no second clone.
@@ -2358,7 +2360,10 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
-    if budget.has_anonymous_sums() || budget.has_borrowed_keys() {
+    if budget.has_anonymous_sums()
+        || budget.has_borrowed_keys()
+        || budget.has_type_member_patterns()
+    {
         type_keys::prepay(ty, budget)?;
     }
     render_type_key(ty)

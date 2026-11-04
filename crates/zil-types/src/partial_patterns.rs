@@ -28,7 +28,8 @@ fn has_owned_tuple(pattern: &CorePattern, ty: &Type) -> bool {
 }
 impl Builder<'_, '_> {
     pub(super) fn partial_pattern_needed(&self, p: &CorePattern, ty: &Type) -> bool {
-        owned_shapes::tuple(ty)
+        matches!(ty, Type::ErrorUnion { .. })
+            || owned_shapes::tuple(ty)
             || owned_shapes::enumeration(ty)
                 && (reference_patterns::has_reference(p) || has_owned_tuple(p, ty))
     }
@@ -111,8 +112,7 @@ impl Builder<'_, '_> {
         } else {
             self.transfer_expr(e, None)?
         };
-        let work = inference::type_snapshot_work(&t, e.span, self.limits)?;
-        self.closures.snapshot(work.saturating_mul(3), e.span)?;
+        self.closures.snapshot_type(&t, 3, 0, e.span)?;
         self.finish_resource_temps(e.span)?;
         let local = if extend {
             let name = format!("$patternOwner340${}", self.function.locals.len());
@@ -138,11 +138,9 @@ impl Builder<'_, '_> {
             unreachable!()
         };
         match ty {
-            Type::Enum { variants, .. } => variants
-                .iter()
-                .position(|(n, _)| n == variant)
-                .map(|v| v as u32)
-                .ok_or_else(|| error("E-ENUM-VARIANT", p.span, "unknown pattern variant")),
+            Type::Enum { .. } => {
+                enums::pattern_variant(member, variant, ty, p.span).map(|(index, _)| index as u32)
+            }
             Type::ErrorUnion { error: e, result }
                 if variant == "@type-member" && fields.len() == 1 =>
             {
@@ -205,13 +203,48 @@ impl Builder<'_, '_> {
         consume: bool,
         out: &mut Bindings,
     ) -> R<()> {
-        let work = inference::type_snapshot_work(ty, p.span, self.limits)?;
-        self.closures.snapshot(
-            work.saturating_mul(4)
-                .saturating_add(path.len().saturating_mul(3)),
-            p.span,
-        )?;
+        self.closures
+            .snapshot_type(ty, 4, path.len().saturating_mul(3), p.span)?;
         match &p.kind {
+            CorePatternKind::Tuple(ps) if ps.is_empty() && *ty == Type::Unit => Ok(()),
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = ty
+                else {
+                    return Err(error(
+                        "E-MATCH-TYPE",
+                        p.span,
+                        "error arm requires an ErrorUnion",
+                    ));
+                };
+                if !bind {
+                    let tag = self.value(
+                        InstructionKind::PlaceTagLocal {
+                            local: root,
+                            path: path.clone(),
+                        },
+                        Type::I32,
+                        p.span,
+                    )?;
+                    self.pattern_branch(tag, Constant::I32(i32::from(*is_error)), fail, p.span)?;
+                }
+                path.push(PlaceProjection::ErrorArm(*is_error));
+                self.owner_pattern_walk(
+                    pattern,
+                    root,
+                    path,
+                    if *is_error { error_ty } else { result },
+                    root_ty,
+                    fail,
+                    bind,
+                    consume,
+                    out,
+                )?;
+                path.pop();
+                Ok(())
+            }
             CorePatternKind::Tuple(ps) => {
                 let Type::Tuple(ts) = ty else {
                     unreachable!("covered Tuple")
@@ -408,8 +441,18 @@ impl Builder<'_, '_> {
             .any(|a| reference_patterns::has_reference(&a.pattern));
         let place = self.owner_pattern_place(e, consume, false)?;
         self.check_match_coverage(&place.ty, arms, span)?;
+        // Mutually exclusive arms start with the same prepared owners. A
+        // cleanup emitted for one arm must not remove another arm's debt.
+        self.closures.snapshot(self.resource_temps.len(), span)?;
+        let prepared = self.resource_temps[self.resource_temp_floor..].to_vec();
         let mut ends = Vec::new();
         for arm in arms {
+            if consume {
+                self.closures.snapshot(prepared.len(), arm.span)?;
+                self.resource_temps.truncate(self.resource_temp_floor);
+                self.resource_temps.extend_from_slice(&prepared);
+            }
+
             let fail = self.block_id()?;
             let values = self.owner_pattern_values(&arm.pattern, &place, fail, consume)?;
             self.push_scope(arm.span)?;

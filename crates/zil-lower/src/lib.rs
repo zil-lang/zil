@@ -143,7 +143,9 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && function.callable_return_contract.is_some());
         let extra_return = if old_return {
             false
-        } else if use_sum_extension {
+        } else if use_sum_extension
+            || matches!(&function.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+        {
             sum_budget.admits(&function.return_type, &module.resources, 0)?
         } else {
             false
@@ -166,7 +168,9 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 || callable_parameter_type(ty, &module.closures);
             let extra = if old {
                 false
-            } else if use_sum_extension {
+            } else if use_sum_extension
+                || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+            {
                 sum_budget.admits(ty, &module.resources, 0)?
             } else {
                 false
@@ -197,7 +201,9 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && !package_value_type(ty, &module.resources)
                 && !error_type(ty, &module.resources)
                 && !owned_array_type(ty, &module.resources)
-                && !if use_sum_extension {
+                && !if use_sum_extension
+                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
+                {
                     sum_budget.admits(ty, &module.resources, 0)?
                 } else {
                     false

@@ -1521,7 +1521,8 @@ impl<'a> Walker<'a> {
                 }
             }
             CorePatternKind::Integer(text) => self.text(text, Some(pattern.span))?,
-            CorePatternKind::Reference { pattern, .. } => self.bind_pattern(pattern, depth + 1)?,
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.bind_pattern(pattern, depth + 1)?,
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) => {}
         }
         Ok(())

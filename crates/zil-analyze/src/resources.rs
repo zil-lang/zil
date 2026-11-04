@@ -427,6 +427,10 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::StoreStoredBorrow { storage, value, .. } => {
             (Some(*storage), Some(*value), &[])
         }
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => (None, None, &[]),
+        InstructionKind::ReservePlaceAddress { address, .. } => (Some(*address), None, &[]),
+        InstructionKind::CommitPlaceReplace { value, .. } => (Some(*value), None, &[]),
         InstructionKind::RegistrationStart { callback, .. } => (Some(*callback), None, &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),

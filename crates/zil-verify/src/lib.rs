@@ -1717,6 +1717,18 @@ fn check_instruction(
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             stored_borrows::instruction(function, instruction, budget)?
         }
+        // Publication precedes the independent pin/ownership consumers. Keep
+        // raw reservations closed until those consumers are complete.
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => {
+            return Err(Diagnostic::unsupported(
+                Phase::Verify,
+                "owning-place reservation consumers are under construction",
+                span,
+            ));
+        }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
         | InstructionKind::RegistrationClose { .. } => {
@@ -3057,6 +3069,10 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::StoreStoredBorrow { storage, value, .. } => {
             ([Some(*storage), Some(*value)], &[])
         }
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => ([None, None], &[]),
+        InstructionKind::ReservePlaceAddress { address, .. } => ([Some(*address), None], &[]),
+        InstructionKind::CommitPlaceReplace { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),

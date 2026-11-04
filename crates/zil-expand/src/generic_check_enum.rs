@@ -9,6 +9,7 @@ enum Ctor {
     Integer(i128),
     Variant(String),
     Sum(String),
+    Error(bool),
     Opaque,
 }
 #[derive(Clone)]
@@ -265,6 +266,36 @@ impl Check<'_, '_, '_> {
                 Pat::Any
             }
             PatternKind::Wildcard => Pat::Any,
+            PatternKind::Reference { mutable, pattern } => {
+                self.budget.ty(ty)?;
+                let address = TypeRef {
+                    kind: TypeKind::Reference {
+                        lifetime: None,
+                        mutable: *mutable,
+                        inner: Box::new(ty.clone()),
+                    },
+                    span: p.span,
+                };
+                self.pattern(pattern, &address, state, seen)?
+            }
+            PatternKind::ErrorArm { is_error, pattern } => {
+                let TypeKind::Error {
+                    error: error_ty,
+                    result,
+                } = &group(ty).kind
+                else {
+                    return Err(error(p.span, "error arm requires an ErrorUnion"));
+                };
+                Pat::Ctor(
+                    Ctor::Error(*is_error),
+                    vec![self.pattern(
+                        pattern,
+                        if *is_error { error_ty } else { result },
+                        state,
+                        seen,
+                    )?],
+                )
+            }
             PatternKind::Literal(Literal::Bool(v))
                 if boolean(ty) && !dependent(ty, &self.variables) =>
             {
@@ -277,6 +308,12 @@ impl Check<'_, '_, '_> {
                     Ctor::Integer(integer_value(v, ty, p.span, self.budget)?),
                     vec![],
                 )
+            }
+            PatternKind::Tuple(ps)
+                if ps.is_empty()
+                    && matches!(&group(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["void"] && args.is_empty()) =>
+            {
+                Pat::Ctor(Ctor::Tuple, vec![])
             }
             PatternKind::Tuple(ps) => {
                 let TypeKind::Tuple(ts) = &group(ty).kind else {
@@ -353,6 +390,50 @@ impl Check<'_, '_, '_> {
                 Pat::Ctor(Ctor::Variant(variant.clone()), patterns)
             }
             PatternKind::Constructor { path, arguments } => {
+                if let TypeKind::Error {
+                    error: error_ty,
+                    result,
+                } = &group(ty).kind
+                {
+                    if path.len() != 1 || arguments.len() != 1 {
+                        return Err(error(
+                            p.span,
+                            "ErrorUnion member pattern requires one type and one payload",
+                        ));
+                    }
+                    if error_members_may_equal(error_ty, result, &self.variables, self.budget, 0)? {
+                        return Err(error(
+                            p.span,
+                            "ErrorUnion member identity may coincide; use .ok or .err",
+                        ));
+                    }
+                    let member = if let Some(alias) = self.pattern_types.get(&path[0]) {
+                        self.budget.ty(alias)?;
+                        alias.clone()
+                    } else {
+                        named(&path[0], p.span)
+                    };
+                    let key = type_key(&member, self.budget)?;
+                    let is_error = if key == type_key(error_ty, self.budget)? {
+                        true
+                    } else if key == type_key(result, self.budget)? {
+                        false
+                    } else {
+                        return Err(error(
+                            p.span,
+                            "pattern type is not an exact ErrorUnion member",
+                        ));
+                    };
+                    return Ok(Pat::Ctor(
+                        Ctor::Error(is_error),
+                        vec![self.pattern(
+                            &arguments[0],
+                            if is_error { error_ty } else { result },
+                            state,
+                            seen,
+                        )?],
+                    ));
+                }
                 if matches!(&group(ty).kind, TypeKind::Union(_)) {
                     if path.len() != 1 || arguments.len() != 1 {
                         return Err(error(
@@ -478,6 +559,70 @@ impl Check<'_, '_, '_> {
             }
         })
     }
+    pub(super) fn enum_if_let(
+        &mut self,
+        pattern: &Pattern,
+        value: &Expr,
+        then_body: &Block,
+        else_body: Option<&ElseBranch>,
+        state: &mut State,
+        span: Span,
+    ) -> R<BlockFlow> {
+        let ty = self.expr(value, state, None, false)?;
+        let mut yes = self.clone_state(state)?;
+        let first = self.next_local;
+        let pattern = self.pattern(pattern, &ty, &mut yes, &mut BTreeSet::new())?;
+        let irrefutable = !self.useful(
+            &[vec![pattern]],
+            &[Pat::Any],
+            std::slice::from_ref(&ty),
+            0,
+            span,
+        )?;
+        let a = self.block(then_body, &mut yes)?;
+        self.resource_description_scope_exit(&mut yes, first, span)?;
+        let mut no = self.clone_state(state)?;
+        let b = match else_body {
+            Some(ElseBranch::Block(block)) => self.block(block, &mut no)?,
+            Some(ElseBranch::If(statement)) => {
+                self.budget.statement_snapshot(statement)?;
+                self.block(
+                    &Block {
+                        span: statement.span,
+                        statements: vec![*statement.clone()],
+                    },
+                    &mut no,
+                )?
+            }
+            None => BlockFlow::NEXT,
+        };
+        match (a.fallthrough, !irrefutable && b.fallthrough) {
+            (true, true) => self.join_states(state, &[&yes, &no], span)?,
+            (true, false) => self.join_states(state, &[&yes], span)?,
+            (false, true) => self.join_states(state, &[&no], span)?,
+            _ => {}
+        }
+        Ok(BlockFlow {
+            fallthrough: a.fallthrough || !irrefutable && b.fallthrough,
+            returns: a.returns || !irrefutable && b.returns,
+        })
+    }
+    pub(super) fn enum_while_let(
+        &mut self,
+        pattern: &Pattern,
+        value: &Expr,
+        body: &Block,
+        state: &mut State,
+        span: Span,
+    ) -> R<BlockFlow> {
+        let aliases = self.alias_mark_loop();
+        let entry = self.clone_loop_state(state, value.span)?;
+        let ty = self.expr(value, state, None, false)?;
+        self.loop_invariant(&entry, state, value.span)?;
+        let mut iteration = self.clone_loop_state(state, body.span)?;
+        self.pattern(pattern, &ty, &mut iteration, &mut BTreeSet::new())?;
+        self.loop_body(body, state, iteration, span, aliases)
+    }
     pub(super) fn enum_match(
         &mut self,
         value: &Expr,
@@ -565,6 +710,7 @@ impl Check<'_, '_, '_> {
     }
     fn constructors(&mut self, ty: &TypeRef) -> R<Vec<Ctor>> {
         Ok(match &group(ty).kind {
+            TypeKind::Error { .. } => vec![Ctor::Error(false), Ctor::Error(true)],
             TypeKind::Union(_) => {
                 let members = self.sum_members(ty)?;
                 let mut constructors = Vec::new();
@@ -574,6 +720,9 @@ impl Check<'_, '_, '_> {
                 constructors
             }
             TypeKind::Tuple(_) => vec![Ctor::Tuple],
+            TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
+                vec![Ctor::Tuple]
+            }
             TypeKind::Named { path, .. } if path.as_slice() == ["bool"] => {
                 vec![Ctor::Bool(false), Ctor::Bool(true)]
             }
@@ -592,6 +741,11 @@ impl Check<'_, '_, '_> {
     }
     fn constructor_fields(&mut self, c: &Ctor, ty: &TypeRef) -> R<Vec<TypeRef>> {
         match (c, &group(ty).kind) {
+            (Ctor::Error(is_error), TypeKind::Error { error, result }) => {
+                let payload = if *is_error { error } else { result };
+                self.budget.ty(payload)?;
+                Ok(vec![payload.as_ref().clone()])
+            }
             (Ctor::Tuple, TypeKind::Tuple(fields)) => {
                 for f in fields {
                     self.budget.ty(f)?;
@@ -711,4 +865,109 @@ fn integer_value(text: &str, ty: &TypeRef, span: Span, budget: &mut Budget<'_>) 
         ));
     }
     Ok(value)
+}
+
+// Substitution may identify a bare binder with any type. Rigid different
+// constructors/nominal families are disjoint independently of their fields.
+fn error_members_may_equal(
+    a: &TypeRef,
+    b: &TypeRef,
+    vars: &BTreeSet<String>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    budget.node(a.span, depth)?;
+    let (a, b) = (group(a), group(b));
+    let unknown = |t: &TypeRef| matches!(&t.kind, TypeKind::Named { path, .. } if path.first().is_some_and(|n| vars.contains(n)));
+    let unit = |t: &TypeRef| {
+        matches!(&t.kind, TypeKind::Tuple(fields) if fields.is_empty())
+            || matches!(&t.kind, TypeKind::Named { path, args } if path.as_slice()==["void"] && args.is_empty())
+    };
+    if unit(a) && unit(b) {
+        return Ok(true);
+    }
+    if unknown(a)
+        || unknown(b)
+        || trait_bounds::associated::parts(a).is_some()
+        || trait_bounds::associated::parts(b).is_some()
+    {
+        return Ok(true);
+    }
+    match (&a.kind, &b.kind) {
+        (TypeKind::Named { path: ap, args: aa }, TypeKind::Named { path: bp, args: ba }) => {
+            for name in ap.iter().chain(bp) {
+                budget.text(name, a.span)?;
+            }
+            if ap != bp || aa.len() != ba.len() {
+                return Ok(false);
+            }
+            for (a, b) in aa.iter().zip(ba) {
+                if let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b)
+                    && !error_members_may_equal(a, b, vars, budget, depth + 1)?
+                {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        (TypeKind::Tuple(a), TypeKind::Tuple(b)) => {
+            if a.len() != b.len() {
+                return Ok(false);
+            }
+            for (a, b) in a.iter().zip(b) {
+                if !error_members_may_equal(a, b, vars, budget, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        (
+            TypeKind::Reference {
+                mutable: am,
+                inner: a,
+                ..
+            },
+            TypeKind::Reference {
+                mutable: bm,
+                inner: b,
+                ..
+            },
+        ) => Ok(am == bm && error_members_may_equal(a, b, vars, budget, depth + 1)?),
+        (TypeKind::Optional(a), TypeKind::Optional(b)) => {
+            error_members_may_equal(a, b, vars, budget, depth + 1)
+        }
+        (
+            TypeKind::Error {
+                error: ae,
+                result: ar,
+            },
+            TypeKind::Error {
+                error: be,
+                result: br,
+            },
+        ) => Ok(error_members_may_equal(ae, be, vars, budget, depth + 1)?
+            && error_members_may_equal(ar, br, vars, budget, depth + 1)?),
+        (TypeKind::Array { element: a, .. }, TypeKind::Array { element: b, .. }) => {
+            error_members_may_equal(a, b, vars, budget, depth + 1)
+        }
+        // These forms need their complete normalization/equations before a
+        // disjointness proof; absence of proof never grants unique selection.
+        (
+            TypeKind::MetaEval(_)
+            | TypeKind::MetaSplice(_)
+            | TypeKind::MetaBlock(_)
+            | TypeKind::Impl(_)
+            | TypeKind::Union(_),
+            _,
+        )
+        | (
+            _,
+            TypeKind::MetaEval(_)
+            | TypeKind::MetaSplice(_)
+            | TypeKind::MetaBlock(_)
+            | TypeKind::Impl(_)
+            | TypeKind::Union(_),
+        ) => Ok(true),
+        (a, b) => Ok(std::mem::discriminant(a) == std::mem::discriminant(b)),
+    }
 }

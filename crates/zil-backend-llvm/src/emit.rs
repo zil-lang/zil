@@ -1457,6 +1457,15 @@ impl FunctionEmitter<'_> {
                     Some(instruction.span),
                 );
             }
+            InstructionKind::ReservePlaceLocal { .. }
+            | InstructionKind::ReservePlaceAddress { .. }
+            | InstructionKind::CommitPlaceReplace { .. }
+            | InstructionKind::AbortPlaceReservation { .. } => {
+                return unsupported(
+                    "unverified owning-place replacement consumer",
+                    Some(instruction.span),
+                );
+            }
             InstructionKind::RegistrationStart { .. }
             | InstructionKind::RegistrationValid { .. }
             | InstructionKind::RegistrationClose { .. } => {

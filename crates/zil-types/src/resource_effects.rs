@@ -489,6 +489,8 @@ impl<T: Tracking> Scan<'_, '_, T> {
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> R<()> {
         self.visit(depth, pattern.span)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) => {
                 self.spend(name.len(), pattern.span)?;
                 self.scopes

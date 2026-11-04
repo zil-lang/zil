@@ -123,3 +123,20 @@ root37全量重放保留了impl201两个原反例的新Success：借入实际cal
 ### Explicit ErrorUnion tag patterns for universally checked generic definitions
 
 TypeName(payload) requires a unique actual member; T:Copy does not prove T differs from a concrete Copy error type. Keep that definition-time boundary. Add `.ok(pattern)` / `.err(pattern)` to express the actual tag independently of nominal names, transporting Syntax/Core ErrorArm{is_error,pattern}. Existing physical ErrorArm projections and ordinary tag/loan/init/move/cleanup checks implement it; no new runtime opcode or implicit injection rule. Parser is type-independent, user type names remain ordinary, input evaluates once. Required original generic no-call definitions, same-type ambiguity, wrong-tag, incomplete/exclusive/stale-window raw/Wire and native cleanup controls remain with the implementation. This publication is a contract/data change, not completed consumer acceptance.
+121–124实际拥有位置替换实施：独立ReservationId不进入ValueId/Type，不允许
+票据作为普通地址或值读取/捕获。Reserve只固定实际端点及原有父资格，允许
+合法读旧准备RHS；保留实际address基址及父loan依赖直到Commit/Abort，不能
+因Commit只引用票据而让ValueId末用算法提前释放父权限。所有路径按真实
+Field/Variant/ErrorArm及完整Type解释，每个祖先判别/初始化与实际可写来源
+在两核独立重建；已部分取空子树不能凭reserve复活。相交写/移/销毁、父替换
+及Store失效操作在准备期间禁止；真正不相交的已证字段保持可用。
+
+RHS完整新owner和实际Hold先核验；Commit才激活端点写，要求准备过程临时
+共享借入已结束，旧值只清一次，清旧/发布之间没有可恢复失败。失败退出先
+Abort释放pin，旧值保持；显式self转交仍走旧规则，不伪称能恢复已交出责任。
+CFG按动态activation核票据：静态定义唯一，每条路径一次Commit或Abort，
+退出/合流必须结清或保持同一活动集合；循环回边结清后可再次执行同一静态
+Reserve。源码正常结束不能因编译器默补Abort掩盖缺失Commit；?、return和
+break/continue只结清真实离开作用域的票据，保留外层仍准备中的责任。
+后端使用真实地址、现有结构化清理和部分初始化标记，不给ticket运行时
+包装或额外独占地址表示；新表、状态、路径、比较与清理在分配/复制前预付。

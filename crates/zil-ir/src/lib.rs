@@ -31,7 +31,15 @@ macro_rules! identity {
     )+};
 }
 identity!(
-    FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
+    FunctionId,
+    LocalId,
+    ValueId,
+    BlockId,
+    PlaceId,
+    ClosureId,
+    OriginId,
+    ScopeId,
+    ReservationId
 );
 
 /// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
@@ -864,6 +872,11 @@ pub enum CorePatternKind {
     Tuple(Vec<CorePattern>),
     Reference {
         mutable: bool,
+        pattern: Box<CorePattern>,
+    },
+    /// Explicit ErrorUnion tag selection; never a nominal-name authority.
+    ErrorArm {
+        is_error: bool,
         pattern: Box<CorePattern>,
     },
     Variant {
@@ -1915,6 +1928,35 @@ pub enum InstructionKind {
     PlaceTagAddress {
         address: ValueId,
         path: Vec<PlaceProjection>,
+    },
+    /// Prepare a replacement at actual initialized owning local storage.
+    /// This independent ticket is not a ValueId or an Address permission.
+    /// Preparing pins the location while allowing ordinary legal reads;
+    /// intersecting write/move/drop/storage invalidation is forbidden.
+    ReservePlaceLocal {
+        reservation: ReservationId,
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Prepare through a real mutable Address and retain its parent authority.
+    /// Never copies an exclusive permission or crosses a view implicitly.
+    ReservePlaceAddress {
+        reservation: ReservationId,
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Consume this activation after checking a complete exact-type new owner,
+    /// its actual Hold and all live loans. Activate the write, drop the old
+    /// owner once and commit with no recoverable failure between drop/store.
+    CommitPlaceReplace {
+        reservation: ReservationId,
+        value: ValueId,
+    },
+    /// Settle a prepared activation without changing its old initialized value.
+    /// Every exit and CFG join must settle active tickets; repeated loop
+    /// execution may create a new activation only after the previous settled.
+    AbortPlaceReservation {
+        reservation: ReservationId,
     },
     /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
     /// nonempty field path retains parent storage, initialization and mutability.
@@ -3572,6 +3614,69 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             if let InstructionKind::BorrowPlaceAddress { mutable, .. } = i {
                 b.push(u8::from(*mutable));
             }
+        }
+        InstructionKind::ReservePlaceLocal {
+            reservation,
+            local,
+            path,
+        } => {
+            b.push(121);
+            encode_u32(b, reservation.0);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+        }
+        InstructionKind::ReservePlaceAddress {
+            reservation,
+            address,
+            path,
+        } => {
+            b.push(122);
+            encode_u32(b, reservation.0);
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+        }
+        InstructionKind::CommitPlaceReplace { reservation, value } => {
+            b.push(123);
+            encode_u32(b, reservation.0);
+            encode_u32(b, value.0);
+        }
+        InstructionKind::AbortPlaceReservation { reservation } => {
+            b.push(124);
+            encode_u32(b, reservation.0);
         }
         InstructionKind::BorrowFieldLocal {
             local,

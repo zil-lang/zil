@@ -1332,6 +1332,8 @@ impl Resolver<'_> {
     fn pattern(&mut self, p: &mut CorePattern, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
         match &mut p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Variant { ty, fields, .. } => {
                 *ty = self.ty(ty, depth + 1, p.span)?;
                 for field in fields {

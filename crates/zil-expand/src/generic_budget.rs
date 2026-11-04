@@ -13,6 +13,7 @@ pub(crate) struct Budget<'a> {
     primitive_binders: bool,
     anonymous_sums: bool,
     borrowed_keys: bool,
+    type_member_patterns: bool,
     generic_methods: bool,
     dynamic_interfaces: bool,
 }
@@ -29,6 +30,7 @@ impl<'a> Budget<'a> {
             primitive_binders: false,
             anonymous_sums: false,
             borrowed_keys: false,
+            type_member_patterns: false,
             generic_methods: false,
             dynamic_interfaces: false,
         }
@@ -75,6 +77,9 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn has_anonymous_sums(&self) -> bool {
         self.anonymous_sums
+    }
+    pub(crate) fn has_type_member_patterns(&self) -> bool {
+        self.type_member_patterns
     }
     pub(crate) fn has_primitive_binders(&self) -> bool {
         self.primitive_binders
@@ -635,6 +640,7 @@ impl<'a> Budget<'a> {
                 }
             }
             PatternKind::Constructor { path, arguments } => {
+                self.type_member_patterns |= path.len() == 1;
                 for s in path {
                     self.text(s, p.span)?;
                 }
@@ -652,7 +658,9 @@ impl<'a> Budget<'a> {
                     self.pattern(&field.pattern, depth + 1)?;
                 }
             }
-            PatternKind::Reference { pattern, .. } => self.pattern(pattern, depth + 1)?,
+            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
+                self.pattern(pattern, depth + 1)?
+            }
             PatternKind::Literal(l) => self.literal(l, p.span)?,
             PatternKind::Wildcard => {}
         }
@@ -691,6 +699,9 @@ impl<'a> Budget<'a> {
             self.statement(s, depth + 1, subs)?;
         }
         Ok(())
+    }
+    pub(crate) fn statement_snapshot(&mut self, statement: &Stmt) -> R<()> {
+        self.statement(statement, 0, None)
     }
     fn statement(
         &mut self,

@@ -40,6 +40,10 @@ fn primitive_name(name: &str) -> bool {
     matches!(
         name,
         "u8" | "u16"
+            | "u64"
+            | "usize"
+            | "f32"
+            | "f64"
             | "i32"
             | "i64"
             | "c_null"
@@ -215,6 +219,8 @@ impl Names<'_> {
     fn pattern(&mut self, p: &CorePattern, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
         match &p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Name(name) if primitive_name(name) => {
                 return Err(primitive_reserved(name, p.span));
             }

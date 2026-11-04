@@ -521,6 +521,27 @@ impl Engine<'_> {
                 });
                 self.enum_pattern(pattern, address.as_ref(), env, depth + 1)?;
             }
+            PatternKind::ErrorArm {
+                is_error,
+                pattern: inner,
+            } => {
+                let ty =
+                    ty.ok_or_else(|| error(pattern.span, "error arm type cannot be inferred"))?;
+                let written = self.original_type(ty)?;
+                let TypeKind::Error {
+                    error: error_ty,
+                    result,
+                } = &grouped(&written).kind
+                else {
+                    return Err(error(pattern.span, "error arm requires an ErrorUnion"));
+                };
+                self.enum_pattern(
+                    inner,
+                    Some(if *is_error { error_ty } else { result }),
+                    env,
+                    depth + 1,
+                )?;
+            }
             PatternKind::Tuple(patterns) => {
                 let types = ty.and_then(|ty| match &grouped(ty).kind {
                     TypeKind::Tuple(fields) => Some(fields.as_slice()),
@@ -535,7 +556,10 @@ impl Engine<'_> {
                     return Err(error(pattern.span, "match enum type cannot be inferred"));
                 };
                 let written = self.original_type(ty)?;
-                if matches!(&grouped(&written).kind, TypeKind::Union(_)) {
+                if matches!(
+                    &grouped(&written).kind,
+                    TypeKind::Union(_) | TypeKind::Error { .. }
+                ) {
                     if path.len() != 1 || arguments.len() != 1 {
                         return Err(error(
                             pattern.span,

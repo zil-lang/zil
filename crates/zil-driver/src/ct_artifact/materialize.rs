@@ -332,7 +332,8 @@ impl Materializer<'_, '_> {
                 s::PatternKind::Name(name) => {
                     scope.insert(name.clone());
                 }
-                s::PatternKind::Reference { pattern, .. } => pending.push(pattern),
+                s::PatternKind::Reference { pattern, .. }
+                | s::PatternKind::ErrorArm { pattern, .. } => pending.push(pattern),
                 s::PatternKind::RecordConstructor { fields, .. } => {
                     pending.extend(fields.iter().map(|field| &field.pattern));
                 }

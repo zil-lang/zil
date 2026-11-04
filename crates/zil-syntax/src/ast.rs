@@ -411,6 +411,12 @@ pub enum PatternKind {
         mutable: bool,
         pattern: Box<Pattern>,
     },
+    /// Explicit `.ok(pattern)` / `.err(pattern)` ErrorUnion tag selection.
+    /// Ordinary type, active-tag, place and ownership checks still apply.
+    ErrorArm {
+        is_error: bool,
+        pattern: Box<Pattern>,
+    },
     Tuple(Vec<Pattern>),
     Constructor {
         path: Vec<String>,

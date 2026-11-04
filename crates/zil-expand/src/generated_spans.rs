@@ -434,7 +434,9 @@ fn walk_pattern<V: Visitor + ?Sized>(
         s::PatternKind::Name(n) => v.text(n, p.span)?,
         s::PatternKind::Wildcard => {}
         s::PatternKind::Literal(l) => literal(v, l, p.span)?,
-        s::PatternKind::Reference { pattern, .. } => walk_pattern(v, pattern, depth + 1)?,
+        s::PatternKind::Reference { pattern, .. } | s::PatternKind::ErrorArm { pattern, .. } => {
+            walk_pattern(v, pattern, depth + 1)?
+        }
         s::PatternKind::Tuple(ps) => {
             for p in ps {
                 walk_pattern(v, p, depth + 1)?;

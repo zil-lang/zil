@@ -151,7 +151,8 @@ impl<'a> Renamer<'a> {
         self.budget.node(pattern.span, depth)?;
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, rename, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => {
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(pattern, rename, depth + 1)?
             }
             s::PatternKind::Tuple(patterns) => {
