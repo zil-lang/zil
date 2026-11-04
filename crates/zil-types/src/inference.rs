@@ -804,7 +804,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     budget.work(signature.parameters.len(), span)?;
     let admitted = |ty: &Type| {
         ty.is_copy_value()
-            || ty.is_scalar_or_address()
+            || closures::signature_parameter(ty)
             || resources::supported(ty)
             || errors::owned(ty)
             || packages::ordinary(ty)

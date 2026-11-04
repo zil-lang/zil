@@ -696,7 +696,8 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
-    ty.is_copy_value() || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+    ty.is_copy_value()
+        || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
@@ -1037,10 +1038,11 @@ impl Graph {
                 || ty.is_copy_value()
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
+                || owned_shapes::tuple(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
-                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
+                || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
                 // This is only a pointee constraint node for a shared head.
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
