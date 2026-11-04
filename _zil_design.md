@@ -898,6 +898,20 @@ SABI 内的清理若再次 panic，按固定策略进入 Faulted/abort；不得�
 
 参数化安装定义必须明确要求`F: FnMut(...) + ClosedEnvironment`。ClosedEnvironment是编译器密封的实际自含环境要求，未用泛型定义也须检查；声明本身不证明资格。Types/Analyze与Verify分别走实际具体捕获图和责任链，拒绝环境保留普通借用或外借描述；代码指针签名中的地址并非被捕获的地址。此界限不从Copy、StoreElement、Transfer或Share推导。外部register失败须同步撤销全部入口；close返回必须保证所有原始入口/访问都已结束且以后不会再开始，包括尚未进入ZIL trampoline的用户。仅计数active回调不满足合同，不能关闭后再解引用已释放userdata以检查过期。实际unsafe外部角色承诺与完整静止机制均须逐项验证，首条合同不开放跨线程或异步draining。
 
+### 12.3.1 同线程可轮询登记（G8.4.1接续）
+
+异步关闭使用独立密封类型`AsyncRegistration<F>`，不改变同步`Registration<F>`的强关闭合同。`unsafe c_register_async(register, request_close, poll_drain, callback)`按源序准备实际具体F并转入稳定拥有记录；F须有`FnMut(i32)->i32`能力及实际ClosedEnvironment，且其完整环境清理图必同步。此片不开放保留借入、Transfer/Share或跨线程反调。安装失败返回既有nullable拥有头约定：返回null前须同步撤销并排空全部raw入口及后端userdata访问，清理已转交环境一次；不能仅因安装返回失败便释放仍被保留的记录。
+
+三个实际Direct C外部角色均须声明`static_callbacks()`及`effects(ffi)`，并分别标记`async_callback_register()`、`async_callback_request_close()`、`async_callback_poll_drain()`；不得作普通ForeignCall。register精确为`(extern "C" fn(c_handle,i32)->i64,c_handle)->c_handle`，request_close为`(c_handle)->Unit`，poll_drain为`(c_handle)->i32`。poll_drain的0表示尚未静止，1是全部raw入口（包括尚未进入或被trampoline拒绝者）及后端访问已结束且永不再开始的unsafe承诺；其它整数违反提供者合同，不授予回收资格。返回Bool、匹配函数名字或仅active=0均不能替代此承诺。
+
+`async_registration_valid(owner)`只读描述；`async_registration_request_close(&mut owner)`持久且幂等地请求关闭；`async_registration_poll_close(&mut owner)`返回普通名义`std.task.Poll<Unit>`。同线程协议须先将记录从OPEN改为CLOSING、关闭自身准入，再调用外部request；不重复请求。晚raw入口仍可到达存活记录，但不得再进入F。poll关闭重入或仍有活跃回调时不得销毁；后端尚未no-future时返回真实Pending并保留完整记录、环境和责任。仅完整no-future及无活跃调用时，按真实一次性标志清理同步环境、转为CLOSED，返回Ready(Unit)；重复关闭不重复清理或重入后端。nullable空头的valid为false，request为空操作，poll_close为Ready(Unit)。
+
+`async_registration_finish_destroy(give owner)`显式消费头；非空头必须在实际CLOSED状态才能释放记录。首片沿既有显式Task destroy合同以运行期状态检查守住此前提：提前调用可fault/abort，但不得提前free，也不声称已有静态Closed关系推导；空头为空操作。普通Direct自动Drop则不能以遇Pending后abort替代清理；只有两核实际建立Closed或完整同步关闭证明时才可自动销毁，其余pollable拥有值须由显式可推进根或合法父Task持有，否则拒绝。
+
+父Task的PendingExit保持真实退出原因、已准备结果、部分输入及所有借入责任，先通知实际活child和pollable根，再按实际创建/清理序推进排空。Pending不移动或遗忘根，ComputationComplete不等于Closed；Ready后仍需关闭的child不得被误作第二次Ready或在Pending时trap代替排空。完整外部用户、结果与loan结清前，稳定Task及登记记录均不得释放。实现从真实构造器、实际F/teardown图、外部角色、唯一头和CFG分别在Analyze与Verify重建义务；公共字段、普通Poll值和producer标志不产生权限。
+
+联合Typed/Wire42登记`Type::AsyncRegistration{environment}`（tag37）、同名Core recipe、AsyncRegistrationStart/Valid/RequestClose/PollClose/FinishDestroy（opcode134–138）及外部角色3–5；完整字段见`spec/interfaces.json`。Typed/Type/LifeInventory域为V42，旧envelope拒绝，CT artifact5不变。公共运输可用不等于源、两核及机器消费者已经实现；未接通者明确Unsupported。真实验收必须包含保留raw callback/userdata的外部事件队列、关闭期间晚通知、安装失败、重入、重复关闭与提前销毁，以及正常/错误/取消的结果责任，不能用同步close外包一层假Pending替代。
+
 ### 12.4 设备与 FFI
 
 CPU release/acquire 只解决相应 CPU 同步；DMA map/unmap、方向、cache 和设备屏障由平台适配器保证。 任意原始设备字节必须经过初始化/类型有效性转换才能成为 bool、enum、引用。
