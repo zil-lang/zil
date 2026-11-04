@@ -126,3 +126,141 @@ fn replacement_nested_descriptor_boundary_checks_unused_address_and_value_edges(
         }
     }
 }
+
+// Raw component only: Source acceptance and actual loan/pin authorization are
+// separately exercised by the real producer/Driver controls.
+fn whole_package(fresh: bool) -> TypedModule {
+    let mut module = fixture::module_with_relay_and_caller(fresh);
+    let mut caller = module.functions.pop().unwrap();
+    caller.id = FunctionId(0);
+    let package = caller.locals[1].ty.clone();
+    caller.values.push(package);
+    let at = caller.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::Call { .. }))
+        .unwrap();
+    caller.blocks[0].instructions.splice(
+        at..=at,
+        [
+            fixture::instruction(
+                None,
+                InstructionKind::ReservePlaceAddress {
+                    reservation: ReservationId(71),
+                    address: ValueId(3),
+                    path: vec![],
+                },
+            ),
+            fixture::instruction(
+                Some(ValueId(6)),
+                InstructionKind::MakePackage {
+                    fields: vec![ValueId(4), ValueId(0)],
+                },
+            ),
+            fixture::instruction(
+                None,
+                InstructionKind::CommitPlaceReplace {
+                    reservation: ReservationId(71),
+                    value: ValueId(6),
+                },
+            ),
+        ],
+    );
+    module.functions = vec![caller];
+    module
+}
+fn whole_check(module: &TypedModule) -> Check<()> {
+    let graphs = graphs(module);
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    budget.replacements = true;
+    budget.sums = true;
+    budget.head_descriptions = true;
+    budget.function_count = module.functions.len();
+    budget.sum_functions = vec![true; module.functions.len()];
+    check_module(module, &graphs, &mut budget)
+}
+#[test]
+fn whole_package_transfers_actual_field_provenance_without_making_shell_fresh() {
+    for fresh in [true, false] {
+        let result = whole_check(&whole_package(fresh));
+        if fresh {
+            result.unwrap();
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error
+                    .message
+                    .contains("create result is not independently proven fresh"),
+                "{error:?}"
+            );
+        }
+    }
+}
+#[test]
+fn whole_package_actual_fresh_rhs_replaces_incoming_old_instance() {
+    let mut module = whole_package(true);
+    let f = &mut module.functions[0];
+    f.parameters = vec![LocalId(0)];
+    f.blocks[0].instructions[1].kind = InstructionKind::TakeLocal { local: LocalId(0) };
+    whole_check(&module).unwrap();
+}
+#[test]
+fn whole_package_needs_its_original_live_field_and_consumes_rhs_once() {
+    for partial in [true, false] {
+        let mut module = whole_package(true);
+        let f = &mut module.functions[0];
+        let at = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+            .unwrap();
+        if partial {
+            f.blocks[0].instructions.insert(
+                at,
+                fixture::instruction(
+                    None,
+                    InstructionKind::DropPackageField {
+                        local: LocalId(1),
+                        index: 0,
+                    },
+                ),
+            );
+        } else {
+            f.values.push(f.values[3].clone());
+            f.blocks[0].instructions.splice(
+                at + 1..at + 1,
+                [
+                    fixture::instruction(
+                        Some(ValueId(7)),
+                        InstructionKind::BorrowLocalMut { local: LocalId(1) },
+                    ),
+                    fixture::instruction(
+                        None,
+                        InstructionKind::ReservePlaceAddress {
+                            reservation: ReservationId(72),
+                            address: ValueId(7),
+                            path: vec![],
+                        },
+                    ),
+                    fixture::instruction(
+                        None,
+                        InstructionKind::CommitPlaceReplace {
+                            reservation: ReservationId(72),
+                            value: ValueId(6),
+                        },
+                    ),
+                ],
+            );
+        }
+        let error = whole_check(&module).unwrap_err();
+        assert!(
+            error.message.contains(if partial {
+                "old field live"
+            } else {
+                "consumed before Commit"
+            }),
+            "{error:?}"
+        );
+    }
+}
