@@ -452,6 +452,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
+                    && !super::stored_owned::instruction(&i.kind)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -487,6 +488,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
                     ));
+                }
+                if super::stored_owned::instruction(&i.kind) {
+                    super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
@@ -1022,6 +1026,17 @@ fn seed_payload(
             ));
         }
     }
+    if matches!(ty, Type::Desc(_)) {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if super::stored_owned::description(ty) {
+            b.spend(1)?;
+            p.address.sources.push(Source {
+                base,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+    }
     Ok(p)
 }
 fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
@@ -1160,6 +1175,28 @@ fn step(
         | InstructionKind::StorageDead(l)
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default()
+        }
+        InstructionKind::DescribeLocal { local } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::DescribeCapture { index } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Capture(*index),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::TakeCapture { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::ReadDesc { .. } => {}
+        InstructionKind::DropManaged { local } => {
+            state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::TakeLocal { local } => {
             out = copy_payload(&state.locals[local.0 as usize], b)?;
@@ -2087,15 +2124,16 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    if !module.resources.is_empty() {
-        return Err(unsupported(
-            "owned/closure storage needs its common retained integration",
-            None,
-        ));
-    }
+    super::stored_owned::module(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
+        if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
+            return Err(unsupported(
+                "owning Fixed profile does not export descriptions",
+                Some(f.span),
+            ));
+        }
         if f.foreign.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
@@ -2122,11 +2160,16 @@ pub(super) fn check(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            if !module.resources.is_empty() {
+                super::stored_owned::value_type(ty, b)?;
+            }
             if !(super::stored_callables::value(module, ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
-                || ty.is_copy_value())
+                || ty.is_copy_value()
+                || super::stored_owned::owner(ty)
+                || super::stored_owned::description(ty))
             {
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",
@@ -2267,6 +2310,8 @@ mod tests {
                         locals[l.0 as usize].clone()
                     }
                     InstructionKind::ReadCapture { index } => vec![HoldRoot::Capture(*index)],
+                    InstructionKind::DescribeLocal { local } => vec![HoldRoot::Local(*local)],
+                    InstructionKind::DescribeCapture { index } => vec![HoldRoot::Capture(*index)],
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         let mut roots = vec![HoldRoot::Local(*local)];
@@ -2791,6 +2836,28 @@ mod tests {
                     .contains("no independently established source class")),
                 "{error:?}"
             );
+        }
+    }
+    #[test]
+    fn owning_fixed_true_once_has_real_description_roots_and_resource_check() {
+        for wrong in [false, true] {
+            let m = fixture::captured_owned_fixed(wrong);
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                if wrong {
+                    let error = result.unwrap_err();
+                    assert!(
+                        error.iter().any(|d| d.message.contains("class equality")),
+                        "{error:?}"
+                    );
+                } else {
+                    result.unwrap();
+                }
+            }
         }
     }
     #[test]
