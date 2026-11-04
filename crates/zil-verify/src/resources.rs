@@ -932,6 +932,14 @@ impl Transfer<'_> {
                         ));
                     }
                 }
+                InstructionKind::TakeTupleField{local,..}|InstructionKind::TakeVariantField{local,..}=>{
+                    let parent=slots.managed_local[local.0 as usize].ok_or_else(||bad(span,"selective source is not an actual owning local"))?;
+                    if validate {
+                        if state.debt[parent]!=LIVE{return Err(bad(span,"selective source responsibility is not live"));}
+                        no_live_description(state,&self.after[b][i],Root::Local(*local),span,budget)?;
+                    }
+                    if result.is_some(){fresh_result=Some(INPUT);}
+                }
                 InstructionKind::UnpackVariant { local, fields, .. }
                 | InstructionKind::UnpackTuple { local, fields } => {
                     let source = slots.managed_local[local.0 as usize].expect("typed owned Enum");

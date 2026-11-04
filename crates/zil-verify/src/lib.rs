@@ -1459,6 +1459,7 @@ fn check_instruction(
         | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
+        InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}=>sums::place_instruction(module,function,instruction,budget)?,
         InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::VariantTagAddress { .. }
         | InstructionKind::BorrowVariantAddress { .. } => {
@@ -2626,7 +2627,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
         InstructionKind::MakeOwnedTuple { fields } => ([None, None], fields),
-        InstructionKind::UnpackTuple { .. }
+        InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}
+        | InstructionKind::UnpackTuple { .. }
         | InstructionKind::DropTuple { .. }
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),

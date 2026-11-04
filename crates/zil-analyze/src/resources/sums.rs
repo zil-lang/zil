@@ -2,6 +2,7 @@
 //! describe possible alternatives, never simultaneous resource debts.
 use super::*;
 use std::sync::Arc;
+mod partial_places;
 
 pub(crate) fn owned(ty: &Type) -> bool {
     match ty {
@@ -425,6 +426,7 @@ pub(super) struct Facts {
     // Only observations of this current activation survive. A write kills all
     // its tokens, including old SSA snapshots reused at the same loop site.
     valid: BTreeSet<ValueId>,
+    partial: Option<partial_places::State>,
 }
 impl Facts {
     pub(super) fn cost(&self, budget: &mut Budget) -> CompileResult<()> {
@@ -435,6 +437,7 @@ impl Facts {
             self.locals.len() + self.values.len() + self.valid.len(),
             "Sum state tables",
         )?;
+        if let Some(p)=&self.partial {p.cost(budget)?;}
         // Map cloning shares immutable nodes; it never walks their descendants.
         Ok(())
     }
@@ -443,6 +446,7 @@ impl Facts {
             return Ok(false);
         }
         let mut change = false;
+        if let (Some(a),Some(b))=(&mut self.partial,&other.partial){change|=a.join(b,budget)?;}
         for (k, t) in &other.locals {
             budget.lookup(self.locals.len(), "Sum local join")?;
             change |= self
@@ -513,6 +517,7 @@ impl Facts {
 }
 
 pub(super) struct Plan {
+    partial: Option<partial_places::Meta>,
     observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
     tests: BTreeMap<ValueId, (ValueId, ValueId, u32, bool)>,
 }
@@ -528,12 +533,14 @@ impl Plan {
             return Ok(None);
         }
         budget.spend(f.values.len() + f.locals.len(), "Sum plan inventory")?;
+        let mut partial = false;
         let mut constants = BTreeMap::new();
         let mut observations = BTreeMap::new();
         let mut tests = BTreeMap::new();
         let mut definitions = BTreeSet::new();
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             budget.spend(1, "Sum instruction inventory")?;
+            partial |= matches!(i.kind,InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeTupleField{..}|InstructionKind::TakeVariantField{..});
             if let Some(v) = i.result {
                 budget.lookup(definitions.len(), "Sum unique result identity")?;
                 if v.0 as usize >= f.values.len() || !definitions.insert(v) {
@@ -579,12 +586,14 @@ impl Plan {
             }
         }
         Ok(Some(Self {
+            partial:if partial {Some(partial_places::Meta::new(f,budget)?)} else {None},
             observations,
             tests,
         }))
     }
     pub(super) fn initial(&self, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Facts> {
         let mut facts = Facts::default();
+        if self.partial.is_some(){facts.partial=Some(partial_places::State::default());}
         budget.product(
             f.locals.len(),
             f.parameters.len(),
@@ -613,6 +622,10 @@ impl Plan {
         facts: &mut Facts,
         budget: &mut Budget,
     ) -> CompileResult<bool> {
+        if let (Some(meta),Some(state))=(&self.partial,&mut facts.partial)
+            && let Some((local,path,tag,equal))=meta.edge(state,&f.blocks[b].terminator,successor,budget)? {
+            if !facts.locals.get_mut(&local).ok_or_else(||error("partial edge root absent"))?.narrow_place(&path,tag,equal,budget)? {return Ok(false);}
+        }
         if let Terminator::Branch {
             condition,
             then_block,
@@ -717,6 +730,7 @@ impl Plan {
             )?;
         }
         let mut output = None;
+        if let (Some(meta),Some(state))=(&self.partial,&mut facts.partial){meta.step(state,i,budget)?;}
         match &i.kind {
             InstructionKind::BorrowLocalMut { local }
                 if matches!(f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
@@ -786,6 +800,17 @@ impl Plan {
                             .collect::<CompileResult<_>>()?,
                     ),
                 }))
+            }
+            InstructionKind::TakeTupleField{local,path}|InstructionKind::TakeVariantField{local,path}=>{
+                if check {facts.partial.as_ref().ok_or_else(||error("partial source proof absent"))?.require(*local,path,budget)?;}
+                let root=&f.locals[local.0 as usize].ty;
+                budget.type_work(root,true,"partial transfer exact root")?;
+                if root.is_copy_value() || !match i.kind {InstructionKind::TakeTupleField{..}=>matches!(root,Type::Tuple(_)),_=>matches!(root,Type::Enum{..}|Type::ErrorUnion{..})} {return Err(error("partial transfer requires exact owning Tuple or Enum root"));}
+                let endpoint=place_type(f,*local,path,budget)?;
+                budget.type_work(endpoint,true,"partial result exact Type")?;
+                if i.result.and_then(|v|f.values.get(v.0 as usize))!=Some(endpoint){return Err(error("partial transfer result differs from actual subtree Type"));}
+                output=Some(facts.locals.get_mut(local).ok_or_else(||error("partial source absent"))?.take_place(path,check,budget)?);
+                facts.invalidate(*local,self,budget)?;
             }
             InstructionKind::TakeLocal { local } | InstructionKind::Load(local) => {
                 output = Some(facts.local(*local, budget)?);
@@ -1062,6 +1087,61 @@ impl Plan {
         Ok(birth)
     }
 }
+fn place_type<'a>(f:&'a TypedFunction, local:LocalId,path:&[PlaceProjection],budget:&mut Budget)->CompileResult<&'a Type> {
+    let mut at=&f.locals.get(local.0 as usize).ok_or_else(||error("partial root absent"))?.ty;
+    budget.spend(path.len().saturating_add(1),"actual partial path shape")?;
+    if path.is_empty(){return Err(error("partial path must be nonempty"));}
+    for p in path { at=match(p,at){
+        (PlaceProjection::Field(i),Type::Tuple(fs))=>fs.get(*i as usize),
+        (PlaceProjection::Field(i),Type::Package{fields,..})=>fields.get(*i as usize).map(|(_,t)|t),
+        (PlaceProjection::Variant(p),Type::Enum{variants,..})=>variants.get(p.variant as usize).and_then(|(_,fs)|fs.get(p.index as usize)),
+        (PlaceProjection::ErrorArm(e),Type::ErrorUnion{error,result})=>Some(if *e{error.as_ref()}else{result.as_ref()}),
+        _=>None,
+    }.ok_or_else(||error("partial path is not an actual inline field or tagged payload"))?;}
+    Ok(at)
+}
+impl Tree {
+    fn narrow_place(self:&mut Arc<Self>,path:&[PlaceProjection],tag:u32,equal:bool,b:&mut Budget)->CompileResult<bool> {
+        b.spend(1,"partial mixed tag refinement")?;
+        let Some((first,rest))=path.split_first()else{return self.narrow(&[],tag,equal,b)};
+        match(first,&mut edit(self,b)?.node){
+            (PlaceProjection::Field(i),Node::Product(fs))=>fs.get_mut(*i as usize).ok_or_else(||error("partial tag field absent"))?.narrow_place(rest,tag,equal,b),
+            (PlaceProjection::Variant(p),Node::Sum(vs))=>{
+                let Some(fs)=vs.get_mut(&p.variant)else{return Ok(false)};
+                fs.get_mut(p.index as usize).ok_or_else(||error("partial tag payload absent"))?.narrow_place(rest,tag,equal,b)
+            }
+            (PlaceProjection::ErrorArm(e),Node::Sum(vs))=>{
+                let Some(fs)=vs.get_mut(&u32::from(*e))else{return Ok(false)};
+                fs.first_mut().ok_or_else(||error("partial error arm absent"))?.narrow_place(rest,tag,equal,b)
+            }
+            _=>Err(error("partial tag route differs from actual storage")),
+        }
+    }
+    fn take_place(self:&mut Arc<Self>,path:&[PlaceProjection],check:bool,budget:&mut Budget)->CompileResult<Arc<Self>> {
+        budget.spend(1,"partial initialization path step")?;
+        if check && self.missing{return Err(error("partial transfer prefix is unavailable"));}
+        let Some((first,rest))=path.split_first() else {
+            if check && !self.complete(budget)?{return Err(error("partial transfer requires the entire selected subtree initialized"));}
+            let out=self.copied(budget)?;
+            edit(self,budget)?.missing=true;
+            return Ok(out);
+        };
+        let at=edit(self,budget)?;
+        match (first,&mut at.node) {
+            (PlaceProjection::Field(index),Node::Product(fs))=>fs.get_mut(*index as usize).ok_or_else(||error("partial field absent"))?.take_place(rest,check,budget),
+            (PlaceProjection::Variant(p),Node::Sum(vs))=>{
+                if check && (vs.len()!=1 || !vs.contains_key(&p.variant)){return Err(error("partial transfer has no current exact active tag"));}
+                vs.get_mut(&p.variant).and_then(|fs|fs.get_mut(p.index as usize)).ok_or_else(||error("partial payload absent"))?.take_place(rest,check,budget)
+            }
+            (PlaceProjection::ErrorArm(e),Node::Sum(vs))=>{
+                if check && (vs.len()!=1 || !vs.contains_key(&u32::from(*e))){return Err(error("partial error arm is not currently selected"));}
+                vs.get_mut(&u32::from(*e)).and_then(|fs|fs.first_mut()).ok_or_else(||error("partial error/success content absent"))?.take_place(rest,check,budget)
+            }
+            _=>Err(error("partial initialization path differs from actual data shape")),
+        }
+    }
+}
+
 fn projection<'a>(
     mut ty: &'a Type,
     path: &[VariantProjection],

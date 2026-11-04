@@ -1319,7 +1319,7 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
-            InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
+            InstructionKind::BorrowPlaceLocal{..}|InstructionKind::PlaceTagLocal{..}|InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
                 return unsupported(
                     "partial inline ownership consumer is under implementation",
                     Some(instruction.span),

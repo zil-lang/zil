@@ -178,7 +178,7 @@ impl Operation {
     }
     fn single(instruction: &InstructionKind) -> Self {
         match *instruction {
-            InstructionKind::VariantTagLocal { local, .. }
+            InstructionKind::BorrowPlaceLocal{local,..}|InstructionKind::PlaceTagLocal{local,..}|InstructionKind::TakeTupleField{local,..}|InstructionKind::TakeVariantField{local,..}|InstructionKind::VariantTagLocal { local, .. }
             | InstructionKind::ReadVariantLocal { local, .. }
             | InstructionKind::BorrowVariantLocal { local, .. }
             | InstructionKind::BorrowFieldLocal { local, .. }
