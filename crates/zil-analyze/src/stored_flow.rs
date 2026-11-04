@@ -2068,6 +2068,41 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
+            if !matches!(
+                &i.kind,
+                InstructionKind::Constant(_)
+                    | InstructionKind::Load(_)
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::SliceLength { .. }
+                    | InstructionKind::MakeAggregate { .. }
+                    | InstructionKind::Call { .. }
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::LoadStoredBorrow {
+                        mode: StoredBorrowLoad::CopyShared,
+                        ..
+                    }
+            ) {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "instruction is outside the actual stored profile, including in unreachable blocks",
+                    Some(i.span),
+                )]);
+            }
             if let Some(v) = i.result {
                 let slot = definitions
                     .get_mut(v.0 as usize)
