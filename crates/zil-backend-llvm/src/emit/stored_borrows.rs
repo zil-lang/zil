@@ -37,17 +37,28 @@ fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
     }
     Ok(())
 }
-fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileResult<()> {
+pub(super) fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileResult<()> {
     // A public successor must update this visitor instead of silently adding
     // unmetered semantic signature metadata.
     let StorageLifeContract {
         fixed_binder_count: _,
         invocation_binder_count: _,
         bindings: _,
+        classes: _,
     } = life;
-    pay(work, life.bindings.len().saturating_add(2))?;
+    pay(
+        work,
+        life.bindings
+            .len()
+            .saturating_add(life.classes.len())
+            .saturating_mul(16)
+            .saturating_add(32),
+    )?;
     for row in &life.bindings {
-        pay(work, row.position.path.len().saturating_add(2))?;
+        pay(work, row.position.path.len().saturating_mul(8))?;
+    }
+    for row in &life.classes {
+        pay(work, row.position.path.len().saturating_mul(8))?;
     }
     Ok(())
 }
@@ -100,7 +111,7 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
             result,
             life,
         } => {
-            pay(work, life.parameter_lives.len().saturating_add(2))?;
+            contract(life, work)?;
             pay(work, parameters.len())?;
             for t in parameters {
                 type_work(t, work, limits, depth + 1)?;
@@ -158,6 +169,58 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::TaskI32
         | Type::CWideString
         | Type::Closure(_) => {}
+    }
+    Ok(())
+}
+
+/// Reserve full new callable metadata before raw LIR equality or any retained
+/// source-type clone. ABI erasure is physical only; no relation is flattened.
+pub(super) fn reserve_callable_metadata(
+    module: &TypedModule,
+    limits: &Limits,
+    work: &mut usize,
+) -> CompileResult<()> {
+    pay(
+        work,
+        module
+            .functions
+            .len()
+            .saturating_add(module.closures.len())
+            .saturating_add(module.resources.len()),
+    )?;
+    for function in &module.functions {
+        if let Some(life) = &function.storage_life {
+            contract(life, work)?;
+        }
+        if let Some(c) = &function.callable_contract {
+            pay(work, c.roles.len())?;
+            for role in &c.roles {
+                if let Some(life) = &role.life {
+                    contract(life, work)?;
+                }
+            }
+        }
+        type_work(&function.return_type, work, limits, 0)?;
+        for ty in function
+            .locals
+            .iter()
+            .map(|l| &l.ty)
+            .chain(&function.values)
+        {
+            type_work(ty, work, limits, 0)?;
+        }
+    }
+    for closure in &module.closures {
+        if let Some(life) = &closure.storage_life {
+            contract(life, work)?;
+        }
+        type_work(&closure.result, work, limits, 0)?;
+        for ty in closure.parameters.iter().chain(&closure.captures) {
+            type_work(ty, work, limits, 0)?;
+        }
+    }
+    for resource in &module.resources {
+        type_work(&resource.payload, work, limits, 0)?;
     }
     Ok(())
 }
@@ -419,6 +482,69 @@ impl FunctionEmitter<'_> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn callable40_rich_relation_rows_paths_and_pointer_layout_are_metered() {
+        use zil_ir::{
+            LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding, StorageBase,
+            StorageBinder,
+        };
+        let limits = Limits::default();
+        let mut growth = vec![];
+        // Raw metadata growth probe only: these selectors grant no kernel
+        // permission. Real verified semantic/native controls are separate.
+        for (rows, path) in [(0, 0), (8, 4), (32, 32)] {
+            let life = StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 1,
+                bindings: vec![],
+                classes: (0..rows)
+                    .map(|class| SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Parameter(0),
+                            path: vec![LifeTypeProjection::Pointee; path],
+                            class,
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    })
+                    .collect(),
+            };
+            let ty = Type::BorrowedFunctionPointer {
+                parameters: vec![Type::I32],
+                result: Box::new(Type::I32),
+                life,
+            };
+            let mut left = usize::MAX;
+            type_work(&ty, &mut left, &limits, 0).unwrap();
+            let needed = usize::MAX - left;
+            let mut exact = needed;
+            type_work(&ty, &mut exact, &limits, 0).unwrap();
+            assert_eq!(exact, 0);
+            let copied = ty.clone();
+            assert_eq!(copied, ty);
+            assert_eq!(llvm_type(&ty).unwrap(), m::Ty::Ptr);
+            let mut short = needed - 1;
+            assert_eq!(
+                type_work(&ty, &mut short, &limits, 0).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            let mut fresh = needed;
+            type_work(&ty, &mut fresh, &limits, 0).unwrap();
+            assert_eq!(fresh, 0);
+            if rows > 0 {
+                let mut changed = ty.clone();
+                let Type::BorrowedFunctionPointer { life, .. } = &mut changed else {
+                    unreachable!()
+                };
+                life.classes[0].binder = StorageBinder::Fixed(0);
+                assert_ne!(changed.fingerprint(), ty.fingerprint());
+                assert_eq!(llvm_type(&changed).unwrap(), m::Ty::Ptr);
+            }
+            growth.push(needed);
+            eprintln!("callable40 metadata rows={rows} path={path} Codegen N={needed}");
+        }
+        assert!(growth[2] > growth[1] * 8);
+    }
+
     use super::*;
     use zil_ir::{BlockId, BlockPlan, CandidatePlan, FunctionPlan, HoldRoot, ValueHold};
     #[allow(dead_code)]
