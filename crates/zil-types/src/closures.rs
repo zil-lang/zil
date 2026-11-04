@@ -446,6 +446,64 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    pub(super) fn snapshot_helper(
+        &mut self,
+        function: &CoreFunction,
+        copies: usize,
+    ) -> R<(usize, bool)> {
+        let allowance = self
+            .work_left
+            .checked_div(copies)
+            .ok_or_else(|| limit("invalid helper snapshot multiplier", function.span))?;
+        let (work, shapes) = inference::helper_snapshot_work(
+            function,
+            &Limits {
+                max_analysis_steps: allowance,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(copies), function.span)?;
+        Ok((work, shapes))
+    }
+
+    pub(super) fn snapshot_signature(
+        &mut self,
+        name: &str,
+        signature: &Signature,
+        span: Span,
+    ) -> R<()> {
+        let work = inference::signature_snapshot_work(
+            name,
+            signature,
+            span,
+            &Limits {
+                max_analysis_steps: self.work_left / 2,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(2), span)
+    }
+
+    pub(super) fn snapshot_capture(
+        &mut self,
+        closure: ClosureId,
+        index: usize,
+        span: Span,
+    ) -> R<()> {
+        let capture = self
+            .pending
+            .get(closure.0 as usize)
+            .and_then(|p| p.captures.get(index))
+            .ok_or_else(|| {
+                error(
+                    "E-CLOSURE-INFERENCE",
+                    span,
+                    "missing actual capture snapshot",
+                )
+            })?;
+        inference::charge_type_snapshot(&capture.ty, span, &self.limits, &mut self.work_left, 2)
+    }
+
     pub(super) fn borrowed_task_result(
         &self,
         id: ClosureId,

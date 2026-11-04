@@ -119,6 +119,9 @@ pub(super) fn signature_snapshot_work(
     limits: &Limits,
 ) -> R<usize> {
     let mut budget = Budget::new(limits);
+    if let Some(life) = &signature.life {
+        budget.work(life.parameter_lives.len().saturating_add(1), span)?;
+    }
     budget.work(name.len().saturating_add(signature.parameters.len()), span)?;
     for ty in &signature.parameters {
         validate_type(ty, 0, span, &mut budget)?;
