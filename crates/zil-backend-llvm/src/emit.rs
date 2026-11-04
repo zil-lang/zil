@@ -1449,6 +1449,12 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+                return unsupported(
+                    "dynamic interface instruction lowering is not yet implemented",
+                    Some(instruction.span),
+                );
+            }
             InstructionKind::LoadStoredBorrow { .. }
             | InstructionKind::StoreStoredBorrow { .. } => {
                 return invalid(

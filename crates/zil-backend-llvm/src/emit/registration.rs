@@ -647,6 +647,12 @@ pub(super) fn reserve_function(
             )]);
         }
         match t {
+            Type::Dyn { .. } => {
+                return unsupported(
+                    "dynamic registration environments require explicit retained interface lowering",
+                    None,
+                );
+            }
             Type::Closure(id) => {
                 meter.spend(active.len().saturating_add(1))?;
                 if !active.insert(*id) {

@@ -257,7 +257,8 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
                     None,
                 )]);
             }
-            Type::Task { .. }
+            Type::Dyn { .. }
+            | Type::Task { .. }
             | Type::Registration { .. }
             | Type::Closure(_)
             | Type::Opaque { .. } => {

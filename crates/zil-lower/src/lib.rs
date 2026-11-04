@@ -31,6 +31,16 @@ pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
 pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     let module = verified.module();
     let target = &module.target;
+    if !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Lower,
+            "dynamic interface lowering is not yet implemented",
+            None,
+        )]);
+    }
     if module.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
             Phase::Lower,
