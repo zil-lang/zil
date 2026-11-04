@@ -161,14 +161,14 @@ impl Key<'_, '_> {
             }
             let count = self
                 .context
-                .parameter_count(scope)
+                .parameter_count_paid(scope, self.budget)?
                 .ok_or_else(|| bad("context key source parameter inventory absent"))?;
             self.budget.reserve_analysis_work(count as u64)?;
             self.number(count as u64)?;
             for ordinal in 0..count {
                 match self
                     .context
-                    .parameter_kind(scope, ordinal)
+                    .parameter_kind_paid(scope, ordinal, self.budget)?
                     .ok_or_else(|| bad("context key full parameter ordinal absent"))?
                 {
                     zil_verify::CtScopeParameterKind::Type => self.bytes(&[0])?,

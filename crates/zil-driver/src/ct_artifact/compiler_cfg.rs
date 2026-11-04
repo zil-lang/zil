@@ -279,6 +279,35 @@ impl<'c, 'a> Builder<'c, 'a> {
         Ok(false)
     }
     fn bind(&mut self, name: &str, ty: CtTy, mutable: bool, span: Span) -> R<CtLocalId> {
+        if self.scopes.len() > 1 {
+            // Static nominal/instance arguments read the declared scalar
+            // bindings. A local cannot silently redirect that spelling while
+            // the type consumer keeps using the outer generic parameter.
+            for (parameter, _) in &self.compiler.abstract_scalars {
+                self.compiler
+                    .budget
+                    .work(name.len().min(parameter.len()) + 1, span)?;
+                if parameter == name {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT local scalar-generic shadowing requires dynamic const attribution",
+                        Some(span),
+                    )]);
+                }
+            }
+            for (parameter, _) in &self.compiler.scalar_bindings {
+                self.compiler
+                    .budget
+                    .work(name.len().min(parameter.len()) + 1, span)?;
+                if parameter == name {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT local scalar-generic shadowing requires dynamic const attribution",
+                        Some(span),
+                    )]);
+                }
+            }
+        }
         for binding in &self.scopes.last().unwrap().bindings {
             self.compiler.budget.work(1, span)?;
             if binding.name == name {
