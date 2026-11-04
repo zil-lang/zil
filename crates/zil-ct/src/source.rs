@@ -561,10 +561,29 @@ pub(super) fn hint_type(
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
-        Type::Task { result } => {
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            if retained_life.binder_count != 0
+                || !retained_life.ports.is_empty()
+                || !retained_life.retained.is_empty()
+                || !retained_life.nominal_arguments.is_empty()
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "retained Task CT hints require scoped metadata handling",
+                    None,
+                )]);
+            }
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
+        Type::Dyn { .. } => Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "dyn CT hints require complete scoped metadata handling",
+            None,
+        )]),
         Type::Unsupported(name) => {
             *work = work.checked_sub(name.len()).ok_or_else(limit)?;
             Ok(false)
