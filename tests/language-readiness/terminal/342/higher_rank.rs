@@ -354,8 +354,6 @@ fn terminal342_hrtb_actual_mutable_arguments_and_returned_children_keep_windows(
 }
 #[test]
 fn terminal342_hrtb_capture_paths_substitute_actual_storage_through_helpers() {
-    assert_eq!(zil_base::SCHEMA_VERSION, 40);
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 40);
     for (valid, invalid) in [
         (
             STORAGE,
@@ -367,7 +365,9 @@ fn terminal342_hrtb_capture_paths_substitute_actual_storage_through_helpers() {
         ),
     ] {
         let module = typed(valid);
+        assert_eq!(module.schema_version, zil_base::SCHEMA_VERSION);
         let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        assert_eq!(plan.schema_version, zil_base::SCHEMA_VERSION);
         zil_verify::verify_module(
             module.clone(),
             plan.clone(),
