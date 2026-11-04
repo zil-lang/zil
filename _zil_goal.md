@@ -2,11 +2,15 @@
 
 ## 2026-11-04：终态施工与源码持续备份
 
-主集成已推进到返回式Registration、完整拥有Tuple、UInt/Float及普通Type/Syntax、关联类型/常量的组合；远端接受main仍为bcc5714f2，不能把施工分支当作终态验收。当前schema/Wire35，HRTB36及显式Suspend子任务37分别已有待合流候选；未来公共合同不等于实际消费者完成。
+主集成当前生产候选261c35c5e已合流HRTB每次调用关系、泛型接收者方法、混合Tuple/Enum部分移动、Copy错误联合标签失效修正、返回式Registration、静态Suspend子任务、普通String/Store/UI基础库及默认栈修复。公共schema/Wire37、CT artifact2；后续Task38/存储借用/dyn/CT3合同和作者施工不算当前消费者完成。远端接受main仍为bcc5714f2，进度分支按阶段保存真实源码。
 
-Registration组合7项含56次原生执行已独立复跑，原大数组/聚合106项通过。新增嵌套调用揭示后续Types/CT默认栈溢出，机械缩小递归帧的最终组合仍在复验。HRTB候选13677ef8c的10项/64原生配置已独立复跑；泛型方法、混合模式、一般存储/lending、dyn/状态、拥有异步与waker等继续并行施工。普通UI布局/光栅/输入组合原源已随可变嵌套Product借用修复贯通，16构建/24原生执行含16真实分配失败且live0；完整OS窗口/IME服务仍未实现。
+统一候选限定五目标aggregates112、cross73、generic_regressions59、impl18725、UI16全部通过；含原大数组规模Clang/API O0/O2和默认2MiB API、深层调用栈回归。方法另有generics23/trait58，IR61/独立Vec13及历史Wire安全回归Analyze2/driver28通过。单独作者/独审结果不相加为整仓或产品结论；整仓门正在补跑，旧4170/115失败记录保留。
 
-所有实际源码和tracked/untracked施工快照按阶段atomic推送并逐完整SHA核对；见docs/PROGRESS-BACKUP.md及/workspace/backups/zil-terminal-20261104。旧不可恢复断点、legacy Fail及原生Windows/完整产品未执行边界保持；本段为当前施工摘要，下面各日期验收是其各自历史范围。
+新增实际反例已确认泛型类型替换后的表达式ordinal偏移会把后续trait方法选错（运行exit4，期望0）。0cb/261方法复核已重开，当前正确性缺口优先修复，之前限定通过数字不覆盖此源；未修正及复核前不晋升远端接受main。
+
+仍持续施工通用存储life/lending、dyn/状态协议、拥有Task/取消排空/waker与一般同步线程资格、完整CT值与phantom元数据、平台ZUI和产品验证。普通UI已包含布局、RGBA合成、预编辑/提交/取消、版本冲突和真实分配失败清理；实际OS窗口/IME服务、字体/GPU及原生Windows未完成。用户要求完整终态，不能把这批有限集成作为任务结束。
+
+所有实际源码和tracked/untracked施工快照按阶段atomic推送并逐完整SHA核对；最新阶段见docs/PROGRESS-BACKUP.md及/workspace/backups/zil-terminal-20261104。旧不可恢复断点、legacy Fail及原生Windows/完整产品未执行边界保持；本段为当前施工摘要，下面各日期验收是其各自历史范围。
 
 
 ## 2026-11-04：336–339有限语言组合继续验收

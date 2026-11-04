@@ -1288,6 +1288,92 @@ pub(super) fn check_module(
     Ok(())
 }
 
+fn check_callback_return(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    d: &ClosureDefinition,
+    life: Option<&FunctionLifeContract>,
+    budget: &mut Budget,
+) -> Check<()> {
+    borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
+    if let Some(life) = life {
+        budget.spend(
+            (life.binder_count as usize)
+                .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                .saturating_add(2),
+        )?;
+        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
+    }
+    if !matches!(d.result, Type::Address { .. }) {
+        return Ok(());
+    }
+    let f = &module.functions[d.function.0 as usize];
+    budget.spend(f.blocks.len())?;
+    for (block, live) in f
+        .blocks
+        .iter()
+        .zip(&graphs[d.function.0 as usize].reachable)
+    {
+        if *live && let Terminator::Return(Some(v)) = block.terminator {
+            let origins = &facts[d.function.0 as usize].values[v.0 as usize];
+            budget.spend(origins.len())?;
+            let mutable = matches!(d.result, Type::Address { mutable: true, .. });
+            if origins.is_empty()
+                || origins.iter().any(|root| {
+                    // Only an actual parameter projection qualifies. A captured
+                    // target carried by a parameter is not invocation storage.
+                    let index = match root {
+                        Root::Parameter(index) | Root::Window(HoldRoot::Parameter(index), ..) => {
+                            index
+                        }
+                        _ => return true,
+                    };
+                    !d.parameters
+                        .get(*index as usize)
+                        .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
+                        || life.is_some_and(|life| {
+                            life.parameter_lives[*index as usize] != life.result_life
+                        })
+                })
+            {
+                return Err(reject(
+                    "E-VERIFY-CALLABLE-LIFE",
+                    Some(f.span),
+                    "actual callback return is outside the current invocation input relation",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+fn check_callback_returns(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    facts: &[Facts],
+    budget: &mut Budget,
+) -> Check<()> {
+    budget.spend(module.closures.len().saturating_add(module.functions.len()))?;
+    for d in &module.closures {
+        budget.spend(d.parameters.len())?;
+        if d.lending_captures.is_empty() && borrowed_fp::invocation(&d.parameters, &d.result) {
+            check_callback_return(module, graphs, facts, d, None, budget)?;
+        }
+    }
+    for f in &module.functions {
+        if let Some(c) = &f.callable_contract {
+            budget.spend(c.roles.len())?;
+            for role in &c.roles {
+                if let Some(life) = &role.life {
+                    let d = closures::definition(module, role.closure, Some(f.span))?;
+                    check_callback_return(module, graphs, facts, d, Some(life), budget)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod frontier_tests {
     use super::*;
@@ -1546,90 +1632,4 @@ mod frontier_tests {
             .unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
-}
-
-fn check_callback_return(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    facts: &[Facts],
-    d: &ClosureDefinition,
-    life: Option<&FunctionLifeContract>,
-    budget: &mut Budget,
-) -> Check<()> {
-    borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
-    if let Some(life) = life {
-        budget.spend(
-            (life.binder_count as usize)
-                .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                .saturating_add(2),
-        )?;
-        borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
-    }
-    if !matches!(d.result, Type::Address { .. }) {
-        return Ok(());
-    }
-    let f = &module.functions[d.function.0 as usize];
-    budget.spend(f.blocks.len())?;
-    for (block, live) in f
-        .blocks
-        .iter()
-        .zip(&graphs[d.function.0 as usize].reachable)
-    {
-        if *live && let Terminator::Return(Some(v)) = block.terminator {
-            let origins = &facts[d.function.0 as usize].values[v.0 as usize];
-            budget.spend(origins.len())?;
-            let mutable = matches!(d.result, Type::Address { mutable: true, .. });
-            if origins.is_empty()
-                || origins.iter().any(|root| {
-                    // Only an actual parameter projection qualifies. A captured
-                    // target carried by a parameter is not invocation storage.
-                    let index = match root {
-                        Root::Parameter(index) | Root::Window(HoldRoot::Parameter(index), ..) => {
-                            index
-                        }
-                        _ => return true,
-                    };
-                    !d.parameters
-                        .get(*index as usize)
-                        .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
-                        || life.is_some_and(|life| {
-                            life.parameter_lives[*index as usize] != life.result_life
-                        })
-                })
-            {
-                return Err(reject(
-                    "E-VERIFY-CALLABLE-LIFE",
-                    Some(f.span),
-                    "actual callback return is outside the current invocation input relation",
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-fn check_callback_returns(
-    module: &TypedModule,
-    graphs: &[FunctionGraph],
-    facts: &[Facts],
-    budget: &mut Budget,
-) -> Check<()> {
-    budget.spend(module.closures.len().saturating_add(module.functions.len()))?;
-    for d in &module.closures {
-        budget.spend(d.parameters.len())?;
-        if d.lending_captures.is_empty() && borrowed_fp::invocation(&d.parameters, &d.result) {
-            check_callback_return(module, graphs, facts, d, None, budget)?;
-        }
-    }
-    for f in &module.functions {
-        if let Some(c) = &f.callable_contract {
-            budget.spend(c.roles.len())?;
-            for role in &c.roles {
-                if let Some(life) = &role.life {
-                    let d = closures::definition(module, role.closure, Some(f.span))?;
-                    check_callback_return(module, graphs, facts, d, Some(life), budget)?;
-                }
-            }
-        }
-    }
-    Ok(())
 }
