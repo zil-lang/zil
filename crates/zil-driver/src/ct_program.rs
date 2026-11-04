@@ -781,6 +781,13 @@ impl Collector<'_> {
         }
         for contract in &function.callable_parameters {
             self.charge(0)?;
+            if contract.source_life.is_some() {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "source helper context needs bounded ordinary formation before any CT snapshot",
+                    Some(function.span),
+                )]);
+            }
             if let Some(life) = &contract.life {
                 if life.bindings.len() > self.limits.max_locals
                     || life.classes.len() > self.limits.max_nodes

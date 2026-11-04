@@ -1,6 +1,8 @@
 //! Bounded concrete instantiation of a retained callable template. Bodies are
 //! checked in the defining module; consumers receive a normal direct call.
 use super::*;
+#[path = "helpers/source_life.rs"]
+pub(super) mod source_life;
 
 #[path = "helper_flow.rs"]
 mod flow;

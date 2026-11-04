@@ -185,6 +185,8 @@ pub(super) fn charge_type_snapshot(
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    helpers::source_life::reserve(bound, budget.limits, &mut budget.work, 2, span)?;
+    helpers::source_life::pending_consumer(bound, span)?;
     if let Some(life) = &bound.life {
         budget.work(borrowed_fp::metadata_work(life), span)?;
     }
@@ -635,6 +637,14 @@ fn headers(
                 )
             })?;
         for bound in &function.callable_parameters {
+            helpers::source_life::reserve(
+                bound,
+                budget.limits,
+                &mut budget.work,
+                2,
+                function.span,
+            )?;
+            helpers::source_life::pending_consumer(bound, function.span)?;
             budget.work(
                 bound
                     .generic_name
@@ -747,6 +757,44 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         unsupported: core.unsupported.clone(),
     }
 }
+/// Clone the actual role in its existing function-vector traversal, paying
+/// attached context before that role is copied. No discovery scan or debit is
+/// introduced for None; the remaining original fields retain their old copy.
+pub(super) fn snapshot_context_module(
+    core: &CoreModule,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<CoreModule> {
+    let mut functions = Vec::with_capacity(core.functions.len());
+    for function in &core.functions {
+        let mut callable_parameters = Vec::with_capacity(function.callable_parameters.len());
+        for bound in &function.callable_parameters {
+            helpers::source_life::reserve(bound, limits, left, 1, function.span)?;
+            helpers::source_life::pending_consumer(bound, function.span)?;
+            callable_parameters.push(bound.clone());
+        }
+        functions.push(CoreFunction {
+            storage_life: function.storage_life.clone(),
+            call_kind: function.call_kind,
+            life: function.life.clone(),
+            type_parameters: function.type_parameters.clone(),
+            state_parameters: function.state_parameters.clone(),
+            callable_return: function.callable_return.clone(),
+            id: function.id,
+            name: function.name.clone(),
+            callable_parameters,
+            foreign: function.foreign.clone(),
+            parameters: function.parameters.clone(),
+            return_type: function.return_type.clone(),
+            result_mode: function.result_mode,
+            body: function.body.clone(),
+            receiver: function.receiver.clone(),
+            span: function.span,
+        });
+    }
+    Ok(copy_module_metadata(core, functions))
+}
+
 pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
     if core.closure_life_contexts.is_empty() {
         return life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits);

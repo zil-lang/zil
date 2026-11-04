@@ -240,7 +240,9 @@ pub(super) fn resolve_program(
                 None,
             )]
         })?;
-        let core = resolve_indexed(module.core.clone(), &modules, limits, &mut remaining)?;
+        let snapshot = inference::snapshot_context_module(&module.core, limits, &mut remaining)
+            .map_err(|e| vec![e])?;
+        let core = resolve_indexed(snapshot, &modules, limits, &mut remaining)?;
         normalized.push(ProgramModule {
             core,
             imports: module.imports.clone(),
