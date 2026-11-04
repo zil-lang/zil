@@ -400,7 +400,7 @@ impl Compiler<'_> {
                     }
                 }
                 CtTypeNode::Nominal {
-                    symbol: self.symbol(owner, item.span)?,
+                    symbol: self.item_symbol(owner, item)?,
                     arguments,
                 }
             }
