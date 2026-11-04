@@ -83,3 +83,31 @@ Sum16/0及borrow23/0；既有impl187原24/0；相关五个库Clippy通过。mixe
 实际拥有字段replace继续施工。当前ErrorUnion两侧只证明真实剩余清理，不能
 冒充直接解构已完成。精确阶段独审另行绑定；与主树Wire37/HRTB/Task/float组合
 的验收由root执行。Rust四目标与突破的实证/未测区分见terminal-340收据。
+
+126/127接续提案：实际Address作为SSA基址，使用与119/120完全一致的有界
+Field/Variant/ErrorArm路径。126非空，端点真实父资格及mutable权限来自该
+Address而非保存它的局部槽；127允许空路径只读最终头，ErrorUnion归一为
+0 success/1 error。每个所经子树/判别必须仍活动，不能隐式跨Managed、
+Address、Desc或外部稳定存储界。两核独立重建当前真实tag观察与全部祖先
+标签、混合字段区间及父借入；Parameter/Capture/Result继续沿实际来源。
+后端使用原始真实指针和每一步GEP/tag读取，不生成拥有父副本或包装。
+新pass只在实际使用126/127时运行，路径/集合比较/状态分配继续先付费；
+最近反例覆盖同级允许/重叠拒绝、过期guard、同后继假证明和共享输入伪造
+mutable。公共编码由root发布；此提案不把121–124拥有replace提前记为完成。
+
+实际双Package mutable sibling原源还暴露复合赋值的重复窗口误拒：a.n+=b.n
+已经准备真实LHS地址后，不能再为同一个稳定a.n创建一个相交shared子借入。
+对于有界、相同名字/字段/已稳定索引的整型旧值读，直接经已准备地址读取
+再算RHS/写入；effectful位置不做此替换，原求值次序和一次索引求值保持。
+这只消除重复投影，不给RHS其他alias或拥有replace授予两阶段权限。
+
+126/127精确branch阶段：terminal340 34/0；IR60；Analyze Sum26；Verify Sum16、
+borrow23；impl187原24；五库Clippy及impl030/042原复合位置求值各1/0。新增实际
+地址源码28个Clang/API O0/O2配置；source N103790，fresh/warm保持；raw64观察
+新lane三核N134446/247974/247974，旧lane41628/41013/41013，N−1与独立fresh重试
+成立。旧地址pass同因预付/有序集合费用一并修复；branch local-ref迁为17540，
+addressed迁为92292，其他9050/38035/20265/2094103保持。root261的组合边界另记，
+不混同身份。实际Return ref及只捕获返回标量引用已运行；拥有基址捕获资格
+按root明确派工在下一有限profile实施，原captured-owning-base-open.zil保留。
+这不提升FFI、worker、Transfer/Share或源拥有值捕获资格；121–124公共补丁
+仍仅提案。终态剩余及Rust四目标实证/未测界限见更新收据。

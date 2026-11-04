@@ -12,34 +12,36 @@ impl State {
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
         b.spend(
             self.facts
-                .iter()
-                .map(|(_, p, _)| p.len() + 1)
-                .sum::<usize>()
-                + self.observed.len()
-                + 1,
-            "address Sum state snapshot",
+                .len()
+                .checked_add(self.observed.len())
+                .and_then(|n| n.checked_add(1))
+                .ok_or_else(exhausted)?,
+            "mixed address snapshot scan",
         )?;
+        let routes = self.facts.iter().try_fold(0usize, |n, (_, p, _)| {
+            n.checked_add(p.len()).ok_or_else(exhausted)
+        })?;
+        b.spend(routes, "mixed address path clone")?;
         Ok(self.clone())
     }
     fn meet(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
-        b.spend(
-            self.facts.len() + other.facts.len() + self.observed.len() + other.observed.len() + 1,
-            "address Sum must join",
-        )?;
-        b.spend(
-            self.facts
-                .iter()
-                .map(|(_, p, _)| p.len().saturating_add(1))
-                .sum::<usize>()
-                .saturating_mul(
-                    other
-                        .facts
-                        .len()
-                        .checked_ilog2()
-                        .map_or(1, |n| n as usize + 2),
-                ),
-            "address Sum fact join comparison",
-        )?;
+        let count = [
+            self.facts.len(),
+            other.facts.len(),
+            self.observed.len(),
+            other.observed.len(),
+            1,
+        ]
+        .into_iter()
+        .try_fold(0usize, |n, m| n.checked_add(m).ok_or_else(exhausted))?;
+        b.spend(count, "mixed address must-join scan")?;
+        for (_, p, _) in &self.facts {
+            search_fee(b, p.len(), other.facts.len())?;
+        }
+        // Each lookup is paid before retain may inspect it.
+        for _ in &self.observed {
+            search_fee(b, 0, other.observed.len())?;
+        }
         let old = (self.facts.len(), self.observed.len());
         self.facts.retain(|f| other.facts.contains(f));
         self.observed.retain(|v| other.observed.contains(v));
@@ -79,16 +81,7 @@ fn require(
 ) -> CompileResult<()> {
     let mut prefix = Vec::new();
     for p in path {
-        b.spend(
-            prefix.len().saturating_add(1).saturating_mul(
-                state
-                    .facts
-                    .len()
-                    .checked_ilog2()
-                    .map_or(1, |n| n as usize + 2),
-            ),
-            "address Sum active prefix",
-        )?;
+        search_fee(b, prefix.len(), state.facts.len())?;
         if !state.facts.contains(&(address, prefix.clone(), p.variant)) {
             return Err(bad_path());
         }
@@ -148,6 +141,7 @@ pub(super) fn check(
     let mut definitions = vec![None; f.values.len()];
     for block in &f.blocks {
         for i in &block.instructions {
+            b.spend(1, "address definitions/type scan")?;
             if let Some(v) = i.result {
                 definitions[v.0 as usize] = Some(&i.kind)
             }
@@ -239,7 +233,7 @@ pub(super) fn check(
                         if validate {
                             require(state, *address, path, b)?
                         }
-                        b.spend(1, "address tag observation")?;
+                        search_fee(b, 0, state.observed.len())?;
                         state.observed.insert(i.result.unwrap());
                     }
                     InstructionKind::BorrowVariantAddress {
@@ -252,11 +246,27 @@ pub(super) fn check(
                         }
                         let (_, ty) = endpoint(f, *address, path, b)?;
                         if *mutable && !ty.is_b0_scalar() {
+                            b.spend(
+                                state
+                                    .facts
+                                    .len()
+                                    .checked_add(state.observed.len())
+                                    .ok_or_else(exhausted)?,
+                                "address grant invalidation",
+                            )?;
                             state.facts.clear();
                             state.observed.clear();
                         }
                     }
                     other if clobbers(other) => {
+                        b.spend(
+                            state
+                                .facts
+                                .len()
+                                .checked_add(state.observed.len())
+                                .ok_or_else(exhausted)?,
+                            "address invalidation",
+                        )?;
                         state.facts.clear();
                         state.observed.clear();
                     }
@@ -283,6 +293,7 @@ pub(super) fn check(
                     definitions[condition.0 as usize]
                 {
                     for (tag, constant) in [(*left, *right), (*right, *left)] {
+                        search_fee(b, 0, output.observed.len())?;
                         if let (
                             Some(InstructionKind::VariantTagAddress { address, path }),
                             Some(InstructionKind::Constant(Constant::I32(n))),
@@ -302,15 +313,7 @@ pub(super) fn check(
                     if let Some((address, path, tag, equal)) = selected
                         && truth == equal
                     {
-                        b.spend(
-                            path.len().saturating_add(1).saturating_mul(
-                                edge.facts
-                                    .len()
-                                    .checked_ilog2()
-                                    .map_or(1, |n| n as usize + 2),
-                            ),
-                            "address tag edge fact",
-                        )?;
+                        search_fee(b, path.len(), edge.facts.len())?;
                         let key = path
                             .iter()
                             .map(|p| (p.variant, p.index))
@@ -350,4 +353,20 @@ pub(super) fn check(
         }
     }
     Ok(())
+}
+
+fn exhausted() -> Vec<Diagnostic> {
+    vec![Diagnostic::limit(
+        Phase::Analyze,
+        "mixed address accounting overflow",
+        None,
+    )]
+}
+fn search_fee(b: &mut Budget, path: usize, set: usize) -> CompileResult<()> {
+    let bound = path
+        .checked_add(1)
+        .and_then(|n| n.checked_mul(8))
+        .and_then(|n| n.checked_mul(set.checked_ilog2().map_or(1, |n| n as usize + 2)))
+        .ok_or_else(exhausted)?;
+    b.spend(bound, "mixed address ordered-key comparison")
 }

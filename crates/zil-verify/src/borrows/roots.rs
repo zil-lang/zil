@@ -541,13 +541,12 @@ pub(super) fn inline_address_field(
         .collect()
 }
 
-pub(super) fn mixed_root(
-    f: &TypedFunction,
-    local: LocalId,
+fn mixed_interval(
+    mut ty: &Type,
     path: &[zil_ir::PlaceProjection],
     header: bool,
     b: &mut Budget,
-) -> Check<Root> {
+) -> Check<(u32, u32)> {
     use zil_ir::PlaceProjection;
     fn width(t: &Type, b: &mut Budget) -> Check<u32> {
         b.spend(1)?;
@@ -584,7 +583,6 @@ pub(super) fn mixed_root(
         }
         Ok(n)
     }
-    let mut ty = local_type(f, local, None)?;
     let mut start = 0u32;
     for step in path {
         b.spend(1)?;
@@ -600,7 +598,10 @@ pub(super) fn mixed_root(
                 }
                 fs.get(*i as usize)
             }
-            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+            (
+                PlaceProjection::Field(i),
+                Type::Package { fields, .. } | Type::Record { fields, .. },
+            ) => {
                 for (_, t) in fields.iter().take(*i as usize) {
                     start = start
                         .checked_add(width(t, b)?)
@@ -656,5 +657,77 @@ pub(super) fn mixed_root(
     let end = start
         .checked_add(length)
         .ok_or_else(|| limit("mixed interval overflow"))?;
+    Ok((start, end))
+}
+
+pub(super) fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> Check<Root> {
+    let (start, end) = mixed_interval(local_type(f, local, None)?, path, header, b)?;
     Ok(Root::Projection(local, start, end))
+}
+
+pub(super) fn mixed_address_roots(
+    f: &TypedFunction,
+    address: ValueId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    source: &Roots,
+    budget: &mut Budget,
+) -> Check<Roots> {
+    let Type::Address { inner, .. } = value_type(f, address, None)? else {
+        return Err(reject(
+            "E-VERIFY-PLACE",
+            None,
+            "mixed base is not actual address",
+        ));
+    };
+    let (start, end) = mixed_interval(inner, path, header, budget)?;
+    budget.spend(source.len())?;
+    source
+        .iter()
+        .map(|root| {
+            Ok(match *root {
+                Root::Local(l) => Root::Projection(l, start, end),
+                Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+                Root::Projection(l, offset, limit_end) => {
+                    let a = offset
+                        .checked_add(start)
+                        .ok_or_else(|| limit("address interval overflow"))?;
+                    let z = offset
+                        .checked_add(end)
+                        .ok_or_else(|| limit("address interval overflow"))?;
+                    if z > limit_end {
+                        return Err(reject(
+                            "E-VERIFY-SUM-ADDRESS",
+                            None,
+                            "child payload escapes parent interval",
+                        ));
+                    }
+                    Root::Projection(l, a, z)
+                }
+                Root::Window(origin, offset, limit_end) => {
+                    let a = offset
+                        .checked_add(start)
+                        .ok_or_else(|| limit("address interval overflow"))?;
+                    let z = offset
+                        .checked_add(end)
+                        .ok_or_else(|| limit("address interval overflow"))?;
+                    if z > limit_end {
+                        return Err(reject(
+                            "E-VERIFY-SUM-ADDRESS",
+                            None,
+                            "child payload escapes parent interval",
+                        ));
+                    }
+                    Root::Window(origin, a, z)
+                }
+                root => root,
+            })
+        })
+        .collect()
 }

@@ -128,7 +128,7 @@ impl Builder<'_, '_> {
             ty: t,
         })
     }
-    fn pattern_variant_index(&self, p: &CorePattern, ty: &Type) -> R<u32> {
+    pub(super) fn pattern_variant_index(&self, p: &CorePattern, ty: &Type) -> R<u32> {
         let CorePatternKind::Variant {
             variant,
             ty: member,
