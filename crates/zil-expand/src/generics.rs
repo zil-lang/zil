@@ -622,11 +622,13 @@ impl<'a> Engine<'a> {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
-                let checked = consts::definition(f, &mut engine.budget)?;
+                let checked =
+                    consts::definition(f, &mut engine.budget, engine.traits.has_instances, None)?;
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
                         source_definition: Some(f),
+                        expression_origins: checked.source_ids.as_ref(),
                         definition_equations: None,
                         nominals: &engine.nominals,
                         enums: &engine.enums,
@@ -958,21 +960,32 @@ impl<'a> Engine<'a> {
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
-        if let ItemKind::Function(f) = &item.kind
-            && let Some(calls) = self.trait_calls.get(&f.name)
+        let mut anchors = None;
+        if let ItemKind::Function(function) = &item.kind
+            && let Some(calls) = self.trait_calls.get(&function.name)
         {
-            trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
             if self.traits.has_generic_methods {
-                let calls = trait_instances::resolve_generic_calls(
+                let resolved = trait_instances::resolve_generic_calls(
                     calls,
                     &substitution,
                     &mut self.budget,
                     span,
                 )?;
-                self.resolved_method_calls.insert(generated.clone(), calls);
+                anchors = Some(trait_instances::anchor_resolved_calls(
+                    &instance,
+                    resolved,
+                    &mut self.budget,
+                )?);
             }
+            trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
+        if let Some(anchors) = anchors {
+            let calls =
+                trait_instances::rekey_anchored_calls(&instance, anchors, &mut self.budget)?;
+            self.budget.text(&generated, span)?;
+            self.resolved_method_calls.insert(generated.clone(), calls);
+        }
         self.budget.item(&instance)?;
         // Original generic enums retain their existing Copy payload profile,
         // even though ordinary monomorphic enums now admit owners. Inspect the
@@ -1297,9 +1310,28 @@ impl<'a> Engine<'a> {
                     self.budget.ty(&i.target)?;
                     self.budget.text("Self", item.span)?;
                     let substitutions = BTreeMap::from([("Self".into(), i.target.clone())]);
-                    for member in &mut i.members {
+                    for (ordinal, member) in i.members.iter_mut().enumerate() {
+                        let anchors = self
+                            .current_member_calls
+                            .remove(&ordinal)
+                            .map(|calls| {
+                                trait_instances::anchor_resolved_calls(
+                                    member,
+                                    calls,
+                                    &mut self.budget,
+                                )
+                            })
+                            .transpose()?;
                         self.budget.substituted_item(member, &substitutions)?;
                         substitute_item(member, &substitutions)?;
+                        if let Some(anchors) = anchors {
+                            let calls = trait_instances::rekey_anchored_calls(
+                                member,
+                                anchors,
+                                &mut self.budget,
+                            )?;
+                            self.current_member_calls.insert(ordinal, calls);
+                        }
                     }
                     self.budget.ty(&i.target)?;
                     Some(i.target.clone())

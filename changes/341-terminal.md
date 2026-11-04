@@ -261,3 +261,30 @@ const/associated equation consumers and the full dyn boundary remain open.
 No runtime/RSS, maintenance-cost or compile-cost comparison or joint product-gate
 claim follows from these tests. Safety and static/native behavior have the
 bounded evidence above; independent checkpoint review is pending.
+
+Post-review corrective probe: the exact0cb method checkpoint compiled and
+verified generic-method-substitution-growth.zil, but native exited4 instead of0.
+A type actual with four array lengths inserted four Expr nodes before later
+method calls; replaying the old receiver ordinals selected another trait's
+same-signature target. The original19/0 review is preserved and was reopened in
+d79799ee5. The source and old machine artifact are retained.
+
+Correction attaches dispatch to the actual MEMBER/CALLEE expression Box in the
+owned tree. Definition-only Self/equation rewriting first records source-node
+origins, and const-definition clones explicitly compose those origins. Concrete
+substitution anchors the actual sites and derives fresh published ordinals only
+after mutation. Those tracked root Boxes remain live: leaf replacements have no
+descendant method site, and implicit ReceiverMember grows children in place.
+No arbitrary clone or rewriting pass may intervene; missing sites reject. Later
+const-call lowering may remove argument expression structure after pointer-frame
+binding without changing the selected call sites.
+
+The original now exits0. Growth counts0/1/2/4/7, both call orders and preceding /
+between-call placement pass80 native profiles; generic impl, default-provider
+and forwarded const controls pass12 more. The exact failing source also shares
+callee/receiver/member/function spans and passes independent raw/Wire/native
+checks. Full llvm-api targeted suites pass23+59; Clippy and Expand test build
+pass. Current request work/node boundaries: method69941/10121,
+no-outer9204/2667, type-growth15862/4038, const-growth16238/4034, with N-1,
+cold/warm/fresh/persisted controls and unchanged limits. This corrective
+checkpoint remains bounded and awaits independent exact review.

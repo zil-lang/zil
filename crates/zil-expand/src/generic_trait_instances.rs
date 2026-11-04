@@ -516,6 +516,69 @@ pub(crate) fn expression_ids(
     Ok(visitor.ids)
 }
 
+/// Transient MEMBER/CALLEE node identities in one owned AST. Substitution
+/// retains these root Boxes: leaf replacement has no descendant method site,
+/// and ReceiverMember only grows children in place. Never carried across a
+/// clone or an arbitrary rewriting pass, or used as a published identity.
+#[derive(Default)]
+pub(crate) struct CallAnchors {
+    sites: BTreeMap<usize, CallTarget>,
+}
+pub(crate) fn anchor_resolved_calls(
+    item: &Item,
+    mut calls: CallTargets,
+    budget: &mut Budget<'_>,
+) -> R<CallAnchors> {
+    if calls.is_empty() {
+        return Ok(CallAnchors::default());
+    }
+    let ItemKind::Function(function) = &item.kind else {
+        return Err(error(item.span, "call anchors require a function"));
+    };
+    let ids = expression_ids(&function.body, budget)?;
+    let mut sites = BTreeMap::new();
+    for (pointer, ordinal) in ids {
+        budget.node(item.span, 0)?;
+        if let Some(target) = calls.remove(&ordinal) {
+            sites.insert(pointer, target);
+        }
+    }
+    if !calls.is_empty() {
+        return Err(error(
+            item.span,
+            "captured call site is absent before substitution",
+        ));
+    }
+    Ok(CallAnchors { sites })
+}
+pub(crate) fn rekey_anchored_calls(
+    item: &Item,
+    anchors: CallAnchors,
+    budget: &mut Budget<'_>,
+) -> R<CallTargets> {
+    if anchors.sites.is_empty() {
+        return Ok(CallTargets::new());
+    }
+    let ItemKind::Function(function) = &item.kind else {
+        return Err(error(item.span, "call anchors require a function"));
+    };
+    let ids = expression_ids(&function.body, budget)?;
+    let mut calls = CallTargets::new();
+    for (pointer, target) in anchors.sites {
+        budget.node(item.span, 0)?;
+        let ordinal = *ids.get(&pointer).ok_or_else(|| {
+            error(
+                item.span,
+                "captured call site was removed during substitution",
+            )
+        })?;
+        if calls.insert(ordinal, target).is_some() {
+            return Err(error(item.span, "two captured call sites share one node"));
+        }
+    }
+    Ok(calls)
+}
+
 pub(crate) fn resolve_generic_calls(
     symbolic: &CallTargets,
     substitutions: &BTreeMap<String, TypeRef>,
@@ -612,8 +675,10 @@ fn rewrite_resolved_calls(
             self.budget.text(text, span).map_err(|e| vec![e])
         }
         fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
-            if let ExprKind::Member { object, .. } = &e.kind
-                && let Some(ordinal) = self.ids.get(&(&**object as *const Expr as usize))
+            if matches!(
+                &e.kind,
+                ExprKind::Member { .. } | ExprKind::ReceiverMember(_)
+            ) && let Some(ordinal) = self.ids.get(&(e as *const Expr as usize))
                 && let Some(target) = self.calls.get(ordinal)
             {
                 self.text(target, e.span)?;
@@ -758,11 +823,17 @@ impl CallRewrite<'_> {
         }
     }
     fn expr(&self, e: &mut Expr) {
-        if let ExprKind::Member {
-            object,
-            member: MemberName::Name(name) | MemberName::Constrained { name, .. },
-        } = &mut e.kind
-            && let Some(ordinal) = self.ids.get(&(&**object as *const Expr as usize))
+        let site = e as *const Expr as usize;
+        let method = match &mut e.kind {
+            ExprKind::Member {
+                member: MemberName::Name(name) | MemberName::Constrained { name, .. },
+                ..
+            }
+            | ExprKind::ReceiverMember(name) => Some(name),
+            _ => None,
+        };
+        if let Some(name) = method
+            && let Some(ordinal) = self.ids.get(&site)
             && let Some(target) = self.calls.get(ordinal)
         {
             name.clone_from(target);

@@ -735,6 +735,7 @@ pub(super) fn extend_bounds(
 }
 
 pub(super) struct Arguments<'a> {
+    pub(super) site: &'a Expr,
     pub(super) values: &'a [Argument],
     pub(super) explicit: Option<&'a [GenericArg]>,
     pub(super) expected: Option<&'a TypeRef>,
@@ -779,7 +780,7 @@ impl Engine<'_> {
         let host = projection_shape(&actual);
         let captured = self
             .method_calls
-            .remove(&(&**object as *const Expr as usize));
+            .remove(&(member_expr as *const Expr as usize));
         let selected = if let Some(target) = captured {
             let witness = self
                 .traits
