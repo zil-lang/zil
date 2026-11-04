@@ -26,17 +26,17 @@
     "verified": true,
     "branch": "main",
     "current_is_main": true,
-    "origin_main_tracking_head": "e5a4d51d844e29c4f4f5184eaff5704b1b27dd24",
+    "origin_main_tracking_head": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
     "remote_observation": "Local tracking ref only; no network or remote merge claim."
   },
-  "current_head": "7eb47c45e35644ebf05d4ea7f3689d6ce7b16ca8",
-  "main_head": "7eb47c45e35644ebf05d4ea7f3689d6ce7b16ca8",
-  "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-  "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade",
+  "current_head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
+  "main_head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
+  "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+  "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "7eb47c45e35644ebf05d4ea7f3689d6ce7b16ca8",
+      "head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
       "is_main": true
     },
     {
@@ -165,6 +165,46 @@
       "is_main": false
     },
     {
+      "branch": "refs/heads/340",
+      "head": "27985ddf5d75e51caa57e7b0f2ce0d7b1499bba9",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/341",
+      "head": "e5b3e9ae6fb637a72322f3c019a8463296bd93d6",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/342",
+      "head": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/342-capturefix",
+      "head": "c0927947690b1e6d56e3baa4e5f44691f3d74c79",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/343",
+      "head": "bcb5204e5f66ad7fcbb5ac7c03adfa630ed410ae",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/344",
+      "head": "6853a5b27f55a5e371448e45e623bd893e93a37d",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/344-typefix",
+      "head": "61685b04219bf0db5208bd7749b3a1440a8a8a83",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/345",
+      "head": "b7b0f25f12de8e11db7614fa0e359de7c3e103ce",
+      "is_main": false
+    },
+    {
       "branch": "refs/heads/budget-migration-by324",
       "head": "32d7ffcb132f428b60fce0a6ca749ca12b5c2730",
       "is_main": false
@@ -177,6 +217,11 @@
     {
       "branch": "refs/heads/review/batch336-astra",
       "head": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/review/terminal",
+      "head": "ea56df0f9b652b71a6c09d71d71d90db62228356",
       "is_main": false
     },
     {
@@ -256,107 +301,62 @@
     }
   ],
   "measured": {
-    "source_commit": "874f071bb53e85727b5467a2769ada47b51edd98",
-    "result_path": "docs/validation/language-batch336-integration-20261104.json",
+    "source_commit": "e47c4b6882766e8c162253f9436dab1769355468",
+    "result_path": "docs/validation/terminal-root37-integration-20261104.json",
     "receipt_status": "LocalLimitedAcceptance",
     "gates": [
       {
-        "gate": "clippy-default",
-        "status": "Pass"
-      },
-      {
         "gate": "default",
         "status": "Pass",
-        "passed": 4196,
+        "passed": 4372,
         "failed": 0,
         "ignored": 0,
         "filtered_out": 0
+      },
+      {
+        "gate": "reference",
+        "status": "Pass",
+        "passed": 4261,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
+      },
+      {
+        "gate": "clippy-default",
+        "status": "Pass"
       },
       {
         "gate": "clippy-reference",
         "status": "Pass"
       },
       {
-        "gate": "reference",
-        "status": "Pass",
-        "passed": 4086,
-        "failed": 0,
-        "ignored": 0,
-        "filtered_out": 0
-      },
-      {
-        "gate": "architecture",
-        "status": "Pass"
-      },
-      {
-        "gate": "ci-compact",
-        "status": "Pass",
-        "passed": 3,
-        "failed": 0
-      },
-      {
-        "gate": "ci-transport",
-        "status": "Pass",
-        "passed": 5,
-        "failed": 0
-      },
-      {
         "gate": "fmt",
         "status": "Pass"
       },
       {
-        "gate": "handoff-tests",
+        "gate": "text-reference",
         "status": "Pass",
-        "passed": 29,
-        "failed": 0
-      },
-      {
-        "gate": "migration",
-        "status": "Pass",
-        "passed": 9,
-        "failed": 0
-      },
-      {
-        "gate": "plan",
-        "status": "Pass"
-      },
-      {
-        "gate": "text",
-        "status": "Pass",
-        "passed": 65,
+        "passed": 68,
         "failed": 0,
         "ignored": 0,
         "filtered_out": 0
       },
       {
-        "gate": "component_and_CT_native",
+        "gate": "changed-test-replay",
         "status": "Pass",
-        "passed": 16,
-        "failed": 0
-      },
-      {
-        "gate": "existing_cleanup_consumer",
-        "status": "Pass",
-        "passed": 128,
-        "failed": 0
-      },
-      {
-        "gate": "current52_projection",
-        "status": "Pass",
-        "failed": 0
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0,
+        "filtered_out": 0
       }
     ],
     "known_incomplete": [
-      "Option, usize/u64 complete native chain and general non-Copy/ref patterns remain incomplete.",
-      "Associated types/constants, const/generic/conditional impl, supertraits and generic methods remain incomplete; default function values are bounded ordinary concrete Copy signatures with explicit result annotation.",
-      "CopyT+mutable life, HRTB/borrowed FP/lending/storage remain incomplete; an unused no-life mutable generic can miss alias checking until instantiation (retained source, no executed UB claim).",
-      "Record-enum match after a function-pointer result still needs an explicit local result type; original combination source retained and rejected, annotated counterpart passes.",
-      "Finite ordinary Copy Enum/ErrorUnion ABI is accepted; large closure/special helper/foreign shapes remain limited. Legal large borrowed-enum closure passes normal CLI but both retained baseline and current 2MiB Rust API abort; internal crash phase is unknown before Codegen.",
-      "Shared thread child is static fn(&i32)->i32 with independently closed read-only graph and proven caller roots on Linux x64. Direct unproved dynamic/lending producers remain Unsupported; proven parameter/capture retention is permitted.",
-      "Mutex/Atomic, general Transfer/Share, Suspend/SABI, cancellation/drain/late notification and retained external callback registration remain incomplete.",
-      "General dyn/state protocols, complete String/collections/iteration, ZUI layout/IME/rendering and floating/anonymous-union final semantics remain incomplete.",
-      "Native Windows and same-semantic Rust runtime/RSS/maintenance/compile-cost comparisons NotRun; B0 Doing and whole language/ZUI NotSatisfied.",
-      "Old301–312 source objects/uncommitted edits remain unavailable; historical274 records220Unavailable/54Unreviewed are not revalidated."
+      "Complete language/B0/ZUI terminal obligations remain open; task340–345 stay in construction.",
+      "Owning address126/reservation121–124 consumers, common stored-life/lending, dyn and general state protocols continue in author trees.",
+      "Owning generic Task, cancellation drain/waker, generic synchronization and Transfer/Share remain ongoing.",
+      "CT3 full value/nominal lifetime/phantom metadata and platform UI remain ongoing.",
+      "Native Windows and same-semantics Rust runtime/RSS/maintenance/compilation product gates have not run; no product-level net breakthrough claimed.",
+      "Historical301–312 missing objects/uncommitted sources are not restored; legacy handoff failures stay separate."
     ]
   },
   "tasks": [
@@ -365,14 +365,14 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
-      "record_sha256": "dbe51ae3a24631db66b0132dac16a12a9648ffcf0618715299ece335ed99613f",
+      "record_sha256": "01ba03e72b96cb7e7aec471bc255161265c5b0509a24857aa02b9ef0a1e8b0ea",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": []
     },
@@ -381,14 +381,14 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "a184726a710f3e3ab63d2892f2df1bd7b903f21666f182cf7bc6810970a2ccf1",
+      "record_sha256": "5cd38796c7b7ca3deb24073871b5bfe839ae145a34ab633be8edfec32c944ddb",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "B0"
@@ -399,14 +399,14 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "81bdbeb5ca641365da09e725d71fd860c4f0b0f861f2546c8eed113091057d73",
+      "record_sha256": "280af32beb9c73547435e6699fb20d29f88a42e43aa19e539ce26b27f556a04d",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "B0"
@@ -417,14 +417,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "7d45be0ca5b2ad6f252ca4ea6d4b30842c7a17099b43d0e112164347f8b3dae2",
+      "record_sha256": "d7bb1b2b858d791bad6de8ca7179dc7e5de0e005742cd18b159cb82b02f19b8e",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "T01",
@@ -437,14 +437,14 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "25b21bc27c0b8e72079edc0ccbac892757ce8b922a292649e719f3e0b599a044",
+      "record_sha256": "f79da4a1ae8f08f1d7432f7236442177da43a32f4e04120ceba8b126c69bd5a1",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "B0"
@@ -455,14 +455,14 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "178b803fcac3b5ded0014e92196c667e0fbe23e7f8bac63d0a81eb1aa8dfe487",
+      "record_sha256": "743bc64d38bce21e319b48278ae62403ac08cd184494110e498c04f249863915",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "B0"
@@ -473,14 +473,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "0563073f498579146e8bccb87c364a86d2f821b8111a707f63dfa40eec3d7ead",
+      "record_sha256": "8deee3b4163edb281139a12b9db27b350451ce20f2b48fe9c052af1b03dbd8f9",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "T02",
@@ -492,14 +492,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "083cbb8ca83e09f4c795ed51bd87380bc4a35689a907a203f740d7580d8dd636",
+      "record_sha256": "8ba9c8c810967db53eab019763c69a3c9527ac1336535d260760f85b56a53ca9",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "T05"
@@ -510,14 +510,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "ae177f4ff2718bf62bf1df249f82fb6ab54d6f12a2d2d7f75cd46290fade22e6",
+      "record_sha256": "337d7b747a8e712e9e43d7e497568b7fef425a21fd56a4220cb2de4b3d2ad379",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "W1"
@@ -528,14 +528,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "8df3727a7ac73ef3b42416feaa9a8fbe99d1ff6e8cef139312493f246c3c7ec9",
+      "record_sha256": "7ea1535c22d0d5acf0752ae551b08438053c6fcc4f4533706100735d701fbbf2",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "W1",
@@ -547,14 +547,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "84c91dfac3f82a612ff513dd9ba7785d04ef1313e246b17124986a5331469aed",
+      "record_sha256": "50c16dbfae24ec59b7f33de129d6f4a9731d85cb90de1998692291d22eb3c598",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "T01",
@@ -570,14 +570,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "0e08d7c422a84e930ad45f4c223cfcf45f14320c43fcbaa5123a0d3038e4706c",
+      "record_sha256": "281d9cec2fda4bbea76b6850322c98186b26a714f00f9bc7991e71e802e37508",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "W1",
@@ -590,14 +590,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "28e57de5c861bf61de64101e0ddb7ea5231561dc5ec47956db21d714b5805866",
+      "record_sha256": "d1b09e3a750615964ee1ff354c8502d7c8457693d45ef8bfa810ebe9625e4064",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "T09",
@@ -609,14 +609,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "6758b4d66cae7ad79e76d11c1ab9e42559cbae12018558c4166984284894d829",
+      "record_sha256": "e865a98e2b1de2ac5e47833be8a3c2910124400901b3a6c5625cbea222601483",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "blocked_by": [
         "W2",
@@ -3000,14 +3000,14 @@
       "path": ".task/impl/181.md",
       "status": "施工",
       "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
-      "record_sha256": "35cd63b8d0defe2dfb57f7fd7fbacfad5053d530be2fb0bba15f2c7a2c8f24dc",
+      "record_sha256": "bcc645f176cb3c1148186a13260486e72c81f1e13a6ed3e2f9a1143b270d6c1e",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "bf67bfd33561062c12523813469f8ba15eb390fae55140bf1eba586473c4a141",
-        "normative_hash": "ced9d3038429b24609a115d79f1f5be4d5c10a393cdb97aa17100de5a3bd8ade"
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6099,6 +6099,208 @@
           }
         ]
       }
+    },
+    {
+      "id": "340",
+      "path": ".task/impl/340.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "174895ecd5409775496c37281d0abb0f48976e5778e5e8dc8d70e345b11d8221",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-syntax/src/parser/**",
+        "crates/zil-expand/src/expressions.rs",
+        "crates/zil-expand/src/generic_record_enum.rs",
+        "crates/zil-expand/src/types.rs",
+        "crates/zil-types/src/**",
+        "crates/zil-backend-llvm/src/emit/**",
+        "crates/zil-driver/tests/aggregates.rs",
+        "crates/zil-driver/tests/scalar.rs",
+        "changes/340-terminal.md",
+        "tests/language-readiness/terminal/340/**",
+        "docs/validation/terminal-340.json",
+        "crates/zil-ct/src/**",
+        "crates/zil-lower/src/**",
+        "crates/zil-expand/src/lib.rs",
+        "crates/zil-expand/src/generics.rs",
+        "crates/zil-driver/src/ct_artifact/**",
+        "crates/zil-driver/src/ct_artifact.rs"
+      ],
+      "implementation_author": "/root/foundations340",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "341",
+      "path": ".task/impl/341.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "29e9a3746389972184d72630d24ca1341c779f7b3f308453d2b18627e6d527d8",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/src/generic_trait*",
+        "crates/zil-expand/src/static_traits.rs",
+        "crates/zil-expand/src/project_traits.rs",
+        "crates/zil-expand/src/generic_check.rs",
+        "crates/zil-expand/src/generic*.rs",
+        "crates/zil-driver/tests/impl162_trait_bounds.rs",
+        "crates/zil-driver/tests/generics.rs",
+        "changes/341-terminal.md",
+        "tests/language-readiness/terminal/341/**",
+        "docs/validation/terminal-341.json"
+      ],
+      "implementation_author": "/root/traits341",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "342",
+      "path": ".task/impl/342.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "f23904be1139d88ba4bd734fd8311591b779c717a058a0ca0e2ba432d271693c",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-expand/src/lifetimes.rs",
+        "crates/zil-expand/src/generic_check.rs",
+        "crates/zil-types/src/lifetimes.rs",
+        "crates/zil-analyze/src/**",
+        "crates/zil-verify/src/**",
+        "crates/zil-driver/tests/cross_function_borrows.rs",
+        "crates/zil-driver/tests/generic_regressions.rs",
+        "changes/342-terminal.md",
+        "tests/language-readiness/terminal/342/**",
+        "docs/validation/terminal-342.json",
+        "crates/zil-expand/src/generic_aliases.rs",
+        "crates/zil-expand/src/generic_places.rs",
+        "tests/language-readiness/mutable337/regressions.rs",
+        "crates/zil-types/src/borrowed_fp.rs",
+        "crates/zil-types/src/expressions.rs",
+        "crates/zil-types/src/lib.rs"
+      ],
+      "implementation_author": "/root/life342",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "343",
+      "path": ".task/impl/343.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "4b28396fe4e5f347948ec920036b42c3d880e876565b7b12d72bf36f4f0f3d9f",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-types/src/scoped_thread.rs",
+        "crates/zil-analyze/src/scoped_thread.rs",
+        "crates/zil-verify/src/scoped_thread.rs",
+        "crates/zil-backend-llvm/src/emit/scoped_thread.rs",
+        "crates/zil-expand/src/scoped_thread.rs",
+        "crates/zil-driver/tests/generic_regressions.rs",
+        "examples/mainline/concurrency325/**",
+        "changes/343-terminal.md",
+        "tests/language-readiness/terminal/343/**",
+        "docs/validation/terminal-343.json",
+        "crates/zil-llvm-api/src/**"
+      ],
+      "implementation_author": "/root/runtime343",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "344",
+      "path": ".task/impl/344.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "bed90b4589c5eeead5fbab31d9e4096dffe2fbb8b98b425766819d23244ea560",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "crates/zil-types/src/**",
+        "crates/zil-expand/src/**",
+        "crates/zil-driver/src/**",
+        "crates/zil-backend-llvm/src/emit/**",
+        "crates/zil-driver/tests/aggregates.rs",
+        "tests/language-readiness/codegen-pending/**",
+        "changes/344-terminal.md",
+        "tests/language-readiness/terminal/344/**",
+        "docs/validation/terminal-344.json",
+        "crates/zil-llvm-api/src/**",
+        "crates/zil-syntax/src/**",
+        "crates/zil-ct/src/**"
+      ],
+      "implementation_author": "/root/reliability344",
+      "implementation_commit": null,
+      "integration_commit": null
+    },
+    {
+      "id": "345",
+      "path": ".task/impl/345.md",
+      "status": "施工",
+      "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+      "record_sha256": "9c52820963f0a1c2a5eaff450d647cdb8d11625c197d3cee24e52ceab6dce248",
+      "committed": true,
+      "evidence": [],
+      "specification": {
+        "source": "current",
+        "revision": null,
+        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
+        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+      },
+      "parent_task": "B0",
+      "write_set": [
+        "lib/**",
+        "crates/zil-driver/src/project.rs",
+        "crates/zil-driver/src/stdlib.rs",
+        "crates/zil-driver/tests/impl236_zui_core.rs",
+        "examples/mainline/**",
+        "tests/language-readiness/terminal/**",
+        "docs/LANGUAGE-TERMINAL-20261104.md",
+        "changes/345-terminal.md",
+        "tests/language-readiness/terminal/345/**",
+        "docs/validation/terminal-345.json"
+      ],
+      "implementation_author": "/root",
+      "implementation_commit": null,
+      "integration_commit": null
     }
   ],
   "next": [
@@ -6106,6 +6308,36 @@
       "id": "181",
       "status": "施工",
       "authoritative_task": ".task/impl/181.md"
+    },
+    {
+      "id": "340",
+      "status": "施工",
+      "authoritative_task": ".task/impl/340.md"
+    },
+    {
+      "id": "341",
+      "status": "施工",
+      "authoritative_task": ".task/impl/341.md"
+    },
+    {
+      "id": "342",
+      "status": "施工",
+      "authoritative_task": ".task/impl/342.md"
+    },
+    {
+      "id": "343",
+      "status": "施工",
+      "authoritative_task": ".task/impl/343.md"
+    },
+    {
+      "id": "344",
+      "status": "施工",
+      "authoritative_task": ".task/impl/344.md"
+    },
+    {
+      "id": "345",
+      "status": "施工",
+      "authoritative_task": ".task/impl/345.md"
     }
   ],
   "commands": {
