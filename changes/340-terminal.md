@@ -91,3 +91,7 @@ Sum16/0及borrow23/0；既有impl187原24/0；相关五个库Clippy通过。mixe
 ### 统一基线的实际Store元素兄弟字段窗口
 
 root37全量重放保留了impl201两个原反例的新Success：借入实际callback字段期间只写同一State的独立Copy value字段，以及callback返回其实际环境bytes期间写该value字段。主规范4.4澄清只有两核从同一元素和已核布局/路径证明不相交区间才分离字段访问；粗Store结构依赖、真实parent loan、回调重入和lending环境保护不缩短。动态index/同型/字段名/符号capture仍不制造apart。先完成原源native与samecallback/raw最近反例独审，再迁原期待；不删除reserve/pop/recall等旧相交反例。
+
+### Explicit ErrorUnion tag patterns for universally checked generic definitions
+
+TypeName(payload) requires a unique actual member; T:Copy does not prove T differs from a concrete Copy error type. Keep that definition-time boundary. Add `.ok(pattern)` / `.err(pattern)` to express the actual tag independently of nominal names, transporting Syntax/Core ErrorArm{is_error,pattern}. Existing physical ErrorArm projections and ordinary tag/loan/init/move/cleanup checks implement it; no new runtime opcode or implicit injection rule. Parser is type-independent, user type names remain ordinary, input evaluates once. Required original generic no-call definitions, same-type ambiguity, wrong-tag, incomplete/exclusive/stale-window raw/Wire and native cleanup controls remain with the implementation. This publication is a contract/data change, not completed consumer acceptance.
