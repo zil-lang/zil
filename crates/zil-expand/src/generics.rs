@@ -798,6 +798,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.require_evaluated_constants(module)?;
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
