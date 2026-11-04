@@ -5,20 +5,43 @@
   "public_baseline": "20d40f57580265788915f48f35ba567fe286b301",
   "source_checkpoint": "49383a59eba51b22629f7ad16eb53852b5f4de16",
   "task_drop_dependency": {
-    "author_commit": "6e3d9a0e0689151c74c3db760d6d0d13b6a6270f",
-    "local_cherry_pick": "c5ae59cb0",
-    "interface": "Each kernel independently invokes tasks::require_synchronous_drop only for actually live Direct Task Drop"
+    "author_commits": [
+      "6e3d9a0e0689151c74c3db760d6d0d13b6a6270f",
+      "05d8eadd1",
+      "044cf3d1a",
+      "acfe5e4ecd2435ec2d55aca991317f7ec2f52b61"
+    ],
+    "local_cherry_picks": [
+      "c5ae59cb0",
+      "9b323fde0",
+      "a0b493b88",
+      "fc79bf3e1"
+    ],
+    "interface": "Each kernel independently reconstructs actual Task<T> origins for LIVE whole/partial Direct cleanup, FnOnce remaining-environment cleanup and synchronous FFI callback consumers; sealed legacy TaskStart separately proves the complete NoExternal worker graph."
   },
   "checks": {
     "async_registration_g8412": {
       "passed": 3,
       "failed": 0,
-      "source_neighbors": 13,
-      "raw_variants": 10,
+      "source_neighbors": 15,
+      "raw_variants": 15,
       "verify_raw_and_wire": true,
       "generic_factory": "Pass",
       "unused_generic_definitions": "Pass",
-      "early_explicit_finish_admission": "Pass; native CLOSED guard still required"
+      "early_explicit_finish_admission": "Pass; native CLOSED guard still required",
+      "legacy_sync_taski32_sources": 2,
+      "ct_execution_rejections": {
+        "direct": "Ct/SafeReject/E-CT-RUNTIME",
+        "zero_arg_helper": "Ct/SafeReject/E-CT-FORBIDDEN"
+      },
+      "actual_head_windows": {
+        "operations": [
+          "RequestClose",
+          "PollClose"
+        ],
+        "negative": "Analyze actual live-child conflict and Verify E-BORROW-CONFLICT; raw and Wire",
+        "nearest_positive": "same operation through actual child address accepted in both kernels raw/Wire"
+      }
     },
     "public42_roles_and_unauthorized_candidates": {
       "passed": 1,
@@ -39,8 +62,8 @@
     "fmt": "Pass"
   },
   "async_exact_analysis_steps": {
-    "analyze": 6003,
-    "verify": 7922,
+    "analyze": 6012,
+    "verify": 7928,
     "n_minus_1": "ResourceLimit in each independent kernel",
     "fresh_n": "Pass"
   },
@@ -65,7 +88,16 @@
     "No native pass is inferred from BackendUnsupported or the semantic fixtures.",
     "Real Task PendingExit/drain/late-entry/no-future execution requires the separate combined G8.4.1.3 consumer.",
     "CT changes only traverse existing type/recipe metadata; CT async execution remains forbidden and CT artifact5 encoding is unchanged.",
-    "Borrowed/Transfer/Share callback environment, nested pollable callback roots, ordinary Store/Package roots, and live TaskCreate pollable input are outside the first slice.",
-    "Same-semantics Rust runtime/RSS/compile/maintenance measurements and repeatable product net breakthrough remain unmeasured."
-  ]
+    "Borrowed/Transfer/Share environments, nested pollable callback roots, Async roots inside ordinary Tuple/Enum/ErrorUnion/Store/Package or closure captures, and live TaskCreate pollable input are outside the first slice.",
+    "Same-semantics Rust runtime/RSS/compile/maintenance measurements and repeatable product net breakthrough remain unmeasured.",
+    "New Async environments conservatively reject unknown legacy TaskI32 captures; old synchronous Registration preserves both direct and generic-factory legacy TaskI32 sources through the separately verified sealed NoExternal TaskStart invariant.",
+    "New Task<T> cleanup uses path-insensitive source unions; partial cleanup filters the actual dropped field type but may conservatively reject a package containing multiple Task origins. FnOnce conservatively proves the entering whole environment because remaining captures are not separately refined.",
+    "Actual Task<T> aggregate/partial/FnOnce cleanup bypass probes require the combined G8.4.1.3 worker consumer; this receipt does not substitute an earlier profile rejection for evidence at a cleanup guard."
+  ],
+  "old_sync_exact_analysis_steps": {
+    "analyze": 15739,
+    "verify": 27876,
+    "n_minus_1": "ResourceLimit",
+    "fresh_n": "Pass"
+  }
 }

@@ -1343,6 +1343,20 @@ impl Transfer<'_> {
                             budget,
                         )?;
                     }
+                    if !take && validate && state.debt[element] & LIVE != 0 {
+                        let Type::Array { element: ty, .. } = &f.locals[local.0 as usize].ty else {
+                            unreachable!("checked owning array")
+                        };
+                        if tasks::needs_synchronous_proof(self.module, ty, budget)? {
+                            tasks::require_synchronous_drop(
+                                self.module,
+                                f,
+                                *local,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
+                    }
                     if take {
                         state.debt[element] = MOVED;
                         fresh_result = Some(INPUT);
@@ -1424,6 +1438,24 @@ impl Transfer<'_> {
                             span,
                             budget,
                         )?;
+                    }
+                    if !take && validate && state.debt[field] & LIVE != 0 {
+                        let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                            unreachable!("checked package")
+                        };
+                        if tasks::needs_synchronous_proof(
+                            self.module,
+                            &fields[*index as usize].1,
+                            budget,
+                        )? {
+                            tasks::require_synchronous_drop(
+                                self.module,
+                                f,
+                                *local,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
                     }
                     if take {
                         state.debt[field] = MOVED;
@@ -1789,10 +1821,7 @@ impl Transfer<'_> {
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
-                    if validate
-                        && f.call_kind == CallKind::Direct
-                        && state.debt[index] & LIVE != 0
-                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
+                    if validate && f.call_kind == CallKind::Direct && state.debt[index] & LIVE != 0
                     {
                         tasks::require_synchronous_drop(
                             self.module,
@@ -2019,6 +2048,15 @@ impl Transfer<'_> {
                         }
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
+                        if validate {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                *callee,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
                         self.consume(state, *callee, span, validate)?;
                     }
                     for &value in arguments {

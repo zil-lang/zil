@@ -183,6 +183,13 @@ pub(super) fn check(
                             ScopedCallbackRole::Close,
                             budget,
                         )?;
+                        tasks::require_synchronous_value(
+                            module,
+                            function,
+                            callback,
+                            budget,
+                            Some(instruction.span),
+                        )?;
                         let Type::Address {
                             mutable: true,
                             inner,

@@ -74,6 +74,7 @@ pub(super) fn instruction(
     };
     let span = Some(instruction.span);
     budget.spend(5)?;
+    tasks::require_synchronous_value(module, caller, callback, budget, span)?;
     for (id, role) in [
         (register, ScopedCallbackRole::Register),
         (close, ScopedCallbackRole::Close),

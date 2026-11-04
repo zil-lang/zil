@@ -98,10 +98,10 @@ fn dependencies(
                 for _ in &module.resources {
                     budget.type_work(payload, false, "Task Drop actual dependency type")?;
                 }
-                if let Some(r) = module.resources.iter().find(|r| r.payload == **payload) {
-                    if let Some(drop) = r.teardown {
-                        functions.push(drop);
-                    }
+                if let Some(r) = module.resources.iter().find(|r| r.payload == **payload)
+                    && let Some(drop) = r.teardown
+                {
+                    functions.push(drop);
                 }
                 pending.push(payload);
             }
@@ -110,13 +110,13 @@ fn dependencies(
                     closures.len().saturating_add(1),
                     "Task Drop actual dependencies",
                 )?;
-                if closures.insert(*id) {
-                    if let Some(c) = module.closures.get(id.0 as usize) {
-                        functions.push(c.function);
-                        for t in &c.captures {
-                            budget.type_work(t, false, "Task Drop actual dependency type")?;
-                            pending.push(t);
-                        }
+                if closures.insert(*id)
+                    && let Some(c) = module.closures.get(id.0 as usize)
+                {
+                    functions.push(c.function);
+                    for t in &c.captures {
+                        budget.type_work(t, false, "Task Drop actual dependency type")?;
+                        pending.push(t);
                     }
                 }
             }
