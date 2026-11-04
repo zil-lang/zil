@@ -5,7 +5,7 @@ use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 pub(super) fn head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 pub(super) mod product;
 mod replacements;
@@ -130,6 +130,7 @@ struct Effect {
     arguments: BTreeSet<u32>,
     borrowed_fields: BTreeSet<u32>,
     replacements: replacements::Effects,
+    invalidated_stores: BTreeSet<replacements::StoreInvalidation>,
 }
 type Shapes = BTreeMap<Place, Shape>;
 pub(super) type Live = BTreeSet<Place>;
@@ -484,6 +485,13 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::AsyncRegistrationStart { callback, .. } => (Some(*callback), None, &[]),
+        InstructionKind::AsyncRegistrationValid { registration }
+        | InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration }
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+            (Some(*registration), None, &[])
+        }
         InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..
@@ -1565,6 +1573,12 @@ impl Flow<'_> {
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len(), "task transferred inputs")?;
                     for &v in arguments {
+                        if matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(error(
+                                "live pollable TaskCreate input cannot be cleaned synchronously on allocation failure",
+                            ));
+                        }
                         self.consume(state, v, check, budget)?;
                     }
                     produced = Some(Fact {
@@ -1573,7 +1587,8 @@ impl Flow<'_> {
                         sources: BTreeSet::new(),
                     });
                 }
-                InstructionKind::RegistrationStart { callback, .. } => {
+                InstructionKind::RegistrationStart { callback, .. }
+                | InstructionKind::AsyncRegistrationStart { callback, .. } => {
                     self.consume(state, *callback, check, budget)?;
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
@@ -1788,6 +1803,18 @@ impl Flow<'_> {
                             fact.life = BTreeSet::from([Life::Transferred]);
                         }
                         InstructionKind::DropOwnedArrayElement { .. } => {
+                            if check
+                                && fact.life.contains(&Life::Available)
+                                && tasks::needs_synchronous_proof(self.module, element, budget)?
+                            {
+                                tasks::require_synchronous_drop(
+                                    self.module,
+                                    f,
+                                    *local,
+                                    budget,
+                                    Some(i.span),
+                                )?;
+                            }
                             if i.result.is_some() {
                                 return Err(error("owning array element cleanup has no result"));
                             }
@@ -2043,6 +2070,18 @@ impl Flow<'_> {
                                 });
                                 fact.life = BTreeSet::from([Life::Transferred]);
                             } else {
+                                if check
+                                    && fact.life.contains(&Life::Available)
+                                    && tasks::needs_synchronous_proof(self.module, ty, budget)?
+                                {
+                                    tasks::require_synchronous_drop(
+                                        self.module,
+                                        f,
+                                        *local,
+                                        budget,
+                                        Some(i.span),
+                                    )?;
+                                }
                                 if i.result.is_some() {
                                     return Err(error("package field drop has no result"));
                                 }
@@ -2470,6 +2509,27 @@ impl Flow<'_> {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
                     }
                     let mut fact = copied(state, Place::Local(*local), budget)?;
+                    if check
+                        && f.call_kind == CallKind::Direct
+                        && fact.life.contains(&Life::Available)
+                    {
+                        tasks::require_synchronous_drop(
+                            self.module,
+                            f,
+                            *local,
+                            budget,
+                            Some(i.span),
+                        )?;
+                    }
+                    if check
+                        && f.call_kind == CallKind::Direct
+                        && fact.life.contains(&Life::Available)
+                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                    {
+                        return Err(error(
+                            "Direct automatic Drop cannot close an unknown pollable registration; explicitly advance and finish it",
+                        ));
+                    }
                     if check {
                         no_later_use(
                             state,
@@ -2579,7 +2639,8 @@ impl Flow<'_> {
                     }
                     produced = Some(fact);
                 }
-                InstructionKind::RegistrationClose { registration: task }
+                InstructionKind::AsyncRegistrationFinishDestroy { registration: task }
+                | InstructionKind::RegistrationClose { registration: task }
                 | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, check, budget)?;
                 }
@@ -2898,6 +2959,15 @@ impl Flow<'_> {
                         }
                     }
                     if let InstructionKind::CallClosureOnce { callee, .. } = i.kind {
+                        if check {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                callee,
+                                budget,
+                                Some(i.span),
+                            )?;
+                        }
                         self.consume(state, callee, check, budget)?;
                     }
                     if budget.owned_callbacks.contains(id) {
@@ -3327,12 +3397,23 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
             .saturating_add(1),
         "resource effect convergence",
     )?;
+    budget.spend(
+        found
+            .invalidated_stores
+            .len()
+            .saturating_add(target.invalidated_stores.len()),
+        "Store instance invalidation convergence",
+    )?;
+    let old_invalidations = target.invalidated_stores.len();
+    target.invalidated_stores.extend(found.invalidated_stores);
     let before = (target.arguments.len(), target.borrowed_fields.len());
     target.arguments.extend(found.arguments);
     target.borrowed_fields.extend(found.borrowed_fields);
     let replacements_changed =
         replacements::grow(&mut target.replacements, &found.replacements, budget)?;
-    Ok(replacements_changed || before != (target.arguments.len(), target.borrowed_fields.len()))
+    Ok(replacements_changed
+        || old_invalidations != target.invalidated_stores.len()
+        || before != (target.arguments.len(), target.borrowed_fields.len()))
 }
 
 fn infer_effects(

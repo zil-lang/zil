@@ -329,6 +329,10 @@ pub(super) fn task_leaf(
     limits: &zil_base::Limits,
     meter: &tasks::Meter,
 ) -> CompileResult<Option<String>> {
+    if let Type::Closure(id) = ty {
+        meter.spend(64)?;
+        return Ok(Some(format!("zil.closure.drop.{}", id.0)));
+    }
     let mut bounded = limits.clone();
     bounded.max_analysis_steps = meter.remaining();
     let mut budget = Budget::new(&bounded);

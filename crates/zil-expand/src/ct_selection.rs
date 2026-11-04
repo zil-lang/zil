@@ -849,6 +849,7 @@ pub(crate) fn member_owner_type_cost(
             | Type::Desc(inner)
             | Type::Address { inner, .. }
             | Type::Opaque { hidden: inner, .. }
+            | Type::AsyncRegistration { environment: inner }
             | Type::Registration { environment: inner }
             | Type::OwnedStore { element: inner }
             | Type::Array { element: inner, .. }

@@ -1,6 +1,7 @@
 //! Stable owning registration storage. Busy protects F; only the strong backend
 //! close contract ends all raw entries (including pre-atomic/rejected entries).
 use super::*;
+mod async_owned;
 
 fn site(function: FunctionId, value: ValueId, role: &str) -> String {
     format!("zil.registration.{role}.{}.{}", function.0, value.0)
@@ -622,6 +623,13 @@ pub(super) fn runtime(
     ));
     out.push(instruction(None, m::Op::Return(None)));
     out.push(m::Event::End);
+    if lir
+        .resources
+        .iter()
+        .any(|r| matches!(r.payload, Type::AsyncRegistration { .. }))
+    {
+        out.append(async_owned::runtime(meter)?);
+    }
     Ok(out)
 }
 
@@ -647,6 +655,12 @@ pub(super) fn reserve_function(
             )]);
         }
         match t {
+            Type::AsyncRegistration { .. } => {
+                return unsupported(
+                    "pollable registration environment consumer is not implemented",
+                    None,
+                );
+            }
             Type::Dyn { .. } => {
                 return unsupported(
                     "dynamic registration environments require explicit retained interface lowering",
@@ -752,8 +766,20 @@ pub(super) fn reserve_function(
                     close,
                     callback,
                     ..
+                }
+                | InstructionKind::AsyncRegistrationStart {
+                    register,
+                    request_close: close,
+                    callback,
+                    ..
                 } => {
-                    for id in [register, close] {
+                    for id in [register, close].into_iter().chain(
+                        if let InstructionKind::AsyncRegistrationStart { poll_drain, .. } = i.kind {
+                            Some(poll_drain)
+                        } else {
+                            None
+                        },
+                    ) {
                         meter.spend(functions.len().saturating_add(32))?;
                         let foreign = functions
                             .get(&id)
@@ -770,7 +796,13 @@ pub(super) fn reserve_function(
                     }
                     // Fixed helper/trampoline/close node and text construction plus the
                     // actual expanded alignment/capture classification walks.
-                    meter.spend(8192)?;
+                    meter.spend(
+                        if matches!(i.kind, InstructionKind::AsyncRegistrationStart { .. }) {
+                            24576
+                        } else {
+                            8192
+                        },
+                    )?;
                     ty(
                         &f.values[callback.0 as usize],
                         closures,
@@ -780,7 +812,11 @@ pub(super) fn reserve_function(
                     )?;
                 }
                 InstructionKind::RegistrationValid { .. }
-                | InstructionKind::RegistrationClose { .. } => meter.spend(128)?,
+                | InstructionKind::RegistrationClose { .. }
+                | InstructionKind::AsyncRegistrationValid { .. }
+                | InstructionKind::AsyncRegistrationRequestClose { .. }
+                | InstructionKind::AsyncRegistrationPollClose { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroy { .. } => meter.spend(512)?,
                 _ => {}
             }
         }

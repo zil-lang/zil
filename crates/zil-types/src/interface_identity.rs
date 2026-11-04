@@ -91,13 +91,15 @@ pub(super) fn encode(
                             SyncCellKind::AtomicI32 => 1,
                         },
                     ]),
-                    Type::Registration { environment: inner }
+                    Type::AsyncRegistration { environment: inner }
+                    | Type::Registration { environment: inner }
                     | Type::OwnedStore { element: inner }
                     | Type::Slice { element: inner }
                     | Type::Managed(inner)
                     | Type::Desc(inner) => {
                         bytes.push(match ty {
                             Type::Registration { .. } => 32,
+                            Type::AsyncRegistration { .. } => 37,
                             Type::OwnedStore { .. } => 22,
                             Type::Slice { .. } => 20,
                             Type::Managed(_) => 10,

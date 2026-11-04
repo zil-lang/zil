@@ -1,6 +1,11 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod drop_sync;
 mod owned;
+pub(super) use drop_sync::{
+    needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
+    require_value as require_synchronous_value, require_worker as require_synchronous_worker,
+};
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -166,6 +171,7 @@ pub(super) fn instruction(
                 return Err(bad());
             }
             profile(module, worker, budget, span)?;
+            require_synchronous_worker(module, worker, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
             let ty = Type::Managed(Box::new(Type::TaskI32));

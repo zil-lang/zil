@@ -5,7 +5,7 @@
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
 pub(super) fn head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 use std::collections::VecDeque;
 pub(crate) mod arrays;
@@ -75,6 +75,9 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
             | Type::Registration {
                 environment: element,
             }
+            | Type::AsyncRegistration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -139,7 +142,10 @@ pub(super) fn check_type_for(
     if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
         return dynamic_store::check_carrier(module, ty, span, budget);
     }
-    if matches!(inner.as_ref(), Type::Registration { .. }) {
+    if matches!(
+        inner.as_ref(),
+        Type::Registration { .. } | Type::AsyncRegistration { .. }
+    ) {
         return registration::carrier(module, ty, span, budget);
     }
     if matches!(inner.as_ref(), Type::TaskI32 | Type::Task { .. }) {
@@ -204,8 +210,11 @@ pub(super) fn check_definitions(
             }
             continue;
         }
-        if matches!(resource.payload, Type::Registration { .. })
-            || resource.name.starts_with(registration::PREFIX)
+        if matches!(
+            resource.payload,
+            Type::Registration { .. } | Type::AsyncRegistration { .. }
+        ) || resource.name.starts_with(registration::PREFIX)
+            || resource.name.starts_with(registration::ASYNC_PREFIX)
         {
             if !names.insert(&resource.name) {
                 return Err(reject(
@@ -352,6 +361,9 @@ pub(super) enum Root {
     OwnedCapture(u32),
     BorrowedCapture(u32),
     StoreParent(StoreParentRoot),
+    // Private effect only: an actual Commit ends an old Store field instance.
+    // This is never an ordinary write row or a runtime description origin.
+    InvalidatedStore(StoreParentRoot),
 }
 
 // Actual Store carrier descriptions remain distinct from descriptions derived
@@ -397,7 +409,7 @@ impl Root {
             Self::BorrowedCapture(value) => {
                 Self::StoreParent(StoreParentRoot::BorrowedCapture(value))
             }
-            Self::StoreParent(_) => unreachable!(),
+            Self::StoreParent(_) | Self::InvalidatedStore(_) => unreachable!(),
         }
     }
 }
@@ -875,6 +887,12 @@ fn description_live(
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
             Root::Parameter(_) | Root::BorrowedCapture(_) => None,
             Root::StoreParent(_) => unreachable!(),
+            Root::InvalidatedStore(_) => {
+                return Err(bad(
+                    span,
+                    "effect marker is not a resource description origin",
+                ));
+            }
         };
         if let Some(slot) = slot
             && state.debt[slot] != LIVE
@@ -1269,11 +1287,19 @@ impl Transfer<'_> {
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len())?;
                     for &v in arguments {
+                        if matches!(&f.values[v.0 as usize],Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(bad(
+                                span,
+                                "live pollable TaskCreate input lacks synchronous allocation-failure cleanup",
+                            ));
+                        }
                         self.consume(state, v, span, validate)?;
                     }
                     fresh_result = Some(FRESH);
                 }
-                InstructionKind::RegistrationStart { callback, .. } => {
+                InstructionKind::RegistrationStart { callback, .. }
+                | InstructionKind::AsyncRegistrationStart { callback, .. } => {
                     self.consume(state, *callback, span, validate)?;
                     fresh_result = Some(FRESH);
                 }
@@ -1372,6 +1398,20 @@ impl Transfer<'_> {
                             budget,
                         )?;
                     }
+                    if !take && validate && state.debt[element] & LIVE != 0 {
+                        let Type::Array { element: ty, .. } = &f.locals[local.0 as usize].ty else {
+                            unreachable!("checked owning array")
+                        };
+                        if tasks::needs_synchronous_proof(self.module, ty, budget)? {
+                            tasks::require_synchronous_drop(
+                                self.module,
+                                f,
+                                *local,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
+                    }
                     if take {
                         state.debt[element] = MOVED;
                         fresh_result = Some(INPUT);
@@ -1453,6 +1493,24 @@ impl Transfer<'_> {
                             span,
                             budget,
                         )?;
+                    }
+                    if !take && validate && state.debt[field] & LIVE != 0 {
+                        let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                            unreachable!("checked package")
+                        };
+                        if tasks::needs_synchronous_proof(
+                            self.module,
+                            &fields[*index as usize].1,
+                            budget,
+                        )? {
+                            tasks::require_synchronous_drop(
+                                self.module,
+                                f,
+                                *local,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
                     }
                     if take {
                         state.debt[field] = MOVED;
@@ -1818,6 +1876,26 @@ impl Transfer<'_> {
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::DropPackage { local } => {
                     let index = slots.managed_local[local.0 as usize].expect("typed cleanup local");
+                    if validate && f.call_kind == CallKind::Direct && state.debt[index] & LIVE != 0
+                    {
+                        tasks::require_synchronous_drop(
+                            self.module,
+                            f,
+                            *local,
+                            budget,
+                            Some(span),
+                        )?;
+                    }
+                    if validate
+                        && f.call_kind == CallKind::Direct
+                        && state.debt[index] & LIVE != 0
+                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                    {
+                        return Err(bad(
+                            span,
+                            "Direct automatic Drop cannot reclaim an unknown pollable registration; explicitly advance and finish it",
+                        ));
+                    }
                     if validate {
                         no_live_description(
                             state,
@@ -2025,6 +2103,15 @@ impl Transfer<'_> {
                         }
                     }
                     if matches!(instruction.kind, InstructionKind::CallClosureOnce { .. }) {
+                        if validate {
+                            tasks::require_synchronous_value(
+                                self.module,
+                                f,
+                                *callee,
+                                budget,
+                                Some(span),
+                            )?;
+                        }
                         self.consume(state, *callee, span, validate)?;
                     }
                     for &value in arguments {
@@ -2036,7 +2123,8 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
-                InstructionKind::RegistrationClose { registration: task }
+                InstructionKind::AsyncRegistrationFinishDestroy { registration: task }
+                | InstructionKind::RegistrationClose { registration: task }
                 | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, span, validate)?;
                 }
@@ -2644,6 +2732,7 @@ pub(super) fn check_module(
             module,
             graphs,
             &sum_proofs.replacement_writes,
+            &sum_proofs.replacement_targets,
             budget,
         )?)
     } else {

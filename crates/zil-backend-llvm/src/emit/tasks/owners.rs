@@ -4,7 +4,7 @@ use super::*;
 use zil_verify::{TaskOwnerAction, TaskOwnerSlot, TaskOwnership};
 const MARK: &str = "zil.task.owner.marker.";
 fn node_ty() -> m::Ty {
-    m::Ty::Struct(vec![m::Ty::Ptr; 4])
+    m::Ty::Struct(vec![m::Ty::Ptr; 6])
 }
 fn helper(op: &str) -> String {
     format!("zil.task.owner.{op}")
@@ -13,6 +13,7 @@ pub(super) struct OwnerFrame {
     anchor: u32,
     nodes: Vec<u32>,
     drops: Vec<Option<String>>,
+    pollable: Vec<bool>,
     result: Option<usize>,
 }
 pub(super) fn plan(
@@ -30,15 +31,23 @@ pub(super) fn plan(
     frame.fields.push(node_ty());
     let mut nodes = vec![];
     let mut drops = vec![];
+    let mut pollable = vec![];
     for owner in ownership.owners() {
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
-        drops.push(drop_plan::task_leaf(owner.ty(), resources, limits, meter)?);
+        let asynchronous = matches!(owner.ty(),Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}));
+        pollable.push(asynchronous);
+        drops.push(if asynchronous {
+            None
+        } else {
+            drop_plan::task_leaf(owner.ty(), resources, limits, meter)?
+        });
     }
     let result = if let Some(ty) = ownership.result_type() {
         let index = nodes.len();
         nodes.push(frame.fields.len() as u32);
         frame.fields.push(node_ty());
+        pollable.push(false);
         drops.push(drop_plan::task_leaf(ty, resources, limits, meter)?);
         Some(index)
     } else {
@@ -48,6 +57,7 @@ pub(super) fn plan(
         anchor,
         nodes,
         drops,
+        pollable,
         result,
     });
     Ok(())
@@ -141,6 +151,19 @@ pub(super) fn initialize(
                 .as_ref()
                 .map_or(m::Val::Null, |name| m::global(name.clone())),
         );
+        for (field, role) in [(4, "drop"), (5, "request_head")] {
+            write(
+                v,
+                &format!("owner.async.{index}.{field}"),
+                loc(format!("task.owner.{index}")),
+                field,
+                if owners.pollable[index] {
+                    m::global(format!("zil.async_registration.{role}"))
+                } else {
+                    m::Val::Null
+                },
+            );
+        }
         write(
             v,
             &format!("owner.storage.{index}"),
@@ -282,10 +305,29 @@ pub(super) fn drain(v: &mut Vec<m::Inst>, frame: &m::Ty, owners: Option<&OwnerFr
         gep(v, "close.owners.anchor", frame, loc("frame"), owners.anchor);
         call(
             v,
-            None,
-            m::Ty::Void,
+            Some("close.owners.ready"),
+            m::Ty::Int(1),
             m::global(helper("drain")),
             vec![m::Arg::new(m::Ty::Ptr, loc("close.owners.anchor"))],
+        );
+        cond(v, "close.owners.ready", "owners.closed", "pending");
+    }
+}
+pub(super) fn request(v: &mut Vec<m::Inst>, frame: &m::Ty, owners: Option<&OwnerFrame>) {
+    if let Some(owners) = owners {
+        gep(
+            v,
+            "cancel.owners.anchor",
+            frame,
+            loc("frame"),
+            owners.anchor,
+        );
+        call(
+            v,
+            None,
+            m::Ty::Void,
+            m::global(helper("request")),
+            vec![m::Arg::new(m::Ty::Ptr, loc("cancel.owners.anchor"))],
         );
     }
 }
@@ -420,9 +462,30 @@ pub(super) fn helpers(meter: &Meter) -> CompileResult<Vec<m::Item>> {
     let mut v = vec![];
     let tail = read(&mut v, "tail", loc("anchor"), 0);
     compare(&mut v, "empty", m::Ty::Ptr, loc(&tail), loc("anchor"), "eq");
-    cond(&mut v, "empty", "done", "drop");
+    cond(&mut v, "empty", "done", "check");
+    let mut check = vec![];
+    let poll = read(&mut check, "poll", loc(&tail), 4);
+    let payload = read(&mut check, "payload", loc(&tail), 3);
+    compare(
+        &mut check,
+        "async",
+        m::Ty::Ptr,
+        loc(&poll),
+        m::Val::Null,
+        "ne",
+    );
+    cond(&mut check, "async", "poll", "drop");
+    let mut polled = vec![];
+    call(
+        &mut polled,
+        Some("ready"),
+        m::Ty::Int(1),
+        loc(poll),
+        vec![m::Arg::new(m::Ty::Ptr, loc(&payload))],
+    );
+    cond(&mut polled, "ready", "drop", "pending");
     let mut d = vec![];
-    // Unlink before entering user teardown; repeated close never owns it again.
+    // Pending retains the actual intrusive obligation. Only Ready unlinks.
     call(
         &mut d,
         None,
@@ -431,7 +494,6 @@ pub(super) fn helpers(meter: &Meter) -> CompileResult<Vec<m::Item>> {
         vec![m::Arg::new(m::Ty::Ptr, loc(&tail))],
     );
     let drop = read(&mut d, "drop", loc(&tail), 2);
-    let payload = read(&mut d, "payload", loc(tail), 3);
     compare(
         &mut d,
         "has.drop",
@@ -452,13 +514,89 @@ pub(super) fn helpers(meter: &Meter) -> CompileResult<Vec<m::Item>> {
     branch(&mut invoke, "loop");
     items.push(function(
         helper("drain"),
-        m::Ty::Void,
+        m::Ty::Int(1),
         vec![m::Param::new(m::Ty::Ptr, "anchor")],
         vec![
             block("entry", vec![inst(None, m::Op::Branch("loop".into()))]),
             block("loop", v),
+            block("check", check),
+            block("poll", polled),
             block("drop", d),
             block("invoke", invoke),
+            block(
+                "pending",
+                vec![inst(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), false))),
+                )],
+            ),
+            block(
+                "done",
+                vec![inst(
+                    None,
+                    m::Op::Return(Some(m::Arg::new(m::Ty::Int(1), true))),
+                )],
+            ),
+        ],
+    ));
+    // Notify all live owners before any potentially Pending drain. The list
+    // itself remains stable across request reentry into Task close.
+    let mut start = vec![];
+    let first = read(&mut start, "first", loc("anchor"), 1);
+    branch(&mut start, "loop");
+    let mut test = vec![inst(
+        Some("node"),
+        m::Op::Phi {
+            ty: m::Ty::Ptr,
+            incoming: vec![
+                (loc(first), "entry".into()),
+                (loc("next.value"), "advance".into()),
+            ],
+        },
+    )];
+    compare(
+        &mut test,
+        "empty",
+        m::Ty::Ptr,
+        loc("node"),
+        loc("anchor"),
+        "eq",
+    );
+    cond(&mut test, "empty", "done", "check");
+    let mut check = vec![];
+    let req = read(&mut check, "request", loc("node"), 5);
+    let payload = read(&mut check, "payload", loc("node"), 3);
+    compare(
+        &mut check,
+        "has.request",
+        m::Ty::Ptr,
+        loc(&req),
+        m::Val::Null,
+        "ne",
+    );
+    cond(&mut check, "has.request", "invoke", "advance");
+    let mut invoke = vec![];
+    call(
+        &mut invoke,
+        None,
+        m::Ty::Void,
+        loc(req),
+        vec![m::Arg::new(m::Ty::Ptr, loc(payload))],
+    );
+    branch(&mut invoke, "advance");
+    let mut advance = vec![];
+    read(&mut advance, "next", loc("node"), 1);
+    branch(&mut advance, "loop");
+    items.push(function(
+        helper("request"),
+        m::Ty::Void,
+        vec![m::Param::new(m::Ty::Ptr, "anchor")],
+        vec![
+            block("entry", start),
+            block("loop", test),
+            block("check", check),
+            block("invoke", invoke),
+            block("advance", advance),
             block("done", vec![inst(None, m::Op::Return(None))]),
         ],
     ));

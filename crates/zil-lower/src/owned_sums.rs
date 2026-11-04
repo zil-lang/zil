@@ -207,6 +207,9 @@ impl<'a> Budget<'a> {
             Type::Managed(element)
             | Type::Desc(element)
             | Type::OwnedStore { element }
+            | Type::AsyncRegistration {
+                environment: element,
+            }
             | Type::Registration {
                 environment: element,
             }

@@ -37,6 +37,11 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
 
 pub(super) fn access(kind: &InstructionKind, descriptor_origins: bool) -> Option<(ValueId, bool)> {
     match kind {
+        InstructionKind::AsyncRegistrationValid { registration } => Some((*registration, false)),
+        InstructionKind::AsyncRegistrationRequestClose { registration }
+        | InstructionKind::AsyncRegistrationPollClose { registration } => {
+            Some((*registration, true))
+        }
         InstructionKind::ReadDesc { desc, .. } if descriptor_origins => Some((*desc, false)),
         InstructionKind::WriteDesc { desc, .. } if descriptor_origins => Some((*desc, true)),
         _ => byte_buffers::access(kind).or_else(|| dynamic_store::access(kind)),

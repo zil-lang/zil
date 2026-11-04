@@ -44,6 +44,7 @@ pub(super) struct Budget {
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
+    pub(super) async_registrations: bool,
     pub(super) stored_borrows: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -82,6 +83,7 @@ impl Budget {
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,
+            async_registrations: false,
             stored_borrows: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -234,7 +236,7 @@ impl Budget {
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
             }
-            Type::Registration { environment } => {
+            Type::Registration { environment } | Type::AsyncRegistration { environment } => {
                 self.registrations = true;
                 self.type_work(environment, copy_check, context)?;
             }
@@ -379,7 +381,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. })
+            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. } | Type::AsyncRegistration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -843,7 +845,9 @@ pub(super) fn preflight(
                         }
                     }
                 }
-                Type::Registration { environment: inner } => {
+                Type::Registration { environment: inner }
+                | Type::AsyncRegistration { environment: inner } => {
+                    budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
                     budget.registrations = true;
                     pending.push((inner, depth + 1, store_element, None, resource_head, child));
                 }
@@ -1297,6 +1301,30 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::AsyncRegistrationStart {
+                        register,
+                        request_close,
+                        poll_drain,
+                        callback,
+                        ..
+                    } => {
+                        budget.registrations = true;
+                        budget.scoped_foreign = true;
+                        budget.head_descriptions = true;
+                        budget.input(5, "async registration actual operands")?;
+                        if [register, request_close, poll_drain]
+                            .iter()
+                            .any(|id| id.0 as usize >= module.functions.len())
+                            || callback.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("async registration operand outside actual tables"));
+                        }
+                        budget.lookup(
+                            budget.scoped_functions.len(),
+                            "async registration unsafe function inventory",
+                        )?;
+                        budget.scoped_functions.insert(function.id);
+                    }
                     InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
@@ -1330,7 +1358,11 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                     }
                     InstructionKind::RegistrationValid { registration }
-                    | InstructionKind::RegistrationClose { registration } => {
+                    | InstructionKind::RegistrationClose { registration }
+                    | InstructionKind::AsyncRegistrationValid { registration }
+                    | InstructionKind::AsyncRegistrationRequestClose { registration }
+                    | InstructionKind::AsyncRegistrationPollClose { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
                         budget.registrations = true;
                         budget.input(1, "registration actual operand")?;
                         if registration.0 as usize >= function.values.len() {

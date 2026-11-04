@@ -87,6 +87,53 @@ fn storage(t: &Type, budget: &mut Budget) -> Check<bool> {
         t => Ok(scalar(t)),
     }
 }
+// A private continuation profile, independently reconstructed from actual
+// concrete captures. It grants no Closed/no-future state and admits no borrow.
+fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<bool> {
+    resources::charge_payload(t, budget)?;
+    budget.spend(1)?;
+    match t {
+        Type::Managed(p) | Type::Desc(p)
+            if matches!(p.as_ref(), Type::AsyncRegistration { .. }) =>
+        {
+            let Type::AsyncRegistration { environment } = p.as_ref() else {
+                unreachable!()
+            };
+            pollable_storage(module, environment, budget)
+        }
+        Type::Address { inner, .. } => pollable_storage(module, inner, budget),
+        Type::Closure(id) => {
+            let Some(c) = module.closures.get(id.0 as usize) else {
+                return Ok(false);
+            };
+            if !c.lending_captures.is_empty() {
+                return Ok(false);
+            }
+            for capture in &c.captures {
+                if let Type::Managed(payload) = capture {
+                    if !record(payload, budget)? {
+                        return Ok(false);
+                    }
+                    budget.spend(module.resources.len())?;
+                    for _ in &module.resources {
+                        resources::charge_payload(payload, budget)?;
+                    }
+                    let Some(resource) = module.resources.iter().find(|r| r.payload == **payload)
+                    else {
+                        return Ok(false);
+                    };
+                    if let Some(drop) = resource.teardown {
+                        cleanup(module, drop, budget, None)?;
+                    }
+                } else if !record(capture, budget)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        _ => storage(t, budget),
+    }
+}
 fn cleanup(
     module: &TypedModule,
     first: FunctionId,
@@ -230,6 +277,31 @@ pub(super) fn profile(
             "owned task worker requires a closed actual frame and complete supported result",
         ));
     }
+    // No asynchronous rollback path exists when allocating a new Task fails.
+    // This first slice constructs pollable owners inside the stable worker.
+    for parameter in &f.parameters {
+        let mut pending = vec![local_type(f, *parameter, span)?];
+        while let Some(t) = pending.pop() {
+            budget.spend(1)?;
+            match t {
+                Type::AsyncRegistration { .. } => {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        span,
+                        "live pollable Task input requires allocation-failure asynchronous drain",
+                    ));
+                }
+                Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } => {
+                    pending.push(p)
+                }
+                Type::Tuple(ts) => pending.extend(ts),
+                Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                    pending.extend(fields.iter().map(|(_, t)| t))
+                }
+                _ => {}
+            }
+        }
+    }
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
@@ -243,7 +315,7 @@ pub(super) fn profile(
     }
     let mut checked = BTreeSet::new();
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-        if !storage(t, budget)? {
+        if !pollable_storage(module, t, budget)? {
             return Err(reject(
                 "E-VERIFY-TASK",
                 span,
@@ -317,7 +389,16 @@ pub(super) fn profile(
                     }
                     children.push(*function);
                 }
-                InstructionKind::Constant(_)
+                InstructionKind::AsyncRegistrationStart { .. }
+                | InstructionKind::AsyncRegistrationValid { .. }
+                | InstructionKind::AsyncRegistrationRequestClose { .. }
+                | InstructionKind::AsyncRegistrationPollClose { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::MakeClosure { .. }
+                | InstructionKind::DropClosure { .. }
+                | InstructionKind::UnsafeEnter { .. }
+                | InstructionKind::UnsafeExit { .. }
+                | InstructionKind::Constant(_)
                 | InstructionKind::Load(_)
                 | InstructionKind::Store { .. }
                 | InstructionKind::StorageLive(_)

@@ -158,7 +158,10 @@ pub(super) fn start(
                         });
                     }
                 }
-            } else if matches!(local.ty, Type::Managed(_) | Type::Tuple(_)) {
+            } else if matches!(
+                local.ty,
+                Type::Managed(_) | Type::Tuple(_) | Type::Closure(_)
+            ) {
                 owners.push(TaskOwner {
                     slot: TaskOwnerSlot::Local(local.id),
                     ty: local.ty.clone(),
@@ -176,7 +179,10 @@ pub(super) fn start(
     for (index, ty) in f.values.iter().enumerate() {
         if let Some(debt) = slots.managed_value[index] {
             charge_payload(ty, budget)?;
-            if !matches!(ty, Type::Managed(_) | Type::Package { .. } | Type::Tuple(_)) {
+            if !matches!(
+                ty,
+                Type::Managed(_) | Type::Package { .. } | Type::Tuple(_) | Type::Closure(_)
+            ) {
                 return Err(unsupported(
                     "continuation aggregate SSA debt requires canonical partial-owner frame mapping",
                     Some(f.span),

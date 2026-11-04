@@ -46,15 +46,25 @@ pub(super) fn declaration(
         result: Box::new(Type::I64),
     };
     let expected = match role {
-        ScopedCallbackRole::Register => vec![callback, Type::ForeignHandle],
-        ScopedCallbackRole::Close => vec![Type::ForeignHandle],
+        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
+            vec![callback, Type::ForeignHandle]
+        }
+        ScopedCallbackRole::Close
+        | ScopedCallbackRole::AsyncRequestClose
+        | ScopedCallbackRole::AsyncPollDrain => vec![Type::ForeignHandle],
     };
-    let result = if role == ScopedCallbackRole::Register {
+    let result = if matches!(
+        role,
+        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister
+    ) {
         Type::ForeignHandle
+    } else if role == ScopedCallbackRole::AsyncPollDrain {
+        Type::I32
     } else {
         Type::Unit
     };
-    if foreign.abi != "C"
+    if function.call_kind != CallKind::Direct
+        || foreign.abi != "C"
         || !foreign.static_callbacks
         || foreign.scoped_callback != Some(role)
         || !foreign.noescape_parameters.is_empty()
@@ -173,6 +183,13 @@ pub(super) fn check(
                             ScopedCallbackRole::Close,
                             budget,
                         )?;
+                        tasks::require_synchronous_value(
+                            module,
+                            function,
+                            callback,
+                            budget,
+                            Some(instruction.span),
+                        )?;
                         let Type::Address {
                             mutable: true,
                             inner,
@@ -267,6 +284,7 @@ pub(super) fn check(
                     }
                     InstructionKind::WithForeignCallback { region, .. }
                     | InstructionKind::RegistrationStart { region, .. }
+                    | InstructionKind::AsyncRegistrationStart { region, .. }
                         if stack.last() != Some(&region) =>
                     {
                         return Err(bad("scoped callback has no actual active unsafe region"));

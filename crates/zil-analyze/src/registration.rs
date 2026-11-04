@@ -2,6 +2,7 @@
 use super::*;
 use zil_base::Span;
 const PREFIX: &str = "@builtin:Registration:";
+pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         Phase::Analyze,
@@ -11,7 +12,7 @@ fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
     )]
 }
 pub(super) fn resource(ty: &Type) -> bool {
-    matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}))
+    matches!(ty,Type::Managed(p)|Type::Desc(p) if matches!(p.as_ref(),Type::Registration{..}|Type::AsyncRegistration{..}))
 }
 fn definition(
     module: &TypedModule,
@@ -19,7 +20,8 @@ fn definition(
     budget: &mut Budget,
     span: Span,
 ) -> CompileResult<()> {
-    let Type::Registration { environment } = payload else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = payload
+    else {
         return Err(fail(span, "registration payload is absent"));
     };
     let Type::Closure(id) = environment.as_ref() else {
@@ -32,7 +34,12 @@ fn definition(
         module.resources.len().saturating_add(32),
         "registration sealed resource definition",
     )?;
-    let name = format!("{PREFIX}{}", id.0);
+    let prefix = if matches!(payload, Type::AsyncRegistration { .. }) {
+        ASYNC_PREFIX
+    } else {
+        PREFIX
+    };
+    let name = format!("{prefix}{}", id.0);
     if !module.target.is_supported_x64_llvm()
         || (module
             .resources
@@ -50,13 +57,20 @@ fn definition(
             "registration requires one canonical sealed owning definition",
         ));
     }
-    closed(module, *id, budget, span)
+    closed(
+        module,
+        *id,
+        budget,
+        span,
+        matches!(payload, Type::AsyncRegistration { .. }),
+    )
 }
 fn closed(
     module: &TypedModule,
     root: ClosureId,
     budget: &mut Budget,
     span: Span,
+    asynchronous: bool,
 ) -> CompileResult<()> {
     let mut seen = BTreeSet::new();
     let mut pending = vec![root];
@@ -101,6 +115,19 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
+                Type::AsyncRegistration { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
+                        Some(span),
+                    )]);
+                }
+                Type::TaskI32 if asynchronous => {
+                    return Err(fail(
+                        span,
+                        "AsyncRegistration environment has no actual legacy Task frame synchronous-cleanup proof",
+                    ));
+                }
                 Type::Task { .. }
                 | Type::Dyn { .. }
                 | Type::Address { .. }
@@ -118,8 +145,27 @@ fn closed(
                     budget.spend(1, "registration nested concrete environment")?;
                     pending.push(*id)
                 }
+                Type::Managed(t) => {
+                    budget.spend(
+                        module.resources.len(),
+                        "registration actual environment teardown inventory",
+                    )?;
+                    for resource in &module.resources {
+                        budget.type_work(
+                            &resource.payload,
+                            false,
+                            "registration actual teardown payload equality",
+                        )?;
+                        if resource.payload == **t
+                            && let Some(teardown) = resource.teardown
+                        {
+                            functions.push(teardown);
+                        }
+                    }
+                    budget.spend(1, "registration managed environment payload")?;
+                    types.push(t);
+                }
                 Type::BorrowedStorage { storage: t, .. }
-                | Type::Managed(t)
                 | Type::Opaque { hidden: t, .. }
                 | Type::OwnedStore { element: t }
                 | Type::Registration { environment: t }
@@ -208,9 +254,15 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     if !budget.registrations {
         return Ok(());
     }
+    storage(module, budget)?;
     for r in &module.resources {
         budget.spend(1, "registration resource inventory")?;
-        if matches!(r.payload, Type::Registration { .. }) || r.name.starts_with(PREFIX) {
+        if matches!(
+            r.payload,
+            Type::Registration { .. } | Type::AsyncRegistration { .. }
+        ) || r.name.starts_with(PREFIX)
+            || r.name.starts_with(ASYNC_PREFIX)
+        {
             definition(module, &r.payload, budget, Span::default())?
         }
     }
@@ -245,6 +297,101 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         .ok_or_else(|| fail(i.span, "registration operand outside actual values"))
                 };
                 let expected = match i.kind {
+                    InstructionKind::AsyncRegistrationStart {
+                        register,
+                        request_close,
+                        poll_drain,
+                        callback,
+                        ..
+                    } => {
+                        for (id, role) in [
+                            (register, ScopedCallbackRole::AsyncRegister),
+                            (request_close, ScopedCallbackRole::AsyncRequestClose),
+                            (poll_drain, ScopedCallbackRole::AsyncPollDrain),
+                        ] {
+                            let target = module
+                                .functions
+                                .get(id.0 as usize)
+                                .ok_or_else(|| fail(i.span, "async provider target absent"))?;
+                            foreign_scoped::declaration(target, role, budget)?;
+                        }
+                        let Type::Closure(id) = value(callback)? else {
+                            return Err(fail(
+                                i.span,
+                                "async registration requires actual consumed concrete F",
+                            ));
+                        };
+                        let closure = module
+                            .closures
+                            .get(id.0 as usize)
+                            .ok_or_else(|| fail(i.span, "async callback absent"))?;
+                        budget.spend(
+                            closure.parameters.len().saturating_add(1),
+                            "async callback actual signature",
+                        )?;
+                        if !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                            || closure.parameters != [Type::I32]
+                            || closure.result != Type::I32
+                        {
+                            return Err(fail(
+                                i.span,
+                                "async callback requires actual FnMut(i32)->i32",
+                            ));
+                        }
+                        let payload = Type::AsyncRegistration {
+                            environment: Box::new(Type::Closure(*id)),
+                        };
+                        definition(module, &payload, budget, i.span)?;
+                        Some(Type::Managed(Box::new(payload)))
+                    }
+                    InstructionKind::AsyncRegistrationValid { registration } => {
+                        if !matches!(value(registration)?,Type::Desc(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(fail(i.span, "async validity requires actual descriptor"));
+                        }
+                        Some(Type::Bool)
+                    }
+                    InstructionKind::AsyncRegistrationRequestClose { registration }
+                    | InstructionKind::AsyncRegistrationPollClose { registration } => {
+                        let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = value(registration)?
+                        else {
+                            return Err(fail(
+                                i.span,
+                                "async close requires exclusive complete head address",
+                            ));
+                        };
+                        let Type::Managed(payload) = inner.as_ref() else {
+                            return Err(fail(i.span, "async close requires actual owning head"));
+                        };
+                        if !matches!(payload.as_ref(), Type::AsyncRegistration { .. }) {
+                            return Err(fail(i.span, "async close requires pollable payload"));
+                        }
+                        definition(module, payload, budget, i.span)?;
+                        Some(
+                            if matches!(i.kind, InstructionKind::AsyncRegistrationPollClose { .. })
+                            {
+                                Type::Enum {
+                                    name: format!("@std.task:v1:Poll:{}", Type::Unit.fingerprint()),
+                                    variants: vec![
+                                        ("Pending".into(), vec![]),
+                                        ("Ready".into(), vec![Type::Unit]),
+                                    ],
+                                }
+                            } else {
+                                Type::Unit
+                            },
+                        )
+                    }
+                    InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                        if !matches!(value(registration)?,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
+                        {
+                            return Err(fail(i.span, "async finish consumes actual owning head"));
+                        }
+                        Some(Type::Unit)
+                    }
                     InstructionKind::RegistrationStart {
                         register,
                         close,
@@ -261,6 +408,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 .ok_or_else(|| fail(i.span, "registration role target absent"))?;
                             foreign_scoped::declaration(target, role, budget)?
                         }
+                        tasks::require_synchronous_value(
+                            module,
+                            f,
+                            callback,
+                            budget,
+                            Some(i.span),
+                        )?;
                         let Type::Closure(id) = value(callback)? else {
                             return Err(fail(
                                 i.span,
@@ -356,7 +510,8 @@ pub(super) fn factory(
     let Type::Managed(p) = &f.return_type else {
         return Ok(false);
     };
-    let Type::Registration { environment } = p.as_ref() else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) = p.as_ref()
+    else {
         return Ok(false);
     };
     let Type::Closure(id) = environment.as_ref() else {
@@ -394,6 +549,131 @@ pub(super) fn factory(
             "registration factory must own one actual F and create/give actual returned owner",
         ));
     }
-    closed(module, *id, budget, f.span)?;
+    closed(
+        module,
+        *id,
+        budget,
+        f.span,
+        matches!(p.as_ref(), Type::AsyncRegistration { .. }),
+    )?;
     Ok(true)
+}
+
+/// Inventory every actual shape, including unused declarations. No transported
+/// Closed/producer bit grants ordinary nested storage permission.
+pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    if !budget.async_registrations {
+        return Ok(());
+    }
+    let roots = module
+        .resources
+        .iter()
+        .map(|r| (&r.payload, false))
+        .chain(
+            module
+                .functions
+                .iter()
+                .flat_map(|f| {
+                    f.values
+                        .iter()
+                        .chain(f.locals.iter().map(|l| &l.ty))
+                        .chain(std::iter::once(&f.return_type))
+                })
+                .map(|t| (t, false)),
+        )
+        .chain(module.closures.iter().flat_map(|c| {
+            c.captures.iter().map(|t| (t, true)).chain(
+                c.parameters
+                    .iter()
+                    .chain(std::iter::once(&c.result))
+                    .map(|t| (t, false)),
+            )
+        }));
+    for (root, blocked) in roots {
+        let mut pending = vec![(root, blocked)];
+        while let Some((ty, blocked)) = pending.pop() {
+            budget.spend(1, "async registration storage path")?;
+            if blocked && matches!(ty, Type::AsyncRegistration { .. }) {
+                return Err(fail(
+                    Span::default(),
+                    "pollable registration roots in ordinary aggregate storage or closure captures require an asynchronous ownership consumer",
+                ));
+            }
+            let count = match ty {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => fields.len(),
+                Type::Tuple(fields) => fields.len(),
+                Type::Enum { variants, .. } => {
+                    budget.spend(variants.len(), "async registration storage variants")?;
+                    variants
+                        .iter()
+                        .fold(0usize, |n, (_, fields)| n.saturating_add(fields.len()))
+                }
+                Type::ErrorUnion { .. } => 2,
+                Type::AsyncRegistration { .. }
+                | Type::Registration { .. }
+                | Type::BorrowedStorage { .. }
+                | Type::Task { .. }
+                | Type::Address { .. }
+                | Type::Managed(_)
+                | Type::Desc(_)
+                | Type::Opaque { .. }
+                | Type::Array { .. }
+                | Type::Slice { .. }
+                | Type::OwnedStore { .. } => 1,
+                Type::FunctionPointer { parameters, .. }
+                | Type::BorrowedFunctionPointer { parameters, .. }
+                | Type::ForeignCallback { parameters, .. } => parameters.len().saturating_add(1),
+                _ => 0,
+            };
+            budget.spend(count, "async registration storage children")?;
+            let mut children = Vec::with_capacity(count);
+            let mut blocked = blocked;
+            match ty {
+                Type::Package { fields, .. } => {
+                    blocked = true;
+                    children.extend(fields.iter().map(|(_, t)| t));
+                }
+                Type::OwnedStore { element } => {
+                    blocked = true;
+                    children.push(element.as_ref());
+                }
+                Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
+                Type::Tuple(fields) => {
+                    blocked = true;
+                    children.extend(fields);
+                }
+                Type::Enum { variants, .. } => {
+                    blocked = true;
+                    for (_, fields) in variants {
+                        children.extend(fields);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    blocked = true;
+                    children.extend([error.as_ref(), result.as_ref()])
+                }
+                Type::AsyncRegistration { environment: inner }
+                | Type::Registration { environment: inner }
+                | Type::BorrowedStorage { storage: inner, .. }
+                | Type::Task { result: inner, .. }
+                | Type::Address { inner, .. }
+                | Type::Managed(inner)
+                | Type::Desc(inner)
+                | Type::Opaque { hidden: inner, .. }
+                | Type::Array { element: inner, .. }
+                | Type::Slice { element: inner } => children.push(inner.as_ref()),
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }
+                | Type::ForeignCallback { parameters, result } => {
+                    children.extend(parameters);
+                    children.push(result.as_ref());
+                }
+                _ => {}
+            }
+            pending.extend(children.into_iter().map(|t| (t, blocked)));
+        }
+    }
+    Ok(())
 }
