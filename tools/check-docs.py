@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Checks document provenance/reference consistency, not the language's soundness."""
+"""Check document and engineering-record references; does not read the live goal board."""
 from pathlib import Path
 import hashlib,re,json,sys
 R=Path(__file__).resolve().parents[1];checks=[]
@@ -30,8 +30,8 @@ def walk(x):
  active.add(x)
  ok=all(walk(y) for y in by[x]['blocked_by']);active.remove(x);seen.add(x);return ok
 ck('task DAG acyclic',all(walk(x) for x in by))
-ck('generated task index equals canonical tasks',load('data/task-index.json')['tasks']==items)
-cover=load('data/requirement-coverage.json')['coverage'];ck('every normative rule has work owner',set(cover)==ids and all(cover.values()))
+ck('generated task index equals engineering-contract records',load('data/task-index.json')['tasks']==items)
+cover=load('data/requirement-coverage.json')['coverage'];ck('every normative rule has an engineering-contract owner',set(cover)==ids and all(cover.values()))
 ck('every acceptance group has task',gates<={v for t in items for v in t['acceptance']})
 ck('goal does not redefine numeric thresholds',not re.search(r'\d+\s*(?:%|ms|毫秒)|不低于\s*\d', (R/'_zil_goal.md').read_text()))
 ck('tasks reference the single product profile',all(t['profile']=='validation/product-gates.json' for t in items))
@@ -64,6 +64,6 @@ g=(R/'spec/grammar.ebnf').read_text();g=re.sub(r'\(\*.*?\*\)','',g,flags=re.S);d
 ck('grammar references defined nonterminals',names<=defs|terminal,','.join(sorted(names-defs-terminal)))
 ck('grammar # alternatives present',all(x in g for x in ['Attribute =','MetaEval =','MetaBlock =','MetaEmit =','GenericParameter =']))
 ck('input hashes correspond mounted inputs',all(not (Path('/mnt/data')/n).exists() or hashlib.sha256((Path('/mnt/data')/n).read_bytes()).hexdigest()==v for n,v in load('data/input-hashes.json').items()))
-report={'scope':'Document/data/reference integrity only; not compiler semantic acceptance','total':len(checks),'passed':sum(c['pass'] for c in checks),'checks':checks}
+report={'scope':'Document/data/engineering-record reference integrity only; does not read the live goal board or check all development branches. Not compiler semantic acceptance','live_plan_checked':False,'development_branches_checked':False,'total':len(checks),'passed':sum(c['pass'] for c in checks),'checks':checks}
 (R/'evidence/document-checks.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n');print(json.dumps(report,ensure_ascii=False,indent=2))
 sys.exit(0 if report['total']==report['passed'] else 1)
