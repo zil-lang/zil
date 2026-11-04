@@ -1533,6 +1533,13 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::AsyncRegistrationStart { .. }
+            | InstructionKind::AsyncRegistrationValid { .. }
+            | InstructionKind::AsyncRegistrationRequestClose { .. }
+            | InstructionKind::AsyncRegistrationPollClose { .. }
+            | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+                return unsupported("pollable registration operation consumer is not implemented", Some(instruction.span));
+            }
             InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
                 return unsupported(
                     "dynamic interface instruction lowering is not yet implemented",

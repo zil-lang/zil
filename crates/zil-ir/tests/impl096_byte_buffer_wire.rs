@@ -221,8 +221,8 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 41);
-    assert_eq!(wire::WIRE_VERSION, 41);
+    assert_eq!(SCHEMA_VERSION, 42);
+    assert_eq!(wire::WIRE_VERSION, 42);
     assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 5);
     let limits = Limits::default();
     let mut raw = candidate();
@@ -274,7 +274,7 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     let role = role_changes[0];
     assert_eq!((none[role], register[role], close[role]), (0, 1, 2));
     let mut bad_role = register.clone();
-    bad_role[role] = 3;
+    bad_role[role] = 6;
     assert_eq!(
         wire::decode_module_candidate(&bad_role, &limits).unwrap_err()[0].code,
         "E-WIRE-TAG"

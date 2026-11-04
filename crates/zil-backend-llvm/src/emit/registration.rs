@@ -647,6 +647,7 @@ pub(super) fn reserve_function(
             )]);
         }
         match t {
+            Type::AsyncRegistration { .. } => return unsupported("pollable registration environment consumer is not implemented", None),
             Type::Dyn { .. } => {
                 return unsupported(
                     "dynamic registration environments require explicit retained interface lowering",

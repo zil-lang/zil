@@ -68,6 +68,7 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         return Err(exhausted());
     }
     match t {
+        Type::AsyncRegistration { .. } => return Err(vec![Diagnostic::unsupported(Phase::Codegen, "pollable registration type consumer is not implemented", None)]),
         Type::BorrowedStorage { storage, life } => {
             shape(life, work)?;
             type_work(storage, work, limits, depth + 1)?;

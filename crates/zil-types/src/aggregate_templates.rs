@@ -375,6 +375,9 @@ fn validate_recipe(
         ));
     }
     match r {
+        CoreAggregateTypeRecipe::AsyncRegistration { .. } => {
+            return Err(unsupported(span, "pollable registration recipe consumer is not implemented"));
+        }
         CoreAggregateTypeRecipe::Parameter { index: 0 } => {}
         CoreAggregateTypeRecipe::Parameter { .. } => {
             return Err(bad(

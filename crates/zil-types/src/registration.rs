@@ -327,6 +327,7 @@ pub(super) fn closed_environment(
         while let Some(t) = types.pop() {
             pay(&mut work, 1)?;
             match t {
+                Type::AsyncRegistration { .. } => return Err(unsupported(span, "pollable registration ClosedEnvironment consumer is not implemented")),
                 Type::Dyn { .. }
                 | Type::Task { .. }
                 | Type::Address { .. }

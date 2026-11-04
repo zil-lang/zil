@@ -197,7 +197,8 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::BorrowedStorage { .. }
+            Type::AsyncRegistration { .. }
+            | Type::BorrowedStorage { .. }
             | Type::Named(_)
             | Type::Opaque { .. }
             | Type::Closure(_)

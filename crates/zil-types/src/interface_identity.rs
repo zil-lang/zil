@@ -70,6 +70,9 @@ pub(super) fn encode(
                     Diagnostic::limit(Phase::Types, "interface identity depth overflow", None)
                 })?;
                 match ty {
+                    Type::AsyncRegistration { .. } => {
+                        return Err(Diagnostic::unsupported(Phase::Types, "pollable registration interface consumer is not implemented", None));
+                    }
                     Type::Unit => bytes.push(0),
                     Type::Bool => bytes.push(1),
                     Type::I32 => bytes.push(2),

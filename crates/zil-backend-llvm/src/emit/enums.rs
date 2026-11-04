@@ -242,6 +242,9 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
     fn ty(&mut self, ty: &Type, depth: usize, slice_pointee: bool) -> CompileResult<()> {
         self.node(depth)?;
         match ty {
+            Type::AsyncRegistration { .. } => {
+                return Err(vec![Diagnostic::unsupported(Phase::Ct, "pollable registration layout consumer is not implemented", None)]);
+            }
             Type::BorrowedStorage { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,

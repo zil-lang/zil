@@ -1,0 +1,105 @@
+{
+  "task": "G8.4.1 public-interface architecture review",
+  "reviewer": "/root/g10_1_review (read-only; not proposal author)",
+  "proposal_commit": "0e10f4a32425f4f2954d48967032866d966ceabb",
+  "proposal_parent": "89b67fc3164f67c591e3306324da774eb2833b66",
+  "proposal_path": "changes/G8.4.1-pollable-registration.md",
+  "proposal_sha256": "dd653540254d0e02a79b032e31c7cf1f44c05d85549205997991fb33882a1baa",
+  "normative_design_sha256": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+  "normative_sections": [
+    "ZIL-ASYNC 12.1.1-12.3",
+    "ZIL-CLEANUP 7",
+    "ZIL-FFI 12.4",
+    "ZIL-CAPTURE ClosedEnvironment"
+  ],
+  "decision": "Accept the bounded architecture for a separate root-owned public representation publication. This is not consumer implementation admission or G8.4/G7.3 completion.",
+  "blocking_architecture_findings_remaining": [],
+  "resolved_findings": [
+    {
+      "issue": "Proposed C PollDrain Bool exceeded current C ABI profile.",
+      "resolution": "Frozen proposal uses i32: 0 Pending, 1 complete no-future, every other value fixed fault/abort without reclamation. Source close returns canonical ordinary Poll<Unit>."
+    },
+    {
+      "issue": "active=0, Closing or callback quiescence cannot establish complete raw-record no-future.",
+      "resolution": "Provider 1 explicitly covers queued/pre-trampoline and rejected raw entries plus all backend userdata accesses. Record/environment remain live while any condition is unresolved."
+    },
+    {
+      "issue": "Async constructor failure can strand a published userdata root.",
+      "resolution": "Nullable install failure is allowed only after synchronous withdrawal/quiescence of every raw/backend user. No discarded Closing owner on the error path."
+    },
+    {
+      "issue": "Current Task Poll<Unit> does not refine the same owner to Closed statically.",
+      "resolution": "Proposal now explicitly distinguishes reusable Poll transport from a missing owner-state relation; explicit finish preserves actual runtime CLOSED guard. Unknown pollable Direct automatic Drop is statically rejected."
+    },
+    {
+      "issue": "ClosedEnvironment alone does not prove synchronous environment teardown.",
+      "resolution": "First-slice actual callback and complete cleanup graphs must be independently Direct/synchronous; no borrowed environment, cross-thread Transfer/Share or async nested cleanup is inferred."
+    }
+  ],
+  "current_source_facts": [
+    {
+      "paths": [
+        "crates/zil-analyze/src/tasks.rs:539",
+        "crates/zil-verify/src/tasks.rs:213",
+        "crates/zil-analyze/src/resources.rs:2512",
+        "crates/zil-verify/src/resources.rs:1993"
+      ],
+      "finding": "FinishDestroy checks owning carrier and consumes the actual responsibility. No existing Poll.Ready-to-owner Closed fact is established here."
+    },
+    {
+      "paths": [
+        "crates/zil-backend-llvm/src/emit/tasks.rs:1469",
+        "changes/343-terminal.md:134",
+        "crates/zil-driver/tests/generic_regressions.rs:2842",
+        "tests/language-readiness/terminal/343/task-early-destroy.zil"
+      ],
+      "finding": "Actual state==3 dominates free; otherwise task.trap. Existing explicit early-destroy contract says trap without free, with native test expecting failure and allocation-only output A, not F. This historical source inspection is not a fresh replay."
+    },
+    {
+      "paths": [
+        "_zil_design.md:843",
+        "_zil_design.md:867",
+        "_zil_design.md:320"
+      ],
+      "finding": "Design forbids free before Closed and automatic Drop suspension; it does not require every explicit early-finish call to fail at compile time. Runtime guard for explicit finish is consistent with the existing Task contract. A future statically Closed automatic Drop permission needs a new independent private relation."
+    },
+    {
+      "paths": [
+        "crates/zil-analyze/src/tasks/owned.rs",
+        "crates/zil-verify/src/tasks/owned.rs"
+      ],
+      "finding": "Present actual worker/teardown graph establishes only closed synchronous cleanup. AsyncRegistration needs new independently reconstructed pollable-owner debt/drain recipes, not a new accepted synchronous DropPlan leaf."
+    }
+  ],
+  "minimum_publishable_scope": {
+    "carrier": "Distinct sealed AsyncRegistration<actual concrete F>, legal Managed/Desc/exact exclusive complete head. No Copy/borrow/dyn/Transfer/Share/cross-thread qualification.",
+    "operations": [
+      "unsafe c_register_async(register,request_close,poll_drain,f): nullable owning carrier; actual source-order consumption",
+      "valid(Desc)->Bool",
+      "request_close(exclusive head)->Unit, sticky/idempotent",
+      "poll_close(exclusive head)->canonical ordinary Poll<Unit>",
+      "finish_destroy(give owning head)->Unit with mandatory actual CLOSED guard"
+    ],
+    "foreign_roles": [
+      "AsyncRegister(extern C fn(c_handle,i32)->i64,c_handle)->c_handle",
+      "AsyncRequestClose(c_handle)->Unit",
+      "AsyncPollDrain(c_handle)->i32 (0/1 only)"
+    ],
+    "callback": "Same-thread concrete Direct FnMut(i32)->i32 + independently checked ClosedEnvironment; owned mutable local state is valid. Actual cleanup graph synchronous; fixed existing abort policy, no unwind/longjmp/Suspend across FFI.",
+    "empty_head": "valid false; request no-op; poll_close Ready(Unit); finish no-op. No non-null incomplete carrier may take this path.",
+    "pending_exit": "Private Task reason/result-live/closing-PC and canonical actual obligations; no new public PendingExit payload or transported settled/noExternal proof bit.",
+    "direct_drop": "No first-slice automatic Drop recipe for an unknown pollable carrier. Explicit advancing owner/root and explicit finish required.",
+    "compatibility": "Existing synchronous Registration, TaskI32/SABI1 and ordinary enum authority remain unchanged."
+  },
+  "implementation_work_not_provided_by_publication": [
+    "Types/Analyze and Verify each reconstruct real provider roles/unsafe origin, canonical full F, concrete capture and cleanup graph, unique actual root and exclusive windows.",
+    "Each kernel independently rejects unfinished pollable roots at Direct scope exit/normal/error branches; merely invoking poll_close or constructing ordinary Ready is not a discharge fact.",
+    "Private verified Task owner/drain recipe retains registration, parent/child/input and PendingExit result obligations across real Pending; notify actual live children/roots before ordered drain, preserve body-error priority and original cleanup ordering.",
+    "Native stable record/trampoline remains allocated through rejected late entries and backend no-future; runtime CLOSED gate dominates free and repeated request/close/finish preserves once-only effects.",
+    "Real host queue pending-to-drained source/native tests, allocation/install failure, reentry, invalid provider tags, normal/error/cancel result ownership and raw/Wire negatives are still required. A false wrapper around synchronous close does not demonstrate async drain.",
+    "All new complete types/role IDs/operands and actual cleanup/layout identity enter bounded codec/fingerprint/CGU/cache work; actual consumer budgets remain prepaid."
+  ],
+  "nonblocking_editorial_note": "Frozen nearest-cases phrase mutable or borrowed callback environment is ambiguous. Author acknowledged and will change it to retained shared/mutable captured borrow; owned mutable FnMut state remains a positive case.",
+  "validation": "Read-only normative/source/proposal review. No new implementation build, test, runtime ABI validation or full test run performed for this interface review.",
+  "public_schema_modified_by_reviewer": false
+}

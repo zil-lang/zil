@@ -1,4 +1,4 @@
-// Independent Vec-based TypedV41 reference for the retained legacy cases.
+// Independent Vec-based TypedV42 reference for the retained legacy cases.
 // New nonempty life/dyn inventories and storage instructions are tested separately.
 // Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
@@ -34,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V41\0"
+        b"ZIL-TYPED-MODULE-V42\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -136,7 +136,7 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::F64 => b.push(29),
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
-        Type::Task { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => {
+        Type::AsyncRegistration { .. } | Type::Task { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => {
             panic!("new contextual carriers are outside this retained legacy oracle")
         }
         Type::Registration { environment } => {
@@ -313,6 +313,7 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
                 None => 0,
                 Some(ScopedCallbackRole::Register) => 1,
                 Some(ScopedCallbackRole::Close) => 2,
+                Some(ScopedCallbackRole::AsyncRegister | ScopedCallbackRole::AsyncRequestClose | ScopedCallbackRole::AsyncPollDrain) => panic!("pollable callback roles are outside this retained legacy oracle"),
             });
         } else {
             assert!(
@@ -426,6 +427,11 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::AsyncRegistrationStart { .. }
+        | InstructionKind::AsyncRegistrationValid { .. }
+        | InstructionKind::AsyncRegistrationRequestClose { .. }
+        | InstructionKind::AsyncRegistrationPollClose { .. }
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => panic!("pollable registration is outside this retained legacy oracle"),
         InstructionKind::MakeDynBorrow { .. }
         | InstructionKind::CallDynSlot { .. }
         | InstructionKind::LoadStoredBorrow { .. }

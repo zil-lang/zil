@@ -101,7 +101,8 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
-                Type::Task { .. }
+                Type::AsyncRegistration { .. }
+                | Type::Task { .. }
                 | Type::Dyn { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)

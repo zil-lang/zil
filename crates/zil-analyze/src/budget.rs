@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use zil_ir::{CallableFlowNext, CallableTraces};
+use zil_ir::{CallableFlowNext, CallableTraces, ScopedCallbackRole};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
 use zil_ir::{Constant, InstructionKind, LocalId, Terminator, Type, TypedModule};
@@ -151,6 +151,9 @@ impl Budget {
         self.spend(2 + usize::from(copy_check), context)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
+            Type::AsyncRegistration { .. } => {
+                return Err(vec![Diagnostic::unsupported(Phase::Analyze, "pollable registration type consumer is not implemented", None)]);
+            }
             Type::Dyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -720,6 +723,9 @@ pub(super) fn preflight(
                         child,
                     ));
                 }
+                Type::AsyncRegistration { .. } => {
+                    return Err(vec![Diagnostic::unsupported(Phase::Analyze, "pollable registration type consumer is not implemented", None)]);
+                }
                 Type::Dyn { .. } => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -1230,6 +1236,9 @@ pub(super) fn preflight(
         }
         if let Some(foreign) = &function.foreign {
             if foreign.scoped_callback.is_some() {
+                if matches!(foreign.scoped_callback, Some(ScopedCallbackRole::AsyncRegister | ScopedCallbackRole::AsyncRequestClose | ScopedCallbackRole::AsyncPollDrain)) {
+                    return Err(vec![Diagnostic::unsupported(Phase::Analyze, "pollable registration foreign role consumer is not implemented", Some(function.span))]);
+                }
                 budget.input(1, "scoped foreign role")?;
                 budget.scoped_foreign = true;
             }
@@ -1297,6 +1306,13 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::AsyncRegistrationStart { .. }
+                    | InstructionKind::AsyncRegistrationValid { .. }
+                    | InstructionKind::AsyncRegistrationRequestClose { .. }
+                    | InstructionKind::AsyncRegistrationPollClose { .. }
+                    | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+                        return Err(vec![Diagnostic::unsupported(Phase::Analyze, "pollable registration operation consumer is not implemented", Some(instruction.span))]);
+                    }
                     InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,

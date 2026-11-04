@@ -473,7 +473,7 @@ fn charge_type(
         Some(())
     }
     match ty {
-        Type::BorrowedStorage { .. } | Type::Dyn { .. } => return None,
+        Type::AsyncRegistration { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => return None,
         Type::Named(name) | Type::Unsupported(name) => text(bytes, name)?,
         Type::Tuple(fields) => {
             for field in fields {

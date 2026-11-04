@@ -1201,6 +1201,7 @@ impl Resolver<'_> {
                     retained_life: retained_life.clone(),
                 }
             }
+            Type::AsyncRegistration { .. } => return Err(unsupported(span, "pollable registration type consumer is not implemented")),
             Type::Registration { environment } => Type::Registration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
             },
@@ -2821,6 +2822,9 @@ impl Resolver<'_> {
     ) -> R<Type> {
         self.charge(depth, span)?;
         match recipe {
+            CoreAggregateTypeRecipe::AsyncRegistration { .. } => {
+                Err(unsupported(span, "pollable registration recipe consumer is not implemented"))
+            }
             CoreAggregateTypeRecipe::Concrete(t) => {
                 // Concrete recipe syntax is in the aggregate declaration, not
                 // the caller's T/F scope. It cannot capture a same-spelled binder.
