@@ -5358,3 +5358,24 @@ fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wi
         }
     }
 }
+
+#[test]
+fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin() {
+    let queued=include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
+    let prefix=queued.split("fn drive(").next().unwrap();
+    for (case, tail) in [
+        ("direct", "return 0"),
+        ("tuple", "let pair=(give task,0);return 0"),
+        ("closure", "let callback=move ()=>task_valid(task);return 0"),
+        ("once", "let callback=move ()=>task_valid(task);invoke(callback);return 0"),
+        ("package", "let pair=Pair{task:give task,mark:Mark{code:1}};return 0"),
+    ] {
+        let text=format!("{prefix}package Pair{{manages task:Task<i32>;manages mark:Mark}}fn invoke<F:FnOnce()->bool>(f:F)->bool{{return f()}}fn main()->std.task.TaskCreateError!i32{{var task=task_create(worker,37)?;task_poll(&mut task);{tail}}}");
+        let report=compile_source(&source(&text),&CompileOptions::default());
+        assert_eq!(report.status,ResultCategory::SafeReject,"{case}: {}",report.to_json());
+        assert!(report.diagnostics.iter().any(|d|d.message.contains("Task automatic Drop")),"{case}: {}",report.to_json());
+        let sync=text.replace("task_create(worker,37)","task_create(sync,37)")+"fn sync(seed:i32)->i32{task_yield();return seed}";
+        let report=compile_source(&source(&sync),&CompileOptions::default());
+        assert_eq!(report.status,ResultCategory::Success,"sync {case}: {}",report.to_json());
+    }
+}
