@@ -1369,6 +1369,13 @@ pub enum InstructionKind {
         variant: u32,
         index: u32,
     },
+    /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
+    /// nonempty field path retains parent storage, initialization and mutability.
+    BorrowFieldLocal {
+        local: LocalId,
+        path: Vec<u32>,
+        mutable: bool,
+    },
     /// Observe a complete live local through Enum-only checked projections.
     /// Empty path observes the root tag; the terminal type must be Enum.
     VariantTagLocal {
@@ -2465,6 +2472,19 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, value.0);
             encode_u32(b, *variant);
             encode_u32(b, *index);
+        }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for field in path {
+                encode_u32(b, *field);
+            }
+            b.push(u8::from(*mutable));
         }
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {

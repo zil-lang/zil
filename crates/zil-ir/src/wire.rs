@@ -1127,6 +1127,19 @@ impl<'a> Writer<'a> {
                 self.u32(*variant)?;
                 self.u32(*index)?;
             }
+            InstructionKind::BorrowFieldLocal {
+                local,
+                path,
+                mutable,
+            } => {
+                self.u8(110)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for field in path {
+                    self.u32(*field)?;
+                }
+                self.boolean(*mutable)?;
+            }
             InstructionKind::VariantTagLocal { local, path }
             | InstructionKind::ReadVariantLocal { local, path } => {
                 self.u8(
@@ -2426,6 +2439,19 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            110 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 4)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(self.u32()?);
+                }
+                InstructionKind::BorrowFieldLocal {
+                    local,
+                    path,
+                    mutable: self.boolean()?,
+                }
             }
             tag @ (107 | 108) => {
                 let address = ValueId(self.u32()?);
