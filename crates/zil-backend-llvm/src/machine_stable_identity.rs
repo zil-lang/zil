@@ -395,6 +395,9 @@ fn prepare_inner(
                     | Op::Alloca { .. }
                     | Op::Load { .. }
                     | Op::Store { .. }
+                    | Op::AtomicLoad { .. }
+                    | Op::AtomicStore { .. }
+                    | Op::AtomicRmw { .. }
                     | Op::Gep { .. }
                     | Op::Insert { .. } => return None,
                     Op::Binary { ty, .. } | Op::Compare { ty, .. } | Op::Phi { ty, .. } => {
@@ -519,8 +522,8 @@ fn rename_value(value: &mut Val, names: &BTreeMap<String, String>) {
 fn rename_op(op: &mut Op, names: &BTreeMap<String, String>) {
     match op {
         Op::Alloca { .. } | Op::Branch(_) | Op::Return(None) | Op::Unreachable => {}
-        Op::Load { ptr, .. } => rename_value(ptr, names),
-        Op::Store { arg, ptr, .. } => {
+        Op::Load { ptr, .. } | Op::AtomicLoad { ptr, .. } => rename_value(ptr, names),
+        Op::Store { arg, ptr, .. } | Op::AtomicStore { arg, ptr, .. } | Op::AtomicRmw { arg, ptr, .. } => {
             rename_value(&mut arg.value, names);
             rename_value(ptr, names);
         }

@@ -290,7 +290,7 @@ fn check_machine(plan: &mut Plan, machine: &m::Function) -> bool {
                         reject_uses(ptr, &mut plan.locals);
                     }
                 }
-                m::Op::Store { arg, ptr, .. } => {
+                m::Op::Store { arg, ptr, .. } | m::Op::AtomicStore { arg, ptr, .. } | m::Op::AtomicRmw { arg, ptr, .. } => {
                     if let Some(id) = slot(ptr, plan.locals.len()) {
                         let local = &mut plan.locals[id];
                         if arg.ty != m::Ty::Int(local.bits)
@@ -392,8 +392,8 @@ fn replace(value: &mut m::Val, aliases: &[Option<Operand>]) {
 fn replace_operands(op: &mut m::Op, aliases: &[Option<Operand>]) {
     match op {
         m::Op::Alloca { .. } | m::Op::Branch(_) | m::Op::Unreachable | m::Op::Return(None) => {}
-        m::Op::Load { ptr, .. } => replace(ptr, aliases),
-        m::Op::Store { arg, ptr, .. } => {
+        m::Op::Load { ptr, .. } | m::Op::AtomicLoad { ptr, .. } => replace(ptr, aliases),
+        m::Op::Store { arg, ptr, .. } | m::Op::AtomicStore { arg, ptr, .. } | m::Op::AtomicRmw { arg, ptr, .. } => {
             replace(&mut arg.value, aliases);
             replace(ptr, aliases);
         }

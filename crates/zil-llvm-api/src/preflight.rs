@@ -73,6 +73,16 @@ static COMPARISON_RESULT: Ty = Ty::Int(1);
 fn fail<T>(s: impl Into<String>) -> Result<T> {
     Err(s.into())
 }
+fn atomic_type_alignment(ty: &Ty, align: u32) -> Result<()> {
+    let Ty::Int(bits @ (8 | 16 | 32 | 64)) = ty else {
+        return fail("atomic operand requires an i8/i16/i32/i64 integer");
+    };
+    alignment(align)?;
+    if align < bits / 8 {
+        return fail("atomic operand requires explicit natural alignment");
+    }
+    Ok(())
+}
 fn identifier(s: &str) -> bool {
     let mut b = s.bytes();
     let Some(first) = b.next() else { return false };
@@ -322,7 +332,11 @@ impl<'a> World<'a> {
     fn result<'b>(&'b self, op: &'b Op) -> Result<Option<&'b Ty>> {
         Ok(match op {
             Op::Alloca { .. } | Op::Gep { .. } => Some(&POINTER_RESULT),
-            Op::Load { ty, .. } | Op::Binary { ty, .. } | Op::Phi { ty, .. } => Some(ty),
+            Op::Load { ty, .. }
+            | Op::AtomicLoad { ty, .. }
+            | Op::Binary { ty, .. }
+            | Op::Phi { ty, .. } => Some(ty),
+            Op::AtomicRmw { arg, .. } => Some(&arg.ty),
             Op::Compare { .. } => Some(&COMPARISON_RESULT),
             Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
@@ -355,6 +369,38 @@ impl<'a> World<'a> {
                 self.arg(arg, defs, false)?;
                 value(ptr, &Ty::Ptr)?;
                 alignment(*align)?;
+            }
+            Op::AtomicLoad {
+                ty,
+                ptr,
+                align,
+                ordering,
+            } => {
+                atomic_type_alignment(ty, *align)?;
+                if matches!(ordering, AtomicOrdering::Release | AtomicOrdering::AcqRel) {
+                    return fail("atomic load cannot have release ordering");
+                }
+                value(ptr, &Ty::Ptr)?;
+            }
+            Op::AtomicStore {
+                arg,
+                ptr,
+                align,
+                ordering,
+            } => {
+                atomic_type_alignment(&arg.ty, *align)?;
+                if matches!(ordering, AtomicOrdering::Acquire | AtomicOrdering::AcqRel) {
+                    return fail("atomic store cannot have acquire ordering");
+                }
+                self.arg(arg, defs, false)?;
+                value(ptr, &Ty::Ptr)?;
+            }
+            Op::AtomicRmw {
+                arg, ptr, align, ..
+            } => {
+                atomic_type_alignment(&arg.ty, *align)?;
+                self.arg(arg, defs, false)?;
+                value(ptr, &Ty::Ptr)?;
             }
             Op::Binary {
                 opcode,
