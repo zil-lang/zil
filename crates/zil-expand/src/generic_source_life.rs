@@ -355,6 +355,20 @@ impl Check<'_, '_, '_> {
         self.work(formal, span)?;
         self.work(actual, span)?;
         match (formal, actual) {
+            (Fact::Class(b), actual) if !invariant => {
+                // Ordinary borrow uppers may admit an intersection. Keep an
+                // actual single-input map, but never select one of several
+                // distinct declared inputs as a retained nominal class.
+                self.pay(span, map.len().saturating_add(1))?;
+                if let Some(prior) = map.get(b) {
+                    let same = matches!((prior,actual),(Fact::Class(a),Fact::Class(b)) if a==b);
+                    if !same {
+                        map.insert(*b, Fact::Unknown);
+                    }
+                } else {
+                    map.insert(*b, self.copy(actual, span)?);
+                }
+            }
             (Fact::Class(_), Fact::Unknown) if invariant => {
                 return Err(unsupported(
                     span,
@@ -388,7 +402,7 @@ impl Check<'_, '_, '_> {
                 }
             }
             (Fact::Address(f, fi), Fact::Address(x, xi)) => {
-                if invariant && let (Some(f), Some(x)) = (f, x) {
+                if let (Some(f), Some(x)) = (f, x) {
                     self.infer(f, x, map, span, invariant)?;
                 }
                 self.infer(fi, xi, map, span, invariant)?;

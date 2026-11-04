@@ -2206,7 +2206,7 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
             (bad, ResultCategory::SafeReject),
         ] {
             let text = format!(
-                "{prefix}fn value<T:Copy,life a,life b>(pad:T,pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value::<i32>(0,&a,&b)}}"
+                "{prefix}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
             );
             let report = compile_source(&source(&text), &CompileOptions::default());
             assert_eq!(report.status, expected, "{}", report.to_json());
@@ -2262,4 +2262,54 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
         report.to_json()
     );
     terminal_native_profiles(reborrow, "main", 42);
+}
+
+#[test]
+fn g3_3_1_full_nominal_ordinals_and_enclosing_method_life_are_not_class_zero() {
+    for actual in ["a", "b"] {
+        let text = format!(
+            "struct Phantom<T,life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<i32,'a>=Phantom::<i32,'{actual}>{{n:42}};return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        if actual == "a" {
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            terminal_native_profiles(&text, "main", 42);
+        } else {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("distinct declared lifetime classes")),
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    let wrong = "struct Phantom<life s>{n:i32}struct Reader<life outer>{fn bad<life inner>(self:Self,p:&'inner i32)->i32{let x:Phantom<'outer>=Phantom::<'inner>{n:42};return x.n}}fn main()->i32{return 0}";
+    let report = compile_source(&source(wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
 }
