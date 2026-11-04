@@ -9,6 +9,7 @@ fn bad(message: &str) -> Diagnostic {
 struct Ports {
     outer: Option<usize>,
     classes: Vec<usize>,
+    environment: bool,
 }
 // Verify uses explicit representative substitution, not Analyze's parent arena.
 struct Equations {
@@ -55,7 +56,7 @@ impl Equations {
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
         Ok(())
     }
-    fn ports(&mut self, ty: &Type, b: &mut Budget) -> Check<Ports> {
+    fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
         let outer = if matches!(ty, Type::Address { .. }) {
             Some(self.fresh(false, b)?)
         } else {
@@ -66,17 +67,38 @@ impl Equations {
         } else {
             ty
         };
-        let count = if let Type::BorrowedStorage { life, .. } = ty {
-            life.binder_count as usize
-        } else {
-            0
+        let environment = matches!(ty, Type::Closure(id)
+            if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()));
+        let count = match ty {
+            Type::BorrowedStorage { life, .. } => life.binder_count as usize,
+            Type::Closure(id) => module
+                .closures
+                .get(id.0 as usize)
+                .and_then(|d| d.storage_life.as_ref())
+                .map_or(0, |c| c.fixed_binder_count as usize),
+            _ => 0,
         };
         b.spend(count)?;
         let mut classes = Vec::with_capacity(count);
         for _ in 0..count {
             classes.push(self.fresh(false, b)?);
         }
-        Ok(Ports { outer, classes })
+        Ok(Ports {
+            outer,
+            classes,
+            environment,
+        })
+    }
+    fn freeze(&mut self, fixed: &[usize], b: &mut Budget) -> Check<()> {
+        b.spend(fixed.len())?;
+        for slot in fixed {
+            let root = self.representative[*slot];
+            if self.rigid[root].is_none() {
+                self.rigid[root] = Some(self.next_rigid);
+                self.next_rigid += 1;
+            }
+        }
+        Ok(())
     }
     fn copy(&mut self, a: &Ports, z: &Ports, b: &mut Budget) -> Check<()> {
         b.spend(
@@ -227,7 +249,17 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    super::borrowed_fp::relation(&d.parameters, &d.result, life, Some(f.span))?;
+    if d.storage_life.is_some() {
+        super::signature_life::closure_relation(
+            &d.parameters,
+            &d.captures,
+            &d.result,
+            life,
+            Some(f.span),
+        )?;
+    } else {
+        super::borrowed_fp::relation(&d.parameters, &d.result, life, Some(f.span))?;
+    }
     check_with(module, f, reachable, b, Some(life))
 }
 fn check_with(
@@ -244,12 +276,40 @@ fn check_with(
     };
     b.spend(f.values.len().saturating_add(f.locals.len()))?;
     let mut values = Vec::new();
+    let mut environments = false;
     for ty in &f.values {
-        values.push(e.ports(ty, b)?);
+        let ports = e.ports(module, ty, b)?;
+        environments |= ports.environment;
+        values.push(ports);
     }
     let mut locals = Vec::new();
     for local in &f.locals {
-        locals.push(e.ports(&local.ty, b)?);
+        let ports = e.ports(module, &local.ty, b)?;
+        environments |= ports.environment;
+        locals.push(ports);
+    }
+    let returned = if let Type::Address { inner, .. } = &f.return_type {
+        inner.as_ref()
+    } else {
+        &f.return_type
+    };
+    if matches!(returned, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+    {
+        return Err(unsupported(
+            "captured Fixed environment result needs retained target transfer",
+            Some(f.span),
+        ));
+    }
+    if environments && assumptions.is_none() {
+        b.spend(f.parameters.len())?;
+        if f.parameters
+            .iter()
+            .any(|l| locals[l.0 as usize].environment)
+        {
+            return Err(bad(
+                "captured Fixed parameter needs a complete enclosing relation",
+            ));
+        }
     }
     let header = if let Some(c) = assumptions {
         let vars = variables(c, &mut e, true, b)?;
@@ -265,7 +325,7 @@ fn check_with(
         }
         Some(vars)
     } else {
-        if f.environment.is_some() {
+        if f.environment.is_some() || environments {
             for local in &f.parameters {
                 let p = &locals[local.0 as usize];
                 if let Some(outer) = p.outer {
@@ -280,122 +340,264 @@ fn check_with(
         }
         None
     };
-    for block in &f.blocks {
-        for i in &block.instructions {
-            b.spend(1)?;
-            let out = i.result.map(|v| &values[v.0 as usize]);
-            match &i.kind {
-                InstructionKind::Load(local) => {
-                    if let Some(out) = out {
-                        e.copy(out, &locals[local.0 as usize], b)?;
+    let mut captures = Vec::new();
+    if let Some(id) = f.environment
+        && let Some(d) = module.closures.get(id.0 as usize)
+        && d.storage_life.is_some()
+    {
+        environments = true;
+        b.spend(d.captures.len())?;
+        let vars = header
+            .as_ref()
+            .ok_or_else(|| bad("captured entry has no complete relation"))?;
+        for (index, ty) in d.captures.iter().enumerate() {
+            let ports = e.ports(module, ty, b)?;
+            bind(
+                assumptions.ok_or_else(|| bad("captured entry relation absent"))?,
+                StorageBase::Capture(index as u32),
+                &ports,
+                vars,
+                &mut e,
+                b,
+            )?;
+            captures.push(ports);
+        }
+    }
+    // Source structure first; capture-fixed substitution second; calls last.
+    // A first call cannot pick an unconstrained capture's semantic class.
+    for phase in 0..if environments { 3 } else { 1 } {
+        for block in &f.blocks {
+            for i in &block.instructions {
+                b.spend(1)?;
+                if environments {
+                    if let InstructionKind::Call { arguments, .. } = &i.kind {
+                        b.spend(arguments.len())?;
                     }
-                }
-                InstructionKind::Store { local, value } => {
-                    e.copy(&locals[local.0 as usize], &values[value.0 as usize], b)?
-                }
-                InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local } => {
-                    if let Some(out) = out {
-                        let stored = &locals[local.0 as usize];
-                        b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
-                        if out.classes.len() != stored.classes.len() {
-                            return Err(bad("borrowed actual class arity differs"));
+                    let stage = match &i.kind {
+                        InstructionKind::MakeClosure { closure, .. }
+                            if module
+                                .closures
+                                .get(closure.0 as usize)
+                                .is_some_and(|d| d.storage_life.is_some()) =>
+                        {
+                            1
                         }
-                        for (a, z) in out.classes.iter().zip(&stored.classes) {
-                            e.equal(*a, *z, b)?;
+                        InstructionKind::CallClosureBorrowed { .. }
+                        | InstructionKind::CallClosure { .. }
+                        | InstructionKind::CallClosureShared { .. }
+                        | InstructionKind::CallClosureMut { .. }
+                        | InstructionKind::CallClosureOnce { .. } => 2,
+                        InstructionKind::Call { arguments, .. }
+                            if arguments.iter().any(|v| values[v.0 as usize].environment)
+                                || i.result.is_some_and(|v| values[v.0 as usize].environment) =>
+                        {
+                            2
+                        }
+                        _ => 0,
+                    };
+                    if phase != stage {
+                        continue;
+                    }
+                }
+                let out = i.result.map(|v| &values[v.0 as usize]);
+                match &i.kind {
+                    InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                        let source = captures
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("capture class index absent"))?;
+                        if let Some(out) = out {
+                            e.copy(out, source, b)?;
                         }
                     }
-                }
-                InstructionKind::ReborrowAddress { address, .. } => {
-                    if let Some(out) = out {
-                        e.copy(out, &values[address.0 as usize], b)?;
+                    InstructionKind::MakeClosure {
+                        closure,
+                        captures: actuals,
+                    } => {
+                        if let Some(c) = module
+                            .closures
+                            .get(closure.0 as usize)
+                            .and_then(|d| d.storage_life.as_ref())
+                        {
+                            let fixed = &out
+                                .ok_or_else(|| bad("environment construction has no value"))?
+                                .classes;
+                            b.spend(fixed.len())?;
+                            let vars = (fixed.clone(), Vec::new());
+                            for (index, actual) in actuals.iter().enumerate() {
+                                bind(
+                                    c,
+                                    StorageBase::Capture(index as u32),
+                                    &values[actual.0 as usize],
+                                    &vars,
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
+                            e.freeze(fixed, b)?;
+                        }
                     }
-                }
-                InstructionKind::AddressField { address, .. }
-                | InstructionKind::AddressIndex { address, .. }
-                | InstructionKind::AddressSlice { address, .. } => {
-                    if let (Some(out), Some(parent)) =
-                        (out.and_then(|o| o.outer), values[address.0 as usize].outer)
-                    {
-                        e.equal(out, parent, b)?;
+                    InstructionKind::Load(local) => {
+                        if let Some(out) = out {
+                            e.copy(out, &locals[local.0 as usize], b)?;
+                        }
                     }
-                }
-                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
-                    let actual = shape(&f.values[storage.0 as usize])
-                        .ok_or_else(|| bad("stored load lacks actual class shape"))?;
-                    b.spend(
-                        actual
+                    InstructionKind::Store { local, value } => {
+                        e.copy(&locals[local.0 as usize], &values[value.0 as usize], b)?
+                    }
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local } => {
+                        if let Some(out) = out {
+                            let stored = &locals[local.0 as usize];
+                            b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
+                            if out.classes.len() != stored.classes.len() {
+                                return Err(bad("borrowed actual class arity differs"));
+                            }
+                            for (a, z) in out.classes.iter().zip(&stored.classes) {
+                                e.equal(*a, *z, b)?;
+                            }
+                        }
+                    }
+                    InstructionKind::ReborrowAddress { address, .. } => {
+                        if let Some(out) = out {
+                            e.copy(out, &values[address.0 as usize], b)?;
+                        }
+                    }
+                    InstructionKind::AddressField { address, .. }
+                    | InstructionKind::AddressIndex { address, .. }
+                    | InstructionKind::AddressSlice { address, .. } => {
+                        if let (Some(out), Some(parent)) =
+                            (out.and_then(|o| o.outer), values[address.0 as usize].outer)
+                        {
+                            e.equal(out, parent, b)?;
+                        }
+                    }
+                    InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                        let actual = shape(&f.values[storage.0 as usize])
+                            .ok_or_else(|| bad("stored load lacks actual class shape"))?;
+                        b.spend(
+                            actual
+                                .slots
+                                .len()
+                                .saturating_mul(path.len().saturating_add(1)),
+                        )?;
+                        let leaf = actual
                             .slots
-                            .len()
-                            .saturating_mul(path.len().saturating_add(1)),
-                    )?;
-                    let leaf = actual
-                        .slots
-                        .iter()
-                        .find(|s| s.path == *path)
-                        .ok_or_else(|| bad("stored class slot is absent"))?;
-                    let class = values[storage.0 as usize].classes[leaf.binder as usize];
-                    e.equal(
-                        out.and_then(|o| o.outer)
-                            .ok_or_else(|| bad("stored class load lacks Address result"))?,
-                        class,
-                        b,
-                    )?;
-                }
-                InstructionKind::MakeAggregate { fields } => {
-                    if let (Some(out), Some(id)) = (out, i.result)
-                        && let Some(actual) = shape(&f.values[id.0 as usize])
-                    {
-                        for slot in &actual.slots {
-                            b.spend(slot.path.len().saturating_add(1))?;
-                            let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
-                                return Err(bad(
-                                    "nested constructor class requires its physical operand consumer",
-                                ));
-                            };
-                            let arg = fields
-                                .get(*index as usize)
-                                .ok_or_else(|| bad("aggregate class operand is absent"))?;
-                            e.equal(
-                                out.classes[slot.binder as usize],
-                                values[arg.0 as usize]
-                                    .outer
-                                    .ok_or_else(|| bad("stored class operand is not an Address"))?,
-                                b,
-                            )?;
+                            .iter()
+                            .find(|s| s.path == *path)
+                            .ok_or_else(|| bad("stored class slot is absent"))?;
+                        let class = values[storage.0 as usize].classes[leaf.binder as usize];
+                        e.equal(
+                            out.and_then(|o| o.outer)
+                                .ok_or_else(|| bad("stored class load lacks Address result"))?,
+                            class,
+                            b,
+                        )?;
+                    }
+                    InstructionKind::MakeAggregate { fields } => {
+                        if let (Some(out), Some(id)) = (out, i.result)
+                            && let Some(actual) = shape(&f.values[id.0 as usize])
+                        {
+                            for slot in &actual.slots {
+                                b.spend(slot.path.len().saturating_add(1))?;
+                                let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
+                                    return Err(bad(
+                                        "nested constructor class requires its physical operand consumer",
+                                    ));
+                                };
+                                let arg = fields
+                                    .get(*index as usize)
+                                    .ok_or_else(|| bad("aggregate class operand is absent"))?;
+                                e.equal(
+                                    out.classes[slot.binder as usize],
+                                    values[arg.0 as usize].outer.ok_or_else(|| {
+                                        bad("stored class operand is not an Address")
+                                    })?,
+                                    b,
+                                )?;
+                            }
                         }
                     }
-                }
-                InstructionKind::Call {
-                    function,
-                    arguments,
-                } => {
-                    let callee = &module.functions[function.0 as usize];
-                    if let Some(c) = &callee.storage_life {
-                        call(c, arguments, i.result, &values, &mut e, b)?;
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let callee = &module.functions[function.0 as usize];
+                        if let Some(c) = &callee.storage_life {
+                            call(c, arguments, i.result, &values, &mut e, b)?;
+                        }
                     }
-                }
-                InstructionKind::CallClosureBorrowed { .. }
-                | InstructionKind::CallClosure { .. }
-                | InstructionKind::CallClosureShared { .. }
-                | InstructionKind::CallClosureMut { .. }
-                | InstructionKind::CallClosureOnce { .. } => {
-                    if let Some(life) = super::stored_callables::role(f, &i.kind, b)? {
-                        let (_, arguments) = super::stored_callables::called(module, f, &i.kind)
-                            .ok_or_else(|| bad("role call has no actual qualified closure"))?;
+                    InstructionKind::CallClosureBorrowed { .. }
+                    | InstructionKind::CallClosure { .. }
+                    | InstructionKind::CallClosureShared { .. }
+                    | InstructionKind::CallClosureMut { .. }
+                    | InstructionKind::CallClosureOnce { .. } => {
+                        let (d, arguments) = super::stored_callables::called(module, f, &i.kind)
+                            .ok_or_else(|| bad("call has no actual qualified closure"))?;
+                        let role = super::stored_callables::role(f, &i.kind, b)?;
+                        if let Some(definition) = &d.storage_life {
+                            if let Some(role) = role {
+                                super::signature_life::charge(role, b)?;
+                            }
+                            super::signature_life::charge(definition, b)?;
+                            if role.is_some_and(|r| r != definition) {
+                                return Err(unsupported(
+                                    "captured Fixed role requires its actual capture map",
+                                    Some(f.span),
+                                ));
+                            }
+                            let receiver = match &i.kind {
+                                InstructionKind::CallClosureShared { callee, .. }
+                                | InstructionKind::CallClosureMut { callee, .. } => {
+                                    &locals[callee.0 as usize]
+                                }
+                                InstructionKind::CallClosureBorrowed { callee, .. }
+                                | InstructionKind::CallClosure { callee, .. }
+                                | InstructionKind::CallClosureOnce { callee, .. } => {
+                                    &values[callee.0 as usize]
+                                }
+                                _ => unreachable!(),
+                            };
+                            b.spend(receiver.classes.len())?;
+                            let mut vars = (receiver.classes.clone(), Vec::new());
+                            for _ in 0..definition.invocation_binder_count {
+                                vars.1.push(e.fresh(false, b)?);
+                            }
+                            for (index, argument) in arguments.iter().enumerate() {
+                                bind(
+                                    definition,
+                                    StorageBase::Parameter(index as u32),
+                                    &values[argument.0 as usize],
+                                    &vars,
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
+                            if let Some(output) = i.result {
+                                bind(
+                                    definition,
+                                    StorageBase::Result,
+                                    &values[output.0 as usize],
+                                    &vars,
+                                    &mut e,
+                                    b,
+                                )?;
+                            }
+                        } else if let Some(life) = role {
+                            call(life, arguments, i.result, &values, &mut e, b)?;
+                        }
+                    }
+                    InstructionKind::CallIndirect { callee, arguments } => {
+                        let Type::BorrowedFunctionPointer { life, .. } =
+                            &f.values[callee.0 as usize]
+                        else {
+                            return Err(bad(
+                                "stored indirect class call requires its complete borrowed signature",
+                            ));
+                        };
                         call(life, arguments, i.result, &values, &mut e, b)?;
                     }
+                    _ => {}
                 }
-                InstructionKind::CallIndirect { callee, arguments } => {
-                    let Type::BorrowedFunctionPointer { life, .. } = &f.values[callee.0 as usize]
-                    else {
-                        return Err(bad(
-                            "stored indirect class call requires its complete borrowed signature",
-                        ));
-                    };
-                    call(life, arguments, i.result, &values, &mut e, b)?;
-                }
-                _ => {}
             }
         }
     }
