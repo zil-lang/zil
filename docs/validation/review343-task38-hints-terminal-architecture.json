@@ -1,0 +1,48 @@
+{
+  "status": "PassLimitedSemanticReplayWithLookupAccountingFindingOpen",
+  "source_commit": "1cd364dec855a3bd5d844e4190187ecce886e88f",
+  "author_receipt_commit": "88877e12c",
+  "scope": "Task38 borrowed type-hint compatibility restoration, independently replayed after3a97 accounting correction.",
+  "execution_kind": "Independent execution of exact retained author-built harness; not independent rebuild.",
+  "binding": {
+    "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38hints343-source-binding.json",
+    "source_manifest_sha256": "b1064f348a1505fe6e7c485e3b6416cfc08eee3b50abf6ba8c4dc1b0f900b632",
+    "production_count": 410,
+    "production_sha256": "5abdee80e22636f9aee9c355c23b040619222c8a5f5fe83d06f095b4dc54de42",
+    "harness_binding": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38hints343-harness.json",
+    "harness_binding_sha256": "42c25159b5f4d5f5eb0c893b30ebe42f827dd9cc85199a5b0dbfa83eef4c9e98",
+    "runtime_read_observer_sha256_after_replay": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac"
+  },
+  "replay": {
+    "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38hints343-generics",
+    "sha256": "ecbc4e5f0ef33214f847f00b6896f9fe6c6c0cab2bd61d93139f827e3c939fe2",
+    "filter": "general_task343",
+    "passed": 7,
+    "failed": 0,
+    "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/task38hints343-generics.log",
+    "log_sha256": "6242f64d7939d68906e42931ed75ba17e89ac484a9cb9a571133f1b54021f799"
+  },
+  "closed_scope_concern": [
+    "Generated actual Core Ascribed and Sequence Task heads pass Types, Analyze and Verify; wrong complete result type rejects E-TYPE-MISMATCH.",
+    "Original Holder.task source is retained and rejects at the unchanged earlier aggregate-field admission boundary.",
+    "New borrowed hint handles ordinary expression forms and full actual capture/sum-slot metadata; final argument checking still proves actual type and permission."
+  ],
+  "open_findings": [
+    {
+      "id": "task-hint-lookup-accounting",
+      "status": "Confirmed by source inspection; author notified",
+      "paths": [
+        "crates/zil-types/src/tasks/hint.rs::borrowed_task_hint",
+        "crates/zil-types/src/lib.rs::lookup/resolve_callee",
+        "crates/zil-types/src/aggregates.rs::resolve_type_method/resolve_method"
+      ],
+      "detail": "Name prepayment uses log(total locals), but actual lookup scans every lexical-scope BTreeMap. Method prepayment adds key length and local/alias counts while actual resolver builds nominal.member and searches local and imported signature maps; imported table width and repeated key comparisons are not covered. The final resolve_callee path also repeats scope lookup and may use imported maps not bounded by the local signature count.",
+      "required": "Use a paid borrowed resolver or conservative per-scope/per-map byte-comparison reservation from the actual remaining ledger; retain deep-scope and long imported-key boundary controls."
+    }
+  ],
+  "limits": [
+    "No Task39 consumer claim; this exact checkpoint is schema38.",
+    "No general owning Task, borrowed frame or waker/drain acceptance.",
+    "No full workspace or product/performance conclusion."
+  ]
+}
