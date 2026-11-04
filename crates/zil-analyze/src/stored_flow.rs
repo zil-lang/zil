@@ -2458,6 +2458,26 @@ mod tests {
         )
     }
     #[test]
+    fn qualified_fn_roles_use_actual_entry_and_fresh_argument_class_equations() {
+        super::super::analyze(
+            &fixture::qualified_fn_role(false, false),
+            &Limits::default(),
+        )
+        .unwrap();
+        for m in [
+            fixture::qualified_fn_role(true, false),
+            fixture::qualified_fn_role(false, true),
+        ] {
+            let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+            assert!(
+                error
+                    .iter()
+                    .any(|d| d.message.contains("actual retained classes")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
     fn a_pointer_fixed_class_without_enclosing_context_is_not_fresh_per_call() {
         super::super::analyze(
             &fixture::phantom_class_calls(true, false),
