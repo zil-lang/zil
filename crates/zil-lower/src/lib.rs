@@ -492,6 +492,7 @@ mod tests {
             source_fingerprint: Fingerprint::of(b"lower typed-IR fixture"),
             target: target.clone(),
             functions: vec![TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -600,6 +601,7 @@ mod tests {
         ]);
         module.functions[0].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
         module.functions.push(TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

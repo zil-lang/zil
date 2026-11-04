@@ -28,6 +28,14 @@ identity!(
     FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
 );
 
+/// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
+/// Suspend may be explicitly declared even when an implementation does not yield.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CallKind {
+    Direct = 0,
+    Suspend = 1,
+}
+
 /// Sealed native cell kind; this raw tag grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SyncCellKind {
@@ -49,8 +57,8 @@ pub enum AtomicOrdering {
     SeqCst = 4,
 }
 
-/// Canonical invocation-local address relation for an environment-free code
-/// pointer. Numeric binders describe no runtime object or access authority.
+/// Canonical invocation-local address relation. Numeric binders describe no
+/// runtime object or access authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FunctionLifeContract {
     pub binder_count: u32,
@@ -478,6 +486,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Source declaration, or None for body-derived selection. Never an effect proof.
+    pub call_kind: Option<CallKind>,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
     pub life: Option<CoreLifeContract>,
     /// Retained ordinary template metadata; only a checked full instance may run.
@@ -519,6 +529,8 @@ pub struct CoreCallableReturn {
 /// Raw bound for one retained, nonescaping callable template parameter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
+    /// Invocation-local raw binder relation; fixed environment Hold is separate.
+    pub life: Option<FunctionLifeContract>,
     pub index: u32,
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
@@ -902,6 +914,8 @@ pub struct CallableParameterContract {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableRole {
+    /// Untrusted invocation-local relation; actual closure CFG roots are independently checked.
+    pub life: Option<FunctionLifeContract>,
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -1036,6 +1050,8 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Raw ABI/effect selection; actual reachable effects are checked independently.
+    pub call_kind: CallKind,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
     /// source parameter indices. Each kernel checks the actual CFG separately.
     /// None preserves body-derived origins for unannotated functions.
@@ -1421,6 +1437,13 @@ pub enum InstructionKind {
     },
     /// Unit calls have no result. All other calls have exactly one result.
     Call {
+        function: FunctionId,
+        arguments: Vec<ValueId>,
+    },
+    /// Execute one static Suspend child. Arguments commit once on initial entry;
+    /// repeated polls resume that same child. The result is produced only at Ready.
+    /// A non-Unit result uses the instruction's actual SSA result slot and type.
+    SuspendCall {
         function: FunctionId,
         arguments: Vec<ValueId>,
     },
@@ -1998,7 +2021,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V37\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2218,6 +2241,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(f.call_kind as u8);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {
         encode_len(b, bound.len());
@@ -2700,6 +2724,17 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, worker.0);
             encode_u32(b, argument.0);
         }
+        InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } => {
+            b.push(125);
+            encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
         InstructionKind::TaskYield => b.push(100),
         InstructionKind::TaskValid { task } => {
             b.push(101);
@@ -3102,7 +3137,7 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -3143,6 +3178,21 @@ fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterC
         encode_u32(b, role.parameter);
         encode_u32(b, role.closure.0);
         b.push(callable_kind_tag(role.kind));
+        b.push(u8::from(role.life.is_some()));
+        if let Some(life) = &role.life {
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for tag in &life.parameter_lives {
+                b.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag {
+                    encode_u32(b, *tag);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life {
+                encode_u32(b, tag);
+            }
+        }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());
             for index in indices {

@@ -15,6 +15,7 @@ fn span() -> Span {
 }
 fn function(index: usize) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(index as u32),
         name: format!("entry{index}"),

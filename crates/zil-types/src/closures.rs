@@ -3275,7 +3275,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 .work_left
                 .checked_sub(12)
                 .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
-            let offset = usize::from(name == "task_start");
+            let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
                 return Err(error(

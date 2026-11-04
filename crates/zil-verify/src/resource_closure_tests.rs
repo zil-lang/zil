@@ -28,6 +28,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
             callable_contract: None,

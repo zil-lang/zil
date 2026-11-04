@@ -292,3 +292,183 @@ Address/Desc/Slice positions still reject. The split recursive Types dispatch is
 preserved. The combined generic_regressions target passes all 52 tests, including
 registration native success/failure/close paths and existing Task/synchronization.
 This is limited integration validation, not terminal or full-workspace acceptance.
+
+### Static Suspend children and the owning continuation framework
+
+The next proposed public transport is `CallKind { Direct=0, Suspend=1 }`, an
+optional source declaration on CoreFunction, a concrete raw selection on
+TypedFunction, and opcode 125 `SuspendCall { function, arguments: Vec<ValueId> }`.
+Its actual SSA result is produced only after the child reaches Ready. Existing
+Call, scalar function pointers, borrowed function pointers and foreign callback
+entries remain Direct boundaries. Neither a declaration nor TaskStart supplies
+an effect or no-external-users proof. TaskStart of a non-yielding Direct worker
+still creates a task adapter while preserving the worker's ordinary Direct body.
+
+Unannotated source selects the actual reachable effect. An explicit `effects`
+clause without `suspend` selects Direct and rejects any reachable
+Yield/SuspendCall/Suspend callee or cleanup; no new `direct` effect keyword is
+introduced. `effects(suspend); resume(local)` explicitly selects Suspend
+even for an empty/effect-free implementation. Each kernel reconstructs effects
+including actual indirect targets or their complete admitted upper bound. An
+ordinary Call to a Suspend-selected function rejects. `task_await(f, args...)`
+is the source execution root for a static SuspendCall; unused declarations are
+checked. This proposal does not add unchecked producer effect/noExternal bits.
+
+The private frame plan is based on actual parameter/result types, initialized
+responsibility slots, child instance slots and continuation PCs. The first
+executable child lane may use i32 parameters/results, but shares that plan with
+the following owning lane. Await evaluates/commits arguments and initializes a
+child once; Pending repolls the same instance without recomputation. A loop may
+reuse a site only after the previous child is settled. Distinct live instances
+are never deduplicated by worker/type. Acyclic static children have explicit
+stable embedded storage; recursive execution needs an explicit BoxTask/arena.
+
+Ready moves the actual result once. Other poll alternatives never expose its
+payload. General `Poll<T>` must be a fixed nominal ordinary enum with only
+Ready owning T; i32 ABI1 is a compatibility wrapper, not an owning-result ABI.
+A result borrowing a child frame must retain the child/root through its loan;
+the initial lane rejects such signatures. All return RHS moves/loans are checked
+when evaluated, before recording PendingExit.
+
+PendingExit preserves Normal/Error/Cancel/Panic and actual payload responsibility
+while children drain. Cancellation first notifies every live child, then drains
+in creation order; body error has priority and unobserved child errors use that
+order. poll_close may return Pending repeatedly with stable child/result/loan
+responsibilities intact. Closed requires children, results, loans and external
+users/wakers plus actual backend no-future/drain all settled. A Direct default
+Drop is valid only for an already Closed owner or an independently rebuilt graph
+whose close always completes synchronously; an abort on Pending does not provide
+general cleanup. An explicit close-driving root or parent must retain the owner.
+
+Initial public bytes add one validated function-kind byte to typed Wire and
+fingerprints, and target/count/argument IDs for opcode 125. Root owns the common
+schema/Wire version transition. Existing scalar TaskInterface ABI1 semantics and
+packed poll wrappers remain unchanged; actual child layout/cleanup enters the
+backend artifact and codegen identity. General owning external SABI needs a
+separate complete mode/layout/version descriptor and symbols before export.
+
+Required source controls cover child Pending-to-Ready, branch/backedge awaits,
+two live child instances, once-only argument initialization and result movement,
+parent cancellation at each phase and after Ready, and actual owned Drop/failure.
+Raw/decoded-Wire controls alter CallKind, ordinary-call a Suspend target, duplicate
+Ready ownership, or destroy a live child. Budget and cache identity controls must
+cover actual nested child layouts and expanded live-instance work. No capability
+or acceptance is claimed by this proposal before implementation and replay.
+
+The implemented Wire37 child checkpoint now lowers actual source `task_await`
+through opcode125 to per-site embedded literal child frames. The shared frame
+plan records actual parameter, SSA, local and result machine types; this first
+admitted lane remains scalar i32. Private init_into/finish_into boundaries use
+the parent's stable storage, while the existing owning init/finish adapter alone
+allocates/frees. Pending saves the child poll PC; it never re-enters argument or
+initialization code. Only actual saved PCs enter the dispatch table, so internal
+Ready/tag blocks retain their defining activation's SSA dominance. Loop reuse
+occurs after actual close/destroy_into. Distinct static sites have distinct frame
+and active slots; a nested child/grandchild remains live across parent Pending.
+
+Both kernels reconstruct the complete actual scalar child graph, reject its
+cycles, and validate inputs/results. They separately derive suspension and check
+it against the raw CallKind upper bound. Selected Suspend with an effect-free
+body is valid; Direct task adapters preserve the ordinary function. Ordinary
+Call/FP/C-callback/thread/export boundaries reject selected Suspend. Explicit
+non-suspending effect bounds are checked in unused definitions. Source
+resume(local) without an effects clause selects Suspend; a conflicting explicit
+effects bound rejects. Incremental Types keys include Core call_kind, including
+raw header mutations with unchanged body/spans/source fingerprint.
+
+Cancellation notifies active children before the close pass. Sequential Await
+admits at most one active direct child per parent frame, so static site order
+agrees with active creation order in this lane; nested descendants may be live.
+Concurrent sibling owners require actual dynamic creation order in the next lane.
+poll_close preserves their flags on Pending and only marks Closed after every
+active child returns closed and finish_into succeeds. The scalar no-external
+graph contains no owned payload or user teardown; its synchronous close proof
+is independently rebuilt, not inferred from the producer kind. General owned
+PendingExit/cleanup remains the following lane. On this branch the new public
+higher-rank life transport is paid then explicitly rejected until root composes
+the complete task342 consumers; producer constructors use None.
+
+Six child tests cover 44 source-native configurations, 12 more parent-allocation
+cleanup successes and 12 injected allocation failures, plus the actual public
+child SABI at both backends O0/O2 (four primary, four warm/changed-cache successes
+and four allocation failures). The C caller observes one parent allocation per
+task, no child allocations, all five entries, cancellation phases and nested
+frame C sizeof/offsetof against the LLVM target DataLayout. Thirteen source
+neighbors and nine raw mutations reject in both kernels and decoded Wire.
+Kernel boundaries are 23553/133651; the actual frame planner's separate machine
+fixture has N=6786 with eight distinct sites, growth and cycle controls. Nested
+frame hashing/rendering and actual allocator signature construction prepay their
+actual recursive work. Native child/type depth is explicitly bounded at 64.
+
+| Rust four goals | Static child evidence and limits |
+| --- | --- |
+| Comparable safety | Both kernels derive actual effects/closed graph, child input/result checks and Direct exclusions; canonical owning spills and general cancellation cleanup remain unfinished. |
+| Runtime and memory | Real persistent embedded child storage survives Pending without per-child allocation. Per-site storage is explicit; matched Rust runtime/RSS and reuse optimization remain unmeasured. |
+| Expression and maintenance | Ordinary static source functions compose through await, branches and backedges, including pure Direct targets. Generic owned results, sibling task owners and external wakers remain continuation work. |
+| Compile cost | Shared remaining budget pays frame graphs, physical occurrences and nested identity work; actual N boundaries are retained. Matched Rust compile/maintenance cost remains unmeasured. |
+| At least one advance | Explicit stable child continuation storage is executable source behavior. No product-level four-goal conjunction or net advance is claimed. |
+
+### General owning task publication proposed after Wire37 child integration
+
+Root reserves future Wire38 Type tag34 `Task { result: Box<Type> }`, carried only
+under ordinary Managed/Desc and the exact unique mutable owning-head boundary,
+and opcode128 `TaskCreate { worker, arguments: Vec<ValueId> }`. Opcodes126/127
+belong to the allocation/address work. `task_create(worker,args...)` is the
+canonical general source root; `task_start` and TaskI32 retain their explicitly
+bounded compatibility behavior. Both routes use the same actual continuation
+frame/child plan; the general route does not inherit a scalar no-external or
+synchronous-cleanup proof from the type tag.
+
+`task_create` evaluates arguments once under ordinary pre-call move/loan rules.
+Its result is ordinary `TaskCreateError ! Task<T>`, with the fixed nominal
+`TaskCreateError { Allocation }`. On allocation failure, all transferred actual
+owned inputs are cleaned once and the error alternative owns no task. Success
+owns a fully initialized non-null task. No argument rollback is promised; any
+API returning input responsibility must carry that payload explicitly.
+
+General `task_poll` returns ordinary `TaskPollState ! Poll<T>`, where the fixed
+nominal enums are `TaskPollState { Complete, Cancelled, Invalid }` and
+`Poll<T> { Pending, Ready(T) }`. Only Ready owns T. The result slot has its own
+live flag; worker completion stores T once, and the first Ready transfer clears
+that flag. Complete/Cancelled/Invalid contain no dummy owning T. Invalid is a
+defensive runtime state, never permission to construct a task from raw bits.
+Cancel after Ready cannot reclaim the caller's result. ComputationComplete and
+Closed remain distinct.
+
+These are compiler-provided canonical std.task declarations resolved through
+ordinary nominal enum and generic family machinery, rather than new payload
+Type variants or privileged enum operations. Canonical module/declaration
+identity and the full actual T argument remain in the resolved family/type and
+its fingerprint. Users may construct/match ordinary variants using values they
+already own. A same-shaped user enum is not the canonical task boundary type;
+neither enum shape nor name creates Task authority. Only opcode128 may create
+the sealed Managed Task carrier, with independently checked actual worker/input
+and result responsibility. Raw wrong nominal identity or substituted T must
+reject, while ordinary enum ownership and loan checking remains unchanged.
+
+Close retains the owning head while it drives PendingExit, live children,
+untransferred result slots and actual parent cleanup. A general pending close
+must expose ordinary Pending and preserve all those obligations; only its Ready
+means Closed. The exact source close return type is to be published with this
+group, using Poll<Unit> rather than giving a bool the meaning of destroyed
+storage. `task_finish_destroy(give owner)` consumes only a Closed owner. A
+Direct default Drop requires either Closed or an independently rebuilt complete
+child/teardown graph proving synchronous close. Otherwise an explicit driving
+root/parent retains the owner; aborting on Pending is not cleanup.
+
+Every supported saved PC must have complete independently checked cleanup
+coverage: one canonical frame slot with live/partial flags for each real owning
+obligation, including prepared inputs and unconsumed temporaries. SSA aliases
+do not get independent drop flags. Unsaved responsibility must be materialized
+before suspension or rejected. Cancel notifies all live children, drains them
+in creation order while retaining their borrowed parents, then settles actual
+parent/result responsibilities in the established scope order. User defers,
+borrowed frame results and heterogeneous error conversions require their full
+actual ownership/effect contracts before admission. This proposal does not
+publish unchecked producer cleanup/effect bits or claim those paths complete.
+
+Root Wire37 integration preserves the current UInt/Float/BFP/Registration and
+split recursive dispatch paths. Combined generic_regressions59/0 and IR lib61/0
+pass, including actual static child/C SABI/native failure and retained Registration
+composition. Higher-rank life transport remains temporarily fail-closed until
+corrected342 proof consumers are composed; no source role is silently erased.

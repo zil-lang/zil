@@ -468,6 +468,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosureMut { arguments, .. }
         | InstructionKind::CallClosureShared { arguments, .. } => (None, None, arguments),

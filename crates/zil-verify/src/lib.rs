@@ -558,6 +558,9 @@ fn check_module(
     let (mut block_count, mut instruction_count, mut local_count, mut value_count) =
         (0usize, 0usize, 0usize, 0usize);
     for (index, function) in module.functions.iter().enumerate() {
+        if function.call_kind == CallKind::Suspend {
+            budget.tasks = true;
+        }
         helpers::check_claim_shape(function, limits, &mut budget)?;
         retained::check_claim(module, function, limits, &mut budget)?;
         let mut private_slot = false;
@@ -654,6 +657,7 @@ fn check_module(
                     | InstructionKind::MakeOwnedTuple { fields }
                     | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
                     InstructionKind::Call { arguments, .. }
+                    | InstructionKind::SuspendCall { arguments, .. }
                     | InstructionKind::ForeignCall { arguments, .. } => {
                         budget.spend(arguments.len())?
                     }
@@ -1674,6 +1678,7 @@ fn check_instruction(
         }
         InstructionKind::TaskStart { .. }
         | InstructionKind::TaskYield
+        | InstructionKind::SuspendCall { .. }
         | InstructionKind::TaskValid { .. }
         | InstructionKind::TaskPoll { .. }
         | InstructionKind::TaskRequestCancel { .. }
@@ -3099,6 +3104,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         } => ([Some(*address), Some(*value)], &[]),
         InstructionKind::Binary { left, right, .. } => ([Some(*left), Some(*right)], &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosureShared { arguments, .. }
         | InstructionKind::CallClosureMut { arguments, .. } => ([None, None], arguments),

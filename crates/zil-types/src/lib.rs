@@ -143,6 +143,25 @@ fn signatures(
                 })?;
         }
         let i = concrete_index;
+        foreign_work = foreign_work
+            .checked_sub(f.callable_parameters.len())
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "callable life requirement inventory exceeded budget",
+                    Some(f.span),
+                )]
+            })?;
+        if f.callable_parameters
+            .iter()
+            .any(|bound| bound.life.is_some())
+        {
+            errors.push(unsupported(
+                f.span,
+                "higher-rank callable life contracts require the complete life consumer",
+            ));
+            continue;
+        }
         if f.callable_parameters.is_empty()
             && f.type_parameters.is_empty()
             && f.state_parameters.is_empty()
@@ -479,6 +498,7 @@ pub fn check(
     Ok(module)
 }
 struct Builder<'a, 'c> {
+    declared_call_kind: Option<CallKind>,
     function: TypedFunction,
     helper_bounds: Vec<CoreCallableParameter>,
     // Owning State specialization removes symbolic parameters, but a direct
@@ -542,7 +562,9 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures.block(f.span)?;
         let first_closure = closures.pending.len();
         let mut b = Self {
+            declared_call_kind: f.call_kind,
             function: TypedFunction {
+                call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -913,6 +935,14 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn emit(&mut self, kind: InstructionKind, ty: Option<Type>, span: Span) -> R<Option<ValueId>> {
         self.closures.instruction(ty.is_some(), span)?;
+        if self.declared_call_kind.is_none()
+            && matches!(
+                kind,
+                InstructionKind::TaskYield | InstructionKind::SuspendCall { .. }
+            )
+        {
+            self.function.call_kind = CallKind::Suspend;
+        }
         self.instructions += 1;
         if self.instructions > self.limits.max_instructions {
             return Err(Diagnostic::limit(
@@ -2316,6 +2346,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
             let function_id = pending.function;
             let function = CoreFunction {
+                call_kind: None,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),
@@ -2511,6 +2542,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
+            call_kind: None,
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),
@@ -3079,6 +3111,7 @@ mod tests {
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

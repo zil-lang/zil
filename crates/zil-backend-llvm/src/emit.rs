@@ -217,6 +217,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     let FunctionBatch {
         mut body,
         mut intrinsics,
+        mut task_machines,
     } = batches.next().expect("lowering always returns a batch");
     body.reserve(
         collected
@@ -227,7 +228,15 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     for batch in batches {
         body.extend(batch.body);
         intrinsics.extend(batch.intrinsics);
+        task_machines.extend(batch.task_machines);
     }
+    // Child plans require actual machines from every ordered lowering batch.
+    body.extend(tasks::lower_workers(
+        task_machines,
+        &functions,
+        verified,
+        &task_meter,
+    )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
     if copy_plans.needs_helpers() {
@@ -299,6 +308,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     text.append(tasks::runtime(
         lir,
         verified.uses_scalar_tasks(),
+        verified.limits(),
         &task_meter,
     )?);
     if verified.uses_retained_registration() {
@@ -449,6 +459,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
 struct FunctionBatch {
     body: Vec<m::Item>,
     intrinsics: BTreeSet<(&'static str, u32)>,
+    task_machines: Vec<(FunctionId, m::Function)>,
 }
 
 fn resource_head_address(ty: &Type) -> bool {
@@ -471,6 +482,7 @@ fn lower_function_batch(
     task_meter: &tasks::Meter,
 ) -> CompileResult<FunctionBatch> {
     let mut intrinsics = BTreeSet::new();
+    let mut task_machines = Vec::new();
     let empty_copy_plan = copy_aggregates::Plan::new();
     // Finish each function before retaining it: no whole-project Event buffer.
     let mut body =
@@ -500,6 +512,18 @@ fn lower_function_batch(
             continue;
         }
         let task_worker = verified.task_worker_ids().contains(&function.id);
+        let task_symbol = task_worker.then(|| {
+            let base = symbol(function.id);
+            if copy_plans
+                .functions
+                .get(&function.id)
+                .is_some_and(|abi| abi.versioned)
+            {
+                format!("{base}.lc1")
+            } else {
+                base
+            }
+        });
         if !task_worker && let Some(value) = summaries.and_then(|plan| plan.get(&function.id)) {
             body.push(m::Item::Function(scalar_summaries::emit(function, value)));
             continue;
@@ -541,23 +565,29 @@ fn lower_function_batch(
         .emit()?
         .into_items()
         .map_err(machine_error)?;
-        for mut item in emitted {
-            if task_worker && let m::Item::Function(machine) = &item {
-                body.extend(tasks::lower_worker(function.id, machine, task_meter)?);
-                if verified.is_task_export(function.id) {
-                    body.extend(tasks::exports(function.id, task_meter)?);
-                }
-                if verified.is_suspend(function.id) {
+        for item in emitted {
+            let mut item = match item {
+                m::Item::Function(machine)
+                    if task_symbol
+                        .as_ref()
+                        .is_some_and(|symbol| machine.name == *symbol) =>
+                {
+                    task_machines.push((function.id, machine));
                     continue;
                 }
-            }
+                item => item,
+            };
             if let m::Item::Function(machine) = &mut item {
                 scalar_locals::promote(function, machine);
             }
             body.push(item);
         }
     }
-    Ok(FunctionBatch { body, intrinsics })
+    Ok(FunctionBatch {
+        body,
+        intrinsics,
+        task_machines,
+    })
 }
 
 fn machine_error(message: String) -> Vec<Diagnostic> {
@@ -1404,6 +1434,7 @@ impl FunctionEmitter<'_> {
             }
             InstructionKind::TaskStart { .. }
             | InstructionKind::TaskYield
+            | InstructionKind::SuspendCall { .. }
             | InstructionKind::TaskValid { .. }
             | InstructionKind::TaskPoll { .. }
             | InstructionKind::TaskRequestCancel { .. }

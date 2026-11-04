@@ -17,6 +17,7 @@ mod receivers;
 mod records;
 mod resources;
 mod static_traits;
+mod tasks;
 
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{
@@ -89,6 +90,7 @@ fn task_name(name: &str) -> bool {
         "TaskI32"
             | "task_start"
             | "task_yield"
+            | "task_await"
             | "task_valid"
             | "task_poll"
             | "task_request_cancel"

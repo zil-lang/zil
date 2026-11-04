@@ -746,6 +746,7 @@ mod impl243_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(0),
                 name: "recipe".into(),

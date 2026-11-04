@@ -144,6 +144,7 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
         let mut query = expression.clone();
         strip_expr(&mut query);
         let function = CoreFunction {
+            call_kind: None,
             life: None,
             callable_return: None,
             state_parameters: Vec::new(),

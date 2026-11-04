@@ -336,6 +336,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

@@ -577,6 +577,12 @@ fn headers(
                     .saturating_add(1),
                 function.span,
             )?;
+            if bound.life.is_some() {
+                return Err(unsupported(
+                    function.span,
+                    "higher-rank callable life contracts require the complete life consumer",
+                ));
+            }
             for ty in &bound.parameters {
                 validate_type(ty, 0, function.span, budget)?;
             }
@@ -3668,7 +3674,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
-            let offset = usize::from(name == "task_start");
+            let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);
             if arguments.len() != parameters.len() + offset {
                 return Err(error(

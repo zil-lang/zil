@@ -3203,6 +3203,7 @@ mod frontier_tests {
                     }
                 }
                 TypedFunction {
+                    call_kind: zil_ir::CallKind::Direct,
                     reference_return_bound: None,
                     callable_return_contract: None,
                     callable_contract: None,
@@ -3459,6 +3460,7 @@ mod product_parameter_dependency_tests {
             span: Span::default(),
         };
         let function = |id, instructions| TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(id),
             name: format!("f{id}"),

@@ -220,6 +220,12 @@ impl Reuse<'_> {
         let Some(entry) = self.prior.get(key) else {
             return Ok(None);
         };
+        if function
+            .call_kind
+            .is_some_and(|selection| selection != entry.function.call_kind)
+        {
+            return Ok(None);
+        }
         // A matching cache key is not declaration validation. Recheck the
         // current Core life header before returning any prior Typed body.
         let before = state.accounting();
@@ -441,6 +447,7 @@ fn keys(
             signature.id.hash(&mut context);
             signature.public.hash(&mut context);
             f.name.hash(&mut context);
+            f.call_kind.hash(&mut context);
             f.life.is_some().hash(&mut context);
             if let Some(life) = &f.life {
                 // Ordered lexical binders and their dense actual positions
