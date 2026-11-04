@@ -382,6 +382,9 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
     // Pre322 Expand489/665 now608/836: the unchanged sources pay complete
     // lifetime/type-position validation. Types420/610 stay exact.
     // See changes/322-budget-migration-by324.md; N-1/fresh checks remain.
+    // G10.1.5: previous Expand811/1090 and Types505/750 remain historical.
+    // Source-life scope discovery and bounded signature/callable snapshots
+    // now cost 818/1100 and 506/782; see its budget regression notes.
     let minimum = |succeeds: &dyn Fn(usize) -> bool| {
         let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
         assert!(succeeds(high));
@@ -400,13 +403,13 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
     for (source, recorded_expand, recorded_types) in [
         (
             "fn apply<T:Copy,F:Fn(i32)->i32>(f:&F,value:T)->T{f(1);return value}fn main()->i32{let f=(n:i32)=>n+1;return apply(&f,2)-2}",
-            811,
-            505,
+            818,
+            506,
         ),
         (
             include_str!("impl246_fixtures/copy_enum_helper.zil"),
-            1090,
-            750,
+            1100,
+            782,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget246.zil", source);

@@ -3646,7 +3646,10 @@ impl Check<'_, '_, '_> {
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
-                    let mut role_frame = if let Some(bound) = bound {
+                    // Only a checked higher-rank input relation can need a
+                    // role frame. Flat callable bounds have no invocation
+                    // binders to look up in the source generic list.
+                    let mut role_frame = if let Some(bound) = bound.filter(|b| b.life.is_some()) {
                         role_check::Frame::new(
                             &bound.generic_name,
                             self.class_scope.source,

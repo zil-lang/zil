@@ -41,6 +41,14 @@ pub(super) struct Scope<'a> {
 }
 impl<'a> Scope<'a> {
     pub(super) fn new(source: &'a Function, callable: bool, budget: &mut Budget<'_>) -> R<Self> {
+        // A declaration without a callable role cannot have a role-local
+        // class scope. Do not scan or charge its generic list for that query.
+        if !callable {
+            return Ok(Self {
+                source,
+                active: false,
+            });
+        }
         budget.identity_work(source.generics.len(), source.span)?;
         let has_life = source
             .generics
