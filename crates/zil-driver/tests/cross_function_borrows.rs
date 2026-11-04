@@ -28,6 +28,9 @@ mod terminal342_resource_head;
 #[path = "../../../tests/language-readiness/terminal/342/higher_rank.rs"]
 mod terminal342_higher_rank;
 
+#[path = "../../../tests/language-readiness/terminal/342/stored_physical.rs"]
+mod terminal342_stored_physical;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

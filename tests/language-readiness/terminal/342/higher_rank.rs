@@ -348,7 +348,7 @@ fn terminal342_hrtb_actual_mutable_arguments_and_returned_children_keep_windows(
 }
 #[test]
 fn terminal342_hrtb_capture_paths_substitute_actual_storage_through_helpers() {
-    assert_eq!(zil_base::SCHEMA_VERSION, 38);
+    assert_eq!(zil_base::SCHEMA_VERSION, 39);
     assert_eq!(zil_ir::wire::WIRE_VERSION, 38);
     for (valid, invalid) in [
         (
