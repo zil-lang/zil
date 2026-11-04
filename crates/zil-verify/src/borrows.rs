@@ -1370,16 +1370,12 @@ fn check_callback_return(
     graphs: &[FunctionGraph],
     facts: &[Facts],
     d: &ClosureDefinition,
-    life: Option<&FunctionLifeContract>,
+    life: Option<&StorageLifeContract>,
     budget: &mut Budget,
 ) -> Check<()> {
     borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
-        budget.spend(
-            (life.binder_count as usize)
-                .saturating_add(life.parameter_lives.len().saturating_mul(2))
-                .saturating_add(2),
-        )?;
+        budget.spend(super::signature_life::work(life))?;
         borrowed_fp::relation(&d.parameters, &d.result, life, None)?;
     }
     if !matches!(d.result, Type::Address { .. }) {
@@ -1410,7 +1406,8 @@ fn check_callback_return(
                         .get(*index as usize)
                         .is_some_and(|ty| matches!(ty,Type::Address{mutable:m,..} if !mutable||*m))
                         || life.is_some_and(|life| {
-                            life.parameter_lives[*index as usize] != life.result_life
+                            super::signature_life::outer(life, StorageBase::Parameter(*index))
+                                != super::signature_life::outer(life, StorageBase::Result)
                         })
                 })
             {
