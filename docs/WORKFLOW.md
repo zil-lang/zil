@@ -6,19 +6,19 @@
 |---|---|---|
 | 语言行为、架构不变量、拒绝边界和验收族 | `_zil_design.md`及其具名附件 | 稳定规则ID；不在工单重写条件 |
 | 量化预算与场景协议 | `validation/product-gates.json`及批准manifest | 只引用profile，不抄出第二套阈值 |
-| 阶段和覆盖分工 | `_zil_goal.md` | 引用阶段和工单 |
+| 当前目标、分配、工作状态和阻塞 | 独立`goal`分支的`goal.md` | 稳定Goal ID；`_zil_goal.md`只作入口 |
 | 阶段schema与生产者/消费者 | `spec/interfaces.json` | 具体schema与artifact ID |
-| 工单状态、写集、交付与裁决 | 主树`.task/<ID>.md` | worktree只持派工快照 |
+| 实施合同、写集、交付与裁决 | 任务分支`.task/<ID>.md`；main保留有用工程记录 | 引用Goal ID和精确源码；旧状态按提交时点解释 |
 | 规范源样本、未来协议夹具 | `conformance/index.json`、`validation/task-test-plans.json` | case ID，不把登记当执行 |
 | 实际执行证据 | `out/runs/`原始运行，`evidence/`精简收据与反例 | 绑定提交/输入/工具链/profile，大型原始产物独立归档 |
 | 变更原因与历史 | `changes/`和Git | 不覆盖当前规范正文 |
 | 当前工程决策 | `.agent/` | 一点一文件，只留当前规则与边界 |
-| 编号实施切片和往来 | 主树`.task/impl/<号>.md` | 只引用正式父任务，不替代其Done门 |
+| 编号实施切片和必要往来 | 各任务分支`.task/impl/<号>.md` | 引用Goal ID及正式父合同，不另建实时状态副本 |
 | 冷启动摘要 | 生成的`data/handoff.json` | 快照而非权威；接续时重新运行handoff检查 |
 
 ## 2. 输入快照和工单状态
 
-正式状态为Planned→Ready→Doing→Review→Done；返修回Doing，取消必须记录原因及能力的新承接者。本仓已有实际编译器与标量证据，完整公共schema仍由B0交接；状态只从主树工单读取，设计检查和独立准备代码均不触发整单完成。
+当前工作状态及排期只从`goal:goal.md`读取，取消必须记录原因及能力承接者。既有工程合同的Planned/Ready/Doing/Review/Done字段继续按其源码快照及交付含义检查，不作为实时待办；设计检查、建板或独立准备代码均不触发整单完成。正式B0及原有验收条件不因管理迁移改变。
 
 `spec_hash`是设计正文原始字节的SHA256。`normative_hash`覆盖`spec/interfaces.json`列出的全部规范输入，算法为按路径排序后拼接`path + NUL + SHA256(file bytes) + LF`，再对UTF-8结果取SHA256；`python3 tools/check-plan.py --print-hashes`输出当前值。派工还记录任务revision、实际Git基线和案例/工具链输入哈希。
 
@@ -34,7 +34,7 @@ Ready必须有实际base_revision、当前两个hash、明确产物与写集、�
 
 ## 4. 并行与写权
 
-一单一枝一树，正式任务使用`task/<ID>`，编号实施切片以编号命名分支、目录`../zil-<号>`。每树使用独立target、缓存和临时产物；共享仅限只读下载缓存。验收方独占发号、状态、集成及根共享配置，施工方只写分派范围和本单证据。
+一单一枝一树，正式任务使用`task/<ID>`，编号实施切片以编号命名分支、目录`../zil-<号>`。每树使用独立target、缓存和临时产物；共享仅限只读下载缓存。验收方协调发号、goal分配、集成及根共享配置，施工方只写分派范围、分支实施说明和本单证据；工作状态以按Goal ID提交的增量归并到goal，不覆盖整份看板。
 
 B0串行持有建立正式最小链所需的临时广写权；完成后移交各模块，不能仍与模块施工并行修改。T01/T02/T04/T05在接口冻结后互不相交，可并行；后继任务只有在前驱Done后接手相交功能目录。`tools/check-plan.py`对无祖先关系的任务保守检查写集重叠；冲突时缩小写集或显式串行，不能忽略告警。
 
@@ -56,7 +56,7 @@ Done需要`acceptance_record`及真实result.json定位；所有规定case都有
 
 复用证据必须说明源码、测试输入、feature、target、规则、工具链和产物依赖未变或已证明不受影响；“刚测过”不是依据。相交分支依次集成，后合分支吸收已合变化后才固定候选。正式计时独占资源，不与构建/压力测试竞争。
 
-验收方更新主树工单状态；worktree里的工单副本不读不改，派工信息提供主树权威位置。未派工任务保持Planned，施工方不得自己把缺实现状态标Done。已有旧证据归档到对应旧版本；新规范下不沿用旧截图/检查计数冒充本次执行。
+验收方按真实结果更新goal工作状态和交付裁决；实施者维护自身分支工单合同，不改其他任务说明。main旧记录不追加日常状态，仅在规范迁移或实际交付时保留有用合同、决策和验收。未派工任务在goal保留待排期，施工方不得把缺实现状态标Done。已有旧证据归档到对应旧版本；新规范下不沿用旧截图/检查计数冒充本次执行。
 
 ## 7. 变更和阻塞
 
@@ -66,12 +66,18 @@ Done需要`acceptance_record`及真实result.json定位；所有规定case都有
 
 ## 8. Codex冷启动与编号切片
 
-先运行`node tools/handoff.mjs --check`。脚本从Git工作树中查找main，输出当前主树位置和相对工单路径；不依赖工单内保存的旧机器绝对路径。无法唯一定位时显式传`--main-tree PATH`，并验证它属于同一仓库的main分支。只有源码ZIP也可直接构建；要核验历史和继续原分支，另取配套历史bundle，使用其实际路径执行`git clone --branch main <history.bundle路径> zil-checkout`，再从恢复的checkout接续。主源码包只含按 Git 收录规则导出的源码、测试、工具和文档，不放证据、执行产物或 Git 目录；精简审计与可恢复历史另置附件，详见交付 manifest 和 docs/DELIVERY.md。
+先fetch并读取`goal:goal.md`（入口见`_zil_goal.md`），再运行`node tools/handoff.mjs --check`。脚本定位main并检查工程/交付记录，不读取goal内容、不检查全部开发分支，也不从旧工单派实时待办；不依赖旧机器绝对路径。无法唯一定位时显式传`--main-tree PATH`，并验证它属于同一仓库的main分支。只有源码ZIP也可直接构建；要核验历史和继续原分支，另取配套历史bundle，使用其实际路径执行`git clone --branch main <history.bundle路径> zil-checkout`，再从恢复的checkout接续。主源码包只含按 Git 收录规则导出的源码、测试、工具和文档，不放证据、执行产物或 Git 目录；精简审计与可恢复历史另置附件，详见交付 manifest 和 docs/DELIVERY.md。
 
-切片首行状态为施工、待验、退回、已合入或卡住，与JSON一致；JSON保存编号、正式父任务、完整基线、规范摘要、写集、实施者、交付提交、独立审核和合入提交。正文只由集成者调整。末节只追加开工、交付、退回/验收、合入的必要往来，不复制完整对话。
+既有切片首行工程状态为施工、待验、退回、已合入或卡住，与JSON一致；这些字段按快照检查，不当实时看板。实施合同保存编号/Goal ID、父合同、基线、规范摘要、写集、实施者及交付要求，任务分支维护自身说明。main只保留有用交付和独审/合入记录，不持续接收开工日志或聊天。
 
 待验必须有`implementation_author`、`implementation_commit`和结构化evidence引用。已合入还要求`review = {reviewer, verdict: "Pass", implementation_commit, evidence}`，审核者与实施者不同、审核绑定精确交付提交，且`implementation_commit`和`integration_commit`都已进入main历史。本轮使用`git merge --no-ff`保留已审核原提交，保证仅携带main/HEAD的bundle也能恢复审核对象。至少一份审核JSON须包含与工单一致的reviewer、verdict和implementation_commit。证据必须是主树已提交的JSON结果，或交付提交中可读取的JSON结果；聊天、未跟踪日志和文件名本身不构成证据。合入后的工单记录也须提交。
 
 handoff检查记录完整性，不验证审核者身份真实性、审查质量或语言安全，不替代check-plan和正式测试。Git子进程使用临时文件描述符捕获输出以兼容受限环境；任何进程基础设施错误都明确失败，即使同时报告退出状态零。施工只运行本单限定测试；独立审核由另一代理承担；全量由集成者统一执行。当前会话不搬入Cursor专用常驻监听机制，等待和重派由当前可用协作工具管理。
 
-主树集成完成后执行`node tools/handoff.mjs`生成`data/handoff.json`；分树只允许`--check`。摘要不保存绝对工作目录，记录受测提交与实际当前HEAD而不要求它们相等，避免文档/证据提交造成自身哈希循环。接续时重新检查实时记录，不能用旧摘要直接判断完成。之后仍按`python3 tools/check-plan.py --self-test`与工单命令执行相应门。
+主树工程记录交付后可执行`node tools/handoff.mjs`生成`data/handoff.json`；分树只允许`--check`。它是工程快照，实时看板始终在goal分支。摘要不保存绝对工作目录，记录受测提交与实际当前HEAD而不要求它们相等，避免文档/证据提交造成自身哈希循环。接续时重新检查工程记录并另读最新goal，不能用旧摘要直接判断完成。之后仍按`python3 tools/check-plan.py --self-test`与工单命令执行相应门。
+
+## 9. goal独立历史与备份
+
+2026-11-05用户采用独立goal分支，核心为goal.md，不使用Projects。稳定ID标识任务，“实现待验”与“已合入”分开；每阶段按最新远端版本合并小范围更新，普通快进push后核对完整SHA。同任务字段冲突不得自动覆盖或强推。goal不合入main，开发分支不合入goal，不在编译中的工作树切换goal。
+
+源码与计划分别备份，离线bundle显式携带goal引用。main既有历史不改写；有用决策与实际复核/验收随源码交付，不引入第二份当前状态数据库。详见.agent/goal-branch.md。
