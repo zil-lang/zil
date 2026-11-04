@@ -41,6 +41,8 @@ pub(super) struct Budget {
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
+    // Derived only by the complete paid raw-type preflight, never producer metadata.
+    pub(super) task_origin_roots: bool,
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
@@ -80,6 +82,7 @@ impl Budget {
             scoped_threads: false,
             borrowed_function_pointers: false,
             tasks: false,
+            task_origin_roots: false,
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,
@@ -639,6 +642,7 @@ pub(super) fn preflight(
             first.take().or_else(|| pending.pop())
         {
             budget.input(1, "type shape")?;
+            budget.task_origin_roots |= matches!(ty, Type::Task { .. });
             super::tasks::require_closed_context(ty)?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
