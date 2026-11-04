@@ -2,6 +2,7 @@
 //! Source-shaped AST to untrusted Core. No transformation grants safety facts.
 //! Sequence bindings identify ordered evaluations. They do not decide a place's
 //! Copy/Move/Borrow mode or extend a borrow; those decisions remain in zil-types.
+pub mod associated_constants;
 pub mod ct_selection;
 mod dyn_lowering;
 mod enums;

@@ -15,6 +15,71 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn g231_self_associated_constants_effective_and_default_checks() {
+    for text in [
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const B:i32=Self.A+1;const A:i32;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}struct Q{}impl C for Q{const A:i32=99;}impl C for P{const A:i32=41;}fn main()->i32{return P.B+Q.B-142}",
+        "trait C{const A:i32=Self.B+1;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.A+P.B-83}",
+        "trait C{const A:i32;const B:i32;}struct P{}impl C for P{const A:i32=41;const B:i32=Self.A+1;}fn main()->i32{return P.B-42}",
+        "fn add(x:i32)->i32{return x+1}trait C{const A:i32;const B:i32=add(Self.A);}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for (text, code) in [
+        (
+            "trait C{const A:i32=Self.B;const B:i32=Self.A;}struct P{}impl C for P{}fn main(){}",
+            "E-CT-ASSOCIATED-CYCLE",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=2147483647;}fn main(){}",
+            "E-CT-ARITHMETIC",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=2147483647;const B:i32=0;}fn main(){}",
+            "E-CT-ARITHMETIC",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.Missing+1;}fn main(){}",
+            "",
+        ),
+        ("trait C{const A:bool;const B:i32=Self.A+1;}fn main(){}", ""),
+        (
+            "extern \"C\" fn forbidden()->i32;fn impure()->i32{unsafe{return forbidden()}}trait C{const A:i32;const B:i32=Self.A+impure();}fn main(){}",
+            "",
+        ),
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{text}: {}",
+            report.to_json()
+        );
+        if !code.is_empty() {
+            assert!(
+                report.diagnostics.iter().any(|d| d.code == code),
+                "{text}: {}",
+                report.to_json()
+            );
+        }
+    }
+}
+
+#[test]
 fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_kernel_boundary() {
     let files = [
         (
