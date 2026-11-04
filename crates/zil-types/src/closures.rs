@@ -6,6 +6,19 @@ mod methods;
 mod package_effects;
 mod patterns;
 mod slots;
+mod source_context;
+
+pub(super) fn source_owned_capture(ty: &Type) -> bool {
+    source_context::owned_scalar_resource(ty)
+}
+pub(super) fn reserve_source_contexts(
+    rows: &[CoreClosureLifeContext],
+    limits: &Limits,
+    left: &mut usize,
+    copies: usize,
+) -> R<()> {
+    source_context::reserve(rows, limits, left, copies)
+}
 
 #[derive(Clone)]
 pub(super) struct Capture {
@@ -61,6 +74,8 @@ mod reviewer332_thread_lease {
                     result: value,
                 },
                 typed: None,
+                source_context: None,
+                requires_source_context: false,
             });
         }
         state
@@ -303,6 +318,8 @@ pub(super) struct Pending {
     pub defer_action: bool,
     pub inference: Inference,
     pub typed: Option<TypedFunction>,
+    source_context: Option<source_context::Formation>,
+    requires_source_context: bool,
 }
 impl Pending {
     pub fn callable_kind(&self) -> CallableKind {
@@ -360,6 +377,7 @@ pub(super) struct State {
     locals: usize,
     values: usize,
     instructions: usize,
+    source_contexts: source_context::Ledger,
 }
 
 impl State {
@@ -476,6 +494,7 @@ impl State {
             locals: 0,
             values: 0,
             instructions: 0,
+            source_contexts: source_context::Ledger::default(),
         }
     }
 
@@ -675,7 +694,9 @@ impl State {
             .checked_sub(checker.captures.len())
             .ok_or_else(|| limit("byte capture admission budget exceeded", input.span))?;
         let mut owns_leaf_store = false;
+        let mut requires_source_context = false;
         for capture in &mut checker.captures {
+            requires_source_context |= matches!(&capture.ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }));
             if dynamic_store::is_carrier(&capture.stored_type()) {
                 if !capture.moved
                     || !dynamic_store::owned_capture(
@@ -772,6 +793,8 @@ impl State {
             defer_action: input.defer_action,
             inference,
             typed: None,
+            source_context: None,
+            requires_source_context,
         });
         Ok(id)
     }
@@ -804,11 +827,22 @@ impl State {
         Ok((slot, pending))
     }
 
+    pub(super) fn require_source_context(&self, id: ClosureId, span: Span) -> R<()> {
+        let pending = &self.pending[id.0 as usize];
+        if pending.requires_source_context && pending.source_context.is_none() {
+            return Err(unsupported(
+                span,
+                "qualified capture requires its genuine actual creator context",
+            ));
+        }
+        Ok(())
+    }
     pub(super) fn remaining_work(&self) -> usize {
         self.work_left
     }
 
-    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+    pub fn finish(mut self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+        self.finish_source_contexts()?;
         let mut remaining = self.work_left;
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
@@ -864,13 +898,37 @@ impl State {
                     })?;
                     Ok(())
                 })?;
-                borrowed_fp_qualified::capture_relation(
-                    &parameters,
-                    &captures,
-                    &result,
-                    life,
-                    pending.span,
-                )?;
+                if pending.source_context.is_some() {
+                    for capture in &captures {
+                        if let Type::Managed(payload) = capture
+                            && let Type::Record { fields, .. } = payload.as_ref()
+                        {
+                            remaining = remaining
+                                .checked_sub(fields.len().saturating_mul(2))
+                                .ok_or_else(|| {
+                                    limit(
+                                        "owned source capture classification work exceeded",
+                                        pending.span,
+                                    )
+                                })?;
+                        }
+                    }
+                    borrowed_fp_qualified::source_capture_relation(
+                        &parameters,
+                        &captures,
+                        &result,
+                        life,
+                        pending.span,
+                    )?;
+                } else {
+                    borrowed_fp_qualified::capture_relation(
+                        &parameters,
+                        &captures,
+                        &result,
+                        life,
+                        pending.span,
+                    )?;
+                }
             }
             definitions.push(ClosureDefinition {
                 storage_life: typed.storage_life.clone(),
@@ -2537,6 +2595,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             }
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
+            }
+            Type::Address {
+                mutable: false,
+                inner,
+            } if matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
+                    if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()) =>
+            {
+                (inner.as_ref(), Some(false))
             }
             Type::Address { mutable, inner }
                 if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>

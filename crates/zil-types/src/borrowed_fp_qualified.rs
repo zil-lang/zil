@@ -9,7 +9,7 @@ pub(super) fn relation(
     life: &StorageLifeContract,
     span: Span,
 ) -> R<()> {
-    relation_inner(parameters, None, result, life, span)
+    relation_inner(parameters, None, result, life, span, false)
 }
 
 pub(super) fn capture_relation(
@@ -18,6 +18,25 @@ pub(super) fn capture_relation(
     result: &Type,
     life: &StorageLifeContract,
     span: Span,
+) -> R<()> {
+    capture_profile(parameters, captures, result, life, span, false)
+}
+pub(super) fn source_capture_relation(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    life: &StorageLifeContract,
+    span: Span,
+) -> R<()> {
+    capture_profile(parameters, captures, result, life, span, true)
+}
+fn capture_profile(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    life: &StorageLifeContract,
+    span: Span,
+    source_owned: bool,
 ) -> R<()> {
     let scalar = |ty: &Type| {
         matches!(
@@ -35,7 +54,7 @@ pub(super) fn capture_relation(
         )
     };
     if !scalar(result) || parameters.iter().any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
-        || captures.iter().any(|ty| !(scalar(ty) || matches!(ty, Type::Address { mutable: false, inner } if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. })))) {
+        || captures.iter().any(|ty| !(scalar(ty) || source_owned && closures::source_owned_capture(ty) || matches!(ty, Type::Address { mutable: false, inner } if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. })))) {
         return Err(unsupported(span, "captured Fixed requires scalar result and shared finite environment"));
     }
     if life.fixed_binder_count == 0 && life.invocation_binder_count == 0 {
@@ -45,7 +64,7 @@ pub(super) fn capture_relation(
             "vacuous capture relation must be omitted",
         ));
     }
-    relation_inner(parameters, Some(captures), result, life, span)
+    relation_inner(parameters, Some(captures), result, life, span, source_owned)
 }
 
 fn relation_inner(
@@ -54,6 +73,7 @@ fn relation_inner(
     result: &Type,
     life: &StorageLifeContract,
     span: Span,
+    source_owned: bool,
 ) -> R<()> {
     struct Check<'a> {
         life: &'a StorageLifeContract,
@@ -68,6 +88,7 @@ fn relation_inner(
         mutable_invocation: Vec<bool>,
         span: Span,
         captured: bool,
+        source_owned: bool,
     }
     impl Check<'_> {
         fn invalid(&self, message: &str) -> Diagnostic {
@@ -196,6 +217,9 @@ fn relation_inner(
                 Type::BorrowedStorage { .. } => {
                     self.classes(ty, base, false, result)?;
                 }
+                ty if self.source_owned
+                    && matches!(base, StorageBase::Capture(_))
+                    && closures::source_owned_capture(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
@@ -236,6 +260,7 @@ fn relation_inner(
         mutable_invocation: vec![false; life.invocation_binder_count as usize],
         span,
         captured: captures.is_some(),
+        source_owned,
     };
     for (index, parameter) in parameters.iter().enumerate() {
         let ordinal = u32::try_from(index)

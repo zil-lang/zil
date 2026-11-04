@@ -259,7 +259,7 @@ impl Builder<'_, '_> {
                 body,
                 span: e.span,
             };
-            self.closure_expression(input, expected)?
+            self.closure_expression(input, expected, Some(e.id))?
         };
         Ok(result)
     }
