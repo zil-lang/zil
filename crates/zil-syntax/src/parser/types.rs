@@ -251,7 +251,10 @@ impl Parser<'_> {
             let mut args = Vec::new();
             loop {
                 let start = p.peek().span;
-                if matches!(p.peek().kind, TokenKind::Integer | TokenKind::Float)
+                if p.peek().kind == TokenKind::Lifetime {
+                    let token = p.bump();
+                    args.push(GenericArg::Lifetime(p.text(&token)[1..].to_owned()));
+                } else if matches!(p.peek().kind, TokenKind::Integer | TokenKind::Float)
                     || p.at_word("true")
                     || p.at_word("false")
                 {

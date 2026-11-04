@@ -81,6 +81,7 @@ mod retained_tests;
 mod scoped_callback;
 mod scoped_thread;
 mod slices;
+mod stored_borrows;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
@@ -1700,10 +1701,7 @@ fn check_instruction(
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
-            return Err(unsupported(
-                "stored-borrow instruction consumer is not yet implemented",
-                span,
-            ));
+            stored_borrows::instruction(function, instruction, budget)?
         }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }

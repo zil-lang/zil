@@ -687,5 +687,28 @@
       "Canonical generic ForLifetime identity",
       "general State/lending/dyn and borrowed Task ports"
     ]
+  },
+  "stored_source_and_instruction_typing_wip": {
+    "status": "WIP_NotAStoredBorrowConsumerPass",
+    "base": "0c07a7806",
+    "scope": "Nominal lifetime syntax transport and independent physical instruction typing only",
+    "actual_slice_iter_fixture": "tests/language-readiness/terminal/342/slice_iter.zil",
+    "actual_slice_iter_parse": "Pass; ordinary struct/factory/impl/Option with three held element results",
+    "source_kind_order_test": "Lifetime/Type/Const exact argument ordinal retained",
+    "actual_slice_iter_semantics_and_native": "NotImplemented; BorrowedStorage type and contract admission remain Unsupported",
+    "cfg_target_init_epoch_proof": "NotImplemented; instruction typing does not grant it",
+    "check_driver_llvm_api": "Pass",
+    "terminal342_scope": {
+      "passed": 41,
+      "failed": 0,
+      "filtered": 37
+    },
+    "clippy_cross_target": "Pass -D warnings after collapsing one nested if",
+    "logs": {
+      "342-storage-source-syntax.log": "303758366c20935186fa1ef605b65181f8961916da207faca893f84220fbe817",
+      "342-storage-typing-check.log": "1fed7de6a76b67502317ef839b81a90f02b71670092f384b6711e2b7aa2a014b",
+      "342-storage-typing-regressions.log": "4b823b99b2cba6c3afac5a63bf394445565f3ebcee5be81d1df33e45e75a3dbf",
+      "342-storage-typing-clippy2.log": "5042eb8bc3ff37d7ec41b8c0668dab4d829fe6ea51ffdcf7caf68dbf694c654c"
+    }
   }
 }
