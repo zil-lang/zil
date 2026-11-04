@@ -291,6 +291,110 @@ fn product315(body: &str, helpers: &str) -> String {
 }
 
 #[test]
+fn original_owned_write315_has_real_ticket_cleanup_and_failure_controls() {
+    // These are the unchanged original owned-write315 bytes. G1.3 now carries
+    // an actual ticket through this finite Managed<CopyRecord> address lane.
+    let original = product315(
+        "replace(&mut panel);return 0",
+        "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
+    );
+    replacement_ticket_routes(&original, false);
+    native("owned-write315-original", &original, "", 0);
+
+    let success = format!(
+        "{HEAD}package Panel{{manages mark:Mark;count:i32}}fn replace(panel:&mut Panel){{panel.mark=Mark{{code:66}}}}fn main()->i32{{var panel=Panel{{mark:Mark{{code:65}},count:0}};replace(&mut panel);emit(88);return panel.mark.code-66}}"
+    );
+    replacement_ticket_routes(&success, false);
+    // A is the old owner's drop before the call returns; B is the committed
+    // owner, dropped exactly once after the caller's X marker.
+    native("owned-write315-old-drop-store", &success, "AXB", 0);
+    for (prepared, stdout) in [(false, "XA"), (true, "BXA")] {
+        let rhs = if prepared {
+            "make(Mark{code:66},fail()?)"
+        } else {
+            "Mark{code:fail()?}"
+        };
+        let failure = format!(
+            "{HEAD}package Panel{{manages mark:Mark;count:i32}}enum F{{Bad}}fn fail()->F!i32{{return F.Bad()}}fn make(give spare:Mark,n:i32)->Mark contract{{result(create)}}{{return Mark{{code:n}}}}fn replace(panel:&mut Panel)->F!i32{{panel.mark={rhs};return 0}}fn main()->i32{{var panel=Panel{{mark:Mark{{code:65}},count:0}};match replace(&mut panel){{.ok(_)=>{{return 1}},.err(_)=>{{emit(88);return panel.mark.code-65}}}}}}"
+        );
+        replacement_ticket_routes(&failure, true);
+        native("owned-write315-rhs-failure", &failure, stdout, 0);
+    }
+
+    for (label, text, code) in [
+        (
+            "owned-write315-shared-parent",
+            original.replace("replace(panel:&mut Panel)", "replace(panel:&Panel)"),
+            "E-ADDRESS-PERMISSION",
+        ),
+        (
+            "owned-write315-live-parent-loan",
+            product315(
+                "let held=&panel;replace(&mut panel);return held.count",
+                "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
+            ),
+            "E-BORROW-CONFLICT",
+        ),
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), label, text),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+fn replacement_ticket_routes(text: &str, abort: bool) {
+    let module = typed(text);
+    let function = module
+        .functions
+        .iter()
+        .find(|f| f.name == "replace")
+        .unwrap();
+    let mut tickets = Vec::new();
+    let (mut commits, mut aborts) = (Vec::new(), Vec::new());
+    for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+        match &instruction.kind {
+            I::ReservePlaceAddress {
+                reservation,
+                address,
+                path,
+            } => {
+                assert_eq!(path.as_slice(), &[zil_ir::PlaceProjection::Field(0)]);
+                assert!(matches!(
+                    &function.values[address.0 as usize],
+                    zil_ir::Type::Address { mutable: true, .. }
+                ));
+                tickets.push(*reservation);
+            }
+            I::CommitPlaceReplace { reservation, .. } => commits.push(*reservation),
+            I::AbortPlaceReservation { reservation } => aborts.push(*reservation),
+            _ => {}
+        }
+    }
+    assert_eq!(tickets.len(), 1);
+    assert_eq!(commits, tickets);
+    assert_eq!(!aborts.is_empty(), abort);
+    assert!(aborts.iter().all(|id| tickets.contains(id)));
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan, &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+}
+
+#[test]
 fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
     native(
         "mutable-product-refill315",
@@ -414,12 +518,6 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
             "let held=escape(&mut panel);return held.count",
             "fn escape(panel:&mut Panel)->&mut Panel{return panel}",
             ResultCategory::Unsupported,
-        ),
-        (
-            "owned-write315",
-            "replace(&mut panel);return 0",
-            "fn replace(panel:&mut Panel){panel.mark=Mark{n:9}}",
-            ResultCategory::SafeReject,
         ),
     ] {
         reject(label, &product315(body, helpers), category);
@@ -791,17 +889,6 @@ fn reject(label: &str, source: &str, category: ResultCategory) {
     );
     fs::write(path.join("report.json"), report.to_json()).unwrap();
     assert_eq!(report.status, category, "{label}: {}", report.to_json());
-    if label == "owned-write315" {
-        assert_eq!(report.phase, Phase::Analyze);
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("responsibility unpaid")),
-            "{}",
-            report.to_json()
-        );
-    }
 }
 #[test]
 fn original_relay_retains_shell_age_and_unchanged_cleanup_oracle() {
