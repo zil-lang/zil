@@ -1255,7 +1255,11 @@ impl<'a> Engine<'a> {
                 self.budget.text(text, e.span)?;
                 Ok(["f32", "f64"]
                     .into_iter()
-                    .find(|suffix| text.ends_with(suffix))
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
                     .or(default_integer.then_some("f64"))
                     .map(|suffix| named(suffix, e.span)))
             }
@@ -1562,9 +1566,11 @@ impl<'a> Engine<'a> {
                 }
             }
             ExprKind::Literal(Literal::Float(text)) => {
-                let suffix = ["f32", "f64"]
-                    .into_iter()
-                    .find(|suffix| text.ends_with(suffix));
+                let suffix = ["f32", "f64"].into_iter().find(|suffix| {
+                    text.ends_with(suffix)
+                        || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                        || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                });
                 if suffix.is_none() && expected.is_some_and(check::floating) {
                     self.budget.ty(expected.unwrap())?;
                     expected.cloned()

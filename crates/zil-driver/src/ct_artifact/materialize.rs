@@ -137,39 +137,20 @@ impl super::hygiene::Context for Materializer<'_, '_> {
 
 impl Materializer<'_, '_> {
     fn float_expression(&mut self, value: &zil_ir::Constant, span: Span) -> CompileResult<s::Expr> {
-        use zil_base::numeric::{FloatSource, FloatValue};
-        let (value, suffix) = match value {
-            zil_ir::Constant::F32(bits) => (FloatValue::F32(*bits), "f32"),
-            zil_ir::Constant::F64(bits) => (FloatValue::F64(*bits), "f64"),
+        use zil_base::numeric::FloatValue;
+        let value = match value {
+            zil_ir::Constant::F32(bits) => FloatValue::F32(*bits),
+            zil_ir::Constant::F64(bits) => FloatValue::F64(*bits),
             _ => unreachable!("floating reification caller"),
         };
-        // Formatting operates only on fixed-width IEEE bits. Reserve its bounded
-        // work, text and all three possible generated nodes before allocation.
-        self.environment.budget.reserve_analysis_work(8192)?;
-        self.environment.budget.reserve_temporary_bytes(64)?;
-        self.environment.budget.reserve_generated_nodes(3)?;
-        let literal = |text: &str| s::Expr {
+        // Preserve every raw bit, including noncanonical/signaling NaNs. This
+        // generated-only fixed spelling goes directly to Core Constant.
+        self.environment.budget.reserve_analysis_work(26)?;
+        self.environment.budget.reserve_temporary_bytes(26)?;
+        self.environment.budget.reserve_generated_nodes(1)?;
+        Ok(s::Expr {
             span,
-            kind: s::ExprKind::Literal(s::Literal::Float(format!("{text}{suffix}"))),
-        };
-        Ok(match value.source() {
-            FloatSource::Finite(text) => literal(&text),
-            FloatSource::Infinity { negative } => s::Expr {
-                span,
-                kind: s::ExprKind::Binary {
-                    op: s::BinaryOp::Divide,
-                    left: Box::new(literal(if negative { "-1.0" } else { "1.0" })),
-                    right: Box::new(literal("0.0")),
-                },
-            },
-            FloatSource::Nan => s::Expr {
-                span,
-                kind: s::ExprKind::Binary {
-                    op: s::BinaryOp::Divide,
-                    left: Box::new(literal("0.0")),
-                    right: Box::new(literal("0.0")),
-                },
-            },
+            kind: s::ExprKind::Literal(s::Literal::Float(value.generated_spelling())),
         })
     }
     fn depth(&self, depth: usize, span: Span) -> CompileResult<()> {
