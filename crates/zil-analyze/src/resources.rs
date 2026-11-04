@@ -427,6 +427,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),
         InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
+        InstructionKind::TaskCreate { arguments, .. } => (None,None,arguments),
         InstructionKind::TaskValid { task }
         | InstructionKind::TaskPoll { task }
         | InstructionKind::TaskRequestCancel { task }
@@ -1381,6 +1382,11 @@ impl Flow<'_> {
                         )?;
                     }
                     forget_order(state, *local, budget)?;
+                }
+                InstructionKind::TaskCreate { arguments, .. } => {
+                    budget.spend(arguments.len(),"task transferred inputs")?;
+                    for &v in arguments {self.consume(state,v,check,budget)?;}
+                    produced=Some(Fact{life:BTreeSet::from([Life::Available]),birth:BTreeSet::from([Birth::Created]),sources:BTreeSet::new()});
                 }
                 InstructionKind::RegistrationStart { callback, .. } => {
                     self.consume(state, *callback, check, budget)?;

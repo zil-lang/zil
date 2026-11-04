@@ -456,6 +456,10 @@ fn recipe(
     if callable::parameter_mode(ty, formal) == Some(None) {
         return Ok(CoreAggregateTypeRecipe::Parameter { index: 0 });
     }
+    if let TypeKind::Named{path,args}=&grouped(ty).kind
+        && path.as_slice()==["Task"]
+        && let [GenericArg::Type(result)]=args.as_slice()
+    {return Ok(CoreAggregateTypeRecipe::Task{result:Box::new(recipe(result,formal,families,budget,depth+1)?)});}
     if let Some(element) = stores::element(ty) {
         return Ok(CoreAggregateTypeRecipe::Store {
             element: Box::new(recipe(element, formal, families, budget, depth + 1)?),

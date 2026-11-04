@@ -1104,7 +1104,7 @@ fn scoped_transition(
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
 fn tracked_desc(ty: &Type) -> bool {
-    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
+    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
@@ -1644,7 +1644,7 @@ fn infer_with_private(
                     }
                 } else {
                     match &instruction.kind {
-                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
                         {
                             found.insert(Root::Local(*local));
                         }
