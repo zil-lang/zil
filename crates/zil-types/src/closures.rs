@@ -435,6 +435,17 @@ impl State {
         Ok(())
     }
 
+    pub(super) fn snapshot_type(
+        &mut self,
+        ty: &Type,
+        copies: usize,
+        extra: usize,
+        span: Span,
+    ) -> R<()> {
+        self.snapshot(extra, span)?;
+        inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
+    }
+
     // Thread-only queries join this request's existing work counter. General
     // expression inference keeps its historical independent Graph profile.
     pub(super) fn thread_result(&mut self, id: ClosureId) -> R<Option<Type>> {

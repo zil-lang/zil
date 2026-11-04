@@ -148,6 +148,36 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
     Ok(limits.max_analysis_steps - budget.work)
 }
 
+/// Borrow only the caller's currently remaining allowance. Charge successful
+/// visits even when planning stops early; a failed planner cannot refund work.
+pub(super) fn charge_type_snapshot(
+    ty: &Type,
+    span: Span,
+    limits: &Limits,
+    remaining: &mut usize,
+    copies: usize,
+) -> R<()> {
+    let allowance = remaining.checked_div(copies).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "invalid type snapshot multiplier", Some(span))
+    })?;
+    let mut budget = Budget::new(limits);
+    budget.work = budget.work.min(allowance);
+    let before = budget.work;
+    let result = validate_type(ty, 0, span, &mut budget);
+    let consumed = before - budget.work;
+    let debit = consumed.checked_mul(copies).ok_or_else(|| {
+        Diagnostic::limit(Phase::Types, "type snapshot debit overflow", Some(span))
+    })?;
+    *remaining = remaining.checked_sub(debit).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "type snapshot caller allowance exceeded",
+            Some(span),
+        )
+    })?;
+    result
+}
+
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
     if let Some(life) = &bound.life {
         budget.work(borrowed_fp::metadata_work(life), span)?;
@@ -3709,8 +3739,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     self.bind_term(&term, wanted, argument.span)?;
                 }
                 validate_type(&signature.result, 0, span, self.budget)?;
-                let work = type_snapshot_work(&signature.result, span, self.budget.limits)?;
-                self.budget.work(work.saturating_mul(4), span)?;
+                charge_type_snapshot(
+                    &signature.result,
+                    span,
+                    self.budget.limits,
+                    &mut self.budget.work,
+                    4,
+                )?;
                 return self.known_term(&tasks::create_type(&signature.result), span);
             }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
@@ -3747,8 +3782,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 if let Some(actual) = self.graph.ty(v)?
                     && let Some(task @ Type::Task { .. }) = tasks::payload(&actual)
                 {
-                    let work = type_snapshot_work(task, span, self.budget.limits)?;
-                    self.budget.work(work.saturating_mul(6), span)?;
+                    charge_type_snapshot(task, span, self.budget.limits, &mut self.budget.work, 6)?;
                     let parameter = tasks::parameter_for(name, task);
                     self.bind_term(&term, &parameter, argument.span)?;
                     returned = tasks::result_for(name, task);

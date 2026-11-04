@@ -144,16 +144,13 @@ pub(super) fn add_definition(
         if let Type::Managed(p) | Type::Desc(p) = ty
             && let Some(payload) = payload(p)
         {
-            let work = inference::type_snapshot_work(payload, functions[0].span, limits)?;
-            *left = left
-                .checked_sub(work.saturating_mul(definitions.len().saturating_add(4)))
-                .ok_or_else(|| {
-                    Diagnostic::limit(
-                        Phase::Types,
-                        "task definition identity budget exceeded",
-                        None,
-                    )
-                })?;
+            inference::charge_type_snapshot(
+                payload,
+                functions[0].span,
+                limits,
+                left,
+                definitions.len().saturating_add(4),
+            )?;
             if !definitions.iter().any(|d| d.payload == *payload) {
                 let name = match payload {
                     Type::TaskI32 => TASK_I32_RESOURCE_NAME.into(),
@@ -251,21 +248,48 @@ impl Builder<'_, '_> {
                     "task_create requires a static worker",
                 ));
             };
-            let signature = self.resolve_callee(worker_expr)?.clone();
-            if signature.foreign
-                || signature.cleanup
-                || !signature.callable.is_empty()
-                || signature.template.is_some()
-                || signature.type_parameter.is_some()
-                || signature.receiver.is_some()
-            {
-                return Err(error(
-                    "E-TASK-WORKER",
-                    worker_expr.span,
-                    "task_create requires an ordinary concrete static worker",
-                ));
-            }
-            if arguments.len() != signature.parameters.len() + 1 {
+            let before = self.closures.remaining_work();
+            let mut remaining = before;
+            let prepared = (|| -> R<(FunctionId, Vec<Type>, Type)> {
+                let signature = self.resolve_callee(worker_expr)?;
+                if signature.foreign
+                    || signature.cleanup
+                    || !signature.callable.is_empty()
+                    || signature.template.is_some()
+                    || signature.type_parameter.is_some()
+                    || signature.receiver.is_some()
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        worker_expr.span,
+                        "task_create requires an ordinary concrete static worker",
+                    ));
+                }
+                for parameter in &signature.parameters {
+                    inference::charge_type_snapshot(
+                        parameter,
+                        span,
+                        self.limits,
+                        &mut remaining,
+                        1,
+                    )?;
+                }
+                inference::charge_type_snapshot(
+                    &signature.result,
+                    span,
+                    self.limits,
+                    &mut remaining,
+                    4,
+                )?;
+                Ok((
+                    signature.concrete_id(worker_expr.span)?,
+                    signature.parameters.clone(),
+                    signature.result.clone(),
+                ))
+            })();
+            self.closures.snapshot(before - remaining, span)?;
+            let (worker, parameters, worker_result) = prepared?;
+            if arguments.len() != parameters.len() + 1 {
                 return Err(error(
                     "E-CALL-ARITY",
                     span,
@@ -273,20 +297,18 @@ impl Builder<'_, '_> {
                 ));
             }
             let mut inputs = Vec::new();
-            for (argument, wanted) in arguments[1..].iter().zip(&signature.parameters) {
+            for (argument, wanted) in arguments[1..].iter().zip(&parameters) {
                 let (v, t) = self.argument_expr(argument, wanted)?;
                 self.same(&t, wanted, argument.span)?;
                 inputs.push(v);
             }
-            let work = inference::type_snapshot_work(&signature.result, span, self.limits)?;
-            self.closures.snapshot(work.saturating_mul(4), span)?;
-            let ty = create_type(&signature.result);
+            let ty = create_type(&worker_result);
             if let Some(wanted) = expected {
                 self.same(&ty, wanted, span)?;
             }
             let v = self.value(
                 InstructionKind::TaskCreate {
-                    worker: signature.concrete_id(worker_expr.span)?,
+                    worker,
                     arguments: inputs,
                 },
                 ty.clone(),
@@ -299,11 +321,14 @@ impl Builder<'_, '_> {
             while let CoreExprKind::Unary { operand, .. } = &expression.kind {
                 expression = operand;
             }
-            if let Some(actual) = self.known_type(expression)
-                && let Some(task @ Type::Task { .. }) = payload(&actual)
+            let local = match &expression.kind {
+                CoreExprKind::Name(name) => self.lookup(name),
+                _ => None,
+            };
+            if let Some(actual) = local.map(|id| &self.function.locals[id.0 as usize].ty)
+                && let Some(task @ Type::Task { .. }) = payload(actual)
             {
-                let work = inference::type_snapshot_work(task, span, self.limits)?;
-                self.closures.snapshot(work.saturating_mul(6), span)?;
+                self.closures.snapshot_type(task, 6, 0, span)?;
                 let parameter = parameter_for(name, task);
                 let ty = result_for(name, task);
                 let (task, t) = self.argument_expr(&arguments[0], &parameter)?;
@@ -382,5 +407,117 @@ impl Builder<'_, '_> {
             self.same(&ty, expected, span)?;
         }
         Ok((self.value(kind, ty.clone(), span)?, ty))
+    }
+}
+
+#[cfg(test)]
+mod terminal343_snapshot_budget {
+    use super::*;
+    fn function(ty: Type) -> TypedFunction {
+        TypedFunction {
+            call_kind: CallKind::Direct,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(0),
+            name: "metadata".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![],
+            return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            locals: vec![],
+            values: vec![ty],
+            blocks: vec![],
+            entry: BlockId(0),
+            span: Span::default(),
+        }
+    }
+    #[test]
+    fn remaining_work_stops_task_definition_and_result_before_deep_tail() {
+        let limits = Limits {
+            max_call_depth: 8,
+            ..Limits::default()
+        };
+        let mut ty = Type::I32;
+        for _ in 0..32 {
+            ty = Type::Record {
+                name: "R".into(),
+                fields: vec![("x".into(), ty)],
+            };
+        }
+        let task = Type::Task {
+            result: Box::new(ty),
+        };
+        assert!(
+            inference::type_snapshot_work(&task, Span::default(), &limits)
+                .unwrap_err()
+                .message
+                .contains("depth")
+        );
+        for copies in [4, 6] {
+            let mut state = closures::State::new(0, &limits);
+            state
+                .snapshot(limits.max_analysis_steps - 8, Span::default())
+                .unwrap();
+            let error = state
+                .snapshot_type(&task, copies, 0, Span::default())
+                .unwrap_err();
+            assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+            assert!(error.message.contains("work"), "{error:?}");
+            assert!(
+                state.remaining_work() < 8,
+                "failed planner refunded consumed visits"
+            );
+        }
+        let functions = [function(Type::Managed(Box::new(task)))];
+        let mut left = 10;
+        let error = add_definition(&functions, &mut vec![], &mut left, &limits).unwrap_err();
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        assert!(error.message.contains("work"), "{error:?}");
+        assert_eq!(left, 0, "failed definition planning refunded visits");
+    }
+    #[test]
+    fn task_definition_and_result_exact_remaining_boundary() {
+        let limits = Limits::default();
+        let task = Type::Task {
+            result: Box::new(Type::I32),
+        };
+        for copies in [4, 6] {
+            let n =
+                inference::type_snapshot_work(&task, Span::default(), &limits).unwrap() * copies;
+            for (amount, success) in [(n, true), (n - 1, false), (n, true)] {
+                let mut state = closures::State::new(0, &limits);
+                state
+                    .snapshot(limits.max_analysis_steps - amount, Span::default())
+                    .unwrap();
+                let result = state.snapshot_type(&task, copies, 0, Span::default());
+                assert_eq!(result.is_ok(), success, "{result:?}");
+                if !success {
+                    assert_eq!(
+                        result.unwrap_err().category,
+                        zil_base::ResultCategory::ResourceLimit
+                    );
+                }
+            }
+        }
+        let functions = [function(Type::Managed(Box::new(task)))];
+        let minimum = (1..128)
+            .find(|&n| {
+                let mut left = n;
+                add_definition(&functions, &mut vec![], &mut left, &limits).is_ok()
+            })
+            .unwrap();
+        for (mut amount, success) in [(minimum, true), (minimum - 1, false), (minimum, true)] {
+            let result = add_definition(&functions, &mut vec![], &mut amount, &limits);
+            assert_eq!(result.is_ok(), success, "{result:?}");
+            if !success {
+                assert_eq!(
+                    result.unwrap_err().category,
+                    zil_base::ResultCategory::ResourceLimit
+                );
+            }
+        }
+        eprintln!("task343 exact definition ledger N={minimum}");
     }
 }

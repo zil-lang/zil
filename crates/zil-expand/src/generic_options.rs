@@ -224,6 +224,9 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
     for item in &module.items {
         let declared = match &item.kind {
             ItemKind::TypeAlias(a) => Some(a.name.as_str()),
+            ItemKind::Extern { function, .. } => Some(function.name.as_str()),
+            ItemKind::Const(c) => Some(c.name.as_str()),
+            ItemKind::Trait(t) => Some(t.name.as_str()),
             ItemKind::Import(i) => i
                 .alias
                 .as_deref()
@@ -232,8 +235,13 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
         };
         if let Some(name) = declared {
             budget.text(name, item.span)?;
+            let comparisons = occupied
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+                .saturating_mul(12);
             budget.identity_work(
-                occupied.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                name.len().saturating_add(1).saturating_mul(comparisons),
                 item.span,
             )?;
             occupied.insert(name);
@@ -243,7 +251,17 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
     for public in ["Poll", "TaskCreateError", "TaskPollState"] {
         let target = task_declaration(public).unwrap();
         for qualified in [true, false] {
-            if occupied.contains(if qualified { "std" } else { public }) {
+            let key = if qualified { "std" } else { public };
+            let comparisons = occupied
+                .len()
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+                .saturating_mul(12);
+            budget.identity_work(
+                key.len().saturating_add(1).saturating_mul(comparisons),
+                span,
+            )?;
+            if occupied.contains(key) {
                 continue;
             }
             let generic = public == "Poll";
@@ -283,4 +301,65 @@ fn task_aliases(module: &Module, span: Span, budget: &mut Budget<'_>) -> R<Vec<I
         }
     }
     Ok(aliases)
+}
+
+#[cfg(test)]
+mod terminal343_namespace_budget {
+    use super::*;
+    #[test]
+    fn common_prefix_standard_namespace_inventory_is_prepaid_at_exact_boundary() {
+        fn input(prefix: usize) -> Module {
+            let mut text = String::new();
+            for i in 0..16 {
+                text.push_str(&format!(
+                    "struct {}_{i} {{x:i32}}\n",
+                    "Namespace".repeat(prefix)
+                ));
+            }
+            text.push_str("fn worker(x:i32)->i32=>x;fn main(){let t=task_create(worker,42);}");
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "namespace.zil",
+                text,
+            );
+            zil_syntax::parse(&source).into_result().unwrap()
+        }
+        let limits = Limits::default();
+        let mut boundaries = vec![];
+        for prefix in [1, 32] {
+            let module = input(prefix);
+            let accepts = |n| {
+                prepare(
+                    &module,
+                    &Limits {
+                        max_analysis_steps: n,
+                        ..limits.clone()
+                    },
+                )
+            };
+            let (mut lo, mut hi) = (1, limits.max_analysis_steps);
+            accepts(hi).unwrap();
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2;
+                if accepts(mid).is_ok() {
+                    hi = mid;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            accepts(lo).unwrap();
+            assert_eq!(
+                accepts(lo - 1).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            accepts(lo).unwrap();
+            boundaries.push(lo);
+        }
+        assert!(boundaries[1] > boundaries[0] * 2, "{boundaries:?}");
+        eprintln!(
+            "task343 namespace exact source boundaries short={} long={}",
+            boundaries[0], boundaries[1]
+        );
+    }
 }
