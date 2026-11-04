@@ -1,0 +1,62 @@
+{
+  "status": "PassLimitedWithPendingStringProjection",
+  "source_commit": "1ecad2c5d611af976c5a821d181ac478d1d10465",
+  "author": "/root",
+  "independent_review": "Pending",
+  "scope": "Ordinary embedded-source loader, UTF8 scalar decode and existing transactional edit reuse; does not claim complete standard library, String or ZUI.",
+  "commands": [
+    {
+      "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core terminal345 -- --nocapture",
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "filtered": 3,
+        "native_configs": 4,
+        "backends": [
+          "Clang",
+          "LlvmApi"
+        ],
+        "optimizations": [
+          "O0",
+          "O2"
+        ]
+      }
+    },
+    {
+      "command": "cargo clippy --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core -- -D warnings",
+      "status": "Pass"
+    }
+  ],
+  "controls": [
+    "real UTF8 scalar positions, malformed overlong/surrogate/out-of-range/truncated inputs",
+    "real transactional editor and unchanged output after invalid UTF8 insertion",
+    "same-name filesystem module cannot replace distributed bytes",
+    "manually forged reserved library bytes rejected after positive source control",
+    "private helper rejected",
+    "exact source-byte budget N succeeds twice, N-1 rejects warm and fresh; current Verify executes"
+  ],
+  "source_sha256": {
+    "crates/zil-driver/src/project.rs": "a8186d774d96ee379b2aa711533443499c84090aafeeadb8dfbd9ff6836f0c6c",
+    "crates/zil-driver/src/stdlib.rs": "65e8ed76823ae859bc49cde2637ec6e90c4dd90dd5dc8a0d2f93f4e8bc928bbd",
+    "crates/zil-driver/tests/impl236_zui_core.rs": "b0e73d2685b3d1dea5d8ec6960f8661abe72bce5ad1a272f78c7bc2b33963c59",
+    "lib/std/string.zil": "85864ee8e3d0ac1da8630e16e281c565c1dd281bee3404cfee3735347cbb103d",
+    "lib/std/text_edit.zil": "18c5d7ca53cc7f69396a9fba66a753623910feb2b0abd4dc7a49c12721769533",
+    "lib/std/utf8.zil": "5365cda0606940d39bd3764419673feed5c546122efb69c94879128d08b5d577",
+    "tests/language-readiness/terminal/345/library.rs": "be7ca5c2a21dea17e45f6e64c8fabfcdfb8422eaca9d68562e563a82426dc202",
+    "tests/language-readiness/terminal/345/string.zil": "b665f762f0222a52f0f1e30e46e8bdb9c0294f3f3cb621683a46c716485aa57e",
+    "tests/language-readiness/terminal/345/utf8.zil": "4b3fb43e86632bd60e598f854cf69100e6c792003c5c7f4c06851aac18a340d5"
+  },
+  "pending": [
+    {
+      "source": "tests/language-readiness/terminal/345/string.zil",
+      "failure": "Types Unsupported projecting Managed(ByteBuffer) through &String; life342 assigned real root and read/write permission implementation; original source retained."
+    }
+  ],
+  "rust_goals": {
+    "safety": "ordinary kernels, no standard-module trust privilege; explicit view/owner controls pending String completion",
+    "cost": "reuse existing native byte buffer and edit loops; no host-language bridge or benchmark claim",
+    "abstraction": "versioned ordinary source modules; String API exposes a concrete remaining compiler composition gap",
+    "tooling": "actual sources keyed in project identity and bounded prior to loading/byte comparison",
+    "advance": "ordinary module API exercises full compiler path rather than a compiler-only string primitive"
+  }
+}
