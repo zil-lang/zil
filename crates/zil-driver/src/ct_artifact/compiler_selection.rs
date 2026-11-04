@@ -351,6 +351,12 @@ impl Selection<'_, '_> {
     ) -> R<bool> {
         self.compiler.budget.depth(depth, expression.span)?;
         Ok(match &expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                let domain = self
+                    .compiler
+                    .ct_only_type(module, ty, depth + 1, &mut Vec::new())?;
+                domain | self.expr(module, value, locals, depth + 1)?
+            }
             s::ExprKind::Quote { .. }
             | s::ExprKind::MetaSplice(_)
             | s::ExprKind::SyntaxIsland { .. } => true,

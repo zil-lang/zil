@@ -242,6 +242,59 @@ impl<'a> Compiler<'a> {
         self.budget.depth(depth, ty.span)?;
         Ok(match &ty.kind {
             s::TypeKind::Group(inner) => self.ty(module, inner, depth + 1)?,
+            s::TypeKind::Union(parts) => {
+                let mut members = Vec::new();
+                for part in parts {
+                    self.budget.node(part.span)?;
+                    members.push(self.ty(module, part, depth + 1)?);
+                }
+                if self.checking_generics {
+                    let mut flat = Vec::new();
+                    for member in members {
+                        if let CtTy::AnonymousSum(parts) = member {
+                            flat.extend(parts)
+                        } else {
+                            flat.push(member)
+                        }
+                    }
+                    for member in &flat {
+                        for _ in 0..flat.len().saturating_add(2) {
+                            self.budget.ty(member, 0, ty.span)?;
+                        }
+                    }
+                    flat.sort_by(metadata::symbolic_order);
+                    if flat.len() < 2 || flat.windows(2).any(|v| v[0] == v[1]) {
+                        return Err(error(ty.span, "anonymous sum repeats a complete member"));
+                    }
+                    CtTy::AnonymousSum(flat)
+                } else {
+                    let mut meter = zil_ct::CtExecutionBudget::new(self.budget.declared());
+                    let result = zil_ct::canonical_artifact_sum(
+                        members,
+                        &self.records,
+                        &self.enums,
+                        &mut meter,
+                    );
+                    let usage = meter.usage();
+                    Budget::take(
+                        &mut self.budget.nodes,
+                        usize::try_from(usage.generated_nodes).unwrap_or(usize::MAX),
+                        ty.span,
+                        "CT sum identity nodes exhausted",
+                    )?;
+                    self.budget.work(
+                        usize::try_from(usage.analysis_work).unwrap_or(usize::MAX),
+                        ty.span,
+                    )?;
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        usize::try_from(usage.peak_temporary_bytes).unwrap_or(usize::MAX),
+                        ty.span,
+                        "CT sum identity bytes exhausted",
+                    )?;
+                    result?
+                }
+            }
             s::TypeKind::Tuple(fields) if fields.is_empty() => CtTy::Scalar(CtScalarTy::Unit),
             s::TypeKind::Tuple(fields) => {
                 let mut out = Vec::new();
@@ -380,9 +433,11 @@ impl<'a> Compiler<'a> {
                         let id = CtRecordSchemaId(self.records.len() as u32);
                         let name = self.symbol(owner, item.span)?;
                         let mut schema_arguments = Vec::new();
-                        for argument in &arguments {
-                            self.budget.copy_ty(argument, 0, ty.span)?;
-                            schema_arguments.push(CtSchemaArgument::Type(argument.clone()));
+                        if !self.checking_generics {
+                            for argument in &arguments {
+                                let graph = self.metadata_data(argument, ty.span, depth + 1)?;
+                                schema_arguments.push(CtSchemaArgument::Type(graph));
+                            }
                         }
                         self.record_sources.push((owner, a));
                         self.record_arguments.push(arguments);
@@ -475,7 +530,7 @@ impl<'a> Compiler<'a> {
             }
         })
     }
-    fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
+    pub(super) fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
         self.budget.work(1, expression.span)?;
         if let s::ExprKind::Literal(s::Literal::Integer(text)) = &expression.kind {
             self.budget.text(text, expression.span)?;

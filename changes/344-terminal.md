@@ -278,3 +278,17 @@ These bounded shapes establish this regression fix, not a theorem for all input.
 ### CT3完整名义实参的公共元数据修正
 
 普通phantom函数指针参数可形成合法类型，但CtSchemaArgument::Type(CtTy)不能表达其完整身份。根集成方将尚未验收的CT3合同修正为Type(CtTypeRef)，复用同一规范有界TypeDAG；Scalar编码不变。实际CT字段和值继续只接受CtTy纯值，不生成运行时指针。两种元数据表示不并存，声明实例的全部有序参数、关系、图规范及来源须由独立核验证；当前生产CT2与历史v2字节不改写为新v3。344随后实现元数据绑定和可序列化值绑定的区分并保留phantom FP正反例。
+
+### CT3 source-value WIP checkpoint after root37 composition
+
+The retained `artifact-values.zil` now executes the verified CT artifact lane,
+reifies both active nominal members with the complete anonymous Sum type, and
+passes ordinary Verify plus Clang/LLVM API O0/O2 native execution with result42.
+Generated-only AST Ascribed nodes carry both the whole sum and each active
+payload's full type; they enter the ordinary Expand/Types/Analyze/Verify path.
+The source enum matcher independently resolves the complete owner instance:
+nearest Left.V passes and the retained wrong-owner Right.V candidate rejects
+E-CT-SOURCE. The exact two-test command and output are recorded in
+`/tmp/344-ct3-source-bridge-second.log`; this is a construction checkpoint, not
+acceptance of all CT3 source metadata. Phantom fn/BFP argument binding, complete
+visitor/accounting controls, and final composition replay remain unfinished.

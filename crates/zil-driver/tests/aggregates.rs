@@ -5334,3 +5334,49 @@ fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
         );
     }
 }
+
+#[test]
+fn ct3_anonymous_artifact_value_source_bridge() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/artifact-values.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    eprintln!("{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+}
+#[test]
+fn ct3_enum_match_checks_actual_owner_source() {
+    let legal = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-enum-owner-legal.zil"
+    );
+    let report = compile_source(&source(legal), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let wrong =
+        include_str!("../../../tests/language-readiness/codegen-pending/ct3-wrong-enum-owner.zil");
+    let report = compile_source(&source(wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-CT-SOURCE" && d.message.contains("owner")),
+        "{}",
+        report.to_json()
+    );
+}

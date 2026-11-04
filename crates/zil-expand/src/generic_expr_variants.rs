@@ -9,6 +9,21 @@ pub(super) struct ExprExpectedContext<'a> {
     pub(super) store_success_context: Option<&'a TypeRef>,
 }
 impl Engine<'_> {
+    pub(super) fn expr_variant_ascribed(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        let ExprKind::Ascribed { ty, value } = &mut e.kind else {
+            unreachable!("ascription dispatch")
+        };
+        self.ty(ty, depth + 1)?;
+        self.expr_expected(value, env, Some(ty), depth + 1)?;
+        self.budget.ty(ty)?;
+        Ok(Some(ty.clone()))
+    }
+
     pub(super) fn expr_constant_type(
         &mut self,
         e: &mut Expr,

@@ -789,6 +789,10 @@ impl<'a> Budget<'a> {
             self.text("self", e.span)?;
         }
         match &e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty_at(ty, depth + 1, subs)?;
+                self.expr(value, depth + 1, subs)
+            }
             ExprKind::Literal(..) => self.expr_literal(e, depth, subs),
             ExprKind::Name(..) | ExprKind::ReceiverMember(..) => self.expr_name(e, depth, subs),
             ExprKind::Group(..)
