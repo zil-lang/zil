@@ -8,6 +8,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 pub(super) mod product;
+mod replacements;
 mod summary_graph;
 pub(crate) mod sums;
 
@@ -41,6 +42,8 @@ enum Life {
 enum Birth {
     Created,
     Incoming,
+    Argument(u32),
+    Captured(u32),
 }
 type PackageValues = BTreeMap<(ValueId, u32), BTreeSet<Birth>>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -69,6 +72,7 @@ struct Shape {
 struct Effect {
     arguments: BTreeSet<u32>,
     borrowed_fields: BTreeSet<u32>,
+    replacements: replacements::Effects,
 }
 type Shapes = BTreeMap<Place, Shape>;
 pub(super) type Live = BTreeSet<Place>;
@@ -661,6 +665,36 @@ fn afters(
     shapes: &Shapes,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
+    afters_reserved(f, reachable, shapes, None, budget)
+}
+fn retained_uses(
+    live: &mut Live,
+    values: &[ValueId],
+    shapes: &Shapes,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    budget.spend(values.len(), "replacement retained operand scan")?;
+    for value in values {
+        budget.lookup(
+            shapes.len().saturating_add(live.len()),
+            "replacement retained operand liveness",
+        )?;
+        if shapes
+            .get(&Place::Value(*value))
+            .is_some_and(|shape| shape.description)
+        {
+            live.insert(Place::Value(*value));
+        }
+    }
+    Ok(())
+}
+fn afters_reserved(
+    f: &TypedFunction,
+    reachable: &[bool],
+    shapes: &Shapes,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
     budget.product(f.blocks.len(), 2, 1, "resource liveness blocks")?;
     let mut entry = vec![Live::new(); f.blocks.len()];
     let mut exit = entry.clone();
@@ -683,8 +717,11 @@ fn afters(
             }
             budget.spend(live.len(), "description liveness exit clone")?;
             exit[b] = live.clone();
-            for instruction in block.instructions.iter().rev() {
+            for (position, instruction) in block.instructions.iter().enumerate().rev() {
                 reverse(&mut live, instruction, shapes, budget)?;
+                if let Some(reserved) = reserved {
+                    retained_uses(&mut live, &reserved[b][position], shapes, budget)?;
+                }
             }
             budget.spend(
                 live.len().saturating_add(entry[b].len()).saturating_add(1),
@@ -708,6 +745,9 @@ fn afters(
             budget.spend(live.len(), "description liveness history clone")?;
             rows[j] = live.clone();
             reverse(&mut live, i, shapes, budget)?;
+            if let Some(reserved) = reserved {
+                retained_uses(&mut live, &reserved[b][j], shapes, budget)?;
+            }
         }
         result.push(rows);
     }
@@ -723,7 +763,7 @@ pub(super) fn address_afters(
     reachable: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
-    address_afters_inner(f, reachable, false, budget)
+    address_afters_inner(f, reachable, false, None, budget)
 }
 
 // Capturing an address transports its last-use dependency into the actual
@@ -734,7 +774,7 @@ pub(super) fn capture_afters(
     reachable: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
-    address_afters_inner(f, reachable, true, budget)
+    address_afters_inner(f, reachable, true, None, budget)
 }
 
 pub(super) fn capture_carrier(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
@@ -753,10 +793,20 @@ pub(super) fn capture_carrier(ty: &Type, budget: &mut Budget) -> CompileResult<b
     Ok(budget.address_capture_closures.contains(id))
 }
 
+pub(super) fn reserved_address_afters(
+    f: &TypedFunction,
+    reachable: &[bool],
+    captures: bool,
+    reserved: &[Vec<Vec<ValueId>>],
+    budget: &mut Budget,
+) -> CompileResult<Vec<Vec<Live>>> {
+    address_afters_inner(f, reachable, captures, Some(reserved), budget)
+}
 fn address_afters_inner(
     f: &TypedFunction,
     reachable: &[bool],
     captures: bool,
+    reserved: Option<&[Vec<Vec<ValueId>>]>,
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<Live>>> {
     budget.spend(
@@ -791,7 +841,7 @@ fn address_afters_inner(
     if shapes.is_empty() || (captures && !has_capture) {
         return Ok(Vec::new());
     }
-    afters(f, reachable, &shapes, budget)
+    afters_reserved(f, reachable, &shapes, reserved, budget)
 }
 fn live_sources(state: &State, fact: &Fact, budget: &mut Budget) -> CompileResult<()> {
     if fact.sources.is_empty() {
@@ -980,6 +1030,7 @@ struct Flow<'a> {
     views: &'a BTreeMap<LocalId, u32>,
     dependencies: Option<&'a summary_graph::Dependencies>,
     sums: Option<&'a sums::Plan>,
+    replacements: Option<&'a replacements::Program>,
 }
 impl Flow<'_> {
     fn package_source(
@@ -1091,6 +1142,9 @@ impl Flow<'_> {
                     check,
                     budget,
                 )?;
+            }
+            if let Some(program) = self.replacements {
+                program.step(self, state, effect, i, check, budget)?;
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
@@ -2559,13 +2613,30 @@ impl Flow<'_> {
                                 let value = arguments
                                     .get(*parameter as usize)
                                     .ok_or_else(|| error("missing callee argument"))?;
-                                record_write(
-                                    &copied(state, Place::Value(*value), budget)?.sources,
-                                    effect,
-                                    shared,
-                                    check,
-                                    budget,
-                                )?;
+                                if self.replacements.is_some() {
+                                    budget.lookup(
+                                        self.shapes.len(),
+                                        "replacement ordinary effect carrier",
+                                    )?;
+                                }
+                                if self.replacements.is_none()
+                                    || self.shapes.contains_key(&Place::Value(*value))
+                                {
+                                    record_write(
+                                        &copied(state, Place::Value(*value), budget)?.sources,
+                                        effect,
+                                        shared,
+                                        check,
+                                        budget,
+                                    )?;
+                                } else if self.replacements.is_none() {
+                                    return Err(error(
+                                        "callee write effect has no actual resource carrier",
+                                    ));
+                                }
+                                // New ordinary owning addresses use their actual
+                                // route/mode substitution above. They are not
+                                // fabricated resource descriptions or debts.
                             }
                         }
                     }
@@ -2860,6 +2931,28 @@ fn analyze_function_with_dependencies(
     budget: &mut Budget,
     dependencies: Option<&summary_graph::Dependencies>,
 ) -> CompileResult<Effect> {
+    analyze_function_program(
+        module,
+        f,
+        reachable,
+        effects,
+        check,
+        budget,
+        dependencies,
+        None,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn analyze_function_program(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    check: bool,
+    budget: &mut Budget,
+    dependencies: Option<&summary_graph::Dependencies>,
+    replacements: Option<&replacements::Program>,
+) -> CompileResult<Effect> {
     if f.foreign.is_some() {
         return Ok(Effect::default());
     }
@@ -2900,7 +2993,14 @@ fn analyze_function_with_dependencies(
             );
         }
         if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
-            fact.birth.insert(Birth::Incoming);
+            fact.birth.insert(if replacements.is_some() {
+                match place {
+                    Place::Capture(index) => Birth::Captured(*index),
+                    _ => Birth::Incoming,
+                }
+            } else {
+                Birth::Incoming
+            });
         }
         if let Place::PackageField { local, index } = place
             && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
@@ -2921,7 +3021,15 @@ fn analyze_function_with_dependencies(
             let mut fact = Fact::default();
             if s.owned {
                 fact.life.insert(Life::Available);
-                fact.birth.insert(Birth::Incoming);
+                fact.birth.insert(
+                    if replacements.is_some()
+                        && matches!(f.locals[local.0 as usize].ty, Type::Managed(_))
+                    {
+                        Birth::Argument(index as u32)
+                    } else {
+                        Birth::Incoming
+                    },
+                );
                 for (place, old) in &initial.cells {
                     budget.spend(1, "incoming resource order")?;
                     if let Place::Local(older) = place
@@ -2963,6 +3071,7 @@ fn analyze_function_with_dependencies(
         views: &views,
         dependencies,
         sums: sums.as_ref(),
+        replacements,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {
@@ -3118,7 +3227,9 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
     let before = (target.arguments.len(), target.borrowed_fields.len());
     target.arguments.extend(found.arguments);
     target.borrowed_fields.extend(found.borrowed_fields);
-    Ok(before != (target.arguments.len(), target.borrowed_fields.len()))
+    let replacements_changed =
+        replacements::grow(&mut target.replacements, &found.replacements, budget)?;
+    Ok(replacements_changed || before != (target.arguments.len(), target.borrowed_fields.len()))
 }
 
 fn infer_effects(
@@ -3233,9 +3344,26 @@ pub(super) fn check_module(
             return Ok(());
         }
     }
-    let effects = infer_effects(module, graphs, budget)?;
-    for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
-        analyze_function(module, f, reachable, &effects, true, budget)?;
+    if budget.replacement_functions.is_empty() {
+        let effects = infer_effects(module, graphs, budget)?;
+        for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+            analyze_function(module, f, reachable, &effects, true, budget)?;
+        }
+    } else {
+        let program = replacements::Program::new(module, graphs, budget)?;
+        let effects = replacements::infer(module, graphs, &program, budget)?;
+        for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+            analyze_function_program(
+                module,
+                f,
+                reachable,
+                &effects,
+                true,
+                budget,
+                None,
+                Some(&program),
+            )?;
+        }
     }
     Ok(())
 }
@@ -3349,6 +3477,7 @@ fn analyze_function_eager_reference(
         views: &views,
         dependencies: None,
         sums: sums.as_ref(),
+        replacements: None,
     };
     let mut effect = Effect::default();
     while let Some(b) = stack.pop() {

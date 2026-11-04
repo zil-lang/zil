@@ -1,0 +1,81 @@
+{
+  "status": "ConstructionProducerCheckpoint",
+  "baseline": "443297a82fccc4ffc13577b791bf5dc3e15557ee",
+  "schema": 39,
+  "scope": "Actual source Types/Analyze closed Managed<Copy Record> position replacement; Verify and native remain unfinished. No whole-language acceptance.",
+  "bindings": {
+    "recipe": "Sort Git tracked + untracked nonignored paths. Production: root Cargo.toml/Cargo.lock; crates/**/Cargo.toml and crates/**/src/**/*.rs. Tests/fixtures: crates/**/tests/**/*.rs and all files tests/language-readiness/**. Digest concatenates path, NUL, lowercase file SHA256, newline.",
+    "production": {
+      "count": 407,
+      "sha256": "d9419a6532d81f9628fe4b616ecf4cca095703c2f8a039b1bcf451aaee665eae"
+    },
+    "tests_fixtures": {
+      "count": 790,
+      "sha256": "4c56d623519f2d7554883f14bc9fb0f889c780ff574222356135452bce246780"
+    }
+  },
+  "passed": [
+    {
+      "command": "cargo test -p zil-analyze --lib",
+      "passed": 135
+    },
+    {
+      "command": "cargo test -p zil-types --lib",
+      "passed": 37
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_owner_replacement_ -- --skip terminal340_owner_replacement_preserves_freshness_and_real_cleanup",
+      "passed": 3
+    },
+    {
+      "command": "cargo test -p zil-verify --lib place_replacements::",
+      "passed": 2,
+      "limitation": "Static ticket inventory/schedule component only; runtime consumer remains fenced."
+    },
+    {
+      "command": "cargo clippy -p zil-types -p zil-analyze --all-targets -- -D warnings",
+      "status": "Pass"
+    }
+  ],
+  "component_boundaries": {
+    "analyze_ticket_protocol": 149,
+    "analyze_birth_route_frontier": 4193,
+    "verify_ticket_protocol": 405
+  },
+  "known_failures": [
+    {
+      "test": "terminal340_owner_replacement_preserves_freshness_and_real_cleanup",
+      "observed": "Unsupported at Verify reservation consumer gate, 0/1; retained active native success expectation."
+    },
+    {
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340_ -- --skip terminal340_owner_replacement_preserves_freshness_and_real_cleanup",
+      "passed": 45,
+      "failed": 8,
+      "observed": "All eight failures are unchanged Expand sources returning E-GENERIC-ARGUMENT StoreElement fields require finite Copy or explicit direct manages resources; no Expand file is modified in this checkpoint. Parent notified; no reclassification as Pass."
+    }
+  ],
+  "harnesses": {
+    "analyze": {
+      "path": "/workspace/.zil-env/target340/debug/deps/zil_analyze-8dde3b1c204420d7",
+      "sha256": "cb3b4c8ac4896088e06f42cd28ff4e24ee37abe09c6666ed7866bfe83eabdb3f"
+    },
+    "types": {
+      "path": "/workspace/.zil-env/target340/debug/deps/zil_types-d5152f4b31c0c65a",
+      "sha256": "abc24c948648c7be7036a056c123dab0dbfea8a4e6a23f7a1a606cf758db34cf"
+    },
+    "aggregates": {
+      "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "cc8596c5ce5074d891e0e2908a137c0cdfd4ab7d69e46b04bd0ee6264ee0c70c"
+    },
+    "verify_protocol": {
+      "path": "/workspace/.zil-env/target340/debug/deps/zil_verify-e5c00ec0866c83e5",
+      "sha256": "3072dadc13c1c93dd76d719e3c43eb7526ea99eaa4b225c2c88c63e1dc37e38c"
+    }
+  },
+  "remaining": [
+    "Independent Verify actual resource freshness/pins/loans and raw/Wire denial controls",
+    "LLVM old-owner teardown then prepared-value store, native O0/O2 success and RHS-failure drop order",
+    "Actual captured RHS birth precision and generic public callable-helper replacement envelope",
+    "Store/borrowed storage, general owning aggregate endpoints, partial refill and remaining original340 combinations"
+  ]
+}

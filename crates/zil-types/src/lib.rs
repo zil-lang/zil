@@ -35,6 +35,7 @@ mod names;
 mod owned_enums;
 mod owned_shapes;
 mod owning_factory;
+mod owning_place_replace;
 mod packages;
 mod partial_patterns;
 mod preparation;
@@ -579,6 +580,8 @@ struct Builder<'a, 'c> {
     next_unsafe_region: u32,
     resource_temps: Vec<LocalId>,
     resource_temp_floor: usize,
+    next_replacement: u32,
+    prepared_replacements: Vec<owning_place_replace::Prepared>,
     sequenced_values: std::collections::BTreeSet<LocalId>,
     managed_slots: std::collections::BTreeSet<LocalId>,
     managed_slot_work: usize,
@@ -667,6 +670,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             next_unsafe_region: 0,
             resource_temps: Vec::new(),
             resource_temp_floor: 0,
+            next_replacement: 0,
+            prepared_replacements: Vec::new(),
             sequenced_values: std::collections::BTreeSet::new(),
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
@@ -773,6 +778,13 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.block(body)?;
         if self.current.is_some() {
             if self.function.return_type == Type::Unit {
+                if !self.prepared_replacements.is_empty() {
+                    return Err(error(
+                        "E-PLACE-REPLACE",
+                        body.span,
+                        "ordinary function completion leaves an owning replacement prepared",
+                    ));
+                }
                 self.end_scopes_kind(0, CleanupExitKind::Return, body.span)?;
                 self.terminate(Terminator::Return(None));
             } else {
@@ -1061,6 +1073,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         self.end_scopes_kind(depth, CleanupExitKind::Fallthrough, span)
     }
     fn end_scopes_kind(&mut self, depth: usize, kind: CleanupExitKind, span: Span) -> R<()> {
+        self.abort_exiting_replacements(depth, kind, span)?;
         for index in (depth..self.scopes.len()).rev() {
             let mut locals = self.scopes[index].values().copied().collect::<Vec<_>>();
             locals.sort_unstable_by(|a, b| b.cmp(a));
@@ -1131,11 +1144,19 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn stmt(&mut self, s: &CoreStatement) -> R<()> {
         let previous = self.resource_temp_floor;
+        let replacement_floor = self.prepared_replacements.len();
         self.resource_temp_floor = self.resource_temps.len();
         let result = (|| {
             let rewritten = self.rewrite_managed_statement(s)?;
             self.stmt_inner(rewritten.as_ref().unwrap_or(s))?;
             if self.current.is_some() {
+                if self.prepared_replacements.len() != replacement_floor {
+                    return Err(error(
+                        "E-PLACE-REPLACE",
+                        s.span,
+                        "normal statement failed to settle its owning replacement",
+                    ));
+                }
                 self.finish_resource_temps(s.span)?;
             }
             Ok(())

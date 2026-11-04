@@ -66,7 +66,7 @@ pub(super) struct Budget<'a> {
     work: usize,
 }
 impl<'a> Budget<'a> {
-    fn new(limits: &'a zil_base::Limits) -> Self {
+    pub(super) fn new(limits: &'a zil_base::Limits) -> Self {
         Self {
             limits,
             nodes: 0,
