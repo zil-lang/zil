@@ -133,6 +133,40 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
             .flat_map(|b| &b.instructions)
             .any(|i| matches!(i.kind, zil_ir::InstructionKind::LoadStoredBorrow { .. }))
     }));
+    let mut low = 1;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let tight = Limits {
+            max_analysis_steps: middle,
+            ..limits.clone()
+        };
+        if zil_types::check(&core, &target, &tight).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let tight = Limits {
+        max_analysis_steps: high,
+        ..limits.clone()
+    };
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    assert_eq!(
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: high - 1,
+                ..limits.clone()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        ResultCategory::ResourceLimit
+    );
+    assert_eq!(zil_types::check(&core, &target, &tight).unwrap(), typed);
+    eprintln!("stored source Types work N={high}; N-1 ResourceLimit; fresh N stable");
     let mut wrong = core.clone();
     wrong.aggregates[0].fields[0].ty = zil_ir::Type::I64;
     assert!(zil_types::check(&wrong, &target, &limits).is_err());
@@ -155,6 +189,27 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
     assert_eq!(
         again, normalized,
         "normalization changes the actual stored identity"
+    );
+    let mut exported = program.clone();
+    let make = exported.modules[0]
+        .core
+        .functions
+        .iter()
+        .position(|f| f.name == "make")
+        .unwrap();
+    let make_id = exported.modules[0].core.functions[make].id;
+    exported.modules[0].exports.push(make_id);
+    let first = zil_types::check_program(&exported, &target, &limits).unwrap();
+    let contract = exported.modules[0].core.functions[make]
+        .storage_life
+        .as_mut()
+        .unwrap();
+    contract.invocation_binder_count += 1;
+    contract.bindings.last_mut().unwrap().binder = zil_ir::StorageBinder::Invocation(1);
+    let altered = zil_types::check_program(&exported, &target, &limits).unwrap();
+    assert_ne!(
+        first.interfaces[0].signature_fingerprint, altered.interfaces[0].signature_fingerprint,
+        "an untrusted exported relation was erased from interface identity"
     );
 }
 
