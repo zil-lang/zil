@@ -1,0 +1,7 @@
+# 340 generic pattern-reference origins
+
+Independent exact019 Parse→Expand probes confirmed that unused generic match/if-let/while-let bodies could replace a Copy ErrorUnion parent before a later payload-reference use. The new reference pattern had only a fresh binding-local identity, with no referent loan. Concrete Analyze/Verify rejected corresponding instantiated code, but erased unused definitions still require their own check.
+
+The correction retains the actual scrutinee origin before bindings, appends real Field/Variant/ErrorArm paths and seeds resulting reference locals through the existing definition-time alias engine with parent loan ancestry. A binding local is never its own referent. Path-prefix overlaps are conservative across differing tags and genuinely separate sibling fields only within the same actual inline aggregate. Shared/mutable modes, mutation invalidation, branch/loop joins and last-use release remain the ordinary alias semantics. Fresh scrutinee temporaries receive distinct actual preparation roots and expire at the expression/condition boundary; borrowed inputs keep their existing parameter roots.
+
+Required controls preserve stale/fresh source pairs for match/if-let/while-let and addressed parent helper mutation, with disjoint sibling/root positives. No new public permission metadata or implicit address is introduced. This finding remains open until the exact controls execute.

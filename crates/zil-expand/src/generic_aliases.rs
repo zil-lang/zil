@@ -2,16 +2,37 @@
 //! fresh borrow identities; neither a type slot nor a concrete instance grants
 //! an alias proof. Concrete Analyze and Verify still rebuild their own facts.
 use super::*;
+use std::rc::Rc;
+use zil_ir::PlaceProjection;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct Position {
     owner: usize,
     field: Option<usize>,
+    route: Option<Rc<[PlaceProjection]>>,
 }
 impl Position {
-    fn overlaps(self, other: Self) -> bool {
-        self.owner == other.owner
-            && (self.field.is_none() || other.field.is_none() || self.field == other.field)
+    fn steps(&self) -> &[PlaceProjection] {
+        self.route.as_deref().unwrap_or(&[])
+    }
+    fn overlaps(&self, other: &Self) -> bool {
+        if self.owner != other.owner || matches!((self.field,other.field),(Some(a),Some(b)) if a!=b)
+        {
+            return false;
+        }
+        for (a, b) in self.steps().iter().zip(other.steps()) {
+            match (a, b) {
+                (PlaceProjection::Field(a), PlaceProjection::Field(b)) if a != b => return false,
+                (PlaceProjection::Variant(a), PlaceProjection::Variant(b))
+                    if a.variant == b.variant && a.index != b.index =>
+                {
+                    return false;
+                }
+                (a, b) if a == b => {}
+                _ => return true,
+            }
+        }
+        true
     }
 }
 
@@ -171,7 +192,7 @@ impl Check<'_, '_, '_> {
                     parents.push(mapping[parent]);
                 }
                 let value = Loan {
-                    position: loan.position,
+                    position: loan.position.clone(),
                     mutable: loan.mutable,
                     parents,
                     invalid: loan.invalid,
@@ -295,7 +316,7 @@ impl Check<'_, '_, '_> {
                             parents.extend(&loan.parents);
                             parents.push(*id);
                             origins.push(Origin {
-                                position: loan.position,
+                                position: loan.position.clone(),
                                 parents,
                             });
                         }
@@ -323,6 +344,7 @@ impl Check<'_, '_, '_> {
                     position: Position {
                         owner: local.id,
                         field: None,
+                        route: None,
                     },
                     parents: Vec::new(),
                 }])
@@ -331,6 +353,7 @@ impl Check<'_, '_, '_> {
                 let mut origins = self.alias_origins(object, state, depth + 1)?;
                 for origin in &mut origins {
                     if origin.position.field.is_none()
+                        && origin.position.steps().is_empty()
                         && let MemberName::Name(name) | MemberName::Constrained { name, .. } =
                             member
                     {
@@ -374,7 +397,7 @@ impl Check<'_, '_, '_> {
                     let mut parents = loan.parents.clone();
                     parents.push(id);
                     origins.push(Origin {
-                        position: loan.position,
+                        position: loan.position.clone(),
                         parents,
                     });
                 }
@@ -408,7 +431,14 @@ impl Check<'_, '_, '_> {
             self.alias_fee(tree_work(aliases.loans.len()).saturating_add(1), span)?;
             let held = self.aliases.active[index];
             let loan = &aliases.loans[&held.loan];
-            if loan.position.overlaps(position) && (moving || mutable || held.mutable) {
+            self.alias_fee(
+                loan.position
+                    .steps()
+                    .len()
+                    .saturating_add(position.steps().len()),
+                span,
+            )?;
+            if loan.position.overlaps(&position) && (moving || mutable || held.mutable) {
                 return Err(error(
                     span,
                     "State field conflicts with a prepared callee or argument window",
@@ -416,9 +446,16 @@ impl Check<'_, '_, '_> {
             }
         }
         for (id, loan) in &mut aliases.loans {
-            self.alias_fee(through.len().saturating_add(2), span)?;
+            self.alias_fee(
+                through
+                    .len()
+                    .saturating_add(2)
+                    .saturating_add(loan.position.steps().len())
+                    .saturating_add(position.steps().len()),
+                span,
+            )?;
             if !through.contains(id)
-                && loan.position.overlaps(position)
+                && loan.position.overlaps(&position)
                 && (moving || mutable || loan.mutable)
             {
                 loan.invalid = true;
@@ -476,7 +513,7 @@ impl Check<'_, '_, '_> {
         for origin in &origins {
             self.alias_access(
                 state,
-                origin.position,
+                origin.position.clone(),
                 mutable,
                 &through,
                 false,
@@ -515,7 +552,11 @@ impl Check<'_, '_, '_> {
         let id = self.alias_new(
             state,
             Origin {
-                position: Position { owner, field: None },
+                position: Position {
+                    owner,
+                    field: None,
+                    route: None,
+                },
                 parents: Vec::new(),
             },
             mutable,
@@ -633,7 +674,18 @@ impl Check<'_, '_, '_> {
         field: Option<usize>,
         span: Span,
     ) -> R<()> {
-        self.alias_access(state, Position { owner, field }, true, &[], true, span)
+        self.alias_access(
+            state,
+            Position {
+                owner,
+                field,
+                route: None,
+            },
+            true,
+            &[],
+            true,
+            span,
+        )
     }
 
     pub(super) fn alias_replace_place(&mut self, target: &Expr, state: &mut State) -> R<()> {
@@ -672,7 +724,7 @@ impl Check<'_, '_, '_> {
         for origin in origins {
             self.alias_access(
                 state,
-                origin.position,
+                origin.position.clone(),
                 false,
                 &through,
                 false,
@@ -723,7 +775,7 @@ impl Check<'_, '_, '_> {
         for id in &ids {
             let aliases = state.aliases.as_ref().expect("alias result has records");
             self.alias_fee(tree_work(aliases.loans.len()), span)?;
-            let position = aliases.loans[id].position;
+            let position = aliases.loans[id].position.clone();
             self.alias_access(state, position, mutable, &through, false, span)?;
         }
         let growth = if ids.len()
@@ -861,7 +913,7 @@ impl Check<'_, '_, '_> {
                 chain.extend(&loan.parents);
                 chain.push(parent.loan);
                 let origin = Origin {
-                    position: loan.position,
+                    position: loan.position.clone(),
                     parents: chain,
                 };
                 let id = self.alias_new(state, origin, *mutable, span)?;
