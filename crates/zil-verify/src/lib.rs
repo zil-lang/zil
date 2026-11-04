@@ -1697,6 +1697,18 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        // Publication precedes the independent pin/ownership consumers. Keep
+        // raw reservations closed until those consumers are complete.
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::ReservePlaceAddress { .. }
+        | InstructionKind::CommitPlaceReplace { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => {
+            return Err(Diagnostic::unsupported(
+                Phase::Verify,
+                "owning-place reservation consumers are under construction",
+                span,
+            ));
+        }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
         | InstructionKind::RegistrationClose { .. } => {
@@ -3029,6 +3041,10 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => ([None, None], &[]),
+        InstructionKind::ReservePlaceAddress { address, .. } => ([Some(*address), None], &[]),
+        InstructionKind::CommitPlaceReplace { value, .. } => ([Some(*value), None], &[]),
         InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),
@@ -3047,8 +3063,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
 
-        InstructionKind::PlaceTagAddress {address,..}
-        | InstructionKind::BorrowPlaceAddress {address,..}
+        InstructionKind::PlaceTagAddress { address, .. }
+        | InstructionKind::BorrowPlaceAddress { address, .. }
         | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)

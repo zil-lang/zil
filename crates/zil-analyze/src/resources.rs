@@ -423,6 +423,10 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::ReservePlaceLocal { .. }
+        | InstructionKind::AbortPlaceReservation { .. } => (None, None, &[]),
+        InstructionKind::ReservePlaceAddress { address, .. } => (Some(*address), None, &[]),
+        InstructionKind::CommitPlaceReplace { value, .. } => (Some(*value), None, &[]),
         InstructionKind::RegistrationStart { callback, .. } => (Some(*callback), None, &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),

@@ -1282,6 +1282,16 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::ReservePlaceLocal { .. }
+                    | InstructionKind::ReservePlaceAddress { .. }
+                    | InstructionKind::CommitPlaceReplace { .. }
+                    | InstructionKind::AbortPlaceReservation { .. } => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "owning-place reservation consumers are under construction",
+                            Some(instruction.span),
+                        )]);
+                    }
                     InstructionKind::TakeTupleField { local, path }
                     | InstructionKind::TakeVariantField { local, path }
                     | InstructionKind::BorrowPlaceLocal { local, path, .. }
