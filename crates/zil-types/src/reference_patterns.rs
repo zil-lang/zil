@@ -529,7 +529,7 @@ impl Builder<'_, '_> {
 }
 
 pub(super) fn sum_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Enum{..}) && owned_shapes::value(inner))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}) && owned_shapes::value(inner))
 }
 impl Builder<'_, '_> {
     fn reference_address_match(
