@@ -1530,6 +1530,14 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "void" => Type::Unit,
             n => Type::Named(n.into()),
         },
+        s::TypeKind::Union(members) => Type::Enum {
+            name: "@anonymous-sum:v1".into(),
+            variants: members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| (format!("Member{index}"), vec![type_ref(member)]))
+                .collect(),
+        },
         s::TypeKind::Tuple(ts) if ts.is_empty() => Type::Unit,
         s::TypeKind::Tuple(ts) => Type::Tuple(ts.iter().map(type_ref).collect()),
         s::TypeKind::Array {

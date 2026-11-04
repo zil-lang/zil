@@ -2,6 +2,127 @@
 use super::*;
 use std::collections::BTreeSet;
 
+pub(super) const ANONYMOUS_SUM: &str = "@anonymous-sum:v1";
+pub(super) const TYPE_MEMBER: &str = "@type-member";
+pub(super) fn anonymous(ty: &Type) -> bool {
+    matches!(ty, Type::Enum { name, .. } if name == ANONYMOUS_SUM)
+}
+pub(super) fn canonical_anonymous(
+    mut members: Vec<Type>,
+    remaining: &mut usize,
+    limits: &Limits,
+    span: Span,
+) -> R<Type> {
+    let mut work = ANONYMOUS_SUM
+        .len()
+        .saturating_add(members.len().saturating_mul(32));
+    for member in &members {
+        work = work.saturating_add(
+            inference::type_snapshot_work(member, span, limits)?
+                .saturating_mul(members.len().saturating_add(2)),
+        );
+    }
+    *remaining = remaining.checked_sub(work).ok_or_else(|| {
+        Diagnostic::limit(
+            Phase::Types,
+            "anonymous sum canonical identity work exceeded",
+            Some(span),
+        )
+    })?;
+    if members.len() < 2
+        || members
+            .iter()
+            .any(|member| !member.is_copy_value() && !owned_shapes::value(member))
+    {
+        return Err(error(
+            "E-ANONYMOUS-SUM",
+            span,
+            "anonymous sum requires at least two finite ordinary complete member types",
+        ));
+    }
+    members.sort();
+    if members.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(error(
+            "E-ANONYMOUS-SUM",
+            span,
+            "anonymous sum repeats a complete resolved member type",
+        ));
+    }
+    Ok(Type::Enum {
+        name: ANONYMOUS_SUM.into(),
+        variants: members
+            .into_iter()
+            .enumerate()
+            .map(|(index, member)| (format!("Member{index}"), vec![member]))
+            .collect(),
+    })
+}
+/// Callers bound and prepay complete compared types before selecting a member.
+pub(super) fn anonymous_injection(actual: &Type, sum: &Type, span: Span) -> R<Option<u32>> {
+    if actual == sum {
+        return Ok(None);
+    }
+    let Type::Enum { name, variants } = sum else {
+        unreachable!("anonymous sum context")
+    };
+    debug_assert_eq!(name, ANONYMOUS_SUM);
+    let mut found = None;
+    for (index, (_, fields)) in variants.iter().enumerate() {
+        if fields.as_slice() == std::slice::from_ref(actual) {
+            if found.replace(index as u32).is_some() {
+                return Err(error(
+                    "E-ANONYMOUS-SUM",
+                    span,
+                    "anonymous sum has ambiguous repeated member identity",
+                ));
+            }
+        }
+    }
+    found.map(Some).ok_or_else(|| {
+        error(
+            "E-ANONYMOUS-SUM",
+            span,
+            "value is not an exact member of the expected anonymous sum",
+        )
+    })
+}
+pub(super) fn pattern_variant<'a>(
+    declared: &Type,
+    variant: &str,
+    expected: &'a Type,
+    span: Span,
+) -> R<(usize, &'a [Type])> {
+    let Type::Enum { variants, .. } = expected else {
+        return Err(error(
+            "E-MATCH-TYPE",
+            span,
+            "variant pattern requires an enum or anonymous sum",
+        ));
+    };
+    let index = if variant == TYPE_MEMBER && anonymous(expected) {
+        anonymous_injection(declared, expected, span)?.ok_or_else(|| {
+            error(
+                "E-ANONYMOUS-SUM",
+                span,
+                "a member pattern must name one exact payload type",
+            )
+        })? as usize
+    } else {
+        if declared != expected {
+            return Err(error(
+                "E-MATCH-TYPE",
+                span,
+                "pattern has a different complete sum type",
+            ));
+        }
+        variants
+            .iter()
+            .position(|(name, _)| name == variant)
+            .ok_or_else(|| error("E-ENUM-VARIANT", span, "unknown enum variant"))?
+    };
+    Ok((index, &variants[index].1))
+}
+
 /// Reified Core may name the exact existing nominal identity. The spelling is
 /// unavailable to source identifiers; it still resolves through this ordinary
 /// declaration map and must match the complete owner/name pair.
@@ -232,17 +353,15 @@ impl Coverage<'_> {
                 variant,
                 fields,
             } => {
-                if declared != ty {
-                    return Err(invalid());
+                if anonymous(ty) {
+                    let limits = Limits {
+                        max_call_depth: self.depth_limit,
+                        ..Limits::default()
+                    };
+                    let work = inference::type_snapshot_work(ty, raw.span, &limits)?;
+                    self.spend(work.saturating_mul(2), depth)?;
                 }
-                let Type::Enum { variants, .. } = ty else {
-                    return Err(invalid());
-                };
-                let (index, (_, types)) = variants
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (name, _))| name == variant)
-                    .ok_or_else(|| error("E-ENUM-VARIANT", raw.span, "unknown enum variant"))?;
+                let (index, types) = pattern_variant(declared, variant, ty, raw.span)?;
                 if fields.len() != types.len() {
                     return Err(error(
                         "E-MATCH-ARITY",
@@ -594,7 +713,12 @@ impl Builder<'_, '_> {
                 bindings.push((name.clone(), value, ty.clone(), pattern.span))
             }
             CorePatternKind::Wildcard => {}
-            CorePatternKind::Reference { .. } => return Err(unsupported(pattern.span, "reference patterns require place-based lowering")),
+            CorePatternKind::Reference { .. } => {
+                return Err(unsupported(
+                    pattern.span,
+                    "reference patterns require place-based lowering",
+                ));
+            }
             CorePatternKind::Integer(text) => self.pattern_branch(
                 value,
                 integer(text, Some(ty), false, pattern.span)?,
@@ -620,16 +744,16 @@ impl Builder<'_, '_> {
                 }
             }
             CorePatternKind::Variant {
-                variant, fields, ..
+                ty: declared,
+                variant,
+                fields,
             } => {
-                let Type::Enum { variants, .. } = ty else {
-                    unreachable!()
-                };
-                let (index, (_, types)) = variants
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (name, _))| name == variant)
-                    .expect("checked variant");
+                if anonymous(ty) {
+                    let work = inference::type_snapshot_work(ty, pattern.span, self.limits)?;
+                    self.closures
+                        .snapshot(work.saturating_mul(2), pattern.span)?;
+                }
+                let (index, types) = pattern_variant(declared, variant, ty, pattern.span)?;
                 let tag = self.value(
                     InstructionKind::VariantTag { value },
                     Type::I32,
