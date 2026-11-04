@@ -81,7 +81,7 @@ pub(super) fn carrier(
     };
     require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
-    if matches!(payload.as_ref(),Type::Task{result} if **result!=Type::I32) {
+    if matches!(payload.as_ref(),Type::Task{result, ..} if **result!=Type::I32) {
         return Err(unsupported(
             "general owning task result lowering is not yet admitted by this frame profile",
             span,
