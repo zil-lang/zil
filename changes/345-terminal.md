@@ -5,3 +5,5 @@
 stdlib模块按明确版本随编译器分发，std.string/std.utf8/std.text_edit是实际普通源码，不具有编译器权限。导入后逐字节计费、正常parse/Expand/Types/Analyze/Verify并进入源码/缓存身份；无磁盘同名劫持、无隐藏宿主实现或跳过核验。手工ProjectSources也必须提供真实源和图。现有std.meta/std.syntax特殊产物协议保持。
 
 最近反例包括非法UTF8/过长序列/代理区、标量与字节边界混淆、分配失败改写旧值、活跃view时增长/移动、私有存储伪造、模块/缓存源码失配。产品场景仍按既有冻结门执行，原生Windows缺真实主机不以Wine或未运行工作流替代。
+
+std.store复用显式容量Store原语，新增有序remove：先完整准备suffix容量，失败前原输入保持；真正移出一个T并将suffix按原序恢复，所有拥有值按既有责任处理。不引入隐式扩容。实际带Drop消费者、活跃view反例与逐分配点失败验证后才接受。
