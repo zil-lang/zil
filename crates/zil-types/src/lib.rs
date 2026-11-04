@@ -15,6 +15,7 @@ mod deferred;
 mod dynamic_store;
 mod enums;
 mod errors;
+mod floats;
 mod foreign;
 mod foreign_scoped;
 mod forwarding;
@@ -1508,6 +1509,14 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 self.try_expr(operand, e.span)?
             }
+            CoreExprKind::Float(text) => {
+                self.closures
+                    .snapshot(zil_base::numeric::decimal_work(text.len()), e.span)?;
+                self.constant(floats::literal(text, expected, e.span)?, e.span)?
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                return self.numeric_conversion(value, target, expected, e.span);
+            }
             CoreExprKind::Integer(text) => {
                 self.constant(integer(text, expected, false, e.span)?, e.span)?
             }
@@ -1621,7 +1630,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 let (v, t) = self.expr(operand, want)?;
                 if (*op == UnaryOp::Not && t != Type::Bool)
-                    || (*op != UnaryOp::Not && !t.is_integer())
+                    || (*op != UnaryOp::Not
+                        && !t.is_integer()
+                        && !(*op == UnaryOp::Negate && t.is_float()))
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -1671,7 +1682,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 let (r, rt) = self.expr(right, Some(&lt))?;
                 self.same(&rt, &lt, e.span)?;
                 let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
-                if !lt.is_integer() && !(equality && matches!(lt, Type::Bool | Type::ForeignHandle))
+                if !lt.is_integer()
+                    && !(lt.is_float() && floats::binary(*op))
+                    && !(equality && matches!(lt, Type::Bool | Type::ForeignHandle))
                 {
                     return Err(error(
                         "E-OPERATOR-TYPE",
@@ -1985,6 +1998,47 @@ impl<'a, 'c> Builder<'a, 'c> {
         Ok(result)
     }
 
+    fn numeric_conversion(
+        &mut self,
+        operand: &CoreExpr,
+        target: &Type,
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let (value, source) = self.expr(operand, None)?;
+        if !source.is_numeric() || !target.is_numeric() {
+            return Err(if target.is_integer() && !source.is_float() {
+                error(
+                    "E-INTEGER-CONVERSION",
+                    span,
+                    "conversion operand must be an integer",
+                )
+            } else {
+                error(
+                    "E-NUMERIC-CONVERSION",
+                    span,
+                    "numeric conversion requires numeric operands and target",
+                )
+            });
+        }
+        let instruction = if source.is_integer() && target.is_integer() {
+            InstructionKind::ConvertInteger {
+                value,
+                target: target.clone(),
+            }
+        } else {
+            InstructionKind::ConvertNumber {
+                value,
+                target: target.clone(),
+            }
+        };
+        let result = self.value(instruction, target.clone(), span)?;
+        if let Some(expected) = expected {
+            self.same(target, expected, span)?;
+        }
+        Ok((result, target.clone()))
+    }
+
     /// An owning capture still reads a Copy leaf without taking its inline
     /// Product prefixes. The whole environment retains its original cleanup.
     fn captured_product_copy_projection(
@@ -2108,7 +2162,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             },
             CoreExprKind::Literal(value) => Some(value.ty()),
             CoreExprKind::Ascribed { ty, .. } => Some(ty.clone()),
-            CoreExprKind::IntegerConvert { target, .. } => Some(target.clone()),
+            CoreExprKind::IntegerConvert { target, .. } | CoreExprKind::NumericConvert { target, .. } => Some(target.clone()),
+            CoreExprKind::Float(text) if text.ends_with("f32") || text.ends_with("f64") => floats::ty(text, None, e.span).ok(),
             CoreExprKind::Name(name) => self
                 .lookup(name)
                 .map(|id| {
@@ -2949,6 +3004,15 @@ impl<'a, 'c> Builder<'a, 'c> {
             Type::Bool,
         ))
     }
+}
+/// Parse a floating literal without providing type or verification authority.
+/// Callers reserve numeric::decimal_work(text.len()) before parsing.
+pub fn parse_float_literal(
+    text: &str,
+    expected: Option<&Type>,
+    span: Span,
+) -> CompileResult<Constant> {
+    floats::literal(text, expected, span).map_err(|error| vec![error])
 }
 /// Parse a target integer literal using the ordinary language's exact rules.
 /// This function provides no type, ownership, or verification authority.

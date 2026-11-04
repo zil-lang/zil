@@ -8,6 +8,8 @@ pub(super) fn scalar(name: &str) -> Option<CtScalarTy> {
         "u16" => CtScalarTy::U16,
         "i32" => CtScalarTy::I32,
         "i64" => CtScalarTy::I64,
+        "f32" => CtScalarTy::F32,
+        "f64" => CtScalarTy::F64,
         _ => return None,
     })
 }

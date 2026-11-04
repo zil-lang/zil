@@ -5,6 +5,7 @@ mod copy_aggregates;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
+mod floating;
 mod large_copy_abi;
 pub use enums::ct_layout_of_checked_type;
 mod errors;
@@ -555,6 +556,16 @@ fn bind_lir(
         },
         ScalarLayout {
             ty: Type::I64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: Type::F32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::F64,
             size: 8,
             alignment: 8,
         },
@@ -1439,6 +1450,14 @@ impl FunctionEmitter<'_> {
                 let result = result(instruction)?;
                 match constant {
                     Constant::Unit => {}
+                    Constant::F32(bits) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Freeze(m::Arg::new(m::Ty::F32, m::Val::F32(*bits))),
+                    ))),
+                    Constant::F64(bits) => self.event(m::Event::Instruction(m::Inst::new(
+                        Some(format!("v.{}", result.0)),
+                        m::Op::Freeze(m::Arg::new(m::Ty::F64, m::Val::F64(*bits))),
+                    ))),
                     Constant::Bool(value) => self.event(m::Event::Instruction(m::Inst::new(
                         Some(format!("v.{}", result.0)),
                         m::Op::Binary {
@@ -1728,6 +1747,9 @@ impl FunctionEmitter<'_> {
                 // S0 keeps the real stack allocation until return. Lexical
                 // validity was independently proved; no runtime table needed.
             }
+            InstructionKind::ConvertNumber { value, target } => {
+                self.convert_number(*value, target, result(instruction)?)?
+            }
             InstructionKind::ConvertInteger { value, target } => {
                 self.convert_integer(*value, target, result(instruction)?)?;
             }
@@ -1735,6 +1757,21 @@ impl FunctionEmitter<'_> {
                 let result = result(instruction)?;
                 let ty = self.value_type(*operand)?.clone();
                 match op {
+                    UnaryOp::Negate if ty.is_float() => {
+                        self.event(m::Event::Instruction(m::Inst::new(
+                            Some(format!("v.{}", result.0)),
+                            m::Op::Binary {
+                                opcode: "fsub".into(),
+                                ty: llvm_type(&ty)?,
+                                left: if ty == Type::F32 {
+                                    m::Val::F32(0x80000000)
+                                } else {
+                                    m::Val::F64(0x8000000000000000)
+                                },
+                                right: m::val(value(*operand)),
+                            },
+                        )))
+                    }
                     UnaryOp::Negate => {
                         self.checked_binary("ssub", &ty, "0", &value(*operand), result)?
                     }
@@ -2205,6 +2242,9 @@ impl FunctionEmitter<'_> {
         span: Span,
     ) -> CompileResult<()> {
         let ty = self.value_type(left)?.clone();
+        if ty.is_float() {
+            return self.floating_binary(operation, left, right, result);
+        }
         let operand_type = llvm_type(&ty)?;
         let (left_text, right_text) = (value(left), value(right));
         match operation {
@@ -2874,6 +2914,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
         Type::I64 => Ok("i64".into()),
+        Type::F32 => Ok(m::Ty::F32),
+        Type::F64 => Ok(m::Ty::F64),
         Type::U8 => Ok("i8".into()),
         Type::U16 => Ok("i16".into()),
         Type::ByteBuffer | Type::OwnedStore { .. } => Ok(m::Ty::Struct(vec![
@@ -2965,8 +3007,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::U16 => Ok(2),
         Type::ByteBuffer | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
-        Type::I32 => Ok(4),
-        Type::I64 => Ok(8),
+        Type::I32 | Type::F32 => Ok(4),
+        Type::I64 | Type::F64 => Ok(8),
         Type::FunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()

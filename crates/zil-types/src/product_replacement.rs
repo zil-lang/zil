@@ -446,6 +446,7 @@ impl References<'_, '_> {
                 found = !shadow && name == self.target;
             }
             CoreExprKind::Integer(text)
+            | CoreExprKind::Float(text)
             | CoreExprKind::String(text)
             | CoreExprKind::ReceiverMember(text)
             | CoreExprKind::Unsupported(text) => self.state.snapshot(text.len(), value.span)?,
@@ -454,6 +455,10 @@ impl References<'_, '_> {
             }
             CoreExprKind::Ascribed { ty, value: inner }
             | CoreExprKind::IntegerConvert {
+                target: ty,
+                value: inner,
+            }
+            | CoreExprKind::NumericConvert {
                 target: ty,
                 value: inner,
             } => {

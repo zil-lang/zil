@@ -7,6 +7,8 @@ use std::fmt::{self, Write};
 pub enum Ty {
     Void,
     Int(u32),
+    F32,
+    F64,
     Ptr,
     Array(u64, Box<Ty>),
     Struct(Vec<Ty>),
@@ -25,6 +27,8 @@ impl fmt::Display for Ty {
         match self {
             Self::Void => f.write_str("void"),
             Self::Int(bits) => write!(f, "i{bits}"),
+            Self::F32 => f.write_str("float"),
+            Self::F64 => f.write_str("double"),
             Self::Ptr => f.write_str("ptr"),
             Self::Array(n, ty) => write!(f, "[{n} x {ty}]"),
             Self::Struct(fields) => {
@@ -55,6 +59,8 @@ impl From<&str> for Ty {
             "i16" => Self::Int(16),
             "i32" => Self::Int(32),
             "i64" => Self::Int(64),
+            "float" => Self::F32,
+            "double" => Self::F64,
             "{}" => Self::Struct(vec![]),
             _ => panic!("unsupported primitive type spelling in compiler: {s}"),
         }
@@ -102,6 +108,9 @@ pub enum Val {
     Local(String),
     Global(String),
     Int(i128),
+    /// Exact IEEE bits, rendered/constructed through constant bitcasts.
+    F32(u32),
+    F64(u64),
     Bool(bool),
     Null,
     Zero,
@@ -161,6 +170,8 @@ impl fmt::Display for Val {
             Self::Local(n) => write!(f, "%{n}"),
             Self::Global(n) => write!(f, "@{n}"),
             Self::Int(n) => write!(f, "{n}"),
+            Self::F32(bits) => write!(f, "bitcast (i32 {bits} to float)"),
+            Self::F64(bits) => write!(f, "bitcast (i64 {bits} to double)"),
             Self::Bool(b) => write!(f, "{b}"),
             Self::Null => f.write_str("null"),
             Self::Zero => f.write_str("zeroinitializer"),
@@ -789,6 +800,8 @@ fn write_fields(s: &mut String, fields: &[Ty]) {
 fn write_type(s: &mut String, ty: &Ty) {
     match ty {
         Ty::Void => s.push_str("void"),
+        Ty::F32 => s.push_str("float"),
+        Ty::F64 => s.push_str("double"),
         Ty::Int(bits) => match bits {
             1 => s.push_str("i1"),
             8 => s.push_str("i8"),
@@ -822,6 +835,8 @@ fn write_value(s: &mut String, value: &Val) {
             s.push_str(name);
         }
         Val::Int(value) => write!(s, "{value}").unwrap(),
+        Val::F32(bits) => write!(s, "bitcast (i32 {bits} to float)").unwrap(),
+        Val::F64(bits) => write!(s, "bitcast (i64 {bits} to double)").unwrap(),
         Val::Bool(value) => s.push_str(if *value { "true" } else { "false" }),
         Val::Null => s.push_str("null"),
         Val::Zero => s.push_str("zeroinitializer"),
@@ -930,7 +945,11 @@ fn write_inst(s: &mut String, instruction: &Inst) {
             left,
             right,
         } => {
-            s.push_str("icmp ");
+            s.push_str(if matches!(ty, Ty::F32 | Ty::F64) {
+                "fcmp "
+            } else {
+                "icmp "
+            });
             s.push_str(predicate);
             s.push(' ');
             write_binary_operands(s, ty, left, right);

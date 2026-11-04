@@ -1251,7 +1251,8 @@ impl Resolver<'_> {
         self.charge(depth, e.span)?;
         match &mut e.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 *ty = self.ty(ty, depth + 1, e.span)?;
                 self.expr(value, depth + 1)?;
             }
