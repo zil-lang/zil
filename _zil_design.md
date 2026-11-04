@@ -814,6 +814,14 @@ worker可达直接调用图只增加真实共享i32地址参数、局部传递�
 
 Core/Typed记录真实kind、初值、body、实际地址和每次操作/order；Types候选、Analyze与Verify分别核实际签名、worker可达图、同步操作、根和窗口。未核metadata不得充当Share证明。原生稳定布局、创建/调用/清理、两后端、CGU、缓存和Wire均必须真实消费。更一般Mutex<T>锁内借用、显式稳定拥有构造、Atomic CAS/更多位宽及异步帧/取消/晚通知仍有终态义务，不能把此作用域接口当作它们完成。
 
+### 11.4 密封原子单元的强比较交换（343）
+
+`atomic_compare_exchange(cell, expected, desired)`只接受当前仍活的共享密封AtomicI32单元和两个i32，返回普通`(observed:i32, exchanged:bool)`。成功比较完整i32位模式，单次原子写入desired并返回旧值/true；失败返回实际观察值/false。操作必须是真实非伪失败的强cmpxchg，不能以load加条件store、额外栅栏或隐式锁模拟。默认success/failure均SeqCst。
+
+显式指令的两种order各自是立即枚举值，允许矩阵为Relaxed→Relaxed、Acquire→Relaxed/Acquire、Release→Relaxed、AcqRel→Relaxed/Acquire、SeqCst→Relaxed/Acquire/SeqCst；其余组合和未知编码均拒绝，不能按枚举序号比较强弱。后续显式源API须绑定真实std.sync声明与实际变体；本次默认三参入口不暗接动态order。
+
+Typed/Wire41以专门opcode133 `SyncI32CompareExchange{address,expected,desired,success,failure}`运输候选；CT artifact5保持。Types、Analyze、Verify分别核真实AtomicI32根、共享窗口、i32操作数、结果及每组order；Mutex、普通i32地址和仅声明形似的载荷均不获准入。Lower、两后端、指纹/CGU/缓存和全部操作数遍历消费同一操作及两种order，预付实际元数据费用。该字段发布与LLVM模型执行各自仅为其层级成果；源码、解码Wire、争用运行和错误邻例必须实际贯通。其它位宽、weak CAS及通用线程/拥有与回收协议继续独立实施。
+
 ## 12. 挂起、异常、取消与驱动的最终共同边界
 
 ### 12.1 Direct 与 Suspend 两种接口
