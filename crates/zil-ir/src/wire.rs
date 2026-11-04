@@ -1383,6 +1383,69 @@ impl<'a> Writer<'a> {
                 }
             }
 
+            InstructionKind::ReservePlaceLocal {
+                reservation,
+                local,
+                path,
+            } => {
+                self.u8(121)?;
+                self.u32(reservation.0)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+            }
+            InstructionKind::ReservePlaceAddress {
+                reservation,
+                address,
+                path,
+            } => {
+                self.u8(122)?;
+                self.u32(reservation.0)?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+            }
+            InstructionKind::CommitPlaceReplace { reservation, value } => {
+                self.u8(123)?;
+                self.u32(reservation.0)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::AbortPlaceReservation { reservation } => {
+                self.u8(124)?;
+                self.u32(reservation.0)?;
+            }
             InstructionKind::BorrowFieldLocal {
                 local,
                 path,
@@ -2883,6 +2946,50 @@ impl<'a> Reader<'a> {
                     InstructionKind::PlaceTagAddress { address, path }
                 }
             }
+            tag @ 121..=122 => {
+                let reservation = ReservationId(self.u32()?);
+                let base = self.u32()?;
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                if tag == 121 {
+                    InstructionKind::ReservePlaceLocal {
+                        reservation,
+                        local: LocalId(base),
+                        path,
+                    }
+                } else {
+                    InstructionKind::ReservePlaceAddress {
+                        reservation,
+                        address: ValueId(base),
+                        path,
+                    }
+                }
+            }
+            123 => InstructionKind::CommitPlaceReplace {
+                reservation: ReservationId(self.u32()?),
+                value: ValueId(self.u32()?),
+            },
+            124 => InstructionKind::AbortPlaceReservation {
+                reservation: ReservationId(self.u32()?),
+            },
             110 => {
                 let local = LocalId(self.u32()?);
                 let count = self.count(self.limits.max_call_depth, 4)?;
