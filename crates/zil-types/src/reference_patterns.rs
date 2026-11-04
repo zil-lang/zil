@@ -1,5 +1,6 @@
 //! Reference bindings are addresses of real storage, never copies of a payload.
 use super::*;
+type PatternBindings = Vec<(String, ValueId, Type, Span)>;
 pub(super) fn has_reference(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { .. } => true,
@@ -241,7 +242,7 @@ impl Builder<'_, '_> {
         p: &CorePattern,
         e: &CoreExpr,
         fail: BlockId,
-    ) -> R<(bool, Vec<(String, ValueId, Type, Span)>)> {
+    ) -> R<(bool, PatternBindings)> {
         let mut bindings = Vec::new();
         if let CoreExprKind::Unary {
             op: UnaryOp::Dereference,
