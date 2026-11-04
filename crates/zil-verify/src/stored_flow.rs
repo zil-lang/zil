@@ -2902,7 +2902,7 @@ mod tests {
     }
     #[test]
     fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
-        for case in 0..11 {
+        for case in 0..14 {
             let mut m = fixture::captured_owned_fixed(false);
             match case {
                 0 => {
@@ -3011,8 +3011,20 @@ mod tests {
                         ),
                     );
                 }
-                _ => {
+                10 => {
                     m.closures[0].kind = zil_ir::CallableKind::Fn;
+                }
+                11 => {
+                    m.resources[0].name = "Other".into();
+                    if let Type::Record { name, .. } = &mut m.resources[0].payload {
+                        *name = "Other".into();
+                    }
+                }
+                12 => {
+                    m.resources.clear();
+                }
+                _ => {
+                    m.resources[0].teardown = Some(FunctionId(0));
                 }
             }
             let c = captured_candidate(&m);
@@ -3037,6 +3049,11 @@ mod tests {
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
                         "case{case}: {error:?}"
                     );
+                } else if case >= 11 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                        "case{case}: {error:?}"
+                    );
                 } else {
                     assert!(
                         error
@@ -3046,6 +3063,62 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+    #[test]
+    fn owning_fixed_owner_work_is_prepaid_and_actual_description_claims_are_checked() {
+        let m = fixture::captured_owned_fixed(false);
+        let c = captured_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let check = |work, wire| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            if wire {
+                super::super::verify_module_bytes(&bytes, &m.target, &limits)
+            } else {
+                super::super::verify_module(m.clone(), c.clone(), &m.target, &limits)
+            }
+        };
+        for wire in [false, true] {
+            let expected = check(Limits::default().max_analysis_steps, wire)
+                .unwrap()
+                .fingerprint();
+            let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+            while low < high {
+                let mid = low + (high - low) / 2;
+                if check(mid, wire).is_ok() {
+                    high = mid
+                } else {
+                    low = mid + 1
+                }
+            }
+            let error = check(low - 1, wire).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert!(check(low - 1, wire).is_err());
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            println!("G3.3.3.1 owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
+        }
+        let mut forged = c;
+        forged.functions[0].holds[8].roots.clear();
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
+        for result in [
+            super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+        ] {
+            let error = result.unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-VERIFY-STORED"
+                    && d.message
+                        .contains("independently reconstructed stored target roots")),
+                "{error:?}"
+            );
         }
     }
     #[test]

@@ -5750,3 +5750,111 @@ fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
     let plan = zil_analyze::analyze(&control, &limits).unwrap();
     zil_verify::verify_module(control, plan, &target, &limits).unwrap();
 }
+
+#[test]
+fn captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallableKind, InstructionKind as I, Type};
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+    );
+    let dual = original
+        .replace(
+            "fn apply<life s>(left:&Tag<'s>)",
+            "fn apply<life s,life t>(left:&Tag<'s>,right:&Tag<'t>)",
+        )
+        .replace("{let mark=Mark", "{let seen=right;let mark=Mark")
+        .replace("return apply(&tag)", "return apply(&tag,&tag)");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for (label, text) in [("original", original), ("two-input", dual.as_str())] {
+        let unit = source(text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let aliases = Default::default();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &unit,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let d = typed
+            .closures
+            .iter()
+            .find(|d| d.kind == CallableKind::FnOnce)
+            .unwrap();
+        assert!(matches!(d.captures[0], Type::Managed(_)));
+        assert!(matches!(d.captures[1], Type::Address { .. }));
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        let (decoded, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        zil_analyze::analyze(&decoded, &limits).unwrap();
+        zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        if label == "two-input" {
+            let mut raw = typed.clone();
+            let f = raw
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "apply")
+                .unwrap();
+            let right = f.locals.iter().find(|l| l.name == "right").unwrap().id;
+            let value = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| match i.kind {
+                    I::Load(l) if l == right => i.result,
+                    _ => None,
+                })
+                .unwrap();
+            let i = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, I::CallClosureOnce { .. }))
+                .unwrap();
+            let I::CallClosureOnce { arguments, .. } = &mut i.kind else {
+                unreachable!()
+            };
+            assert_eq!(
+                f.values[arguments[0].0 as usize],
+                f.values[value.0 as usize]
+            );
+            arguments[0] = value;
+            let error = zil_analyze::analyze(&raw, &limits).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class")),
+                "{error:?}"
+            );
+            let mut claim = plan;
+            claim.module_fingerprint = raw.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+            let (decoded, _) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+            assert!(
+                zil_analyze::analyze(&decoded, &limits)
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.message.contains("class"))
+            );
+            for result in [
+                zil_verify::verify_module(raw.clone(), claim, &target, &limits),
+                zil_verify::verify_module_bytes(&bytes, &target, &limits),
+            ] {
+                let error = result.unwrap_err();
+                assert!(
+                    error.iter().any(|d| d.message.contains("class equality")),
+                    "{error:?}"
+                );
+            }
+        }
+    }
+}
