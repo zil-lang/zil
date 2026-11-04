@@ -319,12 +319,6 @@ impl Context<'_> {
             }
             let incoming = flow.instantiate(payload, arguments, state, b)?;
             for target in targets {
-                if matches!(target.base, actual::Base::Element(_)) {
-                    return Err(unsupported(
-                        "Store field replacement through a helper needs its resource description summary bridge",
-                        None,
-                    ));
-                }
                 self.apply(flow, state, &target, &incoming, validate, b)?;
             }
         }
@@ -536,8 +530,11 @@ pub(super) fn check(
     }
     b.spend(effects.len())?;
     let mut replacement_writes = Vec::with_capacity(effects.len());
+    b.spend(effects.len())?;
+    let mut replacement_targets = Vec::with_capacity(effects.len());
     for effect in effects {
         let mut writes = BTreeSet::new();
+        let mut targets = Vec::new();
         b.spend(effect.len())?;
         for (target, _) in effect {
             let root = match target.base {
@@ -550,13 +547,17 @@ pub(super) fn check(
             if let Some(root) = root {
                 lookup(b, writes.len())?;
                 writes.insert(root);
+                b.spend(1)?;
+                targets.push(target);
             }
         }
         replacement_writes.push(writes);
+        replacement_targets.push(targets);
     }
     Ok(Proofs {
         rows,
         replacement_writes,
+        replacement_targets,
     })
 }
 

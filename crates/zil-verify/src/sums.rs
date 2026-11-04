@@ -982,6 +982,7 @@ impl State {
 pub(super) struct Proofs {
     pub(super) rows: Vec<Vec<Vec<Bridge>>>,
     pub(super) replacement_writes: Vec<BTreeSet<resources::Root>>,
+    pub(super) replacement_targets: Vec<Vec<crate::place_replacements::actual::Target>>,
 }
 type FieldFresh = Vec<(usize, u8)>;
 type UnpackedFresh = (LocalId, u8, FieldFresh);
