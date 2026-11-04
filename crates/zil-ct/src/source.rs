@@ -65,7 +65,8 @@ impl<'a> SourceProgramContext<'a> {
             )?;
             nodes += extra_nodes;
             work -= extra_work;
-            if !module.core.aggregate_templates.is_empty()
+            if !module.core.closure_life_contexts.is_empty()
+                || !module.core.aggregate_templates.is_empty()
                 || !module.core.aggregate_applications.is_empty()
             {
                 let metadata_limits = Limits {
@@ -74,7 +75,7 @@ impl<'a> SourceProgramContext<'a> {
                     ..limits.clone()
                 };
                 let (metadata_nodes, metadata_work) =
-                    crate::preflight_aggregate_metadata(&module.core, &metadata_limits)?;
+                    crate::preflight_core_metadata(&module.core, &metadata_limits)?;
                 nodes += metadata_nodes;
                 work -= metadata_work;
             }
@@ -757,7 +758,8 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
         stack.push((node, depth));
         Some(())
     }
-    if !core.life_declarations.is_empty()
+    if !core.closure_life_contexts.is_empty()
+        || !core.life_declarations.is_empty()
         || !core.life_instances.is_empty()
         || !core.dyn_declarations.is_empty()
         || !core.dyn_interfaces.is_empty()
@@ -1187,13 +1189,16 @@ impl<'a> Walker<'a> {
         )?;
         self.nodes += extra_nodes;
         self.work_left -= extra_work;
-        if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
+        if !core.closure_life_contexts.is_empty()
+            || !core.aggregate_templates.is_empty()
+            || !core.aggregate_applications.is_empty()
+        {
             let metadata_limits = Limits {
                 max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
                 max_analysis_steps: self.work_left,
                 ..self.limits.clone()
             };
-            let (nodes, work) = crate::preflight_aggregate_metadata(core, &metadata_limits)?;
+            let (nodes, work) = crate::preflight_core_metadata(core, &metadata_limits)?;
             self.nodes += nodes;
             self.work_left -= work;
         }

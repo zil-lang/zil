@@ -5491,6 +5491,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
 
 /// Initial39 boundary: nonempty new data must reach a real bounded consumer.
 pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
+    if !core.closure_life_contexts.is_empty() {
+        return Err(unsupported(
+            Span::default(),
+            "source closure context requires its bounded actual formation consumer",
+        ));
+    }
     if !core.dyn_declarations.is_empty()
         || !core.dyn_interfaces.is_empty()
         || !core.dyn_vtables.is_empty()
