@@ -1,0 +1,150 @@
+{
+  "status": "PassLimitedIntegratedBaseline",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "88589bca73067c788e0cfb0f9a5254192a4414fa",
+  "scope": "Exact root37 corrected integrated baseline: five existing targets plus original large-copy/native and default-worker stack regressions. This does not claim language/product terminal completion.",
+  "identity": {
+    "production_files": 423,
+    "production_sha256": "73863c056c68ff15ffb91258012313961dabbf026857c58e501e5269f6bcd2ed",
+    "recipe": "Sorted repository-relative paths; concatenate path NUL lowercase SHA256(file bytes) LF. Exact Git blobs.",
+    "selection": "All /src/ .rs; lib/**/*.zil; Cargo.toml/Cargo.lock/build.rs",
+    "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-source-binding.json",
+    "source_manifest_sha256": "91a34a5c44f9dc34c8cb18dbcede74a7f79ebd99e37b1095c2d7ffb6e28be369",
+    "selected_test_hashes": {
+      "crates/zil-driver/tests/cross_function_borrows.rs": "9e4c99406db5b382308df80124f37893a08a44ac00d428fa18e701ccad040d76",
+      "crates/zil-driver/tests/generic_regressions.rs": "156a24d33d75174b9103781ba66d3b93ec67a04216f8376e94d266a0de12cf7b",
+      "crates/zil-driver/tests/generics.rs": "8a6929799f5d15cc5e8fa115e7853edf6dd10337f2853ea81bb93e46e65f21b3",
+      "crates/zil-driver/tests/impl162_trait_bounds.rs": "af9d649793ce46cf6f956a943f848057a75069671005cbe08f25d08261d37ee5",
+      "crates/zil-driver/tests/impl201_independent.rs": "98c6f4c441a20a3679b17e8d9df43c046273980ce40faae5ceb6c8192ed335b7",
+      "crates/zil-driver/tests/aggregates.rs": "364d892161607abd826b06e50a522cc0d3e624555ee86c51273c4ba0cc0750c7"
+    },
+    "artifact_construction": "Parent identified these as the final five LLVM API corrected-source target binaries; exact basenames independently match root37-corrections-combined.log. Source bytes checked against commit separately.",
+    "build_log": "/workspace/.zil-env/terminal-20261104/root37-corrections-combined.log",
+    "build_log_sha256": "414b0452c0365484967c6c63f39197ee1ff79e107cf3f0118d8a5cdeb08d9baa",
+    "independent_rebuild": false,
+    "independent_execution": true,
+    "binding_limit": "Parent identified these as the exact final corrected-source binaries. Reviewer independently matched actual target basenames to the producer build log, verified bytes before/copy/after, recomputed exact885 Git inputs, then executed the preserved binaries. No Cargo rebuild was performed by reviewer."
+  },
+  "execution": [
+    {
+      "source": "/workspace/.zil-env/target-main/debug/deps/cross_function_borrows-404161b788b1a299",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-cross_function_borrows",
+      "sha256": "4f8065afd5a80ea6dd8bb64a0c6916fa6a0016378be82a9f2069d01c20f41081",
+      "arguments": "--test-threads=1 --nocapture",
+      "passed": 73,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 24.73,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-cross_function_borrows.log",
+      "log_sha256": "9871c09967a3907d8cc6b26ee73d373f74e4f359b159d9f66c1906840927626e"
+    },
+    {
+      "source": "/workspace/.zil-env/target-main/debug/deps/impl162_trait_bounds-114d8b728f7714b2",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-impl162_trait_bounds",
+      "sha256": "b2f1a79ada4a23c2a599a3bfcc529d5620f1dfbc13b36e7d3d8365c15f2c6038",
+      "arguments": "--test-threads=1 --nocapture",
+      "passed": 59,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 30.06,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-impl162_trait_bounds.log",
+      "log_sha256": "8b281e8f3c7f4df80934716eed53b09199189f7aa7b241a1d7391dd2837d0c41"
+    },
+    {
+      "source": "/workspace/.zil-env/target-main/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-generic_regressions",
+      "sha256": "44dd3d3967ba0788a952f12da450f88b4d7a6c31571ff54dcea45655566a9ee4",
+      "arguments": "--test-threads=1 --nocapture",
+      "passed": 60,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 33.46,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-generic_regressions.log",
+      "log_sha256": "259921249188c8a2efab55ee6554ff7514ff1811219768985aaf1bbefd86075a"
+    },
+    {
+      "source": "/workspace/.zil-env/target-main/debug/deps/impl201_independent-7d037e9ba9f922c2",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-impl201_independent",
+      "sha256": "188f0bd6df60c52b79bd7bbd451f615aa0f921d7c098906b21af6accce18c8ed",
+      "arguments": "--test-threads=1 --nocapture",
+      "passed": 15,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 5.77,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-impl201_independent.log",
+      "log_sha256": "bc71400ec111eb95dd91d761145c26382ddcb5500f17785db810409a11762e52"
+    },
+    {
+      "source": "/workspace/.zil-env/target-main/debug/deps/generics-ba4159fc2009dbc9",
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-generics",
+      "sha256": "b9507497ee468f7b3988de97d60c1721a675b1564b8f14e599d125ea36be1902",
+      "arguments": "--test-threads=1 --nocapture",
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "seconds": 3.72,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-generics.log",
+      "log_sha256": "4387188a034b10ea16aaf0858676a524a702d7054ee34e6fd20cf687b87d15dc"
+    },
+    {
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-aggregates",
+      "sha256": "7c31f6957da2a3d06a18068085274e2f612e088988a394cfe219965afbefbe40",
+      "arguments": "large_copy_a18_native_all_backends --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 111,
+      "seconds": 2.7,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-large_copy_a18_native_all_backends.log",
+      "log_sha256": "680b6d71a88a226826e84bc592f75f27a18dd04fb80aa2ed7e1e11b44213d4f3"
+    },
+    {
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-aggregates",
+      "sha256": "7c31f6957da2a3d06a18068085274e2f612e088988a394cfe219965afbefbe40",
+      "arguments": "large_copy_enum_error_default_stack_api_reliability --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 111,
+      "seconds": 3.78,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-large_copy_enum_error_default_stack_api_reliability.log",
+      "log_sha256": "6b844eacbd4f99b7ea79665ad7be65ac70f6636bbcb50986e39c1cd94ee88729"
+    },
+    {
+      "retained": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-aggregates",
+      "sha256": "7c31f6957da2a3d06a18068085274e2f612e088988a394cfe219965afbefbe40",
+      "arguments": "nested_calls_reach_verify_or_resource_limit_on_default_worker_stack --exact --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 111,
+      "seconds": 0.23,
+      "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root885-nested_calls_reach_verify_or_resource_limit_on_default_worker_stack.log",
+      "log_sha256": "2252d02526609e44f2b71267237e3ed2700d23dca72fb9e832b2d53c06717e5a"
+    }
+  ],
+  "counts": {
+    "five_existing_targets": 230,
+    "additional_exact_regressions": 3,
+    "passed": 233,
+    "failed": 0,
+    "ignored": 0
+  },
+  "conclusions": [
+    "Corrected generic method call provenance composes with root HRTB and scalar child tasks: full23 generics and59 traits pass, including the original wrong-dispatch source, shared-Span raw/Wire/native and exact budget/cache controls.",
+    "Full73 cross-function borrows preserve HRTB actual input/capture/result paths, resource-head modes, stored-window neighbors and the combined export identity ledger.",
+    "Full60 generic regressions preserve real sync, retained Registration, child-frame task ABI/cancellation and the existing source/raw/Wire controls.",
+    "Full15 impl201 includes the two unchanged original sibling-field sources as native positives, nearest same-callback source negatives, permanent fresh-Analyze/raw Verify/decoded-Wire duplicate callback-parent reborrow and lending recall negatives, plus original Store invalidation controls.",
+    "Original a18 native executes Clang/API O0/O2; default-stack API reliability and nested plain/generic/integer/f32/f64 worker controls pass without stack/default-budget increases. Nested legal32/64/96/112/124 and Parse ResourceLimit126 remain distinguished; exact node2348 and depth197 boundaries are replayed."
+  ],
+  "limits": [
+    "This independent replay is233 selected tests, not a duplicate full workspace default/reference run. Parent full-gate and release-consumer results are separate evidence.",
+    "No private126/127, reservations, borrowed storage/dyn/Task, CT3 complete values, external draining/wakers, nativeWindows or Rust/product terminal acceptance follows from this baseline.",
+    "Producer source/compile identity and independent execution are explicitly separated; no independent rebuild is implied."
+  ]
+}
