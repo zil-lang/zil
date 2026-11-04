@@ -62,4 +62,31 @@ callback/waker、处理结果责任、销毁 F/context。active=0 和 cancelRequ
 独立 raw/Wire、真实争用、失败注入、晚通知和取消排空分别记录，模型/
 后端机器夹具明确标注级别，不代替源码到机器闭环。
 
-当前文档是实施提案，不是完成或验收收据；尚无新能力通过声明。
+## 首个同步里程碑的实际实现
+
+密封作用域与八个操作已连通真实源码、两核、Wire 与两后端；原有
+`thread_scope` 接受精确共享单元地址，并分别重建 worker 的实际可达图。
+普通 `&i32`、错误 cell kind、非原子读取、改型重借、错误 operand 和
+ordering 都不取得同步权限。scope 的实际 closure 参数保持逐调用来源；
+kind 和 ClosureId 不是储存来源或唯一性证明。
+
+四个原源正控覆盖两个局部作用域与两个 parent/child 各 25000 次更新的
+真实争用，在 LLVM API/Clang、O0/O2 共 16 个配置中运行到零退出码。
+独立 raw/Wire 的六个变造同时拒绝；新路径沿现有累计余额核验。
+另一个拥有 body 正控在四个编译配置中观察 mutex init/lock/unlock/destroy
+及资源 Drop：init 失败仅有一次 body 环境清理且不执行 body；后三种
+native 操作失败固定 SIGABRT，无提前销毁成功声明。
+
+这是提交供独立复核的同步里程碑。一般 Mutex<T>/mutex_with、一般
+Transfer/Share、拥有单元构造、返回登记、Suspend/SABI、取消排空和晚通知
+仍属于本单持续施工；不能用这个 Direct join 结果替代它们。
+
+| Rust 四目标 | 当前实证与限制 |
+| --- | --- |
+| 同类安全 | 密封同步访问和实际共享图由两核、raw/Wire 重建；尚无一般异步安全结论。 |
+| 运行与内存 | 实际 pthread mutex 和 LLVM atomics 争用及失败运行；无隐式堆盒、RC 或全局锁；Rust 同语义运行/RSS 未测。 |
+| 表达与维护 | 普通闭包作用域可组合既有线程根；完整拥有泛型 Mutex 与异步 API 尚未完成，维护成本未测。 |
+| 编译成本 | 新路径累计 N/N−1/N 边界，不提高默认限额；Rust 编译成本比较未测。 |
+| 至少一项突破 | 原本没有的受保护并发更新已由原源到实际机器运行；相对 Rust 的可重复产品净突破及四目标合取未建立。 |
+
+本提案及里程碑不变更父 B0、完整语言/ZUI 和既有 product-gates 状态。

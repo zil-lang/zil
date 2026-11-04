@@ -854,6 +854,9 @@ fn affine_type(module: &TypedModule, ty: &Type) -> bool {
     }
 }
 fn check_signature_type(ty: &Type, span: Option<Span>) -> Check<()> {
+    if ty.is_shared_sync_cell_address() {
+        return Ok(());
+    }
     match ty {
         Type::Address { inner, .. } => slices::check_pointee(inner, span),
         _ => check_type(ty, span),
@@ -901,6 +904,7 @@ fn check_local_type(
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
     let checked = match ty {
+        ty if ty.is_shared_sync_cell_address() => Ok(()),
         Type::Closure(id) if (id.0 as usize) < module.closures.len() => Ok(()),
         Type::Closure(_) => Err(reject(
             "E-VERIFY-CLOSURE",
@@ -1487,6 +1491,9 @@ fn check_instruction(
         }
         InstructionKind::WithScopedThread { .. } => {
             scoped_thread::instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. } => {
+            scoped_thread::sync_instruction(module, function, instruction, budget)?
         }
         InstructionKind::WithForeignCallback { .. } => {
             scoped_callback::instruction(module, function, instruction, budget)?
@@ -2581,6 +2588,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::WithScopedThread { argument, body, .. } => {
             ([Some(*argument), Some(*body)], &[])
         }
+        InstructionKind::WithSyncCell { initial, body, .. } => ([Some(*initial), Some(*body)], &[]),
+        InstructionKind::SyncI32 { address, value, .. } => ([Some(*address), *value], &[]),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             ([Some(*callback), Some(*body)], &[])
         }

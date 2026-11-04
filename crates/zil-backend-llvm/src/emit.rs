@@ -653,7 +653,9 @@ fn bind_lir(
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    || ty.is_shared_sync_cell_address()
+                    || ty.is_shared_sync_cell_address()
+            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -665,7 +667,7 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || (closure.result.is_copy_value()
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -710,6 +712,7 @@ fn bind_lir(
             let concrete_closure = callable_parameter_type(ty, lir.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
+                && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()
@@ -1288,6 +1291,9 @@ impl FunctionEmitter<'_> {
             if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
                 self.scoped_thread_functions(instruction, worker, body)?;
             }
+            if let InstructionKind::WithSyncCell { kind, body, .. } = instruction.kind {
+                self.sync_cell_functions(instruction, kind, body)?;
+            }
             if let InstructionKind::WithForeignCallback {
                 register,
                 close,
@@ -1435,6 +1441,15 @@ impl FunctionEmitter<'_> {
             InstructionKind::WithScopedThread { argument, body, .. } => {
                 self.call_scoped_thread_helper(instruction, *argument, *body)?
             }
+            InstructionKind::WithSyncCell { initial, body, .. } => {
+                self.call_sync_cell_helper(instruction, *initial, *body)?
+            }
+            InstructionKind::SyncI32 {
+                op,
+                address,
+                value,
+                ordering,
+            } => self.sync_i32(instruction, *op, *address, *value, *ordering)?,
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
                 match constant {
@@ -2911,6 +2926,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         }
         Type::Address { inner, .. }
             if inner.is_copy_value()
+                || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
                 || ty.is_package_address() =>
@@ -2946,6 +2962,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
+            || ty.is_shared_sync_cell_address()
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
@@ -2970,6 +2987,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::FunctionPointer { .. } => Ok(8),
         Type::Address { inner, .. }
             if inner.is_address_pointee()
+                || ty.is_shared_sync_cell_address()
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || ty.is_shared_resource_head_address()
                 || ty.is_package_address() =>
@@ -3015,6 +3033,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 // before this recursive machine-alignment calculation.
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
+                    && !field.is_shared_sync_cell_address()
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())

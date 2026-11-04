@@ -303,6 +303,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
                 | PassingMode::BorrowMut
         ) && !(p.mode == PassingMode::Borrow
             && (matches!(&p.ty, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                || p.ty.is_shared_sync_cell_address()
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()))
             && !(p.mode == PassingMode::BorrowMut
@@ -724,6 +725,14 @@ impl<'a, 'c> Builder<'a, 'c> {
         span: Span,
         start: bool,
     ) -> R<LocalId> {
+        if scoped_thread::sync_primitive(name).is_some() || matches!(name, "MutexI32" | "AtomicI32")
+        {
+            return Err(error(
+                "E-SYNC-NAME",
+                span,
+                "sealed synchronization names cannot be rebound",
+            ));
+        }
         if name == "thread_scope" {
             return Err(error(
                 "E-THREAD-NAME",
@@ -1745,6 +1754,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                         self.same(&Type::I64, expected, e.span)?;
                     }
                     return Ok((value, Type::I64));
+                }
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+                {
+                    return self.sync_call(kind, op, arguments, expected, e.span);
                 }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
                     return self.with_scoped_thread(arguments, expected, e.span);

@@ -65,15 +65,38 @@ fn owned_store_name(name: &str) -> bool {
             | "store_at_mut"
     )
 }
+fn sync_name(name: &str) -> bool {
+    matches!(
+        name,
+        "MutexI32"
+            | "AtomicI32"
+            | "mutex_scope"
+            | "atomic_scope"
+            | "mutex_load"
+            | "mutex_store"
+            | "mutex_fetch_add"
+            | "atomic_load"
+            | "atomic_store"
+            | "atomic_fetch_add"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    sync_name(name)
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if sync_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-SYNC-NAME",
+            Some(span),
+            "sealed synchronization names cannot be rebound",
+        )
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
@@ -936,7 +959,7 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" || name == "thread_scope" {
+        if sync_name(name) || name == "c_with_callback" || name == "thread_scope" {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1493,6 +1516,8 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "u8" => Type::U8,
             "u16" => Type::U16,
             "c_handle" => Type::ForeignHandle,
+            "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
+            "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,

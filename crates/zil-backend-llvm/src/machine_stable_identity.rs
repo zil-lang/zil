@@ -523,7 +523,9 @@ fn rename_op(op: &mut Op, names: &BTreeMap<String, String>) {
     match op {
         Op::Alloca { .. } | Op::Branch(_) | Op::Return(None) | Op::Unreachable => {}
         Op::Load { ptr, .. } | Op::AtomicLoad { ptr, .. } => rename_value(ptr, names),
-        Op::Store { arg, ptr, .. } | Op::AtomicStore { arg, ptr, .. } | Op::AtomicRmw { arg, ptr, .. } => {
+        Op::Store { arg, ptr, .. }
+        | Op::AtomicStore { arg, ptr, .. }
+        | Op::AtomicRmw { arg, ptr, .. } => {
             rename_value(&mut arg.value, names);
             rename_value(ptr, names);
         }

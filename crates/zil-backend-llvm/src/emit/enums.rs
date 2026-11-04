@@ -320,6 +320,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             | Type::U8
             | Type::U16
             | Type::ByteBuffer
+            | Type::SyncCell(_)
             | Type::ForeignHandle
             | Type::CWideString => {}
         }
