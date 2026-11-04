@@ -1,14 +1,16 @@
 # ZIL 施工总计划
 
-## 2026-11-04：共同39消费者与40/CT5迁移持续施工
+## 2026-11-04：共同39保留可运行，40/CT5消费者持续贯通
 
-共同39已接真实共享View的Source/两核/Lower及Clang/API O0/O2，以及拥有Task输入、保存SSA、Ready结果和取消清理。独立审核发现并修正旧Package闭包上下文误拒及Task宽marker向量预费；精确共同05824fed6限定cross_function_borrows82、generic_regressions78、generics28全部通过。该三目标不是整仓或终态验收；native View的全块/LIR计费及phantom零物理槽修正仍在342接续，旧失败保留。Dyn2de1c6e4b只接真实Source→Core声明与实际impl函数身份，动态指令、核及原生消费者继续实施。
+共同39已接真实共享View的Source/两核/Lower及Clang/API O0/O2，拥有Task输入、保存SSA、Ready结果和取消清理，以及实际CT4的混合const/life/type全序号身份。e50317ad5的CT4五项源码控制通过，含四个正例的16次原生执行与N26295/N−1/warm/fresh；Astra独审fe9cdbf19绑定实际源码。e6ad196a5三目标cross84、generic_regressions82、generics28通过，只是该精确候选的限定检查，不能拼成当前整仓验收。
 
-完整嵌套callable关系及CT实际ambient源binder需共同40/CT5。公共7ffbfc856独立树IR63/0与Astra重放通过，Types853适配39/0；两者均不是完整语言准入。Expand、Types、独立两核、CT冻结源上下文及Lower/LLVM按changes/181-common40-callable-context.md并行迁移；新表示在消费者接通前不合入可运行39主树。Types导出闭包实际布局遍历/预算与完整关系身份的审核返修继续。
+隔离共同40/CT5已能构建完整Driver。静态qualified函数值保留原定义关系，只把真正静态且输入有根的变量抽象为独立Invocation变量。Types修正f6f347be6通过43项、真实源2项和严格Clippy，独审6d02b1d84关闭所发现的形成计费遗漏。当前1fc2aec29还贯通341实际显式Code别名：推断与显式两源各Clang/API O0/O2，八次机器运行stdout42，每源完整请求N12633/N−1/warm/fresh。无实际外层上下文的Fixed代码值必须拒绝；两核9e6698及Astra复核a1cc47601关闭此前raw反例，不把仍缺的捕获上下文称为完成。
 
-GitHub曾以commit_refs_rules内部错误拒绝原子与单分支推送，随后恢复；已核回16引用/5WIP以及后续15引用/4WIP的真实源码备份。失败不能视作成功，本地checkpoint脚本现先记录捕获清单并在远端失败时生成可验证源码bundle。最新完整SHA以/workspace/backups/zil-terminal-20261104各批receipt.json为准。远端main保持接受4bc1d77b5，进度保存在task/language-terminal-20261104及施工/备份分支，公共迁移为task/terminal-public40；PR34草稿。
+340实际拥有字段替换已有Source/Types/Analyze生产者，Verify及机器消费者继续实施；342继续逐角色证明与真实借用组合；343的Task Unit/有限Copy错误结果与CAS消费者持续施工；344的CT5真实源上下文、物理内存计费和独立验证仍在冻结检查。Dyn目前只有真实Source→Core声明身份，动态执行/异构存储消费者未完成。各作者限定结果由精确提交与独审承接，公共迁移尚不合入可运行39主树。
 
-十方面剩余能力仍须逐个实际贯通；状态协议/完整lending、dyn存储、拥有子Task/异步排空/waker/一般同步线程、完整库及平台ZUI/原生Windows/Rust同语义成本尚未终验。用户授权持续至完整终态，阶段施工与备份不结束主任务，也不升级B0/产品门。
+GitHub进度保存在task/language-terminal-20261104及施工/备份分支，公共迁移为task/terminal-public40，CAS公共后继为task/terminal-cas41；PR34草稿，接受main仍为4bc1d77b5。checkpoint先保存实际源码捕获清单，再原子推送并逐完整SHA核回，失败生成可验证bundle；最新远端收据只读/workspace/backups/zil-terminal-20261104实际批次。未提交与允许的未跟踪源码使用临时index备份，不reset/clean。
+
+十方面剩余能力仍须逐个实际贯通；一般状态/lending、dyn存储、异步排空/waker/一般同步线程、完整库及平台ZUI/原生Windows/Rust同语义成本仍未终验。用户授权持续至完整终态；阶段施工与源码备份不结束主任务，也不升级B0或产品门。
 
 ## 2026-11-04：终态施工与源码持续备份
 
