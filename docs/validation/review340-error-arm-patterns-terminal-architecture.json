@@ -86,6 +86,15 @@
     "nearest_positive": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/fresh.zil",
     "nearest_positive_sha256": "069e5d48c1452e44e362b0e5b0bba77503ce7bedc5d37f59c4c3d1a79a8abb11",
     "observed": "stale Accepted; fresh Accepted; both emitted only main and no unsupported items",
-    "scope": "Actual Parse\u2192Expand source-definition gate; no later kernel/native claim."
+    "scope": "Actual Parse\u2192Expand source-definition gate; no later kernel/native claim.",
+    "condition_and_address_neighbors": {
+      "receipt": "/workspace/.zil-env/terminal-20261104/errorarm340-expand-probe/neighbors-receipt.json",
+      "sha256": "1883811f30a3aaf0cff3d8b75651948ee1751a6763535f35c3c0377456eda648",
+      "observed": {
+        "if-let": "stale and fresh Accepted, emitted only main, unsupported empty",
+        "while-let": "stale and fresh Accepted, emitted only main, unsupported empty",
+        "addressed-match": "stale and fresh both Unsupported: generic address has no established symbolic borrow origin"
+      }
+    }
   }
 }
