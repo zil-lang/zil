@@ -268,6 +268,11 @@ fn terminal340_unused_generic_error_ref_origins() {
         "{}",
         rejected.to_json()
     );
+    let invoked = good.replace(
+        "fn result()->i32{return 42}",
+        "fn make()->F!i32{return 42}fn result()->i32{return unused(make())+42}",
+    );
+    review329_native(&[("main", &invoked)], 42);
 }
 
 #[test]
