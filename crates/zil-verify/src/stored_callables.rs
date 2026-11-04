@@ -73,25 +73,37 @@ pub(super) fn called<'a>(
     f: &TypedFunction,
     kind: &'a InstructionKind,
 ) -> Option<(&'a ClosureDefinition, &'a [ValueId])> {
-    let (ty, args) = match kind {
+    let (id, args) = match kind {
         InstructionKind::CallClosureBorrowed {
             callee,
             kind: zil_ir::CallableKind::Fn,
             arguments,
-        } => (f.values.get(callee.0 as usize)?, arguments.as_slice()),
+        } => {
+            let Type::Address { inner, .. } = f.values.get(callee.0 as usize)? else {
+                return None;
+            };
+            let Type::Closure(id) = inner.as_ref() else {
+                return None;
+            };
+            (*id, arguments.as_slice())
+        }
         InstructionKind::CallClosureShared { callee, arguments } => {
-            (&f.locals.get(callee.0 as usize)?.ty, arguments.as_slice())
+            let Type::Closure(id) = &f.locals.get(callee.0 as usize)?.ty else {
+                return None;
+            };
+            (*id, arguments.as_slice())
+        }
+        InstructionKind::CallClosure { callee, arguments } => {
+            let Type::Closure(id) = f.values.get(callee.0 as usize)? else {
+                return None;
+            };
+            (*id, arguments.as_slice())
         }
         _ => return None,
     };
-    let ty = if let Type::Address { inner, .. } = ty {
-        inner.as_ref()
-    } else {
-        ty
-    };
-    let Type::Closure(id) = ty else { return None };
-    finite(module, *id).then(|| (&module.closures[id.0 as usize], args))
+    finite(module, id).then(|| (&module.closures[id.0 as usize], args))
 }
+
 pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instruction) -> bool {
     match &i.kind {
         InstructionKind::MakeClosure { closure, captures } => {
@@ -148,7 +160,8 @@ pub(super) fn role<'a>(
     };
     let local = match kind {
         InstructionKind::CallClosureShared { callee, .. } => *callee,
-        InstructionKind::CallClosureBorrowed { callee, .. } => {
+        InstructionKind::CallClosureBorrowed { callee, .. }
+        | InstructionKind::CallClosure { callee, .. } => {
             let mut current = *callee;
             let mut answer = None;
             b.spend(f.values.len())?;

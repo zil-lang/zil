@@ -1590,6 +1590,7 @@ fn windows(
                     access(&p, false, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
                 | InstructionKind::CallClosureShared { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
