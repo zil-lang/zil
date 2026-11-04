@@ -136,7 +136,7 @@ pub(super) fn dual_scope(
 
 pub(crate) fn refers(ty: &TypeRef, name: &str) -> bool {
     match &ty.kind {
-        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
             path.as_slice() == [name]
                 || args
                     .iter()
@@ -173,7 +173,7 @@ fn selector_refers(ty: &TypeRef, name: &str, remaining: &mut usize) -> R<bool> {
         .checked_sub(3usize.saturating_add(name.len()))
         .ok_or_else(limit)?;
     Ok(match &ty.kind {
-        TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
+        TypeKind::Named { path, args } | TypeKind::Dyn { path, args, .. } => {
             for part in path {
                 *remaining = remaining
                     .checked_sub(part.len().saturating_add(1))

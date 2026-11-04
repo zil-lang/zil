@@ -144,6 +144,13 @@ impl Budget {
         // the upper bound. Arrays compare their length once, not per element.
         self.spend(2 + usize::from(copy_check), context)?;
         match ty {
+            Type::Dyn { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "dyn type consumer is not yet implemented",
+                    None,
+                )]);
+            }
             Type::BorrowedStorage { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -484,6 +491,16 @@ pub(super) fn preflight(
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
+    if !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "dyn table consumer is not yet implemented",
+            None,
+        )]);
+    }
     count(0, module.functions.len(), limits.max_functions, "function")?;
     budget.input(1, "module preflight")?;
     if let Some(feature) = module.unsupported.first() {
@@ -662,6 +679,13 @@ pub(super) fn preflight(
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
                         "stored-borrow type consumer is not yet implemented",
+                        None,
+                    )]);
+                }
+                Type::Dyn { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "dyn type consumer is not yet implemented",
                         None,
                     )]);
                 }
@@ -1199,6 +1223,13 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "dyn instruction consumer is not yet implemented",
+                            Some(instruction.span),
+                        )]);
+                    }
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
                         return Err(vec![Diagnostic::unsupported(

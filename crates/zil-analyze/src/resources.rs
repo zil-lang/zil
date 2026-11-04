@@ -423,6 +423,10 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
+        InstructionKind::CallDynSlot {
+            callee, arguments, ..
+        } => (Some(*callee), None, arguments),
         InstructionKind::LoadStoredBorrow { storage, .. } => (Some(*storage), None, &[]),
         InstructionKind::StoreStoredBorrow { storage, value, .. } => {
             (Some(*storage), Some(*value), &[])

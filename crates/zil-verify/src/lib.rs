@@ -489,6 +489,15 @@ fn check_module(
         ));
     }
     check_target(&module.target, expected_target)?;
+    if !module.dyn_declarations.is_empty()
+        || !module.dyn_interfaces.is_empty()
+        || !module.dyn_vtables.is_empty()
+    {
+        return Err(unsupported(
+            "dyn table consumer is not yet implemented",
+            None,
+        ));
+    }
     if let Some(feature) = module
         .unsupported
         .first()
@@ -917,6 +926,12 @@ fn check_type_shape(
             Type::BorrowedStorage { .. } => {
                 return Err(unsupported(
                     "stored-borrow type consumer is not yet implemented",
+                    None,
+                ));
+            }
+            Type::Dyn { .. } => {
+                return Err(unsupported(
+                    "dyn type consumer is not yet implemented",
                     None,
                 ));
             }
@@ -1713,6 +1728,12 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+            return Err(unsupported(
+                "dyn instruction consumer is not yet implemented",
+                span,
+            ));
+        }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             return Err(unsupported(
                 "stored-borrow instruction consumer is not yet implemented",
@@ -3055,6 +3076,10 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),
+        InstructionKind::CallDynSlot {
+            callee, arguments, ..
+        } => ([Some(*callee), None], arguments),
         InstructionKind::LoadStoredBorrow { storage, .. } => ([Some(*storage), None], &[]),
         InstructionKind::StoreStoredBorrow { storage, value, .. } => {
             ([Some(*storage), Some(*value)], &[])
