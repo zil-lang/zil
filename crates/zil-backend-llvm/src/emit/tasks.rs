@@ -75,17 +75,25 @@ pub(super) fn reserve_owner_actions(
     for b in &function.blocks {
         meter.spend(b.instructions.len().saturating_mul(lookups))?;
     }
+    // One instruction may consume an arbitrarily wide prepared argument list.
+    // Pay actual markers, including their operand vectors and symbol strings,
+    // before FunctionEmitter constructs any of them.
+    meter.spend(ownership.action_count())?;
+    for actions in ownership.actions() {
+        meter.spend(
+            actions
+                .before()
+                .len()
+                .saturating_add(actions.after().len())
+                .saturating_mul(256),
+        )?;
+    }
     meter.spend(
-        ownership
-            .action_count()
-            .saturating_mul(256)
-            .saturating_add(
-                function
-                    .blocks
-                    .len()
-                    .saturating_mul(ownership.owners().len())
-                    .saturating_mul(4),
-            )
+        function
+            .blocks
+            .len()
+            .saturating_mul(ownership.owners().len())
+            .saturating_mul(4)
             .saturating_add(
                 function
                     .parameters
