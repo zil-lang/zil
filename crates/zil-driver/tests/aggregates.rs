@@ -11,6 +11,30 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+    ] {
+        review329_native_output(&[("main", text)], b"AB42\n");
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal340_captured_owning_base_native() {
     let original = include_str!(
         "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"
