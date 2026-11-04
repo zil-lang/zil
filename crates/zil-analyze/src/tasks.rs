@@ -1,6 +1,8 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod drop_sync;
 mod owned;
+pub(super) use drop_sync::require as require_synchronous_drop;
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
