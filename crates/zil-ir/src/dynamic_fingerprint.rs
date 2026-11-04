@@ -76,10 +76,6 @@ pub(super) fn encode_dyn_slot(b: &mut impl FingerprintSink, value: &DynSlot) {
     encode_type(b, &value.result);
     encode_dyn_passing_mode(b, &value.result_mode);
     encode_dyn_call_kind(b, &value.call_kind);
-    b.push(u8::from(value.invocation_life.is_some()));
-    if let Some(value) = &value.invocation_life {
-        encode_function_life(b, value);
-    }
     b.push(u8::from(value.storage_life.is_some()));
     if let Some(value) = &value.storage_life {
         encode_required_storage_contract(b, value);

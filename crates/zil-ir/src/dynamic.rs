@@ -89,7 +89,6 @@ pub struct DynSlot {
     pub result: Type,
     pub result_mode: PassingMode,
     pub call_kind: CallKind,
-    pub invocation_life: Option<FunctionLifeContract>,
     pub storage_life: Option<StorageLifeContract>,
     pub contract: DynContract,
 }

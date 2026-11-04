@@ -53,6 +53,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         inner: Box::new(stored.clone()),
     };
     let contract = StorageLifeContract {
+        classes: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 1,
         bindings: vec![
@@ -224,12 +225,8 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         },
         result_mode: PassingMode::Infer,
         call_kind: CallKind::Direct,
-        invocation_life: Some(FunctionLifeContract {
-            binder_count: 1,
-            parameter_lives: vec![Some(0), Some(0)],
-            result_life: Some(0),
-        }),
         storage_life: Some(StorageLifeContract {
+        classes: Vec::new(),
             fixed_binder_count: 1,
             invocation_binder_count: 1,
             bindings: vec![StorageLifeBinding {
@@ -568,6 +565,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
     use ct_artifact::*;
     assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 4);
     let value = CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
@@ -627,6 +625,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         }
         assert!(wire::encode_module_candidate(&long, &plan, &Limits::default()).is_err());
         let mut long = CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I64),
                 CtTypeNode::BorrowedStorage {
@@ -656,6 +655,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         generation_path: None,
     };
     let context = CtTypeRef {
+            ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
@@ -693,6 +693,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         name: symbol.clone(),
         life_context: None,
         arguments: vec![CtSchemaArgument::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
         })],
@@ -732,6 +733,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
+        ambient_life_scopes: Vec::new(),
         schema_version: 4,
         target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
