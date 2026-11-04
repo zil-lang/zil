@@ -159,6 +159,9 @@ pub(super) fn reserve_enum_metadata(
         *work = work.checked_sub(name.len()).ok_or_else(exhausted)?;
         Ok(())
     };
+    if let Type::BorrowedFunctionPointer { life, .. } = ty {
+        stored_borrows::contract(life, work)?;
+    }
     match ty {
         Type::Named(text) | Type::Unsupported(text) => name(text)?,
         Type::Record { name: text, fields } | Type::Package { name: text, fields } => {
@@ -255,6 +258,9 @@ pub(super) fn reserve(
             "Copy snapshot type depth exceeded",
             None,
         )]);
+    }
+    if let Type::BorrowedFunctionPointer { life, .. } = ty {
+        stored_borrows::contract(life, work)?;
     }
     match ty {
         Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,

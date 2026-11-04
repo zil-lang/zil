@@ -862,5 +862,59 @@
       "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299",
       "sha256": "ea643a1ee59739115569c0da519f8d0c15f08c044e6d6d89b1018d3ceb77e805"
     }
+  },
+  "stored_native_phantom_accounting_correction": {
+    "scope": "39 native binding reservation/all-block profile and rootless phantom correction; general storage unfinished",
+    "production_base": "123ec37f41fe75afea7cca2f7653fe93ebe0cdfe",
+    "production_files": 816,
+    "production_manifest_sha256": "5e66f4009735d398cf47dc4693f29f81f07d1c3843cb6470f000824de9f01cd2",
+    "tests": {
+      "cross_function_borrows": 84,
+      "analyze_lib": 128,
+      "verify_lib": 348,
+      "lower_lib": 5,
+      "backend_lib": 148,
+      "four_crate_clippy_lib_tests": "Pass -D warnings llvm-api"
+    },
+    "native": "Original View four Clang/API O0/O2 profiles rerun in full cross84; prior7326 LLVM/executables remain retained",
+    "budget": {
+      "analyze": 8728,
+      "verify": 11382,
+      "native_binding_reservation_component": 11374,
+      "neighbors": "N-1 ResourceLimit and fresh N",
+      "public_codegen_threshold": "Not isolated; earlier Verify dominates both retained failed attempts; component N is not a public pipeline threshold",
+      "default_changed": false
+    },
+    "phantom": "zero physical slots with meaningful nominal class accepted; ghost Hold and activation-local escape reject independently and decoded Wire",
+    "unreachable": "both kernels reject unsupported profile instructions even in unreachable blocks before native structural binding",
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_physical.rs": "0d03463db7c70007cd1f239c79f0546c161c23a73fc3fcf0242bc1c786a9147c",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "f2d28b7ede8babbe3701222e2ea0d87340370387f9fada91ac9f80acded13a7c",
+      "tests/language-readiness/terminal/342/phantom_stored_metadata.zil": "26ef76055b1eb580b0542e588aa661d5f17943490a8c5172ad427bb4a7355394",
+      "tests/language-readiness/terminal/342/phantom_stored_metadata_escape.zil": "d0d01f878c2130fe3546ff61dd6d9f5a7a6f7497ed43b1067b1e70c8a99e6862"
+    },
+    "logs": {
+      "342-stored-corrections-libs-final.log": "0a8281fe4c6250e2fe444fac89daa939abe09d154b4b90b33e578217f5db2d21",
+      "342-stored-corrections-clippy-final.log": "e77bc21141091671b75a70f46807796aa09eaf2a535a5c7e69444dc6040818dc",
+      "342-stored-corrections-clippy-corrected.log": "3f1832e2ab2630bee12ea22189e2ad69277fa603044bc0c0f95ccd3f96b58337",
+      "342-stored-corrections-cross-final.log": "c0d7837f39d551215607fb12aaec8e4c1d53335d558f1b3062c5e93672716529",
+      "342-stored-binding-component.log": "c1519dc2ad5e115a4f68c9855002aa7703b0cc3b5b7ffb203c4b1c899e743b50",
+      "342-stored-codegen-boundary.log": "fd94a5571913505db96abcc6ab7f8e92ed7fe191e4d93fa9ebd51fd7bea12a96",
+      "342-stored-codegen-boundary-raw.log": "efe65898191198f55f8cdbaee77a2a549b2bcd9708e7884700095083cc144cc6",
+      "342-phantom-stored-first.log": "998663aec6d2d25dc6fe492c3f05f5533f73b5bccf5e765bb14be742e5f979ff",
+      "342-phantom-stored-main.log": "c2d2b5016d7a7f7be1bb48f76ba61bd06e4706df671f23f33b31c7f53e8b93bc",
+      "342-corrections-final-mtime.json": "1c892ec27f6aeef2d4808eb97924163c58d48e120857f6b49666ad7c40c09d1b"
+    },
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299",
+      "sha256": "8ea3dbf07d75a4035c86fd1f3812131dd4882fb979950197838d526168cd0d7b"
+    },
+    "independent_review": "Pending exact correction replay; prior7326 four-test native replay remains separate",
+    "remaining": [
+      "rich qualified classes/invariant substitution",
+      "mutable slot/init/epoch/Take/refill",
+      "Option/SliceIter and generic definition obligations",
+      "owned/captured/opaque State/lending/dyn/Task retained roots"
+    ]
   }
 }

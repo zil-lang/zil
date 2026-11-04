@@ -6,17 +6,20 @@ fn invalid(f: &CoreFunction, message: &str) -> Diagnostic {
 }
 pub(super) fn preflight(f: &CoreFunction, remaining: &mut usize) -> R<()> {
     if let Some(contract) = &f.storage_life {
-        for binding in &contract.bindings {
-            *remaining = remaining
-                .checked_sub(binding.position.path.len().saturating_add(1))
-                .ok_or_else(|| {
+        borrowed_fp::charge_contract(
+            contract,
+            |work| {
+                *remaining = remaining.checked_sub(work).ok_or_else(|| {
                     Diagnostic::limit(
                         Phase::Types,
                         "stored signature metadata budget exceeded",
                         Some(f.span),
                     )
                 })?;
-        }
+                Ok(())
+            },
+            1,
+        )?;
         if f.life.is_some() {
             return Err(invalid(
                 f,

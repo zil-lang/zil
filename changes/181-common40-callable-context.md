@@ -31,3 +31,19 @@ Source, independent kernels, transport and native behavior are reported at their
 actual layer. Existing failures remain recorded until a verified successor fixes
 them. Default budgets, dependency rules and the native/Rust comparison gates do
 not change.
+
+### Actual exported closure source control
+
+The public40 interface encoder now has an actual Source→Parse→Expand→Types
+control in the existing `generics` target. A source factory exports a concrete
+move closure with4/24 i32 captures; a second pair exports a closure that actually
+captures that inner closure. The i64-capture neighbors retain the same ordinary
+factory signature and produce distinct full interface identities. Whole Types
+request boundaries are837/3071 for direct captures and1135/3483 for nested
+captures, with N−1 ResourceLimit and a fresh exact-N request. These are whole
+Types request thresholds, not isolated encoder fees or native acceptance.
+
+The exact test source has also run independently with the built public40
+Expand/Types libraries while composed Driver remains blocked on the CT consumer
+migration. This source-level check complements the private encoder component
+controls; it does not grant rich callable execution or new native behavior.

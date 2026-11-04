@@ -757,7 +757,9 @@ pub fn function_fingerprint(value: &CtFunction, limits: &Limits) -> WireResult<F
     Ok(function_fingerprint_with_usage(value, limits, &mut WireBudget::from_limits(limits))?.0)
 }
 
-/// Canonical value identity, charged to the caller's remaining request budget.
+/// Canonical structural transport identity, charged to the remaining request
+/// budget. Schema/symbol/ambient references remain raw indices here; this is
+/// not a contextual semantic key for values that depend on those references.
 pub fn value_fingerprint_with_usage(
     value: &CtValue,
     limits: &Limits,
