@@ -24,9 +24,100 @@ pub(super) struct Catalog {
     /// are output lookup keys, never declaration identities or capabilities.
     pub(super) functions: BTreeMap<String, StorageLifeContract>,
     project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
+    pub(super) pointers: BTreeMap<String, Type>,
 }
 
 impl Catalog {
+    pub(super) fn pointer_lookup_fee(
+        &self,
+        key: &str,
+        budget: &mut generics::Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.identity_work(
+            key.len()
+                .saturating_add(1)
+                .saturating_mul(
+                    self.pointers
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2),
+                )
+                .saturating_mul(12),
+            span,
+        )
+    }
+    pub(super) fn pointer_type(
+        &self,
+        source: &s::TypeRef,
+        budget: &mut generics::Budget<'_>,
+    ) -> R<Option<Type>> {
+        let Some(key) = generics::rich_pointer::key(source, budget)? else {
+            return Ok(None);
+        };
+        self.pointer_lookup_fee(&key, budget, source.span)?;
+        let ty = self.pointers.get(&key).ok_or_else(|| {
+            Diagnostic::unsupported(
+                Phase::Expand,
+                "rich code has no actual prepared source signature",
+                Some(source.span),
+            )
+        })?;
+        pay_type(ty, budget, source.span, 0)?;
+        Ok(Some(ty.clone()))
+    }
+    pub(super) fn pointer_parameter_type(
+        &self,
+        source: &s::TypeRef,
+        budget: &mut generics::Budget<'_>,
+        depth: usize,
+    ) -> R<Type> {
+        budget.node(source.span, depth)?;
+        match &source.kind {
+            s::TypeKind::Reference { mutable, inner, .. } => Ok(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(self.pointer_parameter_type(inner, budget, depth + 1)?),
+            }),
+            s::TypeKind::Group(inner) => self.pointer_parameter_type(inner, budget, depth + 1),
+            s::TypeKind::Tuple(fields) => {
+                let mut result = Vec::new();
+                for field in fields {
+                    result.push(self.pointer_parameter_type(field, budget, depth + 1)?);
+                }
+                Ok(Type::Tuple(result))
+            }
+            s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
+                for instance in &self.instances {
+                    budget.node(source.span, depth)?;
+                    if let Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                        && let Type::Record { name, .. } = storage.as_ref()
+                    {
+                        budget.text(name, source.span)?;
+                        budget.text(&path[0], source.span)?;
+                        if name == &path[0] {
+                            pay_type(&instance.instance.ty, budget, source.span, depth + 1)?;
+                            return Ok(instance.instance.ty.clone());
+                        }
+                    }
+                }
+                budget.ty_depth(source, depth)?;
+                let ty = type_ref(source);
+                if contains_unresolved(&ty) {
+                    return Err(Diagnostic::unsupported(
+                        Phase::Expand,
+                        "rich code parameter needs its complete source type",
+                        Some(source.span),
+                    ));
+                }
+                Ok(ty)
+            }
+            _ => Err(Diagnostic::unsupported(
+                Phase::Expand,
+                "rich code parameter needs its complete source constructor",
+                Some(source.span),
+            )),
+        }
+    }
     pub(super) fn restore_functions(
         &mut self,
         functions: &BTreeMap<String, (zil_base::ModuleId, String, bool)>,
@@ -238,6 +329,23 @@ fn pay_type(ty: &Type, budget: &mut generics::Budget<'_>, span: Span, depth: usi
         }
         Type::ErrorUnion { error, result } => {
             pay_type(error, budget, span, depth + 1)?;
+            pay_type(result, budget, span, depth + 1)
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } => {
+            if let Type::BorrowedFunctionPointer { life, .. } = ty {
+                for row in &life.bindings {
+                    spend(budget, span, row.position.path.len().saturating_add(1))?;
+                }
+                for row in &life.classes {
+                    spend(budget, span, row.position.path.len().saturating_add(1))?;
+                }
+            }
+            for parameter in parameters {
+                pay_type(parameter, budget, span, depth + 1)?;
+            }
             pay_type(result, budget, span, depth + 1)
         }
         Type::Unit
@@ -976,22 +1084,53 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
     }
 
     #[test]
-    fn rich_bfp_source_classes_stay_closed_until_their_actual_producer() {
-        for signature in [
-            "for<life a> fn(&'a Tag<'a>)->i32",
-            "for<life a> for<life b> fn(&'a Tag<'b>,&'b i32)->i32",
-            "for<life a> for<life b> fn(&'a Tag<'a>,&'b i32)->i32",
+    fn rich_bfp_source_classes_keep_joint_invocation_labels() {
+        let mut types = Vec::new();
+        for (signature, class, binders) in [
+            ("for<life a> fn(&'a Tag<'a>)->i32", 0, 1),
+            ("for<life a> for<life b> fn(&'a Tag<'b>,&'b i32)->i32", 1, 2),
+            ("for<life a> for<life b> fn(&'a Tag<'a>,&'b i32)->i32", 0, 2),
+            ("for<life x> for<life y> fn(&'x Tag<'y>,&'y i32)->i32", 1, 2),
         ] {
-            let errors = expand_text(&format!("struct Tag<life s>{{n:i32}}type Handler={signature};fn use_handler(f:Handler){{}}fn main(){{}}"))
-                .expect_err("an outer-only relation cannot erase a qualified signature class");
-            assert!(
-                errors.iter().all(|error| matches!(
-                    error.category,
-                    zil_base::ResultCategory::Unsupported | zil_base::ResultCategory::SafeReject
-                )),
-                "{errors:?}"
+            let core = expand_text(&format!("struct Tag<life s>{{n:i32}}type Handler={signature};fn use_handler(f:Handler){{}}fn main(){{}}"))
+                .unwrap();
+            let ty = core
+                .functions
+                .iter()
+                .find(|f| f.name == "use_handler")
+                .unwrap()
+                .parameters[0]
+                .ty
+                .clone();
+            let Type::BorrowedFunctionPointer {
+                parameters, life, ..
+            } = &ty
+            else {
+                panic!("{ty:?}")
+            };
+            assert_eq!(
+                (life.fixed_binder_count, life.invocation_binder_count),
+                (0, binders)
             );
+            assert_eq!(life.bindings[0].binder, StorageBinder::Invocation(0));
+            assert_eq!(
+                life.classes,
+                vec![SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0
+                    },
+                    binder: StorageBinder::Invocation(class)
+                }]
+            );
+            assert!(
+                matches!(&parameters[0],Type::Address {inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage {..}))
+            );
+            types.push(ty);
         }
+        assert_ne!(types[1], types[2]);
+        assert_eq!(types[1], types[3]);
     }
 
     #[test]

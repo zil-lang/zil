@@ -192,7 +192,7 @@ impl<'a> Engine<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn storage_header(
+    pub(super) fn storage_header(
         &mut self,
         ty: &mut TypeRef,
         base: zil_ir::StorageBase,

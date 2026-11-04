@@ -32,6 +32,8 @@ pub(super) mod origins;
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
 pub(super) mod record_enums;
+#[path = "generic_rich_pointer.rs"]
+pub(super) mod rich_pointer;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
@@ -1128,6 +1130,11 @@ impl<'a> Engine<'a> {
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
         self.tick(ty.span, depth)?;
+        if matches!(ty.kind, TypeKind::ForLifetime { .. })
+            && self.prepare_rich_pointer(ty, depth + 1)?
+        {
+            return Ok(());
+        }
         if self.traits.has_associated && trait_bounds::associated::parts(ty).is_some() {
             *ty = self.traits.normalize_associated(
                 ty,
@@ -2462,6 +2469,9 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     type_key_bounded(ty, budget)
 }
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    if let Some(key) = rich_pointer::key(ty, budget)? {
+        return Ok(key);
+    }
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
     if budget.has_anonymous_sums()
