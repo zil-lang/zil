@@ -889,6 +889,11 @@ fn evaluate_with_context(
     };
     Ok((
         CoreModule {
+            life_declarations: core.life_declarations.clone(),
+            life_instances: core.life_instances.clone(),
+            dyn_declarations: core.dyn_declarations.clone(),
+            dyn_interfaces: core.dyn_interfaces.clone(),
+            dyn_vtables: core.dyn_vtables.clone(),
             aggregate_templates: core.aggregate_templates.clone(),
             aggregate_applications: core.aggregate_applications.clone(),
             functions,
