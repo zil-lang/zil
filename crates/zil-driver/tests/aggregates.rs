@@ -309,6 +309,223 @@ fn terminal340_option_source_identity_and_negative_neighbors() {
     }
 }
 
+#[test]
+fn terminal340_reference_places_native() {
+    review329_native(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/340/reference.zil"),
+        )],
+        42,
+    );
+    for text in [
+        "fn result()->i32{let n=42;let ref p=n;return *p}",
+        "fn result()->i32{var n=20;let ref mut p=n;*p+=22;return n}",
+        "fn result()->i32{var pair=(20,22);let(ref x,ref y)=pair;return *x+*y}",
+        "fn result()->i32{let value:i32?=Option.Some(42);match value{Option.Some(ref p)=>{return *p},Option.None()=>{return 0}}}",
+        "fn result()->i32{var value:i32?=Option.Some(20);match value{Option.Some(ref mut p)=>{*p+=22;return *p},Option.None()=>{return 0}}}",
+        "enum E{Pair(i32,i32),None}fn result()->i32{var value=E.Pair(20,22);match value{E.Pair(ref mut a,ref mut b)=>{*a+=*b;return *a},E.None()=>{return 0}}}",
+        "enum Inner{Pair(i32,i32),None}enum Outer{Nest(Inner),None}fn result()->i32{var value=Outer.Nest(Inner.Pair(20,22));match value{Outer.Nest(Inner.Pair(ref mut a,ref mut b))=>{*a+=*b;return *a},Outer.Nest(Inner.None())=>{return 0},Outer.None()=>{return 0}}}",
+        "package P{manages data:ByteBuffer;n:i32}fn result()->i32{let value:P?=Option.Some(P{data:bytes_new(),n:42});match value{Option.Some(ref p)=>{return p.n},Option.None()=>{return 0}}}",
+        "enum Inner{A(i32),B(i32)}enum Outer{Nest(Inner),None}fn result()->i32{var value=Outer.Nest(Inner.A(20));match value{Outer.Nest(ref mut inner)=>{*inner=Inner.B(42)},Outer.None()=>{return 0}}match value{Outer.Nest(Inner.B(ref p))=>{return *p},Outer.Nest(Inner.A(_))=>{return 1},Outer.None()=>{return 0}}}",
+    ] {
+        review329_native(&[("main", text)], 42);
+    }
+}
+
+#[test]
+fn terminal340_reference_conflicts_and_raw_tag_neighbors() {
+    for text in [
+        "fn result()->i32{let n=20;let ref mut p=n;return *p}",
+        "fn result()->i32{var value:i32?=Option.Some(42);match value{Option.Some(ref p)=>{value=Option.None;return *p},Option.None()=>{return 0}}}",
+        "fn result()->i32{var value:i32?=Option.Some(42);match value{Option.Some(ref mut p)=>{let other=&value;return *p},Option.None()=>{return 0}}}",
+        "fn result()->i32{let pair=(20,22);let(ref n,ref n)=pair;return *n}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}\n{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+    review329_native(
+        &[(
+            "main",
+            "fn result()->i32{var value:i32?=Option.Some(42);match value{Option.Some(ref p)=>{let result=*p;value=Option.None;return result},Option.None()=>{return 0}}}",
+        )],
+        42,
+    );
+    let input = source(
+        "enum E{Data(i32),None}fn read(value:E)->i32{match value{E.Data(ref p)=>{return *p},E.None()=>{return 0}}}fn result()->i32{return read(E.Data(42))}",
+    );
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            .unwrap()
+            .module(),
+        &typed
+    );
+    for remove_guard in [false, true] {
+        let mut raw = typed.clone();
+        let function = raw.functions.iter_mut().find(|f| f.name == "read").unwrap();
+        if remove_guard {
+            let tag = function
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    matches!(i.kind, InstructionKind::VariantTagLocal { .. })
+                        .then(|| i.result.unwrap())
+                })
+                .unwrap();
+            let guard=function.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::Binary{left,right,..} if left==tag || right==tag)).unwrap();
+            guard.kind = InstructionKind::Constant(zil_ir::Constant::Bool(true));
+        } else {
+            let borrow = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::BorrowVariantLocal { .. }))
+                .unwrap();
+            let InstructionKind::BorrowVariantLocal { path, .. } = &mut borrow.kind else {
+                unreachable!()
+            };
+            path[0].index = 1;
+        }
+        assert!(
+            zil_analyze::analyze(&raw, &limits).is_err(),
+            "Analyze accepted forged active payload path"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err(),
+            "Verify accepted forged active payload path"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+    }
+}
+
+#[test]
+fn terminal340_reference_budget_boundaries() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/reference.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let maximum = Limits::default().max_analysis_steps;
+    let mut low = 1;
+    let mut high = maximum;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected budget result {status:?}"),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 reference full-request analysis N={low}, N-1 rejects, fresh/warm agree");
+}
+
+#[test]
+fn terminal340_unsigned_native_wrapper_and_api_traps() {
+    use zil_driver::{NativeBackend, Optimization};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (text, expected) in [
+                (
+                    "fn result()->u64{return 18446744073709551615u64}",
+                    Some("18446744073709551615\n"),
+                ),
+                (
+                    "fn result()->usize{return 18446744073709551615usize}",
+                    Some("18446744073709551615\n"),
+                ),
+                (
+                    "fn result()->i32{let x=18446744073709551615u64;let y=x+1u64;return 0}",
+                    None,
+                ),
+                ("fn result()->i32{let x=0u64;let y=x-1u64;return 0}", None),
+                (
+                    "fn result()->i32{let x=18446744073709551615u64;let y=i64(x);return 0}",
+                    None,
+                ),
+                (
+                    "fn result()->i32{let x:i64=-1;let y=usize(x);return 0}",
+                    None,
+                ),
+                (
+                    "fn result()->i32{let x=1usize;let y=x<<64usize;return 0}",
+                    None,
+                ),
+            ] {
+                let directory = Temp::new();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        entry: Some("result".into()),
+                        output: Some(directory.0.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let observed = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                if let Some(expected) = expected {
+                    assert!(observed.status.success());
+                    assert_eq!(observed.stdout, expected.as_bytes())
+                } else {
+                    assert!(
+                        !observed.status.success(),
+                        "{backend:?}/{optimization:?} {text}"
+                    )
+                }
+            }
+        }
+    }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

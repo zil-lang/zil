@@ -1,7 +1,7 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, U64, USIZE, UNIT, VALUE, Variable,
+    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, U64, UNIT, USIZE, VALUE, Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -779,6 +779,7 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
                 validate_pattern(field, depth + 1, budget)?;
             }
         }
+        CorePatternKind::Reference { pattern, .. } => validate_pattern(pattern, depth + 1, budget)?,
         CorePatternKind::Tuple(fields) => {
             for field in fields {
                 validate_pattern(field, depth + 1, budget)?;

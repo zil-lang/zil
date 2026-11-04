@@ -985,7 +985,8 @@ pub(super) fn preflight(
                         budget.scoped_foreign = true;
                     }
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("Sum local outside table"));
