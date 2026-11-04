@@ -4,6 +4,9 @@
 use super::*;
 #[path = "generic_trait_super.rs"]
 mod supertraits;
+#[path = "generic_trait_solver.rs"]
+mod solver;
+pub(super) use solver::Witness;
 
 pub(super) use trait_instances::Bound;
 pub(super) type Bounds = BTreeMap<String, Vec<Bound>>;
@@ -18,6 +21,7 @@ pub(super) struct Index<'a> {
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
     nominals: BTreeMap<String, &'a Item>,
+    pub(super) recipes: Vec<&'a Item>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -90,6 +94,7 @@ impl<'a> Index<'a> {
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
+            recipes: Vec::new(),
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
@@ -147,6 +152,14 @@ impl<'a> Index<'a> {
                         index.inherent_methods.insert((host, f.name.as_str()));
                     }
                 }
+            }
+            if let ItemKind::Impl(i) = &item.kind
+                && i.trait_type.is_some()
+                && (!i.generics.is_empty() || !i.where_clause.is_empty() || plain(&i.target).is_none())
+            {
+                budget.item(item)?;
+                index.has_instances = true;
+                index.recipes.push(item);
             }
             if let ItemKind::Impl(i) = &item.kind
                 && i.generics.is_empty()
@@ -399,6 +412,10 @@ impl<'a> Index<'a> {
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
                 })?;
+                if !self.recipes.is_empty() {
+                    self.solve(&reference, actual, available, variables, budget)?;
+                    continue;
+                }
                 budget.ty(actual)?;
                 let host = plain(actual).ok_or_else(|| {
                     error(span, "trait bound requires an implemented nominal type")
