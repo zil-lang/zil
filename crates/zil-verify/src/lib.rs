@@ -84,6 +84,7 @@ mod scoped_thread;
 mod slices;
 mod stored_borrows;
 mod stored_flow;
+mod place_replacements;
 mod sums;
 mod tasks;
 pub use ct_artifact::{

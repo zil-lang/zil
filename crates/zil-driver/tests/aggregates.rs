@@ -11,6 +11,50 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_owner_replacement_types_uses_real_tickets() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"),
+    ] {
+        let temp = Temp::new();
+        let report = compile_source(&source(text), &CompileOptions {
+            stop_after: Stage::Types, emit_dir: Some(temp.0.clone()), ..CompileOptions::default()
+        });
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+        assert!(typed.contains("ReservePlaceAddress"), "{typed}");
+        assert!(typed.contains("CommitPlaceReplace"), "{typed}");
+        assert!(!typed.contains("WriteAddress"), "{typed}");
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+    ] {
+        review329_native_output(&[("main", text)], b"AB42\n");
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal340_captured_owning_base_native() {
     let original = include_str!(
         "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"

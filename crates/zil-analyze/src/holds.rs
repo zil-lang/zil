@@ -4,6 +4,7 @@
 use super::*;
 use std::collections::BTreeMap;
 mod captured_lending;
+mod replacement_pins;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
@@ -683,20 +684,16 @@ struct PatternFacts<'a> {
     values: &'a [Roots],
     state: &'a State,
     captures: Option<&'a captured_lending::Facts>,
+    replacements: Option<&'a crate::place_replacements::Definitions>,
 }
-fn pattern_window_transition(
-    module: &TypedModule,
+type PatternAccess = (Roots, bool, Option<ValueId>);
+fn pattern_access(
     f: &TypedFunction,
     i: &Instruction,
-    facts: PatternFacts<'_>,
-    live: &resources::Live,
+    values: &[Roots],
+    replacements: Option<&crate::place_replacements::Definitions>,
     b: &mut Budget,
-) -> CompileResult<()> {
-    let PatternFacts {
-        values,
-        state,
-        captures,
-    } = facts;
+) -> CompileResult<Option<PatternAccess>> {
     let projected =
         |address: ValueId, path: &[VariantProjection], b: &mut Budget| -> CompileResult<Roots> {
             b.spend(values[address.0 as usize].len(), "pattern projected roots")?;
@@ -705,7 +702,20 @@ fn pattern_window_transition(
                 .map(|root| address_root(f, address, path, *root, b))
                 .collect()
         };
-    let (roots, exclusive, parent) = match &i.kind {
+    let access = match &i.kind {
+        InstructionKind::CommitPlaceReplace { reservation, .. } => {
+            let definitions =
+                replacements.ok_or_else(|| bad("replacement access has no static definition"))?;
+            let definition = definitions.definition(*reservation, b)?;
+            (
+                replacement_roots(f, definition, values, b)?,
+                true,
+                match definition.base {
+                    crate::place_replacements::Base::Address(v) => Some(v),
+                    _ => None,
+                },
+            )
+        }
         InstructionKind::BorrowPlaceLocal {
             local,
             path,
@@ -822,7 +832,52 @@ fn pattern_window_transition(
             path,
             mutable,
         } => (projected(*address, path, b)?, *mutable, Some(*address)),
-        _ => return Ok(()),
+        _ => return Ok(None),
+    };
+    Ok(Some(access))
+}
+fn replacement_roots(
+    f: &TypedFunction,
+    definition: &crate::place_replacements::Definition,
+    values: &[Roots],
+    b: &mut Budget,
+) -> CompileResult<Roots> {
+    match definition.base {
+        crate::place_replacements::Base::Local(local) => Ok(Roots::from([mixed_root(
+            f,
+            local,
+            &definition.path,
+            false,
+            b,
+        )?])),
+        crate::place_replacements::Base::Address(address) => {
+            b.spend(
+                values[address.0 as usize].len(),
+                "replacement actual addressed roots",
+            )?;
+            values[address.0 as usize]
+                .iter()
+                .map(|root| mixed_address_root(f, address, &definition.path, false, *root, b))
+                .collect()
+        }
+    }
+}
+fn pattern_window_transition(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    facts: PatternFacts<'_>,
+    live: &resources::Live,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let PatternFacts {
+        values,
+        state,
+        captures,
+        replacements,
+    } = facts;
+    let Some((roots, exclusive, parent)) = pattern_access(f, i, values, replacements, b)? else {
+        return Ok(());
     };
     let empty = Roots::new();
     for active in live {
@@ -1508,7 +1563,26 @@ fn infer_with_private(
             budget.spend(1, "owned callback window function lookup")?;
             budget.owned_callback_window_functions[f.id.0 as usize]
         };
-    let mut pattern_windows = budget.owning_address_captures;
+    let replacement_definitions = if budget.replacement_functions.is_empty() {
+        None
+    } else {
+        budget.lookup(
+            budget.replacement_functions.len(),
+            "replacement Hold function lookup",
+        )?;
+        if budget.replacement_functions.contains(&f.id) {
+            Some(crate::place_replacements::Definitions::new(
+                module, f, budget,
+            )?)
+        } else {
+            None
+        }
+    };
+    let replacement_schedule = replacement_definitions
+        .as_ref()
+        .map(|definitions| definitions.schedule(f, reachable, budget))
+        .transpose()?;
+    let mut pattern_windows = budget.owning_address_captures || replacement_schedule.is_some();
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
@@ -1531,12 +1605,16 @@ fn infer_with_private(
         }
     }
 
-    let address_afters = if store_windows || callback_windows || scoped || pattern_windows {
+    let address_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, false, &schedule.uses, budget)?
+    } else if store_windows || callback_windows || scoped || pattern_windows {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
     };
-    let capture_afters = if budget.address_capture {
+    let capture_afters = if let Some(schedule) = &replacement_schedule {
+        resources::reserved_address_afters(f, reachable, true, &schedule.uses, budget)?
+    } else if budget.address_capture {
         resources::capture_afters(f, reachable, budget)?
     } else {
         Vec::new()
@@ -1633,8 +1711,25 @@ fn infer_with_private(
             } else {
                 captured_lending::Locals::new()
             };
+            let mut prepared = if let Some(schedule) = &replacement_schedule {
+                let incoming = schedule.incoming[b].as_ref().ok_or_else(|| bad("replacement pin entry missing"))?;
+                budget.spend(incoming.len(), "replacement pin active snapshot")?;
+                incoming.clone()
+            } else { BTreeSet::new() };
             for (position, instruction) in block.instructions.iter().enumerate() {
                 budget.spend(1, "Hold instruction")?;
+                if let Some(definitions) = &replacement_definitions {
+                    replacement_pins::transition(module, f, instruction, &values, &state, &prepared, definitions, budget)?;
+                    match instruction.kind {
+                        InstructionKind::ReservePlaceLocal{reservation,..}|InstructionKind::ReservePlaceAddress{reservation,..} => {
+                            budget.lookup(prepared.len(), "replacement pin insert")?; prepared.insert(reservation);
+                        }
+                        InstructionKind::CommitPlaceReplace{reservation,..}|InstructionKind::AbortPlaceReservation{reservation} => {
+                            budget.lookup(prepared.len(), "replacement pin settlement")?; prepared.remove(&reservation);
+                        }
+                        _=>{}
+                    }
+                }
                 if !capture_afters.is_empty() {
                     capture_transition(
                         f,
@@ -1665,6 +1760,7 @@ fn infer_with_private(
                             values: &values,
                             state: &state,
                             captures: capture_facts.as_ref(),
+                            replacements: replacement_definitions.as_ref(),
                         },
                         &address_afters[b][position],
                         budget,

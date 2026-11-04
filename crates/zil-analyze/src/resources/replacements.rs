@@ -1,0 +1,471 @@
+//! Actual replacement changes freshness as well as write effects. This is a
+//! separate rerun frontier: the legacy dependency extractor assumes writes do
+//! not change origin state and therefore cannot solve these rows.
+use super::*;
+use crate::place_replacements::{Base, Definitions, origins};
+use zil_ir::PlaceProjection;
+type Target = origins::Place;
+pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
+pub(super) struct Program {
+    routes: Vec<origins::Facts>,
+    definitions: Vec<Definitions>,
+}
+fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
+    b.spend(n, "actual replacement origin transfer")
+}
+fn row_fee(rows: &Effects, target: &Target, b: &mut Budget) -> CompileResult<()> {
+    fee(b, rows.len())?;
+    let mut n = target
+        .path
+        .len()
+        .checked_add(1)
+        .and_then(|n| n.checked_mul(rows.len().saturating_add(1)))
+        .ok_or_else(|| error("replacement summary comparison work overflow"))?;
+    for old in rows.keys() {
+        n = n
+            .checked_add(old.path.len().saturating_add(1))
+            .ok_or_else(|| error("replacement summary comparison work overflow"))?;
+    }
+    fee(b, n)
+}
+fn add(
+    rows: &mut Effects,
+    target: &Target,
+    birth: &BTreeSet<Birth>,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    row_fee(rows, target, b)?;
+    fee(
+        b,
+        target
+            .path
+            .len()
+            .saturating_add(birth.len())
+            .saturating_add(1),
+    )?;
+    let at = rows.entry(target.clone()).or_default();
+    fee(b, at.len().saturating_add(birth.len()))?;
+    let old = at.len();
+    at.extend(birth);
+    Ok(at.len() != old)
+}
+pub(super) fn grow(to: &mut Effects, from: &Effects, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, from.len())?;
+    let mut changed = false;
+    for (target, birth) in from {
+        changed |= add(to, target, birth, b)?;
+    }
+    Ok(changed)
+}
+fn endpoint<'a>(
+    mut ty: &'a Type,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<&'a Type> {
+    fee(b, path.len().saturating_add(1))?;
+    for step in path {
+        ty = match (step, ty) {
+            (PlaceProjection::Field(i), Type::Tuple(fs)) => fs.get(*i as usize),
+            (
+                PlaceProjection::Field(i),
+                Type::Package { fields: fs, .. } | Type::Record { fields: fs, .. },
+            ) => fs.get(*i as usize).map(|(_, t)| t),
+            (PlaceProjection::Variant(p), Type::Enum { variants, .. }) => variants
+                .get(p.variant as usize)
+                .and_then(|(_, fs)| fs.get(p.index as usize)),
+            (PlaceProjection::ErrorArm(e), Type::ErrorUnion { error, result }) => {
+                Some(if *e { error.as_ref() } else { result.as_ref() })
+            }
+            _ => None,
+        }
+        .ok_or_else(|| error("actual replacement route crosses a view or absent field"))?;
+    }
+    Ok(ty)
+}
+fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    b.type_work(ty, true, "closed replacement endpoint qualification")?;
+    Ok(matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value()))
+}
+impl Program {
+    pub(super) fn new(
+        module: &TypedModule,
+        graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+        b: &mut Budget,
+    ) -> CompileResult<Self> {
+        let routes = origins::module(module, graphs, b)?;
+        fee(b, module.functions.len())?;
+        let mut definitions = Vec::with_capacity(module.functions.len());
+        for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+            let d = Definitions::new(module, f, b)?;
+            d.activations(f, reachable, b)?;
+            for definition in d.entries.values() {
+                if !closed(&definition.ty, b)? {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "replacement endpoint cleanup/hold bridge is under construction",
+                        None,
+                    )]);
+                }
+            }
+            definitions.push(d);
+        }
+        Ok(Self {
+            routes,
+            definitions,
+        })
+    }
+    fn targets(
+        &self,
+        f: &TypedFunction,
+        base: &Base,
+        path: &[PlaceProjection],
+        b: &mut Budget,
+    ) -> CompileResult<origins::Places> {
+        let mut out = origins::Places::new();
+        match base {
+            Base::Local(local) => {
+                fee(b, path.len().saturating_add(1))?;
+                out.insert(Target {
+                    root: origins::Root::Local(*local),
+                    path: path.to_vec(),
+                    mutable: f.locals[local.0 as usize].mutable,
+                });
+            }
+            Base::Address(value) => {
+                let row = &self.routes[f.id.0 as usize].values[value.0 as usize];
+                out = origins::project(row, path, b)?;
+            }
+        }
+        if out.is_empty() {
+            return Err(error(
+                "replacement parent has no independently reconstructed actual target",
+            ));
+        }
+        Ok(out)
+    }
+    fn actual_type<'a>(
+        &self,
+        module: &'a TypedModule,
+        f: &'a TypedFunction,
+        target: &Target,
+        b: &mut Budget,
+    ) -> CompileResult<&'a Type> {
+        let root = match target.root {
+            origins::Root::Local(local) => &f.locals[local.0 as usize].ty,
+            origins::Root::Parameter(p) => &f.locals[f.parameters[p as usize].0 as usize].ty,
+            origins::Root::Capture(p) => {
+                &module.closures[f
+                    .environment
+                    .ok_or_else(|| error("replacement capture parent absent"))?
+                    .0 as usize]
+                    .captures[p as usize]
+            }
+            origins::Root::ParameterCapture(p, c) => {
+                let ty = &f.locals[f.parameters[p as usize].0 as usize].ty;
+                let ty = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                let Type::Closure(id) = ty else {
+                    return Err(error("replacement parameter capture has no closure"));
+                };
+                &module.closures[id.0 as usize].captures[c as usize]
+            }
+            origins::Root::StoreElement(value) => &f.values[value.0 as usize],
+        };
+        let (mutable, ty) = if matches!(target.root, origins::Root::Local(_)) {
+            (
+                f.locals[match target.root {
+                    origins::Root::Local(l) => l.0 as usize,
+                    _ => unreachable!(),
+                }]
+                .mutable,
+                root,
+            )
+        } else {
+            let Type::Address { mutable, inner } = root else {
+                return Err(error("actual replacement parent is not an address"));
+            };
+            (*mutable, inner.as_ref())
+        };
+        if !mutable || !target.mutable {
+            return Err(error(
+                "replacement cannot promote actual shared parent authority",
+            ));
+        }
+        endpoint(ty, &target.path, b)
+    }
+    fn update(
+        &self,
+        flow: &Flow<'_>,
+        state: &mut State,
+        effect: &mut Effect,
+        target: &Target,
+        birth: &BTreeSet<Birth>,
+        check: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let ty = self.actual_type(flow.module, flow.function, target, b)?;
+        if !closed(ty, b)? {
+            return Err(error(
+                "actual replacement endpoint differs from closed owning leaf",
+            ));
+        }
+        match target.root {
+            origins::Root::Local(local) => {
+                let shell = Place::Local(local);
+                if check && !exact(&copied(state, shell, b)?, Life::Available) {
+                    return Err(error("replacement needs a live actual owner shell"));
+                }
+                if state
+                    .sums
+                    .replace_birth(local, &target.path, birth, check, b)?
+                {
+                    return Ok(());
+                }
+                if target.path.is_empty() {
+                    let mut old = copied(state, shell, b)?;
+                    fee(b, old.birth.len().saturating_add(birth.len()))?;
+                    old.birth.extend(birth);
+                    replace(state, shell, old, b)?;
+                } else {
+                    fee(b, target.path.len())?;
+                    let mut fields = Vec::with_capacity(target.path.len());
+                    for step in &target.path {
+                        let PlaceProjection::Field(index) = step else {
+                            return Err(error(
+                                "replacement tagged local has no initialization tree",
+                            ));
+                        };
+                        fields.push(*index)
+                    }
+                    let mut old =
+                        product::birth(state, product::Carrier::Local(local), &fields, b)?;
+                    // A may-write keeps old freshness. No shell debt/order is
+                    // recreated: replacing a child is not constructing a shell.
+                    fee(b, old.len().saturating_add(birth.len()))?;
+                    old.extend(birth);
+                    product::set(state, product::Carrier::Local(local), &fields, old, b)?;
+                }
+            }
+            origins::Root::Parameter(_)
+            | origins::Root::Capture(_)
+            | origins::Root::ParameterCapture(..) => {
+                add(&mut effect.replacements, target, birth, b)?;
+            }
+            origins::Root::StoreElement(_) => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "Store element replacement state bridge is under construction",
+                    None,
+                )]);
+            }
+        }
+        Ok(())
+    }
+    fn substitute_birth(
+        &self,
+        state: &State,
+        arguments: &[ValueId],
+        birth: &BTreeSet<Birth>,
+        b: &mut Budget,
+    ) -> CompileResult<BTreeSet<Birth>> {
+        fee(b, birth.len())?;
+        let mut out = BTreeSet::new();
+        for term in birth {
+            let terms = match term {
+                Birth::Argument(p) => {
+                    copied(
+                        state,
+                        Place::Value(
+                            *arguments
+                                .get(*p as usize)
+                                .ok_or_else(|| error("replacement RHS argument absent"))?,
+                        ),
+                        b,
+                    )?
+                    .birth
+                }
+                // Unknown incoming captures remain incoming. They never gain
+                // Created from an entry result-mode or a public write claim.
+                Birth::Captured(_) => BTreeSet::from([Birth::Incoming]),
+                term => BTreeSet::from([*term]),
+            };
+            fee(b, out.len().saturating_add(terms.len()).saturating_add(1))?;
+            out.extend(terms);
+        }
+        if out.is_empty() {
+            out.insert(Birth::Incoming);
+        }
+        Ok(out)
+    }
+    fn call(
+        &self,
+        flow: &Flow<'_>,
+        state: &mut State,
+        effect: &mut Effect,
+        callee: usize,
+        arguments: &[ValueId],
+        captures: Option<&origins::Slots>,
+        check: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let rows = &flow.effects[callee].replacements;
+        fee(b, rows.len())?;
+        for (target, birth) in rows {
+            fee(b, target.path.len().saturating_add(1))?;
+            let selected = origins::substitute(
+                &BTreeSet::from([target.clone()]),
+                arguments,
+                captures,
+                &self.routes[flow.function.id.0 as usize].values,
+                &self.routes[flow.function.id.0 as usize].slots,
+                b,
+            )?;
+            if selected.is_empty() {
+                return Err(error("replacement call has no actual selected destination mapping"));
+            }
+            let incoming = self.substitute_birth(state, arguments, birth, b)?;
+            for at in selected {
+                self.update(flow, state, effect, &at, &incoming, check, b)?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn step(
+        &self,
+        flow: &Flow<'_>,
+        state: &mut State,
+        effect: &mut Effect,
+        i: &Instruction,
+        check: bool,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let f = flow.function;
+        match &i.kind {
+            InstructionKind::ReservePlaceLocal { reservation, .. }
+            | InstructionKind::ReservePlaceAddress { reservation, .. } => {
+                let d = self.definitions[f.id.0 as usize].definition(*reservation, b)?;
+                for target in self.targets(f, &d.base, &d.path, b)? {
+                    let ty = self.actual_type(flow.module, f, &target, b)?;
+                    b.type_work(ty, true, "reserve actual endpoint Type equality")?;
+                    if ty != &d.ty {
+                        return Err(error(
+                            "reservation declaration differs from actual selected owner",
+                        ));
+                    }
+                    if check && let origins::Root::Local(local) = target.root {
+                        if !exact(&copied(state, Place::Local(local), b)?, Life::Available) {
+                            return Err(error("reservation pins an absent owner"));
+                        }
+                        state.sums.require_place(local, &target.path, b)?;
+                    }
+                }
+            }
+            InstructionKind::CommitPlaceReplace { reservation, value } => {
+                let d = self.definitions[f.id.0 as usize].definition(*reservation, b)?;
+                let rhs = copied(state, Place::Value(*value), b)?;
+                if check && !exact(&rhs, Life::Available) {
+                    return Err(error(
+                        "replacement RHS responsibility is absent or already consumed",
+                    ));
+                }
+                for target in self.targets(f, &d.base, &d.path, b)? {
+                    self.update(flow, state, effect, &target, &rhs.birth, check, b)?;
+                }
+                flow.consume(state, *value, check, b)?;
+            }
+            InstructionKind::Call { function, arguments } => {
+                let callee = &flow.module.functions[function.0 as usize];
+                let summary = &flow.effects[function.0 as usize].replacements;
+                if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some()) && !summary.is_empty() {
+                    return Err(vec![Diagnostic::unsupported(Phase::Analyze, "replacement through a callable helper needs its public replacement envelope", Some(i.span))]);
+                }
+                self.call(flow, state, effect, function.0 as usize, arguments, None, check, b)?;
+            }
+            InstructionKind::WithForeignCallback { callback, body, .. } => {
+                for value in [*callback, *body] {
+                    let entry = effect_entry(flow.module, &f.values[value.0 as usize])?;
+                    self.call(flow, state, effect, entry, &[], Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]), check, b)?;
+                }
+            }
+            InstructionKind::WithScopedThread { body, .. } | InstructionKind::WithSyncCell { body, .. } => {
+                let entry = effect_entry(flow.module, &f.values[body.0 as usize])?;
+                self.call(flow, state, effect, entry, &[], Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]), check, b)?;
+            }
+            InstructionKind::CallClosureShared { callee, arguments }
+            | InstructionKind::CallClosureMut { callee, arguments } => {
+                let entry = effect_entry(flow.module, &f.locals[callee.0 as usize].ty)?;
+                let facts = &self.routes[f.id.0 as usize];
+                b.lookup(
+                    facts.local_slots.len(),
+                    "replacement selected local captures",
+                )?;
+                self.call(
+                    flow,
+                    state,
+                    effect,
+                    entry,
+                    arguments,
+                    facts.local_slots.get(callee),
+                    check,
+                    b,
+                )?;
+            }
+            InstructionKind::CallClosureOnce { callee, arguments }
+            | InstructionKind::CallClosure { callee, arguments }
+            | InstructionKind::CallClosureBorrowed {
+                callee, arguments, ..
+            } => {
+                let entry = effect_entry(flow.module, &f.values[callee.0 as usize])?;
+                self.call(
+                    flow,
+                    state,
+                    effect,
+                    entry,
+                    arguments,
+                    Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
+                    check,
+                    b,
+                )?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+pub(super) fn infer(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    program: &Program,
+    b: &mut Budget,
+) -> CompileResult<Vec<Effect>> {
+    fee(b, module.functions.len())?;
+    let mut effects = vec![Effect::default(); module.functions.len()];
+    // Replacement rows can change later resource transfers. Rerun each body
+    // against the current summaries, then validate only after convergence.
+    loop {
+        let mut changed = false;
+        for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+            fee(b, 1)?;
+            let found = analyze_function_program(
+                module,
+                f,
+                reachable,
+                &effects,
+                false,
+                b,
+                None,
+                Some(program),
+            )?;
+            changed |= grow_effect(&mut effects[f.id.0 as usize], found, b)?;
+        }
+        if !changed {
+            return Ok(effects);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

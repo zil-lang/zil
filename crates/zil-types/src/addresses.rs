@@ -655,6 +655,9 @@ impl Builder<'_, '_> {
         }
     }
     pub(super) fn assign_address(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<()> {
+        if self.owning_address_assignment(target, rhs)? {
+            return Ok(());
+        }
         let (address, ty) = self.address_place(target, true)?;
         let Type::Address {
             mutable: true,
