@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 34;
+pub const WIRE_VERSION: u32 = 35;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -428,6 +428,8 @@ impl<'a> Writer<'a> {
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
                 Type::I64 => self.u8(3)?,
+                Type::U64 => self.u8(26)?,
+                Type::Usize => self.u8(27)?,
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
@@ -540,6 +542,14 @@ impl<'a> Writer<'a> {
             }
             Constant::I64(value) => {
                 self.u8(3)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::U64(value) => {
+                self.u8(9)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::Usize(value) => {
+                self.u8(10)?;
                 self.bytes(&value.to_le_bytes())
             }
         }
@@ -1795,6 +1805,8 @@ impl<'a> Reader<'a> {
                 1 => Type::Bool,
                 2 => Type::I32,
                 3 => Type::I64,
+                26 => Type::U64,
+                27 => Type::Usize,
                 18 => Type::U8,
                 19 => Type::U16,
                 20 => Type::ForeignHandle,
@@ -1905,6 +1917,12 @@ impl<'a> Reader<'a> {
                 self.take(4)?.try_into().expect("checked length"),
             )),
             3 => Constant::I64(i64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            9 => Constant::U64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            10 => Constant::Usize(u64::from_le_bytes(
                 self.take(8)?.try_into().expect("checked length"),
             )),
             _ => return Err(malformed("E-WIRE-CONSTANT", "unknown wire constant tag")),

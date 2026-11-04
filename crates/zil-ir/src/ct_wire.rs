@@ -931,6 +931,14 @@ impl Wire for Constant {
                     3u8.encode(e)?;
                     v0.encode(e)?;
                 }
+                Self::U64(v0) => {
+                    9u8.encode(e)?;
+                    v0.encode(e)?;
+                }
+                Self::Usize(v0) => {
+                    10u8.encode(e)?;
+                    v0.encode(e)?;
+                }
                 Self::U8(v0) => {
                     4u8.encode(e)?;
                     v0.encode(e)?;
@@ -959,6 +967,8 @@ impl Wire for Constant {
             1 => Ok(Self::Bool(<bool as Wire>::decode(d)?)),
             2 => Ok(Self::I32(<i32 as Wire>::decode(d)?)),
             3 => Ok(Self::I64(<i64 as Wire>::decode(d)?)),
+            9 => Ok(Self::U64(<u64 as Wire>::decode(d)?)),
+            10 => Ok(Self::Usize(<u64 as Wire>::decode(d)?)),
             4 => Ok(Self::U8(<u8 as Wire>::decode(d)?)),
             5 => Ok(Self::U16(<u16 as Wire>::decode(d)?)),
             6 => Ok(Self::NullHandle),
@@ -1153,6 +1163,12 @@ impl Wire for CtScalarTy {
                 Self::I64 => {
                     5u8.encode(e)?;
                 }
+                Self::U64 => {
+                    6u8.encode(e)?;
+                }
+                Self::Usize => {
+                    7u8.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -1165,6 +1181,8 @@ impl Wire for CtScalarTy {
             3 => Ok(Self::U16),
             4 => Ok(Self::I32),
             5 => Ok(Self::I64),
+            6 => Ok(Self::U64),
+            7 => Ok(Self::Usize),
             _ => Err(WireError::UnknownTag),
         })
     }

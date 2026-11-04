@@ -34,6 +34,9 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    U64,
+    /// Target pointer-width unsigned integer; constants retain mathematical bits.
+    Usize,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -108,7 +111,14 @@ impl Type {
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
-            Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
+            Self::Unit
+                | Self::Bool
+                | Self::I32
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::U8
+                | Self::U16
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
@@ -162,6 +172,8 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::U64
+            | Self::Usize
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -189,7 +201,10 @@ impl Type {
         }
     }
     pub fn is_integer(&self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
+        matches!(
+            self,
+            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+        )
     }
     pub fn name(&self) -> String {
         match self {
@@ -197,6 +212,8 @@ impl Type {
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::U64 => "u64".into(),
+            Self::Usize => "usize".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
@@ -248,6 +265,8 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    U64(u64),
+    Usize(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -262,6 +281,8 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::U64(_) => Type::U64,
+            Self::Usize(_) => Type::Usize,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -498,6 +519,10 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    Reference {
+        mutable: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
@@ -1733,7 +1758,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1808,6 +1833,8 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -2031,6 +2058,14 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
         }
         Constant::I64(v) => {
             b.push(3);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::U64(v) => {
+            b.push(9);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Usize(v) => {
+            b.push(10);
             b.extend_from_slice(&v.to_le_bytes());
         }
     }
