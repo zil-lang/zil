@@ -8,6 +8,7 @@ mod addresses;
 mod aggregate_templates;
 mod aggregates;
 mod byte_buffer;
+mod borrowed_fp;
 mod callable_fields;
 mod closures;
 mod conditions;
@@ -53,6 +54,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
     callable: Vec<CoreCallableParameter>,
@@ -169,6 +171,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),
                     callable_return: f.callable_return.clone(),
@@ -1558,7 +1561,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         (value, ty)
                     }
                 } else {
-                    self.function_reference(e)?
+                    self.function_reference(e, expected)?
                 }
             }
             CoreExprKind::Unary {
@@ -1918,7 +1921,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.make_variant(&ty, variant, &[], expected, e.span);
             }
             CoreExprKind::Member { object, .. } if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none()) => {
-                self.function_reference(e)?
+                self.function_reference(e, expected)?
             }
             CoreExprKind::Member { object, .. }
                 if matches!(object.kind, CoreExprKind::Member { .. })
@@ -2200,7 +2203,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         .ok()
                         .flatten();
                 }
-                if let Some(Type::FunctionPointer { result, .. }) = self.known_type(callee) {
+                if let Some(Type::FunctionPointer { result, .. } | Type::BorrowedFunctionPointer { result, .. }) = self.known_type(callee) {
                     return Some(*result);
                 }
                 self.resolve_callee(callee).ok().map(|s| s.result.clone())
@@ -2676,7 +2679,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             let (value, ty) = self.expr(callee, None)?;
             (Some(value), ty)
         };
-        if let Type::FunctionPointer { parameters, result } = ty {
+        if let Type::FunctionPointer { parameters, result } | Type::BorrowedFunctionPointer { parameters, result, .. } = ty {
             return self.call_indirect(
                 callee_value.expect("function value"),
                 &parameters,

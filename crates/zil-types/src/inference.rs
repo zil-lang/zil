@@ -588,6 +588,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
                 callable_return: function.callable_return.clone(),
@@ -751,6 +752,12 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 validate_type(parameter, depth + 1, span, budget)?;
             }
             validate_type(result, depth + 1, span, budget)?;
+        }
+        Type::BorrowedFunctionPointer { parameters, result, life } => {
+            budget.work(borrowed_fp::metadata_work(life),span)?;
+            for parameter in parameters { validate_type(parameter,depth+1,span,budget)?; }
+            validate_type(result,depth+1,span,budget)?;
+            borrowed_fp::relation(parameters,result,life,span)?;
         }
         Type::Named(name) => {
             budget.work(name.len(), span)?;
@@ -3607,7 +3614,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Term::Scalar(callee) => {
                         let known = self.graph.ty(callee)?;
                         let hints = match &known {
-                            Some(Type::FunctionPointer { parameters, .. }) => Some(parameters),
+                            Some(Type::FunctionPointer { parameters, .. } | Type::BorrowedFunctionPointer { parameters, .. }) => Some(parameters),
                             _ => None,
                         };
                         let mut parameters = Vec::new();

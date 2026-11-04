@@ -946,6 +946,12 @@ impl Graph {
                 }
                 self.reserve_type(result, depth + 1, span)?;
             }
+            Type::BorrowedFunctionPointer { parameters, result, life } => {
+                self.spend_count(borrowed_fp::metadata_work(life),span)?;
+                for parameter in parameters { self.reserve_type(parameter,depth+1,span)?; }
+                self.reserve_type(result,depth+1,span)?;
+                borrowed_fp::relation(parameters,result,life,span)?;
+            }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
             _ => {}
         }
@@ -1120,6 +1126,10 @@ impl Graph {
                     Type::FunctionPointer {
                         parameters: types,
                         result: result_type,
+                    } | Type::BorrowedFunctionPointer {
+                        parameters: types,
+                        result: result_type,
+                        ..
                     },
                 ) if parameters.len() == types.len() => {
                     for (parameter, ty) in parameters.into_iter().zip(types) {

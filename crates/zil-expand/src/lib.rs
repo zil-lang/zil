@@ -1555,6 +1555,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             parameters: params.iter().map(type_ref).collect(),
             result: Box::new(type_ref(result)),
         },
+        s::TypeKind::ForLifetime { .. } => lifetimes::pointer_type(t),
         _ => Type::Unsupported("type form is not yet lowered".into()),
     }
 }
