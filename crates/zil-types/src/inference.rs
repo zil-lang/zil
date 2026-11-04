@@ -752,6 +752,7 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 }
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
+    tasks::require_closed_context(ty, span)?;
     match ty {
         Type::BorrowedStorage { .. } => {
             return Err(unsupported(
@@ -794,7 +795,7 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Task { result: inner }
+        Type::Task { result: inner, .. }
         | Type::Registration { environment: inner }
         | Type::Address { inner, .. }
         | Type::Slice { element: inner }

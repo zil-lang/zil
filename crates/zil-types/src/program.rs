@@ -632,9 +632,11 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             type_identity(bytes, environment, closures);
         }
         Type::TaskI32 => bytes.push(33),
-        Type::Task { result } => {
+        Type::Task { .. } => {
             bytes.push(34);
-            type_identity(bytes, result, closures);
+            // Full semantic payload identity includes the retained class domain,
+            // typed ports and nested/nominal mappings, never result alone.
+            bytes.extend_from_slice(&ty.fingerprint().0);
         }
         Type::SyncCell(kind) => bytes.extend_from_slice(&[
             30,

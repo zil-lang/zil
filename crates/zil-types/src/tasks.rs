@@ -1,5 +1,28 @@
 //! Source preparation for the sealed scalar cooperative task ABI.
 use super::*;
+pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
+    zil_ir::RetainedLifeShape {
+        binder_count: 0,
+        ports: vec![],
+        retained: vec![],
+        nominal_arguments: vec![],
+    }
+}
+pub(super) fn require_closed_context(ty: &Type, span: Span) -> R<()> {
+    if let Type::Task { retained_life, .. } = ty
+        && (retained_life.binder_count != 0
+            || !retained_life.ports.is_empty()
+            || !retained_life.retained.is_empty()
+            || !retained_life.nominal_arguments.is_empty())
+    {
+        return Err(unsupported(
+            span,
+            "borrowed Task retained classes require actual implemented frame port mappings",
+        ));
+    }
+    Ok(())
+}
+
 mod hint;
 
 pub(super) fn suspends(f: &TypedFunction) -> bool {
@@ -46,11 +69,12 @@ pub(super) fn create_type(result: &Type) -> Type {
         error: Box::new(create_error()),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
+            retained_life: empty_context(),
         }))),
     }
 }
 pub(super) fn result_for(name: &str, task: &Type) -> Type {
-    let Type::Task { result: t } = task else {
+    let Type::Task { result: t, .. } = task else {
         return result(name);
     };
     match name {
@@ -155,8 +179,8 @@ pub(super) fn add_definition(
             if !definitions.iter().any(|d| d.payload == *payload) {
                 let name = match payload {
                     Type::TaskI32 => TASK_I32_RESOURCE_NAME.into(),
-                    Type::Task { result } => {
-                        format!("{TASK_RESOURCE_NAME_PREFIX}{}", result.fingerprint())
+                    Type::Task { .. } => {
+                        format!("{TASK_RESOURCE_NAME_PREFIX}{}", payload.fingerprint())
                     }
                     _ => unreachable!(),
                 };
@@ -210,7 +234,7 @@ pub(super) fn add_definition(
             Type::ErrorUnion { error, result } => {
                 children.extend([error.as_ref(), result.as_ref()])
             }
-            Type::Task { result: inner }
+            Type::Task { result: inner, .. }
             | Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner)
@@ -453,6 +477,7 @@ mod terminal343_snapshot_budget {
         }
         let task = Type::Task {
             result: Box::new(ty),
+            retained_life: empty_context(),
         };
         assert!(
             inference::type_snapshot_work(&task, Span::default(), &limits)
@@ -487,6 +512,7 @@ mod terminal343_snapshot_budget {
         let limits = Limits::default();
         let task = Type::Task {
             result: Box::new(Type::I32),
+            retained_life: empty_context(),
         };
         for copies in [4, 6] {
             let n =

@@ -963,6 +963,7 @@ impl Graph {
         Ok(())
     }
     pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+        tasks::require_closed_context(ty, span)?;
         self.spend(span)?;
         if depth > self.depth_limit {
             return Err(limit("closure aggregate type depth exceeded", span));
@@ -989,7 +990,9 @@ impl Graph {
                     }
                 }
             }
-            Type::Task { result: element }
+            Type::Task {
+                result: element, ..
+            }
             | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::Registration {

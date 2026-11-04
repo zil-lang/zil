@@ -12,6 +12,25 @@ fn pay(left: &mut usize, n: usize, span: Span) -> R<()> {
     })?;
     Ok(())
 }
+fn numeric_lookup(left: &mut usize, n: usize, span: Span) -> R<()> {
+    pay(
+        left,
+        n.checked_ilog2()
+            .map_or(1, |h| h as usize + 2)
+            .saturating_mul(12),
+        span,
+    )
+}
+fn string_lookup(left: &mut usize, key: &str, n: usize, span: Span) -> R<()> {
+    pay(
+        left,
+        key.len()
+            .saturating_add(1)
+            .saturating_mul(n.checked_ilog2().map_or(1, |h| h as usize + 2))
+            .saturating_mul(12),
+        span,
+    )
+}
 fn payload_view(t: &Type) -> &Type {
     let t = match t {
         Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
@@ -24,6 +43,131 @@ fn payload_view(t: &Type) -> &Type {
     }
 }
 impl Builder<'_, '_> {
+    fn hint_local(&self, name: &str, left: &mut usize, span: Span) -> R<Option<LocalId>> {
+        for scope in self.scopes.iter().rev() {
+            string_lookup(left, name, scope.len(), span)?;
+            if let Some(local) = scope.get(name) {
+                return Ok(Some(*local));
+            }
+        }
+        Ok(None)
+    }
+    fn hint_static(&self, callee: &CoreExpr, left: &mut usize) -> R<Option<&Signature>> {
+        let span = callee.span;
+        match &callee.kind {
+            CoreExprKind::Name(name) => {
+                if self.hint_local(name, left, span)?.is_some() {
+                    return Ok(None);
+                }
+                string_lookup(left, name, self.signatures.len(), span)?;
+                Ok(self.signatures.get(name))
+            }
+            CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } if owner.is_none() => {
+                let CoreExprKind::Name(alias) = &object.kind else {
+                    return Ok(None);
+                };
+                if self.hint_local(alias, left, span)?.is_some() {
+                    return Ok(None);
+                }
+                pay(
+                    left,
+                    alias.len().saturating_add(member.len()).saturating_add(1),
+                    span,
+                )?;
+                let key = format!("{alias}.{member}");
+                string_lookup(left, &key, self.signatures.len(), span)?;
+                if let Some(signature) = self.signatures.get(&key) {
+                    return Ok(Some(signature));
+                }
+                let Some(imports) = self.imports else {
+                    return Ok(None);
+                };
+                string_lookup(left, alias, imports.aliases.len(), span)?;
+                let Some(module) = imports.aliases.get(alias) else {
+                    return Ok(None);
+                };
+                numeric_lookup(left, imports.signatures.len(), span)?;
+                let Some(table) = imports.signatures.get(module) else {
+                    return Ok(None);
+                };
+                string_lookup(left, member, table.len(), span)?;
+                Ok(table.get(member).filter(|s| s.public))
+            }
+            _ => Ok(None),
+        }
+    }
+    fn hint_method(
+        &self,
+        ty: &Type,
+        member: &str,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<&Signature>> {
+        let (name, nominal) = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                pay(
+                    left,
+                    fields
+                        .len()
+                        .saturating_mul(member.len().saturating_add(1))
+                        .saturating_add(name.len()),
+                    span,
+                )?;
+                if fields.iter().any(|(n, _)| n == member) {
+                    return Ok(None);
+                }
+                let Some((owner, nominal)) = name.split_once(':') else {
+                    return Ok(None);
+                };
+                (Some(owner), nominal)
+            }
+            Type::ByteBuffer => (None, "ByteBuffer"),
+            _ => return Ok(None),
+        };
+        pay(
+            left,
+            nominal.len().saturating_add(member.len()).saturating_add(1),
+            span,
+        )?;
+        let key = format!("{nominal}.{member}");
+        string_lookup(left, &key, self.signatures.len(), span)?;
+        if let Some(signature) = self
+            .signatures
+            .get(&key)
+            .filter(|s| s.receiver.is_some() && (name.is_some() || !s.cleanup))
+        {
+            return Ok(Some(signature));
+        }
+        let Some(owner) = name else {
+            return Ok(None);
+        };
+        let Some(id) = owner
+            .strip_prefix("@module")
+            .and_then(|s| s.parse().ok())
+            .map(zil_base::ModuleId)
+        else {
+            return Ok(None);
+        };
+        let Some(imports) = self.imports else {
+            return Ok(None);
+        };
+        pay(left, imports.aliases.len(), span)?;
+        if !imports.aliases.values().any(|m| *m == id) {
+            return Ok(None);
+        }
+        numeric_lookup(left, imports.signatures.len(), span)?;
+        let Some(table) = imports.signatures.get(&id) else {
+            return Ok(None);
+        };
+        string_lookup(left, &key, table.len(), span)?;
+        Ok(table
+            .get(&key)
+            .filter(|s| s.public && s.receiver.is_some() && !s.cleanup))
+    }
     pub(super) fn borrowed_task_hint<'b>(
         &'b self,
         e: &'b CoreExpr,
@@ -40,28 +184,24 @@ impl Builder<'_, '_> {
         }
         Ok(match &e.kind {
             CoreExprKind::Name(name) => {
-                pay(
-                    left,
-                    name.len().saturating_add(1).saturating_mul(
-                        self.function
-                            .locals
-                            .len()
-                            .checked_ilog2()
-                            .map_or(1, |n| n as usize + 2),
-                    ),
-                    e.span,
-                )?;
-                self.lookup(name).and_then(|id| {
-                    self.borrowed_captures.get(&id).or_else(|| {
+                if let Some(id) = self.hint_local(name, left, e.span)? {
+                    numeric_lookup(left, self.borrowed_captures.len(), e.span)?;
+                    if let Some(t) = self.borrowed_captures.get(&id) {
+                        Some(t)
+                    } else {
+                        numeric_lookup(left, self.closure_slots.len(), e.span)?;
                         if self.closure_slots.contains_key(&id) {
                             None
                         } else {
+                            numeric_lookup(left, self.sum_slots.len(), e.span)?;
                             self.sum_slots
                                 .get(&id)
                                 .or_else(|| self.function.locals.get(id.0 as usize).map(|l| &l.ty))
                         }
-                    })
-                })
+                    }
+                } else {
+                    None
+                }
             }
             CoreExprKind::Ascribed { ty, .. } | CoreExprKind::Record { ty, .. } => Some(ty),
             CoreExprKind::RecordUpdate { ty, base, .. } => match ty {
@@ -129,21 +269,9 @@ impl Builder<'_, '_> {
                 if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(t) = self.borrowed_task_hint(object, left, depth + 1)?
                 {
-                    inference::charge_type_snapshot(t, e.span, self.limits, left, 1)?;
-                    pay(
-                        left,
-                        member
-                            .len()
-                            .saturating_add(self.signatures.len())
-                            .saturating_add(self.imports.map_or(0, |i| i.aliases.len())),
-                        e.span,
-                    )?;
-                    if let Some(signature) = aggregates::resolve_type_method(
-                        payload_view(t),
-                        member,
-                        self.signatures,
-                        self.imports,
-                    ) {
+                    if let Some(signature) =
+                        self.hint_method(payload_view(t), member, left, e.span)?
+                    {
                         return Ok(Some(&signature.result));
                     }
                 }
@@ -158,37 +286,14 @@ impl Builder<'_, '_> {
                     }
                 }
                 if let CoreExprKind::Name(name) = &callee.kind
-                    && let Some(id) = self
-                        .lookup(name)
-                        .and_then(|l| self.closure_slots.get(&l))
-                        .copied()
+                    && let Some(local) = self.hint_local(name, left, e.span)?
                 {
-                    return self.closures.borrowed_task_result(id, left, e.span);
+                    numeric_lookup(left, self.closure_slots.len(), e.span)?;
+                    if let Some(id) = self.closure_slots.get(&local).copied() {
+                        return self.closures.borrowed_task_result(id, left, e.span);
+                    }
                 }
-                let bytes = match &callee.kind {
-                    CoreExprKind::Name(name) => name.len(),
-                    CoreExprKind::Member { object, member, .. } => match &object.kind {
-                        CoreExprKind::Name(alias) => {
-                            alias.len().saturating_add(member.len()).saturating_add(1)
-                        }
-                        _ => 0,
-                    },
-                    _ => 0,
-                };
-                pay(
-                    left,
-                    bytes
-                        .saturating_add(1)
-                        .saturating_mul(
-                            self.signatures
-                                .len()
-                                .checked_ilog2()
-                                .map_or(1, |n| n as usize + 2),
-                        )
-                        .saturating_mul(12),
-                    e.span,
-                )?;
-                self.resolve_callee(callee).ok().map(|s| &s.result)
+                self.hint_static(callee, left)?.map(|s| &s.result)
             }
             _ => None,
         })
