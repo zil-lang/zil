@@ -240,6 +240,13 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
     fn ty(&mut self, ty: &Type, depth: usize, slice_pointee: bool) -> CompileResult<()> {
         self.node(depth)?;
         match ty {
+            Type::BorrowedStorage { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "stored-borrow CT layout consumer is not yet implemented",
+                    None,
+                )]);
+            }
             Type::Named(name) | Type::Unsupported(name) => {
                 self.text(name)?;
                 return Err(vec![Diagnostic::unsupported(

@@ -723,6 +723,12 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
     match ty {
+        Type::BorrowedStorage { .. } => {
+            return Err(unsupported(
+                span,
+                "stored-borrow type consumer is not yet implemented",
+            ));
+        }
         Type::Array { element, length } => {
             budget.work(*length as usize, span)?;
             validate_type(element, depth + 1, span, budget)?;

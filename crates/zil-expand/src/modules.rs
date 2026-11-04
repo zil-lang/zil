@@ -744,6 +744,7 @@ impl Visitor<'_, '_, '_> {
     }
     fn arg(&mut self, arg: &mut GenericArg, types: &Names, values: &Names, depth: usize) -> R<()> {
         match arg {
+            GenericArg::Lifetime(name) => self.budget.text(name, Span::default()),
             GenericArg::Type(t) => self.ty(t, types, depth),
             GenericArg::Const(e) => self.expr(e, types, values, depth),
         }
@@ -762,6 +763,7 @@ impl Visitor<'_, '_, '_> {
                 false
             } else {
                 let span = match argument {
+                    GenericArg::Lifetime(_) => Span::default(),
                     GenericArg::Type(t) => t.span,
                     GenericArg::Const(e) => e.span,
                 };

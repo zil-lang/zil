@@ -111,7 +111,8 @@ fn closed(
                     budget.spend(1)?;
                     closure_queue.push(*id)
                 }
-                Type::Managed(p)
+                Type::BorrowedStorage { storage: p, .. }
+                | Type::Managed(p)
                 | Type::Opaque { hidden: p, .. }
                 | Type::OwnedStore { element: p }
                 | Type::Registration { environment: p }

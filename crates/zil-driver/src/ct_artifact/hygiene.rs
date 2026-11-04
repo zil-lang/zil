@@ -242,6 +242,7 @@ impl Renamer<'_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
                     }
@@ -336,6 +337,7 @@ impl Renamer<'_> {
                 self.expr(callee)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(ty)?,
                         s::GenericArg::Const(expr) => self.expr(expr)?,
                     }

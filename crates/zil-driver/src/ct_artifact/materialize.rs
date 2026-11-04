@@ -432,6 +432,12 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
+            CtTypeNode::BorrowedStorage { .. } => {
+                return Err(category(
+                    "stored-borrow Type needs a closed scoped source reconstruction",
+                    span,
+                ));
+            }
             CtTypeNode::Primitive(primitive) => named(
                 match primitive {
                     CtScalarTy::Unit => "Unit",
@@ -1400,6 +1406,7 @@ impl Materializer<'_, '_> {
             s::TypeKind::Named { args, .. } | s::TypeKind::Dyn { args, .. } => {
                 for arg in args {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
                     }
@@ -1560,6 +1567,7 @@ impl Materializer<'_, '_> {
                 self.expr(module, callee, owner, depth + 1)?;
                 for arg in arguments {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Type(ty) => self.ty(module, ty, owner, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(module, e, owner, depth + 1)?,
                     }

@@ -62,6 +62,12 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
+        if closure.storage_life.is_some() {
+            return Err(unsupported(
+                "stored-borrow closure contract consumer is not yet implemented",
+                None,
+            ));
+        }
         budget.spend(1)?;
         if closure.lending_captures.len() > limits.max_locals {
             return Err(limit(

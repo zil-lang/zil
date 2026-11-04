@@ -611,5 +611,81 @@
     },
     "full_workspace": "NotRun",
     "next": "Author interface-fee exact project controls, merge-specific Window/ClosedEnvironment controls and independent review remain separate"
+  },
+  "store_resource_head_continuation": {
+    "status": "AuthorScopedPass",
+    "base_commit": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+    "scope": "Actual Store descriptor origins through exclusive Package resource-head Copy-field projection; strict compilation adapters for staged Wire38 only, no general stored-borrow consumer claim",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 409,
+      "sha256": "81599ecfc26a15c9bbd6aa7448e7994a76cb9ce132641a2c2a44898ba9d52e12"
+    },
+    "source_fixture": {
+      "path": "tests/language-readiness/terminal/342/store_resource_head.zil",
+      "sha256": "93a6664e79746b0e803f9df58e654c09f61c9de2546224ea1569dd0b30b077d7",
+      "byte_equal_to_original_b377_runtime_source": true,
+      "old": "Analyze/SafeReject: instruction cannot produce the claimed resource kind",
+      "new": "Verify/Success; Clang/API O0/O2 actual exit0 stdout ZB"
+    },
+    "source_tests": {
+      "tests/language-readiness/terminal/342/resource_head.rs": "5df3a41510e2c942b252d77f4d3c5a751cc9f88cee674838d51284322e504f45",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "9b03b8e7179d013e7ca3be1864720d0386288381fcc75647914155c561c3e677",
+      "crates/zil-driver/tests/impl180_store_mut.rs": "aeba5176da36f9cf57f48db19c0385124ca09b8c08bbc2cebd424f52efa707b6"
+    },
+    "existing_targets": {
+      "cross_function_borrows": 77,
+      "impl180_store_mut": 19,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_focused": {
+      "tests": 4,
+      "native_profiles": 8,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "actual_cleanup_stdout": "ZB",
+      "last_use_then_reserve_positive": true,
+      "dynamic_unknown_indexes_no_apart": true,
+      "raw_and_decoded_wire_both_kernels": [
+        "shared downgrade",
+        "early actual Store owner drop",
+        "structural reserve during view",
+        "same actual Store passed through two nominally distinct arguments"
+      ],
+      "live_and_restored_cache_body_mode_mutations": "SafeReject"
+    },
+    "budget": {
+      "analyze": 22441,
+      "verify": 38508,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true,
+      "defaults_unchanged": true
+    },
+    "clippy": "same two existing driver targets llvm-api -D warnings Pass",
+    "harnesses": {
+      "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299": "01f3b4c2150d4ff1d0036f26a39abc61485cb5bd40035b530b9e666b0f7b4fc3",
+      "/workspace/.zil-env/target342/debug/deps/impl180_store_mut-4ebd16ce64ec1cb7": "d9b0e21520c23664e88c189a76d00639edef47d920e6d8573b8073cf1a1b40b6"
+    },
+    "logs": {
+      "342-storage38-adapters-check.log": "0832b2456bdda7bdac628eb238186c5af598e277e6975a61acba436c6ce0ca9c",
+      "342-storehead-final.log": "c67e76a11f08c4886514bb4028a86638362ee84eab8ec8123abbd48f1361a485",
+      "342-storehead-final-clippy.log": "03a3db57d6102696e957bdfd99ad2fd0f1b7b08e9cdd41ff90eff06f97592781"
+    },
+    "independent_review": "Pending exact checkpoint; previous ec1/HRTB independent receipts remain separate",
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "remaining": [
+      "General stored-borrow CopyShared/Reborrow/Take/refill source+kernel consumers",
+      "CT nominal scoped lifetime and phantom fullargs",
+      "Canonical generic ForLifetime identity",
+      "general State/lending/dyn and borrowed Task ports"
+    ]
   }
 }

@@ -459,6 +459,11 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
+        Type::BorrowedStorage { .. } => Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "stored-borrow CT header consumer is not yet implemented",
+            None,
+        )]),
         Type::Unit
         | Type::Bool
         | Type::U8
@@ -855,6 +860,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            storage_life: None,
             call_kind: f.call_kind,
             life: f.life.clone(),
             callable_return: f.callable_return.clone(),
@@ -3026,6 +3032,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 callable_return: None,

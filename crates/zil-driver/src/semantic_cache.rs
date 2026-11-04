@@ -334,6 +334,7 @@ impl<'a> Reader<'a> {
             0,
         )?;
         Some(ScalarFunction {
+            storage_life: None,
             reference_return_bound,
             name,
             function,
@@ -464,6 +465,7 @@ fn charge_type(
         Some(())
     }
     match ty {
+        Type::BorrowedStorage { .. } => return None,
         Type::Named(name) | Type::Unsupported(name) => text(bytes, name)?,
         Type::Tuple(fields) => {
             for field in fields {

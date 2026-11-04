@@ -318,14 +318,11 @@ fn shared_windows_cannot_be_upgraded_or_written() {
 
 #[test]
 fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
-    rejected(
-        &format!(
-            "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner.code=90;return 0}}"
-        ),
-        ResultCategory::SafeReject,
-        Phase::Analyze,
-        "instruction cannot produce the claimed resource kind",
-    );
+    // Original source unchanged: mutate the actual Copy payload through the
+    // exclusive head, then observe normal Store element cleanup in order.
+    let text =
+        format!("{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner.code=90;return 0}}");
+    native(&[("main", &text)], b"ZB", 0);
     rejected(
         &format!(
             "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"

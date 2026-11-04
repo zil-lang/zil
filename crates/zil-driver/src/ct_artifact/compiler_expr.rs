@@ -533,6 +533,12 @@ impl Builder<'_, '_> {
                 for argument in arguments {
                     self.compiler.budget.node(span)?;
                     let value = match argument {
+                        s::GenericArg::Lifetime(_) => {
+                            return Err(error(
+                                span,
+                                "nominal lifetime CT argument requires a closed numeric scope",
+                            ));
+                        }
                         s::GenericArg::Type(ty) => self.type_ref(self.module, ty, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
                     };
@@ -697,6 +703,12 @@ impl Builder<'_, '_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     let value = match arg {
+                        s::GenericArg::Lifetime(_) => {
+                            return Err(error(
+                                ty.span,
+                                "nominal lifetime CT argument requires a closed numeric scope",
+                            ));
+                        }
                         s::GenericArg::Type(t) => self.type_ref(module, t, depth + 1)?,
                         s::GenericArg::Const(e) => self.expr(e, None, depth + 1)?,
                     };

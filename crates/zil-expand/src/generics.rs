@@ -2153,6 +2153,10 @@ fn original_type_observed(
                 args: args
                     .iter()
                     .map(|arg| match arg {
+                        GenericArg::Lifetime(name) => {
+                            budget.text(name, ty.span)?;
+                            Ok(GenericArg::Lifetime(name.clone()))
+                        }
                         GenericArg::Type(t) => Ok(GenericArg::Type(original_type_observed(
                             t,
                             instances,
@@ -2354,6 +2358,12 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
+                    GenericArg::Lifetime(_) => {
+                        return Err(unsupported(
+                            ty.span,
+                            "lifetime instance identity requires scoped canonical storage relation",
+                        ));
+                    }
                     GenericArg::Type(t) => render_type_key(t)?,
                     GenericArg::Const(e) => format!("#{}", consts::key(e)?),
                 };
@@ -2800,6 +2810,7 @@ impl Substitution<'_> {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
                 for a in args {
                     match a {
+                        GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
                                 && let Some(value) =
@@ -3029,6 +3040,7 @@ impl Substitution<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => {
                             if let Some(name) = trait_bounds::plain(t)
                                 && let Some(value) =
