@@ -1,6 +1,252 @@
 use super::*;
 use zil_base::ResultCategory;
 
+#[test]
+fn async_registration42_raw_operations_preserve_every_field_without_admission() {
+    use InstructionKind as I;
+    let limits = Limits::default();
+    let operations = [
+        I::AsyncRegistrationStart {
+            register: FunctionId(1),
+            request_close: FunctionId(2),
+            poll_drain: FunctionId(3),
+            callback: ValueId(4),
+            region: 5,
+        },
+        I::AsyncRegistrationValid {
+            registration: ValueId(6),
+        },
+        I::AsyncRegistrationRequestClose {
+            registration: ValueId(6),
+        },
+        I::AsyncRegistrationPollClose {
+            registration: ValueId(6),
+        },
+        I::AsyncRegistrationFinishDestroy {
+            registration: ValueId(6),
+        },
+    ];
+    let mut identities = std::collections::BTreeSet::new();
+    for (index, kind) in operations.into_iter().enumerate() {
+        let instruction = Instruction {
+            result: Some(ValueId(9)),
+            kind,
+            span: Span::default(),
+        };
+        let mut writer = Writer::new(&limits);
+        writer.instruction(&instruction).unwrap();
+        assert_eq!(writer.output[5], 134 + index as u8);
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.instruction().unwrap(), instruction);
+        reader.finish().unwrap();
+        for end in 0..writer.output.len() {
+            assert!(
+                Reader::new(&writer.output[..end], &limits)
+                    .and_then(|mut r| r.instruction())
+                    .is_err()
+            );
+        }
+        let mut encoded = Vec::new();
+        crate::encode_instruction(&mut encoded, &instruction.kind);
+        assert!(identities.insert(encoded));
+        let changes = if index == 0 { 5 } else { 1 };
+        for field in 0..changes {
+            let mut changed = instruction.clone();
+            match &mut changed.kind {
+                I::AsyncRegistrationStart {
+                    register,
+                    request_close,
+                    poll_drain,
+                    callback,
+                    region,
+                } => match field {
+                    0 => *register = FunctionId(99),
+                    1 => *request_close = FunctionId(99),
+                    2 => *poll_drain = FunctionId(99),
+                    3 => *callback = ValueId(99),
+                    4 => *region = 99,
+                    _ => unreachable!(),
+                },
+                I::AsyncRegistrationValid { registration }
+                | I::AsyncRegistrationRequestClose { registration }
+                | I::AsyncRegistrationPollClose { registration }
+                | I::AsyncRegistrationFinishDestroy { registration } => *registration = ValueId(99),
+                _ => unreachable!(),
+            }
+            let mut encoded = Vec::new();
+            crate::encode_instruction(&mut encoded, &changed.kind);
+            assert!(identities.insert(encoded));
+        }
+        let mut bad = writer.output;
+        bad[5] = 139;
+        assert_eq!(
+            Reader::new(&bad, &limits)
+                .unwrap()
+                .instruction()
+                .unwrap_err()
+                .code,
+            "E-WIRE-OPCODE"
+        );
+    }
+    assert_eq!(identities.len(), 14);
+}
+
+#[test]
+fn async_registration42_complete_environment_is_bounded_noncopy_raw_data() {
+    let limits = Limits::default();
+    let payload = Type::AsyncRegistration {
+        environment: Box::new(Type::Closure(ClosureId(17))),
+    };
+    assert!(!payload.is_copy_value());
+    assert!(!Type::Managed(Box::new(payload.clone())).is_copy_value());
+    assert_ne!(
+        payload.fingerprint(),
+        Type::Registration {
+            environment: Box::new(Type::Closure(ClosureId(17)))
+        }
+        .fingerprint()
+    );
+    assert_ne!(
+        payload.fingerprint(),
+        Type::AsyncRegistration {
+            environment: Box::new(Type::Closure(ClosureId(18)))
+        }
+        .fingerprint()
+    );
+    let mut writer = Writer::new(&limits);
+    writer.ty(&payload, 0).unwrap();
+    assert_eq!(writer.output[0], 37);
+    let mut reader = Reader::new(&writer.output, &limits).unwrap();
+    assert_eq!(reader.ty(0).unwrap(), payload);
+    reader.finish().unwrap();
+    for end in 0..writer.output.len() {
+        assert!(
+            Reader::new(&writer.output[..end], &limits)
+                .and_then(|mut r| r.ty(0))
+                .is_err()
+        );
+    }
+    let mut bad = writer.output;
+    bad[0] = 38;
+    assert_eq!(
+        Reader::new(&bad, &limits).unwrap().ty(0).unwrap_err().code,
+        "E-WIRE-TYPE"
+    );
+    let mut deep = Type::I32;
+    for _ in 0..16 {
+        deep = Type::AsyncRegistration {
+            environment: Box::new(deep),
+        };
+    }
+    let bounds = Limits {
+        max_call_depth: 8,
+        ..limits.clone()
+    };
+    assert_eq!(
+        Writer::new(&bounds).ty(&deep, 0).unwrap_err().category,
+        ResultCategory::ResourceLimit
+    );
+    let mut writer = Writer::new(&limits);
+    writer.ty(&deep, 0).unwrap();
+    assert_eq!(
+        Reader::new(&writer.output, &bounds)
+            .unwrap()
+            .ty(0)
+            .unwrap_err()
+            .category,
+        ResultCategory::ResourceLimit
+    );
+    let (mut module, _) = module_candidate();
+    module.functions[0]
+        .values
+        .push(Type::Managed(Box::new(payload)));
+    module.functions[0].blocks[0]
+        .instructions
+        .push(Instruction {
+            result: None,
+            kind: InstructionKind::AsyncRegistrationPollClose {
+                registration: ValueId(99),
+            },
+            span: Span::default(),
+        });
+    let plan = CandidatePlan::empty_for(&module);
+    let bytes = encode_module_candidate(&module, &plan, &limits).unwrap();
+    assert_eq!(
+        decode_module_candidate(&bytes, &limits).unwrap(),
+        (module, plan)
+    );
+    for version in [40u32, 41, 43] {
+        let mut bad = bytes.clone();
+        bad[8..12].copy_from_slice(&version.to_le_bytes());
+        assert_eq!(
+            decode_module_candidate(&bad, &limits).unwrap_err()[0].code,
+            "E-WIRE-VERSION"
+        );
+    }
+}
+
+#[test]
+fn async_registration42_foreign_roles_have_distinct_identity_and_reject_unknown_tags() {
+    let limits = Limits::default();
+    let (mut module, _) = module_candidate();
+    let mut encoded = Vec::new();
+    let mut identities = std::collections::BTreeSet::new();
+    for (tag, role) in [
+        None,
+        Some(ScopedCallbackRole::Register),
+        Some(ScopedCallbackRole::Close),
+        Some(ScopedCallbackRole::AsyncRegister),
+        Some(ScopedCallbackRole::AsyncRequestClose),
+        Some(ScopedCallbackRole::AsyncPollDrain),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(scoped_callback_role_tag(role), tag as u8);
+        module.functions[0].foreign = Some(ForeignDeclaration {
+            abi: "C".into(),
+            symbol: "raw_candidate".into(),
+            noescape_parameters: vec![],
+            static_callbacks: true,
+            scoped_callback: role,
+        });
+        assert!(identities.insert(module.fingerprint()));
+        let function = &module.functions[0];
+        let mut writer = Writer::new(&limits);
+        writer.function(function).unwrap();
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.function().unwrap(), *function);
+        reader.finish().unwrap();
+        encoded.push(writer.output);
+    }
+    let differences: Vec<_> = encoded[0]
+        .iter()
+        .zip(&encoded[5])
+        .enumerate()
+        .filter_map(|(i, (a, b))| (a != b).then_some(i))
+        .collect();
+    assert_eq!(differences.len(), 1);
+    for tag in [6, 255] {
+        let mut bad = encoded[5].clone();
+        bad[differences[0]] = tag;
+        assert_eq!(
+            Reader::new(&bad, &limits)
+                .unwrap()
+                .function()
+                .unwrap_err()
+                .code,
+            "E-WIRE-TAG"
+        );
+    }
+    for end in 0..encoded[5].len() {
+        assert!(
+            Reader::new(&encoded[5][..end], &limits)
+                .and_then(|mut r| r.function())
+                .is_err()
+        );
+    }
+}
+
 fn ct() -> CtModule {
     CtModule {
         schema_version: SCHEMA_VERSION,

@@ -250,7 +250,8 @@ pub(super) fn type_work(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<()>
                     }
                 }
             }
-            Type::Address { inner, .. }
+            Type::AsyncRegistration { environment: inner }
+            | Type::Address { inner, .. }
             | Type::Managed(inner)
             | Type::Desc(inner)
             | Type::Array { element: inner, .. }

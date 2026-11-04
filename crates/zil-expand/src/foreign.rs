@@ -358,6 +358,12 @@ pub(super) fn noescape_contract(
                         Some(ScopedCallbackRole::Register)
                     } else if term.path.as_slice() == ["scoped_callback_close"] {
                         Some(ScopedCallbackRole::Close)
+                    } else if term.path.as_slice() == ["async_callback_register"] {
+                        Some(ScopedCallbackRole::AsyncRegister)
+                    } else if term.path.as_slice() == ["async_callback_request_close"] {
+                        Some(ScopedCallbackRole::AsyncRequestClose)
+                    } else if term.path.as_slice() == ["async_callback_poll_drain"] {
+                        Some(ScopedCallbackRole::AsyncPollDrain)
                     } else {
                         None
                     };

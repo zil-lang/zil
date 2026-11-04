@@ -1,6 +1,11 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+mod drop_sync;
 mod owned;
+pub(super) use drop_sync::{
+    needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
+    require_value as require_synchronous_value, require_worker as require_synchronous_worker,
+};
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -459,6 +464,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             return Err(fail(i.span, "task payload must be i32"));
                         }
                         worker(module, id, budget, i.span)?;
+                        require_synchronous_worker(module, id, budget, Some(i.span))?;
                         Some(Type::Managed(Box::new(Type::TaskI32)))
                     }
                     InstructionKind::SuspendCall {

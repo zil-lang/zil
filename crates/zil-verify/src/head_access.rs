@@ -416,6 +416,10 @@ fn body(
                     _ => {}
                 }
                 let access = match &operation.kind {
+                    InstructionKind::AsyncRegistrationRequestClose { registration }
+                    | InstructionKind::AsyncRegistrationPollClose { registration } => {
+                        Some(*registration)
+                    }
                     InstructionKind::WriteDesc { desc, .. } => Some(*desc),
                     other => byte_buffers::access(other)
                         .or_else(|| dynamic_store::access(other))

@@ -311,7 +311,8 @@ pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileR
                     }
                 }
             }
-            Type::Address { inner, .. }
+            Type::AsyncRegistration { environment: inner }
+            | Type::Address { inner, .. }
             | Type::Array { element: inner, .. }
             | Type::Slice { element: inner }
             | Type::Managed(inner)

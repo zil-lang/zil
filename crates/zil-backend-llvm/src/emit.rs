@@ -480,7 +480,7 @@ struct FunctionBatch {
 }
 
 fn resource_head_address(ty: &Type) -> bool {
-    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1453,9 +1453,11 @@ impl FunctionEmitter<'_> {
         for block in &self.function.blocks {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
             for (index, instruction) in block.instructions.iter().enumerate() {
+                let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
                 if let Some(actions) = self
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))
+                    && !pollable_drop
                 {
                     for &action in actions.before() {
                         self.event(tasks::owner_marker(action));
@@ -1466,6 +1468,11 @@ impl FunctionEmitter<'_> {
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))
                 {
+                    if pollable_drop {
+                        for &action in actions.before() {
+                            self.event(tasks::owner_marker(action));
+                        }
+                    }
                     for &action in actions.after() {
                         self.event(tasks::owner_marker(action));
                     }
@@ -1501,6 +1508,22 @@ impl FunctionEmitter<'_> {
             {
                 self.registration_functions(instruction, register, close, callback)?;
             }
+            if let InstructionKind::AsyncRegistrationStart {
+                register,
+                request_close,
+                poll_drain,
+                callback,
+                ..
+            } = instruction.kind
+            {
+                self.async_registration_functions(
+                    instruction,
+                    register,
+                    request_close,
+                    poll_drain,
+                    callback,
+                )?;
+            }
             if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
                 self.scoped_thread_functions(instruction, worker, body)?;
             }
@@ -1533,6 +1556,13 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::AsyncRegistrationStart { .. }
+            | InstructionKind::AsyncRegistrationValid { .. }
+            | InstructionKind::AsyncRegistrationRequestClose { .. }
+            | InstructionKind::AsyncRegistrationPollClose { .. }
+            | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+                self.async_registration_instruction(instruction)?;
+            }
             InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
                 return unsupported(
                     "dynamic interface instruction lowering is not yet implemented",
@@ -3343,7 +3373,10 @@ fn environment_type(id: ClosureId) -> m::Ty {
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::BorrowedStorage { storage, .. } => llvm_type(storage),
-        Type::Registration { .. } | Type::Task { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
+        Type::Registration { .. }
+        | Type::AsyncRegistration { .. }
+        | Type::Task { .. }
+        | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
@@ -3404,7 +3437,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(payload.as_ref(), Type::Registration { .. })
+                || matches!(
+                    payload.as_ref(),
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                )
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
@@ -3413,7 +3449,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(payload.as_ref(), Type::Registration { .. })
+                || matches!(
+                    payload.as_ref(),
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                )
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
@@ -3460,6 +3499,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         | Type::Task { .. }
         | Type::TaskI32
         | Type::Registration { .. }
+        | Type::AsyncRegistration { .. }
         | Type::OwnedStore { .. } => Ok(8),
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 | Type::F32 => Ok(4),
@@ -3484,7 +3524,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(payload.as_ref(), Type::Registration { .. })
+                || matches!(
+                    payload.as_ref(),
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                )
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
@@ -3493,7 +3536,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
-                || matches!(payload.as_ref(), Type::Registration { .. })
+                || matches!(
+                    payload.as_ref(),
+                    Type::Registration { .. } | Type::AsyncRegistration { .. }
+                )
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)

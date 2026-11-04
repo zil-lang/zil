@@ -128,15 +128,22 @@ pub(super) fn check_declaration(
             result: Box::new(Type::I64),
         };
         let valid = match role {
-            ScopedCallbackRole::Register => {
+            ScopedCallbackRole::AsyncPollDrain => {
+                parameters == vec![&Type::ForeignHandle] && function.return_type == Type::I32
+            }
+            ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
                 parameters == vec![&callback, &Type::ForeignHandle]
                     && function.return_type == Type::ForeignHandle
             }
-            ScopedCallbackRole::Close => {
+            ScopedCallbackRole::Close | ScopedCallbackRole::AsyncRequestClose => {
                 parameters == vec![&Type::ForeignHandle] && function.return_type == Type::Unit
             }
         };
-        if !valid || !foreign.static_callbacks || !foreign.noescape_parameters.is_empty() {
+        if !valid
+            || function.call_kind == Some(CallKind::Suspend)
+            || !foreign.static_callbacks
+            || !foreign.noescape_parameters.is_empty()
+        {
             return Err(fail(
                 "scoped callback role requires its exact C signature and static_callbacks contract",
             ));
