@@ -1,31 +1,61 @@
 {
   "task": "341",
   "status": "MilestoneInProgress",
-  "scope": "Scalar const function parameters and fixed-array substitution; general trait terminal work remains in progress",
+  "scope": "Typed scalar const function parameters, fixed arrays, scoped const/module identity and concrete supertrait proof-before-commit; general impl/projection/method work remains in progress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "commands": [
     "cargo check -p zil-expand --quiet",
-    "cargo test -p zil-driver --test generics terminal341 -- --nocapture"
+    "cargo test -p zil-driver --test generics --test impl162_trait_bounds -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture"
   ],
   "observed": {
-    "targeted_tests_passed": 2,
-    "source_positive_cases": 8,
-    "source_negative_cases": 11,
+    "targeted_feature_tests_passed": 6,
+    "existing_test_targets_with_llvm_api": {
+      "generics": 19,
+      "impl162_trait_bounds": 49,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "const_source_positive_cases": 12,
+    "const_source_negative_cases": 14,
+    "supertrait_source_positive_cases": 7,
+    "supertrait_source_negative_cases": 5,
     "unused_invalid_definitions_rejected": true,
+    "generated_ast_shared_span_control": "Pass, declaration-scoped const ordinals remain distinct",
     "typed_analyze_verify": "Pass",
     "wire_independent_verify": "Pass",
-    "clang_native_O0_O2": "Pass, result 7",
-    "expand_exact_steps": 961,
-    "expand_N_minus_1": "ResourceLimit",
-    "expand_fresh_N_twice": "Pass"
+    "clang_native_O0_O2": "Pass, local and project const/supertrait consumers",
+    "llvm_api_native_O0_O2": "Pass, local and project const/supertrait consumers; no fallback",
+    "expand_const_exact_steps": 1256,
+    "request_supertrait": {
+      "work": 3197,
+      "nodes": 826
+    },
+    "request_const_match_shadow": {
+      "work": 2414,
+      "nodes": 823
+    },
+    "N_minus_1": "ResourceLimit for every listed ledger",
+    "cold_warm_fresh_N": "Pass",
+    "persisted_cache": "Hit with verification_runs=1 for both supertrait and const-shadow source",
+    "active_repeated_supertrait_cycles": "SafeReject",
+    "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
+    "old_controls": {
+      "copy_record_work": 863,
+      "old_unbound_work": 319,
+      "primitive_binder_work": 1850
+    }
   },
   "remaining": [
     "Target usize/u64 const domains await shared type consumer integration",
     "General verified CT expression arguments and const inference",
-    "Aggregate/enum/trait const parameter consumers and project const lexical normalization",
+    "Aggregate/enum/trait const parameter consumers and mixed lifetime/const support",
     "Associated types/constants and bound-supported symbolic projections",
-    "First-order generic/conditional impl selection, coherence, supertraits and generic methods",
-    "LLVM API O0/O2, persisted cache controls and independent review"
+    "First-order generic/conditional impl selection and general coherence",
+    "Generic methods and generic supertrait argument obligations",
+    "Independent review of the latest exact source milestone"
   ],
   "rust_goals": {
     "safety": "Unused const definitions use symbolic immutable scalar parameters; downstream Types/Analyze/Verify and Wire verification were executed",
@@ -33,5 +63,19 @@
     "expression_maintenance": "Explicit typed const forwarding and fixed-array function reuse now compose; full framework maintenance comparison NotRun",
     "compile_cost": "Request limits unchanged; exact N/N-1/fresh boundary measured; Rust compile-cost comparison NotRun",
     "breakthrough": "Incremental source expressiveness only; product-gates conjunction and terminal completion remain unestablished"
+  },
+  "original_const_milestone": {
+    "commit": "87c30248aa8cfb51ef0335ac64a331eaa4804ca0",
+    "review": "Independent architecture reviewer replayed both terminal341 tests successfully, then identified match-arm map prepay and runtime-shadow length identity issues; both corrected in current source",
+    "expand_exact_steps": 961,
+    "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
+  },
+  "identity": {
+    "production_rust_path_nul_bytes_nul_sha256": "cc5208dcc7c0bae970bc59fc37e62eef91d65d5b4db70d605203f081ed7163c2",
+    "test_rust_path_nul_bytes_nul_sha256": "d9302126eecf558fb86b5362d2042cff070c69ddca771de1242ecc8fc76390ce",
+    "executables": {
+      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "8e994d437d779c30a1bb7f607e32bb5c72699f2a525ad40aaaa21185fd19dadf",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "a332f67c8cd772fb69642df05a1a6d3f9bb3a5bd6d3827592f2f27c7cd846738"
+    }
   }
 }

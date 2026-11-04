@@ -10,14 +10,25 @@ pub(super) fn parameters(function: &Function) -> impl Iterator<Item = &GenericPa
 }
 
 pub(super) fn binding(function: &Function, name: &str, local: usize) -> bool {
-    function
+    symbolic_parameter(function, name)
+        .is_some_and(|(ordinal, _)| local == function.params.len() + ordinal)
+}
+
+fn symbol(ordinal: usize) -> String {
+    format!("$const_{ordinal}")
+}
+
+pub(super) fn symbolic_parameter<'a>(
+    function: &'a Function,
+    name: &str,
+) -> Option<(usize, &'a GenericParam)> {
+    let ordinal: usize = name.strip_prefix("$const_")?.parse().ok()?;
+    let parameter = function
         .generics
         .iter()
         .filter(|p| matches!(p.kind, GenericParamKind::Const(_)))
-        .enumerate()
-        .any(|(ordinal, parameter)| {
-            parameter.name == name && local == function.params.len() + ordinal
-        })
+        .nth(ordinal)?;
+    Some((ordinal, parameter))
 }
 
 pub(super) fn domain(ty: &TypeRef) -> R<&str> {
@@ -345,13 +356,31 @@ pub(super) fn definition<'a>(
         }
     }
     let mut checked = function.clone();
-    for parameter in &function.generics {
+    let mut substitutions = BTreeMap::new();
+    for (ordinal, parameter) in function
+        .generics
+        .iter()
+        .filter(|p| matches!(p.kind, GenericParamKind::Const(_)))
+        .enumerate()
+    {
         if let GenericParamKind::Const(ty) = &parameter.kind {
             domain(ty)?;
             budget.ty(ty)?;
             budget.text(&parameter.name, parameter.span)?;
+            budget.text("$const_00000000000000000000", parameter.span)?;
+            budget.text(&parameter.name, parameter.span)?;
+            let name = symbol(ordinal);
+            budget.text(&name, parameter.span)?;
+            let value = carrier(
+                &Expr {
+                    span: parameter.span,
+                    kind: ExprKind::Name(name.clone()),
+                },
+                budget,
+            )?;
+            substitutions.insert(parameter.name.clone(), value);
             checked.params.push(Param {
-                name: parameter.name.clone(),
+                name,
                 ty: ty.clone(),
                 give: false,
                 attributes: vec![],
@@ -362,7 +391,34 @@ pub(super) fn definition<'a>(
     checked
         .generics
         .retain(|p| !matches!(p.kind, GenericParamKind::Const(_)));
+    let mut item = Item {
+        span: function.span,
+        public: false,
+        attributes: vec![],
+        kind: ItemKind::Function(checked),
+    };
+    budget.substituted_item(&item, &substitutions)?;
+    prepay_scopes(&item, &substitutions, budget)?;
+    substitute_item(&mut item, &substitutions)?;
+    let ItemKind::Function(checked) = item.kind else {
+        unreachable!()
+    };
     Ok(Cow::Owned(checked))
+}
+
+pub(super) fn scoped_name<'a>(
+    name: &str,
+    substitutions: &'a BTreeMap<String, TypeRef>,
+) -> Cow<'a, BTreeMap<String, TypeRef>> {
+    if !substitutions
+        .get(name)
+        .is_some_and(|t| expression(t).is_some())
+    {
+        return Cow::Borrowed(substitutions);
+    }
+    let mut scoped = substitutions.clone();
+    scoped.remove(name);
+    Cow::Owned(scoped)
 }
 
 pub(super) fn hide(pattern: &Pattern, substitutions: &mut BTreeMap<String, TypeRef>) {
@@ -455,8 +511,21 @@ pub(super) fn prepay_scopes(
         fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
             self.budget.text(value, span).map_err(|e| vec![e])
         }
+        fn item(&mut self, item: &Item, depth: usize) -> CompileResult<()> {
+            if let ItemKind::Function(function) = &item.kind {
+                for parameter in &function.params {
+                    self.map(parameter.span)?;
+                }
+            }
+            super::super::ct_selection::walk_item(self, item, depth)
+        }
         fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
             self.map(statement.span)?;
+            if let StmtKind::Match { arms, .. } = &statement.kind {
+                for arm in arms {
+                    self.map(arm.span)?;
+                }
+            }
             super::super::ct_selection::walk_statement(self, statement, depth)
         }
         fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {

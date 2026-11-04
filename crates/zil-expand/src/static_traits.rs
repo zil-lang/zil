@@ -69,13 +69,6 @@ impl<'a> Expander<'a> {
             );
             return;
         }
-        if !t.bounds.is_empty() {
-            self.unsupported(
-                "generic or supertrait declarations require the full trait solver",
-                item.span,
-            );
-            return;
-        }
         let mut names = BTreeSet::new();
         let mut valid = true;
         for member in &t.members {

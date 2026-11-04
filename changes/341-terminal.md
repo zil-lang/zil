@@ -46,3 +46,19 @@ round trips, actual Clang/LLVM API O0/O2 where enabled, and N/N−1/fresh-cache
 budget controls. No formal whole-workspace acceptance or terminal-completion
 claim is made by a milestone commit. Rust comparison evidence distinguishes
 actual safety/runtime/expression/cost checks from unmeasured product gates.
+
+The first source milestone `87c30248a` implements exact supported scalar const
+function arguments and fixed-array substitution. Independent review replayed
+its Wire/native/budget tests, then identified missing per-arm substitution-map
+prepayment and unused runtime-shadow array-length identity. The follow-up fixes
+both: every potentially copied arm map is prepaid, and definition checking uses
+the original declaration's const ordinal plus its actual immutable local ID.
+Source coordinates carry diagnostics only. Generated ASTs with shared spans
+are retained as a separate interface-level control. Consts remain values rather
+than addressable storage, including unused definitions.
+
+The next milestone adds supertrait closure and proof-before-commit for concrete
+impl witnesses, inherited ordinary methods/defaults, structural Copy premises,
+diamonds, cross-module identity, actual cycles, and bounded nonrepeating growth.
+Generic/conditional impl heads, symbolic associated projections, general const
+CT expressions, and generic methods remain active implementation work.

@@ -181,9 +181,6 @@ pub(crate) fn validate_declaration(
             "built-in capability traits cannot be redeclared",
         ));
     }
-    if !declaration.bounds.is_empty() {
-        return Err(unsupported(item.span, "supertraits require their solver"));
-    }
     let mut variables = BTreeSet::from(["Self".to_owned()]);
     for parameter in &declaration.generics {
         budget.node(parameter.span, 0)?;

@@ -83,6 +83,7 @@ pub(super) fn specialize_products<'a>(
         if let ItemKind::Trait(declaration) = &item.kind {
             has_defaults |=
                 trait_defaults::present(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            has_defaults |= !declaration.bounds.is_empty();
         }
         if let ItemKind::Impl(implementation) = &item.kind
             && implementation
@@ -438,7 +439,10 @@ impl<'a> Engine<'a> {
                     {
                         // Preserve the already-accounted callable protection path.
                         engine.nominal_binder_collision = true;
-                    } else if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                    } else if matches!(
+                        parameter.kind,
+                        GenericParamKind::Type(_) | GenericParamKind::Const(_)
+                    ) {
                         // Ordinary type binders need the same nominal isolation.
                         // Do not inspect a symbolic body against an ambiguously
                         // named nominal table: the caller first protects the
@@ -2927,6 +2931,15 @@ fn substitute_item(item: &mut Item, substitutions: &BTreeMap<String, TypeRef>) -
             if let Some(t) = &mut f.return_type {
                 visitor.ty(t);
             }
+            let mut scoped = Cow::Borrowed(substitutions);
+            for parameter in &f.params {
+                if let Cow::Owned(next) = consts::scoped_name(&parameter.name, &scoped) {
+                    scoped = Cow::Owned(next);
+                }
+            }
+            let visitor = Substitution {
+                substitutions: &scoped,
+            };
             match &mut f.body {
                 FunctionBody::Block(b) => visitor.block(b),
                 FunctionBody::Expression(e) => visitor.expr(e),
@@ -2971,6 +2984,7 @@ impl Substitution<'_> {
             && path.len() == 1
             && args.is_empty()
             && let Some(value) = self.substitutions.get(&path[0])
+            && consts::expression(value).is_none()
         {
             let span = ty.span;
             *ty = value.clone();

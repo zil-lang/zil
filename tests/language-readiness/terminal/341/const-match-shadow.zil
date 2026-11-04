@@ -1,0 +1,1 @@
+enum E{A(i32),B(i32),C(i32),D(i32)}fn sink(n:i32){}fn arms<#N:i32>(e:E)->i32{match e{E.A(N)=>sink(N),E.B(N)=>sink(N),E.C(N)=>sink(N),E.D(N)=>sink(N)}return N}fn main()->i32{return arms::<7>(E.B(9))-7}

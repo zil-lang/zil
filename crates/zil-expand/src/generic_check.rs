@@ -3052,12 +3052,7 @@ impl Check<'_, '_, '_> {
                             let source = self.signatures.get(self.definition).ok_or_else(|| {
                                 error(e.span, "symbolic const call has no declaration context")
                             })?;
-                            let (ordinal, binder) = source
-                                .generics
-                                .iter()
-                                .filter(|p| matches!(p.kind, GenericParamKind::Const(_)))
-                                .enumerate()
-                                .find(|(_, p)| p.name == *name)
+                            let (ordinal, binder) = consts::symbolic_parameter(source, name)
                                 .ok_or_else(|| {
                                     error(e.span, "const argument names a runtime value")
                                 })?;

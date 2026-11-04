@@ -660,6 +660,13 @@ impl<'a> Budget<'a> {
     }
     fn expr(&mut self, e: &Expr, depth: usize, subs: Option<&BTreeMap<String, TypeRef>>) -> R<()> {
         self.node(e.span, depth)?;
+        if let ExprKind::Name(name) = &e.kind
+            && let Some(value) = subs
+                .and_then(|substitutions| substitutions.get(name))
+                .and_then(consts::expression)
+        {
+            return self.expr(value, depth, None);
+        }
         match &e.kind {
             ExprKind::Literal(l) => self.literal(l, e.span)?,
             ExprKind::Name(s) | ExprKind::ReceiverMember(s) => self.text(s, e.span)?,

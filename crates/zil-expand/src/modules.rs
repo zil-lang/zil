@@ -18,10 +18,36 @@ struct Symbol {
     public: bool,
     function: bool,
     generic: bool,
+    const_slots: Vec<bool>,
 }
 struct Index {
     symbols: BTreeMap<ModuleId, BTreeMap<String, Symbol>>,
     imports: BTreeMap<ModuleId, BTreeMap<String, ModuleId>>,
+}
+
+fn const_slots(item: &Item, budget: &mut Budget<'_>) -> R<Vec<bool>> {
+    let parameters = match &item.kind {
+        ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
+        ItemKind::Aggregate(a) => a.generics.as_slice(),
+        ItemKind::Enum(e) => e.generics.as_slice(),
+        ItemKind::Trait(t) => t.generics.as_slice(),
+        ItemKind::TypeAlias(a) => a.generics.as_slice(),
+        _ => &[],
+    };
+    if !parameters
+        .iter()
+        .any(|p| matches!(p.kind, GenericParamKind::Const(_)))
+    {
+        return Ok(vec![]);
+    }
+    let mut slots = Vec::new();
+    for parameter in parameters {
+        budget.node(parameter.span, 0)?;
+        if !matches!(parameter.kind, GenericParamKind::Lifetime) {
+            slots.push(matches!(parameter.kind, GenericParamKind::Const(_)));
+        }
+    }
+    Ok(slots)
 }
 
 /// A direct single-module API does not run project normalization. Protect any
@@ -57,7 +83,10 @@ pub(super) fn protect_alias_nominals<'a>(
         for parameter in parameters {
             budget.node(parameter.span, depth + 1)?;
             budget.text(&parameter.name, parameter.span)?;
-            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+            if matches!(
+                parameter.kind,
+                GenericParamKind::Type(_) | GenericParamKind::Const(_)
+            ) {
                 names.insert(&parameter.name);
             }
         }
@@ -108,6 +137,7 @@ pub(super) fn protect_alias_nominals<'a>(
                 public: item.public,
                 function: false,
                 generic,
+                const_slots: const_slots(item, budget)?,
             },
         );
     }
@@ -123,6 +153,7 @@ pub(super) fn protect_alias_nominals<'a>(
     let mut output = module.clone();
     let mut visitor = Visitor {
         default_nominal: None,
+        const_scope: Names::new(),
         mode: Mode::Normalize(&index),
         module: module.id,
         budget,
@@ -183,6 +214,7 @@ pub(super) fn protect_alias_binders<'a>(
     let mut output = module.clone();
     let mut visitor = Visitor {
         default_nominal: None,
+        const_scope: Names::new(),
         mode: Mode::Binders {
             bindings: BTreeMap::new(),
             occupied,
@@ -297,6 +329,7 @@ fn normalize(
                         public: item.public,
                         function,
                         generic,
+                        const_slots: const_slots(item, &mut budget)?,
                     },
                 );
             }
@@ -324,6 +357,7 @@ fn normalize(
     for module in modules {
         let mut visitor = Visitor {
             default_nominal: None,
+            const_scope: Names::new(),
             mode: Mode::Normalize(&index),
             module: module.id,
             budget: &mut budget,
@@ -432,6 +466,7 @@ fn normalize(
         }
         let mut visitor = Visitor {
             default_nominal: None,
+            const_scope: Names::new(),
             mode: Mode::Restore {
                 functions: &functions,
                 edges,
@@ -464,6 +499,7 @@ enum Mode<'a> {
 }
 struct Visitor<'a, 'b, 'l> {
     default_nominal: Option<String>,
+    const_scope: Names,
     mode: Mode<'a>,
     module: ModuleId,
     budget: &'b mut Budget<'l>,
@@ -502,7 +538,9 @@ impl Visitor<'_, '_, '_> {
         let Some(first) = path.first().map(AsRef::as_ref) else {
             return Ok(None);
         };
-        if types.contains(first) || (!type_position && values.contains(first)) {
+        if types.contains(first)
+            || (!type_position && (values.contains(first) || self.const_scope.contains(first)))
+        {
             return Ok(None);
         }
         let (owner, name, external) = match path {
@@ -598,8 +636,15 @@ impl Visitor<'_, '_, '_> {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
                     *path = vec![name];
                 }
-                for arg in args {
-                    self.arg(arg, types, &Names::new(), depth + 1)?;
+                for (position, arg) in args.iter_mut().enumerate() {
+                    self.const_arg(
+                        arg,
+                        path.first().map(String::as_str),
+                        position,
+                        types,
+                        &Names::new(),
+                        depth + 1,
+                    )?;
                 }
             }
             TypeKind::Reference { inner, .. }
@@ -641,6 +686,60 @@ impl Visitor<'_, '_, '_> {
             GenericArg::Const(e) => self.expr(e, types, values, depth),
         }
     }
+    fn const_arg(
+        &mut self,
+        argument: &mut GenericArg,
+        target: Option<&str>,
+        position: usize,
+        types: &Names,
+        values: &Names,
+        depth: usize,
+    ) -> R<()> {
+        let is_const = if let (Mode::Normalize(index), Some(target)) = (&self.mode, target) {
+            let mut found = false;
+            for symbols in index.symbols.values() {
+                for symbol in symbols.values() {
+                    if symbol.const_slots.is_empty() {
+                        continue;
+                    }
+                    self.budget.node(
+                        match argument {
+                            GenericArg::Type(t) => t.span,
+                            GenericArg::Const(e) => e.span,
+                        },
+                        depth,
+                    )?;
+                    self.budget.text(
+                        &symbol.canonical,
+                        match argument {
+                            GenericArg::Type(t) => t.span,
+                            GenericArg::Const(e) => e.span,
+                        },
+                    )?;
+                    if symbol.canonical == target {
+                        found = symbol.const_slots.get(position).copied().unwrap_or(false);
+                    }
+                }
+            }
+            found
+        } else {
+            false
+        };
+        if is_const
+            && let GenericArg::Type(ty) = argument
+            && let TypeKind::Named { path, args } = &ty.kind
+            && let [name] = path.as_slice()
+            && args.is_empty()
+        {
+            self.budget.node(ty.span, depth)?;
+            self.budget.text(name, ty.span)?;
+            *argument = GenericArg::Const(Expr {
+                kind: ExprKind::Name(name.clone()),
+                span: ty.span,
+            });
+        }
+        self.arg(argument, types, values, depth)
+    }
     fn item(&mut self, item: &mut Item, outer: &Names, top: bool, depth: usize) -> R<()> {
         self.budget.node(item.span, depth)?;
         let mut types = self.names(outer, item.span)?;
@@ -653,11 +752,21 @@ impl Visitor<'_, '_, '_> {
             ItemKind::Trait(t) => t.generics.as_slice(),
             _ => &[],
         };
+        for name in &self.const_scope {
+            self.budget.node(item.span, depth)?;
+            self.budget.text(name, item.span)?;
+        }
+        let mut const_scope = self.const_scope.clone();
         for p in params {
             if matches!(p.kind, GenericParamKind::Type(_)) {
                 types.insert(p.name.clone());
+            } else if matches!(p.kind, GenericParamKind::Const(_)) {
+                self.budget.node(p.span, depth)?;
+                self.budget.text(&p.name, p.span)?;
+                const_scope.insert(p.name.clone());
             }
         }
+        let previous_consts = std::mem::replace(&mut self.const_scope, const_scope);
         let previous = if let Mode::Binders {
             bindings,
             occupied,
@@ -702,10 +811,17 @@ impl Visitor<'_, '_, '_> {
                 self.declaration_name(&mut f.name, top, item.span)?;
                 let mut values = Names::new();
                 for parameter in &mut f.generics {
-                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
-                        for bound in bounds {
-                            self.ty(bound, &types, depth + 1)?;
+                    match &mut parameter.kind {
+                        GenericParamKind::Type(bounds) => {
+                            for bound in bounds {
+                                self.ty(bound, &types, depth + 1)?;
+                            }
                         }
+                        GenericParamKind::Const(ty) => {
+                            self.ty(ty, &types, depth + 1)?;
+                            values.insert(parameter.name.clone());
+                        }
+                        GenericParamKind::Lifetime => {}
                     }
                 }
                 // A where bound has the same lexical/module identity as an
@@ -812,6 +928,7 @@ impl Visitor<'_, '_, '_> {
                 ItemKind::Trait(t) => &mut t.generics,
                 _ => {
                     *bindings = previous;
+                    self.const_scope = previous_consts;
                     return Ok(());
                 }
             };
@@ -824,6 +941,7 @@ impl Visitor<'_, '_, '_> {
             }
             *bindings = previous;
         }
+        self.const_scope = previous_consts;
         Ok(())
     }
     fn pattern(
@@ -1086,8 +1204,13 @@ impl Visitor<'_, '_, '_> {
             }
             ExprKind::TypeApply { callee, arguments } => {
                 self.expr(callee, types, values, depth + 1)?;
-                for arg in arguments {
-                    self.arg(arg, types, values, depth + 1)?;
+                for (position, arg) in arguments.iter_mut().enumerate() {
+                    let target = if let ExprKind::Name(name) = &callee.kind {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    };
+                    self.const_arg(arg, target, position, types, values, depth + 1)?;
                 }
             }
             ExprKind::Call { callee, arguments } => {

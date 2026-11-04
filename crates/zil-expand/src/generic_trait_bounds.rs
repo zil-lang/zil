@@ -2,6 +2,8 @@
 //! immutable during specialization and never treats a same-named method as an
 //! implementation. All emitted calls still enter Types and independent Verify.
 use super::*;
+#[path = "generic_trait_super.rs"]
+mod supertraits;
 
 pub(super) use trait_instances::Bound;
 pub(super) type Bounds = BTreeMap<String, Vec<Bound>>;
@@ -11,6 +13,7 @@ pub(super) struct Index<'a> {
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
     pub(super) has_defaults: bool,
+    has_supertraits: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
@@ -36,6 +39,7 @@ impl<'a> Index<'a> {
         let implementations = BTreeSet::new();
         let mut has_instances = false;
         let mut has_defaults = false;
+        let mut has_supertraits = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -57,7 +61,10 @@ impl<'a> Index<'a> {
                 ItemKind::Trait(declaration) => {
                     let defaults = trait_defaults::present(declaration, budget)?;
                     has_defaults |= defaults;
-                    has_instances |= !declaration.generics.is_empty() || defaults;
+                    has_supertraits |= !declaration.bounds.is_empty();
+                    has_instances |= !declaration.generics.is_empty()
+                        || defaults
+                        || !declaration.bounds.is_empty();
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
                         .is_some()
@@ -79,13 +86,14 @@ impl<'a> Index<'a> {
             nominals,
             has_instances,
             has_defaults,
+            has_supertraits,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
-                if !declaration.generics.is_empty() || has_defaults {
+                if !declaration.generics.is_empty() || has_defaults || has_supertraits {
                     trait_instances::validate_declaration(
                         item,
                         declaration,
@@ -164,10 +172,26 @@ impl<'a> Index<'a> {
                 Some(module.span),
             ));
         }
+        if validate && index.has_supertraits {
+            index.validate_supertraits(budget)?;
+        }
         Ok(index)
     }
     pub(super) fn instance_count(&self) -> usize {
         self.instance_count
+    }
+    pub(super) fn inherited_bounds(
+        &self,
+        bounds: Vec<Bound>,
+        variable: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Vec<Bound>> {
+        if self.has_supertraits {
+            self.super_bounds(&bounds, budget, span, Some(variable))
+        } else {
+            Ok(bounds)
+        }
     }
 
     pub(super) fn declaration(&self, bound: &TypeRef, budget: &mut Budget<'_>) -> R<&'a TraitDecl> {
@@ -190,12 +214,6 @@ impl<'a> Index<'a> {
                 "E-MODULE-PRIVATE",
                 Some(bound.span),
                 "generic trait bound is private to its declaring module",
-            ));
-        }
-        if !declaration.bounds.is_empty() {
-            return Err(unsupported(
-                bound.span,
-                "generic or supertrait bound requires the full trait solver",
             ));
         }
         if name.starts_with("$module") {
@@ -330,6 +348,11 @@ impl<'a> Index<'a> {
             }
             if !names.is_empty() {
                 budget.text(&parameter.name, parameter.span)?;
+                let names = if self.has_supertraits {
+                    self.super_bounds(&names, budget, parameter.span, Some(&parameter.name))?
+                } else {
+                    names
+                };
                 result.insert(parameter.name.clone(), names);
             }
         }
@@ -413,7 +436,15 @@ impl<'a> Index<'a> {
         span: Span,
     ) -> R<Cow<'a, Function>> {
         let mut selected = None;
-        for bound in bounds.get(variable).into_iter().flatten() {
+        let expanded;
+        let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
+        let supplied = if self.has_supertraits {
+            expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
+            expanded.as_slice()
+        } else {
+            supplied
+        };
+        for bound in supplied {
             budget.node(span, 0)?;
             let Bound::Nominal(reference) = bound else {
                 continue;

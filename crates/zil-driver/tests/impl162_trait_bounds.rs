@@ -15,6 +15,202 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
+    for text in [
+        "trait Base{fn base(self:&Self)->i32;}trait Child:Base{fn child(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}impl Child for P{fn child()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.base()+p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-14}",
+        "trait Base{fn base(self:&Self)->i32;}trait Child:Base{}trait Top:Child{}struct P{n:i32}impl Top for P{}impl Child for P{}impl Base for P{fn base()->i32{return .n}}fn consume<T:Top>(p:&T)->i32{return p.base()}fn main()->i32{let p=P{n:7};return consume(&p)-7}",
+        "trait Base{}trait Child:Base{}fn unused<T:Child>(p:&T){}fn main(){}",
+        "trait Base<R>{fn base(self:&Self)->R;}trait Child:Base<i32>{fn child(self:&Self)->i32{return self.base()}}struct P{n:i32}impl Child for P{}impl Base<i32> for P{fn base()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-7}",
+        "trait Child:Copy{}struct P{n:i32}impl Child for P{}fn duplicate<T:Child>(p:T)->T{let q=p;return p}fn main()->i32{let p=duplicate(P{n:7});return p.n-7}",
+        "trait Child:Copy{fn identity(self:Self)->Self{let q=self;return self}}struct P{n:i32}impl Child for P{}fn main()->i32{let p=P{n:7}.identity();return p.n-7}",
+        "trait A{fn get(self:&Self)->i32;}trait B:A{}trait C:A{}trait D:B+C{}struct P{}impl D for P{}impl C for P{}impl B for P{}impl A for P{fn get()->i32{return 7}}fn consume<T:D>(p:&T)->i32{return p.get()}fn main()->i32{let p=P{};return consume(&p)-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/supertrait-missing-premise.zil"
+        ),
+        "trait A:B{}trait B:A{}fn main(){}",
+        "trait A:A{}fn main(){}",
+        "trait Base{}trait Child:Base{}fn unused<T:Child>(p:&T)->i32{return p.missing()}fn main(){}",
+        "trait Base<R>{}trait Child:Base<i64>{}struct P{}impl Base<i32> for P{}impl Child for P{}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    let growing = compile_source(
+        &source("trait Grow<T>:Grow<(T,T)>{}fn main(){}"),
+        &CompileOptions {
+            limits: Limits {
+                max_analysis_steps: 4000,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        growing.status,
+        ResultCategory::ResourceLimit,
+        "{}",
+        growing.to_json()
+    );
+}
+
+#[test]
+fn terminal341_const_module_namespaces_and_forwarding_preserve_actual_binders() {
+    let files = [
+        (
+            "main",
+            "import values;fn main()->i32{return values.forwarded::<7>()-7}",
+        ),
+        (
+            "values",
+            "pub struct N{n:i32}pub fn scalar<#N:i32>()->i32{return N}pub fn forwarded<#N:i32>()->i32{return scalar::<N>()}",
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&files);
+    for text in [
+        "struct N{n:i32}fn value<#N:i32>(x:N)->i32{return x.n+N}fn main()->i32{return value::<7>(N{n:2})-9}",
+        "struct N{n:i32}fn scalar<#N:i32>()->i32{return N}fn main()->i32{return scalar::<7>()-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
+    use zil_driver::{CompilationSession, DiskCacheStatus};
+    let super_source =
+        include_str!("../../../tests/language-readiness/terminal/341/supertraits.zil");
+    let const_source =
+        include_str!("../../../tests/language-readiness/terminal/341/const-match-shadow.zil");
+    let unit = source(super_source);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    native_both(&[("main", super_source)]);
+    native_both(&[
+        (
+            "main",
+            "import rules;import model;fn main()->i32{let p=model.make();return rules.consume(&p)-7}",
+        ),
+        (
+            "rules",
+            "pub trait Base{fn base(self:&Self)->i32;}pub trait Child:Base{}pub fn consume<T:Child>(p:&T)->i32{return p.base()}",
+        ),
+        (
+            "model",
+            "import rules;pub struct P{n:i32}pub fn make()->P{return P{n:7}}impl rules.Child for P{}impl rules.Base for P{fn base()->i32{return .n}}",
+        ),
+    ]);
+    for (label, text) in [
+        ("supertrait", super_source),
+        ("const-match-shadow", const_source),
+    ] {
+        let unit = source(text);
+        for ledger in ["work", "nodes"] {
+            let options = |n| {
+                let mut options = CompileOptions::default();
+                if ledger == "work" {
+                    options.limits.max_analysis_steps = n;
+                } else {
+                    options.limits.max_nodes = n;
+                }
+                options
+            };
+            let (mut low, mut high) = (
+                1,
+                if ledger == "work" {
+                    Limits::default().max_analysis_steps
+                } else {
+                    Limits::default().max_nodes
+                },
+            );
+            while low < high {
+                let n = low + (high - low) / 2;
+                let report = compile_source(&unit, &options(n));
+                match report.status {
+                    ResultCategory::Success => high = n,
+                    ResultCategory::ResourceLimit => low = n + 1,
+                    _ => panic!("{}", report.to_json()),
+                }
+            }
+            let mut session = CompilationSession::default();
+            for (n, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                for report in [
+                    session.compile_source(&unit, &options(n)),
+                    CompilationSession::default().compile_source(&unit, &options(n)),
+                ] {
+                    assert_eq!(report.status, expected, "{}", report.to_json());
+                }
+                assert_eq!(session.active_query_count(), 0);
+            }
+            eprintln!("341 {label} request {ledger} N={low}; N-1/cold/warm/fresh agree");
+        }
+        let cache = std::env::temp_dir().join(format!(
+            "zil-341-cache-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let options = CompileOptions {
+            cache_dir: Some(cache.clone()),
+            ..CompileOptions::default()
+        };
+        let cold = compile_source(&unit, &options);
+        let warm = compile_source(&unit, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.disk_cache, DiskCacheStatus::Hit);
+        assert_eq!(warm.verification_runs, 1);
+        fs::remove_dir_all(cache).unwrap();
+    }
+}
+
+#[test]
 fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
     let cases = [
         (
