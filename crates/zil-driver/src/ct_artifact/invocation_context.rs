@@ -222,11 +222,23 @@ impl FrozenInvocationContext {
             .get(top)
             .ok_or_else(|| unsupported("CT semantic declaration has no original lineage"))?
             .identity;
-        let size = identity_cost(identity, budget)?
-            .saturating_add(member.len() as u64 * 4)
-            .saturating_add(64);
-        budget.reserve_temporary_bytes(size)?;
-        let mut out = Vec::new();
+        identity_cost(identity, budget)?;
+        let size = identity
+            .package
+            .len()
+            .saturating_add(8)
+            .saturating_add(32)
+            .saturating_add(
+                identity
+                    .module_path
+                    .iter()
+                    .chain(&identity.declaration_path)
+                    .fold(0usize, |n, s| n.saturating_add(s.len()).saturating_add(8)),
+            )
+            .saturating_add(identity.generation_path.len().saturating_mul(8))
+            .saturating_add(member.len().saturating_mul(8));
+        budget.reserve_temporary_bytes(size as u64)?;
+        let mut out = Vec::with_capacity(size);
         fn number(out: &mut Vec<u8>, n: u64) {
             out.extend_from_slice(&n.to_be_bytes());
         }
@@ -252,15 +264,7 @@ impl FrozenInvocationContext {
             number(&mut out, u64::from(part));
         }
         budget.reserve_analysis_work(out.len() as u64)?;
-        // The conservative plan covers String/Vec headers as well as bytes.
-        if out.capacity() as u64 > size {
-            return Err(vec![Diagnostic::limit(
-                Phase::Ct,
-                "CT semantic symbol key exceeded its reservation",
-                None,
-            )]);
-        }
-        budget.release_temporary_bytes(size.saturating_sub(out.capacity() as u64));
+        debug_assert!(out.capacity() <= size);
         Ok(out)
     }
     pub(super) fn validate_scope(
