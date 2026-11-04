@@ -10,6 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {'B0', *(f'T{i:02}' for i in range(1, 10)), *(f'W{i}' for i in range(1, 5))}
+GOAL_ID = re.compile(r'G[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))+')
 STATES = {'Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled'}
 
 
@@ -33,8 +34,10 @@ def hashes(root, interfaces):
 def read_tasks(root):
     tasks = []
     for p in sorted((root / '.task').glob('*.md')):
-        if p.stem == 'TEMPLATE':
+        if p.stem == 'TEMPLATE' or GOAL_ID.fullmatch(p.stem):
             continue
+        if p.stem not in EXPECTED:
+            raise ValueError(f'unknown formal contract or noncanonical Goal ID: {p.name}')
         found = re.search(r'```json\s*\n(.*?)\n```', p.read_text(encoding='utf-8'), re.S)
         if not found:
             raise ValueError(f'missing task JSON: {p.name}')
@@ -42,7 +45,17 @@ def read_tasks(root):
         if task.get('id') != p.stem:
             raise ValueError(f'filename/task ID mismatch: {p.name}')
         tasks.append(task)
+    if {t['id'] for t in tasks} != EXPECTED:
+        raise ValueError('expected exactly B0, T01..T09, W1..W4; Goal notes cannot replace formal contracts')
     return tasks
+
+
+def goal_implementation_notes(root):
+    return {
+        'scope': 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.',
+        'validated': False,
+        'paths': [str(p.relative_to(root)) for p in sorted((root / '.task').glob('*.md')) if GOAL_ID.fullmatch(p.stem)],
+    }
 
 
 def literal_prefix(pattern):
@@ -225,6 +238,7 @@ def validate(root, tasks, interfaces, plans, conformance=None, allow_pending=Fal
         'scope': 'Engineering-contract record consistency only; does not read the live goal board or check all development branches. Not compiler, language-safety or product acceptance.',
         'live_plan_checked': False,
         'development_branches_checked': False,
+        'goal_implementation_notes': goal_implementation_notes(root),
         'ok': not errors,
         'tasks': len(tasks),
         'protocol_case_requirements': len(cases),
