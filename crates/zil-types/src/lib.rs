@@ -8,6 +8,7 @@ mod addresses;
 mod aggregate_templates;
 mod aggregates;
 mod borrowed_fp;
+mod borrowed_fp_qualified;
 mod byte_buffer;
 mod callable_fields;
 mod closures;
