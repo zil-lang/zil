@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 37;
+pub const WIRE_VERSION: u32 = 38;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -449,6 +449,10 @@ impl<'a> Writer<'a> {
                     pending.push(Task::Type(environment, depth + 1));
                 }
                 Type::TaskI32 => self.u8(33)?,
+                Type::Task { result } => {
+                    self.u8(34)?;
+                    pending.push(Task::Type(result, depth + 1));
+                }
                 Type::ForeignHandle => self.u8(20)?,
                 Type::SyncCell(kind) => {
                     self.u8(30)?;
@@ -1188,6 +1192,14 @@ impl<'a> Writer<'a> {
             } => {
                 self.u8(125)?;
                 self.u32(function.0)?;
+                self.count(arguments.len(), self.limits.max_values)?;
+                for argument in arguments {
+                    self.u32(argument.0)?;
+                }
+            }
+            InstructionKind::TaskCreate { worker, arguments } => {
+                self.u8(128)?;
+                self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
                     self.u32(argument.0)?;
@@ -2055,6 +2067,7 @@ impl<'a> Reader<'a> {
                         23 => Type::Slice { element: inner },
                         25 => Type::OwnedStore { element: inner },
                         32 => Type::Registration { environment: inner },
+                        34 => Type::Task { result: inner },
                         _ => unreachable!("scheduled unary type tag"),
                     });
                     continue;
@@ -2188,7 +2201,7 @@ impl<'a> Reader<'a> {
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
-                7 | 8 | 23 | 25 | 32 => {
+                7 | 8 | 23 | 25 | 32 | 34 => {
                     pending.push(Task::Unary(tag));
                     pending.push(Task::Type(depth + 1));
                     continue;
@@ -3271,6 +3284,15 @@ impl<'a> Reader<'a> {
                     function,
                     arguments,
                 }
+            }
+            128 => {
+                let worker = FunctionId(self.u32()?);
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut arguments = Vec::with_capacity(count);
+                for _ in 0..count {
+                    arguments.push(ValueId(self.u32()?));
+                }
+                InstructionKind::TaskCreate { worker, arguments }
             }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {

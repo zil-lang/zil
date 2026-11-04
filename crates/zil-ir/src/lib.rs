@@ -17,6 +17,8 @@ pub use program::*;
 pub const BYTE_BUFFER_RESOURCE_NAME: &str = "@builtin:ByteBuffer";
 /// Exact sealed scalar cooperative-task resource identity, never producer authority.
 pub const TASK_I32_RESOURCE_NAME: &str = "@builtin:TaskI32";
+/// General task family prefix; actual result identity and every responsibility remain untrusted.
+pub const TASK_RESOURCE_NAME_PREFIX: &str = "@builtin:Task:";
 
 macro_rules! identity {
     ($($name:ident),+ $(,)?) => {$(
@@ -100,6 +102,12 @@ pub enum Type {
     },
     /// Sealed stable task frame payload, legal only under Managed/Desc or an exact unique head address.
     TaskI32,
+    /// Sealed stable owning task payload. Legal only under Managed/Desc or its
+    /// exact unique head address; the complete actual result type is retained.
+    /// This raw shape grants no Transfer, Share, close or default-Drop proof.
+    Task {
+        result: Box<Type>,
+    },
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -208,7 +216,7 @@ impl Type {
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
     }
     pub fn is_exclusive_task_head_address(&self) -> bool {
-        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if payload.as_ref() == &Self::TaskI32))
+        matches!(self, Self::Address { mutable: true, inner } if matches!(inner.as_ref(), Self::Managed(payload) if matches!(payload.as_ref(), Self::TaskI32 | Self::Task { .. })))
     }
     pub fn is_shared_sync_cell_address(&self) -> bool {
         matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
@@ -309,6 +317,7 @@ impl Type {
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::Registration { environment } => format!("Registration<{}>", environment.name()),
             Self::TaskI32 => "TaskI32".into(),
+            Self::Task { result } => format!("Task<{}>", result.name()),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
             Self::SyncCell(kind) => match kind {
@@ -457,6 +466,10 @@ pub enum CoreAggregateTypeRecipe {
     /// Sealed owning registration application; the environment recipe remains actual.
     Registration {
         environment: Box<CoreAggregateTypeRecipe>,
+    },
+    /// General sealed task application, retaining its full actual result recipe.
+    Task {
+        result: Box<CoreAggregateTypeRecipe>,
     },
     Apply {
         module: ModuleId,
@@ -1498,13 +1511,21 @@ pub enum InstructionKind {
         worker: FunctionId,
         argument: ValueId,
     },
+    /// General fallible execution root. Arguments are evaluated/transferred once.
+    /// Result is ordinary TaskCreateError ! Managed(Task<actual worker result>).
+    /// Failure cleans all transferred inputs once; success owns a non-null frame.
+    TaskCreate {
+        worker: FunctionId,
+        arguments: Vec<ValueId>,
+    },
     /// A source suspension point. Its live scalar state is spilled in the SABI frame.
     TaskYield,
     /// Observe the explicit fallible nullable task head without consuming it.
     TaskValid {
         task: ValueId,
     },
-    /// Unique head authority; result status/value moves a Ready result at most once.
+    /// Unique head authority. TaskI32 keeps its compatibility status/value;
+    /// general Task<T> returns ordinary TaskPollState ! Poll<T>, moving Ready T once.
     TaskPoll {
         task: ValueId,
     },
@@ -1512,7 +1533,8 @@ pub enum InstructionKind {
     TaskRequestCancel {
         task: ValueId,
     },
-    /// Unique head authority; actual no-external scalar profile closes without hidden blocking.
+    /// Unique head authority. TaskI32 retains Bool; general Task<T> returns
+    /// ordinary Poll<Unit>. Pending retains all frame/child/result/loan obligations.
     TaskPollClose {
         task: ValueId,
     },
@@ -2039,7 +2061,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V37\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V38\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2130,6 +2152,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_type(b, environment);
         }
         Type::TaskI32 => b.push(33),
+        Type::Task { result } => {
+            b.push(34);
+            encode_type(b, result);
+        }
         Type::ForeignHandle => b.push(20),
         Type::SyncCell(kind) => {
             b.push(30);
@@ -2748,6 +2774,14 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
         } => {
             b.push(125);
             encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::TaskCreate { worker, arguments } => {
+            b.push(128);
+            encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
                 encode_u32(b, argument.0);

@@ -1,4 +1,4 @@
-// Independent Vec-based current TypedV37 reference; callable contract domain5.
+// Independent Vec-based current TypedV38 reference; callable contract domain5.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +32,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V37\0"
+        b"ZIL-TYPED-MODULE-V38\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -121,6 +121,10 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::F64 => b.push(29),
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
+        Type::Task { result } => {
+            b.push(34);
+            encode_type(b, result);
+        }
         Type::Registration { environment } => {
             b.push(32);
             encode_type(b, environment);
@@ -455,6 +459,15 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             assert!(v32, "schema31 cannot represent Suspend child calls");
             b.push(125);
             encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::TaskCreate { worker, arguments } => {
+            assert!(v32, "schema31 cannot represent general task creation");
+            b.push(128);
+            encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
                 encode_u32(b, argument.0);
