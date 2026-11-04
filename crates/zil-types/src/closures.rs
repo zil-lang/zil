@@ -1771,7 +1771,7 @@ impl Inference {
     }
     pub fn resolve_borrowed(
         &mut self,
-        life: &FunctionLifeContract,
+        life: &StorageLifeContract,
         span: Span,
     ) -> R<(Vec<Type>, Type)> {
         self.resolve_inner(false, Some(life), span)
@@ -1779,7 +1779,7 @@ impl Inference {
     fn resolve_inner(
         &mut self,
         defaults: bool,
-        life: Option<&FunctionLifeContract>,
+        life: Option<&StorageLifeContract>,
         span: Span,
     ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
@@ -4627,6 +4627,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     }
     fn pointer_type(&self, signature: &Signature, span: Span) -> R<Type> {
         self.reserve_signature(signature, span)?;
+        self.graph
+            .spend_count(borrowed_fp::pointer_work(signature), span)?;
         signature.pointer_type().ok_or_else(|| unsupported(span,
             "function pointers require pure Copy parameters and result; indirect address contracts are not implemented"))
     }

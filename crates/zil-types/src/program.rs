@@ -356,17 +356,12 @@ pub(super) fn check_resolved_program_with_reuse(
             if let Some(contract) = &typed.storage_life {
                 // Export and root-function/interface snapshots below preserve
                 // this complete relation, never an independently flat claim.
-                closure_state
-                    .snapshot(
-                        contract.bindings.len().saturating_add(1).saturating_mul(3),
-                        f.span,
-                    )
-                    .map_err(|e| vec![e])?;
-                for row in &contract.bindings {
-                    closure_state
-                        .snapshot(row.position.path.len().saturating_mul(3), f.span)
-                        .map_err(|e| vec![e])?;
-                }
+                borrowed_fp::charge_contract(
+                    contract,
+                    |work| closure_state.snapshot(work, f.span),
+                    3,
+                )
+                .map_err(|e| vec![e])?;
             }
             let export = ScalarFunction {
                 storage_life: typed.storage_life.clone(),
@@ -567,35 +562,35 @@ fn interface_fingerprint(
                     None,
                 )]
             })?;
-        for export in exports {
-            for ty in export
-                .parameters
-                .iter()
-                .map(|(_, ty)| ty)
-                .chain(std::iter::once(&export.result))
-            {
-                let cost = inference::type_snapshot_work(
-                    ty,
-                    Span::default(),
-                    &Limits {
-                        max_analysis_steps: *remaining,
-                        ..limits.clone()
-                    },
-                )
-                .map_err(|e| vec![e])?;
-                *remaining = remaining
-                    .checked_sub(cost.saturating_mul(64))
-                    .ok_or_else(|| {
-                        vec![Diagnostic::limit(
-                            Phase::Types,
-                            "stored interface type identity budget exceeded",
-                            None,
-                        )]
-                    })?;
-            }
+    }
+    for export in exports {
+        for ty in export
+            .parameters
+            .iter()
+            .map(|(_, ty)| ty)
+            .chain(std::iter::once(&export.result))
+        {
+            let cost = inference::type_snapshot_work(
+                ty,
+                Span::default(),
+                &Limits {
+                    max_analysis_steps: *remaining,
+                    ..limits.clone()
+                },
+            )
+            .map_err(|e| vec![e])?;
+            *remaining = remaining
+                .checked_sub(cost.saturating_mul(64))
+                .ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Types,
+                        "stored interface type identity budget exceeded",
+                        None,
+                    )]
+                })?;
         }
     }
-    let mut bytes = b"ZIL-SCALAR-INTERFACE-2\0".to_vec();
+    let mut bytes = b"ZIL-SCALAR-INTERFACE-3\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
     for export in exports {
@@ -642,23 +637,28 @@ fn interface_fingerprint(
         )]
     };
     if stored {
-        bytes.extend_from_slice(b"STORED-CONTEXT-1\0");
+        bytes.extend_from_slice(b"STORED-CONTEXT-2\0");
         bytes.extend_from_slice(
             &life_inventory_fingerprint(&module.life_declarations, &module.life_instances).0,
         );
     }
     for export in exports {
         if let Some(contract) = &export.storage_life {
-            let work = 128usize.saturating_add(contract.bindings.len().saturating_mul(64));
             *remaining = remaining
-                .checked_sub(work.saturating_add(export.name.len().saturating_mul(2)))
+                .checked_sub(export.name.len().saturating_mul(2))
                 .ok_or_else(exhausted)?;
-            for row in &contract.bindings {
-                *remaining = remaining
-                    .checked_sub(row.position.path.len().saturating_mul(64))
-                    .ok_or_else(exhausted)?;
-            }
-            bytes.extend_from_slice(b"STORED-SIGNATURE-1\0");
+            borrowed_fp::charge_contract(
+                contract,
+                |work| {
+                    *remaining = remaining
+                        .checked_sub(work)
+                        .ok_or_else(|| exhausted().remove(0))?;
+                    Ok(())
+                },
+                64,
+            )
+            .map_err(|e| vec![e])?;
+            bytes.extend_from_slice(b"STORED-SIGNATURE-2\0");
             bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
             bytes.extend_from_slice(export.name.as_bytes());
             bytes.extend_from_slice(&contract.fingerprint().0);
@@ -672,38 +672,24 @@ fn interface_fingerprint(
                 .ok_or_else(exhausted)?;
             for role in &contract.roles {
                 if let Some(life) = &role.life {
-                    // Reserve appended bytes and their subsequent hash pass.
-                    // One tag uses at most one presence byte and four index bytes.
-                    let tags = life
-                        .parameter_lives
-                        .len()
-                        .checked_add(1)
-                        .and_then(|n| n.checked_mul(5))
-                        .ok_or_else(exhausted)?;
-                    let serialized = b"HRTB-CALL-1\0"
-                        .len()
-                        .checked_add(8 + 4 + 4 + 8)
-                        .and_then(|n| n.checked_add(export.name.len()))
-                        .and_then(|n| n.checked_add(tags))
-                        .and_then(|n| n.checked_mul(2))
-                        .ok_or_else(exhausted)?;
-                    *remaining = remaining.checked_sub(serialized).ok_or_else(exhausted)?;
-                    bytes.extend_from_slice(b"HRTB-CALL-1\0");
+                    let size = 128usize.saturating_add(export.name.len().saturating_mul(2));
+                    *remaining = remaining.checked_sub(size).ok_or_else(exhausted)?;
+                    borrowed_fp::charge_contract(
+                        life,
+                        |work| {
+                            *remaining = remaining
+                                .checked_sub(work)
+                                .ok_or_else(|| exhausted().remove(0))?;
+                            Ok(())
+                        },
+                        64,
+                    )
+                    .map_err(|e| vec![e])?;
+                    bytes.extend_from_slice(b"HRTB-CALL-2\0");
                     bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
                     bytes.extend_from_slice(export.name.as_bytes());
                     bytes.extend_from_slice(&role.parameter.to_le_bytes());
-                    bytes.extend_from_slice(&life.binder_count.to_le_bytes());
-                    bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
-                    for tag in life
-                        .parameter_lives
-                        .iter()
-                        .chain(std::iter::once(&life.result_life))
-                    {
-                        bytes.push(u8::from(tag.is_some()));
-                        if let Some(tag) = tag {
-                            bytes.extend_from_slice(&tag.to_le_bytes());
-                        }
-                    }
+                    bytes.extend_from_slice(&life.fingerprint().0);
                 }
             }
         }
@@ -788,18 +774,7 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             life,
         } => {
             bytes.push(31);
-            bytes.extend_from_slice(&life.binder_count.to_le_bytes());
-            bytes.extend_from_slice(&(life.parameter_lives.len() as u64).to_le_bytes());
-            for tag in &life.parameter_lives {
-                bytes.push(u8::from(tag.is_some()));
-                if let Some(tag) = tag {
-                    bytes.extend_from_slice(&tag.to_le_bytes());
-                }
-            }
-            bytes.push(u8::from(life.result_life.is_some()));
-            if let Some(tag) = life.result_life {
-                bytes.extend_from_slice(&tag.to_le_bytes());
-            }
+            bytes.extend_from_slice(&life.fingerprint().0);
             bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
             for parameter in parameters {
                 type_identity(bytes, parameter, closures);

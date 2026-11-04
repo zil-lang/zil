@@ -598,10 +598,7 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<Self> {
         closures.block(f.span)?;
         if let Some(contract) = &f.storage_life {
-            closures.snapshot(contract.bindings.len().saturating_add(1), f.span)?;
-            for row in &contract.bindings {
-                closures.snapshot(row.position.path.len(), f.span)?;
-            }
+            borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
         let first_closure = closures.pending.len();
         let mut b = Self {
@@ -692,7 +689,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(b)
     }
-    fn resolve_callee(&self, callee: &CoreExpr) -> R<&Signature> {
+    fn resolve_callee(&self, callee: &CoreExpr) -> R<&'a Signature> {
         match &callee.kind {
             CoreExprKind::Name(name) => {
                 if self.lookup(name).is_some() {

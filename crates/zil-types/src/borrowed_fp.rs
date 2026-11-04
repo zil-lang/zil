@@ -49,7 +49,7 @@ pub(super) fn default_life(parameters: &[Type], result: &Type) -> FunctionLifeCo
 pub(super) fn relation(
     parameters: &[Type],
     result: &Type,
-    life: &FunctionLifeContract,
+    life: &StorageLifeContract,
     span: Span,
 ) -> R<()> {
     let invalid = || {
@@ -59,47 +59,116 @@ pub(super) fn relation(
             "borrowed function pointer requires a complete invocation-local address relation",
         )
     };
-    if life.binder_count == 0 || life.parameter_lives.len() != parameters.len() {
+    // This producer profile proves ordinary outer addresses. Do not erase a
+    // richer relation through a flat projection before checking its signature.
+    if life.fixed_binder_count != 0 || !life.classes.is_empty() {
+        return Err(unsupported(
+            span,
+            "rich borrowed callable class relation requires its complete signature consumer",
+        ));
+    }
+    if life.invocation_binder_count == 0 {
         return Err(invalid());
     }
+    let mut rows = life.bindings.iter();
     let mut next = 0;
-    for (parameter, tag) in parameters.iter().zip(&life.parameter_lives) {
+    for (index, parameter) in parameters.iter().enumerate() {
         match parameter {
             Type::Address { inner, .. } if inner.is_address_pointee() => {
-                let Some(tag) = tag.filter(|tag| *tag < life.binder_count && *tag <= next) else {
+                let row = rows.next().ok_or_else(invalid)?;
+                let StorageBinder::Invocation(tag) = row.binder else {
                     return Err(invalid());
                 };
+                if row.position.base != StorageBase::Parameter(index as u32)
+                    || !row.position.path.is_empty()
+                    || tag >= life.invocation_binder_count
+                    || tag > next
+                {
+                    return Err(invalid());
+                }
                 if tag == next {
                     next += 1;
                 }
             }
-            ty if ty.is_copy_value() && tag.is_none() => {}
+            ty if ty.is_copy_value() => {}
             _ => return Err(invalid()),
         }
     }
-    if next != life.binder_count {
+    if next != life.invocation_binder_count {
         return Err(invalid());
     }
     match result {
         Type::Address { mutable, inner } if inner.is_address_pointee() => {
-            let Some(result) = life.result_life.filter(|tag| *tag < life.binder_count) else {
+            let row = rows.next().ok_or_else(invalid)?;
+            let StorageBinder::Invocation(tag) = row.binder else {
                 return Err(invalid());
             };
-            if !parameters.iter().zip(&life.parameter_lives).any(|(parameter,tag)|
-                *tag == Some(result) && matches!(parameter, Type::Address { mutable: input_mutable, .. } if !mutable || *input_mutable)) {
+            if row.position.base != StorageBase::Result
+                || !row.position.path.is_empty()
+                || tag >= life.invocation_binder_count
+            {
                 return Err(invalid());
             }
+            if !life.bindings.iter().any(|row| {
+                let StorageBase::Parameter(index) = row.position.base else { return false; };
+                row.binder == StorageBinder::Invocation(tag)
+                    && matches!(parameters.get(index as usize), Some(Type::Address { mutable: input_mutable, .. }) if !mutable || *input_mutable)
+            }) { return Err(invalid()); }
         }
-        ty if ty.is_copy_value() && life.result_life.is_none() => {}
+        ty if ty.is_copy_value() => {}
         _ => return Err(invalid()),
+    }
+    if rows.next().is_some() {
+        return Err(invalid());
     }
     Ok(())
 }
 
-pub(super) fn metadata_work(life: &FunctionLifeContract) -> usize {
-    (life.binder_count as usize)
-        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+/// O(1) reservation for the flat-only profile above. It inspects no path
+/// elements and rejects classes/Fixed/nonempty paths before cloning the input.
+pub(super) fn metadata_work(life: &StorageLifeContract) -> usize {
+    (life.invocation_binder_count as usize)
+        .saturating_add(life.fixed_binder_count as usize)
+        .saturating_add(life.bindings.len().saturating_mul(8))
+        .saturating_add(life.classes.len())
         .saturating_add(2)
+}
+
+/// Prepay a complete relation before traversal, clone or identity encoding.
+/// Semantic class/position validation is performed separately by consumers.
+pub(super) fn charge_contract(
+    life: &StorageLifeContract,
+    mut charge: impl FnMut(usize) -> R<()>,
+    multiplier: usize,
+) -> R<()> {
+    charge(
+        life.bindings
+            .len()
+            .saturating_add(life.classes.len())
+            .saturating_add(2)
+            .saturating_mul(multiplier),
+    )?;
+    for row in &life.bindings {
+        charge(row.position.path.len().saturating_mul(multiplier))?;
+    }
+    for row in &life.classes {
+        charge(row.position.path.len().saturating_mul(multiplier))?;
+    }
+    Ok(())
+}
+
+/// Extra complete flat-to-rich construction pass when making a code value.
+pub(super) fn pointer_work(signature: &Signature) -> usize {
+    signature
+        .parameters
+        .len()
+        .saturating_add(1)
+        .saturating_mul(4)
+        .saturating_add(signature.life.as_ref().map_or(0, |life| {
+            life.parameter_lives
+                .len()
+                .saturating_add(life.binder_count as usize)
+        }))
 }
 
 pub(super) fn function_reference(
@@ -174,4 +243,91 @@ pub(super) fn invocation_call<'a>(
     };
     charge(d.parameters.len())?;
     Ok(invocation(&d.parameters, &d.result).then_some((d, args)))
+}
+
+#[cfg(test)]
+mod rich_contract_tests {
+    use super::*;
+
+    #[test]
+    fn flat_only_consumer_preserves_order_and_rejects_rich_class_erasure() {
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I64),
+        };
+        let parameters = vec![address.clone(), Type::I32, address.clone()];
+        let original = StorageLifeContract::from_flat(FunctionLifeContract {
+            binder_count: 2,
+            parameter_lives: vec![Some(0), None, Some(1)],
+            result_life: Some(0),
+        })
+        .unwrap();
+        assert!(relation(&parameters, &address, &original, Span::default()).is_ok());
+        for n in 0..5 {
+            let mut changed = original.clone();
+            match n {
+                0 => changed.bindings.swap(0, 1),
+                1 => changed.bindings[0]
+                    .position
+                    .path
+                    .push(ContractProjection::RetainedClass(0)),
+                2 => changed.bindings[1].position.base = StorageBase::Parameter(1),
+                3 => changed.fixed_binder_count = 1,
+                _ => changed.classes.push(SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0,
+                    },
+                    binder: StorageBinder::Invocation(1),
+                }),
+            }
+            assert!(
+                relation(&parameters, &address, &changed, Span::default()).is_err(),
+                "mutation {n}"
+            );
+        }
+        let mutable = Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I64),
+        };
+        assert!(relation(&parameters, &mutable, &original, Span::default()).is_err());
+    }
+
+    #[test]
+    fn complete_class_metadata_is_reserved_from_the_same_remaining_balance() {
+        let mut contract = StorageLifeContract::from_flat(FunctionLifeContract {
+            binder_count: 1,
+            parameter_lives: vec![Some(0)],
+            result_life: Some(0),
+        })
+        .unwrap();
+        contract.classes.push(SignatureLifeClassBinding {
+            position: SignatureLifeClass {
+                base: StorageBase::Parameter(0),
+                path: vec![LifeTypeProjection::TypeArgument(0); 23],
+                class: 0,
+            },
+            binder: StorageBinder::Invocation(0),
+        });
+        let run = |allowance: usize| {
+            let mut remaining = allowance;
+            charge_contract(
+                &contract,
+                |work| {
+                    remaining = remaining.checked_sub(work).ok_or_else(|| {
+                        Diagnostic::limit(Phase::Types, "test contract budget", None)
+                    })?;
+                    Ok(())
+                },
+                3,
+            )
+            .map(|()| remaining)
+        };
+        let n = (0..1000).find(|n| run(*n).is_ok()).unwrap();
+        assert!(n > 23 * 3);
+        assert_eq!(run(n).unwrap(), 0);
+        assert!(run(n - 1).is_err());
+        assert_eq!(run(n).unwrap(), 0);
+    }
 }

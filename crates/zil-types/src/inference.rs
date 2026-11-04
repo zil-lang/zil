@@ -2467,6 +2467,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 {
                     validate_type(ty, 0, span, self.budget)?;
                 }
+                self.budget
+                    .work(borrowed_fp::pointer_work(signature), span)?;
                 let ty = signature.pointer_type().ok_or_else(|| unsupported(span,
                     "function pointers require pure Copy parameters and result; indirect address contracts are not implemented"))?;
                 let variable = self.fresh(VALUE, false, span)?;
