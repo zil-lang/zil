@@ -2,10 +2,13 @@
 use super::*;
 pub(crate) fn ids(node: &mut CtTypeNode, mut map: impl FnMut(&mut CtTypeNodeId)) {
     match node {
+        CtTypeNode::BorrowedStorage { storage, .. } => map(storage),
         CtTypeNode::Nominal { arguments, .. } => {
             for arg in arguments {
-                if let CtTypeArgument::Type(id) = arg {
-                    map(id)
+                match arg {
+                    CtTypeArgument::Type(id) => map(id),
+                    CtTypeArgument::Lifetime(life) => map(&mut life.owner),
+                    CtTypeArgument::Scalar(_) => {},
                 }
             }
         }
@@ -418,6 +421,7 @@ impl Compiler<'_> {
                         span,
                     )?));
                 }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => return Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 scoped nominal metadata construction is not yet implemented", Some(span))]),
                 CtSchemaArgument::Scalar(c) => arguments.push(CtTypeArgument::Scalar(c.clone())),
             }
         }

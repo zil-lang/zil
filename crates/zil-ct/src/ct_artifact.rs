@@ -773,6 +773,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
             CtTypeNode::Nominal { arguments, .. } => arguments.iter().all(|a| match a {
                 CtTypeArgument::Type(id) => child(*id),
                 CtTypeArgument::Scalar(c) => scalar_ty(c).is_some(),
+                CtTypeArgument::Lifetime(_) => false,
             }),
             CtTypeNode::Tuple(v) => v.iter().all(|id| child(*id)),
             CtTypeNode::AnonymousSum(v) => {

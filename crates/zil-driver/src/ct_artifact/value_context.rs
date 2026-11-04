@@ -298,10 +298,12 @@ impl ValueContext {
                 let (symbol, args) = match ty {
                     CtTy::Record(id) => {
                         let s = self.records.get(id.0 as usize).ok_or_else(bad)?;
+                        if s.life_context.is_some() { return Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 joint context extraction is not yet implemented", None)]); }
                         (&s.name, &s.arguments)
                     }
                     CtTy::Enum(id) => {
                         let s = self.enums.get(id.0 as usize).ok_or_else(bad)?;
+                        if s.life_context.is_some() { return Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 joint context extraction is not yet implemented", None)]); }
                         (&s.name, &s.arguments)
                     }
                     _ => unreachable!(),
@@ -320,6 +322,7 @@ impl ValueContext {
                             )?));
                             budget.release_temporary_bytes(bytes);
                         }
+                        CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => return Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 scoped data reification is not yet implemented", None)]),
                         CtSchemaArgument::Scalar(value) => {
                             arguments.push(CtTypeArgument::Scalar(value.clone()))
                         }
