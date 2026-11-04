@@ -141,13 +141,14 @@ fn generic035_07_uninstantiated_bad_definitions_and_layout_reject() {
     ] {
         reject(text, "E-INFINITE-LAYOUT");
     }
-    for text in [
-        "enum Bad<T>{A(&T)} fn result()->i32=>0",
-        "enum Bad<T>{A([T;true])} fn result()->i32=>0",
-    ] {
+    for text in ["enum Bad<T>{A(&T)} fn result()->i32=>0"] {
         let r = expand(text, &Limits::default()).unwrap_err();
-        assert_eq!(r[0].category, ResultCategory::Unsupported);
+        assert_eq!(r[0].category, ResultCategory::Unsupported, "{text}: {r:?}");
     }
+    reject(
+        "enum Bad<T>{A([T;true])} fn result()->i32=>0",
+        "E-GENERIC-ARGUMENT",
+    );
 }
 #[test]
 fn generic035_08_missing_constraints_nominality_and_payload_mismatch_reject() {

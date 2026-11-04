@@ -133,9 +133,9 @@ fn module043_01_public_templates_aliases_and_two_consumers_native() {
         ],
         5000000042,
     );
-    assert!(core.contains("$generic_$module21_Option"), "{core}");
+    assert!(core.contains("$generic_$module21_LegacyOption"), "{core}");
     assert!(
-        typed.contains("@module21:$generic_$module21_Option"),
+        typed.contains("@module21:$generic_$module21_LegacyOption"),
         "{typed}"
     );
     assert!(llvm.contains("call"));
@@ -365,7 +365,7 @@ fn module043_11_lexical_bindings_can_shadow_imports_and_type_names() {
         &[
             (
                 "main",
-                "import model\nstruct Local{value:i64;}\nfn result()->i64{let model=Local{value:40};let f=(Option:i64)=>Option+2;return f(model.value)}",
+                "import model\nstruct Local{value:i64;}\nfn result()->i64{let model=Local{value:40};let f=(LegacyOption:i64)=>LegacyOption+2;return f(model.value)}",
             ),
             ("model", MODEL),
         ],

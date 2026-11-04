@@ -330,10 +330,14 @@ fn declarations_and_phantom_arguments_are_checked_even_when_unused() {
         "type Ignore<T>=i64;type Bad=Ignore<true>;fn value(){}",
         "type Id<T>=T;fn value(){let x:Id<4>=0}",
         "#[doc=\"alias\"] type Id<T>=T;fn value(){}",
-        "type Optional<T>=T?;fn value(){}",
     ] {
         rejection(text, ResultCategory::Unsupported, "E-UNSUPPORTED");
     }
+    success(&check("type Optional<T>=T?;fn value(){}"));
+    native(
+        "type Optional<T>=T?;fn value()->i64{let x:Optional<i64>=Option.Some(42);match x{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        42,
+    );
 }
 
 #[test]

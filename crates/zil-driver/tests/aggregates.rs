@@ -2296,10 +2296,7 @@ fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
         )],
         21,
     );
-    for text in [
-        "fn result()->i32{let value=7;let(_,_)=(&value,0);return value}",
-        "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn result()->i32{let(_,_)=(Token{value:7},0);return 0}",
-    ] {
+    for text in ["fn result()->i32{let value=7;let(_,_)=(&value,0);return value}"] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -2312,6 +2309,11 @@ fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
         assert_eq!(report.verification_runs, 0);
         assert!(!report.artifacts.contains_key("executable"));
     }
+    native_entry(
+        "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn result()->i32{let(_,_)=(Token{value:7},0);return 0}",
+        "result",
+        Some(0),
+    );
 }
 #[test]
 fn review318_tuple_rhs_order_and_ct_traversal() {

@@ -221,10 +221,7 @@ fn unused_aliases_are_checked_without_erasing_invalid_definitions() {
         );
         assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
     }
-    for text in [
-        "#[doc = \"help\"] type Alias=i64;fn result()->i64=>0",
-        "type Alias=i64?;fn result()->i64=>0",
-    ] {
+    for text in ["#[doc = \"help\"] type Alias=i64;fn result()->i64=>0"] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -233,6 +230,11 @@ fn unused_aliases_are_checked_without_erasing_invalid_definitions() {
             report.to_json()
         );
     }
+    native("type Alias=i64?;fn result()->i64=>0", Some(0));
+    native(
+        "type Alias=i64?;fn result()->i64{let value:Alias=Option.Some(42);match value{Option.Some(n)=>{return n},Option.None()=>{return 0}}}",
+        Some(42),
+    );
 }
 
 #[test]

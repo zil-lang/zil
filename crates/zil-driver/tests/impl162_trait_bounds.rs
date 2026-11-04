@@ -502,7 +502,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         "{}",
         ct_report.to_json()
     );
-    let ct_store = ct_cache.join("semantic-v3");
+    let ct_store = ct_cache.join("semantic-v4");
     let mut replayed = 0;
     for entry in fs::read_dir(&ct_store).unwrap() {
         let path = entry.unwrap().path();
@@ -521,7 +521,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         else {
             panic!("actual CT raw cache candidate absent")
         };
-        assert_eq!(&payload[..8], b"ZILSEM03");
+        assert_eq!(&payload[..8], b"ZILSEM04");
         let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
         let bytes = &payload[12..12 + length];
         let (typed, plan) =
