@@ -599,7 +599,7 @@ impl Content {
             return child.forget_copy_tags(ty, b);
         }
         resources::charge_payload(ty, b)?;
-        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+        if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value() {
             let old = self.duplicate(b)?;
             let mut unknown = content(ty, None, &mut Vec::new(), false, b)?;
             unknown.retain_missing(&old, b)?;
@@ -1536,7 +1536,9 @@ impl Flow<'_> {
                     ) {
                         let ty =
                             projected_type(self.f, *local, path, Some(instruction.span), budget)?;
-                        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+                        if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. })
+                            && ty.is_copy_value()
+                        {
                             fn forget(
                                 at: &mut Content,
                                 path: &[VariantProjection],

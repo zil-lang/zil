@@ -370,6 +370,8 @@ pub(super) fn invalidates(kind: &InstructionKind) -> bool {
             | InstructionKind::BorrowLocalMut { .. }
             | InstructionKind::BorrowPlaceLocal { .. }
             | InstructionKind::PlaceTagLocal { .. }
+            | InstructionKind::PlaceTagAddress {..}
+            | InstructionKind::BorrowPlaceAddress {..}
             | InstructionKind::BorrowFieldLocal { .. }
             | InstructionKind::VariantTagLocal { .. }
             | InstructionKind::ReadVariantLocal { .. }

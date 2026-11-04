@@ -1886,6 +1886,12 @@ impl FunctionEmitter<'_> {
             InstructionKind::BorrowFieldLocal { local, path, .. } => {
                 self.borrow_inline_field(instruction, *local, path)?
             }
+            InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                self.borrow_address_place(instruction, *address, path)?
+            }
+            InstructionKind::PlaceTagAddress { address, path } => {
+                self.tag_address_place(instruction, *address, path)?
+            }
             InstructionKind::VariantTagAddress { address, path } => {
                 self.variant_tag_address(instruction, *address, path)?
             }

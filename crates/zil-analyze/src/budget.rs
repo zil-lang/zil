@@ -28,6 +28,7 @@ pub(super) struct Budget {
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
     pub(super) addressed_sums: bool,
+    pub(super) mixed_address_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -57,6 +58,7 @@ impl Budget {
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
             addressed_sums: false,
+            mixed_address_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -1024,6 +1026,28 @@ pub(super) fn preflight(
                             && !matches!(instruction.kind, InstructionKind::PlaceTagLocal { .. })
                         {
                             return Err(bad("mixed local path must be nonempty"));
+                        }
+                    }
+                    InstructionKind::BorrowPlaceAddress { address, path, .. }
+                    | InstructionKind::PlaceTagAddress { address, path } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        budget.mixed_address_sums = true;
+                        if address.0 as usize >= function.values.len() {
+                            return Err(bad("mixed actual address outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "mixed address path")?;
+                        budget.input(
+                            path.len().saturating_mul(3).saturating_add(1),
+                            "mixed address preflight",
+                        )?;
+                        if path.is_empty()
+                            && matches!(
+                                instruction.kind,
+                                InstructionKind::BorrowPlaceAddress { .. }
+                            )
+                        {
+                            return Err(bad("mixed address borrow path must be nonempty"));
                         }
                     }
                     InstructionKind::BorrowFieldLocal { local, path, .. } => {
