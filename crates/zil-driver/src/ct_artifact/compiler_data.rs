@@ -79,22 +79,22 @@ impl<'a> Compiler<'a> {
         symbol: &CtSymbolId,
         span: Span,
     ) -> R<(usize, &'a s::Item)> {
-        for (owner, module) in self.modules.iter().enumerate() {
+        self.budget.work(self.modules.len(), span)?;
+        if symbol.generation_path.is_some() {
+            return Err(error(
+                span,
+                "generated nominal metadata lacks authentic declaration lineage",
+            ));
+        }
+        if let Some((owner, module)) = self
+            .modules
+            .iter()
+            .enumerate()
+            .find(|(_, module)| module.source.module_id == symbol.module)
+        {
             self.budget.work(1, span)?;
-            if module.source.module_id != symbol.module {
-                continue;
-            }
-            for (actual_span, actual) in module.symbols {
-                self.budget.work(1, span)?;
-                if actual != symbol {
-                    continue;
-                }
-                for item in &module.syntax.items {
-                    self.budget.work(1, span)?;
-                    if item.span == *actual_span {
-                        return Ok((owner, item));
-                    }
-                }
+            if let Some(item) = module.syntax.items.get(symbol.declaration.0 as usize) {
+                return Ok((owner, item));
             }
         }
         Err(error(

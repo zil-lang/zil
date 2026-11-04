@@ -40,6 +40,7 @@ pub(super) struct Environment<'a> {
     pub ct_only: Vec<CtSymbolId>,
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
+    source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
 }
 
 impl<'a> Environment<'a> {
@@ -156,9 +157,21 @@ impl<'a> Environment<'a> {
             ct_only: Vec::new(),
             source_fingerprint: fingerprint,
             target,
+            source_origins: None,
         })
     }
 
+    pub(super) fn bind_source_origins(
+        &mut self,
+        origins: Option<&[zil_expand::source_context::ModuleDeclarationOrigins]>,
+    ) -> CompileResult<()> {
+        if let Some(origins) = origins {
+            let bytes = super::invocation_context::origins_cost(origins, &mut self.budget)?;
+            self.budget.reserve_temporary_bytes(bytes)?;
+            self.source_origins = Some(Arc::new(origins.to_vec()));
+        }
+        Ok(())
+    }
     fn remaining_limits(&self) -> Limits {
         let remaining = self.budget.remaining();
         let mut limits = self.limits.clone();
@@ -256,6 +269,7 @@ impl<'a> Environment<'a> {
             index: &self.index,
             expected_functions: &expected.functions,
             expected_artifact: &expected,
+            invocation_context: None,
         };
         let clone_charge = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(clone_charge)?;
@@ -304,6 +318,13 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
     ) -> CompileResult<EvaluatedData> {
+        let invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
+            &entry,
+            self.parsed,
+            &self.index,
+            self.source_origins.as_ref(),
+            &mut self.budget,
+        )?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
@@ -341,6 +362,7 @@ impl<'a> Environment<'a> {
             index: &self.index,
             expected_functions: &expected.functions,
             expected_artifact: &expected,
+            invocation_context: Some(&invocation_context),
         };
         let mut meter =
             zil_verify::CtVerificationMeter::new(self.budget.remaining().max_analysis_work);
@@ -349,6 +371,7 @@ impl<'a> Environment<'a> {
         self.budget.reserve_analysis_work(meter.spent())?;
         let verified = result?;
         let reader = FrozenReadView {
+            invocation_context: Some(&invocation_context),
             index: &self.index,
             sources: self.sources,
             syntax: &syntax,
@@ -394,11 +417,16 @@ impl<'a> Environment<'a> {
             Some(value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings,
+                Some(invocation_context.clone()),
                 &mut self.budget,
             )?)
         } else {
             None
         };
+        if context.is_none() {
+            self.budget
+                .release_temporary_bytes(invocation_context.bytes);
+        }
         Ok(EvaluatedData { value, context })
     }
 
@@ -446,6 +474,7 @@ impl<'a> Environment<'a> {
     pub(super) fn type_syntax(&mut self, ty: &CtTypeRef) -> CompileResult<CtSyntaxTree> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &self.index,
             sources: self.sources,
             syntax: &syntax,
@@ -565,6 +594,7 @@ mod tests {
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let mut reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -662,6 +692,7 @@ mod tests {
         });
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -721,6 +752,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -829,6 +861,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -945,6 +978,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1026,6 +1060,7 @@ mod tests {
         };
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1063,6 +1098,7 @@ mod tests {
         };
         token.text = "y".into();
         let changed_reader = FrozenReadView {
+            invocation_context: None,
             input: Some(&changed),
             ..reader
         };
@@ -1127,6 +1163,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1248,6 +1285,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1407,6 +1445,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,
@@ -1471,6 +1510,7 @@ mod tests {
             .unwrap();
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let reader = FrozenReadView {
+            invocation_context: None,
             index: &environment.index,
             sources: &sources,
             syntax: &syntax,

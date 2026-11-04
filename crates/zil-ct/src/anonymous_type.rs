@@ -7,11 +7,12 @@ use zil_ir::{Constant, ct_artifact::*};
 mod scoped;
 
 pub(crate) fn scoped_graph(reference: &CtTypeRef) -> bool {
-    reference.nodes.iter().any(|node| {
-        matches!(node, CtTypeNode::BorrowedStorage { .. })
-            || matches!(node, CtTypeNode::Nominal { arguments, .. }
+    !reference.ambient_classes.is_empty()
+        || reference.nodes.iter().any(|node| {
+            matches!(node, CtTypeNode::BorrowedStorage { .. })
+                || matches!(node, CtTypeNode::Nominal { arguments, .. }
                 if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
-    })
+        })
 }
 pub(crate) fn retained_bytes(reference: &CtTypeRef) -> u64 {
     if scoped_graph(reference) {
@@ -296,13 +297,6 @@ fn canonical_type_key_mode(
     budget: &mut CtExecutionBudget,
     keep_key: bool,
 ) -> CompileResult<(CtTypeRef, Vec<u8>)> {
-    if !reference.ambient_classes.is_empty() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "authenticated CT5 ambient graph normalization is not yet implemented",
-            None,
-        )]);
-    }
     budget.reserve_analysis_work(reference.nodes.len() as u64)?;
     if scoped_graph(reference) {
         return scoped::canonical(reference, budget, keep_key);

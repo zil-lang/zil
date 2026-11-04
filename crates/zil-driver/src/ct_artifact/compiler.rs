@@ -288,6 +288,7 @@ struct Compiler<'a> {
     metadata_bindings: Vec<(String, CtTypeRef)>,
     scalar_bindings: Vec<(String, Constant)>,
     source_life_scope: Option<SourceLifeScope>,
+    ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
@@ -337,6 +338,7 @@ impl<'a> Compiler<'a> {
             metadata_bindings: Vec::new(),
             scalar_bindings: Vec::new(),
             source_life_scope: None,
+            ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
@@ -690,7 +692,7 @@ pub(crate) fn compile_scoped(
     Ok((
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
-            ambient_life_scopes: Vec::new(),
+            ambient_life_scopes: compiler.ambient_life_scopes,
             target_pointer_width: request.target_pointer_width,
             source_fingerprint: request.source_fingerprint,
             functions: compiler

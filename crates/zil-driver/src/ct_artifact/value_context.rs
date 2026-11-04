@@ -318,6 +318,8 @@ pub(in crate::ct_artifact) struct ValueContext {
     pub bytes: u64,
     pub source_bindings: Vec<compiler::SourceLifeBinding>,
     pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
+    pub invocation_context:
+        Option<std::sync::Arc<crate::ct_artifact::invocation_context::FrozenInvocationContext>>,
 }
 #[derive(Clone)]
 pub(in crate::ct_artifact) struct ValueSourceScope {
@@ -329,6 +331,9 @@ impl ValueContext {
     pub fn capture(
         program: &CtArtifactProgram,
         source_bindings: &[compiler::SourceLifeBinding],
+        invocation_context: Option<
+            std::sync::Arc<crate::ct_artifact::invocation_context::FrozenInvocationContext>,
+        >,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Self> {
         let ty = &program.functions[program.entry.0 as usize].result_type;
@@ -343,6 +348,11 @@ impl ValueContext {
                 .saturating_add(binding.parameters.len() as u64 * 4);
         }
         budget.reserve_temporary_bytes(bytes)?;
+        bytes = bytes.saturating_add(
+            invocation_context
+                .as_ref()
+                .map_or(0, |context| context.bytes),
+        );
         Ok(Self {
             records: program.record_schemas.clone(),
             enums: program.enum_schemas.clone(),
@@ -350,6 +360,7 @@ impl ValueContext {
             bytes,
             source_bindings: source_bindings.to_vec(),
             ambient_life_scopes: program.ambient_life_scopes.clone(),
+            invocation_context,
         })
     }
     pub(in crate::ct_artifact) fn type_with_scopes(
@@ -358,88 +369,64 @@ impl ValueContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<(CtTypeRef, Vec<ValueSourceScope>)> {
         let graph = self.type_ref(ty, budget)?;
-        let mut scopes = Vec::new();
-        if self.source_bindings.is_empty() {
-            return Ok((graph, scopes));
-        }
-        budget.reserve_temporary_bytes(64)?;
-        let mut pending = vec![(ty, graph.root, 0usize)];
-        while let Some((ty, id, depth)) = pending.pop() {
-            budget.reserve_analysis_work(1)?;
-            if depth > budget.remaining().max_call_depth as usize {
-                return Err(bad());
+        budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
+        let mut scopes: Vec<ValueSourceScope> = Vec::new();
+        for row in &graph.ambient_classes {
+            let context = self.invocation_context.as_ref().ok_or_else(|| {
+                vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "ambient value has no authentic invocation context",
+                    None,
+                )]
+            })?;
+            context.validate_reference(&self.ambient_life_scopes, row.source, budget)?;
+            let ambient = &self.ambient_life_scopes[row.source.scope.0 as usize];
+            budget.reserve_analysis_work(scopes.len() as u64 * 32)?;
+            if let Some(scope) = scopes.iter_mut().find(|scope| scope.owner == row.owner) {
+                if scope.definition != ambient.declaration
+                    || scope.parameters.len() != row.class as usize
+                {
+                    return Err(bad());
+                }
+                budget.reserve_temporary_bytes(4)?;
+                scope.parameters.push(row.source.parameter);
+            } else {
+                if row.class != 0 {
+                    return Err(bad());
+                }
+                budget
+                    .reserve_temporary_bytes(std::mem::size_of::<ValueSourceScope>() as u64 + 4)?;
+                scopes.push(ValueSourceScope {
+                    owner: row.owner,
+                    definition: ambient.declaration.clone(),
+                    parameters: vec![row.source.parameter],
+                });
             }
-            let node = graph.nodes.get(id.0 as usize).ok_or_else(bad)?;
-            match (ty, node) {
-                (CtTy::Record(_), CtTypeNode::BorrowedStorage { .. })
-                | (CtTy::Enum(_), CtTypeNode::BorrowedStorage { .. }) => {
-                    let schema = match ty {
-                        CtTy::Record(id) => id.0,
-                        CtTy::Enum(id) => id.0,
-                        _ => unreachable!(),
-                    };
-                    let enumeration = matches!(ty, CtTy::Enum(_));
-                    budget.reserve_analysis_work(self.source_bindings.len() as u64)?;
-                    let binding = self
-                        .source_bindings
-                        .iter()
-                        .find(|b| b.enumeration == enumeration && b.schema == schema)
-                        .ok_or_else(bad)?;
-                    budget.reserve_analysis_work(binding.parameters.len() as u64)?;
-                    budget.reserve_temporary_bytes(
-                        (std::mem::size_of::<ValueSourceScope>() as u64).saturating_mul(2)
-                            + binding.parameters.len() as u64 * 4,
-                    )?;
-                    scopes.push(ValueSourceScope {
-                        owner: id,
-                        definition: binding.definition.clone(),
-                        parameters: binding.parameters.clone(),
-                    });
-                }
-                (CtTy::Tuple(parts), CtTypeNode::Tuple(ids))
-                | (CtTy::AnonymousSum(parts), CtTypeNode::AnonymousSum(ids)) => {
-                    if parts.len() != ids.len() {
-                        return Err(bad());
-                    }
-                    budget.reserve_analysis_work(parts.len() as u64)?;
-                    budget.reserve_temporary_bytes(parts.len() as u64 * 64)?;
-                    pending.extend(
-                        parts
-                            .iter()
-                            .zip(ids)
-                            .map(|(part, id)| (part, *id, depth + 1)),
-                    );
-                }
-                (CtTy::Array { element, .. }, CtTypeNode::Array { element: id, .. })
-                | (CtTy::List(element), CtTypeNode::Slice(id)) => {
-                    budget.reserve_temporary_bytes(64)?;
-                    pending.push((element, *id, depth + 1));
-                }
-                _ => {}
+        }
+        // The legacy private source bindings remain a consistency check during
+        // migration; the authenticated public context carries value identity.
+        budget.reserve_analysis_work(self.source_bindings.len() as u64)?;
+        for binding in &self.source_bindings {
+            budget.reserve_analysis_work(
+                (binding.parameters.len() as u64).saturating_mul(scopes.len() as u64),
+            )?;
+            if !scopes.is_empty()
+                && !scopes.iter().any(|scope| {
+                    scope.definition == binding.definition && scope.parameters == binding.parameters
+                })
+            {
+                return Err(bad());
             }
         }
         Ok((graph, scopes))
     }
     pub fn type_ref(&self, ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
-        if !self.ambient_life_scopes.is_empty() {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Ct,
-                "CT5 value reification requires authenticated ambient context",
-                None,
-            )]);
-        }
         fn append(
             out: &mut Vec<CtTypeNode>,
+            ambient: &mut Vec<CtAmbientClassBinding>,
             mut graph: CtTypeRef,
             budget: &mut CtExecutionBudget,
         ) -> CompileResult<CtTypeNodeId> {
-            if !graph.ambient_classes.is_empty() {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Ct,
-                    "CT5 value type assembly requires joint ambient relocation",
-                    None,
-                )]);
-            }
             budget.reserve_analysis_work(graph.nodes.len() as u64)?;
             budget.reserve_generated_nodes(graph.nodes.len() as u64)?;
             budget.reserve_temporary_bytes((graph.nodes.len() as u64).saturating_mul(128))?;
@@ -457,18 +444,33 @@ impl ValueContext {
                     return Err(bad());
                 }
             }
+            budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
+            budget.reserve_temporary_bytes(
+                graph.ambient_classes.len() as u64
+                    * std::mem::size_of::<CtAmbientClassBinding>() as u64,
+            )?;
+            for mut row in graph.ambient_classes {
+                row.owner.0 = row.owner.0.checked_add(offset).ok_or_else(bad)?;
+                ambient.push(row);
+            }
             let root = CtTypeNodeId(graph.root.0.checked_add(offset).ok_or_else(bad)?);
             out.extend(graph.nodes);
             Ok(root)
         }
         budget.reserve_analysis_work(1)?;
         let mut nodes = Vec::new();
+        let mut ambient_classes = Vec::new();
         let node = match ty {
             CtTy::Scalar(s) => CtTypeNode::Primitive(*s),
             CtTy::Tuple(parts) | CtTy::AnonymousSum(parts) => {
                 let mut ids = Vec::new();
                 for part in parts {
-                    ids.push(append(&mut nodes, self.type_ref(part, budget)?, budget)?);
+                    ids.push(append(
+                        &mut nodes,
+                        &mut ambient_classes,
+                        self.type_ref(part, budget)?,
+                        budget,
+                    )?);
                 }
                 if matches!(ty, CtTy::Tuple(_)) {
                     CtTypeNode::Tuple(ids)
@@ -477,12 +479,20 @@ impl ValueContext {
                 }
             }
             CtTy::Array { element, length } => CtTypeNode::Array {
-                element: append(&mut nodes, self.type_ref(element, budget)?, budget)?,
+                element: append(
+                    &mut nodes,
+                    &mut ambient_classes,
+                    self.type_ref(element, budget)?,
+                    budget,
+                )?,
                 length: *length,
             },
-            CtTy::List(element) => {
-                CtTypeNode::Slice(append(&mut nodes, self.type_ref(element, budget)?, budget)?)
-            }
+            CtTy::List(element) => CtTypeNode::Slice(append(
+                &mut nodes,
+                &mut ambient_classes,
+                self.type_ref(element, budget)?,
+                budget,
+            )?),
             CtTy::Record(_) | CtTy::Enum(_) => {
                 let (symbol, args) = match ty {
                     CtTy::Record(id) => {
@@ -516,6 +526,7 @@ impl ValueContext {
                             budget.reserve_temporary_bytes(bytes)?;
                             arguments.push(CtTypeArgument::Type(append(
                                 &mut nodes,
+                                &mut ambient_classes,
                                 graph.clone(),
                                 budget,
                             )?));
@@ -547,7 +558,7 @@ impl ValueContext {
         Ok(CtTypeRef {
             nodes,
             root,
-            ambient_classes: Vec::new(),
+            ambient_classes,
         })
     }
 }
