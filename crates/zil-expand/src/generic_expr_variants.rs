@@ -430,6 +430,7 @@ impl Engine<'_> {
         depth: usize,
     ) -> R<Option<TypeRef>> {
         let ExprKind::Closure {
+            context,
             params,
             return_type,
             body,
@@ -438,36 +439,98 @@ impl Engine<'_> {
         else {
             unreachable!("expression variant dispatch")
         };
+        // An input token is never a production record for this request.
+        *context = ClosureContextMarker::default();
+        if self.closure_recording.is_some() {
+            return Err(unsupported(
+                e.span,
+                "nested closure source contexts require their complete producer",
+            ));
+        }
         let result = {
             let mut inner = self.clone_env(env)?;
-            for param in params {
-                if let Some(t) = &mut param.ty {
-                    rich_pointer::reject_fixed_closure(
+            inner.closure_depth = inner.closure_depth.checked_add(1).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "closure lexical depth exhausted",
+                    Some(e.span),
+                )
+            })?;
+            let mut recording = None;
+            for index in 0..params.len() {
+                if recording.is_none()
+                    && let Some(t) = &params[index].ty
+                {
+                    if let Err(error) = rich_pointer::reject_fixed_closure(
                         t,
                         &self.products.storage.instances,
                         &mut self.budget,
-                    )?;
+                    ) {
+                        if error.category != zil_base::ResultCategory::Unsupported
+                            || !error
+                                .message
+                                .contains("genuine enclosing definition context")
+                        {
+                            return Err(error);
+                        }
+                        recording = Some(self.start_closure_context(
+                            params,
+                            return_type,
+                            env.closure_depth,
+                            e.span,
+                        )?);
+                    }
+                }
+                let param = &mut params[index];
+                if let Some(t) = &mut param.ty {
                     self.ty(t, depth + 1)?;
                 }
                 inner.insert(param.name.clone(), param.ty.clone());
             }
             if let Some(t) = return_type {
-                rich_pointer::reject_fixed_closure(
-                    t,
-                    &self.products.storage.instances,
-                    &mut self.budget,
-                )?;
+                if recording.is_none() {
+                    if let Err(error) = rich_pointer::reject_fixed_closure(
+                        t,
+                        &self.products.storage.instances,
+                        &mut self.budget,
+                    ) {
+                        if error.category != zil_base::ResultCategory::Unsupported
+                            || !error
+                                .message
+                                .contains("genuine enclosing definition context")
+                        {
+                            return Err(error);
+                        }
+                        recording = Some(self.start_closure_context(
+                            params,
+                            return_type,
+                            env.closure_depth,
+                            e.span,
+                        )?);
+                    }
+                }
+            }
+            if let Some(t) = return_type {
                 self.ty(t, depth + 1)?;
             }
             let saved = std::mem::replace(&mut self.return_type, return_type.clone());
-            match body {
-                ArrowBody::Block(b) => self.block(b, &mut inner, depth + 1)?,
+            self.closure_recording = recording;
+            let body_result = match body {
+                ArrowBody::Block(b) => self.block(b, &mut inner, depth + 1),
                 ArrowBody::Expression(e) => {
                     let expected = self.return_type.clone();
-                    self.expr_expected(e, &mut inner, expected.as_ref(), depth + 1)?;
+                    self.expr_expected(e, &mut inner, expected.as_ref(), depth + 1)
+                        .map(|_| ())
                 }
-            }
+            };
+            let recording = self.closure_recording.take();
             self.return_type = saved;
+            body_result?;
+            if let Some(recording) = recording {
+                *context = ClosureContextMarker::untrusted(
+                    self.finish_closure_context(recording, e.span)?,
+                );
+            }
             None
         };
         Ok(result)
