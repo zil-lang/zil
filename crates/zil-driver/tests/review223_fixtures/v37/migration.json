@@ -1,0 +1,15 @@
+{
+  "decoder_commit": "80bec5278219c00c003944021b59880826c446f4",
+  "status": "UntrustedStructuralTranscode",
+  "fields_added": [
+    "TypedFunction.call_kind=Direct",
+    "CallableRole.life=None"
+  ],
+  "inputs": {
+    "mutable-product.wire": "cf116f5aa5bd4a2cf69f2beeff265080ce9b5154d31a8918b79ca0478e7a5a51"
+  },
+  "outputs": {
+    "mutable-product.wire": "c0272fcd49c137ed00ca6344b6aa93b0359210a242706838275760618e9f4b82"
+  },
+  "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"
+}

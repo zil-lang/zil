@@ -88,20 +88,26 @@ fn main() {
     }
 }
 ''')
-    source = ROOT / "crates/zil-analyze/tests/impl253_fixtures/v34"
-    output = source.parent / "v37"
+    sources = [ROOT / p for p in [
+        "crates/zil-analyze/tests/impl253_fixtures/v34",
+        "crates/zil-driver/tests/review223_fixtures/v34",
+        "tests/impl254/v34",
+    ]]
     environment = dict(os.environ, CARGO_TARGET_DIR=str(WORK / "target"),
                        CARGO_PROFILE_DEV_DEBUG="0", CARGO_INCREMENTAL="0")
-    subprocess.run(["cargo", "run", "--offline", "-p", "fixture-wire37-adapter", "--",
-                    str(source), str(output)], cwd=WORK, env=environment, check=True)
-    digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-    receipt = {"decoder_commit": revision, "status": "UntrustedStructuralTranscode",
-               "fields_added": ["TypedFunction.call_kind=Direct", "CallableRole.life=None"],
-               "inputs": {p.name: digest(p) for p in sorted(source.glob("*.wire"))},
-               "outputs": {p.name: digest(p) for p in sorted(output.glob("*.wire"))},
-               "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"}
-    (output / "migration.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    print(json.dumps({"output": str(output), "files": len(receipt["outputs"])}))
+    for source in sources:
+        output = source.parent / "v37"
+        subprocess.run(["cargo", "run", "--offline", "-p", "fixture-wire37-adapter", "--",
+                        str(source), str(output)], cwd=WORK, env=environment, check=True)
+        digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+        receipt = {"decoder_commit": revision, "status": "UntrustedStructuralTranscode",
+                   "fields_added": ["TypedFunction.call_kind=Direct", "CallableRole.life=None"],
+                   "inputs": {p.name: digest(p) for p in sorted(source.glob("*.wire"))},
+                   "outputs": {p.name: digest(p) for p in sorted(output.glob("*.wire"))},
+                   "authority": "Current Analyze and Verify must recheck the decoded module; old plan claims are not evidence"}
+        (output / "migration.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        print(json.dumps({"output": str(output), "files": len(receipt["outputs"])}))
+
 
 
 if __name__ == "__main__":

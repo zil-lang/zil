@@ -148,3 +148,8 @@ Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及
 独审费用修正实际完成：每个role和实际callback返回证明先付参数/结果完整形状，再做递归资格与实际签名比较；Types validate_bound同样前置支付，callable_snapshot先做本地深度/工作验证再支付额外relation遍历，尤其覆盖早于state header核验的raw混合入口。调用固定点只用浅shape触发，两个核的普通closure header仍独立付费并限制结果为原有限Copy/slice pointee；新增无role的Package结果raw/Wire在该门拒绝，不扩大profile。
 
 新增32字段+8层pointee正例经两个role重复使用同一ClosureId，Types/Analyze/Verify N15796/31925/72533；raw与Wire N−1 ResourceLimit、freshN同值。新增raw混合header的32层/16深度限制及256字段/128工作额度在递归资格判断前都返回Types ResourceLimit。当前HRTB STORAGE阶段N1514/530/11724/12330（相对13677为Types+4、两核各+24），其它既有控制N保持，默认限额不变。最终既有十目标70/35/10/9/7/18/14/10/37/4零失败；同十目标Clippy-Dwarnings通过，Types32/Verify344单位通过。Analyze限定122通过、2个已记录v34冻结fixture因版本不适用明确排除，原两项E-WIRE-VERSION失败记录仍保留。当前focused HRTB12项包含64native，无新增机器profile重复计数。修正待独立精确源码复核。
+
+
+### 集成当前Wire37回归迁移
+
+真实root组合HRTB/Task37与generic receiver methods通过cross73、generic_regressions59、generics23、trait58。独立Vec当前oracle补完整CallKind、role.life及SuspendCall，保留V31的95操作原固定样本；IR61及oracle13通过。历史v32/v34字节全部保持，只以固定80bec5278的结构decoder离线转码，显式加入Direct/None life；current核重验，旧plan不授予权限。初次迁移漏更新六个driver模块的helper路径，fmt暴露后统一覆盖所有17个历史输入；Analyze2及driver16/7/1/1/1/2实际通过，tools/migrate-impl253-wire37.py可复现。不会只改版本头冒充新记录。
