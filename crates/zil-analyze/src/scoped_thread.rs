@@ -15,6 +15,7 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn cas_pair(t:&Type)->bool {matches!(t,Type::Tuple(fields) if fields.as_slice()==[Type::I32,Type::Bool])}
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
 }
@@ -57,15 +58,15 @@ fn worker(
             || function.callable_contract.is_some()
             || function.callable_return_contract.is_some()
             || function.result_mode != PassingMode::Infer
-            || !scalar(&function.return_type)
+            || !(scalar(&function.return_type)||(shared&&cas_pair(&function.return_type)))
             || function
                 .locals
                 .iter()
-                .any(|local| !scalar(&local.ty) && !(shared && shared_i32(&local.ty)))
+                .any(|local| !scalar(&local.ty) && !(shared && (shared_i32(&local.ty)||cas_pair(&local.ty))))
             || function
                 .values
                 .iter()
-                .any(|ty| !scalar(ty) && !(shared && shared_i32(ty)))
+                .any(|ty| !scalar(ty) && !(shared && (shared_i32(ty)||cas_pair(ty))))
             || module
                 .resources
                 .iter()
@@ -152,9 +153,10 @@ fn worker(
                     }
                 }
                 match &instruction.kind {
-                    InstructionKind::SyncI32 { .. } if shared => {
+                    InstructionKind::SyncI32 { .. }|InstructionKind::SyncI32CompareExchange{..} if shared => {
                         sync_instruction(module, function, instruction, budget)?
                     }
+                    InstructionKind::ExtractField{..}|InstructionKind::MakeAggregate{..} if shared=>{}
                     InstructionKind::ReadAddress { address } if shared => {
                         if !matches!(function.values.get(address.0 as usize), Some(Type::Address { mutable: false, inner }) if **inner == Type::I32)
                             || instruction
@@ -302,7 +304,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 budget.spend(1, "thread operation instruction inventory")?;
                 if matches!(
                     instruction.kind,
-                    InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. }
+                    InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. } |InstructionKind::SyncI32CompareExchange{..}
                 ) {
                     sync_instruction(module, caller, instruction, budget)?;
                     continue;
@@ -474,6 +476,13 @@ fn sync_instruction(
             .ok_or_else(|| reject(instruction.span, "sealed cell operand is absent"))
     };
     match instruction.kind {
+        InstructionKind::SyncI32CompareExchange{address,expected,desired,success,failure}=>{
+            budget.spend(8,"actual strong CAS signature and order matrix")?;
+            if !matches!(ty(address)?,Type::Address{mutable:false,inner} if inner.as_ref()==&Type::SyncCell(K::AtomicI32)) || ty(expected)?!=&Type::I32 || ty(desired)?!=&Type::I32 {return Err(reject(instruction.span,"compare exchange requires the actual AtomicI32 address and i32 operands"));}
+            let admitted=match success {O::Relaxed|O::Release=>failure==O::Relaxed,O::Acquire|O::AcqRel=>matches!(failure,O::Relaxed|O::Acquire),O::SeqCst=>matches!(failure,O::Relaxed|O::Acquire|O::SeqCst)};
+            if !admitted {return Err(reject(instruction.span,"compare exchange order pair is outside the chosen C11 matrix"));}
+            if instruction.result.and_then(|v|caller.values.get(v.0 as usize))!=Some(&Type::Tuple(vec![Type::I32,Type::Bool])) {return Err(reject(instruction.span,"compare exchange must return actual observed i32 and success bool"));}
+        }
         InstructionKind::SyncI32 {
             op,
             address,

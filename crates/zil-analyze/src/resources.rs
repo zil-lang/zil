@@ -463,6 +463,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         }
         InstructionKind::WithSyncCell { initial, body, .. } => (Some(*initial), Some(*body), &[]),
         InstructionKind::SyncI32 { address, value, .. } => (Some(*address), *value, &[]),
+        InstructionKind::SyncI32CompareExchange{address,expected,desired,..}=>(Some(*address),Some(*expected),std::slice::from_ref(desired)),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             (Some(*callback), Some(*body), &[])
         }

@@ -809,7 +809,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         span: Span,
         start: bool,
     ) -> R<LocalId> {
-        if scoped_thread::sync_primitive(name).is_some() || matches!(name, "MutexI32" | "AtomicI32")
+        if scoped_thread::sync_primitive(name).is_some() || matches!(name, "MutexI32" | "AtomicI32" | "atomic_compare_exchange")
         {
             return Err(error(
                 "E-SYNC-NAME",
@@ -1842,6 +1842,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 }
                 return Ok((value, Type::I64));
             }
+            if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {return self.compare_exchange_call(arguments,expected,e.span);}
             if let CoreExprKind::Name(name) = &callee.kind
                 && let Some((kind, op)) = scoped_thread::sync_primitive(name)
             {

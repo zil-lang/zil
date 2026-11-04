@@ -11,6 +11,7 @@ fn scalar(ty: &Type) -> bool {
         Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
     )
 }
+fn cas_pair(t:&Type)->bool {matches!(t,Type::Tuple(fields) if fields.as_slice()==[Type::I32,Type::Bool])}
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
 }
@@ -64,15 +65,15 @@ fn worker_graph(
             || function.callable_contract.is_some()
             || function.callable_return_contract.is_some()
             || function.result_mode != PassingMode::Infer
-            || !scalar(&function.return_type)
+            || !(scalar(&function.return_type)||(shared&&cas_pair(&function.return_type)))
             || function
                 .locals
                 .iter()
-                .any(|local| !scalar(&local.ty) && !(shared && shared_i32(&local.ty)))
+                .any(|local| !scalar(&local.ty) && !(shared && (shared_i32(&local.ty)||cas_pair(&local.ty))))
             || function
                 .values
                 .iter()
-                .any(|ty| !scalar(ty) && !(shared && shared_i32(ty)))
+                .any(|ty| !scalar(ty) && !(shared && (shared_i32(ty)||cas_pair(ty))))
             || module
                 .resources
                 .iter()
@@ -88,9 +89,10 @@ fn worker_graph(
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 match &instruction.kind {
-                    InstructionKind::SyncI32 { .. } if shared => {
+                    InstructionKind::SyncI32 { .. }|InstructionKind::SyncI32CompareExchange{..} if shared => {
                         sync_instruction(module, function, instruction, budget)?;
                     }
+                    InstructionKind::ExtractField{..}|InstructionKind::MakeAggregate{..} if shared=>{}
                     InstructionKind::ReadAddress { address } if shared => {
                         if !matches!(value_type(function, *address, span)?, Type::Address { mutable: false, inner } if **inner == Type::I32)
                             || instruction
@@ -320,6 +322,14 @@ pub(super) fn sync_instruction(
         return Err(unsupported("sealed cell runtime requires Linux x64", span));
     }
     match instruction.kind {
+        InstructionKind::SyncI32CompareExchange{address,expected,desired,success,failure}=>{
+            budget.spend(8)?;
+            if !matches!(value_type(caller,address,span)?,Type::Address{mutable:false,inner} if inner.as_ref()==&Type::SyncCell(zil_ir::SyncCellKind::AtomicI32)) || value_type(caller,expected,span)?!=&Type::I32 || value_type(caller,desired,span)?!=&Type::I32 {return Err(invalid(span,"compare exchange requires the actual AtomicI32 address and i32 operands"));}
+            use zil_ir::AtomicOrdering as O;
+            let admitted=match success {O::Relaxed|O::Release=>failure==O::Relaxed,O::Acquire|O::AcqRel=>matches!(failure,O::Relaxed|O::Acquire),O::SeqCst=>matches!(failure,O::Relaxed|O::Acquire|O::SeqCst)};
+            if !admitted {return Err(invalid(span,"compare exchange order pair is outside the chosen C11 matrix"));}
+            Ok(Some(Type::Tuple(vec![Type::I32,Type::Bool])))
+        }
         InstructionKind::SyncI32 {
             op,
             address,
