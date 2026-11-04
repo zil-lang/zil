@@ -462,6 +462,10 @@ impl<'a> Engine<'a> {
                     substitution.insert(formal.name.clone(), ty.clone());
                 }
                 (GenericParamKind::Const(domain), actual) => {
+                    // normalize inspects the formal domain before it reads the
+                    // value. Reserve that actual domain traversal first; the
+                    // later Core type construction has its own reservation.
+                    self.budget.ty(domain)?;
                     let carrier = consts::argument(actual, Some(formal), &mut self.budget)?;
                     let normalized = consts::normalize(formal, &carrier, &mut self.budget)?;
                     let value = consts::normalized_value(&normalized, &mut self.budget)?;
