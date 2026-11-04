@@ -516,11 +516,10 @@ impl Engine<'_> {
                         if function.params.len() != actual.len() {
                             return Err(error(e.span, "callable helper arity mismatch"));
                         }
-                        if function
-                            .generics
-                            .iter()
-                            .any(|p| !callable.contains_generic(&p.name))
-                        {
+                        if function.generics.iter().any(|p| {
+                            !matches!(p.kind, GenericParamKind::Lifetime)
+                                && !callable.contains_generic(&p.name)
+                        }) {
                             let variables: BTreeSet<_> =
                                 type_parameters(function).map(|p| p.name.clone()).collect();
                             let mut found = if contextual_constraints {
@@ -574,7 +573,10 @@ impl Engine<'_> {
                             let types = function
                                 .generics
                                 .iter()
-                                .filter(|p| !callable.contains_generic(&p.name))
+                                .filter(|p| {
+                                    !matches!(p.kind, GenericParamKind::Lifetime)
+                                        && !callable.contains_generic(&p.name)
+                                })
                                 .map(|p| {
                                     found.get(&p.name).cloned().ok_or_else(|| {
                                         error(

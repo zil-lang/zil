@@ -11,34 +11,7 @@ pub(crate) fn key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<Option<String>> {
     if !matches!(ty.kind, TypeKind::ForLifetime { .. }) {
         return Ok(None);
     }
-    use crate::ct_selection::Visitor;
-    struct Find<'a, 'l> {
-        budget: &'a mut Budget<'l>,
-        found: bool,
-    }
-    impl Visitor for Find<'_, '_> {
-        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
-            self.budget.node(span, depth).map_err(|e| vec![e])
-        }
-        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
-            self.budget.text(value, span).map_err(|e| vec![e])
-        }
-        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
-            if let TypeKind::Named { args, .. } = &ty.kind {
-                for argument in args {
-                    self.node(ty.span, depth)?;
-                    self.found |= matches!(argument, GenericArg::Lifetime(_));
-                }
-            }
-            crate::ct_selection::walk_type(self, ty, depth)
-        }
-    }
-    let mut find = Find {
-        budget,
-        found: false,
-    };
-    find.ty(ty, 0).map_err(|mut e| e.remove(0))?;
-    if !find.found {
+    if !has_life(ty, budget)? {
         return Ok(None);
     }
     let mut names = Vec::new();
@@ -492,4 +465,133 @@ fn check_classes(
         _ => {}
     }
     Ok(())
+}
+
+pub(crate) fn has_life(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {
+    use crate::ct_selection::Visitor;
+    struct Find<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+        found: bool,
+    }
+    impl Visitor for Find<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(value, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let TypeKind::Named { args, .. } = &ty.kind {
+                for argument in args {
+                    self.node(ty.span, depth)?;
+                    self.found |= matches!(argument, GenericArg::Lifetime(_));
+                }
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut find = Find {
+        budget,
+        found: false,
+    };
+    find.ty(ty, 0).map_err(|mut e| e.remove(0))?;
+    Ok(find.found)
+}
+
+/// Convert an actual checked callable protocol header to the same scoped
+/// signature recipe used by Code. CallKind remains in its owning role.
+pub(crate) fn role_code(bound: &TypeRef, budget: &mut Budget<'_>) -> R<Option<TypeRef>> {
+    if !matches!(grouped(bound).kind, TypeKind::ForLifetime { .. }) || !has_life(bound, budget)? {
+        return Ok(None);
+    }
+    budget.ty(bound)?;
+    let mut code = bound.clone();
+    fn convert(ty: &mut TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<()> {
+        budget.node(ty.span, depth)?;
+        match &mut ty.kind {
+            TypeKind::ForLifetime { inner, .. } | TypeKind::Group(inner) => {
+                convert(inner, budget, depth + 1)
+            }
+            TypeKind::Named { path, args } if matches!(path.as_slice(),[name] if matches!(name.as_str(),"Fn"|"FnMut"|"FnOnce")) =>
+            {
+                let [GenericArg::Type(parameters), GenericArg::Type(result)] = args.as_mut_slice()
+                else {
+                    return Err(error(ty.span, "rich role requires its complete signature"));
+                };
+                let TypeKind::Tuple(params) = &mut parameters.kind else {
+                    return Err(error(ty.span, "rich role parameters require a tuple"));
+                };
+                let params = std::mem::take(params);
+                budget.node(result.span, depth)?;
+                let result = Box::new(std::mem::replace(result, check::unit(result.span)));
+                ty.kind = TypeKind::Function { params, result };
+                Ok(())
+            }
+            _ => Err(unsupported(
+                ty.span,
+                "rich role requires its actual callable protocol",
+            )),
+        }
+    }
+    convert(&mut code, budget, 0)?;
+    Ok(Some(code))
+}
+
+/// An annotated closure cannot acquire a retained enclosing class through
+/// the definition-None inference rule. Closed nested Code scopes are separate.
+pub(crate) fn reject_fixed_closure(
+    ty: &TypeRef,
+    instances: &[crate::stored_types::Instance],
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    use crate::ct_selection::Visitor;
+    struct Check<'a, 's, 'l> {
+        budget: &'a mut Budget<'l>,
+        instances: &'s [crate::stored_types::Instance],
+    }
+    impl Visitor for Check<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(value, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(ty.kind, TypeKind::ForLifetime { .. }) {
+                return self.budget.ty_depth(ty, depth).map_err(|e| vec![e]);
+            }
+            if let TypeKind::Named { path, args } = &ty.kind {
+                for arg in args {
+                    self.node(ty.span, depth)?;
+                    if matches!(arg, GenericArg::Lifetime(_)) {
+                        return Err(vec![unsupported(
+                            ty.span,
+                            "annotated closure retained classes need their genuine enclosing definition context",
+                        )]);
+                    }
+                }
+                if path.len() == 1 && args.is_empty() {
+                    for instance in self.instances {
+                        self.node(ty.span, depth)?;
+                        if let Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                            && let Type::Record { name, .. } = storage.as_ref()
+                        {
+                            self.text(name, ty.span)?;
+                            self.text(&path[0], ty.span)?;
+                            if name == &path[0] {
+                                return Err(vec![unsupported(
+                                    ty.span,
+                                    "annotated closure retained classes need their genuine enclosing definition context",
+                                )]);
+                            }
+                        }
+                    }
+                }
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    Check { budget, instances }
+        .ty(ty, 0)
+        .map_err(|mut e| e.remove(0))
 }

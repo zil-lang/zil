@@ -341,3 +341,21 @@ Full Expand44/0 and targeted Clippy pass. Rich work is9712 (9703 belongs to38ca)
 grouped const5396 and stored common-prefix1636919 are unchanged. Exact executable/
 source binding is in terminal341-rich-code-grouped-source40.json. This remains
 Source→Core and raw-helper evidence; downstream execution and rich roles stay open.
+
+### Mixed life/callable Source checkpoint recovered after worker interruption
+
+Root preserved and resumed the actual uncommitted role producer after the
+worker's usage-limit stop. Declaration-local symbolic comparison retains full
+formal ordinals; each role invocation receives fresh role binders while actual
+declared input classes remain rigid. Unused split-class and same-class helper
+definitions are checked before specialization; the nearest wrong equality
+rejects. Actual invoke/apply source retains the separate helper outer &F row,
+input-grounded Fixed class, and role Invocation class relation in Core.
+Explicit enclosing stored closure annotations remain closed without a retained
+context. This does not install a role as a global closure-definition contract.
+
+Root replay: Expand46/0; Clippy with warnings denied passes with only the
+existing dead_code allowance. The initial interrupted candidate's single
+collapsible-if lint was corrected. Native composition and independent review
+are separate; the current sub-agent usage limit prevented new independent
+review of this checkpoint. All source remains in the backup/integration trees.
