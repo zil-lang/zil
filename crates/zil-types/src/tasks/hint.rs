@@ -299,3 +299,173 @@ impl Builder<'_, '_> {
         })
     }
 }
+
+#[cfg(test)]
+mod terminal343_hint_budget {
+    use super::*;
+    fn signature(result: Type, receiver: Option<Type>) -> Signature {
+        Signature {
+            life: None,
+            id: Some(FunctionId(1)),
+            callable: vec![],
+            state_parameter: None,
+            callable_return: None,
+            type_parameter: None,
+            template: None,
+            foreign: false,
+            scoped_callback: None,
+            cleanup: false,
+            parameters: vec![],
+            result,
+            public: true,
+            receiver,
+        }
+    }
+    fn function() -> CoreFunction {
+        CoreFunction {
+            storage_life: None,
+            call_kind: None,
+            life: None,
+            type_parameters: vec![],
+            state_parameters: vec![],
+            callable_return: None,
+            id: zil_base::NodeId(0),
+            name: "hint".into(),
+            callable_parameters: vec![],
+            foreign: None,
+            parameters: vec![],
+            return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            body: CoreBlock {
+                statements: vec![],
+                span: Span::default(),
+            },
+            receiver: None,
+            span: Span::default(),
+        }
+    }
+    fn expr(kind: CoreExprKind) -> CoreExpr {
+        CoreExpr {
+            id: zil_base::NodeId(0),
+            kind,
+            span: Span::default(),
+        }
+    }
+    // Exercise the actual borrowed resolver in isolation, so the boundary
+    // belongs to its own live ledger rather than an unrelated earlier pass.
+    fn run(case: usize, prefix: usize, amount: usize) -> R<(Type, usize)> {
+        let limits = Limits::default();
+        let task = Type::Desc(Box::new(Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: super::super::empty_context(),
+        }));
+        let common = "long_common_prefix_".repeat(prefix);
+        let member = format!("{common}method");
+        let nominal = format!("{common}Payload");
+        let alias = format!("{common}library");
+        let key = if case == 2 {
+            format!("{nominal}.{member}")
+        } else {
+            member.clone()
+        };
+        let mut table = BTreeMap::new();
+        for index in 0..32 {
+            table.insert(
+                format!("{common}method_{index:03}"),
+                signature(Type::I32, None),
+            );
+        }
+        table.insert(
+            key,
+            signature(task.clone(), (case == 2).then_some(Type::I32)),
+        );
+        let tables = BTreeMap::from([(zil_base::ModuleId(1), table)]);
+        let imports = program::Imports {
+            aliases: BTreeMap::from([(alias.clone(), zil_base::ModuleId(1))]),
+            signatures: &tables,
+        };
+        let local_signatures = (0..32)
+            .map(|i| (format!("{common}local_{i:03}"), signature(Type::I32, None)))
+            .collect();
+        let mut state = closures::State::new(0, &limits);
+        let f = function();
+        let mut builder = Builder::new(&f, FunctionId(0), &local_signatures, &limits, &mut state)?;
+        builder.imports = Some(&imports);
+        let local_ty = if case == 2 {
+            Type::Record {
+                name: format!("@module1:{nominal}"),
+                fields: vec![],
+            }
+        } else {
+            task.clone()
+        };
+        builder.function.locals.push(LocalDecl {
+            id: LocalId(0),
+            name: "root".into(),
+            ty: local_ty,
+            mutable: false,
+            span: Span::default(),
+        });
+        builder.scopes[0].insert("root".into(), LocalId(0));
+        if case == 0 {
+            for i in 0..64 {
+                builder
+                    .scopes
+                    .push(BTreeMap::from([(format!("{common}scope{i}"), LocalId(0))]));
+            }
+        }
+        let e = if case == 0 {
+            expr(CoreExprKind::Name("root".into()))
+        } else {
+            expr(CoreExprKind::Call {
+                callee: Box::new(expr(CoreExprKind::Member {
+                    object: Box::new(expr(CoreExprKind::Name(if case == 2 {
+                        "root".into()
+                    } else {
+                        alias
+                    }))),
+                    member,
+                    owner: None,
+                })),
+                arguments: vec![],
+            })
+        };
+        let mut left = amount;
+        let found = builder
+            .borrowed_task_hint(&e, &mut left, 0)?
+            .expect("actual scoped/imported task result");
+        assert_eq!(found, &task);
+        Ok((found.clone(), left))
+    }
+    #[test]
+    fn scoped_imported_long_prefix_lookups_have_exact_live_budget_boundaries() {
+        for case in 0..3 {
+            let mut growth = vec![];
+            for prefix in [1, 32] {
+                let (_, left) = run(case, prefix, 1_000_000).unwrap();
+                let n = 1_000_000 - left;
+                for (amount, success) in [(n, true), (n - 1, false), (n, true)] {
+                    let result = run(case, prefix, amount);
+                    assert_eq!(
+                        result.is_ok(),
+                        success,
+                        "case={case} prefix={prefix} n={n}: {result:?}"
+                    );
+                    if !success {
+                        let error = result.unwrap_err();
+                        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+                        assert!(error.message.contains("task type hint work"));
+                    }
+                }
+                growth.push(n);
+                eprintln!("task343 hint exact case={case} prefix={prefix} N={n}");
+            }
+            if case != 0 {
+                assert!(
+                    growth[1] > growth[0] * 8,
+                    "long keys must increase comparison reservation: {growth:?}"
+                );
+            }
+        }
+    }
+}

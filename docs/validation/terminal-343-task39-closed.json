@@ -1,0 +1,74 @@
+{
+  "task": 343,
+  "source_commit": "b9fffd5cb0a25d8505da611bd1c3f25b5a1f690e",
+  "scope": "Unified Typed/Wire39 closed Task scalar replay, explicit retained-context rejection and metered borrowed head resolver",
+  "spec_authority_commit": "4f5dfe01b099c4a8cf6cbc895685fec5e1b710c2",
+  "spec_hash": "c6428fc9fc006ec5d673e3aca6848eb755f70ecdb247505beea1c98ecd2323b7",
+  "normative_hash": "a1575c4d02f44e9fda09dbf7d9f38b6461cf529e5a1e4eb77c42f4257d78c1b1",
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api general_task343 -- --nocapture",
+      "result": "8 passed, 0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task39-replay.log"
+    },
+    {
+      "command": "cargo test -p zil-types --lib terminal343_ -- --nocapture",
+      "result": "3 passed, 0 failed",
+      "boundaries": {
+        "definition": 12,
+        "scope64": 7837,
+        "imported_static_short_long": [
+          9334,
+          216073
+        ],
+        "imported_method_short_long": [
+          9174,
+          208845
+        ]
+      },
+      "controls": "Every boundary N/N-1/fresh; deep metadata fails remaining-work before depth and consumed visits are not refunded.",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task39-type-budget.log"
+    },
+    {
+      "command": "cargo test -p zil-expand --lib terminal343_namespace_budget -- --nocapture",
+      "result": "1 passed, 0 failed",
+      "boundaries": [
+        19349,
+        250361
+      ],
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task39-namespace-budget.log"
+    }
+  ],
+  "retained_harnesses": [
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "sha256": "86b30f54aaba68e485a5941b6b9863fd5b758f41091052c334a048e9c592d4d1"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/zil_types-d5152f4b31c0c65a",
+      "sha256": "6c0263a367a8e21556d9dd701726f45262d5ed977cda5eb4ec66655c582f340f"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/zil_expand-f102b30535c7baef",
+      "sha256": "47e52f74bf88c73c4b269882742f613acfa0b995bbd11f72c3f9e30f2f32f3f8"
+    }
+  ],
+  "files_sha256": {
+    "crates/zil-types/src/tasks/hint.rs": "13b10c5c101e655e5f84684851283f5ef1d6e8c399251912d33a0f06c3c04409",
+    "tests/language-readiness/terminal/343/task-general-borrowed-pc0.zil": "020b7beff946ba5d599aa3a2ed102fd47a056285c6c80299d9d09dfde6a18d47",
+    "tests/language-readiness/terminal/343/task-general-direct.zil": "b86a56694ac224600f37466d64392e6e0eca77428bb3f474fb1e8be7cce74c5e",
+    "tests/language-readiness/terminal/343/task-general-i32.zil": "63ee5c472390a6d64d7efe2a6bf7eaad15eed1ad1c05fd0c6bc457bca9e5082f",
+    "tests/language-readiness/terminal/343/task-general-observer.c": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac",
+    "tests/language-readiness/terminal/343/task-general-projected-head.zil": "dcc001fca1460a29485f100d1d5922c229e7f41913e6a105fb1abbd99bd21370",
+    "tests/language-readiness/terminal/343/task-general-user-poll.zil": "27b93c4de5d15a4bd3770e6955cb18847e77f974f54c5dc62cc4e6a987416bcf",
+    "tests/language-readiness/terminal/343/task_general.rs": "13dd1d356d0fab060b5fd25713ce1dfacb8eb68299b316bfc56a253bca7e6185"
+  },
+  "notes": [
+    "The two five-test constructor migrations are narrow copies of root11a4f33bd; no runtime change.",
+    "Driver harness was built and executed before subsequent uncommitted owning Task work began. Types harness depends only on Types and lower dependencies; its new hint source only differs by rustfmt.",
+    "Current closed lane rejects each nonempty retained field before payload fingerprint/clone. Raw Verify uses a rebound identity and asserts task-specific Unsupported, then repeats decoded Wire.",
+    "20 successful native runs plus8 actual allocation-failure runs across Clang/LLVM-API O0/O2; native runtime is compiler-emitted, C observer only wraps allocation/free.",
+    "Kernel exact boundaries remain Analyze12349 / Verify35119.",
+    "No borrowed Task mapping, owning Task results/SSA cancellation, external waker/drain or general Mutex/Transfer/Share completion claim."
+  ]
+}
