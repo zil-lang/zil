@@ -4,24 +4,31 @@ use super::*;
 
 pub(crate) struct Budget<'a> {
     pub(crate) target_pointer_width: u16,
+    pub(crate) context: origins::WalkContext,
     limits: &'a Limits,
     nodes: usize,
     work: usize,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
+    generic_methods: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
         Self {
             target_pointer_width: 64,
+            context: origins::WalkContext::default(),
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
+            generic_methods: false,
         }
+    }
+    pub(crate) fn has_generic_methods(&self) -> bool {
+        self.generic_methods
     }
     pub(crate) fn remaining_limits(&self) -> Limits {
         Limits {
@@ -180,6 +187,14 @@ impl<'a> Budget<'a> {
         }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
+        }
+        if let TypeKind::Named { path, .. } = &ty.kind
+            && path.len() > 1
+            && let Some(replacement) = substitutions
+                .and_then(|s| s.get(&path[0]))
+                .and_then(trait_bounds::plain)
+        {
+            self.text(replacement, ty.span)?;
         }
         match &ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
@@ -494,6 +509,8 @@ impl<'a> Budget<'a> {
                     self.ty_at(bound, depth + 1, subs)?;
                 }
                 for member in &t.members {
+                    self.generic_methods |=
+                        matches!(&member.kind,ItemKind::Function(f) if !f.generics.is_empty());
                     self.item_at(member, depth + 1, subs)?;
                 }
             }

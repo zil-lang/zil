@@ -271,6 +271,7 @@ impl Engine<'_> {
             return Ok(());
         }
         for item in &module.items {
+            self.budget.context.origin = self.traits.origin(item, &mut self.budget)?;
             self.budget.node(item.span, 0)?;
             let ItemKind::Trait(declaration) = &item.kind else {
                 continue;
@@ -454,6 +455,10 @@ impl Engine<'_> {
             check::validate_parametric_with_bounds(
                 &checked,
                 check::ParametricTables {
+                    source_definition: Some(&checked),
+                    definition_equations: (self.traits.has_generic_methods
+                        && !equations.is_empty())
+                    .then_some(equations),
                     nominals: &self.nominals,
                     enums: &self.enums,
                     signatures: &self.signatures,

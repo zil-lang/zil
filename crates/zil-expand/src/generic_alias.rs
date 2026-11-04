@@ -15,6 +15,20 @@ pub(super) fn reserved_declaration_name(name: &str) -> bool {
     )
 }
 
+pub(super) fn normalize_with_origins<'a>(
+    module: &Module,
+    budget: Budget<'a>,
+    origins: Option<&mut super::origins::Origins>,
+) -> R<(Option<Normalized>, Budget<'a>)> {
+    let (normalized, mut budget) = normalize_with_budget(module, budget)?;
+    if normalized.is_some()
+        && let Some(origins) = origins
+    {
+        origins.aliases(module, &mut budget)?;
+    }
+    Ok((normalized, budget))
+}
+
 pub(super) fn normalize_with_budget<'a>(
     module: &Module,
     mut budget: Budget<'a>,

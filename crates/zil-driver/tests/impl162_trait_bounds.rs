@@ -15,6 +15,78 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances() {
+    native_both(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/terminal/341/generic-method-no-outer.zil"),
+    )]);
+
+    native_both(&[(
+        "main",
+        "trait Run{fn pick<T:Copy>(self:&Self,x:T)->i32;fn run(self:&Self)->i32{return self.pick(true)}}struct P{}impl Run for P{fn pick<T:Copy>(x:T)->i32{return 7}}fn main()->i32{let p=P{};return p.run()-7}",
+    )]);
+    native_both(&[(
+        "main",
+        "trait Run{fn pick<T:Copy>(self:&Self,x:T)->i32;fn run(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Run for Box<T>{fn pick<U:Copy>(x:U)->i32{return 7}fn run()->i32{return self.pick(true)}}fn main()->i32{let p=Box::<bool>{value:true};return p.run()-7}",
+    )]);
+
+    native_both(&[(
+        "main",
+        include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+    )]);
+    native_both(&[(
+        "main",
+        "struct P{n:i32}trait Change{fn set<T:Copy>(self:&mut Self,x:T)->i32;}impl Change for P{fn set<T:Copy>(x:T)->i32{.n=.n+1;return .n}}fn update<V:Change>(p:&mut V)->i32{return p.set(true)}fn main()->i32{var p=P{n:6};return update(&mut p)-7}",
+    )]);
+    native_both(&[
+        (
+            "main",
+            "import api;import data;fn main()->i32{let p=data.Point{};return api.apply(&p)-7}",
+        ),
+        (
+            "api",
+            "fn helper()->i32{return 7}trait Hidden{fn mark(self:&Self)->i32;}pub trait Read<Tag:Copy>{fn read<T:Copy>(self:&Self,x:T)->i32{return helper()}}pub fn apply<V:Read<bool>>(p:&V)->i32{return p.read(true)}",
+        ),
+        (
+            "data",
+            "import api;pub struct Point{}fn helper()->i32{return 99}impl api.Read<bool> for Point{}",
+        ),
+    ]);
+    native_both(&[
+        (
+            "main",
+            "import api;import data;fn main()->i32{let p=data.Point{};return p.read(api.Token{})-7}",
+        ),
+        (
+            "api",
+            "fn helper()->i32{return 7}trait Hidden{}pub struct Token{}impl Hidden for Token{}pub trait Read{fn read<T:Hidden>(self:&Self,x:T)->i32{return helper()}}",
+        ),
+        (
+            "data",
+            "import api;trait Hidden{fn hidden<T:Copy>(self:&Self,x:T)->i32;}pub struct Point{}impl Hidden for Point{fn hidden<T:Copy>(x:T)->i32{return 99}}impl api.Read for Point{}",
+        ),
+    ]);
+    native_both(&[
+        (
+            "main",
+            "import a;import b;import data;fn main()->i32{let p=data.Point{};return a.apply(&p)+b.apply(&p)-18}",
+        ),
+        (
+            "a",
+            "pub trait Read<Tag>{fn read<T:Copy>(self:&Self,x:T)->i32;}pub fn apply<V:Read<bool>>(p:&V)->i32{return p.read(true)}",
+        ),
+        (
+            "b",
+            "pub trait Read<Tag>{fn read<T:Copy>(self:&Self,x:T)->i32;}pub fn apply<V:Read<bool>>(p:&V)->i32{return p.read(true)}",
+        ),
+        (
+            "data",
+            "import a;import b;pub struct Point{}impl a.Read<bool> for Point{fn read<T:Copy>(x:T)->i32{return 7}}impl b.Read<bool> for Point{fn read<T:Copy>(x:T)->i32{return 11}}",
+        ),
+    ]);
+}
+
+#[test]
 fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
     use zil_syntax::ast::ItemKind;
     let unit = source(include_str!(
@@ -271,6 +343,84 @@ fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
             report.to_json()
         );
     }
+}
+
+#[test]
+fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
+    use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
+    let unit = source(include_str!(
+        "../../../tests/language-readiness/terminal/341/generic-method-shared-spans.zil"
+    ));
+    let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let function = ast
+        .items
+        .iter_mut()
+        .find_map(|item| match &mut item.kind {
+            ItemKind::Function(f) if f.name == "choose" => Some(f),
+            _ => None,
+        })
+        .unwrap();
+    let FunctionBody::Block(block) = &mut function.body else {
+        unreachable!()
+    };
+    let StmtKind::Return(Some(expression)) = &mut block.statements[0].kind else {
+        unreachable!()
+    };
+    let ExprKind::Binary { left, right, .. } = &mut expression.kind else {
+        unreachable!()
+    };
+    fn receiver(expression: &mut zil_syntax::ast::Expr) -> &mut zil_syntax::ast::Expr {
+        let ExprKind::Call { callee, .. } = &mut expression.kind else {
+            unreachable!()
+        };
+        let ExprKind::Member { object, .. } = &mut callee.kind else {
+            unreachable!()
+        };
+        object
+    }
+    receiver(right).span = receiver(left).span;
+    let positions = ast
+        .items
+        .iter()
+        .enumerate()
+        .filter_map(|(position, item)| matches!(item.kind, ItemKind::Impl(_)).then_some(position))
+        .collect::<Vec<_>>();
+    let first_impl_span = ast.items[positions[0]].span;
+    let ItemKind::Impl(first_impl) = &ast.items[positions[0]].kind else {
+        unreachable!()
+    };
+    let first_member_span = first_impl.members[0].span;
+    let ItemKind::Function(first_method) = &first_impl.members[0].kind else {
+        unreachable!()
+    };
+    let first_function_span = first_method.span;
+    ast.items[positions[1]].span = first_impl_span;
+    let ItemKind::Impl(second_impl) = &mut ast.items[positions[1]].kind else {
+        unreachable!()
+    };
+    second_impl.members[0].span = first_member_span;
+    let ItemKind::Function(second_method) = &mut second_impl.members[0].kind else {
+        unreachable!()
+    };
+    second_method.span = first_function_span;
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    let verified = zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    native_verified(&verified);
 }
 
 #[test]
@@ -915,6 +1065,16 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("associated-constants", associated_constants_source),
         ("associated-constant-computed", computed_constants_source),
         ("ct-generic-type-syntax-reflection", ct_source),
+        (
+            "generic-method-no-outer",
+            include_str!(
+                "../../../tests/language-readiness/terminal/341/generic-method-no-outer.zil"
+            ),
+        ),
+        (
+            "generic-methods",
+            include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+        ),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {

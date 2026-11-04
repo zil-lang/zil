@@ -16,6 +16,8 @@ pub(super) use trait_instances::Bound;
 pub(super) type Bounds = BTreeMap<String, Vec<Bound>>;
 
 pub(super) struct Index<'a> {
+    items: &'a [Item],
+    origins: Option<&'a origins::Origins>,
     declarations: BTreeMap<&'a str, (&'a Item, &'a TraitDecl)>,
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
@@ -23,6 +25,7 @@ pub(super) struct Index<'a> {
     has_supertraits: bool,
     pub(super) has_associated: bool,
     pub(super) has_constants: bool,
+    pub(super) has_generic_methods: bool,
     references: BTreeMap<trait_instances::Key, trait_instances::Reference>,
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
@@ -106,12 +109,41 @@ fn prepay_shadow(
 
 impl<'a> Index<'a> {
     pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
-        Self::build(module, budget, true)
+        Self::build(module, None, budget, true)
     }
     pub(super) fn declarations_only(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
-        Self::build(module, budget, false)
+        Self::build(module, None, budget, false)
     }
-    fn build(module: &'a Module, budget: &mut Budget<'_>, validate: bool) -> R<Self> {
+    pub(super) fn declarations_with_origins(
+        module: &'a Module,
+        origins: Option<&'a origins::Origins>,
+        budget: &mut Budget<'_>,
+    ) -> R<Self> {
+        Self::build(module, origins, budget, false)
+    }
+    pub(super) fn with_origins(
+        module: &'a Module,
+        origins: Option<&'a origins::Origins>,
+        budget: &mut Budget<'_>,
+    ) -> R<Self> {
+        Self::build(module, origins, budget, true)
+    }
+    fn build(
+        module: &'a Module,
+        origins: Option<&'a origins::Origins>,
+        budget: &mut Budget<'_>,
+        validate: bool,
+    ) -> R<Self> {
+        budget.with_origin(budget.context.origin, |budget| {
+            Self::build_inner(module, origins, budget, validate)
+        })
+    }
+    fn build_inner(
+        module: &'a Module,
+        origins: Option<&'a origins::Origins>,
+        budget: &mut Budget<'_>,
+        validate: bool,
+    ) -> R<Self> {
         let mut declarations = BTreeMap::new();
         let implementations = BTreeSet::new();
         let mut has_instances = false;
@@ -119,6 +151,7 @@ impl<'a> Index<'a> {
         let mut has_supertraits = false;
         let mut has_associated = false;
         let mut has_constants = false;
+        let mut has_generic_methods = false;
         let mut nominals = BTreeMap::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
@@ -146,7 +179,9 @@ impl<'a> Index<'a> {
                     has_instances = true;
                 }
                 ItemKind::Trait(declaration) => {
-                    let (defaults, associated) = trait_defaults::features(declaration, budget)?;
+                    let (defaults, associated, methods) =
+                        trait_defaults::features_with_methods(declaration, budget)?;
+                    has_generic_methods |= methods;
                     has_associated |= associated;
                     if associated {
                         for member in &declaration.members {
@@ -159,6 +194,7 @@ impl<'a> Index<'a> {
                     has_instances |= !declaration.generics.is_empty()
                         || defaults
                         || associated
+                        || methods
                         || !declaration.bounds.is_empty();
                     if declarations
                         .insert(declaration.name.as_str(), (item, declaration))
@@ -176,6 +212,8 @@ impl<'a> Index<'a> {
             }
         }
         let mut index = Self {
+            items: &module.items,
+            origins,
             declarations,
             implementations,
             nominals,
@@ -184,6 +222,7 @@ impl<'a> Index<'a> {
             has_supertraits,
             has_associated,
             has_constants,
+            has_generic_methods,
             references: BTreeMap::new(),
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
@@ -191,10 +230,12 @@ impl<'a> Index<'a> {
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
+                budget.context.origin = index.origin(item, budget)?;
                 if !declaration.generics.is_empty()
                     || has_defaults
                     || has_supertraits
                     || has_associated
+                    || has_generic_methods
                 {
                     trait_instances::validate_declaration(
                         item,
@@ -260,11 +301,22 @@ impl<'a> Index<'a> {
                             )?;
                         }
                         if let ItemKind::Function(method) = &member.kind {
+                            let scope =
+                                if method.generics.is_empty() && method.where_clause.is_empty() {
+                                    None
+                                } else {
+                                    Some(index.method_scope(method, &bounds, &variables, budget)?)
+                                };
+                            let (bounds, variables) = scope
+                                .as_ref()
+                                .map_or((&bounds, &variables), |(bounds, variables)| {
+                                    (bounds, variables)
+                                });
                             for parameter in &method.params {
                                 index.store_types(
                                     &parameter.ty,
-                                    &bounds,
-                                    &variables,
+                                    bounds,
+                                    variables,
                                     budget,
                                     callable::StoreCallbacks::None,
                                 )?;
@@ -272,8 +324,8 @@ impl<'a> Index<'a> {
                             if let Some(result) = &method.return_type {
                                 index.store_types(
                                     result,
-                                    &bounds,
-                                    &variables,
+                                    bounds,
+                                    variables,
                                     budget,
                                     callable::StoreCallbacks::None,
                                 )?;
@@ -283,7 +335,10 @@ impl<'a> Index<'a> {
                 }
             }
         }
-        for item in &module.items {
+        for (ordinal, item) in module.items.iter().enumerate() {
+            budget.context.origin = origins
+                .map(|origins| origins.get(ordinal, item.span))
+                .transpose()?;
             if !validate {
                 continue;
             }
@@ -327,8 +382,9 @@ impl<'a> Index<'a> {
                 index.references.insert(key, reference);
             }
         }
-        if validate && (!index.recipes.is_empty() || has_associated) {
+        if validate && (!index.recipes.is_empty() || has_associated || has_generic_methods) {
             for (item, declaration) in index.declarations.values() {
+                budget.context.origin = index.origin(item, budget)?;
                 trait_instances::validate_declaration(item, declaration, &index.nominals, budget)?;
             }
             // In mixed concrete/generic programs every source impl remains a
@@ -361,6 +417,7 @@ impl<'a> Index<'a> {
         }
         if validate && !index.recipes.is_empty() {
             for item in &index.recipes {
+                budget.context.origin = index.origin(item, budget)?;
                 let ItemKind::Impl(i) = &item.kind else {
                     unreachable!()
                 };
@@ -410,7 +467,18 @@ impl<'a> Index<'a> {
                 format!("generic bound {name} is not a declared nominal trait"),
             )
         })?;
-        if !item.public && item.span.file != bound.span.file {
+        let foreign = if self.origins.is_some() {
+            let owner = self
+                .origin(item, budget)?
+                .ok_or_else(|| error(bound.span, "trait declaration owner absent"))?;
+            budget
+                .context
+                .origin
+                .is_none_or(|caller| caller.declaration.module != owner.declaration.module)
+        } else {
+            item.span.file != bound.span.file
+        };
+        if !item.public && foreign {
             return Err(Diagnostic::error(
                 Phase::Expand,
                 "E-MODULE-PRIVATE",
@@ -440,10 +508,7 @@ impl<'a> Index<'a> {
                     "associated trait items require the full trait solver",
                 ));
             };
-            if !method.generics.is_empty()
-                || !method.where_clause.is_empty()
-                || !method.contract.is_empty()
-            {
+            if !method.contract.is_empty() {
                 return Err(unsupported(
                     method.span,
                     "generic or contract-bearing trait method",
@@ -496,7 +561,127 @@ impl<'a> Index<'a> {
     }
     pub(super) fn bounds(&self, function: &Function, budget: &mut Budget<'_>) -> R<Bounds> {
         let callable = callable::template(function)?;
-        self.parameter_bounds_except(&function.generics, budget, callable.as_ref())
+        let mut bounds =
+            self.parameter_bounds_except(&function.generics, budget, callable.as_ref())?;
+        if !function.where_clause.is_empty() {
+            let mut variables = BTreeSet::new();
+            for parameter in type_parameters(function) {
+                budget.node(parameter.span, 0)?;
+                budget.text(&parameter.name, parameter.span)?;
+                variables.insert(parameter.name.clone());
+            }
+            self.where_assumptions(&function.where_clause, &mut bounds, &variables, budget)?;
+        }
+        Ok(bounds)
+    }
+
+    pub(crate) fn where_assumptions(
+        &self,
+        clauses: &[BoundClause],
+        bounds: &mut Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        for clause in clauses {
+            budget.node(clause.span, 0)?;
+            if clause.lifetime_bound.is_some() {
+                return Err(unsupported(clause.span, "method lifetime where relation"));
+            }
+            let BoundSubject::Type(subject) = &clause.subject else {
+                return Err(unsupported(clause.span, "method where subject"));
+            };
+            self.add_subject_bounds(subject, &clause.bounds, bounds, variables, budget)?;
+            if let Some(name) = plain(subject).filter(|name| variables.contains(*name)) {
+                let key = subject_key(subject, budget)?;
+                if let Some(supplied) = bounds.remove(&key) {
+                    budget.text(name, subject.span)?;
+                    bounds.entry(name.to_owned()).or_default().extend(supplied);
+                }
+            }
+        }
+        Ok(())
+    }
+    fn method_scope(
+        &self,
+        method: &Function,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<(Bounds, BTreeSet<String>)> {
+        let mut parameters = Vec::new();
+        for name in variables {
+            budget.node(method.span, 0)?;
+            budget.text(name, method.span)?;
+            let mut declared = Vec::new();
+            for bound in available.get(name).into_iter().flatten() {
+                budget.node(method.span, 0)?;
+                declared.push(match bound {
+                    Bound::Copy => {
+                        budget.text(copy::BOUND, method.span)?;
+                        named(copy::BOUND, method.span)
+                    }
+                    Bound::StoreElement => {
+                        budget.text(stores::BOUND, method.span)?;
+                        named(stores::BOUND, method.span)
+                    }
+                    Bound::Nominal(reference) => {
+                        associated::application(reference, budget, method.span)?
+                    }
+                });
+            }
+            parameters.push(GenericParam {
+                name: name.clone(),
+                kind: GenericParamKind::Type(declared),
+                span: method.span,
+            });
+        }
+        for parameter in &method.generics {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            match &parameter.kind {
+                GenericParamKind::Type(bounds) => {
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                    }
+                }
+                GenericParamKind::Const(ty) => budget.ty(ty)?,
+                GenericParamKind::Lifetime => {}
+            }
+            parameters.push(parameter.clone());
+        }
+        let mut bounds = self.parameter_bounds(&parameters, budget)?;
+        for (name, supplied) in available {
+            if !name.starts_with('\0') {
+                continue;
+            }
+            budget.node(method.span, 0)?;
+            budget.text(name, method.span)?;
+            for bound in supplied {
+                budget.node(method.span, 0)?;
+                if let Bound::Nominal(reference) = bound {
+                    trait_instances::copy_key(&reference.key, budget, method.span)?;
+                    for argument in &reference.arguments {
+                        budget.ty(argument)?;
+                    }
+                }
+            }
+            bounds
+                .entry(name.clone())
+                .or_default()
+                .extend(supplied.clone());
+        }
+        let mut names = BTreeSet::new();
+        for name in variables {
+            budget.text(name, method.span)?;
+            names.insert(name.clone());
+        }
+        for parameter in type_parameters(method) {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            names.insert(parameter.name.clone());
+        }
+        self.where_assumptions(&method.where_clause, &mut bounds, &names, budget)?;
+        Ok((bounds, names))
     }
 
     pub(super) fn parameter_bounds(
@@ -740,9 +925,14 @@ impl<'a> Index<'a> {
                     }
                     let mut method =
                         trait_instances::signature(declaration, member, reference, budget)?;
-                    if !reference.arguments.is_empty() {
-                        method.to_mut().name =
-                            trait_instances::method_name(reference, name, budget, span)?;
+                    if !reference.arguments.is_empty() || !method.generics.is_empty() {
+                        let generic = !method.generics.is_empty();
+                        if reference.arguments.is_empty() && generic {
+                            budget.item(member)?;
+                        }
+                        method.to_mut().name = trait_instances::method_name_with(
+                            reference, name, generic, budget, span,
+                        )?;
                     }
                     selected = Some(method);
                 }
@@ -779,7 +969,10 @@ impl<'a> Index<'a> {
             let Bound::Nominal(reference) = bound else {
                 continue;
             };
-            if trait_instances::method_name(reference, member, budget, span)? != target {
+            if trait_instances::method_name(reference, member, budget, span)? != target
+                && trait_instances::method_name_with(reference, member, true, budget, span)?
+                    != target
+            {
                 continue;
             }
             trait_instances::copy_key(&reference.key, budget, span)?;
@@ -802,6 +995,55 @@ impl<'a> Index<'a> {
         reference: &trait_instances::Reference,
     ) -> (&'a Item, &'a TraitDecl) {
         self.declarations[reference.key.name.as_str()]
+    }
+    pub(super) fn declaration_ordinal(
+        &self,
+        owner: &Item,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<usize> {
+        for (ordinal, item) in self.items.iter().enumerate() {
+            budget.node(item.span, 0)?;
+            if std::ptr::eq(item, owner) {
+                return Ok(ordinal);
+            }
+        }
+        Err(error(span, "generic method lost its declaration ordinal"))
+    }
+    pub(super) fn function_origin(
+        &self,
+        function: &Function,
+        budget: &mut Budget<'_>,
+    ) -> R<Option<origins::Origin>> {
+        let Some(origins) = self.origins else {
+            return Ok(None);
+        };
+        for (ordinal, item) in self.items.iter().enumerate() {
+            budget.node(item.span, 0)?;
+            if let ItemKind::Function(candidate) = &item.kind {
+                budget.text(&candidate.name, item.span)?;
+                budget.text(&function.name, function.span)?;
+                if candidate.name == function.name {
+                    return origins.get(ordinal, item.span).map(Some);
+                }
+            }
+        }
+        Err(error(function.span, "function declaration origin absent"))
+    }
+    pub(super) fn origin(
+        &self,
+        item: &Item,
+        budget: &mut Budget<'_>,
+    ) -> R<Option<origins::Origin>> {
+        let Some(origins) = self.origins else {
+            return Ok(None);
+        };
+        origins
+            .get(
+                self.declaration_ordinal(item, budget, item.span)?,
+                item.span,
+            )
+            .map(Some)
     }
     fn actual_reference(
         &self,

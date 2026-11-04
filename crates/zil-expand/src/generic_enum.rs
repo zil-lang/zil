@@ -635,6 +635,7 @@ impl Engine<'_> {
         if env.contains_key(name) {
             return Ok(None);
         }
+        let provider = self.provider(name, callee.span)?;
         let expected = expected.map(|ty| self.original_type(ty)).transpose()?;
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
@@ -644,7 +645,9 @@ impl Engine<'_> {
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != consts::parameters(f).count() {
+            if args.len() != consts::parameters(f).count()
+                && !(provider && args.len() < consts::parameters(f).count())
+            {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
             for (p, a) in consts::parameters(f).zip(args) {

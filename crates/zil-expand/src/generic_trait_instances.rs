@@ -2,11 +2,30 @@
 //! the ordinary static collector, Types, Analyze and independent Verify.
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub(crate) struct Key {
     pub declaration: Span,
     pub name: String,
     pub arguments: Vec<String>,
+}
+// `name` is the unique declaration symbol registered by the actual input
+// module normalizer, including its module qualification. Source coordinates
+// remain diagnostic data and never participate in semantic equality or hashing.
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.arguments == other.arguments
+    }
+}
+impl Eq for Key {}
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Key {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (&self.name, &self.arguments).cmp(&(&other.name, &other.arguments))
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Reference {
@@ -19,6 +38,16 @@ pub(crate) enum Bound {
     StoreElement,
     Nominal(Reference),
 }
+impl PartialEq for Bound {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Copy, Self::Copy) | (Self::StoreElement, Self::StoreElement) => true,
+            (Self::Nominal(a), Self::Nominal(b)) => a.key == b.key,
+            _ => false,
+        }
+    }
+}
+impl Eq for Bound {}
 impl PartialEq<str> for Bound {
     fn eq(&self, other: &str) -> bool {
         matches!(
@@ -35,6 +64,7 @@ impl PartialEq<&str> for Bound {
 pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
+    pub generic: bool,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -111,18 +141,25 @@ pub(crate) fn method_name(
     budget: &mut Budget<'_>,
     span: Span,
 ) -> R<String> {
-    if reference.arguments.is_empty() {
+    method_name_with(reference, method, false, budget, span)
+}
+pub(crate) fn method_name_with(
+    reference: &Reference,
+    method: &str,
+    generic: bool,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<String> {
+    if reference.arguments.is_empty() && !generic {
         budget.text(method, span)?;
         return Ok(method.to_owned());
     }
     use zil_base::FingerprintBuilder;
     budget.text(&reference.key.name, span)?;
     let mut hash = FingerprintBuilder::new();
-    hash.update(b"zil/trait-instance-method/v1\0");
+    hash.update(b"zil/trait-instance-method/v2\0");
+    hash.update(&(reference.key.name.len() as u64).to_le_bytes());
     hash.update(reference.key.name.as_bytes());
-    hash.update(&(reference.key.declaration.file.0).to_le_bytes());
-    hash.update(&(reference.key.declaration.start as u64).to_le_bytes());
-    hash.update(&(reference.key.declaration.end as u64).to_le_bytes());
     for key in &reference.key.arguments {
         budget.text(key, span)?;
         hash.update(&(key.len() as u64).to_le_bytes());
@@ -162,14 +199,28 @@ pub(crate) fn signature<'a>(
     }
     budget.substituted_item(member, &substitutions)?;
     let mut result = method.clone();
-    let visitor = Substitution {
-        substitutions: &substitutions,
-    };
-    for p in &mut result.params {
-        visitor.ty(&mut p.ty);
-    }
-    if let Some(t) = &mut result.return_type {
-        visitor.ty(t);
+    if method.generics.is_empty() && method.where_clause.is_empty() {
+        let visitor = Substitution {
+            substitutions: &substitutions,
+        };
+        for parameter in &mut result.params {
+            visitor.ty(&mut parameter.ty);
+        }
+        if let Some(ty) = &mut result.return_type {
+            visitor.ty(ty);
+        }
+    } else {
+        let mut item = Item {
+            span: member.span,
+            public: false,
+            attributes: vec![],
+            kind: ItemKind::Function(result),
+        };
+        substitute_item(&mut item, &substitutions)?;
+        let ItemKind::Function(function) = item.kind else {
+            unreachable!()
+        };
+        result = function;
     }
     Ok(Cow::Owned(result))
 }
@@ -254,20 +305,59 @@ pub(crate) fn validate_declaration(
                 "associated trait items require their solver",
             ));
         };
-        if !method.generics.is_empty()
-            || !method.where_clause.is_empty()
-            || !method.contract.is_empty()
-        {
+        if !method.contract.is_empty() {
             return Err(unsupported(
                 member.span,
                 "generic or contract-bearing trait method",
             ));
         }
-        for parameter in &method.params {
-            known_type(&parameter.ty, &variables, nominals, budget, 0)?;
+        let mut method_variables = Cow::Borrowed(&variables);
+        for parameter in &method.generics {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            match &parameter.kind {
+                GenericParamKind::Type(bounds) => {
+                    if matches!(method_variables, Cow::Borrowed(_)) {
+                        for name in &variables {
+                            budget.text(name, member.span)?;
+                        }
+                    }
+                    if !method_variables.to_mut().insert(parameter.name.clone()) {
+                        return Err(error(parameter.span, "duplicate method type binder"));
+                    }
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                    }
+                }
+                GenericParamKind::Const(ty) => {
+                    consts::domain(ty)?;
+                    budget.ty(ty)?;
+                }
+                GenericParamKind::Lifetime => {}
+            }
+        }
+        if !method.generics.is_empty()
+            && let Some(receiver) = method.params.first().filter(|p| p.name == "self")
+        {
+            budget.ty(&receiver.ty)?;
+            if receiver.give || !super::super::static_traits::receiver_type(&receiver.ty) {
+                return Err(error(
+                    receiver.span,
+                    "trait receiver requires Self, &Self or &mut Self",
+                ));
+            }
+        }
+        for (index, parameter) in method.params.iter().enumerate() {
+            if !method.generics.is_empty() && index > 0 && parameter.name == "self" {
+                return Err(error(
+                    parameter.span,
+                    "trait receiver must be parameter zero",
+                ));
+            }
+            known_type(&parameter.ty, &method_variables, nominals, budget, 0)?;
         }
         if let Some(result) = &method.return_type {
-            known_type(result, &variables, nominals, budget, 0)?;
+            known_type(result, &method_variables, nominals, budget, 0)?;
         }
     }
     Ok(())
@@ -426,6 +516,41 @@ pub(crate) fn expression_ids(
     Ok(visitor.ids)
 }
 
+pub(crate) fn resolve_generic_calls(
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<CallTargets> {
+    let mut resolved = BTreeMap::new();
+    for (ordinal, target) in symbolic {
+        budget.node(span, 0)?;
+        if !target.generic {
+            continue;
+        }
+        let mut reference = Reference {
+            key: copy_key(&target.reference.key, budget, span)?,
+            arguments: Vec::new(),
+        };
+        reference.key.arguments.clear();
+        for argument in &target.reference.arguments {
+            let argument = super::enums::substituted(argument, substitutions, budget)?;
+            reference.key.arguments.push(type_key(&argument, budget)?);
+            reference.arguments.push(argument);
+        }
+        budget.text(&target.member, span)?;
+        resolved.insert(
+            *ordinal,
+            CallTarget {
+                reference,
+                member: target.member.clone(),
+                generic: true,
+            },
+        );
+    }
+    Ok(resolved)
+}
+
 pub(crate) fn rewrite_calls(
     item: &mut Item,
     symbolic: &CallTargets,
@@ -447,7 +572,13 @@ pub(crate) fn rewrite_calls(
             reference.key.arguments.push(type_key(&argument, budget)?);
             reference.arguments.push(argument);
         }
-        let name = method_name(&reference, &target.member, budget, item.span)?;
+        let name = method_name_with(
+            &reference,
+            &target.member,
+            target.generic,
+            budget,
+            item.span,
+        )?;
         resolved.insert(*ordinal, name);
     }
     rewrite_resolved_calls(item, &resolved, budget)
@@ -782,6 +913,8 @@ mod trait_request_ledger {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine_products,
+            false,
+            false,
         )
         .unwrap();
         let engine_left = engine_products.allowance.unwrap();

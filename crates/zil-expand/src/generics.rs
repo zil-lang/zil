@@ -26,6 +26,8 @@ mod enums;
 mod helper_graph;
 #[path = "generic_options.rs"]
 mod options;
+#[path = "generic_origins.rs"]
+pub(super) mod origins;
 #[path = "generic_products.rs"]
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
@@ -44,6 +46,8 @@ pub(super) mod trait_defaults;
 mod trait_impls;
 #[path = "generic_trait_instances.rs"]
 pub(super) mod trait_instances;
+#[path = "generic_trait_methods.rs"]
+mod trait_methods;
 #[path = "generic_where.rs"]
 mod where_copy;
 
@@ -77,9 +81,9 @@ pub(super) fn specialize_products<'a>(
 ) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products)
+        Some(prepared) => specialize_products_prepared(&prepared, &remaining, products, true)
             .map(|module| Cow::Owned(module.into_owned())),
-        None => specialize_products_prepared(module, &remaining, products),
+        None => specialize_products_prepared(module, &remaining, products, false),
     }
 }
 
@@ -87,6 +91,7 @@ fn specialize_products_prepared<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
+    inserted_option: bool,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
@@ -94,6 +99,7 @@ fn specialize_products_prepared<'a>(
     let mut has_where = false;
     let mut has_defaults = false;
     let mut has_associated = false;
+    let mut has_generic_methods = false;
     let mut has_impl_recipes = false;
     let mut has_alias = false;
     for item in &module.items {
@@ -102,8 +108,10 @@ fn specialize_products_prepared<'a>(
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
         if let ItemKind::Trait(declaration) = &item.kind {
-            let (defaults, associated) =
-                trait_defaults::features(declaration, &mut names_budget).map_err(|e| vec![e])?;
+            let (defaults, associated, methods) =
+                trait_defaults::features_with_methods(declaration, &mut names_budget)
+                    .map_err(|e| vec![e])?;
+            has_generic_methods |= methods;
             has_associated |= associated;
             has_defaults |= defaults || associated;
             has_defaults |= !declaration.bounds.is_empty();
@@ -153,6 +161,20 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
+    if has_generic_methods {
+        if let Some(origins) = &mut products.origins {
+            if inserted_option {
+                origins
+                    .insert_option(module, &mut names_budget)
+                    .map_err(|e| vec![e])?;
+            }
+        } else {
+            products.origins = Some(
+                origins::Origins::single(module, inserted_option, &mut names_budget)
+                    .map_err(|e| vec![e])?,
+            );
+        }
+    }
     if names_budget.has_primitive_binders() && !has_alias {
         // The existing scoped normalizer also protects aliases. Without an
         // alias, trigger it only for actual builtin/type-binder collisions.
@@ -177,6 +199,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -184,7 +207,8 @@ fn specialize_products_prepared<'a>(
     if has_where {
         let normalized = where_copy::normalize(module, &mut names_budget).map_err(|e| vec![e])?;
         let (aliased, budget) =
-            aliases::normalize_with_budget(&normalized, names_budget).map_err(|e| vec![e])?;
+            aliases::normalize_with_origins(&normalized, names_budget, products.origins.as_mut())
+                .map_err(|e| vec![e])?;
         return match aliased {
             Some(aliased) => specialize_with_budget(
                 &aliased.module,
@@ -193,6 +217,7 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+                has_generic_methods,
             ),
             None => specialize_with_budget(
                 &normalized,
@@ -201,13 +226,15 @@ fn specialize_products_prepared<'a>(
                 budget,
                 products,
                 has_associated,
+                has_generic_methods,
             ),
         }
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
     }
     let (normalized, names_budget) =
-        aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
+        aliases::normalize_with_origins(module, names_budget, products.origins.as_mut())
+            .map_err(|e| vec![e])?;
     if let Some(normalized) = normalized {
         if normalized
             .module
@@ -216,6 +243,7 @@ fn specialize_products_prepared<'a>(
             .all(|item| params(item).is_empty())
             && !has_defaults
             && !has_impl_recipes
+            && !has_generic_methods
             && !normalized
                 .module
                 .items
@@ -232,6 +260,7 @@ fn specialize_products_prepared<'a>(
             names_budget,
             products,
             has_associated,
+            has_generic_methods,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -239,6 +268,7 @@ fn specialize_products_prepared<'a>(
     if module.items.iter().all(|item| params(item).is_empty())
         && !has_defaults
         && !has_impl_recipes
+        && !has_generic_methods
         && !module
             .items
             .iter()
@@ -254,6 +284,7 @@ fn specialize_products_prepared<'a>(
         names_budget,
         products,
         has_associated,
+        has_generic_methods,
     )
     .map(Cow::Owned)
     .map_err(|error| vec![error])
@@ -266,10 +297,23 @@ fn specialize_with_budget<'a>(
     mut budget: Budget<'a>,
     products: &mut products::Products,
     has_associated: bool,
+    has_generic_methods: bool,
 ) -> R<Module> {
-    let prepared = trait_bounds::associated::prepare(module, has_associated, &mut budget)?;
+    let mut origins = products.origins.take();
+    let methods =
+        trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
+    let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
+    let prepared = trait_bounds::associated::prepare(
+        module,
+        has_associated,
+        methods.as_ref().map(|prepared| &prepared.bindings),
+        origins.as_ref(),
+        &mut budget,
+    )?;
     let module = prepared.as_ref().unwrap_or(module);
-    let mut engine = Engine::with_budget(module, limits, pattern_types, budget)?;
+    let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
+    let module = lifted.as_ref().unwrap_or(module);
+    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
     }
@@ -277,7 +321,13 @@ fn specialize_with_budget<'a>(
     // Protect actual nominal identities in the original, still-scoped AST,
     // before substituting a caller binder into those aggregate fields.
     let protected = super::modules::protect_alias_nominals(module, &mut engine.budget)?;
-    let mut engine = Engine::with_budget(&protected, limits, pattern_types, engine.budget)?;
+    let mut engine = Engine::with_budget(
+        &protected,
+        limits,
+        pattern_types,
+        origins.as_ref(),
+        engine.budget,
+    )?;
     if engine.nominal_binder_collision {
         return Err(error(
             module.span,
@@ -294,6 +344,8 @@ struct Engine<'a> {
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
     trait_calls: trait_instances::Calls,
+    resolved_method_calls: trait_instances::Calls,
+    method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
@@ -313,9 +365,13 @@ struct Engine<'a> {
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
     realized_references: Vec<(trait_instances::Reference, TypeRef)>,
     impl_definitions: BTreeMap<(usize, usize), String>,
+    impl_calls: BTreeMap<(usize, usize), trait_instances::CallTargets>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
-    pending: VecDeque<Item>,
+    pending: VecDeque<origins::Pending>,
+    origins: Option<&'a origins::Origins>,
+    current_origin: Option<origins::Origin>,
+    current_member_calls: BTreeMap<usize, trait_instances::CallTargets>,
     limits: &'a Limits,
     budget: Budget<'a>,
 }
@@ -363,13 +419,16 @@ impl<'a> Engine<'a> {
         module: &'a Module,
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
+        origins: Option<&'a origins::Origins>,
         mut budget: Budget<'a>,
     ) -> R<Self> {
-        let traits = trait_bounds::Index::new(module, &mut budget)?;
+        let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
             pattern_types,
             traits,
             trait_calls: trait_instances::Calls::new(),
+            resolved_method_calls: trait_instances::Calls::new(),
+            method_calls: trait_instances::CallTargets::new(),
             templates: BTreeMap::new(),
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
@@ -392,9 +451,13 @@ impl<'a> Engine<'a> {
             realized_impls: BTreeSet::new(),
             realized_references: Vec::new(),
             impl_definitions: BTreeMap::new(),
+            impl_calls: BTreeMap::new(),
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
             pending: VecDeque::new(),
+            origins,
+            current_origin: None,
+            current_member_calls: BTreeMap::new(),
             limits,
             budget,
         };
@@ -467,6 +530,7 @@ impl<'a> Engine<'a> {
         }
         let mut helper_dependencies = helper_graph::Dependencies::default();
         for item in engine.templates.values() {
+            engine.budget.context.origin = engine.traits.origin(item, &mut engine.budget)?;
             if !item.attributes.is_empty() {
                 return Err(unsupported(
                     item.span,
@@ -538,7 +602,13 @@ impl<'a> Engine<'a> {
                         "unexecuted generic parameter attribute",
                     ));
                 }
-                if !f.where_clause.is_empty() {
+                if !f.where_clause.is_empty()
+                    && !engine
+                        .budget
+                        .context
+                        .origin
+                        .is_some_and(|origin| origin.provider)
+                {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
@@ -546,6 +616,8 @@ impl<'a> Engine<'a> {
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
+                        source_definition: Some(f),
+                        definition_equations: None,
                         nominals: &engine.nominals,
                         enums: &engine.enums,
                         signatures: &engine.signatures,
@@ -630,7 +702,7 @@ impl<'a> Engine<'a> {
             span: module.span,
             items: vec![],
         };
-        for item in &module.items {
+        for (ordinal, item) in module.items.iter().enumerate() {
             if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()))
             {
                 continue;
@@ -640,13 +712,38 @@ impl<'a> Engine<'a> {
                     if callable::template(f)?.is_some_and(|bounds| f.generics.iter().all(|p| bounds.contains_generic(&p.name))))
             {
                 self.budget.item(item)?;
-                self.pending.push_back(item.clone());
+                self.enqueue(
+                    item.clone(),
+                    self.origins
+                        .map(|origins| origins.get(ordinal, item.span))
+                        .transpose()?,
+                )?;
+                if self.traits.has_generic_methods && matches!(item.kind, ItemKind::Impl(_)) {
+                    let calls = self.impl_method_calls(item, &BTreeMap::new())?;
+                    self.pending.back_mut().expect("just enqueued").member_calls = calls;
+                }
             }
         }
-        while let Some(mut item) = self.pending.pop_front() {
-            self.item(&mut item)?;
+        let mut output_origins = origins::Origins::default();
+        while let Some(origins::Pending {
+            mut item,
+            origin,
+            member_calls,
+        }) = self.pending.pop_front()
+        {
+            let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
+            let processed = self.with_origin(origin, |engine| engine.item(&mut item));
+            self.current_member_calls = previous;
+            processed?;
+            if self.origins.is_some() {
+                self.budget.node(item.span, 0)?;
+                output_origins
+                    .entries
+                    .push(origin.ok_or_else(|| error(item.span, "output provenance absent"))?);
+            }
             result.items.push(item);
         }
+        self.products.origins = self.origins.map(|_| output_origins);
         self.products.allowance = Some(self.budget.remaining_limits());
         *products = std::mem::take(&mut self.products);
         Ok(result)
@@ -819,22 +916,35 @@ impl<'a> Engine<'a> {
             product_bounds.insert(name.clone(), vec![trait_bounds::Bound::StoreElement]);
             product_variables.insert(name.clone());
         }
-        self.traits.check_arguments(
-            params(item),
-            &substitution,
-            (
-                &product_bounds,
-                &product_variables,
-                callable::StoreCallbacks::from_names(
-                    self.callable_name.as_deref(),
-                    self.callable_pair.as_ref(),
+        let origin = self.template_origin(item)?;
+        self.with_origin(origin, |engine| {
+            engine.traits.check_arguments(
+                params(item),
+                &substitution,
+                (
+                    &product_bounds,
+                    &product_variables,
+                    callable::StoreCallbacks::from_names(
+                        engine.callable_name.as_deref(),
+                        engine.callable_pair.as_ref(),
+                    ),
                 ),
-            ),
-            &mut self.budget,
-            span,
-            retained.as_ref(),
-        )?;
-        self.realize_bounds(params(item), &substitution, span)?;
+                &mut engine.budget,
+                span,
+                retained.as_ref(),
+            )?;
+            if let ItemKind::Function(function) = &item.kind {
+                engine.traits.check_where(
+                    &function.where_clause,
+                    &substitution,
+                    &product_bounds,
+                    &product_variables,
+                    &mut engine.budget,
+                )?;
+            }
+            engine.realize_bounds(params(item), &substitution, span)?;
+            Ok(())
+        })?;
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
@@ -842,6 +952,15 @@ impl<'a> Engine<'a> {
             && let Some(calls) = self.trait_calls.get(&f.name)
         {
             trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
+            if self.traits.has_generic_methods {
+                let calls = trait_instances::resolve_generic_calls(
+                    calls,
+                    &substitution,
+                    &mut self.budget,
+                    span,
+                )?;
+                self.resolved_method_calls.insert(generated.clone(), calls);
+            }
         }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
@@ -875,6 +994,7 @@ impl<'a> Engine<'a> {
                             .as_ref()
                             .is_some_and(|bound| bound.contains_generic(&parameter.name))
                 });
+                f.where_clause.clear();
                 f.name.clone_from(&generated);
                 self.signatures
                     .insert(generated.clone(), Cow::Owned(f.clone()));
@@ -892,7 +1012,8 @@ impl<'a> Engine<'a> {
         if let Some(arguments) = product_arguments {
             self.record_product(template, &generated, arguments, product_scope, span)?;
         }
-        self.pending.push_back(instance);
+        let origin = self.template_origin(item)?;
+        self.enqueue(instance, origin)?;
         Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
@@ -913,7 +1034,14 @@ impl<'a> Engine<'a> {
                     .then(|| self.templates.get(&path[0]).copied())
                     .flatten();
                 for (index, arg) in args.iter_mut().enumerate() {
-                    let parameter = declaration.and_then(|item| params(item).get(index));
+                    let parameter = declaration.and_then(|item| {
+                        params(item)
+                            .iter()
+                            .filter(|parameter| {
+                                !matches!(parameter.kind, GenericParamKind::Lifetime)
+                            })
+                            .nth(index)
+                    });
                     if let GenericArg::Type(value) = arg
                         && !parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
                     {
@@ -961,6 +1089,31 @@ impl<'a> Engine<'a> {
         Ok(())
     }
     fn item(&mut self, item: &mut Item) -> R<()> {
+        let mut frame = BTreeMap::new();
+        if self.traits.has_generic_methods
+            && let ItemKind::Function(function) = &item.kind
+            && let Some(calls) = self.resolved_method_calls.get(&function.name)
+        {
+            let ids = trait_instances::expression_ids(&function.body, &mut self.budget)?;
+            let mut resolved = trait_instances::resolve_generic_calls(
+                calls,
+                &BTreeMap::new(),
+                &mut self.budget,
+                item.span,
+            )?;
+            for (pointer, ordinal) in ids {
+                self.budget.node(item.span, 0)?;
+                if let Some(target) = resolved.remove(&ordinal) {
+                    frame.insert(pointer, target);
+                }
+            }
+        }
+        let previous = std::mem::replace(&mut self.method_calls, frame);
+        let result = self.item_inner(item);
+        self.method_calls = previous;
+        result
+    }
+    fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
                 let store_parameter = store_templates::parameter(f);
@@ -1143,6 +1296,9 @@ impl<'a> Engine<'a> {
                             let ItemKind::Function(actual) = &member.kind else {
                                 continue;
                             };
+                            if !actual.generics.is_empty() {
+                                continue;
+                            }
                             self.budget.text(&actual.name, member.span)?;
                             self.budget.node(member.span, 0)?;
                             if !implemented.insert(actual.name.as_str()) {
@@ -1247,14 +1403,59 @@ impl<'a> Engine<'a> {
                         }
                     }
                 }
-                for item in &mut i.members {
-                    self.item(item)?;
+                for (ordinal, item) in i.members.iter_mut().enumerate() {
+                    if matches!(&item.kind,ItemKind::Function(function) if !function.generics.is_empty())
+                    {
+                        continue;
+                    }
+                    let origin = self
+                        .current_origin
+                        .map(|origin| origin.member(ordinal, item.span))
+                        .transpose()?;
+                    let calls = self.current_member_calls.remove(&ordinal);
+                    let function_name = if calls.is_some() {
+                        if let ItemKind::Function(function) = &item.kind {
+                            self.budget.text(&function.name, item.span)?;
+                            Some(function.name.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    let previous = if let (Some(name), Some(calls)) = (&function_name, calls) {
+                        self.budget.text(name, item.span)?;
+                        self.resolved_method_calls.insert(name.clone(), calls)
+                    } else {
+                        None
+                    };
+                    let result = self.with_origin(origin, |engine| engine.item(item));
+                    if let Some(name) = function_name {
+                        if let Some(previous) = previous {
+                            self.resolved_method_calls.insert(name, previous);
+                        } else {
+                            self.resolved_method_calls.remove(&name);
+                        }
+                    }
+                    result?;
+                }
+                if self.traits.has_generic_methods {
+                    for member in &i.members {
+                        self.budget.node(member.span, 0)?;
+                    }
+                    i.members.retain(|member|!matches!(&member.kind,ItemKind::Function(function) if !function.generics.is_empty()));
                 }
                 if self.traits.has_associated {
                     i.members.retain(|member| {
                         !matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_))
                     });
                 }
+            }
+            ItemKind::Trait(declaration) if self.traits.has_generic_methods => {
+                for member in &declaration.members {
+                    self.budget.node(member.span, 0)?;
+                }
+                declaration.members.retain(|member|!matches!(&member.kind,ItemKind::Function(function) if !function.generics.is_empty()));
             }
             _ => {}
         }
@@ -1702,6 +1903,7 @@ impl<'a> Engine<'a> {
         depth: usize,
     ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
+        self.method_call(e, env, depth)?;
         if self.traits.has_constants
             && let ExprKind::Member {
                 object,
@@ -1887,14 +2089,15 @@ impl<'a> Engine<'a> {
                             member.clone_from(&target);
                             trait_signature = Some(signature);
                         }
-                        if trait_signature.is_none() && member.starts_with("$trait_") {
-                            if let Some(signature) = self.realized_method(
+                        if trait_signature.is_none()
+                            && member.starts_with("$trait_")
+                            && let Some(signature) = self.realized_method(
                                 projection_shape(&actual),
                                 member,
                                 callee.span,
-                            )? {
-                                trait_signature = Some(signature);
-                            }
+                            )?
+                        {
+                            trait_signature = Some(signature);
                         }
                         if trait_signature.is_none()
                             && !self.traits.recipes.is_empty()
@@ -2136,7 +2339,14 @@ impl<'a> Engine<'a> {
                             None
                         };
                         for (index, arg) in args.iter_mut().enumerate() {
-                            let parameter = declaration.and_then(|item| params(item).get(index));
+                            let parameter = declaration.and_then(|item| {
+                                params(item)
+                                    .iter()
+                                    .filter(|parameter| {
+                                        !matches!(parameter.kind, GenericParamKind::Lifetime)
+                                    })
+                                    .nth(index)
+                            });
                             if let GenericArg::Type(t) = arg
                                 && !parameter
                                     .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
@@ -2147,7 +2357,22 @@ impl<'a> Engine<'a> {
                                 types.push(consts::argument(arg, parameter, &mut self.budget)?);
                             }
                         }
-                        explicit = Some(types);
+                        let provider_prefix = if let ExprKind::Name(name) = &base.kind {
+                            self.provider(name, e.span)?
+                                && declaration.is_some_and(|item| {
+                                    types.len()
+                                        < params(item)
+                                            .iter()
+                                            .filter(|p| {
+                                                !matches!(p.kind, GenericParamKind::Lifetime)
+                                            })
+                                            .count()
+                                })
+                        } else {
+                            false
+                        };
+                        explicit = (!provider_prefix).then_some(types);
+                        contextual_constraints |= provider_prefix;
                         match &base.kind {
                             ExprKind::Name(n) if !env.contains_key(n) => Some(n.clone()),
                             _ => None,
@@ -2324,7 +2549,7 @@ impl<'a> Engine<'a> {
                                     &mut self.budget,
                                 )?;
                             }
-                            type_parameters(function)
+                            consts::parameters(function)
                                 .map(|p| {
                                     found.get(&p.name).cloned().ok_or_else(|| {
                                         error(
@@ -3280,6 +3505,15 @@ impl Substitution<'_> {
             *ty = value.clone();
             ty.span = span;
             return;
+        }
+        if let TypeKind::Named { path, .. } = &mut ty.kind
+            && path.len() > 1
+            && let Some(replacement) = self
+                .substitutions
+                .get(&path[0])
+                .and_then(trait_bounds::plain)
+        {
+            path[0] = replacement.to_owned();
         }
         match &mut ty.kind {
             TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
