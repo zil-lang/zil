@@ -158,10 +158,8 @@ pub(super) fn role<'a>(
                 for block in &f.blocks {
                     b.spend(block.instructions.len())?;
                     for i in &block.instructions {
-                        if i.result == Some(current) {
-                            if found.replace(&i.kind).is_some() {
-                                return Err(bad("callback receiver has duplicate definition"));
-                            }
+                        if i.result == Some(current) && found.replace(&i.kind).is_some() {
+                            return Err(bad("callback receiver has duplicate definition"));
                         }
                     }
                 }
@@ -194,6 +192,9 @@ pub(super) fn role<'a>(
 }
 
 pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budget) -> Check<()> {
+    if module.closures.is_empty() {
+        return Ok(());
+    }
     b.spend(module.functions.len())?;
     for f in &module.functions {
         if let Some(contract) = &f.callable_contract {
