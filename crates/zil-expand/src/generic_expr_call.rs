@@ -100,7 +100,7 @@ impl Engine<'_> {
             if let zil_ir::Constant::WideString(units) = &value {
                 self.budget.wide_units(units, e.span)?;
             }
-            return (Ok(Some(named(&value.ty().name(), e.span)))).map(Some);
+            return Ok(Some(Some(named(&value.ty().name(), e.span))));
         }
         if crate::foreign::bare_name(callee) == Some("c_callback") {
             return self.expr_call_callback(e, env, context, depth);
@@ -171,7 +171,7 @@ impl Engine<'_> {
             let arg = &mut arguments[index];
             let ty = self.expr_expected(&mut arg.value, env, hint.as_ref(), depth + 1)?;
 
-            self.expr_call_argument_result(arg, env, hint.as_ref(), ty, state, index, depth)?;
+            self.expr_call_argument_result(arg, env, (hint.as_ref(), ty), state, index, depth)?;
         }
         Ok(())
     }
@@ -250,12 +250,12 @@ impl Engine<'_> {
         &mut self,
         arg: &Argument,
         env: &mut Env,
-        hint: Option<&TypeRef>,
-        ty: Option<TypeRef>,
+        typed_argument: (Option<&TypeRef>, Option<TypeRef>),
         state: &mut CallArguments,
         index: usize,
         depth: usize,
     ) -> R<()> {
+        let (hint, ty) = typed_argument;
         let ty = if ty.is_none()
             && hint
                 .as_ref()
@@ -606,7 +606,7 @@ impl Engine<'_> {
             };
             self.expr_expected(&mut arguments[1].value, env, Some(&wanted), depth + 1)?;
         }
-        return (Ok(Some(stores::result(name, &element, span)))).map(Some);
+        Ok(Some(Some(stores::result(name, &element, span))))
     }
     fn expr_call_bytes(
         &mut self,
@@ -631,7 +631,7 @@ impl Engine<'_> {
             self.expr_expected(&mut argument.value, env, Some(parameter), depth + 1)?;
         }
         self.budget.ty(&result)?;
-        return (Ok(Some(result))).map(Some);
+        Ok(Some(Some(result)))
     }
     fn expr_call_callback(
         &mut self,
@@ -676,7 +676,7 @@ impl Engine<'_> {
         if let Some(result) = &function.return_type {
             self.budget.ty(result)?;
         }
-        return (crate::foreign::callback_syntax_type(function, e.span).map(Some)).map(Some);
+        (crate::foreign::callback_syntax_type(function, e.span).map(Some)).map(Some)
     }
     fn expr_call_conversion(
         &mut self,
@@ -693,6 +693,6 @@ impl Engine<'_> {
             ));
         }
         self.expr(&mut arguments[0].value, env, depth + 1)?;
-        return (Ok(Some(named(name, span)))).map(Some);
+        Ok(Some(Some(named(name, span))))
     }
 }

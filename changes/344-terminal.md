@@ -202,3 +202,15 @@ split Budget expression variant handling. The original aggregate target passes
 The author Expand-only probes accept bounded nested ordinary/generic/conversion
 calls through124, with parser ResourceLimit at126/128; the full-driver replay is
 still required and is not inferred from those Expand-only probes.
+
+Full-driver nested-call probe after5632 exposed later Types and CT walker host
+frames; Expand-only success did not prove the complete pipeline. The new
+mechanical extraction is being validated on the original default-stack probes.
+
+The independent Vec identity reference now includes Registration32/opcodes111–113.
+Its five new Tuple/Place instruction probes are kept separate from the original
+95-operation V31 anchor input; the historical pinned anchors remain unchanged.
+The first reference replay failed because those additions had changed that input;
+after restoring the original case set and testing additions separately,12/0 pass.
+All-target llvm-api Clippy passed before this reference-fixture-only adjustment;
+Expand lint-equivalent extraction replay passes the complete package.

@@ -345,6 +345,13 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
         InstructionKind::DropEnum {
             local: LocalId(5707),
         },
+        InstructionKind::Unsupported("unsupported-值".into()),
+    ]
+}
+
+// Current additions are separate so frozen V31 anchor inputs remain unchanged.
+pub fn terminal_instructions(flag: bool) -> Vec<InstructionKind> {
+    vec![
         InstructionKind::MakeOwnedTuple {
             fields: if flag {
                 vec![ValueId(5801), ValueId(5802)]
@@ -379,6 +386,5 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
                 PlaceProjection::Field(17),
             ],
         },
-        InstructionKind::Unsupported("unsupported-值".into()),
     ]
 }

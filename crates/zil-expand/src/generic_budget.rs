@@ -772,29 +772,27 @@ impl<'a> Budget<'a> {
             self.text("self", e.span)?;
         }
         match &e.kind {
-            ExprKind::Literal(..) => return self.expr_literal(e, depth, subs),
-            ExprKind::Name(..) | ExprKind::ReceiverMember(..) => {
-                return self.expr_name(e, depth, subs);
-            }
+            ExprKind::Literal(..) => self.expr_literal(e, depth, subs),
+            ExprKind::Name(..) | ExprKind::ReceiverMember(..) => self.expr_name(e, depth, subs),
             ExprKind::Group(..)
             | ExprKind::Try(..)
             | ExprKind::MetaEval(..)
             | ExprKind::MetaSplice(..)
-            | ExprKind::Unary { .. } => return self.expr_unary(e, depth, subs),
-            ExprKind::Tuple(..) | ExprKind::Array(..) => return self.expr_sequence(e, depth, subs),
-            ExprKind::Binary { .. } => return self.expr_binary(e, depth, subs),
-            ExprKind::Pipeline { .. } => return self.expr_pipeline(e, depth, subs),
-            ExprKind::Member { .. } => return self.expr_member(e, depth, subs),
-            ExprKind::TypeApply { .. } => return self.expr_type_apply(e, depth, subs),
-            ExprKind::Call { .. } => return self.expr_call(e, depth, subs),
-            ExprKind::Index { .. } => return self.expr_index(e, depth, subs),
-            ExprKind::Slice { .. } => return self.expr_slice(e, depth, subs),
-            ExprKind::Record { .. } => return self.expr_record(e, depth, subs),
-            ExprKind::Closure { .. } => return self.expr_closure(e, depth, subs),
-            ExprKind::If { .. } => return self.expr_if(e, depth, subs),
-            ExprKind::MetaBlock(..) => return self.expr_meta_block(e, depth, subs),
+            | ExprKind::Unary { .. } => self.expr_unary(e, depth, subs),
+            ExprKind::Tuple(..) | ExprKind::Array(..) => self.expr_sequence(e, depth, subs),
+            ExprKind::Binary { .. } => self.expr_binary(e, depth, subs),
+            ExprKind::Pipeline { .. } => self.expr_pipeline(e, depth, subs),
+            ExprKind::Member { .. } => self.expr_member(e, depth, subs),
+            ExprKind::TypeApply { .. } => self.expr_type_apply(e, depth, subs),
+            ExprKind::Call { .. } => self.expr_call(e, depth, subs),
+            ExprKind::Index { .. } => self.expr_index(e, depth, subs),
+            ExprKind::Slice { .. } => self.expr_slice(e, depth, subs),
+            ExprKind::Record { .. } => self.expr_record(e, depth, subs),
+            ExprKind::Closure { .. } => self.expr_closure(e, depth, subs),
+            ExprKind::If { .. } => self.expr_if(e, depth, subs),
+            ExprKind::MetaBlock(..) => self.expr_meta_block(e, depth, subs),
             ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => {
-                return self.expr_syntax(e, depth, subs);
+                self.expr_syntax(e, depth, subs)
             }
         }
     }
@@ -1092,14 +1090,10 @@ impl<'a> Budget<'a> {
         _subs: Option<&BTreeMap<String, TypeRef>>,
     ) -> R<()> {
         match &e.kind {
-            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => {
-                {
-                    return Err(unsupported(
-                        e.span,
-                        "generic expansion of unexecuted syntax island",
-                    ));
-                };
-            }
+            ExprKind::SyntaxIsland { .. } | ExprKind::Quote { .. } => Err(unsupported(
+                e.span,
+                "generic expansion of unexecuted syntax island",
+            )),
             _ => unreachable!("budget expression dispatch"),
         }
     }

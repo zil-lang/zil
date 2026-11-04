@@ -121,6 +121,10 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::F64 => b.push(29),
         Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
         Type::TaskI32 => b.push(33),
+        Type::Registration { environment } => {
+            b.push(32);
+            encode_type(b, environment);
+        }
         Type::BorrowedFunctionPointer {
             parameters,
             result,
@@ -437,6 +441,29 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             b.push(99);
             encode_u32(b, worker.0);
             encode_u32(b, argument.0);
+        }
+        InstructionKind::RegistrationStart {
+            register,
+            close,
+            callback,
+            region,
+        } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(111);
+            encode_u32(b, register.0);
+            encode_u32(b, close.0);
+            encode_u32(b, callback.0);
+            encode_u32(b, *region);
+        }
+        InstructionKind::RegistrationValid { registration } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(112);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::RegistrationClose { registration } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(113);
+            encode_u32(b, registration.0);
         }
         InstructionKind::TaskYield => {
             assert!(v32, "schema31 cannot represent tasks");

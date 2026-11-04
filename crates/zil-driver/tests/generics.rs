@@ -44,8 +44,10 @@ fn terminal341_unsigned_const_domains_keep_full_target_bits() {
             report.to_json()
         );
     }
-    let mut target = zil_base::TargetProfile::default();
-    target.pointer_width = 32;
+    let target = zil_base::TargetProfile {
+        pointer_width: 32,
+        ..Default::default()
+    };
     for (text, expected) in [
         (positive, ResultCategory::Success),
         (

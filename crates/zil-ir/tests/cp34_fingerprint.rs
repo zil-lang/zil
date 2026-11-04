@@ -717,6 +717,9 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
         Type::F32,
         Type::F64,
         Type::TaskI32,
+        Type::Registration {
+            environment: Box::new(Type::Closure(ClosureId(17))),
+        },
         Type::SyncCell(SyncCellKind::MutexI32),
         Type::SyncCell(SyncCellKind::AtomicI32),
         Type::BorrowedFunctionPointer {
@@ -766,6 +769,18 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
             worker: FunctionId(31),
             argument: ValueId(37),
         },
+        InstructionKind::RegistrationStart {
+            register: FunctionId(97),
+            close: FunctionId(101),
+            callback: ValueId(103),
+            region: 107,
+        },
+        InstructionKind::RegistrationValid {
+            registration: ValueId(109),
+        },
+        InstructionKind::RegistrationClose {
+            registration: ValueId(113),
+        },
         InstructionKind::TaskYield,
         InstructionKind::TaskValid { task: ValueId(41) },
         InstructionKind::TaskPoll { task: ValueId(43) },
@@ -794,7 +809,11 @@ fn terminal35_numeric_sync_task_and_address_fields_match_reference_bytes() {
             path: vec![79, 83],
             mutable: true,
         },
-    ] {
+    ]
+    .into_iter()
+    .chain(cases::terminal_instructions(false))
+    .chain(cases::terminal_instructions(true))
+    {
         input.functions[0].blocks[0].instructions.push(Instruction {
             result: None,
             span: Span::default(),
