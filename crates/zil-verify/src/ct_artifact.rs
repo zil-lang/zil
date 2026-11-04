@@ -292,13 +292,15 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::U64(_) => Some(CtScalarTy::U64),
+        Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
     }
 }
 fn integer(ty: &CtTy) -> bool {
     matches!(
         scalar(ty),
-        Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
+        Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
     )
 }
 fn index_type(ty: &CtTy) -> bool {

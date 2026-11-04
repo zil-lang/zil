@@ -180,6 +180,8 @@ impl Budget {
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::U64
+            | Type::Usize
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}

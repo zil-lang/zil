@@ -345,6 +345,8 @@ fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::U64(_) => Some(CtScalarTy::U64),
+        Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
     }
 }
@@ -356,14 +358,17 @@ fn ordinary_scalar(ty: CtScalarTy) -> Type {
         CtScalarTy::U16 => Type::U16,
         CtScalarTy::I32 => Type::I32,
         CtScalarTy::I64 => Type::I64,
+        CtScalarTy::U64 => Type::U64,
+        CtScalarTy::Usize => Type::Usize,
     }
 }
 fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
     let n = match value {
-        CtValue::Scalar(Constant::U8(n)) => *n as i64,
-        CtValue::Scalar(Constant::U16(n)) => *n as i64,
-        CtValue::Scalar(Constant::I32(n)) => *n as i64,
-        CtValue::Scalar(Constant::I64(n)) => *n,
+        CtValue::Scalar(Constant::U8(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U16(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I32(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::I64(n)) => i128::from(*n),
+        CtValue::Scalar(Constant::U64(n) | Constant::Usize(n)) => i128::from(*n),
         _ => unreachable!("verified CT index is integer"),
     };
     usize::try_from(n)

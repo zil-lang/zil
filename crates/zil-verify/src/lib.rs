@@ -785,6 +785,8 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::U64
+            | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ForeignHandle
@@ -2475,7 +2477,7 @@ fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> 
 }
 fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) -> Check<Type> {
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
-        if matches!(left, Type::U8 | Type::U16 | Type::I32 | Type::I64) && left == right {
+        if matches!(left, Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64) && left == right {
             return Ok(left.clone());
         }
         return Err(unsupported(
@@ -2497,6 +2499,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 Type::Bool
                     | Type::I32
                     | Type::I64
+            | Type::U64
+            | Type::Usize
                     | Type::U8
                     | Type::U16
                     | Type::Unit

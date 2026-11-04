@@ -21,6 +21,8 @@ pub(super) fn scalar(c: Constant) -> CoreExprKind {
         }
         Constant::I32(v) => CoreExprKind::Integer(format!("{v}i32")),
         Constant::I64(v) => CoreExprKind::Integer(format!("{v}i64")),
+        Constant::U64(v) => CoreExprKind::Integer(format!("{v}u64")),
+        Constant::Usize(v) => CoreExprKind::Integer(format!("{v}usize")),
     }
 }
 pub(super) struct Reifier<'a> {

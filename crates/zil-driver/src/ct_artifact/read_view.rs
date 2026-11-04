@@ -1185,6 +1185,8 @@ impl FrozenReadView<'_> {
                     "u16" => CtTypeNode::Primitive(CtScalarTy::U16),
                     "i32" => CtTypeNode::Primitive(CtScalarTy::I32),
                     "i64" => CtTypeNode::Primitive(CtScalarTy::I64),
+                    "u64" => CtTypeNode::Primitive(CtScalarTy::U64),
+                    "usize" => CtTypeNode::Primitive(CtScalarTy::Usize),
                     "ByteBuffer" => CtTypeNode::Builtin(CtBuiltinType::ByteBuffer),
                     "ForeignHandle" => CtTypeNode::Builtin(CtBuiltinType::ForeignHandle),
                     "CWideString" => CtTypeNode::Builtin(CtBuiltinType::CWideString),
@@ -1538,6 +1540,8 @@ impl FrozenReadView<'_> {
             | (Type::U16, CtTypeNode::Primitive(CtScalarTy::U16))
             | (Type::I32, CtTypeNode::Primitive(CtScalarTy::I32))
             | (Type::I64, CtTypeNode::Primitive(CtScalarTy::I64))
+            | (Type::U64, CtTypeNode::Primitive(CtScalarTy::U64))
+            | (Type::Usize, CtTypeNode::Primitive(CtScalarTy::Usize))
             | (Type::ByteBuffer, CtTypeNode::Builtin(CtBuiltinType::ByteBuffer))
             | (Type::ForeignHandle, CtTypeNode::Builtin(CtBuiltinType::ForeignHandle))
             | (Type::CWideString, CtTypeNode::Builtin(CtBuiltinType::CWideString)) => true,
@@ -2717,6 +2721,8 @@ impl CtReadView for FrozenReadView<'_> {
                     Constant::U16(value) => (value.to_string(), CtTokenClass::Integer),
                     Constant::I32(value) => (value.to_string(), CtTokenClass::Integer),
                     Constant::I64(value) => (value.to_string(), CtTokenClass::Integer),
+                    Constant::U64(value) => (format!("{value}u64"), CtTokenClass::Integer),
+                    Constant::Usize(value) => (format!("{value}usize"), CtTokenClass::Integer),
                     _ => {
                         return Err(error(
                             "E-CT-SYNTAX-LITERAL",
