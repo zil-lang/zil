@@ -2103,3 +2103,163 @@ fn g3_3_once_consumption_is_proved_after_source_in_raw_and_wire() {
         assert_eq!(decoded[0].message, verified[0].message);
     }
 }
+
+#[test]
+fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
+    let constructors = [
+        "Phantom::<'CLASS>{n:42}",
+        "#(Phantom::<'CLASS>{n:scalar(i32,42)})",
+        "#((Phantom::<'a>{n:scalar(i32,0)},Phantom::<'CLASS>{n:scalar(i32,42)}).1)",
+    ];
+    for constructor in constructors {
+        for intermediate in [false, true] {
+            for actual in ["a", "b"] {
+                let init = constructor.replace("CLASS", actual);
+                let binding = if intermediate {
+                    format!("let saved={init};let x:Phantom<'a>=saved;")
+                } else {
+                    format!("let x:Phantom<'a>={init};")
+                };
+                let text = format!(
+                    "struct Phantom<life s>{{n:i32}}fn scalar(t:Type,n:i32)->i32{{return n}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{binding}return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+                );
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    terminal_native_profiles(&text, "main", 42);
+                } else {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::SafeReject,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+                    assert!(
+                        report.diagnostics.iter().any(|d| d.message.contains(
+                            "source annotation cannot equate distinct declared lifetime classes"
+                        )),
+                        "{}",
+                        report.to_json()
+                    );
+                }
+            }
+        }
+    }
+    // The outer reference relation is not nominal class equality. Preserve a
+    // genuine borrow return through a helper, along with a class-bearing helper.
+    let compatible = "struct Phantom<life s>{n:i32}fn borrow<life x>(p:&'x i32)->&'x i32{return p}fn make<life x>(p:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x:Phantom<'a>=make(borrow(pa));return x.n}fn main()->i32{let a=42;let b=0;return value(&a,&b)}";
+    let report = compile_source(&source(compatible), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    terminal_native_profiles(compatible, "main", 42);
+    let wrong = compatible.replace("make(borrow(pa))", "make(borrow(pb))");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
+    let prefix = "struct Phantom<life s>{n:i32}type Id<T>=T;struct Reader{}";
+    for (good, bad) in [
+        (
+            "let x:Id<Phantom<'a>>=Phantom::<'a>{n:42};return x.n",
+            "let x:Id<Phantom<'a>>=Phantom::<'b>{n:42};return x.n",
+        ),
+        (
+            "let values=[Phantom::<'a>{n:42}];let x:Phantom<'a>=values[0];return x.n",
+            "let values=[Phantom::<'b>{n:42}];let x:Phantom<'a>=values[0];return x.n",
+        ),
+        (
+            "var x=Phantom::<'a>{n:0};x=Phantom::<'a>{n:42};return x.n",
+            "var x=Phantom::<'a>{n:0};x=Phantom::<'b>{n:42};return x.n",
+        ),
+        (
+            "let pair=(0,Phantom::<'a>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
+            "let pair=(0,Phantom::<'b>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
+        ),
+    ] {
+        for (body, expected) in [
+            (good, ResultCategory::Success),
+            (bad, ResultCategory::SafeReject),
+        ] {
+            let text = format!(
+                "{prefix}fn value<T:Copy,life a,life b>(pad:T,pa:&'a i32,pb:&'b i32)->i32{{{body}}}fn main()->i32{{let a=0;let b=0;return value::<i32>(0,&a,&b)}}"
+            );
+            let report = compile_source(&source(&text), &CompileOptions::default());
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::SafeReject {
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("distinct declared lifetime classes")),
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
+    for host in ["struct Reader", "struct Reader<life outer>"] {
+        for actual in ["a", "b"] {
+            let text = format!(
+                "struct Phantom<life s>{{n:i32}}{host}{{fn read<life a,life b>(self:Self,pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<'a>=Phantom::<'{actual}>{{n:42}};return x.n}}}}fn main()->i32{{return 0}}"
+            );
+            let report = compile_source(&source(&text), &CompileOptions::default());
+            if actual == "b" {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("distinct declared lifetime classes")),
+                    "{}",
+                    report.to_json()
+                );
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
+    let reborrow = "struct Phantom<life s>{n:i32}fn make<life x>(p:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p}}fn both<life x>(p:&'x i32,q:&'x i32)->i32{return *p+*q}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x:Phantom<'a>=make(&*pa);return x.n+both(pa,pb)}fn main()->i32{let a=21;let b=0;return value(&a,&b)}";
+    let report = compile_source(&source(reborrow), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    terminal_native_profiles(reborrow, "main", 42);
+}
