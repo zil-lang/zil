@@ -354,14 +354,19 @@ pub(super) fn check_resolved_program_with_reuse(
                 typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
             }
             if let Some(contract) = &typed.storage_life {
-                let work = contract.bindings.iter().fold(1usize, |n, row| {
-                    n.saturating_add(row.position.path.len()).saturating_add(1)
-                });
                 // Export and root-function/interface snapshots below preserve
                 // this complete relation, never an independently flat claim.
                 closure_state
-                    .snapshot(work.saturating_mul(3), f.span)
+                    .snapshot(
+                        contract.bindings.len().saturating_add(1).saturating_mul(3),
+                        f.span,
+                    )
                     .map_err(|e| vec![e])?;
+                for row in &contract.bindings {
+                    closure_state
+                        .snapshot(row.position.path.len().saturating_mul(3), f.span)
+                        .map_err(|e| vec![e])?;
+                }
             }
             let export = ScalarFunction {
                 storage_life: typed.storage_life.clone(),
@@ -644,12 +649,15 @@ fn interface_fingerprint(
     }
     for export in exports {
         if let Some(contract) = &export.storage_life {
-            let work = contract.bindings.iter().fold(128usize, |n, row| {
-                n.saturating_add(row.position.path.len().saturating_add(1).saturating_mul(64))
-            });
+            let work = 128usize.saturating_add(contract.bindings.len().saturating_mul(64));
             *remaining = remaining
                 .checked_sub(work.saturating_add(export.name.len().saturating_mul(2)))
                 .ok_or_else(exhausted)?;
+            for row in &contract.bindings {
+                *remaining = remaining
+                    .checked_sub(row.position.path.len().saturating_mul(64))
+                    .ok_or_else(exhausted)?;
+            }
             bytes.extend_from_slice(b"STORED-SIGNATURE-1\0");
             bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
             bytes.extend_from_slice(export.name.as_bytes());
