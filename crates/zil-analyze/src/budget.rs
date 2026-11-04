@@ -967,6 +967,15 @@ pub(super) fn preflight(
                 }
                 continue;
             }
+            if let Type::Address { inner, .. } = ty
+                && matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                )
+            {
+                super::resources::sums::admit(module, inner, budget)?;
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,

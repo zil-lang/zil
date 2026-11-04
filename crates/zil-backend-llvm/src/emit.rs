@@ -750,6 +750,7 @@ fn bind_lir(
                     || matches!(ty, Type::Closure(_))
                     || ty.is_shared_sync_cell_address()
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    || sum_capture_address(ty)
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
                     || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -3320,12 +3321,16 @@ fn aggregate_field_type(ty: &Type) -> CompileResult<m::Ty> {
         llvm_type(ty)
     }
 }
+fn sum_capture_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
+}
 fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
             || ty.is_shared_sync_cell_address()
+            || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
@@ -3410,6 +3415,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
                     && !field.is_shared_sync_cell_address()
+                    && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())

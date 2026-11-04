@@ -1,0 +1,5 @@
+# 340 ordinary owning-base address capture
+
+Main norm §9.1.5 authorizes finite ordinary local closure captures of actual Address<Tuple/Enum/ErrorUnion> whose owning pointee has already passed complete finite qualification. The environment stores the real pointer. It carries the actual parent Hold, provenance, tag epochs and fixed mode/life upper bounds through closure and derived-result last use. Shared/exclusive capture modes keep existing invocation restrictions. No owning pointee is copied and an address-local is never treated as inline payload.
+
+This admission is separate from FFI/worker/Transfer/Share, Store/State/array membership and borrowed-storage protocols. Their existing checks remain. Tests must promote the retained captured-owning-base-open.zil original to actual native execution and preserve whole-parent move/replacement, duplicate exclusive capture and escaped result/parent lifetime negatives, with last-use release and disjoint sibling positives. Owning-place replacement and partial Product-root paths remain separate obligations.

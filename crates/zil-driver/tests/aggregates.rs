@@ -11,6 +11,19 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_captured_owning_base_original_native() {
+    review329_native_output(
+        &[(
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"
+            ),
+        )],
+        b"A42\n",
+    );
+}
+
+#[test]
 fn terminal340_error_arm_patterns_native() {
     let text = r#"enum F{Bad}fn number(x:F!i32)->i32{match x{.ok(n)=>{return n},.err(F.Bad())=>{return 0}}}fn make(b:bool)->F!i32{if b{return 42}else{return F.Bad()}}fn result()->i32{return number(make(true))+number(make(false))}"#;
     review329_native(&[("main", text)], 42);
