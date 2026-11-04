@@ -47,6 +47,7 @@ impl Body {
     fn new(id: u32) -> Self {
         Self {
             f: TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -236,6 +237,7 @@ fn fixture(
     }
     helper.f.callable_contract = Some(CallableParameterContract {
         roles: vec![CallableRole {
+            life: None,
             parameter: 0,
             closure: ClosureId(0),
             kind: requested,

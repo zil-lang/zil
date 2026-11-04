@@ -20,6 +20,7 @@ fn function(
     returned: u32,
 ) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -244,6 +245,7 @@ fn model() -> (m::Module, LirModule) {
                 temporary: 0,
                 continuation: 0,
                 partial_packages: BTreeSet::new(),
+                partial_sums: BTreeMap::new(),
                 safe_divisors: None,
                 copy_values: &BTreeMap::new(),
                 abi_plans: &large_copy_abi::Plans::default(),

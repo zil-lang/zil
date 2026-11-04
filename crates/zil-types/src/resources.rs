@@ -1,9 +1,14 @@
 //! Finite resource heads and explicit owner/descriptor operations.
 use super::*;
 
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) && supported(inner))
+}
 pub(super) fn supported(ty: &Type) -> bool {
     dynamic_store::is_carrier(ty)
         || byte_buffer::resource(ty)
+        || tasks::resource(ty)
+        || registration::resource(ty)
         || matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value())
 }
 pub(super) fn definitions(
@@ -177,6 +182,22 @@ impl Builder<'_, '_> {
                 let desc = Type::Desc(payload);
                 Ok((
                     self.value(InstructionKind::DescribeLocal { local }, desc.clone(), span)?,
+                    desc,
+                ))
+            }
+            Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Managed(_)) && supported(&inner) =>
+            {
+                let Type::Managed(payload) = *inner else {
+                    unreachable!()
+                };
+                let desc = Type::Desc(payload);
+                Ok((
+                    self.value(
+                        InstructionKind::DescribeAddress { address: value },
+                        desc.clone(),
+                        span,
+                    )?,
                     desc,
                 ))
             }

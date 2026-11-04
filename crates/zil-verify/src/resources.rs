@@ -4,6 +4,9 @@
 //! loan. Every resource operation is reconstructed from the checked CFG; the
 //! candidate's responsibility fields are not trusted or consulted.
 use super::*;
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
@@ -44,6 +47,9 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -72,6 +78,9 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
                 }
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_mul(2))?;
                 pending.extend(parameters);
@@ -97,6 +106,12 @@ pub(super) fn check_type_for(
     };
     if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
         return dynamic_store::check_carrier(module, ty, span, budget);
+    }
+    if matches!(inner.as_ref(), Type::Registration { .. }) {
+        return registration::carrier(module, ty, span, budget);
+    }
+    if inner.as_ref() == &Type::TaskI32 {
+        return tasks::carrier(module, ty, span, budget);
     }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
@@ -155,6 +170,44 @@ pub(super) fn check_definitions(
                     "Store definition must be unique",
                 ));
             }
+            continue;
+        }
+        if matches!(resource.payload, Type::Registration { .. })
+            || resource.name.starts_with(registration::PREFIX)
+        {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-REGISTRATION",
+                    None,
+                    "registration definition must be unique",
+                ));
+            }
+            registration::carrier(
+                module,
+                &Type::Managed(Box::new(resource.payload.clone())),
+                None,
+                budget,
+            )?;
+            continue;
+        }
+        if resource.payload == Type::TaskI32 || resource.name == TASK_I32_RESOURCE_NAME {
+            if resource.name != TASK_I32_RESOURCE_NAME
+                || resource.payload != Type::TaskI32
+                || resource.teardown.is_some()
+                || !names.insert(&resource.name)
+            {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "task definition must be unique and sealed without user teardown",
+                ));
+            }
+            tasks::carrier(
+                module,
+                &Type::Managed(Box::new(Type::TaskI32)),
+                None,
+                budget,
+            )?;
             continue;
         }
         if resource.payload == Type::ByteBuffer || resource.name == byte_buffers::NAME {
@@ -335,6 +388,7 @@ impl Slots {
         let mut debt_count = 0usize;
         let mut desc_count = 0usize;
         let sum_extension = budget.sums;
+        let head_descriptions = budget.head_descriptions;
         let mut slot = |ty: &Type, managed: bool| {
             let count = if managed {
                 &mut debt_count
@@ -352,6 +406,7 @@ impl Slots {
                 || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
+                || (!managed && head_descriptions && (head_address(ty) || ty.is_package_address()))
                 || (!managed
                     && matches!(ty,
                     Type::Address { inner, .. }
@@ -1077,9 +1132,14 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
+                InstructionKind::RegistrationStart { callback, .. } => {
+                    self.consume(state, *callback, span, validate)?;
+                    fresh_result = Some(FRESH);
+                }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => fresh_result = Some(FRESH),
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => fresh_result = Some(FRESH),
                 InstructionKind::MakePackage { fields } => {
                     let output = instruction.result.expect("checked Package result");
                     budget.spend(fields.len())?;
@@ -1322,12 +1382,51 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     let debt = slots.managed_local[local.0 as usize].expect("typed managed head");
                     if validate && state.debt[debt] != LIVE {
                         return Err(bad(span, "head address requires a live managed position"));
                     }
+                }
+                InstructionKind::DescribeAddress { address } => {
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .expect("head descriptor slot");
+                    let src = slots.desc_value[address.0 as usize].expect("head address slot");
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src].clone();
+                }
+                InstructionKind::AddressField { address, index }
+                    if instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .is_some() =>
+                {
+                    let dst = slots.desc_value
+                        [instruction.result.expect("head projection").0 as usize]
+                        .expect("head field slot");
+                    let src = slots.desc_value[address.0 as usize].expect("head parent slot");
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src]
+                        .iter()
+                        .map(|root| match root {
+                            Root::Local(local)
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Package { .. }
+                                ) =>
+                            {
+                                Root::PackageField {
+                                    local: *local,
+                                    index: *index,
+                                }
+                            }
+                            other => *other,
+                        })
+                        .collect();
                 }
                 InstructionKind::DescribeLocal { local } => {
                     let index =
@@ -1696,15 +1795,15 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     // Even registration failure consumes and cleans the prepared body.
                     let (callbacks, body) = match &instruction.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             ([Some(callback), Some(body)], body)
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
-                            ([None, Some(body)], body)
-                        }
+                        InstructionKind::WithScopedThread { body, .. }
+                        | InstructionKind::WithSyncCell { body, .. } => ([None, Some(body)], body),
                         _ => unreachable!(),
                     };
                     for callee in callbacks.into_iter().flatten() {
@@ -1780,6 +1879,10 @@ impl Transfer<'_> {
                         // never a callee-private Created origin.
                         fresh_result = Some(INPUT);
                     }
+                }
+                InstructionKind::RegistrationClose { registration: task }
+                | InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, span, validate)?;
                 }
                 InstructionKind::Call {
                     function,
@@ -1876,6 +1979,19 @@ impl Transfer<'_> {
                     }
                 }
                 _ => {}
+            }
+            if budget.head_descriptions
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = instruction.kind
+                && matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Package { .. } | Type::Managed(_)
+                )
+                && let Some(row) = instruction
+                    .result
+                    .and_then(|v| slots.desc_value[v.0 as usize])
+            {
+                state.desc[row] = BTreeSet::from([Root::Local(local)]);
             }
             if let Some(index) = result {
                 let fresh = fresh_result.ok_or_else(|| {
@@ -2150,6 +2266,7 @@ fn effect_dependents(
                     InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::CallClosure { callee, .. } => {
                         let ty = function.values.get(callee.0 as usize).ok_or_else(|| {
                             bad(instruction.span, "resource effect closure value is absent")

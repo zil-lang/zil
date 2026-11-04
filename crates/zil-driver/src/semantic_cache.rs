@@ -4,11 +4,11 @@ use super::*;
 use std::sync::OnceLock;
 use zil_db::{ArtifactCache, CacheRead, QueryKey};
 use zil_ir::{
-    CandidatePlan, FunctionId, PassingMode, ScalarFunction, ScalarInterface, TypedModule,
-    TypedProgram,
+    CandidatePlan, FunctionId, PassingMode, ScalarFunction, ScalarInterface, TaskExport,
+    TaskInterface, TypedModule, TypedProgram,
 };
 
-const MAGIC: &[u8; 8] = b"ZILSEM03";
+const MAGIC: &[u8; 8] = b"ZILSEM04";
 static COMPILER: OnceLock<Option<Fingerprint>> = OnceLock::new();
 
 pub(super) struct Store {
@@ -31,11 +31,11 @@ impl Store {
         {
             return None;
         }
-        let root = options.semantic_cache.as_ref()?.join("semantic-v3");
+        let root = options.semantic_cache.as_ref()?.join("semantic-v4");
         let compiler = COMPILER
             .get_or_init(|| zil_backend_llvm::installed_compiler_identity().ok())
             .as_ref()?;
-        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v3\0".to_vec();
+        let mut bytes = b"ZIL-TRUSTED-SEMANTIC-v4\0".to_vec();
         bytes.extend_from_slice(&identity.fingerprint().0);
         bytes.extend_from_slice(&compiler.0);
         Some(Self {
@@ -218,6 +218,20 @@ fn encode(program: &TypedProgram, candidate: &CandidatePlan, limits: &Limits) ->
     for function in &program.root_functions {
         out.signature(function, &program.module)?;
     }
+    out.number(program.task_interfaces.len())?;
+    for interface in &program.task_interfaces {
+        out.number(interface.module.0 as usize)?;
+        out.number(interface.exports.len())?;
+        for export in &interface.exports {
+            if export.parameter.1 != zil_ir::Type::I32 || export.result.1 != zil_ir::Type::I32 {
+                return None;
+            }
+            out.text(&export.name)?;
+            out.number(export.worker.0 as usize)?;
+            out.number(export.abi_version as usize)?;
+            out.put(&[mode(export.parameter.0), mode(export.result.0)])?;
+        }
+    }
     Some(out.bytes)
 }
 
@@ -373,11 +387,29 @@ fn decode(bytes: &[u8], limits: &Limits) -> Option<(TypedProgram, CandidatePlan)
     for _ in 0..n {
         root_functions.push(input.signature(&module, limits)?);
     }
+    let n = input.count(limits.max_nodes, 8)?;
+    let mut task_interfaces = Vec::with_capacity(n);
+    for _ in 0..n {
+        let module = ModuleId(u32::try_from(input.number()?).ok()?);
+        let count = input.count(limits.max_functions, 14)?;
+        let mut exports = Vec::with_capacity(count);
+        for _ in 0..count {
+            exports.push(TaskExport {
+                name: input.text()?,
+                worker: FunctionId(u32::try_from(input.number()?).ok()?),
+                abi_version: u32::try_from(input.number()?).ok()?,
+                parameter: (read_mode(input.take(1)?[0])?, zil_ir::Type::I32),
+                result: (read_mode(input.take(1)?[0])?, zil_ir::Type::I32),
+            });
+        }
+        task_interfaces.push(TaskInterface { module, exports });
+    }
     if !input.bytes.is_empty() {
         return None;
     }
     Some((
         TypedProgram {
+            task_interfaces,
             module,
             interfaces,
             root_functions,
@@ -458,6 +490,9 @@ fn charge_type(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::Registration {
+            environment: element,
+        }
         | Type::OwnedStore { element }
         | Type::Managed(element)
         | Type::Desc(element)
@@ -467,6 +502,25 @@ fn charge_type(
         } => charge_type(element, nodes, bytes, maximum_depth, depth + 1)?,
         Type::ErrorUnion { error, result } => {
             charge_type(error, nodes, bytes, maximum_depth, depth + 1)?;
+            charge_type(result, nodes, bytes, maximum_depth, depth + 1)?;
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            *nodes = nodes.checked_sub(
+                (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
+            )?;
+            *bytes = bytes.checked_sub(
+                life.parameter_lives
+                    .len()
+                    .checked_mul(std::mem::size_of::<Option<u32>>())?
+                    .checked_add(8)?,
+            )?;
+            for ty in parameters {
+                charge_type(ty, nodes, bytes, maximum_depth, depth + 1)?;
+            }
             charge_type(result, nodes, bytes, maximum_depth, depth + 1)?;
         }
         Type::FunctionPointer { parameters, result }
@@ -480,11 +534,15 @@ fn charge_type(
         | Type::Bool
         | Type::I32
         | Type::I64
+        | Type::F32
+        | Type::F64
         | Type::U64
         | Type::Usize
         | Type::U8
         | Type::U16
         | Type::ByteBuffer
+        | Type::TaskI32
+        | Type::SyncCell(_)
         | Type::ForeignHandle
         | Type::CWideString
         | Type::Closure(_) => {}
@@ -495,6 +553,16 @@ fn charge_type(
 fn metadata_budget(program: &TypedProgram, limits: &Limits) -> Option<()> {
     let mut nodes = limits.max_nodes.checked_sub(program.interfaces.len())?;
     let mut bytes = limits.max_source_bytes;
+    nodes = nodes.checked_sub(program.task_interfaces.len())?;
+    for interface in &program.task_interfaces {
+        for export in &interface.exports {
+            nodes = nodes.checked_sub(3)?;
+            bytes = bytes.checked_sub(export.name.len().saturating_add(14))?;
+            if export.parameter.1 != zil_ir::Type::I32 || export.result.1 != zil_ir::Type::I32 {
+                return None;
+            }
+        }
+    }
     let mut uses = BTreeMap::<FunctionId, usize>::new();
     for signature in program
         .interfaces
@@ -700,6 +768,55 @@ mod tests {
             assert_ne!(bytes, original);
             assert_eq!(decode(&bytes, &limits), Some((changed, candidate.clone())));
         }
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn task343_semantic_cache_retains_exports_as_untrusted_candidates() {
+        let dir = std::env::temp_dir().join(format!(
+            "task343-semantic-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("main.zil");
+        fs::write(
+            &path,
+            "pub fn worker(x:i32)->i32{task_yield();return x+1} fn main()->i32{return 0}",
+        )
+        .unwrap();
+        let (program, candidate) = raw(&path);
+        assert_eq!(program.task_interfaces.len(), 1);
+        let bytes = encode(&program, &candidate, &Limits::default()).unwrap();
+        assert_eq!(
+            decode(&bytes, &Limits::default()),
+            Some((program.clone(), candidate.clone()))
+        );
+        let mut forged = program.clone();
+        forged.task_interfaces[0].exports[0].abi_version = 2;
+        let bytes = encode(&forged, &candidate, &Limits::default()).unwrap();
+        let (restored, claim) = decode(&bytes, &Limits::default()).unwrap();
+        assert_eq!(restored.task_interfaces[0].exports[0].abi_version, 2);
+        assert!(
+            zil_verify::verify_shared_program_module(
+                std::sync::Arc::new(restored),
+                std::sync::Arc::new(claim),
+                &TargetProfile::default(),
+                &Limits::default()
+            )
+            .is_err()
+        );
+        let mut session = CompilationSession::default();
+        let options = CompileOptions {
+            semantic_cache: Some(dir.join("cache")),
+            ..CompileOptions::default()
+        };
+        let cold = session.compile_project_path(&path, &options);
+        assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+        let warm = CompilationSession::default().compile_project_path(&path, &options);
+        assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+        assert_eq!(warm.verification_runs, 1);
+        assert_eq!(warm.disk_cache, DiskCacheStatus::Hit);
         fs::remove_dir_all(dir).unwrap();
     }
 

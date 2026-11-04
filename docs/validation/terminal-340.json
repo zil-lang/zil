@@ -199,5 +199,32 @@
     "expression_maintenance": "Original unannotated function-pointer/record-enum combination now passes without source annotation.",
     "compile_cost": "New cloned result type uses existing paid budget; same-semantic Rust compile cost NotRun.",
     "breakthrough": "Concrete inference composition repaired; no product-level Rust advantage claim."
+  },
+  "root_wire37_mixed_combination": {
+    "status": "ScopedPassPendingIndependentReview",
+    "author_mixed_commit": "acc12d0d518a10809d8d70a0756a9dec21f4b668",
+    "isolated_audit_fixes": [
+      "790ce8e1e",
+      "c041ed903"
+    ],
+    "scope": "Mixed Tuple/Enum selective ownership and physical local ref paths, Copy ErrorUnion mutation invalidation; HRTB/Task37/generic methods and prior stack/UI composition",
+    "author_private_126_consumers_included": false,
+    "driver_targets": {
+      "aggregates": 112,
+      "cross_function_borrows": 73,
+      "generic_regressions": 59,
+      "impl187_borrowed_bytes": 25,
+      "impl236_zui_core": 16
+    },
+    "ir_lib": 61,
+    "independent_vec_fingerprint": 13,
+    "focused_terminal340": 29,
+    "audit_fix": "Both independent main invalidators and both legacy106 endpoints invalidate Copy ErrorUnion tags while preserving missing children; retained source/raw/Wire success→error control rejects stale guard and repeated moved sibling",
+    "logs": {
+      "root37-mixed-first.log": "49d245691a2f6a484b49f92e6cc9db7396211e2408cdea1bea30d6dd109fffa3",
+      "root37-mixed-combined.log": "700ad11bea68fd9ecf7b4919909b59a75d15c1090dac49a913e560f4f471cd64",
+      "root37-mixed-ir.log": "015317804046c8ddcf44f2a73aacd701bbc70c056a485dc277f564d01f3d4fc7"
+    },
+    "full_workspace": "NotRun"
   }
 }

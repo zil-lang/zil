@@ -58,6 +58,7 @@ fn small_caller_components(
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             remaining = remaining.checked_sub(1)?;
             if matches!(&instruction.kind, zil_ir::InstructionKind::Call { function, .. }
+                | zil_ir::InstructionKind::TaskStart { worker: function, .. }
                 | zil_ir::InstructionKind::WithScopedThread { worker: function, .. }
                 if source_ids.contains(function))
             {
@@ -765,6 +766,7 @@ mod tests {
         let mut source = lir();
         for id in 0..600 {
             source.functions.push(zil_ir::TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
@@ -1404,6 +1406,7 @@ mod tests {
         module.functions = ids
             .iter()
             .map(|&id| zil_ir::TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,

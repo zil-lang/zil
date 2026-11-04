@@ -1,0 +1,38 @@
+{
+  "status": "PassLimited_EmptyAddressTableRegressionOnly",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "c741b63b0f54f513a25201606831a495b6b98000",
+  "author_receipt_commit": "fd3f6b9acfe63f2fa640b01544519ea3acdd4513",
+  "scope": "Independent regression replay for the actual address-liveness table guard; SyncCell head source inspection only pending a preserved or newly bound cross-function harness.",
+  "identity": {
+    "listed_source_count": 339,
+    "listed_source_sha256": "d3856ff580a314b1d211342e089fb46d5b58c0c945ad02f23dae5f4d337bc20a",
+    "algorithm": "Exact Git author-listed source paths sorted lexically; UTF-8 path + NUL + bytes + NUL; each file SHA also checked against receipt.",
+    "retained_harness": "/tmp/zil-terminal-review/impl236-root-head-sync",
+    "harness_sha256": "de18f92080d7e8113ac5ac7f0c9b6bc27636cb33836c7175d13cb1137b003c6c",
+    "runtime_read_files": "String source and both allocator shims independently match exact source hashes before and after replay."
+  },
+  "independent_execution": {
+    "command": "source /workspace/.zil-env/env.sh; /tmp/zil-terminal-review/impl236-root-head-sync --test-threads=1 --nocapture",
+    "passed": 9,
+    "failed": 0,
+    "filtered": 0,
+    "seconds": 3.8,
+    "coverage": "Includes all three original ZUI consumers that previously panicked plus all six ordinary loader/iterator/Store tests with their actual native and allocation-failure controls."
+  },
+  "resolved_finding": {
+    "original_candidate": "e7b0a4ef0",
+    "fix_commit": "223439f1ff929dbf4a00a226f601d91db907c2c2",
+    "source": "holds::infer_with_private now requires both an enabled store/callback/scoped window profile and a nonempty actual address_afters table before indexing it in store_window_transition.",
+    "result": "The specific integration panic hold is resolved at c741; original e7b historical 19-test result is not relabeled or overwritten."
+  },
+  "pending_separate_replay": {
+    "candidate": "9fa1c630f as included in c741",
+    "source_inspection": "WithSyncCell now propagates actual body captures through Analyze head_access/head_loans and Verify head_access plus captures invocation and effect application. The sealed cell argument contributes no resource-head authority; captures are independently substituted. Tests retain actual distinct-input positives and raw caller aliases/mutability forgeries for Mutex and Atomic.",
+    "harness_identity_mismatch": "At attempted copy, cross_function_borrows-404161b788b1a299 was 3fd7bfd667073fc785ffe235e9d61f71b112509bafba8699cbf654a0508d4917 rather than the c741 receipt d224432735da74dfa251e2412a4cfaeaf58aff0141bfbc83ccaac9bef22b3574. No independent c741 head execution claim is made."
+  },
+  "limitations": [
+    "No whole-workspace or Clippy replay by reviewer.",
+    "No full-language, general synchronization or ZUI product completion claim."
+  ]
+}

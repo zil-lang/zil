@@ -22,6 +22,52 @@ use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 use zil_syntax::ast as s;
 
+pub(super) fn scalar_type(name: &str) -> Option<CtScalarTy> {
+    types::scalar(name)
+}
+
+/// Producer-only lexical lowering; a Type value carries no borrow permission.
+pub(super) fn source_relation(
+    names: &[&str],
+    parameters: &[zil_syntax::ast::TypeRef],
+    result: &zil_syntax::ast::TypeRef,
+) -> zil_ir::FunctionLifeContract {
+    use zil_syntax::ast::TypeKind;
+    let tag = |mut ty: &zil_syntax::ast::TypeRef| {
+        while let TypeKind::Group(inner) = &ty.kind {
+            ty = inner;
+        }
+        match &ty.kind {
+            TypeKind::Reference {
+                lifetime: Some(name),
+                ..
+            } => names.iter().rposition(|n| *n == name).map(|i| i as u32),
+            _ => None,
+        }
+    };
+    let mut life = zil_ir::FunctionLifeContract {
+        binder_count: 0,
+        parameter_lives: parameters.iter().map(tag).collect(),
+        result_life: tag(result),
+    };
+    let mut remap = vec![None; names.len()];
+    for label in life
+        .parameter_lives
+        .iter_mut()
+        .chain(std::iter::once(&mut life.result_life))
+    {
+        if let Some(old) = *label {
+            let dense = *remap[old as usize].get_or_insert_with(|| {
+                let n = life.binder_count;
+                life.binder_count += 1;
+                n
+            });
+            *label = Some(dense);
+        }
+    }
+    life
+}
+
 type R<T> = CompileResult<T>;
 fn error(span: Span, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(

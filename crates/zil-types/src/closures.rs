@@ -207,10 +207,16 @@ impl Capture {
         }
     }
     pub fn mutable_call(&self) -> bool {
-        if matches!(self.stored_type(), Type::Desc(_)) {
+        // The stored type's outer mode is determined by these flags; querying
+        // it does not need to clone the captured payload tree.
+        if matches!(self.ty, Type::Desc(_)) || (!self.moved && matches!(self.ty, Type::Managed(_)))
+        {
             return false;
         }
-        self.written || matches!(self.stored_type(), Type::Address { mutable: true, .. })
+        self.written
+            || (self.moved
+                && !self.borrowed
+                && matches!(self.ty, Type::Address { mutable: true, .. }))
     }
 }
 
@@ -240,10 +246,11 @@ impl Pending {
     }
     pub fn owns_resources(&self) -> bool {
         self.captures.iter().any(|capture| {
-            matches!(
-                capture.stored_type(),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            )
+            if matches!(capture.ty, Type::Managed(_)) {
+                capture.moved
+            } else {
+                !capture.borrowed && matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+            }
         })
     }
 }
@@ -643,11 +650,30 @@ impl State {
         Ok((slot, pending))
     }
 
-    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
+    pub(super) fn remaining_work(&self) -> usize {
+        self.work_left
+    }
+
+    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+        let mut remaining = self.work_left;
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
         for mut pending in self.pending {
-            let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+            let (parameters, result) =
+                pending
+                    .inference
+                    .resolve_shared(true, pending.span, &mut remaining)?;
+            remaining = remaining
+                .checked_sub(pending.captures.len().saturating_add(1))
+                .ok_or_else(|| limit("completed closure metadata budget exceeded", pending.span))?;
+            for capture in &pending.captures {
+                pending
+                    .inference
+                    .graph
+                    .thread_query(&mut remaining, |graph| {
+                        graph.reserve_type(&capture.ty, 0, capture.span)
+                    })?;
+            }
             let kind = pending.callable_kind();
             let typed = pending.typed.ok_or_else(|| {
                 error(
@@ -678,7 +704,7 @@ impl State {
         }
         functions.extend(self.helper_functions);
         functions.sort_by_key(|function| function.id);
-        Ok((definitions, functions))
+        Ok((definitions, functions, remaining))
     }
 }
 
@@ -697,12 +723,15 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
     ty.is_copy_value()
+        || ty.is_shared_sync_cell_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
 }
 
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
     parameters.iter().all(signature_parameter)
         && (result.is_copy_value()
+            || (borrowed_fp::invocation(parameters, result)
+                && matches!(result,Type::Address{inner,..} if inner.is_address_pointee()))
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained
@@ -755,7 +784,11 @@ pub(super) const HANDLE: u16 = 128;
 pub(super) const U64: u16 = 256;
 pub(super) const USIZE: u16 = 512;
 pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
-pub(super) const SCALAR: u16 = UNIT | BOOL | INTEGER | HANDLE;
+pub(super) const F32: u16 = 1024;
+pub(super) const F64: u16 = 2048;
+pub(super) const FLOAT: u16 = F32 | F64;
+pub(super) const NUMBER: u16 = INTEGER | FLOAT;
+pub(super) const SCALAR: u16 = UNIT | BOOL | NUMBER | HANDLE;
 const AGGREGATE: u16 = 16;
 pub(super) const VALUE: u16 = SCALAR | AGGREGATE;
 
@@ -902,7 +935,7 @@ impl Graph {
         );
         Ok(())
     }
-    fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+    pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
         self.spend(span)?;
         if depth > self.depth_limit {
             return Err(limit("closure aggregate type depth exceeded", span));
@@ -931,6 +964,9 @@ impl Graph {
             }
             Type::Array { element, .. }
             | Type::Slice { element }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -948,6 +984,18 @@ impl Graph {
                     self.reserve_type(parameter, depth + 1, span)?;
                 }
                 self.reserve_type(result, depth + 1, span)?;
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.spend_count(borrowed_fp::metadata_work(life), span)?;
+                for parameter in parameters {
+                    self.reserve_type(parameter, depth + 1, span)?;
+                }
+                self.reserve_type(result, depth + 1, span)?;
+                borrowed_fp::relation(parameters, result, life, span)?;
             }
             Type::Named(name) | Type::Unsupported(name) => self.spend_count(name.len(), span)?,
             _ => {}
@@ -1029,12 +1077,14 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            Type::F32 => F32,
+            Type::F64 => F64,
             Type::U64 => U64,
             Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
-            ty if *ty == Type::ByteBuffer
-                || matches!(ty, Type::OwnedStore { .. })
+            ty if *ty == Type::TaskI32 || ty.is_exclusive_task_head_address() || matches!(ty, Type::SyncCell(_)) || ty.is_shared_sync_cell_address() || *ty == Type::ByteBuffer
+                || matches!(ty, Type::OwnedStore { .. } | Type::Registration { .. })
                 || ty.is_copy_value()
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
@@ -1126,6 +1176,11 @@ impl Graph {
                     Type::FunctionPointer {
                         parameters: types,
                         result: result_type,
+                    }
+                    | Type::BorrowedFunctionPointer {
+                        parameters: types,
+                        result: result_type,
+                        ..
                     },
                 ) if parameters.len() == types.len() => {
                     for (parameter, ty) in parameters.into_iter().zip(types) {
@@ -1519,6 +1574,8 @@ impl Graph {
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
+            F32 => Some(Type::F32),
+            F64 => Some(Type::F64),
             U64 => Some(Type::U64),
             USIZE => Some(Type::Usize),
             AGGREGATE => {
@@ -1593,6 +1650,10 @@ impl Graph {
             self.bind(variable, &Type::I32, span)?;
             return Ok(Type::I32);
         }
+        if self.nodes[root].literal && self.nodes[root].domain == FLOAT {
+            self.bind(variable, &Type::F64, span)?;
+            return Ok(Type::F64);
+        }
         Err(error(
             "E-ERROR-INFERENCE",
             span,
@@ -1603,6 +1664,8 @@ impl Graph {
         for node in &mut self.nodes {
             if node.literal && node.domain == INTEGER {
                 node.domain = I32;
+            } else if node.literal && node.domain == FLOAT {
+                node.domain = F64;
             }
         }
     }
@@ -1642,7 +1705,35 @@ impl Inference {
         }
         Ok(true)
     }
+    fn resolve_shared(
+        &mut self,
+        defaults: bool,
+        span: Span,
+        remaining: &mut usize,
+    ) -> R<(Vec<Type>, Type)> {
+        let original = self.graph.work_left.get();
+        let allowance = original.min(*remaining);
+        self.graph.work_left.set(allowance);
+        let result = self.resolve(defaults, span);
+        self.graph
+            .thread_finish(original, allowance, remaining, result)
+    }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(defaults, None, span)
+    }
+    pub fn resolve_borrowed(
+        &mut self,
+        life: &FunctionLifeContract,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
+        self.resolve_inner(false, Some(life), span)
+    }
+    fn resolve_inner(
+        &mut self,
+        defaults: bool,
+        life: Option<&FunctionLifeContract>,
+        span: Span,
+    ) -> R<(Vec<Type>, Type)> {
         self.graph.solve()?;
         if defaults {
             self.graph.default_literals();
@@ -1660,6 +1751,15 @@ impl Inference {
             "closure parameter or result type is not uniquely constrained; annotate it or supply a uniquely typed call",
         ))?;
         let old = supported_signature(&signature.0, &signature.1);
+        if let Some(life) = life {
+            self.graph
+                .spend_count(borrowed_fp::metadata_work(life), span)?;
+            for ty in signature.0.iter().chain(std::iter::once(&signature.1)) {
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+            borrowed_fp::relation(&signature.0, &signature.1, life, span)?;
+            return Ok(signature);
+        }
         if !old {
             // The owned shape and hidden-callable checks are new traversals.
             // Pay them only after the old profile failed, before classification.
@@ -1728,7 +1828,9 @@ impl LocalType {
                     inner,
                 },
             ) if (inner.is_address_pointee()
+                || ty.is_shared_sync_cell_address()
                 || ty.is_shared_resource_head_address()
+                || ty.is_exclusive_task_head_address()
                 || ty.is_package_address())
                 && (mutable || !wanted) =>
             {
@@ -2086,7 +2188,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
-            Type::Address { mutable, inner } if inner.is_copy_value() => {
+            Type::Address { mutable, inner }
+                if inner.is_copy_value() || ty.is_shared_sync_cell_address() =>
+            {
                 (inner.as_ref(), Some(*mutable))
             }
             Type::Address {
@@ -2223,6 +2327,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                             LocalType::Address(inner, false) => {
                                 self.graph
                                     .shared_address(self.result, inner, expression.span)?;
+                            }
+                            LocalType::Address(inner, true) => {
+                                self.graph.address(
+                                    self.result,
+                                    inner,
+                                    Some(true),
+                                    expression.span,
+                                )?;
                             }
                             _ => self.graph.unify(
                                 self.result,
@@ -2787,6 +2899,21 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         expected: Option<&Type>,
         depth: usize,
     ) -> R<LocalType> {
+        if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
+            && !matches!(
+                &expression.kind,
+                CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
+            )
+        {
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            let value = self.expr_raw(expression, None, depth)?;
+            let actual = self
+                .graph
+                .injection_type(value.scalar(expression.span)?, expression.span)?;
+            enums::anonymous_injection(&actual, sum, expression.span)?;
+            return self.known(sum, expression.span);
+        }
         if let Some(union @ Type::ErrorUnion { .. }) = expected
             && !matches!(
                 &expression.kind,
@@ -2802,6 +2929,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         self.expr_raw(expression, expected, depth)
     }
+    // Match the source prepass: recursive variants retain only their own
+    // temporaries, so nested projections do not accumulate giant frames.
     fn expr_raw(
         &mut self,
         expression: &CoreExpr,
@@ -2815,55 +2944,37 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 foreign::check_literal(value, span)?;
                 self.known(&value.ty(), span)
             }
-            CoreExprKind::IntegerConvert { value, target } => {
-                if !target.is_integer() {
+            CoreExprKind::Float(text) => {
+                self.graph
+                    .spend_count(zil_base::numeric::decimal_work(text.len()), span)?;
+                let domain = if text.ends_with("f32") {
+                    F32
+                } else if text.ends_with("f64") {
+                    F64
+                } else {
+                    FLOAT
+                };
+                let variable = self.graph.fresh(domain, domain == FLOAT);
+                if let Some(expected) = expected.filter(|ty| ty.is_float()) {
+                    self.graph.bind(variable, expected, span)?;
+                }
+                Ok(LocalType::Scalar(variable))
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
                     return Err(error(
-                        "E-INTEGER-CONVERSION",
+                        "E-NUMERIC-CONVERSION",
                         span,
-                        "conversion target must be an integer",
+                        "numeric target required",
                     ));
                 }
-                let source = self.expr(value, depth + 1)?.scalar(value.span)?;
-                self.graph.constrain(source, INTEGER, value.span)?;
+                let value = self.expr(value, depth + 1)?.scalar(value.span)?;
+                self.graph.constrain(value, NUMBER, span)?;
                 self.known(target, span)
             }
-            CoreExprKind::Ascribed { ty, value } => {
-                let term = self.expr_expected(value, Some(ty), depth + 1)?;
-                term.bind(&mut self.graph, ty, span)?;
-                Ok(term)
-            }
-            CoreExprKind::Try(operand) => {
-                let ty = self.expr(operand, depth + 1)?.scalar(span)?;
-                let Type::ErrorUnion {
-                    error: failure,
-                    result,
-                } = self.graph.injection_type(ty, span)?
-                else {
-                    return Err(error(
-                        "E-TRY-NOT-ERROR",
-                        span,
-                        "? requires an error-union operand",
-                    ));
-                };
-                let Some(Type::ErrorUnion {
-                    error: expected, ..
-                }) = self.graph.ty(self.result)?
-                else {
-                    return Err(error(
-                        "E-TRY-RETURN-TYPE",
-                        span,
-                        "? requires an explicitly known enclosing error-union result",
-                    ));
-                };
-                if failure != expected {
-                    return Err(error(
-                        "E-TRY-ERROR-TYPE",
-                        span,
-                        "? error type must exactly match the enclosing error type",
-                    ));
-                }
-                self.known(&result, span)
-            }
+            CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(expression, depth),
+            CoreExprKind::Ascribed { .. } => self.expr_ascribed(expression, depth),
+            CoreExprKind::Try(..) => self.expr_try(expression, depth),
             CoreExprKind::Integer(text) => {
                 let variable = self.graph.fresh(
                     INTEGER,
@@ -2906,931 +3017,1289 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 Ok(value)
             }
-            CoreExprKind::Unary { op, operand } => {
-                let value = self.expr(operand, depth + 1)?;
-                if *op == UnaryOp::Give {
-                    return self.give(operand, value, span);
+            CoreExprKind::Unary { .. } => self.expr_unary(expression, depth),
+            CoreExprKind::Binary { .. } => self.expr_binary(expression, depth),
+            CoreExprKind::Call { .. } => self.expr_call(expression, expected, depth),
+            CoreExprKind::Tuple(..) => self.expr_tuple(expression, depth),
+            CoreExprKind::Array(..) => self.expr_array(expression, depth),
+            CoreExprKind::Record { .. } => self.expr_record(expression, depth),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(expression, depth),
+            CoreExprKind::Member { .. } => self.expr_member(expression, depth),
+            CoreExprKind::Index { .. } => self.expr_index(expression, depth),
+            CoreExprKind::Slice { .. } => self.expr_slice(expression, depth),
+            CoreExprKind::If { .. } => self.expr_if(expression, expected, depth),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(expression, expected, depth),
+            CoreExprKind::Closure { .. } => self.expr_closure(expression, depth),
+            CoreExprKind::Unsupported(feature) => Err(unsupported(span, feature)),
+            _ => Err(unsupported(span, "non-scalar expression in closure body")),
+        }
+    }
+    #[inline(never)]
+    fn expr_integer_convert(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::IntegerConvert { value, target } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        if !target.is_integer() {
+            return Err(error(
+                "E-INTEGER-CONVERSION",
+                span,
+                "conversion target must be an integer",
+            ));
+        }
+        let source = self.expr(value, depth + 1)?.scalar(value.span)?;
+        self.graph.constrain(source, INTEGER, value.span)?;
+        self.known(target, span)
+    }
+
+    #[inline(never)]
+    fn expr_ascribed(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Ascribed { ty, value } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let term = self.expr_expected(value, Some(ty), depth + 1)?;
+        term.bind(&mut self.graph, ty, span)?;
+        Ok(term)
+    }
+
+    #[inline(never)]
+    fn expr_try(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Try(operand) = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let ty = self.expr(operand, depth + 1)?.scalar(span)?;
+        let Type::ErrorUnion {
+            error: failure,
+            result,
+        } = self.graph.injection_type(ty, span)?
+        else {
+            return Err(error(
+                "E-TRY-NOT-ERROR",
+                span,
+                "? requires an error-union operand",
+            ));
+        };
+        let Some(Type::ErrorUnion {
+            error: expected, ..
+        }) = self.graph.ty(self.result)?
+        else {
+            return Err(error(
+                "E-TRY-RETURN-TYPE",
+                span,
+                "? requires an explicitly known enclosing error-union result",
+            ));
+        };
+        if failure != expected {
+            return Err(error(
+                "E-TRY-ERROR-TYPE",
+                span,
+                "? error type must exactly match the enclosing error type",
+            ));
+        }
+        self.known(&result, span)
+    }
+
+    #[inline(never)]
+    fn expr_unary(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Unary { op, operand } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let value = self.expr(operand, depth + 1)?;
+        if *op == UnaryOp::Give {
+            return self.give(operand, value, span);
+        }
+        if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) {
+            if !matches!(
+                operand.kind,
+                CoreExprKind::Name(_)
+                    | CoreExprKind::Member { .. }
+                    | CoreExprKind::Index { .. }
+                    | CoreExprKind::Slice { .. }
+                    | CoreExprKind::Unary {
+                        op: UnaryOp::Dereference,
+                        ..
+                    }
+            ) {
+                return Err(unsupported(span, "shared borrow requires a place"));
+            }
+            if let LocalType::Closure(id, None, declared) = value {
+                if *op == UnaryOp::BorrowMut {
+                    self.name_if_capture_written(operand);
                 }
-                if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) {
-                    if !matches!(
-                        operand.kind,
-                        CoreExprKind::Name(_)
-                            | CoreExprKind::Member { .. }
-                            | CoreExprKind::Index { .. }
-                            | CoreExprKind::Slice { .. }
-                            | CoreExprKind::Unary {
-                                op: UnaryOp::Dereference,
-                                ..
-                            }
-                    ) {
-                        return Err(unsupported(span, "shared borrow requires a place"));
-                    }
-                    if let LocalType::Closure(id, None, declared) = value {
-                        if *op == UnaryOp::BorrowMut {
-                            self.name_if_capture_written(operand);
-                        }
-                        return Ok(LocalType::Closure(
-                            id,
-                            Some(*op == UnaryOp::BorrowMut),
-                            declared,
-                        ));
-                    }
-                    if let LocalType::Nested(index, None) = value {
-                        if *op == UnaryOp::BorrowMut {
-                            self.name_if_capture_written(operand);
-                        }
-                        return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
-                    }
-                    if matches!(value, LocalType::Address(..)) {
-                        return Err(unsupported(
-                            span,
-                            "nested shared addresses are not implemented",
-                        ));
-                    }
-                    if *op == UnaryOp::BorrowMut {
-                        self.mark_address_write(operand, depth + 1)?;
-                    }
-                    return Ok(LocalType::Address(
-                        value.scalar(span)?,
-                        *op == UnaryOp::BorrowMut,
+                return Ok(LocalType::Closure(
+                    id,
+                    Some(*op == UnaryOp::BorrowMut),
+                    declared,
+                ));
+            }
+            if let LocalType::Nested(index, None) = value {
+                if *op == UnaryOp::BorrowMut {
+                    self.name_if_capture_written(operand);
+                }
+                return Ok(LocalType::Nested(index, Some(*op == UnaryOp::BorrowMut)));
+            }
+            if *op == UnaryOp::BorrowMut
+                && let LocalType::Resource(variable, _) = value
+            {
+                let payload = self
+                    .graph
+                    .ty(variable)?
+                    .ok_or_else(|| unsupported(span, "task head payload is unresolved"))?;
+                if payload != Type::TaskI32 {
+                    return Err(unsupported(
+                        span,
+                        "exclusive resource head requires TaskI32",
                     ));
                 }
-                if *op == UnaryOp::Dereference {
-                    return match value {
-                        LocalType::Address(variable, _) => Ok(LocalType::Scalar(variable)),
-                        LocalType::Scalar(variable) => {
-                            let inner = self.graph.fresh(VALUE, false);
-                            self.graph.address(variable, inner, None, span)?;
-                            Ok(LocalType::Scalar(inner))
-                        }
-                        _ => Err(error(
-                            "E-OPERATOR-TYPE",
-                            span,
-                            "dereference requires a shared address",
-                        )),
-                    };
-                }
-                let variable = value.scalar(span)?;
-                match op {
-                    UnaryOp::Not => self.graph.constrain(variable, BOOL, span)?,
-                    UnaryOp::Negate | UnaryOp::BitNot => {
-                        self.graph.constrain(variable, INTEGER, span)?
-                    }
-                    _ => return Err(unsupported(span, "address/resource operation in closure")),
-                }
-                Ok(value)
+                self.mark_address_write(operand, depth + 1)?;
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(1)
+                    .ok_or_else(|| limit("task head graph allocation budget exceeded", span))?;
+                let head = self.graph.fresh(VALUE, false);
+                self.graph.bind(head, &tasks::owner(), span)?;
+                return Ok(LocalType::Address(head, true));
             }
-            CoreExprKind::Binary { op, left, right } => {
-                let left = self.expr(left, depth + 1)?.scalar(span)?;
-                let right = self.expr(right, depth + 1)?.scalar(span)?;
-                self.graph.unify(left, right, span)?;
-                let comparison = matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                );
-                let domain = if matches!(op, BinaryOp::And | BinaryOp::Or) {
-                    BOOL
-                } else if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
-                    BOOL | INTEGER | HANDLE
-                } else {
-                    INTEGER
-                };
-                self.graph.constrain(left, domain, span)?;
-                Ok(LocalType::Scalar(if comparison {
-                    self.graph.fresh(BOOL, false)
-                } else {
-                    left
-                }))
+            if matches!(value, LocalType::Address(..)) {
+                return Err(unsupported(
+                    span,
+                    "nested shared addresses are not implemented",
+                ));
             }
-            CoreExprKind::Call { callee, arguments } => {
-                if let Some(name) = dynamic_store::primitive(callee) {
-                    self.visit(depth + 1, callee.span)?;
-                    let arity = match name {
-                        "store_new" => 0,
-                        "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
-                        _ => 1,
-                    };
-                    if arguments.len() != arity {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            span,
-                            "Store primitive argument count mismatch",
-                        ));
-                    }
-                    if name == "store_new" {
-                        let element =
-                            expected.and_then(dynamic_store::element).ok_or_else(|| {
-                                error(
-                                    "E-OWNED-STORE-TYPE",
-                                    span,
-                                    "store_new requires a concrete Store context",
-                                )
-                            })?;
-                        self.graph.reserve_type(element, 0, span)?;
-                        return self.known(&dynamic_store::result_type(name, element), span);
-                    }
-                    let first = self.expr(&arguments[0], depth + 1)?;
-                    let LocalType::Resource(variable, _) = first else {
-                        return Err(error(
-                            "E-OWNED-STORE-TYPE",
-                            span,
-                            "Store primitive requires a resource description",
-                        ));
-                    };
-                    let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
-                        return Err(error(
-                            "E-OWNED-STORE-TYPE",
-                            span,
-                            "Store primitive requires a concrete Store element",
-                        ));
-                    };
-                    self.graph.reserve_type(&element, 0, span)?;
-                    if matches!(
-                        name,
-                        "store_reserve" | "store_push" | "store_at" | "store_at_mut"
-                    ) {
-                        let wanted =
-                            if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
-                                Type::I64
-                            } else {
-                                (*element).clone()
-                            };
-                        let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
-                        value.bind(&mut self.graph, &wanted, arguments[1].span)?;
-                    }
-                    if matches!(
-                        name,
-                        "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
-                    ) {
-                        self.mark_resource_write(first, arguments[0].span)?;
-                    }
-                    return self.known(&dynamic_store::result_type(name, &element), span);
+            if *op == UnaryOp::BorrowMut {
+                self.mark_address_write(operand, depth + 1)?;
+            }
+            return Ok(LocalType::Address(
+                value.scalar(span)?,
+                *op == UnaryOp::BorrowMut,
+            ));
+        }
+        if *op == UnaryOp::Dereference {
+            return match value {
+                LocalType::Address(variable, _) => Ok(LocalType::Scalar(variable)),
+                LocalType::Scalar(variable) => {
+                    let inner = self.graph.fresh(VALUE, false);
+                    self.graph.address(variable, inner, None, span)?;
+                    Ok(LocalType::Scalar(inner))
                 }
-                if let Some(name) = byte_buffer::primitive(callee) {
-                    self.visit(depth + 1, callee.span)?;
-                    let parameters = byte_buffer::parameters(name);
-                    if parameters.len() != arguments.len() {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            span,
-                            "byte storage primitive argument count mismatch",
-                        ));
-                    }
-                    for (index, (argument, ty)) in arguments.iter().zip(&parameters).enumerate() {
-                        let value = self.expr_expected(argument, Some(ty), depth + 1)?;
-                        value.bind(&mut self.graph, ty, argument.span)?;
-                        if index == 0
-                            && matches!(
-                                name,
-                                "bytes_reserve"
-                                    | "bytes_truncate"
-                                    | "bytes_push"
-                                    | "bytes_view_mut"
-                            )
-                        {
-                            self.mark_resource_write(value, argument.span)?;
-                        }
-                    }
-                    return self.known(
-                        &byte_buffer::result_type(name).expect("byte primitive"),
+                _ => Err(error(
+                    "E-OPERATOR-TYPE",
+                    span,
+                    "dereference requires a shared address",
+                )),
+            };
+        }
+        let variable = value.scalar(span)?;
+        match op {
+            UnaryOp::Not => self.graph.constrain(variable, BOOL, span)?,
+            UnaryOp::Negate => self.graph.constrain(variable, NUMBER, span)?,
+            UnaryOp::BitNot => self.graph.constrain(variable, INTEGER, span)?,
+            _ => return Err(unsupported(span, "address/resource operation in closure")),
+        }
+        Ok(value)
+    }
+
+    #[inline(never)]
+    fn expr_binary(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Binary { op, left, right } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let left = self.expr(left, depth + 1)?.scalar(span)?;
+        let right = self.expr(right, depth + 1)?.scalar(span)?;
+        self.graph.unify(left, right, span)?;
+        let comparison = matches!(
+            op,
+            BinaryOp::Equal
+                | BinaryOp::NotEqual
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+        );
+        let domain = if matches!(op, BinaryOp::And | BinaryOp::Or) {
+            BOOL
+        } else if matches!(op, BinaryOp::Equal | BinaryOp::NotEqual) {
+            BOOL | NUMBER | HANDLE
+        } else {
+            NUMBER
+        };
+        self.graph.constrain(left, domain, span)?;
+        Ok(LocalType::Scalar(if comparison {
+            self.graph.fresh(BOOL, false)
+        } else {
+            left
+        }))
+    }
+
+    #[inline(never)]
+    fn expr_call(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Call { callee, arguments } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        if let Some(name) = dynamic_store::primitive(callee) {
+            self.visit(depth + 1, callee.span)?;
+            let arity = match name {
+                "store_new" => 0,
+                "store_reserve" | "store_push" | "store_at" | "store_at_mut" => 2,
+                _ => 1,
+            };
+            if arguments.len() != arity {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "Store primitive argument count mismatch",
+                ));
+            }
+            if name == "store_new" {
+                let element = expected.and_then(dynamic_store::element).ok_or_else(|| {
+                    error(
+                        "E-OWNED-STORE-TYPE",
                         span,
-                    );
+                        "store_new requires a concrete Store context",
+                    )
+                })?;
+                self.graph.reserve_type(element, 0, span)?;
+                return self.known(&dynamic_store::result_type(name, element), span);
+            }
+            let first = self.expr(&arguments[0], depth + 1)?;
+            let LocalType::Resource(variable, _) = first else {
+                return Err(error(
+                    "E-OWNED-STORE-TYPE",
+                    span,
+                    "Store primitive requires a resource description",
+                ));
+            };
+            let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
+                return Err(error(
+                    "E-OWNED-STORE-TYPE",
+                    span,
+                    "Store primitive requires a concrete Store element",
+                ));
+            };
+            self.graph.reserve_type(&element, 0, span)?;
+            if matches!(
+                name,
+                "store_reserve" | "store_push" | "store_at" | "store_at_mut"
+            ) {
+                let wanted = if matches!(name, "store_reserve" | "store_at" | "store_at_mut") {
+                    Type::I64
+                } else {
+                    (*element).clone()
+                };
+                let value = self.expr_expected(&arguments[1], Some(&wanted), depth + 1)?;
+                value.bind(&mut self.graph, &wanted, arguments[1].span)?;
+            }
+            if matches!(
+                name,
+                "store_reserve" | "store_push" | "store_pop" | "store_at_mut"
+            ) {
+                self.mark_resource_write(first, arguments[0].span)?;
+            }
+            return self.known(&dynamic_store::result_type(name, &element), span);
+        }
+        if let Some(name) = tasks::primitive(callee) {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(12)
+                .ok_or_else(|| limit("task signature construction budget exceeded", span))?;
+            let offset = usize::from(matches!(name, "task_start" | "task_await"));
+            let parameters = tasks::parameters(name);
+            if arguments.len() != parameters.len() + offset {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "task primitive argument count mismatch",
+                ));
+            }
+            if offset != 0 {
+                self.visit(depth + 1, arguments[0].span)?;
+                if !self.direct(&arguments[0]) {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker must be a static function",
+                    ));
                 }
-                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
-                    self.visit(depth + 1, callee.span)?;
-                    let [worker, argument, body] = arguments.as_slice() else {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            span,
-                            "thread_scope requires a static worker, i32 payload and body",
-                        ));
-                    };
-                    self.visit(depth + 1, worker.span)?;
-                    self.thread_worker_lookup(worker)?;
-                    if !self.direct(worker) {
-                        return Err(error(
-                            "E-THREAD-WORKER",
-                            worker.span,
-                            "thread worker requires an actual static ordinary function symbol",
-                        ));
-                    }
-                    *self.work_left = self
-                        .work_left
-                        .checked_sub(1)
-                        .ok_or_else(|| limit("thread worker signature budget exceeded", span))?;
-                    let worker_signature = self.callee(worker)?;
-                    if !worker_signature.scalar_thread_worker() {
-                        return Err(error(
-                            "E-THREAD-WORKER",
-                            worker.span,
-                            "thread worker must be a concrete ordinary fn(i32)->i32 or fn(&i32)->i32",
-                        ));
-                    }
-                    let shared_payload =
-                        matches!(&worker_signature.parameters[0], Type::Address { .. });
-                    if shared_payload {
-                        *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
-                            limit("thread shared payload construction budget exceeded", span)
-                        })?;
-                    }
-                    let payload_type = if shared_payload {
-                        Type::Address {
-                            mutable: false,
-                            inner: Box::new(Type::I32),
-                        }
+                let signature = self.callee(&arguments[0])?;
+                if !signature.scalar_thread_worker()
+                    || signature.parameters.as_slice() != [Type::I32]
+                {
+                    return Err(error(
+                        "E-TASK-WORKER",
+                        span,
+                        "task worker requires fn(i32)->i32",
+                    ));
+                }
+            }
+            for (argument, ty) in arguments[offset..].iter().zip(&parameters) {
+                let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                term.bind(&mut self.graph, ty, argument.span)?;
+            }
+            return self.known(&tasks::result(name), span);
+        }
+        if let Some(name) = byte_buffer::primitive(callee) {
+            self.visit(depth + 1, callee.span)?;
+            let parameters = byte_buffer::parameters(name);
+            if parameters.len() != arguments.len() {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "byte storage primitive argument count mismatch",
+                ));
+            }
+            for (index, (argument, ty)) in arguments.iter().zip(&parameters).enumerate() {
+                let value = self.expr_expected(argument, Some(ty), depth + 1)?;
+                value.bind(&mut self.graph, ty, argument.span)?;
+                if index == 0
+                    && matches!(
+                        name,
+                        "bytes_reserve" | "bytes_truncate" | "bytes_push" | "bytes_view_mut"
+                    )
+                {
+                    self.mark_resource_write(value, argument.span)?;
+                }
+            }
+            return self.known(
+                &byte_buffer::result_type(name).expect("byte primitive"),
+                span,
+            );
+        }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && let Some((kind, op)) = scoped_thread::sync_primitive(name)
+        {
+            self.visit(depth + 1, callee.span)?;
+            *self.work_left = self
+                .work_left
+                .checked_sub(8)
+                .ok_or_else(|| limit("cell operation type construction budget exceeded", span))?;
+            let address_ty = scoped_thread::sync_address(kind);
+            if let Some(op) = op {
+                let arity = if op == SyncI32Op::Load { 1 } else { 2 };
+                if arguments.len() != arity {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "incorrect synchronization operation arity",
+                    ));
+                }
+                for (index, argument) in arguments.iter().enumerate() {
+                    let ty = if index == 0 { &address_ty } else { &Type::I32 };
+                    let term = self.expr_expected(argument, Some(ty), depth + 1)?;
+                    self.graph
+                        .thread_work(self.work_left, |graph| term.bind(graph, ty, argument.span))?;
+                }
+                return self.known(
+                    &if op == SyncI32Op::Store {
+                        Type::Unit
                     } else {
                         Type::I32
-                    };
-                    // The accepted shapes are closed. Shared construction is
-                    // prepaid above; graph traversal reserves the actual type.
-                    self.graph.thread_query(self.work_left, |graph| {
-                        graph.reserve_type(&payload_type, 0, worker.span)?;
-                        graph.reserve_type(&Type::I32, 0, worker.span)
-                    })?;
-                    let value = self.expr_expected(argument, Some(&payload_type), depth + 1)?;
-                    self.graph.thread_work(self.work_left, |graph| {
-                        value.bind(graph, &payload_type, argument.span)
-                    })?;
-                    let value = self.expr(body, depth + 1)?;
-                    let signature = match value {
-                        LocalType::Nested(index, None) => {
-                            let signature = &self.nested_signatures[index];
-                            self.graph.thread_query(self.work_left, |graph| {
-                                graph.reserve_type(signature, 0, span)?;
-                                Ok(signature.clone())
-                            })?
-                        }
-                        // The legacy Copy inference path keeps a private
-                        // function signature for nested source closures.
-                        // Builder must still prove an actual Closure value;
-                        // this signature never grants a thin pointer authority.
-                        LocalType::Scalar(variable) => self
-                            .graph
-                            .thread_query(self.work_left, |graph| graph.ty(variable))?
-                            .ok_or_else(|| {
-                                error(
-                                    "E-CLOSURE-INFERENCE",
-                                    span,
-                                    "thread body signature is unresolved",
-                                )
-                            })?,
-                        LocalType::Closure(id, None, _) => {
-                            let pending = &self.closures[id.0 as usize];
-                            if pending.inference.arity() != 0 {
-                                return Err(error(
-                                    "E-THREAD-BODY",
-                                    body.span,
-                                    "thread body signature is ()->i32",
-                                ));
-                            }
-                            *self.work_left = self.work_left.checked_sub(1).ok_or_else(|| {
-                                limit("thread signature construction budget exceeded", span)
-                            })?;
-                            let result = pending
-                                .inference
-                                .graph
-                                .thread_query(self.work_left, |graph| {
-                                    graph.ty(pending.inference.result)
-                                })?;
-                            Type::FunctionPointer {
-                                parameters: vec![],
-                                result: Box::new(result.ok_or_else(|| {
+                    },
+                    span,
+                );
+            }
+            let [initial, body] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "cell scope requires initial i32 and body",
+                ));
+            };
+            let term = self.expr_expected(initial, Some(&Type::I32), depth + 1)?;
+            self.graph.thread_work(self.work_left, |graph| {
+                term.bind(graph, &Type::I32, initial.span)
+            })?;
+            let term = self.expr(body, depth + 1)?;
+            let signature = match term {
+                LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                LocalType::Scalar(variable) => self
+                    .graph
+                    .thread_query(self.work_left, |graph| graph.ty(variable))?
+                    .ok_or_else(|| {
+                        error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "cell body signature is unresolved",
+                        )
+                    })?,
+                LocalType::Closure(id, None, _) => {
+                    let pending = &self.closures[id.0 as usize];
+                    if pending.inference.arity() != 1 {
+                        return Err(error(
+                            "E-SYNC-BODY",
+                            body.span,
+                            "cell body takes one sealed address",
+                        ));
+                    }
+                    pending
+                        .inference
+                        .graph
+                        .thread_query(self.work_left, |graph| {
+                            let parameter =
+                                graph.ty(pending.inference.parameters[0])?.ok_or_else(|| {
                                     error(
-                                        "E-CLOSURE-INFERENCE",
-                                        span,
-                                        "thread body result is unresolved",
+                                        "E-SYNC-BODY",
+                                        body.span,
+                                        "cell body parameter is unresolved",
                                     )
-                                })?),
-                            }
-                        }
-                        _ => {
-                            return Err(error(
-                                "E-THREAD-BODY",
-                                body.span,
-                                "thread body must be a concrete closure value",
-                            ));
-                        }
-                    };
-                    *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
-                        limit("thread signature comparison budget exceeded", span)
-                    })?;
-                    if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.is_empty() && result.as_ref() == &Type::I32)
-                    {
+                                })?;
+                            let result = graph.ty(pending.inference.result)?.ok_or_else(|| {
+                                error("E-SYNC-BODY", body.span, "cell body result is unresolved")
+                            })?;
+                            Ok(Type::FunctionPointer {
+                                parameters: vec![parameter],
+                                result: Box::new(result),
+                            })
+                        })?
+                }
+                _ => {
+                    return Err(error(
+                        "E-SYNC-BODY",
+                        body.span,
+                        "cell scope requires a concrete closure",
+                    ));
+                }
+            };
+            if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.as_slice() == [address_ty] && result.as_ref() == &Type::I32)
+            {
+                return Err(error(
+                    "E-SYNC-BODY",
+                    body.span,
+                    "cell body has wrong sealed cell signature",
+                ));
+            }
+            self.transferred_closure(body, term);
+            return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+        }
+        if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+            self.visit(depth + 1, callee.span)?;
+            let [worker, argument, body] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "thread_scope requires a static worker, i32 payload and body",
+                ));
+            };
+            self.visit(depth + 1, worker.span)?;
+            self.thread_worker_lookup(worker)?;
+            if !self.direct(worker) {
+                return Err(error(
+                    "E-THREAD-WORKER",
+                    worker.span,
+                    "thread worker requires an actual static ordinary function symbol",
+                ));
+            }
+            *self.work_left = self
+                .work_left
+                .checked_sub(1)
+                .ok_or_else(|| limit("thread worker signature budget exceeded", span))?;
+            let worker_signature = self.callee(worker)?;
+            if !worker_signature.scalar_thread_worker() {
+                return Err(error(
+                    "E-THREAD-WORKER",
+                    worker.span,
+                    "thread worker must be a concrete ordinary fn(i32)->i32 or fn(&i32)->i32",
+                ));
+            }
+            let shared_payload = matches!(&worker_signature.parameters[0], Type::Address { .. });
+            let cell_kind = match &worker_signature.parameters[0] {
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::SyncCell(kind) => Some(*kind),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if shared_payload {
+                *self.work_left = self.work_left.checked_sub(2).ok_or_else(|| {
+                    limit("thread shared payload construction budget exceeded", span)
+                })?;
+            }
+            let payload_type = if shared_payload {
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(cell_kind.map_or(Type::I32, Type::SyncCell)),
+                }
+            } else {
+                Type::I32
+            };
+            // The accepted shapes are closed. Shared construction is
+            // prepaid above; graph traversal reserves the actual type.
+            self.graph.thread_query(self.work_left, |graph| {
+                graph.reserve_type(&payload_type, 0, worker.span)?;
+                graph.reserve_type(&Type::I32, 0, worker.span)
+            })?;
+            let value = self.expr_expected(argument, Some(&payload_type), depth + 1)?;
+            self.graph.thread_work(self.work_left, |graph| {
+                value.bind(graph, &payload_type, argument.span)
+            })?;
+            let value = self.expr(body, depth + 1)?;
+            let signature = match value {
+                LocalType::Nested(index, None) => {
+                    let signature = &self.nested_signatures[index];
+                    self.graph.thread_query(self.work_left, |graph| {
+                        graph.reserve_type(signature, 0, span)?;
+                        Ok(signature.clone())
+                    })?
+                }
+                // The legacy Copy inference path keeps a private
+                // function signature for nested source closures.
+                // Builder must still prove an actual Closure value;
+                // this signature never grants a thin pointer authority.
+                LocalType::Scalar(variable) => self
+                    .graph
+                    .thread_query(self.work_left, |graph| graph.ty(variable))?
+                    .ok_or_else(|| {
+                        error(
+                            "E-CLOSURE-INFERENCE",
+                            span,
+                            "thread body signature is unresolved",
+                        )
+                    })?,
+                LocalType::Closure(id, None, _) => {
+                    let pending = &self.closures[id.0 as usize];
+                    if pending.inference.arity() != 0 {
                         return Err(error(
                             "E-THREAD-BODY",
                             body.span,
                             "thread body signature is ()->i32",
                         ));
                     }
-                    // The prepared body is transferred once, even when create
-                    // fails and only its environment cleanup executes.
-                    if let CoreExprKind::Name(name) = &body.kind {
-                        let width = name.len().saturating_add(1);
-                        *self.work_left = self
-                            .work_left
-                            .checked_sub(self.scopes.len())
-                            .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
-                        let lookup = self.scopes.iter().fold(0usize, |work, scope| {
-                            work.saturating_add(
-                                helpers::plan::tree_work(scope.len()).saturating_mul(width),
+                    *self.work_left = self.work_left.checked_sub(1).ok_or_else(|| {
+                        limit("thread signature construction budget exceeded", span)
+                    })?;
+                    let result = pending
+                        .inference
+                        .graph
+                        .thread_query(self.work_left, |graph| graph.ty(pending.inference.result))?;
+                    Type::FunctionPointer {
+                        parameters: vec![],
+                        result: Box::new(result.ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "thread body result is unresolved",
                             )
-                        });
-                        *self.work_left = self
-                            .work_left
-                            .checked_sub(lookup)
-                            .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
-                        if self.lookup(name).is_none() {
-                            let scan = self.captures.len().saturating_mul(width);
-                            *self.work_left =
-                                self.work_left.checked_sub(scan).ok_or_else(|| {
-                                    limit("thread capture scan budget exceeded", span)
-                                })?;
-                            if let Some(capture) = self
-                                .captures
-                                .iter_mut()
-                                .find(|capture| capture.name == *name)
-                            {
-                                capture.moved = true;
-                                capture.borrowed = false;
-                                capture.consumed = true;
-                            }
-                        }
+                        })?),
                     }
-                    return self.graph.thread_work(self.work_left, |graph| {
-                        graph.spend_count(4, span)?;
-                        let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
-                        let variable = graph.fresh(VALUE, false);
-                        graph.bind(variable, &ty, span)?;
-                        Ok(LocalType::Scalar(variable))
-                    });
                 }
-                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
-                    self.visit(depth + 1, callee.span)?;
-                    let [register, close, callback, body] = arguments.as_slice() else {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            span,
-                            "c_with_callback requires four arguments",
-                        ));
-                    };
-                    for (expression, role) in [
-                        (register, ScopedCallbackRole::Register),
-                        (close, ScopedCallbackRole::Close),
-                    ] {
-                        self.visit(depth + 1, expression.span)?;
-                        let signature = self.callee(expression)?;
-                        self.reserve_signature(signature, expression.span)?;
-                        if signature.scoped_callback != Some(role) {
-                            return Err(error(
-                                "E-FFI-SCOPED-ROLE",
-                                expression.span,
-                                "scoped callback role differs from its actual declaration",
-                            ));
-                        }
-                    }
-                    let value = self.expr(callback, depth + 1)?;
-                    let signature = match value {
-                        LocalType::Nested(index, Some(true)) => {
-                            self.nested_signature(index, span)?
-                        }
-                        LocalType::Closure(id, Some(true), declared) => {
-                            let pending = &self.closures[id.0 as usize];
-                            if declared == Some(CallableKind::FnOnce)
-                                || pending.callable_kind() == CallableKind::FnOnce
-                            {
-                                return Err(error(
-                                    "E-CLOSURE-MODE",
-                                    span,
-                                    "scoped callback cannot consume its environment",
-                                ));
-                            }
-                            Type::FunctionPointer {
-                                parameters: (0..pending.inference.arity())
-                                    .map(|i| {
-                                        pending.inference.parameter(i)?.ok_or_else(|| {
-                                            error(
-                                                "E-CLOSURE-INFERENCE",
-                                                span,
-                                                "scoped callback signature is unresolved",
-                                            )
-                                        })
-                                    })
-                                    .collect::<R<Vec<_>>>()?,
-                                result: Box::new(pending.inference.result()?.ok_or_else(|| {
-                                    error(
-                                        "E-CLOSURE-INFERENCE",
-                                        span,
-                                        "scoped callback result is unresolved",
-                                    )
-                                })?),
-                            }
-                        }
-                        _ => {
-                            return Err(error(
-                                "E-FFI-SCOPED-CALLBACK",
-                                span,
-                                "scoped callback requires a concrete exclusive closure position",
-                            ));
-                        }
-                    };
-                    if signature
-                        != (Type::FunctionPointer {
-                            parameters: vec![Type::I32],
-                            result: Box::new(Type::I32),
-                        })
-                    {
-                        return Err(error(
-                            "E-FFI-SCOPED-CALLBACK",
-                            span,
-                            "scoped callback signature is (i32)->i32",
-                        ));
-                    }
-                    self.mark_address_write(callback, depth + 1)?;
-                    let value = self.expr(body, depth + 1)?;
-                    let signature = match value {
-                        LocalType::Nested(index, None) => self.nested_signature(index, span)?,
-                        LocalType::Closure(id, None, _) => {
-                            let pending = &self.closures[id.0 as usize];
-                            Type::FunctionPointer {
-                                parameters: (0..pending.inference.arity())
-                                    .map(|i| {
-                                        pending.inference.parameter(i)?.ok_or_else(|| {
-                                            error(
-                                                "E-CLOSURE-INFERENCE",
-                                                span,
-                                                "scoped body signature is unresolved",
-                                            )
-                                        })
-                                    })
-                                    .collect::<R<Vec<_>>>()?,
-                                result: Box::new(pending.inference.result()?.ok_or_else(|| {
-                                    error(
-                                        "E-CLOSURE-INFERENCE",
-                                        span,
-                                        "scoped body result is unresolved",
-                                    )
-                                })?),
-                            }
-                        }
-                        _ => {
-                            return Err(error(
-                                "E-FFI-SCOPED-BODY",
-                                span,
-                                "scoped body must be a concrete closure value",
-                            ));
-                        }
-                    };
-                    if signature
-                        != (Type::FunctionPointer {
-                            parameters: vec![],
-                            result: Box::new(Type::I32),
-                        })
-                    {
-                        return Err(error(
-                            "E-FFI-SCOPED-BODY",
-                            span,
-                            "scoped body signature is ()->i32",
-                        ));
-                    }
-                    if let CoreExprKind::Name(name) = &body.kind
-                        && self.lookup(name).is_none()
-                        && let Some(capture) = self
-                            .captures
-                            .iter_mut()
-                            .find(|capture| capture.name == *name)
+                _ => {
+                    return Err(error(
+                        "E-THREAD-BODY",
+                        body.span,
+                        "thread body must be a concrete closure value",
+                    ));
+                }
+            };
+            *self.work_left = self
+                .work_left
+                .checked_sub(2)
+                .ok_or_else(|| limit("thread signature comparison budget exceeded", span))?;
+            if !matches!(&signature, Type::FunctionPointer { parameters, result } if parameters.is_empty() && result.as_ref() == &Type::I32)
+            {
+                return Err(error(
+                    "E-THREAD-BODY",
+                    body.span,
+                    "thread body signature is ()->i32",
+                ));
+            }
+            // The prepared body is transferred once, even when create
+            // fails and only its environment cleanup executes.
+            if let CoreExprKind::Name(name) = &body.kind {
+                let width = name.len().saturating_add(1);
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(self.scopes.len())
+                    .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
+                let lookup = self.scopes.iter().fold(0usize, |work, scope| {
+                    work.saturating_add(helpers::plan::tree_work(scope.len()).saturating_mul(width))
+                });
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(lookup)
+                    .ok_or_else(|| limit("thread body lookup budget exceeded", span))?;
+                if self.lookup(name).is_none() {
+                    let scan = self.captures.len().saturating_mul(width);
+                    *self.work_left = self
+                        .work_left
+                        .checked_sub(scan)
+                        .ok_or_else(|| limit("thread capture scan budget exceeded", span))?;
+                    if let Some(capture) = self
+                        .captures
+                        .iter_mut()
+                        .find(|capture| capture.name == *name)
                     {
                         capture.moved = true;
                         capture.borrowed = false;
                         capture.consumed = true;
                     }
-                    return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
                 }
-                if foreign::callback_constructor(callee) {
-                    self.visit(depth + 1, callee.span)?;
-                    let [target] = arguments.as_slice() else {
-                        return Err(error(
-                            "E-FFI-CALLBACK",
-                            span,
-                            "c_callback requires one static ordinary function symbol",
-                        ));
-                    };
-                    if !self.direct(target) {
-                        return Err(error(
-                            "E-FFI-CALLBACK",
-                            target.span,
-                            "stored callables and closures cannot become C callbacks",
-                        ));
-                    }
-                    self.visit(depth + 1, target.span)?;
-                    let signature = self.callee(target)?;
-                    self.reserve_signature(signature, span)?;
-                    let ty = signature.foreign_callback_type().ok_or_else(|| {
-                        error(
-                            "E-FFI-CALLBACK",
-                            target.span,
-                            "C callback target has an unsupported signature or contract",
-                        )
-                    })?;
-                    return self.known(&ty, span);
-                }
-                if let Some((ty, variant)) = self.constructor(callee)? {
-                    self.visit(depth + 1, callee.span)?;
-                    self.visit(depth + 2, callee.span)?;
-                    return self.variant(&ty, variant, arguments, depth, span);
-                }
-                if !self.direct(callee) {
-                    // Infer the receiver once. Function-valued fields and slice
-                    // len keep their existing precedence over nominal methods.
-                    let callee_type = if let CoreExprKind::Member {
-                        object,
-                        member,
-                        owner,
-                    } = &callee.kind
-                    {
-                        self.visit(depth + 1, callee.span)?;
-                        let base = self.expr(object, depth + 2)?;
-                        self.owner_type(base, owner.as_ref(), callee.span)?;
-                        if let Some(result) =
-                            self.nominal_method_call(base, object, member, arguments, depth, span)?
-                        {
-                            return Ok(result);
-                        }
-                        if member == "len"
-                            && matches!(base, LocalType::Address(v, _) if self.graph.is_slice(v))
-                        {
-                            LocalType::SliceLength
-                        } else {
-                            self.project(base, Projection::Field(member.clone()), callee.span)?
-                        }
-                    } else {
-                        self.expr(callee, depth + 1)?
-                    };
-                    if matches!(callee_type, LocalType::SliceLength) {
-                        if !arguments.is_empty() {
-                            return Err(error(
-                                "E-CALL-ARITY",
-                                span,
-                                "slice len requires no arguments",
-                            ));
-                        }
-                        return self.known(&Type::I64, span);
-                    }
-                    if let LocalType::Closure(id, permission, declared) = callee_type {
-                        let pending = self.closures.get(id.0 as usize).ok_or_else(|| {
-                            error(
-                                "E-CLOSURE-INFERENCE",
-                                span,
-                                "concrete captured closure is absent",
-                            )
-                        })?;
-                        let kind = declared.unwrap_or_else(|| pending.callable_kind());
-                        if permission.is_some()
-                            && (kind == CallableKind::FnOnce
-                                || (kind == CallableKind::FnMut && permission == Some(false)))
-                        {
-                            return Err(error(
-                                "E-CLOSURE-MODE",
-                                span,
-                                "borrowed closure lacks its call permission",
-                            ));
-                        }
-                        if arguments.len() != pending.inference.arity() {
-                            return Err(error(
-                                "E-CALL-ARITY",
-                                span,
-                                "captured callback argument count differs",
-                            ));
-                        }
-                        let parameters = (0..arguments.len())
-                            .map(|i| pending.inference.parameter(i))
-                            .collect::<R<Vec<_>>>()?;
-                        let result = pending.inference.result()?.ok_or_else(|| {
-                            error(
-                                "E-CLOSURE-INFERENCE",
-                                span,
-                                "captured closure result is unresolved",
-                            )
-                        })?;
-                        if let CoreExprKind::Name(name) = &callee.kind
-                            && self.lookup(name).is_none()
-                            && let Some(capture) = self
-                                .captures
-                                .iter_mut()
-                                .find(|capture| capture.name == *name)
-                        {
-                            if kind == CallableKind::FnOnce {
-                                capture.moved = true;
-                                capture.borrowed = false;
-                                capture.consumed = true;
-                            } else if kind == CallableKind::FnMut {
-                                capture.written = true;
-                            }
-                        }
-                        for (argument, parameter) in arguments.iter().zip(parameters) {
-                            let parameter = parameter.ok_or_else(|| {
-                                error(
-                                    "E-CLOSURE-INFERENCE",
-                                    span,
-                                    "captured closure parameter is unresolved",
-                                )
-                            })?;
-                            let value =
-                                self.expr_expected(argument, Some(&parameter), depth + 1)?;
-                            value.bind(&mut self.graph, &parameter, argument.span)?;
-                        }
-                        return self.known(&result, span);
-                    }
-                    if let LocalType::Nested(index, _) = callee_type {
-                        let Type::FunctionPointer { parameters, result } =
-                            self.nested_signature(index, span)?
-                        else {
-                            unreachable!("private nested signature")
-                        };
-                        if arguments.len() != parameters.len() {
-                            return Err(error(
-                                "E-CALL-ARITY",
-                                span,
-                                "nested callback argument count differs",
-                            ));
-                        }
-                        for (argument, parameter) in arguments.iter().zip(&parameters) {
-                            self.expr_expected(argument, Some(parameter), depth + 1)?
-                                .bind(&mut self.graph, parameter, argument.span)?;
-                        }
-                        return self.known(&result, span);
-                    }
-                    let callee_type = callee_type.scalar(callee.span)?;
-                    let mut parameters = Vec::new();
-                    for argument in arguments {
-                        parameters.push(self.expr(argument, depth + 1)?.scalar(argument.span)?);
-                    }
-                    let result = self.graph.fresh(VALUE, false);
-                    self.graph
-                        .function_pointer(callee_type, parameters, result, span)?;
-                    return Ok(LocalType::Scalar(result));
-                }
-                let signature = self.callee(callee)?;
-                self.reserve_signature(signature, span)?;
-                let signature = signature.clone();
-                if arguments.len() != signature.parameters.len() {
+            }
+            return self.graph.thread_work(self.work_left, |graph| {
+                graph.spend_count(4, span)?;
+                let ty = Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]);
+                let variable = graph.fresh(VALUE, false);
+                graph.bind(variable, &ty, span)?;
+                Ok(LocalType::Scalar(variable))
+            });
+        }
+        if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
+            self.visit(depth + 1, callee.span)?;
+            let [register, close, callback, body] = arguments.as_slice() else {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "c_with_callback requires four arguments",
+                ));
+            };
+            for (expression, role) in [
+                (register, ScopedCallbackRole::Register),
+                (close, ScopedCallbackRole::Close),
+            ] {
+                self.visit(depth + 1, expression.span)?;
+                let signature = self.callee(expression)?;
+                self.reserve_signature(signature, expression.span)?;
+                if signature.scoped_callback != Some(role) {
                     return Err(error(
-                        "E-CALL-ARITY",
-                        span,
-                        "closure body call argument count mismatch",
+                        "E-FFI-SCOPED-ROLE",
+                        expression.span,
+                        "scoped callback role differs from its actual declaration",
                     ));
                 }
-                let mut nested_result = None;
-                for (index, (argument, parameter)) in
-                    arguments.iter().zip(&signature.parameters).enumerate()
-                {
-                    self.graph.spend_count(signature.callable.len(), span)?;
-                    if let Some(bound) = signature
-                        .callable
-                        .iter()
-                        .find(|bound| bound.index as usize == index)
-                        && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
-                    {
-                        let value = self.helper_argument(argument, bound, mode, depth + 1)?;
-                        if matches!(value, LocalType::Nested(_, None))
-                            && mode.is_none()
-                            && matches!(&signature.result, Type::Named(name) if name == &bound.generic_name)
-                        {
-                            nested_result = Some(value);
-                        }
-                        continue;
-                    }
-                    let variable = self.expr_expected(argument, Some(parameter), depth + 1)?;
-                    if matches!(parameter, Type::Address { mutable: true, .. }) {
-                        self.mark_address_write(argument, depth + 1)?;
-                    }
-                    if matches!(parameter, Type::Desc(_))
-                        && self
-                            .resource_writes
-                            .get(&resource_effects::target(&signature))
-                            .is_some_and(|writes| writes.contains(&index))
-                    {
-                        self.mark_resource_write(variable, argument.span)?;
-                    }
-                    variable.bind(&mut self.graph, parameter, argument.span)?;
-                }
-                if let Some(value) = nested_result {
-                    return Ok(value);
-                }
-                self.known(&signature.result, span)
             }
-            CoreExprKind::Tuple(items) => {
-                let mut fields = Vec::new();
-                for item in items {
-                    fields.push(self.expr(item, depth + 1)?.scalar(item.span)?);
+            let value = self.expr(callback, depth + 1)?;
+            let signature = match value {
+                LocalType::Nested(index, Some(true)) => self.nested_signature(index, span)?,
+                LocalType::Closure(id, Some(true), declared) => {
+                    let pending = &self.closures[id.0 as usize];
+                    if declared == Some(CallableKind::FnOnce)
+                        || pending.callable_kind() == CallableKind::FnOnce
+                    {
+                        return Err(error(
+                            "E-CLOSURE-MODE",
+                            span,
+                            "scoped callback cannot consume its environment",
+                        ));
+                    }
+                    Type::FunctionPointer {
+                        parameters: (0..pending.inference.arity())
+                            .map(|i| {
+                                pending.inference.parameter(i)?.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "scoped callback signature is unresolved",
+                                    )
+                                })
+                            })
+                            .collect::<R<Vec<_>>>()?,
+                        result: Box::new(pending.inference.result()?.ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "scoped callback result is unresolved",
+                            )
+                        })?),
+                    }
                 }
-                let result = self.graph.fresh(VALUE, false);
-                self.graph.tuple(result, fields, span)?;
-                Ok(LocalType::Scalar(result))
-            }
-            CoreExprKind::Array(items) => {
-                let element = self.graph.fresh(VALUE, false);
-                for item in items {
-                    let value = self.expr(item, depth + 1)?.scalar(item.span)?;
-                    self.graph.unify(element, value, item.span)?;
+                _ => {
+                    return Err(error(
+                        "E-FFI-SCOPED-CALLBACK",
+                        span,
+                        "scoped callback requires a concrete exclusive closure position",
+                    ));
                 }
-                let result = self.graph.fresh(VALUE, false);
-                self.graph.array(
-                    result,
-                    element,
-                    u32::try_from(items.len()).map_err(|_| limit("array length overflow", span))?,
+            };
+            if signature
+                != (Type::FunctionPointer {
+                    parameters: vec![Type::I32],
+                    result: Box::new(Type::I32),
+                })
+            {
+                return Err(error(
+                    "E-FFI-SCOPED-CALLBACK",
                     span,
-                )?;
-                Ok(LocalType::Scalar(result))
+                    "scoped callback signature is (i32)->i32",
+                ));
             }
-            CoreExprKind::Record { ty, fields } => {
-                let payload = match ty {
-                    Type::Managed(payload) => payload.as_ref(),
-                    _ => ty,
-                };
-                for (name, value) in fields {
-                    let expected = aggregates::field(payload, name, value.span)?.1;
-                    let actual = self.expr_expected(value, Some(&expected), depth + 1)?;
-                    actual.bind(&mut self.graph, &expected, value.span)?;
+            self.mark_address_write(callback, depth + 1)?;
+            let value = self.expr(body, depth + 1)?;
+            let signature = match value {
+                LocalType::Nested(index, None) => self.nested_signature(index, span)?,
+                LocalType::Closure(id, None, _) => {
+                    let pending = &self.closures[id.0 as usize];
+                    Type::FunctionPointer {
+                        parameters: (0..pending.inference.arity())
+                            .map(|i| {
+                                pending.inference.parameter(i)?.ok_or_else(|| {
+                                    error(
+                                        "E-CLOSURE-INFERENCE",
+                                        span,
+                                        "scoped body signature is unresolved",
+                                    )
+                                })
+                            })
+                            .collect::<R<Vec<_>>>()?,
+                        result: Box::new(pending.inference.result()?.ok_or_else(|| {
+                            error(
+                                "E-CLOSURE-INFERENCE",
+                                span,
+                                "scoped body result is unresolved",
+                            )
+                        })?),
+                    }
                 }
-                self.known(ty, span)
+                _ => {
+                    return Err(error(
+                        "E-FFI-SCOPED-BODY",
+                        span,
+                        "scoped body must be a concrete closure value",
+                    ));
+                }
+            };
+            if signature
+                != (Type::FunctionPointer {
+                    parameters: vec![],
+                    result: Box::new(Type::I32),
+                })
+            {
+                return Err(error(
+                    "E-FFI-SCOPED-BODY",
+                    span,
+                    "scoped body signature is ()->i32",
+                ));
             }
-            CoreExprKind::RecordUpdate { ty, base, fields } => {
-                let base = self.expr(base, depth + 1)?;
-                if let Some(ty) = ty {
-                    base.bind(&mut self.graph, ty, span)?;
-                }
-                for (name, value) in fields {
-                    let target = self.project(base, Projection::Field(name.clone()), value.span)?;
-                    let value = self.expr(value, depth + 1)?;
-                    target.unify(value, &mut self.graph, span)?;
-                }
-                Ok(base)
+            if let CoreExprKind::Name(name) = &body.kind
+                && self.lookup(name).is_none()
+                && let Some(capture) = self
+                    .captures
+                    .iter_mut()
+                    .find(|capture| capture.name == *name)
+            {
+                capture.moved = true;
+                capture.borrowed = false;
+                capture.consumed = true;
             }
-            CoreExprKind::Member {
+            return self.known(&Type::Tuple(vec![Type::Bool, Type::I32]), span);
+        }
+        if foreign::callback_constructor(callee) {
+            self.visit(depth + 1, callee.span)?;
+            let [target] = arguments.as_slice() else {
+                return Err(error(
+                    "E-FFI-CALLBACK",
+                    span,
+                    "c_callback requires one static ordinary function symbol",
+                ));
+            };
+            if !self.direct(target) {
+                return Err(error(
+                    "E-FFI-CALLBACK",
+                    target.span,
+                    "stored callables and closures cannot become C callbacks",
+                ));
+            }
+            self.visit(depth + 1, target.span)?;
+            let signature = self.callee(target)?;
+            self.reserve_signature(signature, span)?;
+            let ty = signature.foreign_callback_type().ok_or_else(|| {
+                error(
+                    "E-FFI-CALLBACK",
+                    target.span,
+                    "C callback target has an unsupported signature or contract",
+                )
+            })?;
+            return self.known(&ty, span);
+        }
+        if let Some((ty, variant)) = self.constructor(callee)? {
+            self.visit(depth + 1, callee.span)?;
+            self.visit(depth + 2, callee.span)?;
+            return self.variant(&ty, variant, arguments, depth, span);
+        }
+        if !self.direct(callee) {
+            // Infer the receiver once. Function-valued fields and slice
+            // len keep their existing precedence over nominal methods.
+            let callee_type = if let CoreExprKind::Member {
                 object,
                 member,
                 owner,
-            } => {
-                if let Some((ty, variant)) = self.constructor(expression)? {
-                    self.visit(depth + 1, object.span)?;
-                    return self.variant(&ty, variant, &[], depth, span);
-                }
-                if self.direct(expression) {
-                    if owner.is_some() {
-                        return Err(error(
-                            "E-MEMBER-OWNER",
-                            span,
-                            "a constrained member requires a value receiver, not a static namespace",
-                        ));
-                    }
-                    let ty = self.pointer_type(self.callee(expression)?, span)?;
-                    return self.known(&ty, span);
-                }
-                let base = self.expr(object, depth + 1)?;
-                self.owner_type(base, owner.as_ref(), span)?;
-                if member == "len"
-                    && matches!(base, LocalType::Address(variable, _) if self.graph.is_slice(variable))
+            } = &callee.kind
+            {
+                self.visit(depth + 1, callee.span)?;
+                let base = self.expr(object, depth + 2)?;
+                self.owner_type(base, owner.as_ref(), callee.span)?;
+                if let Some(result) =
+                    self.nominal_method_call(base, object, member, arguments, depth, span)?
                 {
-                    return Ok(LocalType::SliceLength);
+                    return Ok(result);
                 }
-                self.project(base, Projection::Field(member.clone()), span)
-            }
-            CoreExprKind::Index { object, index } => {
-                let base = self.expr(object, depth + 1)?;
-                let index_type = self.expr(index, depth + 1)?.scalar(index.span)?;
-                self.graph.constrain(index_type, INTEGER, index.span)?;
-                self.project(base, Projection::Element, span)
-            }
-            CoreExprKind::Slice { object, start, end } => {
-                let base = self.expr(object, depth + 1)?;
-                for endpoint in [start, end].into_iter().flatten() {
-                    let variable = self.expr(endpoint, depth + 1)?.scalar(endpoint.span)?;
-                    self.graph.constrain(variable, INTEGER, endpoint.span)?;
+                if member == "len"
+                    && matches!(base, LocalType::Address(v, _) if self.graph.is_slice(v))
+                {
+                    LocalType::SliceLength
+                } else {
+                    self.project(base, Projection::Field(member.clone()), callee.span)?
                 }
-                let element = self
-                    .project(base, Projection::Element, span)?
-                    .scalar(span)?;
-                let result = self.graph.fresh(VALUE, false);
-                self.graph.slice(result, element, span)?;
-                Ok(LocalType::Scalar(result))
-            }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                let condition_type = self.expr(condition, depth + 1)?;
-                condition_type.bind(&mut self.graph, &Type::Bool, condition.span)?;
-                let then_type = self.expr_expected(then_value, expected, depth + 1)?;
-                let else_type = self.expr_expected(else_value, expected, depth + 1)?;
-                then_type.unify(else_type, &mut self.graph, span)?;
-                // An owned declared F leaves the selected captured position
-                // before the conditional value is bound or called. Nested
-                // conditionals handle their own arms during the visit above.
-                self.transferred_factory_branch(then_value, then_type)?;
-                self.transferred_factory_branch(else_value, else_type)?;
-                Ok(then_type)
-            }
-            CoreExprKind::Sequence { bindings, value } => {
-                self.scopes.push(BTreeMap::new());
-                for (name, expression) in bindings {
-                    let variable = self.expr(expression, depth + 1)?;
-                    self.scopes
-                        .last_mut()
-                        .expect("scope")
-                        .insert(name.clone(), variable);
-                    self.prepared.insert(name.clone());
-                }
-                let result = self.expr_expected(value, expected, depth + 1)?;
-                self.scopes.pop();
-                Ok(result)
-            }
-            CoreExprKind::Closure {
-                move_capture,
-                parameters,
-                return_type,
-                body,
-            } => {
-                // Source inference has resolved each nested signature. Visit
-                // its body as well so free paths cross every enclosing layer.
-                // The graph uses a private callable signature only; Builder
-                // still creates the actual environment and ordinary entry.
-                let Some(result) = return_type else {
-                    return Err(unsupported(
+            } else {
+                self.expr(callee, depth + 1)?
+            };
+            if matches!(callee_type, LocalType::SliceLength) {
+                if !arguments.is_empty() {
+                    return Err(error(
+                        "E-CALL-ARITY",
                         span,
-                        "nested closure requires a known fn context",
+                        "slice len requires no arguments",
                     ));
-                };
-                let mut types = Vec::with_capacity(parameters.len());
-                let outer_result = self.result;
-                let outer_has_return = self.has_return;
-                self.result = self.graph.fresh(VALUE, false);
-                self.graph.bind(self.result, result, span)?;
-                self.has_return = false;
-                self.scopes.push(BTreeMap::new());
-                for parameter in parameters {
-                    self.visit(depth + 1, parameter.span)?;
-                    let Some(ty) = &parameter.ty else {
-                        return Err(unsupported(
-                            parameter.span,
-                            "nested closure requires a known fn context",
-                        ));
-                    };
-                    self.graph.reserve_type(ty, 0, parameter.span)?;
-                    types.push(ty.clone());
-                    let value = self.known(ty, parameter.span)?;
-                    self.scopes
-                        .last_mut()
-                        .expect("nested parameter scope")
-                        .insert(parameter.name.clone(), value);
                 }
-                self.nested_moves += usize::from(*move_capture);
-                self.nested_depth += 1;
-                let outer_nested_root = self.nested_root;
-                self.nested_root = self.nested_root.or(Some(expression.id));
-                self.block(body, depth + 1)?;
-                self.nested_root = outer_nested_root;
-                self.nested_depth -= 1;
-                self.nested_moves -= usize::from(*move_capture);
-                self.scopes.pop();
-                self.result = outer_result;
-                self.has_return = outer_has_return;
-                self.graph.reserve_type(result, 0, span)?;
-                let signature = Type::FunctionPointer {
-                    parameters: types,
-                    result: Box::new(result.clone()),
-                };
-                match self.known(&signature, span) {
-                    // Preserve the old Copy inference path and its budget.
-                    Ok(value) => Ok(value),
-                    Err(rejected) if rejected.category == zil_base::ResultCategory::Unsupported => {
-                        // A private source closure signature can contain owned
-                        // data. It grants neither public pointer nor Copy rights.
-                        self.graph.reserve_type(&signature, 0, span)?;
-                        self.graph.reserve_type(&signature, 0, span)?;
-                        let Type::FunctionPointer { parameters, result } = &signature else {
-                            unreachable!("nested signature")
-                        };
-                        if !value_signature(parameters, result) {
-                            return Err(rejected);
-                        }
-                        self.graph.spend(span)?;
-                        let index = self.nested_signatures.len();
-                        self.nested_signatures.push(signature);
-                        Ok(LocalType::Nested(index, None))
-                    }
-                    Err(rejected) => Err(rejected),
-                }
+                return self.known(&Type::I64, span);
             }
-            CoreExprKind::Unsupported(feature) => Err(unsupported(span, feature)),
-            _ => Err(unsupported(span, "non-scalar expression in closure body")),
+            if let LocalType::Closure(id, permission, declared) = callee_type {
+                let pending = self.closures.get(id.0 as usize).ok_or_else(|| {
+                    error(
+                        "E-CLOSURE-INFERENCE",
+                        span,
+                        "concrete captured closure is absent",
+                    )
+                })?;
+                let kind = declared.unwrap_or_else(|| pending.callable_kind());
+                if permission.is_some()
+                    && (kind == CallableKind::FnOnce
+                        || (kind == CallableKind::FnMut && permission == Some(false)))
+                {
+                    return Err(error(
+                        "E-CLOSURE-MODE",
+                        span,
+                        "borrowed closure lacks its call permission",
+                    ));
+                }
+                if arguments.len() != pending.inference.arity() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "captured callback argument count differs",
+                    ));
+                }
+                let parameters = (0..arguments.len())
+                    .map(|i| pending.inference.parameter(i))
+                    .collect::<R<Vec<_>>>()?;
+                let result = pending.inference.result()?.ok_or_else(|| {
+                    error(
+                        "E-CLOSURE-INFERENCE",
+                        span,
+                        "captured closure result is unresolved",
+                    )
+                })?;
+                if let CoreExprKind::Name(name) = &callee.kind
+                    && self.lookup(name).is_none()
+                    && let Some(capture) = self
+                        .captures
+                        .iter_mut()
+                        .find(|capture| capture.name == *name)
+                {
+                    if kind == CallableKind::FnOnce {
+                        capture.moved = true;
+                        capture.borrowed = false;
+                        capture.consumed = true;
+                    } else if kind == CallableKind::FnMut {
+                        capture.written = true;
+                    }
+                }
+                for (argument, parameter) in arguments.iter().zip(parameters) {
+                    let parameter = parameter.ok_or_else(|| {
+                        error(
+                            "E-CLOSURE-INFERENCE",
+                            span,
+                            "captured closure parameter is unresolved",
+                        )
+                    })?;
+                    let value = self.expr_expected(argument, Some(&parameter), depth + 1)?;
+                    value.bind(&mut self.graph, &parameter, argument.span)?;
+                }
+                return self.known(&result, span);
+            }
+            if let LocalType::Nested(index, _) = callee_type {
+                let Type::FunctionPointer { parameters, result } =
+                    self.nested_signature(index, span)?
+                else {
+                    unreachable!("private nested signature")
+                };
+                if arguments.len() != parameters.len() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "nested callback argument count differs",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    self.expr_expected(argument, Some(parameter), depth + 1)?
+                        .bind(&mut self.graph, parameter, argument.span)?;
+                }
+                return self.known(&result, span);
+            }
+            let callee_type = callee_type.scalar(callee.span)?;
+            if let Some(Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }) = self.graph.ty(callee_type)?
+            {
+                if parameters.len() != arguments.len() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        span,
+                        "indirect callback arity differs from its signature",
+                    ));
+                }
+                for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    self.expr_expected(argument, Some(parameter), depth + 1)?
+                        .bind(&mut self.graph, parameter, argument.span)?;
+                    if matches!(parameter, Type::Address { mutable: true, .. }) {
+                        self.mark_address_write(argument, depth + 1)?;
+                    }
+                }
+                return self.known(&result, span);
+            }
+            let mut parameters = Vec::new();
+            for argument in arguments {
+                parameters.push(self.expr(argument, depth + 1)?.scalar(argument.span)?);
+            }
+            let result = self.graph.fresh(VALUE, false);
+            self.graph
+                .function_pointer(callee_type, parameters, result, span)?;
+            return Ok(LocalType::Scalar(result));
+        }
+        let signature = self.callee(callee)?;
+        self.reserve_signature(signature, span)?;
+        let signature = signature.clone();
+        if arguments.len() != signature.parameters.len() {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "closure body call argument count mismatch",
+            ));
+        }
+        let mut nested_result = None;
+        for (index, (argument, parameter)) in
+            arguments.iter().zip(&signature.parameters).enumerate()
+        {
+            self.graph.spend_count(signature.callable.len(), span)?;
+            if let Some(bound) = signature
+                .callable
+                .iter()
+                .find(|bound| bound.index as usize == index)
+                && let Some(mode) = helpers::parameter_mode(parameter, &bound.generic_name)
+            {
+                let value = self.helper_argument(argument, bound, mode, depth + 1)?;
+                if matches!(value, LocalType::Nested(_, None))
+                    && mode.is_none()
+                    && matches!(&signature.result, Type::Named(name) if name == &bound.generic_name)
+                {
+                    nested_result = Some(value);
+                }
+                continue;
+            }
+            let variable = self.expr_expected(argument, Some(parameter), depth + 1)?;
+            if matches!(parameter, Type::Address { mutable: true, .. }) {
+                self.mark_address_write(argument, depth + 1)?;
+            }
+            if matches!(parameter, Type::Desc(_))
+                && self
+                    .resource_writes
+                    .get(&resource_effects::target(&signature))
+                    .is_some_and(|writes| writes.contains(&index))
+            {
+                self.mark_resource_write(variable, argument.span)?;
+            }
+            variable.bind(&mut self.graph, parameter, argument.span)?;
+        }
+        if let Some(value) = nested_result {
+            return Ok(value);
+        }
+        self.known(&signature.result, span)
+    }
+
+    #[inline(never)]
+    fn expr_tuple(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Tuple(items) = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let mut fields = Vec::new();
+        for item in items {
+            fields.push(self.expr(item, depth + 1)?.scalar(item.span)?);
+        }
+        let result = self.graph.fresh(VALUE, false);
+        self.graph.tuple(result, fields, span)?;
+        Ok(LocalType::Scalar(result))
+    }
+
+    #[inline(never)]
+    fn expr_array(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Array(items) = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let element = self.graph.fresh(VALUE, false);
+        for item in items {
+            let value = self.expr(item, depth + 1)?.scalar(item.span)?;
+            self.graph.unify(element, value, item.span)?;
+        }
+        let result = self.graph.fresh(VALUE, false);
+        self.graph.array(
+            result,
+            element,
+            u32::try_from(items.len()).map_err(|_| limit("array length overflow", span))?,
+            span,
+        )?;
+        Ok(LocalType::Scalar(result))
+    }
+
+    #[inline(never)]
+    fn expr_record(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Record { ty, fields } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let payload = match ty {
+            Type::Managed(payload) => payload.as_ref(),
+            _ => ty,
+        };
+        for (name, value) in fields {
+            let expected = aggregates::field(payload, name, value.span)?.1;
+            let actual = self.expr_expected(value, Some(&expected), depth + 1)?;
+            actual.bind(&mut self.graph, &expected, value.span)?;
+        }
+        self.known(ty, span)
+    }
+
+    #[inline(never)]
+    fn expr_record_update(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::RecordUpdate { ty, base, fields } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let base = self.expr(base, depth + 1)?;
+        if let Some(ty) = ty {
+            base.bind(&mut self.graph, ty, span)?;
+        }
+        for (name, value) in fields {
+            let target = self.project(base, Projection::Field(name.clone()), value.span)?;
+            let value = self.expr(value, depth + 1)?;
+            target.unify(value, &mut self.graph, span)?;
+        }
+        Ok(base)
+    }
+
+    #[inline(never)]
+    fn expr_member(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &expression.kind
+        else {
+            unreachable!("expression dispatcher variant");
+        };
+        if let Some((ty, variant)) = self.constructor(expression)? {
+            self.visit(depth + 1, object.span)?;
+            return self.variant(&ty, variant, &[], depth, span);
+        }
+        if self.direct(expression) {
+            if owner.is_some() {
+                return Err(error(
+                    "E-MEMBER-OWNER",
+                    span,
+                    "a constrained member requires a value receiver, not a static namespace",
+                ));
+            }
+            let ty = self.pointer_type(self.callee(expression)?, span)?;
+            return self.known(&ty, span);
+        }
+        let base = self.expr(object, depth + 1)?;
+        self.owner_type(base, owner.as_ref(), span)?;
+        if member == "len"
+            && matches!(base, LocalType::Address(variable, _) if self.graph.is_slice(variable))
+        {
+            return Ok(LocalType::SliceLength);
+        }
+        self.project(base, Projection::Field(member.clone()), span)
+    }
+
+    #[inline(never)]
+    fn expr_index(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Index { object, index } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let base = self.expr(object, depth + 1)?;
+        let index_type = self.expr(index, depth + 1)?.scalar(index.span)?;
+        self.graph.constrain(index_type, INTEGER, index.span)?;
+        self.project(base, Projection::Element, span)
+    }
+
+    #[inline(never)]
+    fn expr_slice(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Slice { object, start, end } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        let base = self.expr(object, depth + 1)?;
+        for endpoint in [start, end].into_iter().flatten() {
+            let variable = self.expr(endpoint, depth + 1)?.scalar(endpoint.span)?;
+            self.graph.constrain(variable, INTEGER, endpoint.span)?;
+        }
+        let element = self
+            .project(base, Projection::Element, span)?
+            .scalar(span)?;
+        let result = self.graph.fresh(VALUE, false);
+        self.graph.slice(result, element, span)?;
+        Ok(LocalType::Scalar(result))
+    }
+
+    #[inline(never)]
+    fn expr_if(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &expression.kind
+        else {
+            unreachable!("expression dispatcher variant");
+        };
+        let condition_type = self.expr(condition, depth + 1)?;
+        condition_type.bind(&mut self.graph, &Type::Bool, condition.span)?;
+        let then_type = self.expr_expected(then_value, expected, depth + 1)?;
+        let else_type = self.expr_expected(else_value, expected, depth + 1)?;
+        then_type.unify(else_type, &mut self.graph, span)?;
+        // An owned declared F leaves the selected captured position
+        // before the conditional value is bound or called. Nested
+        // conditionals handle their own arms during the visit above.
+        self.transferred_factory_branch(then_value, then_type)?;
+        self.transferred_factory_branch(else_value, else_type)?;
+        Ok(then_type)
+    }
+
+    #[inline(never)]
+    fn expr_sequence(
+        &mut self,
+        expression: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> R<LocalType> {
+        let CoreExprKind::Sequence { bindings, value } = &expression.kind else {
+            unreachable!("expression dispatcher variant");
+        };
+        self.scopes.push(BTreeMap::new());
+        for (name, expression) in bindings {
+            let variable = self.expr(expression, depth + 1)?;
+            self.scopes
+                .last_mut()
+                .expect("scope")
+                .insert(name.clone(), variable);
+            self.prepared.insert(name.clone());
+        }
+        let result = self.expr_expected(value, expected, depth + 1)?;
+        self.scopes.pop();
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_closure(&mut self, expression: &CoreExpr, depth: usize) -> R<LocalType> {
+        let span = expression.span;
+        let CoreExprKind::Closure {
+            move_capture,
+            parameters,
+            return_type,
+            body,
+        } = &expression.kind
+        else {
+            unreachable!("expression dispatcher variant");
+        };
+        // Source inference has resolved each nested signature. Visit
+        // its body as well so free paths cross every enclosing layer.
+        // The graph uses a private callable signature only; Builder
+        // still creates the actual environment and ordinary entry.
+        let Some(result) = return_type else {
+            return Err(unsupported(
+                span,
+                "nested closure requires a known fn context",
+            ));
+        };
+        let mut types = Vec::with_capacity(parameters.len());
+        let outer_result = self.result;
+        let outer_has_return = self.has_return;
+        self.result = self.graph.fresh(VALUE, false);
+        self.graph.bind(self.result, result, span)?;
+        self.has_return = false;
+        self.scopes.push(BTreeMap::new());
+        for parameter in parameters {
+            self.visit(depth + 1, parameter.span)?;
+            let Some(ty) = &parameter.ty else {
+                return Err(unsupported(
+                    parameter.span,
+                    "nested closure requires a known fn context",
+                ));
+            };
+            self.graph.reserve_type(ty, 0, parameter.span)?;
+            types.push(ty.clone());
+            let value = self.known(ty, parameter.span)?;
+            self.scopes
+                .last_mut()
+                .expect("nested parameter scope")
+                .insert(parameter.name.clone(), value);
+        }
+        self.nested_moves += usize::from(*move_capture);
+        self.nested_depth += 1;
+        let outer_nested_root = self.nested_root;
+        self.nested_root = self.nested_root.or(Some(expression.id));
+        self.block(body, depth + 1)?;
+        self.nested_root = outer_nested_root;
+        self.nested_depth -= 1;
+        self.nested_moves -= usize::from(*move_capture);
+        self.scopes.pop();
+        self.result = outer_result;
+        self.has_return = outer_has_return;
+        self.graph.reserve_type(result, 0, span)?;
+        let signature = Type::FunctionPointer {
+            parameters: types,
+            result: Box::new(result.clone()),
+        };
+        match self.known(&signature, span) {
+            // Preserve the old Copy inference path and its budget.
+            Ok(value) => Ok(value),
+            Err(rejected) if rejected.category == zil_base::ResultCategory::Unsupported => {
+                // A private source closure signature can contain owned
+                // data. It grants neither public pointer nor Copy rights.
+                self.graph.reserve_type(&signature, 0, span)?;
+                self.graph.reserve_type(&signature, 0, span)?;
+                let Type::FunctionPointer { parameters, result } = &signature else {
+                    unreachable!("nested signature")
+                };
+                if !value_signature(parameters, result) {
+                    return Err(rejected);
+                }
+                self.graph.spend(span)?;
+                let index = self.nested_signatures.len();
+                self.nested_signatures.push(signature);
+                Ok(LocalType::Nested(index, None))
+            }
+            Err(rejected) => Err(rejected),
         }
     }
+
     fn constructor(&self, expression: &CoreExpr) -> R<Option<(Type, usize)>> {
         let CoreExprKind::Member {
             object,
@@ -3971,6 +4440,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.life {
+            self.graph
+                .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
+        }
         for ty in signature
             .parameters
             .iter()

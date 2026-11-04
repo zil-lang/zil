@@ -195,6 +195,9 @@ impl<'a> Budget<'a> {
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => self.tree(t, depth + 1)?,
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.tree(t, depth + 1)?;
@@ -265,7 +268,11 @@ fn link(
                 None,
             );
         };
-        return Ok(if r.payload == Type::ByteBuffer {
+        return Ok(if matches!(r.payload, Type::Registration { .. }) {
+            DropPlan::Leaf("zil.registration.drop".into())
+        } else if r.payload == Type::TaskI32 {
+            DropPlan::Leaf("zil.task.drop".into())
+        } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())
         } else if let Some(f) = r.teardown {
             DropPlan::Leaf(super::symbol(f))
@@ -766,6 +773,7 @@ mod impl243_plan_tests {
             closures: vec![],
             layouts: vec![],
             functions: vec![TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(0),
                 name: "recipe".into(),

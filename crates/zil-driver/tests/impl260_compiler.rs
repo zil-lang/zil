@@ -1,5 +1,9 @@
 //! Actual source -> ordinary parser AST -> raw CT CFG. Independent verification
 //! and VM execution are exercised once the frozen 259 delivery is composed.
+#[expect(
+    dead_code,
+    reason = "This standalone compiler harness omits the project associated-constant caller"
+)]
 #[path = "../src/ct_artifact/compiler.rs"]
 mod compiler;
 use compiler::*;

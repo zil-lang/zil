@@ -76,6 +76,7 @@ fn function(
     blocks: Vec<BasicBlock>,
 ) -> TypedFunction {
     TypedFunction {
+        call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
@@ -315,6 +316,16 @@ fn lir(verified: &VerifiedModule) -> LirModule {
             },
             ScalarLayout {
                 ty: Type::I64,
+                size: 8,
+                alignment: 8,
+            },
+            ScalarLayout {
+                ty: Type::F32,
+                size: 4,
+                alignment: 4,
+            },
+            ScalarLayout {
+                ty: Type::F64,
                 size: 8,
                 alignment: 8,
             },

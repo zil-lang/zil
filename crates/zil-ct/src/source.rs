@@ -459,7 +459,16 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::U64 | Type::Usize => Ok(true),
+        Type::Unit
+        | Type::Bool
+        | Type::U8
+        | Type::U16
+        | Type::I32
+        | Type::I64
+        | Type::F32
+        | Type::U64
+        | Type::Usize
+        | Type::F64 => Ok(true),
         Type::Named(n) => {
             *work = work.checked_sub(n.len()).ok_or_else(limit)?;
             Ok(true)
@@ -500,6 +509,7 @@ pub(super) fn hint_type(
             Ok(usable)
         }
         Type::Address { inner, .. }
+        | Type::Registration { environment: inner }
         | Type::OwnedStore { element: inner }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
@@ -510,6 +520,27 @@ pub(super) fn hint_type(
         }
         Type::ErrorUnion { error, result } => {
             hint_type(error, depth + 1, nodes, work, limits)?;
+            hint_type(result, depth + 1, nodes, work, limits)?;
+            Ok(false)
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            *work = work
+                .checked_sub(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )
+                .ok_or_else(limit)?;
+            if parameters.len() > limits.max_locals {
+                return Err(limit());
+            }
+            for parameter in parameters {
+                hint_type(parameter, depth + 1, nodes, work, limits)?;
+            }
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
@@ -529,7 +560,12 @@ pub(super) fn hint_type(
             Ok(false)
         }
         // Ineligible hints still have all their child shapes bounded above.
-        Type::ByteBuffer | Type::ForeignHandle | Type::CWideString | Type::Closure(_) => Ok(false),
+        Type::ByteBuffer
+        | Type::ForeignHandle
+        | Type::CWideString
+        | Type::Closure(_)
+        | Type::SyncCell(_)
+        | Type::TaskI32 => Ok(false),
     }
 }
 
@@ -628,7 +664,16 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
     fn scalar(ty: &Type) -> bool {
         matches!(
             ty,
-            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16
+            Type::Unit
+                | Type::Bool
+                | Type::I32
+                | Type::I64
+                | Type::U8
+                | Type::U16
+                | Type::F32
+                | Type::U64
+                | Type::Usize
+                | Type::F64
         )
     }
     enum Node<'a> {
@@ -726,6 +771,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                 }
                 Node::Expr(e) => match &e.kind {
                     CoreExprKind::Integer(_)
+                    | CoreExprKind::Float(_)
                     | CoreExprKind::Bool(_)
                     | CoreExprKind::Unit
                     | CoreExprKind::Name(_) => {}
@@ -733,7 +779,10 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
                     CoreExprKind::Unary { operand, .. } => {
                         push(&mut stack, &mut fuel, Node::Expr(operand), next)?
                     }
-                    CoreExprKind::IntegerConvert { value, target } if scalar(target) => {
+                    CoreExprKind::IntegerConvert { value, target }
+                    | CoreExprKind::NumericConvert { value, target }
+                        if scalar(target) =>
+                    {
                         push(&mut stack, &mut fuel, Node::Expr(value), next)?
                     }
                     CoreExprKind::Binary { left, right, .. } => {
@@ -806,6 +855,7 @@ fn evaluate_with_context(
         }
         walker.scopes.push(scope);
         functions.push(CoreFunction {
+            call_kind: f.call_kind,
             life: f.life.clone(),
             callable_return: f.callable_return.clone(),
             state_parameters: f.state_parameters.clone(),
@@ -951,8 +1001,15 @@ impl<'a> Walker<'a> {
         self.charge(depth, e.span)?;
         match &e.kind {
             CoreExprKind::Literal(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
-            CoreExprKind::Integer(text) | CoreExprKind::Name(text) => {
+            CoreExprKind::Integer(text) | CoreExprKind::Float(text) | CoreExprKind::Name(text) => {
                 self.text(text, Some(e.span))?
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                self.pattern_type_shape(target, depth + 1, e.span)?;
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                self.unchanged_expr(value, None, depth + 1)?;
             }
             CoreExprKind::IntegerConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
@@ -1478,6 +1535,36 @@ impl<'a> Walker<'a> {
         depth: usize,
     ) -> CompileResult<CoreExpr> {
         self.charge(depth, e.span)?;
+        match &e.kind {
+            CoreExprKind::Literal(..) => self.expr_literal(e, expected, depth),
+            CoreExprKind::NumericConvert { .. } => self.expr_numeric_convert(e, expected, depth),
+            CoreExprKind::IntegerConvert { .. } => self.expr_integer_convert(e, expected, depth),
+            CoreExprKind::Ascribed { .. } => self.expr_ascribed(e, expected, depth),
+            CoreExprKind::TypeApply { .. } => self.expr_type_apply(e, expected, depth),
+            CoreExprKind::CompileTime(..) => self.expr_compile_time(e, expected, depth),
+            CoreExprKind::Try(..) => self.expr_try(e, expected, depth),
+            CoreExprKind::Unary { .. } => self.expr_unary(e, expected, depth),
+            CoreExprKind::Binary { .. } => self.expr_binary(e, expected, depth),
+            CoreExprKind::Call { .. } => self.expr_call(e, expected, depth),
+            CoreExprKind::Array(..) => self.expr_array(e, expected, depth),
+            CoreExprKind::Index { .. } => self.expr_index(e, expected, depth),
+            CoreExprKind::Slice { .. } => self.expr_slice(e, expected, depth),
+            CoreExprKind::Tuple(..) => self.expr_tuple(e, expected, depth),
+            CoreExprKind::Member { .. } => self.expr_member(e, expected, depth),
+            CoreExprKind::Record { .. } => self.expr_record(e, expected, depth),
+            CoreExprKind::RecordUpdate { .. } => self.expr_record_update(e, expected, depth),
+            CoreExprKind::Sequence { .. } => self.expr_sequence(e, expected, depth),
+            CoreExprKind::Closure { .. } => self.expr_closure(e, expected, depth),
+            CoreExprKind::If { .. } => self.expr_if(e, expected, depth),
+            _ => self.expr_leaf(e, expected, depth),
+        }
+    }
+    fn expr_literal(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        _depth: usize,
+    ) -> CompileResult<CoreExpr> {
         let kind = match &e.kind {
             CoreExprKind::Literal(constant) => {
                 if let Constant::WideString(units) = constant {
@@ -1502,6 +1589,46 @@ impl<'a> Walker<'a> {
                 }
                 CoreExprKind::Literal(constant.clone())
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_numeric_convert(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
+            CoreExprKind::NumericConvert { value, target } => {
+                self.pattern_type_shape(target, depth + 1, e.span)?;
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                CoreExprKind::NumericConvert {
+                    value: Box::new(self.expr(value, None, depth + 1)?),
+                    target: target.clone(),
+                }
+            }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_integer_convert(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::IntegerConvert { value, target } => {
                 self.pattern_type_shape(target, depth + 1, e.span)?;
                 if !target.is_integer() {
@@ -1515,6 +1642,21 @@ impl<'a> Walker<'a> {
                     target: target.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_ascribed(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Ascribed { ty, value } => {
                 if !hint_type(
                     ty,
@@ -1533,6 +1675,21 @@ impl<'a> Walker<'a> {
                     value: Box::new(self.expr(value, Some(ty), depth + 1)?),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_type_apply(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::TypeApply {
                 callee,
                 type_arguments,
@@ -1551,6 +1708,21 @@ impl<'a> Walker<'a> {
                     type_arguments: type_arguments.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_compile_time(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        match &e.kind {
             CoreExprKind::CompileTime(inner) => {
                 let (value, ty) = self.query(inner, expected, e.span)?;
                 if let crate::CompileTimeValue::Scalar(c) = value {
@@ -1583,18 +1755,43 @@ impl<'a> Walker<'a> {
                     limits: self.limits,
                 }
                 .value(value, &ty, child, e.span, depth + 1)?;
-                return Ok(CoreExpr {
+                Ok(CoreExpr {
                     id: e.id,
                     span: e.span,
                     kind: CoreExprKind::Ascribed {
                         ty,
                         value: Box::new(value),
                     },
-                });
+                })
             }
+            _ => unreachable!("CT source expression dispatch"),
+        }
+    }
+    fn expr_try(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Try(inner) => {
                 CoreExprKind::Try(Box::new(self.expr(inner, None, depth + 1)?))
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_unary(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Unary { op, operand } => CoreExprKind::Unary {
                 op: *op,
                 operand: Box::new(self.expr(
@@ -1607,6 +1804,21 @@ impl<'a> Walker<'a> {
                     depth + 1,
                 )?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_binary(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Binary { op, left, right } => {
                 let left_hint = self.hint(left)?;
                 let hint = if comparison(*op) {
@@ -1622,6 +1834,21 @@ impl<'a> Walker<'a> {
                     right: Box::new(self.expr(right, hint.or(right_hint.as_ref()), depth + 1)?),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_call(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Call { callee, arguments } => {
                 // A new application carries raw type metadata. Bound it before
                 // using its static header or normalizing any argument query.
@@ -1644,6 +1871,21 @@ impl<'a> Walker<'a> {
                     arguments: args,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_array(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Array(items) => CoreExprKind::Array(
                 items
                     .iter()
@@ -1659,10 +1901,40 @@ impl<'a> Walker<'a> {
                     })
                     .collect::<CompileResult<_>>()?,
             ),
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_index(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Index { object, index } => CoreExprKind::Index {
                 object: Box::new(self.expr(object, None, depth + 1)?),
                 index: Box::new(self.expr(index, None, depth + 1)?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_slice(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Slice { object, start, end } => CoreExprKind::Slice {
                 object: Box::new(self.expr(object, None, depth + 1)?),
                 start: start
@@ -1674,12 +1946,42 @@ impl<'a> Walker<'a> {
                     .map(|value| self.expr(value, None, depth + 1).map(Box::new))
                     .transpose()?,
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_tuple(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Tuple(items) => CoreExprKind::Tuple(
                 items
                     .iter()
                     .map(|i| self.expr(i, None, depth + 1))
                     .collect::<CompileResult<_>>()?,
             ),
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_member(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Member {
                 object,
                 member,
@@ -1695,6 +1997,21 @@ impl<'a> Walker<'a> {
                     owner: owner.clone(),
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_record(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Record { ty, fields } => {
                 self.pattern_type_shape(ty, depth + 1, e.span)?;
                 CoreExprKind::Record {
@@ -1702,6 +2019,21 @@ impl<'a> Walker<'a> {
                     fields: self.fields(fields, depth + 1)?,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_record_update(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 if let Some(ty) = ty {
                     self.pattern_type_shape(ty, depth + 1, e.span)?;
@@ -1712,10 +2044,40 @@ impl<'a> Walker<'a> {
                     fields: self.fields(fields, depth + 1)?,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_sequence(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Sequence { bindings, value } => CoreExprKind::Sequence {
                 bindings: self.fields(bindings, depth + 1)?,
                 value: Box::new(self.expr(value, expected, depth + 1)?),
             },
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_closure(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::Closure {
                 move_capture,
                 parameters,
@@ -1758,6 +2120,21 @@ impl<'a> Walker<'a> {
                     body,
                 }
             }
+            _ => unreachable!("CT source expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_if(
+        &mut self,
+        e: &CoreExpr,
+        expected: Option<&Type>,
+        depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
             CoreExprKind::If {
                 condition,
                 then_value,
@@ -1767,18 +2144,31 @@ impl<'a> Walker<'a> {
                 then_value: Box::new(self.expr(then_value, expected, depth + 1)?),
                 else_value: Box::new(self.expr(else_value, expected, depth + 1)?),
             },
-            other => {
-                match other {
-                    CoreExprKind::Integer(text)
-                    | CoreExprKind::String(text)
-                    | CoreExprKind::Name(text)
-                    | CoreExprKind::ReceiverMember(text)
-                    | CoreExprKind::Unsupported(text) => self.text(text, Some(e.span))?,
-                    _ => {}
-                }
-                other.clone()
-            }
+            _ => unreachable!("CT source expression dispatch"),
         };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
+    fn expr_leaf(
+        &mut self,
+        e: &CoreExpr,
+        _expected: Option<&Type>,
+        _depth: usize,
+    ) -> CompileResult<CoreExpr> {
+        let original = &e.kind;
+        match original {
+            CoreExprKind::Integer(text)
+            | CoreExprKind::Float(text)
+            | CoreExprKind::String(text)
+            | CoreExprKind::Name(text)
+            | CoreExprKind::ReceiverMember(text)
+            | CoreExprKind::Unsupported(text) => self.text(text, Some(e.span))?,
+            _ => {}
+        }
+        let kind = original.clone();
         Ok(CoreExpr {
             id: e.id,
             kind,
@@ -1860,6 +2250,7 @@ impl<'a> Walker<'a> {
             instructions: Vec::new(),
             limits: self.limits,
             remaining: self.steps_left,
+            work_left: &mut self.work_left,
             hints: scalar_hints(inner, self.limits, &mut self.nodes)?,
         };
         let (result, _) = builder.expression(inner, expected, 0)?;
@@ -1955,7 +2346,8 @@ impl<'a> Walker<'a> {
                 | CoreExprKind::CompileTime(operand)
                 | CoreExprKind::Try(operand)
                 | CoreExprKind::Ascribed { value: operand, .. }
-                | CoreExprKind::IntegerConvert { value: operand, .. } => work.push(operand),
+                | CoreExprKind::IntegerConvert { value: operand, .. }
+                | CoreExprKind::NumericConvert { value: operand, .. } => work.push(operand),
                 CoreExprKind::Binary { left, right, .. } => {
                     work.push(left);
                     work.push(right);
@@ -2095,6 +2487,7 @@ impl<'a> Walker<'a> {
     }
     fn hint(&mut self, e: &CoreExpr) -> CompileResult<Option<Type>> {
         let ty = match &e.kind {
+            CoreExprKind::NumericConvert { target, .. } if target.is_numeric() => Some(target),
             CoreExprKind::IntegerConvert { target, .. } if target.is_integer() => Some(target),
             CoreExprKind::Ascribed { ty, .. } => Some(ty),
             CoreExprKind::Name(name) => self
@@ -2170,6 +2563,52 @@ impl<'a> Walker<'a> {
     }
 }
 
+fn floating(text: &str, expected: Option<&Type>, span: Span) -> CompileResult<Constant> {
+    use zil_base::numeric::{FloatFormat, FloatValue};
+    let suffix = if text.ends_with("f32") {
+        Some(Type::F32)
+    } else if text.ends_with("f64") {
+        Some(Type::F64)
+    } else {
+        None
+    };
+    if let (Some(suffix), Some(expected)) = (&suffix, expected.filter(|ty| ty.is_float()))
+        && suffix != expected
+    {
+        return Err(unsupported(
+            span,
+            "floating suffix differs from expected type",
+        ));
+    }
+    let ty = suffix
+        .or_else(|| expected.filter(|ty| ty.is_float()).cloned())
+        .unwrap_or(Type::F64);
+    let spelling = text
+        .strip_suffix("f32")
+        .or_else(|| text.strip_suffix("f64"))
+        .unwrap_or(text);
+    FloatValue::from_decimal(
+        spelling,
+        if ty == Type::F32 {
+            FloatFormat::F32
+        } else {
+            FloatFormat::F64
+        },
+    )
+    .map(|value| match value {
+        FloatValue::F32(bits) => Constant::F32(bits),
+        FloatValue::F64(bits) => Constant::F64(bits),
+    })
+    .map_err(|_| {
+        vec![Diagnostic::error(
+            Phase::Ct,
+            "E-FLOAT-LITERAL",
+            Some(span),
+            "floating literal is invalid or overflows its finite format",
+        )]
+    })
+}
+
 fn comparison(op: BinaryOp) -> bool {
     matches!(
         op,
@@ -2185,6 +2624,7 @@ struct CtBuilder<'a> {
     instructions: Vec<CtInstruction>,
     limits: &'a Limits,
     remaining: u64,
+    work_left: &'a mut usize,
     // Borrowed expression identity is private to one query, never persisted or
     // dereferenced. Raw Core NodeIds need not be unique for this lookup.
     hints: BTreeMap<*const CoreExpr, Type>,
@@ -2227,7 +2667,10 @@ fn scalar_hints(
                 CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
                     work.push((operand, depth + 1, false))
                 }
-                CoreExprKind::IntegerConvert { value, .. } => work.push((value, depth + 1, false)),
+                CoreExprKind::IntegerConvert { value, .. }
+                | CoreExprKind::NumericConvert { value, .. } => {
+                    work.push((value, depth + 1, false))
+                }
                 CoreExprKind::Binary { left, right, .. } => {
                     work.push((left, depth + 1, false));
                     work.push((right, depth + 1, false));
@@ -2248,9 +2691,14 @@ fn scalar_hints(
                 op: UnaryOp::Not, ..
             } => Some(Type::Bool),
             CoreExprKind::Unit => Some(Type::Unit),
-            CoreExprKind::IntegerConvert { target, .. } if target.is_integer() => {
+            CoreExprKind::IntegerConvert { target, .. }
+            | CoreExprKind::NumericConvert { target, .. }
+                if target.is_numeric() =>
+            {
                 Some(target.clone())
             }
+            CoreExprKind::Float(text) if text.ends_with("f32") => Some(Type::F32),
+            CoreExprKind::Float(text) if text.ends_with("f64") => Some(Type::F64),
             CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
                 hints.get(&std::ptr::from_ref(operand.as_ref())).cloned()
             }
@@ -2285,7 +2733,10 @@ impl CtBuilder<'_> {
                 )]);
             }
             match &expression.kind {
-                CoreExprKind::Integer(_) | CoreExprKind::Bool(_) | CoreExprKind::Unit => {}
+                CoreExprKind::Integer(_)
+                | CoreExprKind::Float(_)
+                | CoreExprKind::Bool(_)
+                | CoreExprKind::Unit => {}
                 CoreExprKind::Unary {
                     op: UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
                     operand,
@@ -2293,7 +2744,10 @@ impl CtBuilder<'_> {
                     work.push((operand, depth + 1));
                 }
                 CoreExprKind::CompileTime(inner) => work.push((inner, depth + 1)),
-                CoreExprKind::IntegerConvert { value, target } if target.is_integer() => {
+                CoreExprKind::IntegerConvert { value, target }
+                | CoreExprKind::NumericConvert { value, target }
+                    if target.is_numeric() =>
+                {
                     work.push((value, depth + 1))
                 }
                 CoreExprKind::Binary { op, left, right }
@@ -2351,6 +2805,44 @@ impl CtBuilder<'_> {
                 if matches!(&callee.kind, CoreExprKind::TypeApply { .. }) =>
             {
                 Err(forbidden_type_application(e.span))
+            }
+            CoreExprKind::Float(text) => {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(zil_base::numeric::decimal_work(text.len()))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Ct,
+                            "floating literal conversion work exhausted",
+                            Some(e.span),
+                        )]
+                    })?;
+                let c = floating(text, expected, e.span)?;
+                self.emit(c.ty(), CtInstructionKind::Constant(c), e.span)
+            }
+            CoreExprKind::Literal(c) if c.ty().is_float() => {
+                self.emit(c.ty(), CtInstructionKind::Constant(c.clone()), e.span)
+            }
+            CoreExprKind::NumericConvert { value, target } => {
+                if !target.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion target required"));
+                }
+                let (value, source) = self.expression(value, None, depth + 1)?;
+                if !source.is_numeric() {
+                    return Err(unsupported(e.span, "numeric conversion operand required"));
+                }
+                let kind = if source.is_integer() && target.is_integer() {
+                    CtInstructionKind::ConvertInteger {
+                        value,
+                        target: target.clone(),
+                    }
+                } else {
+                    CtInstructionKind::ConvertNumber {
+                        value,
+                        target: target.clone(),
+                    }
+                };
+                self.emit(target.clone(), kind, e.span)
             }
             CoreExprKind::IntegerConvert { value, target } => {
                 if !target.is_integer() {
@@ -2504,7 +2996,9 @@ fn integer(
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| error()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| error()),
         Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error()),
-        Type::Usize => u64::try_from(value).map(Constant::Usize).map_err(|_| error()),
+        Type::Usize => u64::try_from(value)
+            .map(Constant::Usize)
+            .map_err(|_| error()),
         _ => i32::try_from(value).map(Constant::I32).map_err(|_| error()),
     }
 }
@@ -2532,6 +3026,7 @@ mod tests {
             enums: vec![],
             unsupported: vec![],
             functions: vec![CoreFunction {
+                call_kind: None,
                 life: None,
                 callable_return: None,
                 state_parameters: Vec::new(),

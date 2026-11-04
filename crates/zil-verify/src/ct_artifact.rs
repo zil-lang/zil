@@ -123,7 +123,19 @@ pub fn verify_ct_artifact_metered(
             n.saturating_add(f.blocks.len())
                 .saturating_add(f.locals.len())
                 .saturating_add(f.values.len())
-                .saturating_add(f.blocks.iter().map(|b| b.instructions.len()).sum::<usize>())
+                .saturating_add(f.blocks.iter().flat_map(|b| &b.instructions).fold(
+                    0usize,
+                    |n, i| {
+                        n.saturating_add(2).saturating_add(match &i.kind {
+                            CtInstructionKind::TypeConstruct {
+                                constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
+                                ..
+                            } => (life.binder_count as usize)
+                                .saturating_add(life.parameter_lives.len().saturating_mul(2)),
+                            _ => 0,
+                        })
+                    },
+                ))
         },
     );
     meter.charge(initial_work.max(1), None)?;
@@ -295,6 +307,8 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::F32(_) => Some(CtScalarTy::F32),
+        Constant::F64(_) => Some(CtScalarTy::F64),
         Constant::U64(_) => Some(CtScalarTy::U64),
         Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
@@ -303,8 +317,21 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
 fn integer(ty: &CtTy) -> bool {
     matches!(
         scalar(ty),
-        Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
+        Some(
+            CtScalarTy::U8
+                | CtScalarTy::U16
+                | CtScalarTy::U64
+                | CtScalarTy::Usize
+                | CtScalarTy::I32
+                | CtScalarTy::I64
+        )
     )
+}
+fn floating(ty: &CtTy) -> bool {
+    matches!(scalar(ty), Some(CtScalarTy::F32 | CtScalarTy::F64))
+}
+fn numeric(ty: &CtTy) -> bool {
+    integer(ty) || floating(ty)
 }
 fn index_type(ty: &CtTy) -> bool {
     integer(ty)
@@ -312,7 +339,14 @@ fn index_type(ty: &CtTy) -> bool {
 fn check_constants(raw: &CtArtifactProgram) -> Check<()> {
     for c in &raw.constants {
         match c {
-            CtConstant::Scalar(Constant::Usize(v)) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX) => return Err(reject(None, "usize constant exceeds the selected32-bit target")),
+            CtConstant::Scalar(Constant::Usize(v))
+                if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX) =>
+            {
+                return Err(reject(
+                    None,
+                    "usize constant exceeds the selected32-bit target",
+                ));
+            }
             CtConstant::Scalar(s) if constant_type(s).is_some() => {}
             CtConstant::Text(t) if t.len() <= raw.budget.max_temporary_bytes as usize => {}
             _ => {
@@ -841,6 +875,7 @@ fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
     match kind {
         CtInstructionKind::Store { value, .. }
         | CtInstructionKind::ConvertInteger { value, .. }
+        | CtInstructionKind::ConvertNumber { value, .. }
         | CtInstructionKind::Length(value)
         | CtInstructionKind::VariantTag(value)
         | CtInstructionKind::MetaProject { value, .. } => vec![*value],
@@ -949,12 +984,24 @@ fn check_instruction(
             )?;
             return Ok(None);
         }
+        K::ConvertNumber {
+            value: input,
+            target,
+        } => {
+            let source = value(*input)?;
+            let target = CtTy::Scalar(*target);
+            expect(
+                numeric(source) && numeric(&target) && (floating(source) || floating(&target)),
+                "CT numeric conversion needs numeric types and floating endpoint",
+            )?;
+            target
+        }
         K::ConvertInteger {
             value: input,
             target,
         } => {
             expect(
-                integer(value(*input)?) && !matches!(target, CtScalarTy::Unit | CtScalarTy::Bool),
+                integer(value(*input)?) && integer(&CtTy::Scalar(*target)),
                 "CT integer conversion has non-integer type",
             )?;
             CtTy::Scalar(*target)
@@ -963,6 +1010,7 @@ fn check_instruction(
             let ty = value(*operand)?;
             match op {
                 UnaryOp::Not => expect(*ty == CtTy::Scalar(CtScalarTy::Bool), "CT not needs bool")?,
+                UnaryOp::Negate if floating(ty) => {}
                 UnaryOp::Negate | UnaryOp::BitNot => {
                     expect(integer(ty), "CT integer unary needs integer")?
                 }
@@ -976,6 +1024,7 @@ fn check_instruction(
             expect(a == b, "CT binary operands have different types")?;
             use BinaryOp as B;
             match op {
+                B::Add | B::Subtract | B::Multiply | B::Divide if floating(a) => a.clone(),
                 B::And | B::Or => {
                     expect(
                         *a == CtTy::Scalar(CtScalarTy::Bool),
@@ -991,7 +1040,7 @@ fn check_instruction(
                     CtTy::Scalar(CtScalarTy::Bool)
                 }
                 B::Less | B::LessEqual | B::Greater | B::GreaterEqual => {
-                    expect(integer(a), "CT ordering needs integers")?;
+                    expect(numeric(a), "CT ordering needs matching numbers")?;
                     CtTy::Scalar(CtScalarTy::Bool)
                 }
                 _ => {
@@ -1257,6 +1306,32 @@ fn check_instruction(
                 T::Tuple => arguments
                     .iter()
                     .all(|id| value(*id).ok() == Some(&CtTy::Type)),
+                T::AnonymousSum => {
+                    arguments.len() >= 2
+                        && arguments
+                            .iter()
+                            .all(|id| value(*id).ok() == Some(&CtTy::Type))
+                }
+                T::BorrowedFunctionPointer { life } => {
+                    let mut dense = 0;
+                    let canonical = life.parameter_lives.iter().flatten().all(|tag| {
+                        if *tag > dense || *tag >= life.binder_count {
+                            return false;
+                        }
+                        if *tag == dense {
+                            dense += 1;
+                        }
+                        true
+                    });
+                    canonical
+                        && dense == life.binder_count
+                        && dense > 0
+                        && life.result_life.is_none_or(|tag| tag < dense)
+                        && arguments.len() == life.parameter_lives.len().saturating_add(1)
+                        && arguments
+                            .iter()
+                            .all(|id| value(*id).ok() == Some(&CtTy::Type))
+                }
                 T::FunctionPointer => {
                     !arguments.is_empty()
                         && arguments

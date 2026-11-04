@@ -37,6 +37,11 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) borrowed_function_pointers: bool,
+    pub(super) tasks: bool,
+    pub(super) invocation_callbacks: bool,
+    pub(super) head_descriptions: bool,
+    pub(super) registrations: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -67,6 +72,11 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            borrowed_function_pointers: false,
+            tasks: false,
+            invocation_callbacks: false,
+            head_descriptions: false,
+            registrations: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -169,6 +179,17 @@ impl Budget {
                 self.type_work(error, copy_check, context)?;
                 self.type_work(result, copy_check, context)?;
             }
+            Type::BorrowedFunctionPointer {
+                life,
+                parameters,
+                result,
+            } => {
+                self.spend(super::borrowed_fp::work(life), context)?;
+                for parameter in parameters {
+                    self.type_work(parameter, copy_check, context)?;
+                }
+                self.type_work(result, copy_check, context)?;
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
@@ -179,13 +200,23 @@ impl Budget {
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
             }
+            Type::Registration { environment } => {
+                self.registrations = true;
+                self.type_work(environment, copy_check, context)?;
+            }
+            Type::TaskI32 => {
+                self.tasks = true;
+            }
             Type::ByteBuffer
+            | Type::SyncCell(_)
             | Type::Unit
             | Type::Bool
             | Type::U8
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::U64
             | Type::Usize
             | Type::ForeignHandle
@@ -297,11 +328,13 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
             )])
         }
     } else if crate::dynamic_store::is_carrier(ty)
+        || ty.is_shared_sync_cell_address()
+        || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-        || ty.is_shared_resource_head_address()
+        || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer
+            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -340,6 +373,96 @@ fn local_value(
     } else {
         legacy_value(ty, span, module).map(|_| false)
     }
+}
+
+fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> CompileResult<()> {
+    let Type::Enum { name, variants } = ty else {
+        unreachable!()
+    };
+    if name != "@anonymous-sum:v1" || variants.len() < 2 {
+        return Err(bad("invalid anonymous sum family or arity"));
+    }
+    let mut identity_work = 0usize;
+    let mut pending = Vec::new();
+    for (index, (label, fields)) in variants.iter().enumerate() {
+        budget.spend(32, "anonymous canonical label")?;
+        if label != &format!("Member{index}") || fields.len() != 1 {
+            return Err(bad(
+                "anonymous sum requires canonical ordinal labels and one payload per member",
+            ));
+        }
+        if matches!(&fields[0], Type::Enum { name, .. } if name == "@anonymous-sum:v1") {
+            return Err(bad("anonymous sum directly nests another anonymous sum"));
+        }
+        pending.push((&fields[0], 0usize));
+    }
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, "anonymous identity node")?;
+        identity_work = identity_work.saturating_add(1);
+        if depth > limits.max_call_depth {
+            return Err(exhausted("anonymous identity nesting"));
+        }
+        let text = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                for (label, field) in fields {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.push((field, depth + 1));
+                }
+                name.len()
+            }
+            Type::Enum { name, variants } => {
+                for (label, fields) in variants {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                }
+                name.len()
+            }
+            Type::Tuple(fields) => {
+                pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                0
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element) => {
+                pending.push((element, depth + 1));
+                0
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                pending.extend(parameters.iter().map(|field| (field, depth + 1)));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::Named(_) | Type::Unsupported(_) | Type::Opaque { .. } | Type::Closure(_) => {
+                return Err(bad(
+                    "anonymous sum identity contains an unresolved or nonordinary member type",
+                ));
+            }
+            _ => 0,
+        };
+        budget.spend(text, "anonymous identity text")?;
+        identity_work = identity_work.saturating_add(text);
+    }
+    budget.spend(
+        identity_work.saturating_mul(2),
+        "anonymous canonical comparison",
+    )?;
+    if variants.windows(2).any(|pair| pair[0].1[0] >= pair[1].1[0]) {
+        return Err(bad(
+            "anonymous sum members are repeated or not in complete-type canonical order",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn preflight(
@@ -393,7 +516,8 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => {
+                            InstructionKind::ConvertInteger { target, .. }
+                            | InstructionKind::ConvertNumber { target, .. } => {
                                 Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {
@@ -438,6 +562,7 @@ pub(super) fn preflight(
             && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
+        let mut anonymous = Vec::new();
         let mut new_sum = false;
         let mut first = Some((
             ty,
@@ -512,6 +637,7 @@ pub(super) fn preflight(
                 | Type::Desc(_)
                 | Type::Opaque { .. }
                 | Type::FunctionPointer { .. }
+                | Type::BorrowedFunctionPointer { .. }
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
@@ -602,6 +728,10 @@ pub(super) fn preflight(
                     }
                 }
                 Type::Enum { name, variants } => {
+                    if name.starts_with("@anonymous-sum") {
+                        budget.spend(1, "anonymous shape inventory")?;
+                        anonymous.push(ty);
+                    }
                     budget.input(
                         name.len().saturating_add(variants.len()),
                         "enum identity and variants",
@@ -620,6 +750,10 @@ pub(super) fn preflight(
                         }
                     }
                 }
+                Type::Registration { environment: inner } => {
+                    budget.registrations = true;
+                    pending.push((inner, depth + 1, store_element, None, resource_head, child));
+                }
                 Type::Managed(inner) => pending.push((
                     inner,
                     depth + 1,
@@ -632,6 +766,22 @@ pub(super) fn preflight(
                 | Type::Desc(inner)
                 | Type::Opaque { hidden: inner, .. } => {
                     pending.push((inner, depth + 1, store_element, None, resource_head, child))
+                }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    budget.borrowed_function_pointers = true;
+                    budget.input(
+                        super::borrowed_fp::work(life),
+                        "borrowed function pointer relation",
+                    )?;
+                    super::borrowed_fp::relation(parameters, result, life)?;
+                    pending.push((result, depth + 1, store_element, None, false, child));
+                    for parameter in parameters {
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
+                    }
                 }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
@@ -666,6 +816,9 @@ pub(super) fn preflight(
                 _ => {}
             }
         }
+        for ty in anonymous {
+            check_anonymous_sum(ty, limits, budget)?;
+        }
         if new_sum {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
             budget.spend(1, "ordinary Sum root allocation")?;
@@ -699,6 +852,24 @@ pub(super) fn preflight(
             closure.parameters.len().saturating_add(1),
             "closure signature preflight",
         )?;
+        let invocation = closure.lending_captures.is_empty()
+            && crate::borrowed_fp::invocation(&closure.parameters, &closure.result);
+        if invocation {
+            budget.type_work(
+                &closure.result,
+                true,
+                "finite invocation result eligibility",
+            )?;
+            if !matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            {
+                return Err(bad(
+                    "invocation callback result requires a finite Copy or slice pointee",
+                ));
+            }
+            budget.borrowed_function_pointers = true;
+            budget.invocation_callbacks = true;
+        }
+
         for ty in &closure.captures {
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
@@ -761,12 +932,15 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if ty.is_shared_sync_cell_address() {
+                continue;
+            }
             if owned_signature {
                 super::owned_callbacks::data(module, ty, budget)?;
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
+                && (closure.result.is_copy_value() || invocation)
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
@@ -781,13 +955,14 @@ pub(super) fn preflight(
         }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
-        } else if matches!(&closure.result, Type::Address { inner, mutable: false }
+        } else if invocation
+            || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
-            && matches!(
-                closure.kind,
-                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-            )
-            && !closure.lending_captures.is_empty()
+                && matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+                )
+                && !closure.lending_captures.is_empty())
         {
             legacy_value(&closure.result, Span::default(), module)?;
         } else {
@@ -834,6 +1009,9 @@ pub(super) fn preflight(
                 "callable return contract metadata",
             )?;
         }
+        if function.call_kind == zil_ir::CallKind::Suspend {
+            budget.tasks = true;
+        }
         if let Some(contract) = &function.callable_contract {
             count(0, contract.roles.len(), limits.max_locals, "callable role")?;
             budget.input(
@@ -841,6 +1019,14 @@ pub(super) fn preflight(
                 "callable role table",
             )?;
             for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    budget.input(
+                        crate::borrowed_fp::work(life),
+                        "higher-rank callable metadata",
+                    )?;
+                    budget.borrowed_function_pointers = true;
+                    budget.invocation_callbacks = true;
+                }
                 budget.input(
                     role.hold
                         .len()
@@ -970,6 +1156,94 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::RegistrationStart {
+                        register,
+                        close,
+                        callback,
+                        ..
+                    } => {
+                        budget.registrations = true;
+                        budget.scoped_foreign = true;
+                        budget.input(4, "registration actual operands")?;
+                        if register.0 as usize >= module.functions.len()
+                            || close.0 as usize >= module.functions.len()
+                            || callback.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("registration operand outside actual tables"));
+                        }
+                        budget.lookup(
+                            budget.scoped_functions.len(),
+                            "registration unsafe function inventory",
+                        )?;
+                        budget.scoped_functions.insert(function.id);
+                    }
+                    InstructionKind::RegistrationValid { registration }
+                    | InstructionKind::RegistrationClose { registration } => {
+                        budget.registrations = true;
+                        budget.input(1, "registration actual operand")?;
+                        if registration.0 as usize >= function.values.len() {
+                            return Err(bad("registration operand outside actual values"));
+                        }
+                    }
+                    InstructionKind::SuspendCall {
+                        function: child,
+                        arguments,
+                    } => {
+                        count(
+                            0,
+                            arguments.len(),
+                            limits.max_values,
+                            "Suspend child arguments",
+                        )?;
+                        budget.tasks = true;
+                        budget.input(
+                            arguments.len().saturating_add(2),
+                            "Suspend child actual operands",
+                        )?;
+                        if child.0 as usize >= module.functions.len()
+                            || arguments
+                                .iter()
+                                .any(|v| v.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("Suspend child operand outside actual tables"));
+                        }
+                    }
+                    InstructionKind::TaskStart { .. }
+                    | InstructionKind::TaskYield
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. } => {
+                        budget.tasks = true;
+                        budget.input(3, "task ABI operands")?;
+                        for v in crate::resources::uses(&instruction.kind) {
+                            if v.0 as usize >= function.values.len() {
+                                return Err(bad("task operand is outside actual table"));
+                            }
+                        }
+                    }
+                    InstructionKind::WithSyncCell { initial, body, .. } => {
+                        budget.input(3, "sealed cell scope operands")?;
+                        if initial.0 as usize >= function.values.len()
+                            || body.0 as usize >= function.values.len()
+                        {
+                            return Err(bad("sealed cell scope operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::SyncI32 { address, value, .. } => {
+                        budget.input(3, "sealed cell operation operands")?;
+                        if address.0 as usize >= function.values.len()
+                            || value.is_some_and(|value| value.0 as usize >= function.values.len())
+                        {
+                            return Err(bad("sealed cell operation operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,
@@ -1109,6 +1383,20 @@ pub(super) fn preflight(
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
+                    }
+                    InstructionKind::ConvertNumber { value, target } => {
+                        let source = function
+                            .values
+                            .get(value.0 as usize)
+                            .ok_or_else(|| bad("numeric conversion value outside table"))?;
+                        if !source.is_numeric()
+                            || !target.is_numeric()
+                            || !(source.is_float() || target.is_float())
+                        {
+                            return Err(bad(
+                                "numeric conversion requires numeric endpoints and at least one float",
+                            ));
+                        }
                     }
                     InstructionKind::ConvertInteger { target, .. } if !target.is_integer() => {
                         return Err(bad("integer conversion target is not a supported integer"));

@@ -1,0 +1,95 @@
+{
+  "task": "343",
+  "status": "StaticScalarSuspendChildrenReadyForIndependentReview",
+  "implementation_commit": "1371ed1d49fa8c8f8d73c1a41a3c22325875064b",
+  "public_transport_commit": "1bcc9dea68cb6134b889a30e53d253c9157acc1d",
+  "schema_and_wire": 37,
+  "spec_hash": "2f8fe49feb4701b7f2012bb87a1a5ae3bf775a53ec8ef55201f80be5cd8205cf",
+  "normative_hash": "11ba8e742c0cbc83984b7cbebe9af4aa45fd07dc03f6fe0509a66ecdd9223b21",
+  "terminal_complete": false,
+  "scope": "Actual static i32 SuspendCall continuations on Linux x64. Each parent has at most one active direct Await child, with nested descendants allowed. Static site close order is valid only under that invariant. Owning/concurrent sibling tasks require actual dynamic creation order and are subsequent work.",
+  "retained_harnesses": [
+    {
+      "features": "llvm-api",
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-500f6ba56884c876",
+      "sha256": "c7f4bf6de7c67f89b3b52f80db6c9df839d9bce1e34f98297c4fbffd2379335f"
+    },
+    {
+      "features": "backend planning, llvm-api",
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/zil_backend_llvm-801641aa7db5eb21",
+      "sha256": "12ea12d30123f407cbd5803271bc9dc819be450f5be9552491798586d909be24"
+    }
+  ],
+  "fixture_sha256": {
+    "tests/language-readiness/terminal/343/task-child.zil": "1254cd8b44cbd00a7a73bc239e449d8ce04f5ba1985098856a27a242c2f19a58",
+    "tests/language-readiness/terminal/343/task-child-export.zil": "d1d18c9de9ad6a7517ac6dd74ca4258c1c8f21a6a507411d9a680822f5cb4151",
+    "tests/language-readiness/terminal/343/task-child-export-caller.c": "89b5c77a797b34e9865213765411a6b7440efd49964afc08bd0bda16621799f6",
+    "tests/language-readiness/terminal/343/task-observer.c": "60db744913fdbcf06893e7079963636cff97f8e0c532285bd9c68afd46b5660f",
+    "tests/language-readiness/terminal/343/task-export-caller.c": "a13c9e0b32c28cfdeacfff42bde5b0aeb5fb607b175ee4a15acf7f3bbc230d1a",
+    "crates/zil-driver/tests/generic_regressions.rs": "5a7c2918f3f41a039e1b0324da6ad4c4ffb4ba62a597d2c613a55dda63e7b779"
+  },
+  "runtime_read_C_files_for_child_filter": [
+    "tests/language-readiness/terminal/343/task-child-export-caller.c",
+    "tests/language-readiness/terminal/343/task-observer.c"
+  ],
+  "commands": [
+    {"command": "cargo test -p zil-driver --features llvm-api --test generic_regressions -- --nocapture", "passed": 55, "failed": 0, "log": "/workspace/.zil-env/terminal-20261104/tmp343/child-generic-final.log"},
+    {"command": "generic_regressions retained harness child343 --nocapture", "tests_in_filter": 6, "status": "Each passes within the final full55; individual targeted replays also passed"},
+    {"command": "cargo test -p zil-backend-llvm --features llvm-api --lib child343 -- --nocapture", "passed": 1, "failed": 0},
+    {"command": "cargo clippy -p zil-analyze -p zil-verify -p zil-types -p zil-expand -p zil-ct -p zil-lower -p zil-driver -p zil-backend-llvm --lib --features zil-driver/llvm-api -- -D warnings", "status": "Pass"},
+    {"command": "cargo clippy -p zil-driver --features llvm-api --test generic_regressions -- -D warnings", "status": "Pass"},
+    {"command": "cargo clippy -p zil-backend-llvm --lib --tests --features llvm-api -- -D warnings", "status": "Pass"},
+    {"command": "cargo check -p zil-analyze -p zil-verify -p zil-types -p zil-expand -p zil-ct -p zil-lower --tests", "status": "Pass; constructor compilation only"},
+    {"command": "Selected changed-crate cargo fmt; git diff --check", "status": "Pass"}
+  ],
+  "native_evidence": {
+    "backends": ["Clang", "LlvmApi"],
+    "optimizations": ["O0", "O2"],
+    "fallback": false,
+    "resume_and_cancellation_success_configurations": 44,
+    "parent_allocation_cleanup_success_configurations": 12,
+    "exported_child_SABI_primary_success_configurations": 4,
+    "exported_child_SABI_warm_and_changed_cache_success_executions": 4,
+    "allocation_failure_configurations": 16,
+    "observations": [
+      "Real persistent child and grandchild frames survive repeated Pending, with arguments/init outside the saved child poll PC",
+      "Branch/backedge site reuse occurs after Ready, close and finish_into; Ready result is observed once",
+      "Cancellation before first poll and after each of eight yields, plus cancellation after Ready",
+      "Pure Direct target keeps its ordinary call body while its await adapter executes; explicitly selected effect-free Suspend is valid",
+      "Default and explicit close while descendants are pending observe exactly AF; allocation failure observes A and defined source exit10",
+      "Real exported five-entry C caller observes parent-only allocations, state tags and all cancellation phases",
+      "Nested literal frame C sizeof/alignof/offsetof match actual artifact and actual LLVM target DataLayout",
+      "Object cache warm hit and changed nested child layout/code miss bind actual artifact identity"
+    ]
+  },
+  "independent_boundaries": {
+    "source_negative_neighbors": 13,
+    "raw_mutations": 9,
+    "raw_paths": ["Analyze", "Verify", "Wire decode then Verify"],
+    "additional_controls": [
+      "Effect-free selected Suspend cannot acquire an ordinary scalar export",
+      "Core call_kind change with unchanged body/spans/source fingerprint invalidates Types work products",
+      "Non-None higher-rank Core/role life metadata explicitly rejects in this branch pending complete342 integration"
+    ],
+    "no_external_and_synchronous_close": "Both kernels independently admit only the complete finite scalar child graph with no owning/address/foreign/cleanup operations. TaskStart does not itself classify a Direct worker as Suspend. No producer flag grants quiescence or default-drop authority."
+  },
+  "budgets": {
+    "analyze_N": 23553,
+    "verify_N": 133651,
+    "actual_frame_planner_fixture_N": 6786,
+    "checks": ["N accepts", "N-1 ResourceLimit", "fresh N accepts"],
+    "planner_fixture_kind": "Actual backend frame planning with eight distinct same-worker physical sites, one-site growth neighbor and recursive graph rejection; not source/runtime concurrency evidence",
+    "native_child_and_literal_type_depth_bound": 64,
+    "default_limits_increased": false
+  },
+  "not_completed": [
+    "General owning Task<T> parameters/results and ordinary Poll<T> source route",
+    "Canonical owning spill/partial/result flags and PendingExit cleanup",
+    "Concurrent sibling owners and actual dynamic creation-order drainage",
+    "Owning waker roots, asynchronous close Pending and raw-entry late notification races",
+    "General Mutex<T>/Guard, Transfer/Share and owned synchronization constructors",
+    "Native Windows and same-semantic Rust four-goal product comparison"
+  ],
+  "parent_B0": "Doing",
+  "full_language_and_ZUI": "NotSatisfied"
+}

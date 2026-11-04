@@ -31,6 +31,7 @@ struct Flow {
     parents: Vec<Loans>,
     mutable: Vec<bool>,
     environment: Vec<bool>,
+    heads: Vec<bool>,
     roots: Vec<Roots>,
 }
 
@@ -108,10 +109,19 @@ fn reconstruct(
         parents: vec![Loans::new(); count],
         mutable: vec![false; count],
         environment: vec![false; count],
+        heads: if budget.head_descriptions {
+            budget.spend(count)?;
+            vec![false; count]
+        } else {
+            vec![]
+        },
         roots: vec![vec![]; count],
     };
     for (i, ty) in f.values.iter().enumerate() {
         flow.mutable[i] = matches!(ty, Type::Address { mutable: true, .. });
+        if !flow.heads.is_empty() {
+            flow.heads[i] = resources::head_address(ty) || ty.is_package_address();
+        }
         flow.environment[i] =
             matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         budget.spend(facts.values[i].len())?;
@@ -120,6 +130,9 @@ fn reconstruct(
     for (i, local) in f.parameters.iter().enumerate() {
         let ty = &f.locals[local.0 as usize].ty;
         flow.mutable[v + i] = matches!(ty, Type::Address { mutable: true, .. });
+        if !flow.heads.is_empty() {
+            flow.heads[v + i] = resources::head_address(ty) || ty.is_package_address();
+        }
         flow.environment[v + i] =
             matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)));
         flow.roots[v + i] = vec![Root::Parameter(i as u32)];
@@ -167,120 +180,149 @@ fn reconstruct(
                     let id = result.0 as usize;
                     let mut row = Loans::new();
                     let mut parents = Loans::new();
-                    match &instruction.kind {
-                        InstructionKind::BorrowLocal { local }
-                        | InstructionKind::BorrowLocalMut { local } => {
-                            row.insert(id);
-                            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
-                                // The new loan qualifies the environment position.
-                                // Its captured loans retain their own permissions.
-                                flow.roots[id] = vec![Root::Local(*local)];
-                                if let Some(held) = state.get(local) {
-                                    join(&mut row, held, budget)?;
-                                }
+                    if let Some((_, arguments)) =
+                        borrowed_fp::invocation_call(module, f, &instruction.kind)
+                    {
+                        row.insert(id);
+                        for argument in arguments {
+                            if overlaps(
+                                &facts.values[id],
+                                &facts.values[argument.0 as usize],
+                                budget,
+                            )? {
+                                join(&mut parents, &flow.values[argument.0 as usize], budget)?;
                             }
                         }
-                        InstructionKind::ByteBufferBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrowMut { .. }
-                        | InstructionKind::BorrowOwnedArrayElement { .. }
-                        | InstructionKind::BorrowPackageField { .. }
-                        | InstructionKind::BorrowVariantLocal { .. }
-                        | InstructionKind::BorrowFieldLocal { .. }
-                        | InstructionKind::BorrowPlaceLocal { .. } => {
-                            row.insert(id);
-                        }
-                        InstructionKind::BorrowCapture { .. }
-                        | InstructionKind::ReadCapture { .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                        }
-                        InstructionKind::BorrowVariantAddress { address, .. }
-                        | InstructionKind::BorrowPlaceAddress { address, .. } => {
-                            row.insert(id);
-                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::ReborrowAddress { address, .. } => {
-                            row.insert(id);
-                            let source = &flow.values[address.0 as usize];
-                            if flow.environment[id] {
-                                // Reborrow the environment position only. Its
-                                // external captures retain their own loans and
-                                // cannot become delegated position authority.
-                                let positions = environment_loans(&flow, source, budget)?;
-                                flow.roots[id].clear();
-                                for loan in &positions {
-                                    budget.spend(flow.roots[*loan].len())?;
-                                    let roots = flow.roots[*loan].clone();
-                                    roots_join(&mut flow.roots[id], &roots, budget)?;
-                                }
-                                join(&mut parents, &positions, budget)?;
-                                for loan in source {
-                                    budget.spend(1)?;
-                                    if !flow.environment[*loan] {
-                                        row.insert(*loan);
+                    } else {
+                        match &instruction.kind {
+                            InstructionKind::BorrowLocal { local }
+                            | InstructionKind::BorrowLocalMut { local } => {
+                                row.insert(id);
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
+                                    // The new loan qualifies the environment position.
+                                    // Its captured loans retain their own permissions.
+                                    flow.roots[id] = vec![Root::Local(*local)];
+                                    if let Some(held) = state.get(local) {
+                                        join(&mut row, held, budget)?;
                                     }
                                 }
-                            } else {
-                                join(&mut parents, source, budget)?;
                             }
-                        }
-                        InstructionKind::AddressField { address, .. }
-                            if flow.environment[id]
-                                && matches!(&f.values[address.0 as usize],
-                                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. })) =>
-                        {
-                            // A concrete callback field is a new environment
-                            // position derived from its actual element window.
-                            // Keep the conservative Store roots and its parent
-                            // loan: the later environment-only reborrow must
-                            // not discard this Package-to-Closure dependency.
-                            row.insert(id);
-                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::AddressField { address, .. }
-                        | InstructionKind::AddressSlice { address, .. }
-                        | InstructionKind::AddressIndex { address, .. } => {
-                            join(&mut row, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            if let Some(source) = state.get(local) {
-                                join(&mut row, source, budget)?;
+                            InstructionKind::ByteBufferBorrow { buffer, .. }
+                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                                if budget.head_descriptions =>
+                            {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[buffer.0 as usize], budget)?;
                             }
-                        }
-                        InstructionKind::Call { arguments, .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                            for argument in arguments {
-                                if overlaps(
-                                    &facts.values[id],
-                                    &facts.values[argument.0 as usize],
-                                    budget,
-                                )? {
-                                    join(&mut parents, &flow.values[argument.0 as usize], budget)?;
+                            InstructionKind::ByteBufferBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrowMut { .. }
+                            | InstructionKind::BorrowOwnedArrayElement { .. }
+                            | InstructionKind::BorrowPackageField { .. }
+                            | InstructionKind::BorrowVariantLocal { .. }
+                            | InstructionKind::BorrowFieldLocal { .. }
+                            | InstructionKind::BorrowPlaceLocal { .. } => {
+                                row.insert(id);
+                            }
+                            InstructionKind::BorrowCapture { .. }
+                            | InstructionKind::ReadCapture { .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                            }
+                            InstructionKind::BorrowVariantAddress { address, .. }
+                            | InstructionKind::BorrowPlaceAddress { address, .. } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::ReborrowAddress { address, .. } => {
+                                row.insert(id);
+                                let source = &flow.values[address.0 as usize];
+                                if flow.environment[id] {
+                                    // Reborrow the environment position only. Its
+                                    // external captures retain their own loans and
+                                    // cannot become delegated position authority.
+                                    let positions = environment_loans(&flow, source, budget)?;
+                                    flow.roots[id].clear();
+                                    for loan in &positions {
+                                        budget.spend(flow.roots[*loan].len())?;
+                                        let roots = flow.roots[*loan].clone();
+                                        roots_join(&mut flow.roots[id], &roots, budget)?;
+                                    }
+                                    join(&mut parents, &positions, budget)?;
+                                    for loan in source {
+                                        budget.spend(1)?;
+                                        if !flow.environment[*loan] {
+                                            row.insert(*loan);
+                                        }
+                                    }
+                                } else {
+                                    join(&mut parents, source, budget)?;
                                 }
                             }
-                        }
-                        InstructionKind::CallClosureShared { .. }
-                        | InstructionKind::CallClosureMut { .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                        }
-                        InstructionKind::CallClosureBorrowed { callee, .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                            join(&mut parents, &flow.values[callee.0 as usize], budget)?;
-                        }
-                        InstructionKind::MakeClosure { captures, .. } => {
-                            for capture in captures {
-                                join(&mut row, &flow.values[capture.0 as usize], budget)?;
+                            InstructionKind::AddressField { address, .. }
+                                if flow.environment[id]
+                                    && matches!(&f.values[address.0 as usize],
+                                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. })) =>
+                            {
+                                // A concrete callback field is a new environment
+                                // position derived from its actual element window.
+                                // Keep the conservative Store roots and its parent
+                                // loan: the later environment-only reborrow must
+                                // not discard this Package-to-Closure dependency.
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
+                            InstructionKind::DescribeAddress { address }
+                            | InstructionKind::AddressField { address, .. }
+                            | InstructionKind::AddressSlice { address, .. }
+                            | InstructionKind::AddressIndex { address, .. } => {
+                                join(&mut row, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                                if let Some(source) = state.get(local) {
+                                    join(&mut row, source, budget)?;
+                                }
+                            }
+                            InstructionKind::Call { arguments, .. }
+                            | InstructionKind::CallIndirect { arguments, .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                                for argument in arguments {
+                                    if overlaps(
+                                        &facts.values[id],
+                                        &facts.values[argument.0 as usize],
+                                        budget,
+                                    )? {
+                                        join(
+                                            &mut parents,
+                                            &flow.values[argument.0 as usize],
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
+                            InstructionKind::CallClosureShared { .. }
+                            | InstructionKind::CallClosureMut { .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                            }
+                            InstructionKind::CallClosureBorrowed { callee, .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[callee.0 as usize], budget)?;
+                            }
+                            InstructionKind::MakeClosure { captures, .. } => {
+                                for capture in captures {
+                                    join(&mut row, &flow.values[capture.0 as usize], budget)?;
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                     changed |= join(&mut flow.values[id], &row, budget)?;
                     changed |= join(&mut flow.parents[id], &parents, budget)?;
@@ -392,6 +434,7 @@ impl Access<'_> {
         &self,
         _function: &TypedFunction,
         held: &Loans,
+        delegated: &Loans,
         roots: &[Root],
         write: bool,
         budget: &mut Budget,
@@ -402,7 +445,8 @@ impl Access<'_> {
         budget.spend(self.active.len())?;
         let mut active = self.active.clone();
         join(&mut active, held, budget)?;
-        let own = environment_loans(self.flow, held, budget)?;
+        let mut own = environment_loans(self.flow, held, budget)?;
+        join(&mut own, delegated, budget)?;
         Access {
             module: self.module,
             function: self.function,
@@ -517,8 +561,10 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::MakePackage { fields: elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::WithForeignCallback { body, .. }
-        | InstructionKind::WithScopedThread { body, .. } => (Some(body), &[]),
+        | InstructionKind::WithScopedThread { body, .. }
+        | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosure { arguments, .. }
         | InstructionKind::CallClosureShared { arguments, .. }
@@ -820,7 +866,9 @@ pub(super) fn check(
                         };
                     (&flow.values[body.0 as usize], arguments)
                 }
-                InstructionKind::Call { arguments, .. } => (&empty, arguments),
+                InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
+                InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
             };
@@ -847,6 +895,7 @@ pub(super) fn check(
                 InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::WithScopedThread { .. }
+                    | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
@@ -900,11 +949,13 @@ pub(super) fn check(
                         let stable = match root {
                             Root::Local(_) => ty == Some(&Type::I32),
                             Root::Parameter(_) => {
-                                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                    || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             Root::Capture(_) => {
                                 ty == Some(&Type::I32)
-                                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                    || (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                        || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             _ => false,
                         };
@@ -936,7 +987,29 @@ pub(super) fn check(
             if let Some((buffer, write)) =
                 buffer_effects::access(&instruction.kind, descriptor_origins)
             {
-                access.check(&empty, &facts.values[buffer.0 as usize], write, budget)?;
+                let own = if budget.head_descriptions {
+                    &flow.values[buffer.0 as usize]
+                } else {
+                    &empty
+                };
+                access.check(own, &facts.values[buffer.0 as usize], write, budget)?;
+            }
+            let mut delegated = Loans::new();
+            if budget.head_descriptions {
+                for loan in held {
+                    budget.spend(1)?;
+                    if flow.heads[*loan] {
+                        delegated.insert(*loan);
+                    }
+                }
+                for id in arguments {
+                    for loan in &flow.values[id.0 as usize] {
+                        budget.spend(1)?;
+                        if flow.heads[*loan] {
+                            delegated.insert(*loan);
+                        }
+                    }
+                }
             }
             if let Some(capture) = capture {
                 if let Some(groups) = capture.call_role_accesses(instruction, budget)? {
@@ -946,6 +1019,7 @@ pub(super) fn check(
                             access.check_descriptor_callback(
                                 f,
                                 held,
+                                &delegated,
                                 &[source.position()],
                                 write,
                                 budget,
@@ -957,6 +1031,7 @@ pub(super) fn check(
                         access.check_descriptor_callback(
                             f,
                             held,
+                            &delegated,
                             &[source.position()],
                             write,
                             budget,
@@ -1100,13 +1175,22 @@ pub(super) fn check(
                         access.check(&positions, &flow.roots[*loan], *mutable, budget)?;
                     }
                 }
-                InstructionKind::ReadAddress { address }
+                InstructionKind::TaskValid { task } => {
+                    access.check(&empty, &facts.values[task.0 as usize], false, budget)?;
+                }
+                InstructionKind::TaskPoll { task: address }
+                | InstructionKind::TaskRequestCancel { task: address }
+                | InstructionKind::TaskPollClose { task: address }
+                | InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress { address, .. } => {
                     let write = matches!(
                         instruction.kind,
-                        InstructionKind::WriteAddress { .. }
+                        InstructionKind::TaskPoll { .. }
+                            | InstructionKind::TaskRequestCancel { .. }
+                            | InstructionKind::TaskPollClose { .. }
+                            | InstructionKind::WriteAddress { .. }
                             | InstructionKind::ReborrowAddress { mutable: true, .. }
                     );
                     access.check(
@@ -1190,6 +1274,7 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeClosure {
                     captures: arguments,

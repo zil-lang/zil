@@ -629,6 +629,7 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
+    // Keep the real place, active variant path and publication destinations explicit.
     #[allow(clippy::too_many_arguments)]
     fn reference_address_test(
         &mut self,

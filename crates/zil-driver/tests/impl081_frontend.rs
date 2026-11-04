@@ -307,13 +307,13 @@ fn raw_core_foreign_indices_and_conversion_targets_are_rechecked() {
     else {
         panic!()
     };
-    let CoreExprKind::IntegerConvert { target, .. } = &mut expression.kind else {
+    let CoreExprKind::NumericConvert { target, .. } = &mut expression.kind else {
         panic!()
     };
     *target = Type::Bool;
     let errors = zil_types::check(&raw, &TargetProfile::default(), &Limits::default()).unwrap_err();
     assert!(
-        errors.iter().any(|e| e.code == "E-INTEGER-CONVERSION"),
+        errors.iter().any(|e| e.code == "E-NUMERIC-CONVERSION"),
         "{errors:?}"
     );
 }

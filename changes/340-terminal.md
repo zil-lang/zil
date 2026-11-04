@@ -16,6 +16,7 @@
 源码正例、最近反例、两核/Wire、机器 O0/O2 和适用额度测试随各阶段提交。
 未实现项保留明确未完成状态；不以 Unsupported 当作能力交付。
 
+组合消费者补充：std.iter.find返回Option<含u64的Copy Record>通过Verify后暴露Enum物理布局/store遗漏。按已定原生x64整数布局加入U64/Usize 8/8叶与真实存储，不改变Copy、FFI或线程资格；保留该普通源作为原生回归。
 地址模式接续：107/108 从真实 Address 读取每层 Enum tag/取得 payload 地址，
 110 从真实局部 Tuple/Record 的字段地址读写；都不物化父值副本。
 两核各自保存有界投影、当前 tag 观察和借入根；相同 CFG 后继必须汇合
@@ -24,6 +25,8 @@
 返回引用保留实际参数根，闭包传递保留父依赖。新 CFG/路径/窗口处理
 计入现有请求额度，复制和路径分配前扣费；新增组合源码单独记录边界。
 该阶段不改变 FFI、线程 worker、捕获或普通 Copy 的资格。
+
+组合回归修复：模式借入新增liveness门后，原有Store/callback窗口检查仍必须同时要求实际address_afters非空。纯Desc/closure来源的合法ZUI函数没有地址liveness表，不能仅凭module/profile标记索引空表；保留原有限制并与新模式检查分别启用。原有impl236三个consumer测试作为原源复验，不迁移其预期。
 
 选择性拥有转移提案（root已分配114–118）：保留结构 Type::Tuple，
 MakeOwnedTuple 保留各实际字段的拥有责任，UnpackTuple 原子转交完整元组，
@@ -111,3 +114,8 @@ addressed迁为92292，其他9050/38035/20265/2094103保持。root261的组合�
 按root明确派工在下一有限profile实施，原captured-owning-base-open.zil保留。
 这不提升FFI、worker、Transfer/Share或源拥有值捕获资格；121–124公共补丁
 仍仅提案。终态剩余及Rust四目标实证/未测界限见更新收据。
+
+
+### 统一基线的实际Store元素兄弟字段窗口
+
+root37全量重放保留了impl201两个原反例的新Success：借入实际callback字段期间只写同一State的独立Copy value字段，以及callback返回其实际环境bytes期间写该value字段。主规范4.4澄清只有两核从同一元素和已核布局/路径证明不相交区间才分离字段访问；粗Store结构依赖、真实parent loan、回调重入和lending环境保护不缩短。动态index/同型/字段名/符号capture仍不制造apart。先完成原源native与samecallback/raw最近反例独审，再迁原期待；不删除reserve/pop/recall等旧相交反例。

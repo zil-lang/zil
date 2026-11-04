@@ -23,11 +23,11 @@ fn check(text: &str) -> zil_driver::CompileReport {
 fn chain(n: usize) -> String {
     let mut text = String::new();
     for i in 0..n {
-        text += &format!("fn f{i}(a: &i32, b: &i32) -> &i32 {{ return ");
+        text += &format!("fn chain_case_{i}(a: &i32, b: &i32) -> &i32 {{ return ");
         text += &if i + 1 == n {
             "b".into()
         } else {
-            format!("f{}(a, b)", i + 1)
+            format!("chain_case_{}(a, b)", i + 1)
         };
         text += "; }\n";
     }
@@ -37,7 +37,7 @@ fn chain(n: usize) -> String {
 #[test]
 fn source_reverse_chain_exports_exact_origins_and_roundtrips_wire() {
     let mut source = chain(96);
-    source += "fn result()->i32 {var x=40;var y=2;let p=f0(&x,&y);x=100;return *p+x;}";
+    source += "fn result()->i32 {var x=40;var y=2;let p=chain_case_0(&x,&y);x=100;return *p+x;}";
     let module = typed(&source);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();

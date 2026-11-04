@@ -38,6 +38,12 @@ impl Builder<'_, '_> {
         if let Some(value) = self.take_replacement_input(e, expected)? {
             return Ok(value);
         }
+        if matches!(&e.kind, CoreExprKind::Name(_)) {
+            return self.transfer_name(e, expected);
+        }
+        self.expr(e, expected)
+    }
+    fn transfer_name(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         if let CoreExprKind::Name(name) = &e.kind
             && let Some(local) = self.lookup(name)
             && !self.borrowed_captures.contains_key(&local)
@@ -86,45 +92,54 @@ impl Builder<'_, '_> {
     }
     pub(super) fn argument_expr(&mut self, e: &CoreExpr, expected: &Type) -> R<(ValueId, Type)> {
         if matches!(expected, Type::Desc(_)) {
-            let (value, ty) = self.expr(e, None)?;
-            let (value, ty) = self.resource_descriptor(value, ty, e.span)?;
-            self.same(&ty, expected, e.span)?;
-            return Ok((value, ty));
+            return self.argument_description(e, expected);
         }
         if let Type::Address { mutable, inner } = expected {
-            let (address, actual) = self.expr(e, None)?;
-            let Type::Address {
-                mutable: available,
-                inner: actual_inner,
-            } = actual
-            else {
-                return Err(error(
-                    "E-TYPE-MISMATCH",
-                    e.span,
-                    "address parameter requires an address",
-                ));
-            };
-            if *mutable && !available {
-                return Err(error(
-                    "E-ADDRESS-PERMISSION",
-                    e.span,
-                    "a shared address cannot grant exclusive access",
-                ));
-            }
-            self.same(inner, &actual_inner, e.span)?;
-            return Ok((
-                self.value(
-                    InstructionKind::ReborrowAddress {
-                        address,
-                        mutable: *mutable,
-                    },
-                    expected.clone(),
-                    e.span,
-                )?,
-                expected.clone(),
-            ));
+            return self.argument_address(e, expected, *mutable, inner);
         }
         self.transfer_expr(e, Some(expected))
+    }
+    fn argument_description(&mut self, e: &CoreExpr, expected: &Type) -> R<(ValueId, Type)> {
+        let (value, ty) = self.expr(e, None)?;
+        let (value, ty) = self.resource_descriptor(value, ty, e.span)?;
+        self.same(&ty, expected, e.span)?;
+        Ok((value, ty))
+    }
+    fn argument_address(
+        &mut self,
+        e: &CoreExpr,
+        expected: &Type,
+        mutable: bool,
+        inner: &Type,
+    ) -> R<(ValueId, Type)> {
+        let (address, actual) = self.expr(e, None)?;
+        let Type::Address {
+            mutable: available,
+            inner: actual_inner,
+        } = actual
+        else {
+            return Err(error(
+                "E-TYPE-MISMATCH",
+                e.span,
+                "address parameter requires an address",
+            ));
+        };
+        if mutable && !available {
+            return Err(error(
+                "E-ADDRESS-PERMISSION",
+                e.span,
+                "a shared address cannot grant exclusive access",
+            ));
+        }
+        self.same(inner, &actual_inner, e.span)?;
+        Ok((
+            self.value(
+                InstructionKind::ReborrowAddress { address, mutable },
+                expected.clone(),
+                e.span,
+            )?,
+            expected.clone(),
+        ))
     }
     pub(super) fn borrow_place(&mut self, e: &CoreExpr) -> R<(ValueId, Type)> {
         self.borrow_place_mode(e, false)
@@ -202,7 +217,7 @@ impl Builder<'_, '_> {
     }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
-    fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
+    pub(super) fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
         match &e.kind {
             CoreExprKind::Name(name) => {
                 let local = self.lookup(name).ok_or_else(|| {
@@ -297,6 +312,7 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
+                    && !(mutable && decl.ty == tasks::owner())
                     && !product_head
                     && !owned_shapes::sum(&decl.ty)
                 {
@@ -359,27 +375,35 @@ impl Builder<'_, '_> {
                 // This new owning-child address path retains the full field
                 // type. Reserve its snapshots before field() clones it or the
                 // finite Product qualifier traverses its descendants.
-                if !mutable
-                    && let Type::Package { fields, .. } = inner.as_ref()
-                    && let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
-                    && matches!(field, Type::Package { .. } | Type::Managed(_))
-                {
-                    let work = inference::type_snapshot_work(field, e.span, self.limits)?;
-                    self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                if let Type::Package { fields, .. } = inner.as_ref() {
+                    if mutable {
+                        self.closures.snapshot(
+                            fields.len().saturating_mul(member.len().saturating_add(1)),
+                            e.span,
+                        )?;
+                    }
+                    if let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
+                        && matches!(field, Type::Package { .. } | Type::Managed(_))
+                    {
+                        let work = inference::type_snapshot_work(field, e.span, self.limits)?;
+                        self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                    }
                 }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                let shared_owned = !mutable
-                    && (packages::product::supported(&field)
-                        || matches!(&field, Type::Managed(payload)
-                            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
+                let borrowed_owned = (matches!(&field, Type::Managed(_))
+                    && resources::supported(&field))
+                    || packages::product::supported(&field)
+                    || !mutable
+                        && matches!(&field, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
                 if matches!(inner.as_ref(), Type::Package { .. })
                     && !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
-                    && !shared_owned
+                    && !borrowed_owned
                 {
                     return Err(unsupported(
                         e.span,
-                        "Package windows only project finite Copy or concrete callback fields, or shared finite Product/resource heads",
+                        "Package windows only project finite Copy, concrete callback fields or qualified Product/resource heads",
                     ));
                 }
                 if matches!(field, Type::Closure(_)) {

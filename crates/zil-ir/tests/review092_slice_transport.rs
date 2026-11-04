@@ -24,6 +24,7 @@ fn raw() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),
             name: "transport_only".into(),

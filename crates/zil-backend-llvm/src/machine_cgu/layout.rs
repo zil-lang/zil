@@ -456,7 +456,8 @@ fn action_key(
             for instruction in &block.instructions {
                 let callee = match &instruction.kind {
                     InstructionKind::Call { function, .. } => Some(function),
-                    InstructionKind::WithScopedThread { worker, .. } => Some(worker),
+                    InstructionKind::TaskStart { worker, .. }
+                    | InstructionKind::WithScopedThread { worker, .. } => Some(worker),
                     _ => None,
                 };
                 callee.hash(&mut state);

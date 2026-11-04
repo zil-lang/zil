@@ -240,10 +240,10 @@ fn captures_and_incompatible_contexts_are_rejected_before_codegen() {
     ] {
         reject(text, ResultCategory::SafeReject, code);
     }
-    reject(
-        "fn result()->i32{let f:fn(&i32)->i32=x=>*x;return 0}",
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+    native("fn result()->i32{let f:fn(&i32)->i32=x=>*x;return 0}", 0);
+    native(
+        "fn result()->i32{let f:fn(&i32)->i32=x=>*x;let n=42;return f(&n)}",
+        42,
     );
 }
 

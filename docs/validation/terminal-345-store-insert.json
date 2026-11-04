@@ -1,0 +1,40 @@
+{
+  "status": "PassLimitedAuthorReplay",
+  "source_commit": "773ab44bbe879fba1d5982aa1f028a2415cc228a",
+  "scope": "Ordinary Store insert/truncate, preserving caller capacity, original owned values on preparation failure, and actual transfer/drop order. Full language and product gate pending.",
+  "source_files": 359,
+  "source_manifest_algorithm": "sorted path+NUL+sha256+LF",
+  "source_manifest_sha256": "6cb40ef21397f7bd7df8ee2805fb05bd3127de0b0a3b5a47b6818a50328d0724",
+  "harness": "/workspace/.zil-env/target345/debug/deps/impl236_zui_core-2d3f00c5fb3281d6",
+  "harness_sha256": "572f7670bb5c9a664261ceb816fca61b4038374bd610aafc9452766b5a3b1067",
+  "final_target": {
+    "command": "cargo test -p zil-driver --features llvm-api --test impl236_zui_core",
+    "passed": 12,
+    "failed": 0,
+    "log": "/workspace/.zil-env/terminal-20261104/store-insert345-final.log"
+  },
+  "insert_profiles": {
+    "backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "native_builds": 8,
+    "runs": 24,
+    "actual_failure_runs": 16,
+    "live_allocations_after_each_run": 0,
+    "nearest_negative": "Live Store view across actual insertion rejects before Build."
+  },
+  "validation": [
+    "Empty/front/middle/append insertion",
+    "Ordered owning payload transfer",
+    "Invalid index, full capacity and suffix allocation failure return/drop actual incoming owner while original contents/capacity stay intact",
+    "truncate negative/too-large/partial/zero keeps correct reverse suffix drop and capacity",
+    "No implicit input capacity growth",
+    "Clippy targeted pass; initial existing type_complexity and merged needless_borrow failures retained, semantic-neutral fixes included"
+  ],
+  "clippy_log": "/workspace/.zil-env/terminal-20261104/store-insert345-clippy3.log"
+}

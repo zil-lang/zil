@@ -220,6 +220,12 @@ impl Reuse<'_> {
         let Some(entry) = self.prior.get(key) else {
             return Ok(None);
         };
+        if function
+            .call_kind
+            .is_some_and(|selection| selection != entry.function.call_kind)
+        {
+            return Ok(None);
+        }
         // A matching cache key is not declaration validation. Recheck the
         // current Core life header before returning any prior Typed body.
         let before = state.accounting();
@@ -298,7 +304,14 @@ impl Reuse<'_> {
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64
     )
 }
 fn scalar_typed(f: &TypedFunction) -> bool {
@@ -434,6 +447,7 @@ fn keys(
             signature.id.hash(&mut context);
             signature.public.hash(&mut context);
             f.name.hash(&mut context);
+            f.call_kind.hash(&mut context);
             f.life.is_some().hash(&mut context);
             if let Some(life) = &f.life {
                 // Ordered lexical binders and their dense actual positions
@@ -643,6 +657,15 @@ impl BodyKey<'_> {
             CoreExprKind::Integer(s) => {
                 1u8.hash(&mut self.hash);
                 s.hash(&mut self.hash);
+            }
+            CoreExprKind::Float(s) => {
+                12u8.hash(&mut self.hash);
+                s.hash(&mut self.hash);
+            }
+            CoreExprKind::NumericConvert { value, target } if scalar(target) => {
+                13u8.hash(&mut self.hash);
+                target.hash(&mut self.hash);
+                self.expr(value, depth + 1)?;
             }
             CoreExprKind::Bool(b) => {
                 2u8.hash(&mut self.hash);

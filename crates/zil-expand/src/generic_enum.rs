@@ -235,6 +235,8 @@ fn shape(
                         | "usize"
                         | "i32"
                         | "i64"
+                        | "f32"
+                        | "f64"
                         | "bool"
                         | "void"
                         | "c_handle"
@@ -259,7 +261,7 @@ fn shape(
                 shape(ty, variables, nominals, budget, depth + 1)?;
             }
         }
-        TypeKind::Tuple(ts) => {
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => {
             for ty in ts {
                 shape(ty, variables, nominals, budget, depth + 1)?;
             }
@@ -303,6 +305,8 @@ fn layout(
                     | "usize"
                     | "i32"
                     | "i64"
+                    | "f32"
+                    | "f64"
                     | "bool"
                     | "void"
                     | "c_handle"
@@ -371,7 +375,7 @@ fn layout(
             }
             active.remove(&key);
         }
-        TypeKind::Tuple(fields) => {
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
             for field in fields {
                 layout(field, variables, nominals, active, budget, depth + 1)?;
             }
@@ -531,6 +535,39 @@ impl Engine<'_> {
                     return Err(error(pattern.span, "match enum type cannot be inferred"));
                 };
                 let written = self.original_type(ty)?;
+                if matches!(&grouped(&written).kind, TypeKind::Union(_)) {
+                    if path.len() != 1 || arguments.len() != 1 {
+                        return Err(error(
+                            pattern.span,
+                            "anonymous member pattern needs one type name and one payload",
+                        ));
+                    }
+                    let mut member = if let Some(alias) = self.pattern_types.get(&path[0]) {
+                        self.budget.ty(alias)?;
+                        alias.clone()
+                    } else {
+                        named(&path[0], pattern.span)
+                    };
+                    if let Some(substitutions) = self
+                        .anonymous_function
+                        .as_ref()
+                        .and_then(|name| self.anonymous_substitutions.get(name))
+                    {
+                        self.budget.substituted_type(&member, substitutions)?;
+                        Substitution { substitutions }.ty(&mut member);
+                    }
+                    self.ty(&mut member, depth + 1)?;
+                    let marker =
+                        format!("$anonymous_pattern_{}", self.products.member_patterns.len());
+                    self.budget.text(&marker, pattern.span)?;
+                    self.budget.ty(&member)?;
+                    self.products
+                        .member_patterns
+                        .insert(marker.clone(), member.clone());
+                    path[0] = marker;
+                    self.enum_pattern(&mut arguments[0], Some(&member), env, depth + 1)?;
+                    return Ok(());
+                }
                 let TypeKind::Named { path: root, args } = &grouped(&written).kind else {
                     return Err(error(pattern.span, "constructor pattern requires enum"));
                 };
@@ -635,6 +672,7 @@ impl Engine<'_> {
         if env.contains_key(name) {
             return Ok(None);
         }
+        let provider = self.provider(name, callee.span)?;
         let expected = expected.map(|ty| self.original_type(ty)).transpose()?;
         let Some(f) = self.signatures.get(name) else {
             return Ok(None);
@@ -644,40 +682,75 @@ impl Engine<'_> {
             .collect::<BTreeSet<_>>();
         let mut found = BTreeMap::new();
         if let Some(args) = explicit {
-            if args.len() != type_parameters(f).count() {
+            if args.len() != consts::parameters(f).count()
+                && !(provider && args.len() < consts::parameters(f).count())
+            {
                 return Err(error(callee.span, "type argument arity mismatch"));
             }
-            for (p, a) in type_parameters(f).zip(args) {
-                let GenericArg::Type(t) = a else {
-                    return Err(unsupported(callee.span, "const generic argument"));
-                };
-                self.budget.ty(t)?;
-                found.insert(p.name.clone(), t.clone());
+            for (p, a) in consts::parameters(f).zip(args) {
+                let actual = consts::argument(a, Some(p), &mut self.budget)?;
+                let actual = consts::normalize(p, &actual, &mut self.budget)?;
+                found.insert(p.name.clone(), actual);
             }
         }
         if let (Some(result), Some(expected)) = (&f.return_type, expected.as_ref())
             && callable::opaque_signature(result).is_none()
             && callable::opaque_signature(expected).is_none()
         {
-            unify(
-                result,
-                expected,
-                &variables,
-                &mut found,
-                callee.span,
-                &mut self.budget,
-            )?;
+            if self.traits.has_associated
+                && trait_bounds::associated::contains(result, &mut self.budget)?
+            {
+                let result = substituted(result, &found, &mut self.budget)?;
+                if !check::dependent(&result, &variables) {
+                    let result = self.traits.normalize_associated(
+                        &result,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?;
+                    unify(
+                        &result,
+                        expected,
+                        &variables,
+                        &mut found,
+                        callee.span,
+                        &mut self.budget,
+                    )?;
+                }
+            } else {
+                unify(
+                    result,
+                    expected,
+                    &variables,
+                    &mut found,
+                    callee.span,
+                    &mut self.budget,
+                )?;
+            }
         }
         let parameters = f
             .params
             .iter()
             .map(|p| {
+                if self.traits.has_associated
+                    && trait_bounds::associated::contains(&p.ty, &mut self.budget)?
+                {
+                    let substituted = substituted(&p.ty, &found, &mut self.budget)?;
+                    if !check::dependent(&substituted, &variables) {
+                        return self.traits.normalize_associated(
+                            &substituted,
+                            &trait_bounds::Bounds::new(),
+                            &BTreeSet::new(),
+                            &mut self.budget,
+                        );
+                    }
+                }
                 self.budget.ty(&p.ty)?;
                 Ok(p.ty.clone())
             })
             .collect::<R<Vec<_>>>()?;
         Ok(Some(CallHints {
-            callable: callable::template(f)?.map_or_else(Vec::new, |bounds| {
+            callable: callable::template(f, &mut self.budget)?.map_or_else(Vec::new, |bounds| {
                 bounds.roles.into_iter().map(|role| role.index).collect()
             }),
             parameters,

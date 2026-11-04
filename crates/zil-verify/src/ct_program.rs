@@ -104,6 +104,7 @@ pub fn verify_ct_program(
                     | InstructionKind::Store { .. }
                     | InstructionKind::Unary { .. }
                     | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
                     | InstructionKind::Binary { .. }
                     | InstructionKind::Call { .. }
                     | InstructionKind::MakeAggregate { .. }
@@ -156,7 +157,16 @@ pub fn verify_ct_program_bytes(
 
 pub(super) fn serializable(ty: &Type) -> bool {
     match ty {
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16 => true,
+        Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::F32
+        | Type::U64
+        | Type::Usize
+        | Type::F64
+        | Type::U8
+        | Type::U16 => true,
         Type::Tuple(fields) => fields.iter().all(serializable),
         Type::Record { fields, .. } => fields.iter().all(|(_, t)| serializable(t)),
         Type::Array { element, .. } => serializable(element),

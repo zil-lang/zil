@@ -15,11 +15,14 @@ const DUMPS: &[(&str, &str, Stage)] = &[
     ("ct-core", "txt", Stage::Types),
     ("typed", "txt", Stage::Types),
     ("interfaces", "txt", Stage::Types),
+    ("task-interfaces", "txt", Stage::Types),
     ("candidate", "txt", Stage::Analyze),
     ("verified", "txt", Stage::Verify),
     ("verified-interfaces", "txt", Stage::Verify),
+    ("verified-task-interfaces", "txt", Stage::Verify),
     ("lir", "txt", Stage::Lower),
     ("llvm", "ll", Stage::Build),
+    ("task-abi", "json", Stage::Build),
 ];
 
 #[derive(Clone)]

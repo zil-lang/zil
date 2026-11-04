@@ -983,6 +983,7 @@ impl Body {
     fn new(id: u32, name: &str, result: Type) -> Self {
         Self {
             function: TypedFunction {
+                call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 id: FunctionId(id),
                 name: name.into(),
