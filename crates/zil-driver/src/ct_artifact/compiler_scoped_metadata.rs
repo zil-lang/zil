@@ -70,6 +70,7 @@ impl<'a> Compiler<'a> {
             definition: definition.clone(),
             span: item.span,
             binders,
+            instance: CtScopeInstance::Definition,
         }))
     }
     pub(super) fn source_scoped_nominal(
@@ -268,7 +269,7 @@ impl<'a> Compiler<'a> {
         let scope = CtAmbientLifeScope {
             declaration: definition,
             binder_site: Vec::new(),
-            instance: CtScopeInstance::Definition,
+            instance: self.source_life_scope.as_ref().unwrap().instance.clone(),
         };
         self.budget
             .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;

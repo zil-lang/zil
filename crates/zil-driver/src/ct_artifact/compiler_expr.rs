@@ -187,6 +187,9 @@ impl Builder<'_, '_> {
             s::ExprKind::Name(name) => {
                 if let Some(value) = self.lookup(name, span)? {
                     value
+                } else if let Some(value) = self.compiler.scalar_binding(name, span)? {
+                    let ty = scalar_constant(&value);
+                    self.constant(CtConstant::Scalar(value), ty, span)?
                 } else if let Some(graph) = self.compiler.metadata_binding(name, span)? {
                     self.metadata_type_value(&graph, graph.root, depth + 1, span)?
                 } else if let Some(ty) = self.compiler.binding(name, span)? {
@@ -1157,6 +1160,11 @@ impl Builder<'_, '_> {
         depth: usize,
         span: Span,
     ) -> R<Value> {
+        if !self.compiler.checking_generics
+            && Compiler::mixed_parameters(&self.compiler.declarations[declaration].function.generics)
+        {
+            return self.mixed_generic_call(declaration, explicit, arguments, depth, span);
+        }
         if !self.compiler.checking_generics {
             return self.metadata_generic_call(
                 declaration,
