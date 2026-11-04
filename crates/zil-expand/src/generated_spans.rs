@@ -377,6 +377,28 @@ pub(crate) fn walk_type<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     v.node(&mut t.span, depth)?;
+    if let s::TypeKind::Dyn { bindings, .. } = &mut t.kind {
+        for binding in bindings {
+            v.node(&mut binding.span, depth + 1)?;
+            match &mut binding.kind {
+                s::DynBindingKind::Type { member, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(value, depth + 2)?;
+                }
+                s::DynBindingKind::Constant { member, ty, value } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    v.ty(ty, depth + 2)?;
+                    v.expression(value, depth + 2)?;
+                }
+                s::DynBindingKind::Method { member, arguments } => {
+                    path(v, member, binding.span, depth + 2)?;
+                    for a in arguments {
+                        argument(v, a, depth + 2)?;
+                    }
+                }
+            }
+        }
+    }
     match &mut t.kind {
         s::TypeKind::Named { path: names, args }
         | s::TypeKind::Dyn {

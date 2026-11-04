@@ -29,6 +29,45 @@ pub(in crate::ct_artifact) fn ty_cost(
     }
     Ok(bytes)
 }
+fn storage_cost(
+    life: &zil_ir::StorageLifeShape,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<u64> {
+    budget.reserve_analysis_work(
+        (life.slots.len() as u64)
+            .saturating_add(life.retained.len() as u64)
+            .saturating_add(life.nominal_arguments.len() as u64),
+    )?;
+    let mut bytes = 0u64;
+    for row in &life.slots {
+        budget.reserve_analysis_work(row.path.len() as u64)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<zil_ir::StorageLifeSlot>() as u64)
+            .saturating_add(
+                (row.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::PlaceProjection>() as u64),
+            );
+    }
+    for row in &life.retained {
+        budget.reserve_analysis_work(row.path.len() as u64)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<zil_ir::StorageRetainedBinding>() as u64)
+            .saturating_add(
+                (row.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>() as u64),
+            );
+    }
+    for row in &life.nominal_arguments {
+        budget.reserve_analysis_work(row.path.len() as u64)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<zil_ir::NominalLifeArgument>() as u64)
+            .saturating_add(
+                (row.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>() as u64),
+            );
+    }
+    Ok(bytes)
+}
 fn graph_cost(graph: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
     let mut bytes = 0u64;
     for node in &graph.nodes {
@@ -51,6 +90,9 @@ fn graph_cost(graph: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResul
         bytes = bytes
             .saturating_add(std::mem::size_of::<CtTypeNode>() as u64)
             .saturating_add((edges as u64).saturating_mul(bytes_per_edge as u64));
+        if let CtTypeNode::BorrowedStorage { life, .. } = node {
+            bytes = bytes.saturating_add(storage_cost(life, budget)?);
+        }
         if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
             budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
             bytes = bytes.saturating_add((life.parameter_lives.len() as u64).saturating_mul(8));
@@ -67,6 +109,9 @@ pub(super) fn schema_copy_cost(
     for record in records {
         budget.reserve_analysis_work(1)?;
         bytes = bytes.saturating_add(std::mem::size_of::<CtRecordSchema>() as u64);
+        if let Some(context) = &record.life_context {
+            bytes = bytes.saturating_add(graph_cost(context, budget)?);
+        }
         for field in &record.fields {
             bytes = bytes.saturating_add(ty_cost(field, budget)?);
         }
@@ -81,6 +126,9 @@ pub(super) fn schema_copy_cost(
     for en in enums {
         budget.reserve_analysis_work(1)?;
         bytes = bytes.saturating_add(std::mem::size_of::<CtEnumSchema>() as u64);
+        if let Some(context) = &en.life_context {
+            bytes = bytes.saturating_add(graph_cost(context, budget)?);
+        }
         for fields in &en.variants {
             bytes = bytes.saturating_add(24);
             for field in fields {
@@ -151,6 +199,9 @@ pub(super) fn program_copy_cost(
                         constructor,
                         arguments,
                     } => {
+                        if let CtTypeConstructor::BorrowedStorage { life } = constructor {
+                            bytes = bytes.saturating_add(storage_cost(life, budget)?);
+                        }
                         if let CtTypeConstructor::BorrowedFunctionPointer { life } = constructor {
                             budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
                             bytes = bytes.saturating_add(
@@ -298,10 +349,24 @@ impl ValueContext {
                 let (symbol, args) = match ty {
                     CtTy::Record(id) => {
                         let s = self.records.get(id.0 as usize).ok_or_else(bad)?;
+                        if s.life_context.is_some() {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 joint context extraction is not yet implemented",
+                                None,
+                            )]);
+                        }
                         (&s.name, &s.arguments)
                     }
                     CtTy::Enum(id) => {
                         let s = self.enums.get(id.0 as usize).ok_or_else(bad)?;
+                        if s.life_context.is_some() {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 joint context extraction is not yet implemented",
+                                None,
+                            )]);
+                        }
                         (&s.name, &s.arguments)
                     }
                     _ => unreachable!(),
@@ -319,6 +384,13 @@ impl ValueContext {
                                 budget,
                             )?));
                             budget.release_temporary_bytes(bytes);
+                        }
+                        CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 scoped data reification is not yet implemented",
+                                None,
+                            )]);
                         }
                         CtSchemaArgument::Scalar(value) => {
                             arguments.push(CtTypeArgument::Scalar(value.clone()))

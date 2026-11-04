@@ -171,6 +171,13 @@ impl FrozenReadView<'_> {
                             CtTypeArgument::Type(id) => {
                                 self.type_spelling(ty, *id, out, depth + 1, budget)?
                             }
+                            CtTypeArgument::Lifetime(_) => {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Ct,
+                                    "CT4 scoped lifetime spelling requires its joint context",
+                                    None,
+                                )]);
+                            }
                             CtTypeArgument::Scalar(value) => {
                                 let text = match value {
                                     Constant::Bool(value) => value.to_string(),
@@ -2031,6 +2038,19 @@ impl FrozenReadView<'_> {
         Ok(value)
     }
     fn compact_type_ref(ty: CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
+        for node in &ty.nodes {
+            budget.reserve_analysis_work(1)?;
+            if matches!(node, CtTypeNode::BorrowedStorage { .. })
+                || matches!(node, CtTypeNode::Nominal { arguments, .. } if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
+            {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT4 scoped compaction requires context-aware owner relocation",
+                    None,
+                )]);
+            }
+        }
+
         fn comparison_work(node: &CtTypeNode) -> u64 {
             match node {
                 CtTypeNode::Nominal { arguments, .. } => {
@@ -2040,7 +2060,7 @@ impl FrozenReadView<'_> {
                             CtTypeArgument::Scalar(zil_ir::Constant::WideString(value)) => {
                                 1u64.saturating_add(value.len() as u64)
                             }
-                            CtTypeArgument::Scalar(_) => 1,
+                            CtTypeArgument::Scalar(_) | CtTypeArgument::Lifetime(_) => 1,
                         })
                     }))
                 }
@@ -2110,7 +2130,7 @@ impl FrozenReadView<'_> {
                     .iter()
                     .filter_map(|arg| match arg {
                         CtTypeArgument::Type(id) => Some(*id),
-                        CtTypeArgument::Scalar(_) => None,
+                        CtTypeArgument::Scalar(_) | CtTypeArgument::Lifetime(_) => None,
                     })
                     .collect::<Vec<_>>(),
                 CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => parts.clone(),
@@ -2157,10 +2177,15 @@ impl FrozenReadView<'_> {
                     arguments: arguments
                         .into_iter()
                         .map(|argument| match argument {
-                            CtTypeArgument::Type(id) => CtTypeArgument::Type(mapped(id)),
-                            CtTypeArgument::Scalar(value) => CtTypeArgument::Scalar(value),
+                            CtTypeArgument::Type(id) => Ok(CtTypeArgument::Type(mapped(id))),
+                            CtTypeArgument::Scalar(value) => Ok(CtTypeArgument::Scalar(value)),
+                            CtTypeArgument::Lifetime(_) => Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 owner relocation is not yet implemented",
+                                None,
+                            )]),
                         })
-                        .collect(),
+                        .collect::<CompileResult<_>>()?,
                 },
                 CtTypeNode::Tuple(parts) => {
                     CtTypeNode::Tuple(parts.into_iter().map(mapped).collect())
@@ -2483,13 +2508,20 @@ impl CtReadView for FrozenReadView<'_> {
                                     .iter()
                                     .map(|arg| match arg {
                                         CtTypeArgument::Type(id) => {
-                                            CtTypeArgument::Type(shift(*id))
+                                            Ok(CtTypeArgument::Type(shift(*id)))
+                                        }
+                                        CtTypeArgument::Lifetime(_) => {
+                                            Err(vec![Diagnostic::unsupported(
+                                                Phase::Ct,
+                                                "CT4 scoped substitution requires owner relocation",
+                                                None,
+                                            )])
                                         }
                                         CtTypeArgument::Scalar(value) => {
-                                            CtTypeArgument::Scalar(value.clone())
+                                            Ok(CtTypeArgument::Scalar(value.clone()))
                                         }
                                     })
-                                    .collect(),
+                                    .collect::<CompileResult<_>>()?,
                             },
                             CtTypeNode::AnonymousSum(parts) => {
                                 CtTypeNode::AnonymousSum(parts.iter().copied().map(shift).collect())

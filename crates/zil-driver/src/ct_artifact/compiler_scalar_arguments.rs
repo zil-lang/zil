@@ -96,6 +96,13 @@ impl Compiler<'_> {
         };
         let target = self.scalar_argument_type(ty, span)?;
         let value = match arg {
+            s::GenericArg::Lifetime(_) => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "CT4 lifetime actual is not a scalar argument",
+                    Some(span),
+                )]);
+            }
             s::GenericArg::Type(ty) => {
                 let s::TypeKind::Named { path, args } = &ty.kind else {
                     return Err(error(span, "nominal scalar actual is not a value binder"));

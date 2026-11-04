@@ -53,6 +53,13 @@ impl<'a> Compiler<'a> {
                         CtTypeArgument::Type(id) => {
                             CtSchemaArgument::Type(self.metadata_subgraph(graph, *id, span)?)
                         }
+                        CtTypeArgument::Lifetime(_) => {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Ct,
+                                "CT4 scoped data argument extraction is not yet implemented",
+                                Some(span),
+                            )]);
+                        }
                         CtTypeArgument::Scalar(value) => CtSchemaArgument::Scalar(value.clone()),
                     });
                 }
@@ -99,6 +106,13 @@ impl<'a> Compiler<'a> {
             self.budget.node(span)?;
             match arg {
                 CtSchemaArgument::Type(graph) => self.budget.metadata(graph, span)?,
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 scoped instance argument copy is not yet implemented",
+                        Some(span),
+                    )]);
+                }
                 CtSchemaArgument::Scalar(_) => self.budget.work(32, span)?,
             }
         }
