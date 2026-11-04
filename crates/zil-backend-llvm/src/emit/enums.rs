@@ -66,6 +66,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::U16 => Layout { size: 2, align: 2 },
         Type::I32 | Type::F32 => Layout { size: 4, align: 4 },
         Type::I64
+        | Type::U64
+        | Type::Usize
         | Type::F64
         | Type::FunctionPointer { .. }
         | Type::ForeignHandle
@@ -324,7 +326,9 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
             | Type::U16
             | Type::ByteBuffer
             | Type::ForeignHandle
-            | Type::CWideString => {}
+            | Type::CWideString
+            | Type::U64
+            | Type::Usize => {}
         }
         Ok(())
     }
@@ -629,6 +633,8 @@ impl FunctionEmitter<'_> {
             | Type::I64
             | Type::F32
             | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::FunctionPointer { .. }
             | Type::ForeignHandle
             | Type::CWideString

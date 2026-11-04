@@ -47,6 +47,8 @@ pub enum CtScalarTy {
     U16,
     I32,
     I64,
+    U64,
+    Usize,
     F32,
     F64,
 }
@@ -629,6 +631,8 @@ pub struct CtUsageReceipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtArtifactProgram {
     pub schema_version: u32,
+    /// Selected target width, never the host VM pointer width.
+    pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,

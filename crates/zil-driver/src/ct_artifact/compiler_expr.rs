@@ -10,6 +10,8 @@ fn scalar_constant(c: &Constant) -> CtTy {
         Constant::I64(_) => CtScalarTy::I64,
         Constant::F32(_) => CtScalarTy::F32,
         Constant::F64(_) => CtScalarTy::F64,
+        Constant::U64(_) => CtScalarTy::U64,
+        Constant::Usize(_) => CtScalarTy::Usize,
         _ => unreachable!(),
     })
 }
@@ -21,6 +23,8 @@ fn runtime_scalar(ty: Option<&CtTy>) -> Option<zil_ir::Type> {
         CtTy::Scalar(CtScalarTy::I64) => zil_ir::Type::I64,
         CtTy::Scalar(CtScalarTy::F32) => zil_ir::Type::F32,
         CtTy::Scalar(CtScalarTy::F64) => zil_ir::Type::F64,
+        CtTy::Scalar(CtScalarTy::U64) => zil_ir::Type::U64,
+        CtTy::Scalar(CtScalarTy::Usize) => zil_ir::Type::Usize,
         _ => return None,
     })
 }
@@ -316,7 +320,12 @@ impl Builder<'_, '_> {
                 let integer = matches!(
                     lhs.ty,
                     CtTy::Scalar(
-                        CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64
+                        CtScalarTy::U8
+                            | CtScalarTy::U16
+                            | CtScalarTy::U64
+                            | CtScalarTy::Usize
+                            | CtScalarTy::I32
+                            | CtScalarTy::I64
                     )
                 );
                 let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
@@ -937,6 +946,8 @@ impl Builder<'_, '_> {
                 CtTy::Scalar(
                     CtScalarTy::U8
                         | CtScalarTy::U16
+                        | CtScalarTy::U64
+                        | CtScalarTy::Usize
                         | CtScalarTy::I32
                         | CtScalarTy::I64
                         | CtScalarTy::F32

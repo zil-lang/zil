@@ -71,6 +71,8 @@ fn scalar(ty: &Type) -> bool {
             | Type::U8
             | Type::U16
             | Type::F32
+            | Type::U64
+            | Type::Usize
             | Type::F64
     )
 }
@@ -202,6 +204,8 @@ impl Walker {
                 | Constant::I64(_)
                 | Constant::F32(_)
                 | Constant::F64(_)
+                | Constant::U64(_)
+                | Constant::Usize(_)
                 | Constant::U8(_)
                 | Constant::U16(_),
             ) => {}

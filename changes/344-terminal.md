@@ -89,3 +89,23 @@ before the explicit RHS format. Float metadata hints now inspect an explicit
 other-operand format before defaulting an unsuffixed floating literal, including
 grouped/negated literals. Group/unary metadata inspection debits actual node
 work; value evaluation order remains left-to-right.
+
+## Unsigned composition
+
+The parent integrates complete UInt340 production and public shapes into the
+reviewed float candidate. Preserve disjoint inference domains (U64=256,
+USIZE=512, F32=1024, F64=2048) and both target-width CT ledgers. Floating numeric
+conversion accepts the full unsigned mathematical range, uses unsigned LLVM
+casts, and checks exact 2^64 / target-width powers of two before fptoui. CT
+conversion reads the target pointer width rather than treating every usize as
+u64. The nearest legal f64 below 2^64, exact 2^63, rounded u64::MAX to f64,
+exact 2^64 rejection and 32-bit usize bounds must execute on the composed code.
+This does not change integer-only conversion or default budget semantics.
+
+The stronger real `Carrier.Value(Mixed{word:u64,amount:f64}, usize)` source
+reaches Verify1 and Lower, then codegen reports `non-Copy enum payload physical
+layout`. The Enum physical-layout and scalar payload-store consumers omitted
+U64/Usize. Add their existing natural x64 8/8 representation to those private
+tables; actual Type identity and ordinary tag/payload behavior remain unchanged.
+The mixed source is retained as the machine regression, rather than claiming a
+scalar-only conversion test covers aggregate storage.

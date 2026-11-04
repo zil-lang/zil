@@ -528,6 +528,8 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::I64 => bytes.push(3),
         Type::F32 => bytes.push(28),
         Type::F64 => bytes.push(29),
+        Type::U64 => bytes.push(23),
+        Type::Usize => bytes.push(24),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
         Type::OwnedStore { element } => {

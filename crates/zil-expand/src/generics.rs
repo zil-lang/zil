@@ -1245,7 +1245,7 @@ impl<'a> Engine<'a> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, e.span)?;
-                Ok(["u8", "u16", "i32", "i64"]
+                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
                     .or(default_integer.then_some("i32"))
@@ -1556,6 +1556,10 @@ impl<'a> Engine<'a> {
                             "u8"
                         } else if text.ends_with("u16") {
                             "u16"
+                        } else if text.ends_with("u64") {
+                            "u64"
+                        } else if text.ends_with("usize") {
+                            "usize"
                         } else if text.ends_with("i64") {
                             "i64"
                         } else {
@@ -2115,14 +2119,23 @@ impl<'a> Engine<'a> {
                         self.signature_result(&target)?
                     }
                 } else {
-                    self.expr(callee, env, depth + 1)?;
+                    let callee_type = self.expr(callee, env, depth + 1)?;
                     if let Some(mut signature) = trait_signature {
                         if let Some(result) = &mut signature.return_type {
                             self.ty(result, depth + 1)?;
                         }
                         signature.return_type
                     } else {
-                        None
+                        // A dynamic call still has a statically known complete
+                        // signature. Preserve its result for following source
+                        // patterns; Types checks the actual call independently.
+                        match callee_type.as_ref().map(grouped).map(|ty| &ty.kind) {
+                            Some(TypeKind::Function { result, .. }) => {
+                                self.budget.ty(result)?;
+                                Some(*result.clone())
+                            }
+                            _ => None,
+                        }
                     }
                 }
             }

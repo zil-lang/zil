@@ -28,7 +28,10 @@ use zil_syntax::ast as s;
 
 /// These names are source primitives, never ordinary function values.
 fn integer_name(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "i32" | "i64" | "f32" | "f64")
+    matches!(
+        name,
+        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+    )
 }
 fn foreign_constructor_name(name: &str) -> bool {
     matches!(
@@ -127,7 +130,7 @@ fn conversion_name_error(span: Span) -> Diagnostic {
         Phase::Expand,
         "E-INTEGER-CONVERSION-NAME",
         Some(span),
-        "u8, u16, i32 and i64 are reserved bare integer conversion names",
+        "u8, u16, u64, usize, i32 and i64 are reserved bare integer conversion names",
     )
 }
 
@@ -1345,6 +1348,8 @@ impl Expander<'_> {
                                 "i64" => Type::I64,
                                 "f32" => Type::F32,
                                 "f64" => Type::F64,
+                                "u64" => Type::U64,
+                                "usize" => Type::Usize,
                                 _ => unreachable!(),
                             },
                         }
@@ -1519,6 +1524,8 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "i64" => Type::I64,
             "f32" => Type::F32,
             "f64" => Type::F64,
+            "u64" => Type::U64,
+            "usize" => Type::Usize,
             "bool" => Type::Bool,
             "void" => Type::Unit,
             n => Type::Named(n.into()),

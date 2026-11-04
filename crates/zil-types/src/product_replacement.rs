@@ -313,6 +313,7 @@ impl References<'_, '_> {
                     shadows |= self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Reference { pattern, .. } => shadows |= self.pattern(pattern, depth + 1)?,
             CorePatternKind::Variant {
                 ty,
                 variant,

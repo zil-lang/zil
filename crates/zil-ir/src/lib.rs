@@ -34,6 +34,9 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    U64,
+    /// Target pointer-width unsigned integer; constants retain mathematical bits.
+    Usize,
     F32,
     F64,
     U8,
@@ -122,6 +125,8 @@ impl Type {
                 | Self::Bool
                 | Self::I32
                 | Self::I64
+                | Self::U64
+                | Self::Usize
                 | Self::F32
                 | Self::F64
                 | Self::U8
@@ -179,6 +184,8 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::U64
+            | Self::Usize
             | Self::F32
             | Self::F64
             | Self::U8
@@ -208,7 +215,10 @@ impl Type {
         }
     }
     pub fn is_integer(&self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
+        matches!(
+            self,
+            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+        )
     }
     pub fn is_float(&self) -> bool {
         matches!(self, Self::F32 | Self::F64)
@@ -222,6 +232,8 @@ impl Type {
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::U64 => "u64".into(),
+            Self::Usize => "usize".into(),
             Self::F32 => "f32".into(),
             Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
@@ -275,6 +287,8 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    U64(u64),
+    Usize(u64),
     /// Exact IEEE bits; identity preserves signed zero and every NaN spelling.
     F32(u32),
     F64(u64),
@@ -292,6 +306,8 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::U64(_) => Type::U64,
+            Self::Usize(_) => Type::Usize,
             Self::F32(_) => Type::F32,
             Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
@@ -530,6 +546,10 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    Reference {
+        mutable: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
@@ -647,7 +667,7 @@ pub enum CoreExprKind {
     },
     Integer(String),
     Float(String),
-    /// Numeric conversion with at least one floating endpoint.
+    /// Numeric conversion with numeric endpoints before Types resolves the operand.
     NumericConvert {
         value: Box<CoreExpr>,
         target: Type,
@@ -1250,7 +1270,7 @@ pub enum InstructionKind {
         value: ValueId,
         target: Type,
     },
-    /// Checked numeric conversion with at least one floating endpoint.
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
     ConvertNumber {
         value: ValueId,
         target: Type,
@@ -1682,7 +1702,7 @@ pub enum CtInstructionKind {
         value: ValueId,
         target: Type,
     },
-    /// Checked numeric conversion with at least one floating endpoint.
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
     ConvertNumber {
         value: ValueId,
         target: Type,
@@ -1856,6 +1876,8 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
         Type::F32 => b.push(28),
         Type::F64 => b.push(29),
         Type::U8 => b.push(18),
@@ -2081,6 +2103,14 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
         }
         Constant::I64(v) => {
             b.push(3);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::U64(v) => {
+            b.push(9);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Usize(v) => {
+            b.push(10);
             b.extend_from_slice(&v.to_le_bytes());
         }
         Constant::F32(bits) => {

@@ -192,6 +192,8 @@ impl Lexer<'_> {
             let digits = spelling
                 .strip_suffix("u8")
                 .or_else(|| spelling.strip_suffix("u16"))
+                .or_else(|| spelling.strip_suffix("u64"))
+                .or_else(|| spelling.strip_suffix("usize"))
                 .unwrap_or(spelling);
             if !digit_group(digits, radix) {
                 self.error(
@@ -239,7 +241,7 @@ impl Lexer<'_> {
             if matches!(suffix, "f32" | "f64") {
                 floating = true;
             } else {
-                valid &= !floating && matches!(suffix, "u8" | "u16");
+                valid &= !floating && matches!(suffix, "u8" | "u16" | "u64" | "usize");
             }
         }
         if !valid {
