@@ -132,7 +132,7 @@ fn cells(ty: &Type, cap: usize) -> CompileResult<usize> {
             .ok_or_else(|| quota("CT aggregate cell budget exhausted"))
     };
     match ty {
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 => Ok(1),
+        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64 => Ok(1),
         Type::Tuple(fields) => fields
             .iter()
             .try_fold(1usize, |n, t| add(n, cells(t, cap)?)),
@@ -264,6 +264,11 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                     Some(CompileTimeValue::Scalar(super::convert_integer(
                         frame.value(*value).scalar(),
                         target,
+                    )?))
+                }
+                InstructionKind::ConvertNumber { value, target } => {
+                    Some(CompileTimeValue::Scalar(super::convert_number(
+                        frame.value(*value).scalar(), target,
                     )?))
                 }
                 InstructionKind::Load(local) => Some(

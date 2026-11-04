@@ -136,6 +136,32 @@ impl super::hygiene::Context for Materializer<'_, '_> {
 }
 
 impl Materializer<'_, '_> {
+    fn float_expression(&mut self, value: &zil_ir::Constant, span: Span) -> CompileResult<s::Expr> {
+        use zil_base::numeric::{FloatSource, FloatValue};
+        let (value, suffix) = match value {
+            zil_ir::Constant::F32(bits) => (FloatValue::F32(*bits), "f32"),
+            zil_ir::Constant::F64(bits) => (FloatValue::F64(*bits), "f64"),
+            _ => unreachable!("floating reification caller"),
+        };
+        // Formatting operates only on fixed-width IEEE bits. Reserve its bounded
+        // work, text and all three possible generated nodes before allocation.
+        self.environment.budget.reserve_analysis_work(8192)?;
+        self.environment.budget.reserve_temporary_bytes(64)?;
+        self.environment.budget.reserve_generated_nodes(3)?;
+        let literal = |text: &str| s::Expr { span, kind: s::ExprKind::Literal(s::Literal::Float(format!("{text}{suffix}"))) };
+        Ok(match value.source() {
+            FloatSource::Finite(text) => literal(&text),
+            FloatSource::Infinity { negative } => s::Expr { span, kind: s::ExprKind::Binary {
+                op: s::BinaryOp::Divide,
+                left: Box::new(literal(if negative { "-1.0" } else { "1.0" })),
+                right: Box::new(literal("0.0")),
+            } },
+            FloatSource::Nan => s::Expr { span, kind: s::ExprKind::Binary {
+                op: s::BinaryOp::Divide,
+                left: Box::new(literal("0.0")), right: Box::new(literal("0.0")),
+            } },
+        })
+    }
     fn depth(&self, depth: usize, span: Span) -> CompileResult<()> {
         if depth > self.max_depth {
             return Err(vec![Diagnostic::limit(
@@ -416,6 +442,8 @@ impl Materializer<'_, '_> {
                     CtScalarTy::U16 => "u16",
                     CtScalarTy::I32 => "i32",
                     CtScalarTy::I64 => "i64",
+                    CtScalarTy::F32 => "f32",
+                    CtScalarTy::F64 => "f64",
                 },
                 Vec::new(),
             ),
@@ -464,6 +492,10 @@ impl Materializer<'_, '_> {
                             depth + 1,
                         )?)),
                         CtTypeArgument::Scalar(value) => {
+                            if matches!(value, zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_)) {
+                                args.push(s::GenericArg::Const(self.float_expression(value, span)?));
+                                continue;
+                            }
                             let literal = match value {
                                 zil_ir::Constant::Bool(value) => s::Literal::Bool(*value),
                                 zil_ir::Constant::U8(value) => {
@@ -1405,6 +1437,7 @@ impl Materializer<'_, '_> {
                     ));
                 };
                 expression.kind = match scalar {
+                    value @ (zil_ir::Constant::F32(_) | zil_ir::Constant::F64(_)) => self.float_expression(&value, expression.span)?.kind,
                     zil_ir::Constant::Bool(value) => s::ExprKind::Literal(s::Literal::Bool(value)),
                     zil_ir::Constant::U8(value) => {
                         s::ExprKind::Literal(s::Literal::Integer(value.to_string()))

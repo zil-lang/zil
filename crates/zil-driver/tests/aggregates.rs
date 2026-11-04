@@ -2908,3 +2908,9 @@ fn large_copy_enum_error_default_stack_api_reliability() {
         eprint!("{}", String::from_utf8_lossy(&child.stderr));
     }
 }
+
+#[test]
+fn ieee_float_source_ct_and_native_agree() {
+    let text=include_str!("../../../tests/language-readiness/terminal/344/floats/ieee-native.zil");
+    review329_native(&[("main", text)], 344);
+}

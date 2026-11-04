@@ -37,8 +37,8 @@ pub(super) fn payload(
                 let scalar = match ty {
                     Type::U8 => Some((1, 1)),
                     Type::U16 => Some((2, 2)),
-                    Type::I32 => Some((4, 4)),
-                    Type::I64 => Some((8, 8)),
+                    Type::I32 | Type::F32 => Some((4, 4)),
+                    Type::I64 | Type::F64 => Some((8, 8)),
                     Type::ForeignHandle => {
                         native_values::target(target, span)?;
                         Some((8, 8))

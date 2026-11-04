@@ -2,6 +2,8 @@
 
 //! Stable identities, diagnostics, limits, and byte-compatible SHA-256 fingerprints.
 
+pub mod numeric;
+
 mod sha256;
 #[cfg(test)]
 mod sha256_scalar_reference;

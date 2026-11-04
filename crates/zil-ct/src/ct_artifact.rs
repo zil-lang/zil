@@ -345,6 +345,8 @@ fn scalar_ty(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::F32(_) => Some(CtScalarTy::F32),
+        Constant::F64(_) => Some(CtScalarTy::F64),
         _ => None,
     }
 }
@@ -356,6 +358,8 @@ fn ordinary_scalar(ty: CtScalarTy) -> Type {
         CtScalarTy::U16 => Type::U16,
         CtScalarTy::I32 => Type::I32,
         CtScalarTy::I64 => Type::I64,
+        CtScalarTy::F32 => Type::F32,
+        CtScalarTy::F64 => Type::F64,
     }
 }
 fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
@@ -906,6 +910,7 @@ fn execute_instruction(
                 .expect("verified initialized local"),
         ),
         K::ConvertInteger { .. }
+        | K::ConvertNumber { .. }
         | K::Unary { .. }
         | K::Binary { .. }
         | K::Length(_)
@@ -972,6 +977,10 @@ fn execute_instruction(
                 c,
                 &ordinary_scalar(*target),
             )?))
+        }
+        K::ConvertNumber { value, target } => {
+            let CtValue::Scalar(c) = get(*value) else { unreachable!("verified scalar conversion") };
+            Some(CtValue::Scalar(crate::convert_number(c, &ordinary_scalar(*target))?))
         }
         K::Unary { op, operand } => {
             let CtValue::Scalar(c) = get(*operand) else {

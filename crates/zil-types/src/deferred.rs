@@ -182,7 +182,7 @@ impl Builder<'_, '_> {
                 self.validate_defer_block(body, depth + 1, 0, false)?
             }
             CoreExprKind::Ascribed { value, .. }
-            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. } | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::Try(value)
             | CoreExprKind::CompileTime(value)

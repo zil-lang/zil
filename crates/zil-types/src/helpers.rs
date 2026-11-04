@@ -1213,7 +1213,7 @@ fn ordinary_aggregate_inputs<'a>(
         ([value], None)
             if matches!(
                 function.values[value.0 as usize],
-                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+                Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16 | Type::F32 | Type::F64
             ) =>
         {
             None

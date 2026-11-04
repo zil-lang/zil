@@ -239,7 +239,7 @@ impl Rewriter<'_> {
             // Internal projection was rewritten before entering this nested scope.
             CoreExprKind::Member { member, .. } if member == FIELD => {}
             CoreExprKind::Ascribed { value, .. }
-            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. } | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
@@ -309,6 +309,7 @@ impl Rewriter<'_> {
             }
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::String(_)
             | CoreExprKind::Unit
@@ -490,7 +491,7 @@ impl BindingScan {
         self.charge(1, d, e.span)?;
         match &e.kind {
             CoreExprKind::Ascribed { value, .. }
-            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. } | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
@@ -562,6 +563,7 @@ impl BindingScan {
             }
             CoreExprKind::Literal(_)
             | CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::String(_)
             | CoreExprKind::Unit

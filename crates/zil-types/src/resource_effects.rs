@@ -671,7 +671,7 @@ impl<T: Tracking> Scan<'_, '_, T> {
             }
             CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
-            | CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::IntegerConvert { value, .. } | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::CompileTime(value)
             | CoreExprKind::Try(value)
             | CoreExprKind::Unary { operand: value, .. } => return self.expr(value, depth + 1),

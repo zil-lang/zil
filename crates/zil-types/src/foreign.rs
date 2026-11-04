@@ -103,7 +103,7 @@ pub(super) fn check_declaration(
     }
     if !matches!(
         function.return_type,
-        Type::Unit | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::ForeignHandle
+        Type::Unit | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64 | Type::ForeignHandle
     ) {
         return Err(fail(
             "C ABI results require unit/u8/u16/i32/i64/c_handle; borrowed or static pointer results are forbidden",
@@ -153,6 +153,8 @@ pub(super) fn check_declaration(
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::ForeignHandle
             | Type::CWideString => {}
             Type::ForeignCallback { parameters, result }
@@ -165,7 +167,7 @@ pub(super) fn check_declaration(
                 while let Some(target) = pending.pop() {
                     spend(1)?;
                     match target {
-                        Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::ForeignHandle => {}
+                        Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64 | Type::ForeignHandle => {}
                         Type::CWideString if !mutable => {}
                         Type::ForeignCallback { parameters, result }
                             if !mutable

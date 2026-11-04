@@ -180,6 +180,8 @@ impl Budget {
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}
@@ -376,7 +378,8 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => {
+                            InstructionKind::ConvertInteger { target, .. }
+                            | InstructionKind::ConvertNumber { target, .. } => {
                                 Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {

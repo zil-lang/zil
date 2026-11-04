@@ -67,3 +67,12 @@ host-decimal serialization. Nearest counterexamples include mixed numeric types,
 non-numeric casts, fractional/NaN/infinite/out-of-range integer conversions and
 integer machine instructions applied to float types. Actual CT/native O0/O2
 agreement and edge values are required before declaring this capability closed.
+
+Float source parsing debits `bytes² + 64` work before underscore normalization
+or software decimal conversion. Fixed-format software reification reserves 8192
+work units, 64 temporary bytes and three generated nodes before formatting;
+finite values use round-trip software decimal, infinity uses signed `1/0`, and
+canonical NaN uses `0/0`. The lower storage table gains the two natural float
+layouts. Ordinary C scalar parameters/results and borrowed POD leaves admit
+f32/f64 with matching independent Verify layouts; ownership, escape and
+callback contracts retain their existing meaning.

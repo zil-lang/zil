@@ -298,7 +298,7 @@ impl Reuse<'_> {
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16 | Type::F32 | Type::F64
     )
 }
 fn scalar_typed(f: &TypedFunction) -> bool {
@@ -643,6 +643,15 @@ impl BodyKey<'_> {
             CoreExprKind::Integer(s) => {
                 1u8.hash(&mut self.hash);
                 s.hash(&mut self.hash);
+            }
+            CoreExprKind::Float(s) => {
+                12u8.hash(&mut self.hash);
+                s.hash(&mut self.hash);
+            }
+            CoreExprKind::NumericConvert { value, target } if scalar(target) => {
+                13u8.hash(&mut self.hash);
+                target.hash(&mut self.hash);
+                self.expr(value, depth + 1)?;
             }
             CoreExprKind::Bool(b) => {
                 2u8.hash(&mut self.hash);

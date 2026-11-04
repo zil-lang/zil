@@ -344,6 +344,8 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
             size: 8,
             alignment: 8,
         },
+        ScalarLayout { ty: Type::F32, size: 4, alignment: 4 },
+        ScalarLayout { ty: Type::F64, size: 8, alignment: 8 },
         ScalarLayout {
             ty: Type::U8,
             size: 1,

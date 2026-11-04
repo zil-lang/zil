@@ -241,7 +241,7 @@ impl Names<'_> {
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::CompileTime(operand)
             | CoreExprKind::Try(operand)
-            | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::IntegerConvert { value: operand, .. } | CoreExprKind::NumericConvert { value: operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. } => {
                 self.expr(operand, receiver, depth + 1)?
             }
