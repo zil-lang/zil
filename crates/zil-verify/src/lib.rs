@@ -104,6 +104,7 @@ pub struct VerifiedModule {
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
 }
@@ -194,6 +195,9 @@ impl VerifiedModule {
     pub fn uses_retained_registration(&self) -> bool {
         self.uses_retained_registration
     }
+    /// Enables downstream work reservation for the actual checked profile.
+    /// Layout and instructions must still bind to this immutable module.
+    pub fn uses_stored_borrows(&self)->bool {self.uses_stored_borrows}
     pub fn task_interfaces(&self) -> &[TaskInterface] {
         self.inputs
             .program()
@@ -419,6 +423,7 @@ fn verify_inputs(
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
             uses_scalar_tasks: checked.uses_scalar_tasks,
             uses_retained_registration: checked.uses_retained_registration,
+            uses_stored_borrows: checked.uses_stored_borrows,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
             task_exports: checked.task_exports,
@@ -475,6 +480,7 @@ struct CheckedModule {
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -785,6 +791,7 @@ fn check_module(
         uses_owned_sum_extension: budget.sums,
         uses_scalar_tasks: budget.tasks,
         uses_retained_registration: budget.registrations,
+        uses_stored_borrows: budget.stored_borrows,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
         task_exports: budget.task_exports,
