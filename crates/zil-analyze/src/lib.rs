@@ -34,6 +34,10 @@ mod retained;
 mod scoped_thread;
 mod scopes;
 mod stored_borrows;
+// Staged while the complete admission dispatcher is being connected. The
+// public BorrowedStorage/signature guards remain closed in this checkpoint.
+#[allow(dead_code)]
+mod stored_flow;
 #[cfg(test)]
 mod sum_tests;
 mod tasks;
