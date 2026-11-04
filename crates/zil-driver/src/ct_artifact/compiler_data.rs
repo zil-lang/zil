@@ -24,6 +24,7 @@ impl<'a> Compiler<'a> {
             .get(graph.root.0 as usize)
             .ok_or_else(|| error(span, "metadata root is absent"))?;
         Ok(match node {
+            CtTypeNode::BorrowedStorage { .. } => self.registered_scoped_data_type(graph, span)?,
             CtTypeNode::Primitive(s) => CtTy::Scalar(*s),
             CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => {
                 let mut fields = Vec::new();
@@ -161,6 +162,9 @@ impl<'a> Compiler<'a> {
             .get(graph.root.0 as usize)
             .ok_or_else(|| error(span, "Copy metadata root is absent"))?;
         match node {
+            CtTypeNode::BorrowedStorage { .. } => {
+                self.copy_registered_scoped_data(graph, depth, span)
+            }
             CtTypeNode::Primitive(_)
             | CtTypeNode::FunctionPointer { .. }
             | CtTypeNode::BorrowedFunctionPointer { .. } => Ok(()),
