@@ -368,6 +368,7 @@ fn terminal342_borrowed_pointer_binders_are_canonical_and_invocation_local() {
 fn terminal342_borrowed_pointer_ct_wire_retains_dag_relation_with_bounded_metadata() {
     use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
     let value = CtValue::Type(CtTypeRef {
+        ambient_classes: vec![],
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
