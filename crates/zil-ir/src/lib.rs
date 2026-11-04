@@ -9,6 +9,8 @@ use zil_base::{
 
 pub mod ct_artifact;
 pub mod ct_wire;
+mod closure_context;
+pub use closure_context::*;
 mod dynamic;
 mod dynamic_fingerprint;
 pub use dynamic::*;
