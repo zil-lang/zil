@@ -64,6 +64,7 @@ mod head_access;
 #[cfg(test)]
 mod helper_tests;
 mod helpers;
+mod mixed_address_sums;
 mod native_values;
 mod owned_callbacks;
 #[cfg(test)]
@@ -1373,6 +1374,7 @@ fn check_function(
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
     let mut addressed_sums = false;
+    let mut mixed_address_sums = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -1404,6 +1406,11 @@ fn check_function(
                     ));
                 }
             }
+            mixed_address_sums |= matches!(
+                instruction.kind,
+                InstructionKind::BorrowPlaceAddress { .. }
+                    | InstructionKind::PlaceTagAddress { .. }
+            );
             addressed_sums |= matches!(
                 instruction.kind,
                 InstructionKind::VariantTagAddress { .. }
@@ -1518,6 +1525,9 @@ fn check_function(
     let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
     if addressed_sums {
         address_sums::check(function, &successors, &reachable, budget)?;
+    }
+    if mixed_address_sums {
+        mixed_address_sums::check(function, &successors, &reachable, budget)?;
     }
     let (initialized_in, initialized_out) =
         initialization(function, &predecessors, &reachable, &parameters, budget)?;
@@ -1735,6 +1745,9 @@ fn check_instruction(
         }
         InstructionKind::BorrowPlaceLocal { .. } | InstructionKind::PlaceTagLocal { .. } => {
             sums::place_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::BorrowPlaceAddress { .. } | InstructionKind::PlaceTagAddress { .. } => {
+            mixed_address_sums::instruction(module, function, instruction, budget)?
         }
         InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::VariantTagAddress { .. }
@@ -3034,7 +3047,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
 
-        InstructionKind::VariantTagAddress { address, .. }
+        InstructionKind::PlaceTagAddress {address,..}
+        | InstructionKind::BorrowPlaceAddress {address,..}
+        | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }

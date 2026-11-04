@@ -635,6 +635,14 @@ pub(super) fn functions(
                         }
                         budget.pay(path.len(), path.len().saturating_mul(32))?;
                     }
+                    InstructionKind::PlaceTagAddress { address, path }
+                    | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                        let ty = &f.values[address.0 as usize];
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(96))?;
+                    }
                     InstructionKind::VariantTagAddress { address, path }
                     | InstructionKind::BorrowVariantAddress { address, path, .. } => {
                         let ty = &f.values[address.0 as usize];

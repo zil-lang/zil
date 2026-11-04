@@ -144,6 +144,25 @@ fn origin(
                 None
             }
         }
+        Some(InstructionKind::BorrowPlaceAddress { address, path, .. }) => {
+            if let Some((l, mut p)) = origin(f, defs, stores, *address, depth + 1, active, b)? {
+                if p.len()
+                    .checked_add(path.len())
+                    .is_none_or(|n| n > b.partial_depth)
+                {
+                    return Err(exhausted());
+                }
+                pay(b, path.len())?;
+                p.extend(path.iter().map(|p| match p {
+                    PlaceProjection::Field(i) => (0, *i, 0),
+                    PlaceProjection::Variant(p) => (1, p.variant, p.index),
+                    PlaceProjection::ErrorArm(e) => (2, u32::from(*e), 0),
+                }));
+                Some((l, p))
+            } else {
+                None
+            }
+        }
         Some(InstructionKind::BorrowVariantAddress { address, path, .. }) => {
             if let Some((l, mut p)) = origin(f, defs, stores, *address, depth + 1, active, b)? {
                 if p.len()
@@ -210,6 +229,27 @@ impl Meta {
                             })
                             .collect(),
                     ))
+                }
+                InstructionKind::PlaceTagAddress { address, path } => {
+                    if let Some((l, mut p)) =
+                        origin(f, &defs, &stores, *address, 0, &mut BTreeSet::new(), b)?
+                    {
+                        if p.len()
+                            .checked_add(path.len())
+                            .is_none_or(|n| n > b.partial_depth)
+                        {
+                            return Err(exhausted());
+                        }
+                        pay(b, path.len())?;
+                        p.extend(path.iter().map(|p| match p {
+                            PlaceProjection::Field(i) => (0, *i, 0),
+                            PlaceProjection::Variant(p) => (1, p.variant, p.index),
+                            PlaceProjection::ErrorArm(e) => (2, u32::from(*e), 0),
+                        }));
+                        Some((l, p))
+                    } else {
+                        None
+                    }
                 }
                 InstructionKind::VariantTagAddress { address, path } => {
                     if let Some((l, mut p)) =
@@ -370,6 +410,8 @@ pub(super) fn invalidates(kind: &InstructionKind) -> bool {
             | InstructionKind::BorrowLocalMut { .. }
             | InstructionKind::BorrowPlaceLocal { .. }
             | InstructionKind::PlaceTagLocal { .. }
+            | InstructionKind::PlaceTagAddress { .. }
+            | InstructionKind::BorrowPlaceAddress { .. }
             | InstructionKind::BorrowFieldLocal { .. }
             | InstructionKind::VariantTagLocal { .. }
             | InstructionKind::ReadVariantLocal { .. }

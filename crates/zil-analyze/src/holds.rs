@@ -298,6 +298,7 @@ fn delegated(
                 match instruction.kind {
                     InstructionKind::ReborrowAddress { address, .. }
                     | InstructionKind::BorrowVariantAddress { address, .. }
+                    | InstructionKind::BorrowPlaceAddress { address, .. }
                     | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => pending.push(address),
@@ -782,6 +783,23 @@ fn pattern_window_transition(
                     i.kind,
                     InstructionKind::WriteAddress { .. }
                         | InstructionKind::ReborrowAddress { mutable: true, .. }
+                ),
+                Some(*address),
+            )
+        }
+        InstructionKind::PlaceTagAddress { address, path }
+        | InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+            let header = matches!(i.kind, InstructionKind::PlaceTagAddress { .. });
+            b.spend(values[address.0 as usize].len(), "mixed actual roots")?;
+            let row = values[address.0 as usize]
+                .iter()
+                .map(|root| mixed_address_root(f, *address, path, header, *root, b))
+                .collect::<CompileResult<Roots>>()?;
+            (
+                row,
+                matches!(
+                    i.kind,
+                    InstructionKind::BorrowPlaceAddress { mutable: true, .. }
                 ),
                 Some(*address),
             )
@@ -1492,6 +1510,8 @@ fn infer_with_private(
                         | InstructionKind::BorrowVariantLocal { .. }
                         | InstructionKind::VariantTagAddress { .. }
                         | InstructionKind::BorrowVariantAddress { .. }
+                        | InstructionKind::BorrowPlaceAddress { .. }
+                        | InstructionKind::PlaceTagAddress { .. }
                 )
             });
         }
@@ -1693,6 +1713,17 @@ fn infer_with_private(
                         }
                         InstructionKind::BorrowFieldLocal { local, path, .. } => {
                             found.insert(inline_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                            budget.spend(
+                                values[address.0 as usize].len(),
+                                "mixed actual result roots",
+                            )?;
+                            for root in &values[address.0 as usize] {
+                                found.insert(mixed_address_root(
+                                    f, *address, path, false, *root, budget,
+                                )?);
+                            }
                         }
                         InstructionKind::BorrowVariantAddress { address, path, .. } => {
                             for root in &values[address.0 as usize] {
@@ -3863,13 +3894,12 @@ fn inline_address_field_root(
     })
 }
 
-fn mixed_root(
-    f: &TypedFunction,
-    local: LocalId,
+fn mixed_interval(
+    mut ty: &Type,
     path: &[zil_ir::PlaceProjection],
     header: bool,
     b: &mut Budget,
-) -> CompileResult<Root> {
+) -> CompileResult<(u32, u32)> {
     use zil_ir::PlaceProjection;
     fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
         b.spend(1, "mixed inline root interval")?;
@@ -3910,11 +3940,6 @@ fn mixed_root(
         }
         Ok(n)
     }
-    let mut ty = &f
-        .locals
-        .get(local.0 as usize)
-        .ok_or_else(|| bad("mixed root local absent"))?
-        .ty;
     let mut start = 0u32;
     for step in path {
         b.spend(1, "mixed inline root interval")?;
@@ -3938,7 +3963,10 @@ fn mixed_root(
                 }
                 fs.get(*i as usize)
             }
-            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+            (
+                PlaceProjection::Field(i),
+                Type::Package { fields, .. } | Type::Record { fields, .. },
+            ) => {
                 for (_, t) in fields.iter().take(*i as usize) {
                     start = start.checked_add(width(t, b)?).ok_or_else(|| {
                         vec![Diagnostic::limit(
@@ -4008,5 +4036,64 @@ fn mixed_root(
             None,
         )]
     })?;
+    Ok((start, end))
+}
+
+fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("mixed root local absent"))?
+        .ty;
+    let (start, end) = mixed_interval(ty, path, header, b)?;
     Ok(Root::Projection(local, start, end))
+}
+
+fn mixed_address_root(
+    f: &TypedFunction,
+    address: ValueId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    root: Root,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+        return Err(bad("mixed base is not actual address"));
+    };
+    let (start, end) = mixed_interval(inner, path, header, b)?;
+    Ok(match root {
+        Root::Local(l) => Root::Projection(l, start, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+        Root::Projection(l, offset, limit) => {
+            let a = offset
+                .checked_add(start)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Projection(l, a, z)
+        }
+        Root::Window(origin, offset, limit) => {
+            let a = offset
+                .checked_add(start)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Window(origin, a, z)
+        }
+        root => root,
+    })
 }

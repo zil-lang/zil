@@ -680,6 +680,16 @@ fn reconstruct(
                             InstructionKind::BorrowFieldLocal { local, path, .. } => {
                                 row.push(roots::inline_field_root(f, *local, path, budget)?);
                             }
+                            InstructionKind::BorrowPlaceAddress { address, path, .. } => {
+                                row = roots::mixed_address_roots(
+                                    f,
+                                    *address,
+                                    path,
+                                    false,
+                                    &values[address.0 as usize],
+                                    budget,
+                                )?;
+                            }
                             InstructionKind::BorrowVariantAddress { address, path, .. } => {
                                 row = roots::address_roots(
                                     f,

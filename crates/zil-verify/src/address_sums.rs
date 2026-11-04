@@ -128,12 +128,15 @@ pub(super) fn instruction(
 fn cost(e: &Epoch, b: &mut Budget) -> Check<()> {
     b.spend(
         e.selected
-            .iter()
-            .map(|(_, p, _)| p.len() + 1)
-            .sum::<usize>()
-            .saturating_add(e.reads.len())
-            .saturating_add(1),
-    )
+            .len()
+            .checked_add(e.reads.len())
+            .and_then(|n| n.checked_add(1))
+            .ok_or_else(exhausted)?,
+    )?;
+    let paths = e.selected.iter().try_fold(0usize, |n, (_, p, _)| {
+        n.checked_add(p.len()).ok_or_else(exhausted)
+    })?;
+    b.spend(paths)
 }
 fn copy(e: &Epoch, b: &mut Budget) -> Check<Epoch> {
     cost(e, b)?;
@@ -148,14 +151,7 @@ fn validate_path(
 ) -> Check<()> {
     let mut route = Vec::new();
     for step in path {
-        b.spend(
-            route.len().saturating_add(1).saturating_mul(
-                e.selected
-                    .len()
-                    .checked_ilog2()
-                    .map_or(1, |n| n as usize + 2),
-            ),
-        )?;
+        search_fee(b, route.len(), e.selected.len())?;
         if !e.selected.contains(&(address, route.clone(), step.variant)) {
             return Err(invalid(Some(span)));
         }
@@ -199,7 +195,7 @@ fn transfer(
                 if validate {
                     validate_path(epoch, *address, path, i.span, b)?
                 }
-                b.spend(1)?;
+                search_fee(b, 0, epoch.reads.len())?;
                 epoch.reads.insert(i.result.unwrap());
             }
             InstructionKind::BorrowVariantAddress {
@@ -212,11 +208,25 @@ fn transfer(
                 }
                 let (_, ty) = endpoint(f, *address, path, b)?;
                 if *mutable && !ty.is_b0_scalar() {
+                    b.spend(
+                        epoch
+                            .selected
+                            .len()
+                            .checked_add(epoch.reads.len())
+                            .ok_or_else(exhausted)?,
+                    )?;
                     epoch.selected.clear();
                     epoch.reads.clear();
                 }
             }
             other if mutates(other) => {
+                b.spend(
+                    epoch
+                        .selected
+                        .len()
+                        .checked_add(epoch.reads.len())
+                        .ok_or_else(exhausted)?,
+                )?;
                 epoch.selected.clear();
                 epoch.reads.clear();
             }
@@ -243,9 +253,11 @@ pub(super) fn check(
         for i in &block.instructions {
             b.spend(1)?;
             if let Some(v) = i.result {
+                search_fee(b, 0, definitions.len())?;
                 definitions.insert(v, &i.kind);
                 if let InstructionKind::VariantTagAddress { address, path } = &i.kind {
                     b.spend(path.len())?;
+                    search_fee(b, 0, observations.len())?;
                     observations.insert(v, (*address, path));
                 }
             }
@@ -279,6 +291,12 @@ pub(super) fn check(
         };
         for (successor, truth) in edges.into_iter().take(count) {
             let mut edge = copy(&output, b)?;
+            search_fee(b, 0, definitions.len())?;
+            for _ in 0..2 {
+                search_fee(b, 0, definitions.len())?;
+                search_fee(b, 0, observations.len())?;
+                search_fee(b, 0, output.reads.len())?;
+            }
             if let Terminator::Branch { condition, .. } = f.blocks[block].terminator
                 && let Some(InstructionKind::Binary { op, left, right }) =
                     definitions.get(&condition).copied()
@@ -293,14 +311,7 @@ pub(super) fn check(
                         && output.reads.contains(&tag)
                         && truth == Some(*op == BinaryOp::Equal)
                     {
-                        b.spend(
-                            path.len().saturating_add(1).saturating_mul(
-                                edge.selected
-                                    .len()
-                                    .checked_ilog2()
-                                    .map_or(1, |n| n as usize + 2),
-                            ),
-                        )?;
+                        search_fee(b, path.len(), edge.selected.len())?;
                         let route = path
                             .iter()
                             .map(|p| (p.variant, p.index))
@@ -312,19 +323,12 @@ pub(super) fn check(
             let changed = if let Some(prior) = &mut incoming[successor] {
                 cost(prior, b)?;
                 cost(&edge, b)?;
-                b.spend(
-                    prior
-                        .selected
-                        .iter()
-                        .map(|(_, p, _)| p.len().saturating_add(1))
-                        .sum::<usize>()
-                        .saturating_mul(
-                            edge.selected
-                                .len()
-                                .checked_ilog2()
-                                .map_or(1, |n| n as usize + 2),
-                        ),
-                )?;
+                for (_, p, _) in &prior.selected {
+                    search_fee(b, p.len(), edge.selected.len())?;
+                }
+                for _ in &prior.reads {
+                    search_fee(b, 0, edge.reads.len())?;
+                }
                 let lengths = (prior.selected.len(), prior.reads.len());
                 prior.selected.retain(|f| edge.selected.contains(f));
                 prior.reads.retain(|r| edge.reads.contains(r));
@@ -345,4 +349,16 @@ pub(super) fn check(
         }
     }
     Ok(())
+}
+
+fn exhausted() -> Diagnostic {
+    limit("mixed address accounting overflow")
+}
+fn search_fee(b: &mut Budget, path: usize, set: usize) -> Check<()> {
+    let bound = path
+        .checked_add(1)
+        .and_then(|n| n.checked_mul(8))
+        .and_then(|n| n.checked_mul(set.checked_ilog2().map_or(1, |n| n as usize + 2)))
+        .ok_or_else(exhausted)?;
+    b.spend(bound)
 }

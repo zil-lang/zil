@@ -24,6 +24,7 @@ mod helpers;
 mod holds;
 mod incremental;
 mod lifetimes;
+mod mixed_address_sums;
 mod owned_callbacks;
 mod registration;
 #[cfg(test)]
@@ -104,6 +105,7 @@ fn analyze_budgeted(
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
         address_sums::check(module, f, &reachable, limits, budget)?;
+        mixed_address_sums::check(module, f, &reachable, limits, budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,

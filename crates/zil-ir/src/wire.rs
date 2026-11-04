@@ -1347,6 +1347,42 @@ impl<'a> Writer<'a> {
                 }
             }
 
+            InstructionKind::BorrowPlaceAddress { address, path, .. }
+            | InstructionKind::PlaceTagAddress { address, path } => {
+                self.u8(
+                    if matches!(
+                        &instruction.kind,
+                        InstructionKind::BorrowPlaceAddress { .. }
+                    ) {
+                        126
+                    } else {
+                        127
+                    },
+                )?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+                if let InstructionKind::BorrowPlaceAddress { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
+                }
+            }
+
             InstructionKind::BorrowFieldLocal {
                 local,
                 path,
@@ -2813,6 +2849,38 @@ impl<'a> Reader<'a> {
                         mutable: self.boolean()?,
                     },
                     _ => InstructionKind::PlaceTagLocal { local, path },
+                }
+            }
+            tag @ 126..=127 => {
+                let address = ValueId(self.u32()?);
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                if tag == 126 {
+                    InstructionKind::BorrowPlaceAddress {
+                        address,
+                        path,
+                        mutable: self.boolean()?,
+                    }
+                } else {
+                    InstructionKind::PlaceTagAddress { address, path }
                 }
             }
             110 => {

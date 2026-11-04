@@ -1610,6 +1610,23 @@ pub enum InstructionKind {
         local: LocalId,
         path: Vec<PlaceProjection>,
     },
+    /// Borrow actual addressed inline storage through a nonempty bounded
+    /// mixed path. Derive all authority and root/parent loans from address;
+    /// every selected ancestor must be active and initialized. Never treats
+    /// an Address-valued local as inline pointee storage or crosses a view.
+    BorrowPlaceAddress {
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+        mutable: bool,
+    },
+    /// Observe the final live Enum/ErrorUnion header of actual addressed
+    /// storage. Empty path observes the pointee root. Every selected ancestor
+    /// tag/init is checked; i32 ordinal or ErrorUnion0 success/1 error. Header
+    /// reads grant neither payload authority nor permission to replace parent.
+    PlaceTagAddress {
+        address: ValueId,
+        path: Vec<PlaceProjection>,
+    },
     /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
     /// nonempty field path retains parent storage, initialization and mutability.
     BorrowFieldLocal {
@@ -2903,6 +2920,36 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 }
             }
             if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::BorrowPlaceAddress { address, path, .. }
+        | InstructionKind::PlaceTagAddress { address, path } => {
+            b.push(if matches!(i, InstructionKind::BorrowPlaceAddress { .. }) {
+                126
+            } else {
+                127
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+            if let InstructionKind::BorrowPlaceAddress { mutable, .. } = i {
                 b.push(u8::from(*mutable));
             }
         }

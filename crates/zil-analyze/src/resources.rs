@@ -441,7 +441,9 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => (None, None, &[]),
 
-        InstructionKind::VariantTagAddress { address, .. }
+        InstructionKind::PlaceTagAddress { address, .. }
+        | InstructionKind::BorrowPlaceAddress { address, .. }
+        | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
