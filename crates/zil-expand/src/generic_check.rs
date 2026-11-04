@@ -2855,6 +2855,7 @@ impl Check<'_, '_, '_> {
         self.budget.ty(ty)?;
         Ok(ty.clone())
     }
+    #[inline(never)]
     fn expr_inner(
         &mut self,
         e: &Expr,
@@ -2896,6 +2897,107 @@ impl Check<'_, '_, '_> {
         if let Some(ty) = self.enum_expression(e, state, enum_context)? {
             return Ok(ty);
         }
+        // Binary chains recurse through this compact dispatcher. Do not retain
+        // unrelated call/record/closure temporaries from the large variant body
+        // on every operand edge of the source expression tree.
+        if matches!(e.kind, ExprKind::Binary { .. }) {
+            return self.expr_binary(e, state, expected);
+        }
+        self.expr_non_binary(e, state, expected, borrowing)
+    }
+
+    #[inline(never)]
+    fn expr_binary(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+    ) -> R<TypeRef> {
+        let ExprKind::Binary { op, left, right } = &e.kind else {
+            unreachable!("binary expression dispatcher")
+        };
+        let needs_bound = || {
+            unsupported(
+                e.span,
+                "operation on an unconstrained type parameter requires a declared bound",
+            )
+        };
+        // A comparison produces bool; that result hint is not the
+        // operand type of an ordinary helper call on its left.
+        let operand_hint = if matches!(
+            op,
+            BinaryOp::Equal
+                | BinaryOp::NotEqual
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+        ) {
+            None
+        } else {
+            expected
+        };
+        let float_hint = if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+            self.value_hint(right, state, 1, false)?.filter(floating)
+        } else {
+            None
+        };
+        let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
+        let rhs = self.expr(right, state, Some(&lhs), false)?;
+        if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
+            return Err(needs_bound());
+        }
+        role_check::same(&rhs, &lhs, e.span, self.class_scope, self.budget)?;
+        let valid = match op {
+            BinaryOp::And | BinaryOp::Or => boolean(&lhs),
+            BinaryOp::Equal | BinaryOp::NotEqual => {
+                integer(&lhs)
+                    || floating(&lhs)
+                    || boolean(&lhs)
+                    || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
+            }
+            BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Multiply
+            | BinaryOp::Divide
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
+            _ => integer(&lhs),
+        };
+        if !valid {
+            return Err(error(
+                e.span,
+                "invalid concrete binary operand types in generic body",
+            ));
+        }
+        if matches!(
+            op,
+            BinaryOp::Equal
+                | BinaryOp::NotEqual
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+                | BinaryOp::And
+                | BinaryOp::Or
+        ) {
+            Ok(named("bool", e.span))
+        } else {
+            Ok(lhs)
+        }
+    }
+
+    #[inline(never)]
+    fn expr_non_binary(
+        &mut self,
+        e: &Expr,
+        state: &mut State,
+        expected: Option<&TypeRef>,
+        borrowing: bool,
+    ) -> R<TypeRef> {
         let needs_bound = || {
             unsupported(
                 e.span,
@@ -3314,74 +3416,8 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(ty)
             }
-            ExprKind::Binary { op, left, right } => {
-                // A comparison produces bool; that result hint is not the
-                // operand type of an ordinary helper call on its left.
-                let operand_hint = if matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                ) {
-                    None
-                } else {
-                    expected
-                };
-                let float_hint =
-                    if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
-                        self.value_hint(right, state, 1, false)?.filter(floating)
-                    } else {
-                        None
-                    };
-                let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
-                let rhs = self.expr(right, state, Some(&lhs), false)?;
-                if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
-                    return Err(needs_bound());
-                }
-                role_check::same(&rhs, &lhs, e.span, self.class_scope, self.budget)?;
-                let valid = match op {
-                    BinaryOp::And | BinaryOp::Or => boolean(&lhs),
-                    BinaryOp::Equal | BinaryOp::NotEqual => {
-                        integer(&lhs)
-                            || floating(&lhs)
-                            || boolean(&lhs)
-                            || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
-                    }
-                    BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
-                    BinaryOp::Add
-                    | BinaryOp::Subtract
-                    | BinaryOp::Multiply
-                    | BinaryOp::Divide
-                    | BinaryOp::Less
-                    | BinaryOp::LessEqual
-                    | BinaryOp::Greater
-                    | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
-                    _ => integer(&lhs),
-                };
-                if !valid {
-                    return Err(error(
-                        e.span,
-                        "invalid concrete binary operand types in generic body",
-                    ));
-                }
-                if matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                        | BinaryOp::And
-                        | BinaryOp::Or
-                ) {
-                    Ok(named("bool", e.span))
-                } else {
-                    Ok(lhs)
-                }
+            ExprKind::Binary { .. } => {
+                unreachable!("binary expression uses the compact recursive frame")
             }
             ExprKind::Call { callee, arguments } => {
                 if let Some(name) =
@@ -3646,7 +3682,10 @@ impl Check<'_, '_, '_> {
                     let bound = bounds.bindings().find(|bound| {
                         callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
                     });
-                    let mut role_frame = if let Some(bound) = bound {
+                    // Flat callable headers have no role binders to look up.
+                    // Use the actual header shape, not the direct-address life
+                    // relation, which does not describe nested storage classes.
+                    let mut role_frame = if let Some(bound) = bound.filter(|b| b.has_role_binders) {
                         role_check::Frame::new(
                             &bound.generic_name,
                             self.class_scope.source,

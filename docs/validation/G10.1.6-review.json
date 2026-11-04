@@ -1,0 +1,77 @@
+{
+  "task": "G10.1.6",
+  "source_commit": "b29aaa3ffae29adfd6adb633d33ce5e69f719394",
+  "baseline": "53241529410353160263af8b8672d60a6ad0ef5d",
+  "reviewer": "/root/g4_4",
+  "status": "Pass",
+  "classification": "IndependentLimitedReview",
+  "execution_identity": "Independent execution of frozen author-compiled test executables, not independent compilation; no new cache/root-source writes. Chosen to avoid rebuilding with shared disk nearly full.",
+  "environment": {
+    "TMPDIR": "/workspace/.zil-env/G10.1.6-review-tmp",
+    "author_cache_read_only": "/workspace/.zil-env/target341",
+    "root_target_public40_used": false
+  },
+  "findings": [
+    "Diff contains only two existing test targets and task/change/receipt documents. No production decoder, compiler/kernel/backend, historical fixture bytes, normative rule or default budget changed.",
+    "The original owned-write315 source is retained exactly: 237 bytes, SHA256 c876d1d7f53f0d18a8bad8d60d375598ec909d0cfc39c1f16cee2441a42ffa7f. Reviewer compared saved baseline failure input with freshly executed original-positive inputs on both backends.",
+    "Each of four actual source controls independently reaches Typed, Analyze, raw Verify and decoded-Wire Verify. Test requires one real mutable-address Field0 reservation, matching Commit ID, and matching Abort paths for both error controls. Current finite Managed<CopyRecord> lane is supported; no ticket or authority is manually supplied to source compilation.",
+    "Reviewed machine emitter explicitly restricts commit to admitted Managed<CopyRecord>, calls teardown on the actual reserved field pointer before storing the prepared new value. Fresh emitted LLVM in the traced control also shows old teardown call before the store to the same field pointer.",
+    "Independent native observations: four sources x Clang/LLVM API x O0/O2 =16 executions; original output empty, traced success AXB, unprepared RHS failure XA, prepared-argument failure BXA. Both failure programs also read old field code65 and exit0. Every report has Verify1 and no fallback; Clang command flags and API object pipelines confirm actual O0/O2.",
+    "Shared-parent nearest negative still requires SafeReject/E-ADDRESS-PERMISSION; live shared-parent loan across replacement still requires SafeReject/E-BORROW-CONFLICT. Existing complete-target raw/Wire permission, lifetime and owned-child protocol negatives also pass.",
+    "review223 changes only stale hard40 assertions to actual current module/plan schema checks, retains exact old-envelope hashes/rejections and the existing G10.1.3 structural adapter. Production old-version decoder rejection is unchanged; legacy candidate plans are rechecked, not promoted to authority.",
+    "Supported slice remains direct Managed<CopyRecord> field replacement only. No StoreElement, general Package/Sum, full G1.3, language/B0/ZUI or product acceptance is inferred."
+  ],
+  "checks": [
+    {
+      "command": "/workspace/.zil-env/target341/debug/deps/impl238_product_replacement-76636b58eb146b17 --nocapture",
+      "features": [
+        "default"
+      ],
+      "sha256": "476885b39c312b2a80a9d973764fad4b6701edf71b28a259a47b87fb5a122100",
+      "result": {
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "/workspace/.zil-env/G10.1.6-review-tmp/default-impl238.log"
+    },
+    {
+      "command": "/workspace/.zil-env/target341/debug/deps/impl238_product_replacement-0382e20fe120643a --exact original_owned_write315_has_real_ticket_cleanup_and_failure_controls --nocapture",
+      "features": [
+        "default",
+        "llvm-api"
+      ],
+      "sha256": "b57e330a8976effaaa1b745d4defd7b0fcff40b7ffc426862960039bf2915546",
+      "result": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 16
+      },
+      "log": "/workspace/.zil-env/G10.1.6-review-tmp/api-owned-write.log"
+    },
+    {
+      "command": "/workspace/.zil-env/target341/debug/deps/review223_replay-cb028950a4cf8158 --nocapture",
+      "features": [
+        "default"
+      ],
+      "sha256": "780f37ef522c789aaad0774bd408659143293012083845be1a6c6a51a8c09277",
+      "result": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "log": "/workspace/.zil-env/G10.1.6-review-tmp/review223.log"
+    }
+  ],
+  "native_observations": "/workspace/.zil-env/G10.1.6-review-tmp/owned-native-observations.json",
+  "scope_limits": "Other author six-target replays and Clippy were inspected in logs, not independently rerun here. This is a test-correction review, not a formal full-suite or product gate. Historical baseline failures remain recorded in author receipt/root logs.",
+  "source_sha256": {
+    "crates/zil-driver/tests/impl238_product_replacement.rs": "8b7c0bd3d8a36ab75c2ecbff9f1e933408cee4b8aebdc96f32da5801434aee32",
+    "crates/zil-driver/tests/review223_replay.rs": "bc2e25099a0e0d09e56936f0422ed594d71ed202fdddaedba10e607aa11283c5"
+  },
+  "production_files_changed": [],
+  "formal_acceptance": false
+}

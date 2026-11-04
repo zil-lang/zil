@@ -56,12 +56,11 @@ fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
 fn current_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 40);
-    assert_eq!(zil_base::SCHEMA_VERSION, 40);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, zil_base::SCHEMA_VERSION);
     let migrated = schema40_fixture::migrate(SCHEMA40, limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, limits).unwrap();
-    assert_eq!(module.schema_version, 40);
-    assert_eq!(plan.schema_version, 40);
+    assert_eq!(module.schema_version, zil_base::SCHEMA_VERSION);
+    assert_eq!(plan.schema_version, zil_base::SCHEMA_VERSION);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
     assert_eq!(plan.module_fingerprint, module.fingerprint());
     assert!(

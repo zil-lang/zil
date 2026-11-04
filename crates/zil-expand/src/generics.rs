@@ -605,16 +605,31 @@ impl<'a> Engine<'a> {
             } else {
                 None
             };
-            let allow_source_life = if let ItemKind::Function(f) = &item.kind {
-                engine.budget.identity_work(f.generics.len(), f.span)?;
-                super::lifetimes::copy_life(f) || callable.is_some()
-            } else {
-                false
-            };
+            // The parameter loop already visits every formal. Only an actual
+            // lifetime formal needs this extra profile query; callable
+            // classification above has already established its own profile.
+            let mut allow_source_life = None;
             let mut seen = BTreeSet::new();
             for parameter in params(item) {
-                if allow_source_life && matches!(parameter.kind, GenericParamKind::Lifetime) {
-                    continue;
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && let ItemKind::Function(f) = &item.kind
+                {
+                    let allowed = match allow_source_life {
+                        Some(allowed) => allowed,
+                        None => {
+                            let allowed = if callable.is_some() {
+                                true
+                            } else {
+                                engine.budget.identity_work(f.generics.len(), f.span)?;
+                                super::lifetimes::copy_life(f)
+                            };
+                            allow_source_life = Some(allowed);
+                            allowed
+                        }
+                    };
+                    if allowed {
+                        continue;
+                    }
                 }
                 if matches!(parameter.kind, GenericParamKind::Lifetime)
                     && matches!(item.kind, ItemKind::Aggregate(_))

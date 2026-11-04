@@ -1,0 +1,217 @@
+{
+  "task": "G10.1.5",
+  "kind": "author-limited-validation; independent review and root formal run required",
+  "source_commit": "5fc9aa788636a907f2884758bb8d16552ac686bb",
+  "source_parent": "8477e08c1d8e124f6b9b920295cc461332213c49",
+  "branch": "task/G10.1.5",
+  "worktree": "/workspace/zil-G10.1.5",
+  "source_file_sha256": {
+    ".task/G10.1.5.md": "166256a26887505f20971e9cddb1807d763f10f8b7f58597ea22005b17f786aa",
+    "changes/G10.1.5-budget-regressions.md": "a65fd4e013c475fbaace4354a0119cb4620a62139215e6bb8abec53f7c9f8872",
+    "crates/zil-driver/tests/impl200_independent.rs": "82f9359b7ae220b57b7e2afcd118213c70385742659c5862488ee424439da390",
+    "crates/zil-driver/tests/impl202_budget.rs": "579ce408bc82ee242ad701b43b25d9ee4260a94ee118882aa124ac59aa30425a",
+    "crates/zil-driver/tests/impl205_budget.rs": "93c96c543835bdbbc2b385aaf7307850a2a0936b5d6cfc9d4472feecd4c40bcc",
+    "crates/zil-driver/tests/impl246_front.rs": "42992483de7bff44595a20256c67e76a8d2ccf260fb90fb4cd07b2761e68e952",
+    "crates/zil-expand/src/generic_alias.rs": "54383ee6d334078e3cdae5c70b8a906d2f6915f4237e9d31899474963b073645",
+    "crates/zil-expand/src/generic_callable.rs": "f5091073f80c26ee242c68d2c08db4fbf0cd480249f897c019193302cbbfa929",
+    "crates/zil-expand/src/generic_check.rs": "0e36311e6de7fb5c7f6e0be4dd82144aa83c077559a121eb124b2ad69f6cdb67",
+    "crates/zil-expand/src/generic_role_check.rs": "1ef800d0d90d5c7c9ecdcaf4e04094e9c66ea7ef4680f3036e01a0221b6c7a8f",
+    "crates/zil-expand/src/generics.rs": "d27843d4f1d81899489a5d8b118c276b4d23f9e15317ec1ee9c98dd289c332da",
+    "crates/zil-types/src/owning_place_replace.rs": "1790191470c24e0e96775b28dfea48313ec717355694d9afc897fda33825973d"
+  },
+  "scope": "budget consumer repairs and exact existing boundary migrations; no public schema/default limits/fixtures/Cargo.lock changes",
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-terminal-root",
+    "TMPDIR": "/workspace/.zil-env/G10.1.5-tmp",
+    "ZIL_TEST_REPORT_DIR": "/workspace/.zil-env/G10.1.5-results/accept-controls"
+  },
+  "build_command": "cargo test --locked --offline -j2 -p zil-driver --test impl200_independent --test impl202_budget --test impl205_budget --test impl229_nominal_shadow --test impl229_where_copy --test impl246_front --test aggregates --test generics --test generic_regressions --no-run --message-format=json",
+  "replay_command": "<matching executable> <filter from selected_replays> --nocapture",
+  "artifacts": {
+    "generics": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/generics-7073136d5057c2f4",
+      "sha256": "cc28c1c5142c597c62dbfb4d5deb9cb2497b53001125bf367ba11784700811ff"
+    },
+    "impl229_where_copy": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl229_where_copy-73667bbed232dc9f",
+      "sha256": "2c27bea31bb0a7fa3726924fa4fbe69ac7fd44e8e923ab3f7a8d95850fbb4ae4"
+    },
+    "impl202_budget": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl202_budget-33cc4aa6e49c5613",
+      "sha256": "a12074aaa7822da71ce0ad6feb56a424e0a07256a9f24617ace04b6bfb78236f"
+    },
+    "generic_regressions": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/generic_regressions-d00b6aceac9b1c62",
+      "sha256": "496602a99b1dfaf9546025a6bc2f667d789cec916ee20b83c0aaf68172d8d9a3"
+    },
+    "impl229_nominal_shadow": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl229_nominal_shadow-d04e9e2b0cbc90f4",
+      "sha256": "d3801968b2a8b6e0f8fa67827e4ac23436ec80fad291f38816014efc9515f866"
+    },
+    "impl246_front": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl246_front-0314ea77ecc4d260",
+      "sha256": "de148e25cacc4faaef61fcdcc67f253f5b6acdd6e9190ce653f108b5b0a512dc"
+    },
+    "impl200_independent": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl200_independent-ddcbe83ca42a207a",
+      "sha256": "67d5f76594a624130d97809248a50ff8be2e505d6504d9c4db8ac9a12c11afd0"
+    },
+    "impl205_budget": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/impl205_budget-2172663fcb4c6914",
+      "sha256": "b17faaa0a741cd889628b4f9b849d72e2c20160347f3dc28d645b9a80af32b9c"
+    },
+    "aggregates": {
+      "path": "/workspace/.zil-env/target-terminal-root/debug/deps/aggregates-69ffa20fbaa0b0e1",
+      "sha256": "6bd484c05af5f057345c2edec41e2569e0b3e21eca1796a37d722f71ad56bef6"
+    }
+  },
+  "selected_replays": [
+    {
+      "target": "impl200_independent",
+      "filter": "legacy_single_field_state_has_fresh_exact_expand_budget_measurement",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl200_independent-legacy_single_field_state_has_fresh_exact_expand_budget_measurement.log",
+      "sha256": "457d20e2daef2785a788ed078490da033cb126a6f06681806c40b757978cdc1c",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.09s"
+    },
+    {
+      "target": "impl202_budget",
+      "filter": "pre202_callback_store_paths_keep_their_recorded_types_boundaries",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl202_budget-pre202_callback_store_paths_keep_their_recorded_types_boundaries.log",
+      "sha256": "ebe16a0678ed3c772053b67168fd3009db53b5e195adea82fa4a4db9fde360ee",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 1.66s"
+    },
+    {
+      "target": "impl205_budget",
+      "filter": "actual_types",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl205_budget-actual_types.log",
+      "sha256": "7f99916cfb5ef7f7cbdb19b5b4d843f25513741291c577150c5f76909db562e5",
+      "test_result": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s"
+    },
+    {
+      "target": "impl229_nominal_shadow",
+      "filter": "real_collision_paths_have_measured_fresh_and_exhausted_boundaries",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl229_nominal_shadow-real_collision_paths_have_measured_fresh_and_exhausted_boundaries.log",
+      "sha256": "ed8ebd64f7b095caf4606e8324d736c71b1f3f89bc8bc0477b2554844e4e989d",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.32s"
+    },
+    {
+      "target": "impl229_where_copy",
+      "filter": "old_source_budget_controls",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl229_where_copy-old_source_budget_controls.log",
+      "sha256": "d8848352eaf1906262ea79f4bd306c311725f4b9f3849fcf48a7fd50dffc6362",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.27s"
+    },
+    {
+      "target": "impl229_where_copy",
+      "filter": "where_aliases_and_specialization_share_exact_fresh_and_warm_limits",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl229_where_copy-where_aliases_and_specialization_share_exact_fresh_and_warm_limits.log",
+      "sha256": "8c9595a06d4c2bb4700278bf04792c47ca47e79666b22ef11923afe03fc98b93",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.32s"
+    },
+    {
+      "target": "impl246_front",
+      "filter": "registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl246_front-registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries.log",
+      "sha256": "b44f681e1e317e519dbfb271710e70079d1adc7444c05e826ef0cacf596383d4",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.15s"
+    },
+    {
+      "target": "impl229_nominal_shadow",
+      "filter": "unused_symbolic_types_do_not_gain_nominal_members_or_constructors",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl229_nominal_shadow-unused_symbolic_types_do_not_gain_nominal_members_or_constructors.log",
+      "sha256": "9e05a9f2ed4eb7d9bb627d6e5b4505fc3ca3dc47321db9cd103a3c308ca0647f",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.01s"
+    },
+    {
+      "target": "impl229_where_copy",
+      "filter": "unsupported_clauses_are_not_erased_and_unused_bodies_are_checked",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-impl229_where_copy-unsupported_clauses_are_not_erased_and_unused_bodies_are_checked.log",
+      "sha256": "4675547281f86d5684bbf5171a9a72522cc92aba3f30f9d0825b4270ce2b781c",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.10s"
+    },
+    {
+      "target": "generic_regressions",
+      "filter": "unused",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-generic_regressions-unused.log",
+      "sha256": "371c953db3846cd01d7cbcabe1447a0afc4963c2da3d4593ca410c603e881f98",
+      "test_result": "test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 79 filtered out; finished in 0.04s"
+    },
+    {
+      "target": "generics",
+      "filter": "terminal_static_function_value_keeps_qualified_input_classes",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-generics-terminal_static_function_value_keeps_qualified_input_classes.log",
+      "sha256": "545d5bbc6cc81e93e956d0d89a540d154b5b45f65a8e4c1e8f6dde9440fbf314",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 1.49s"
+    },
+    {
+      "target": "generics",
+      "filter": "terminal_qualified_callable_helper_retains_its_own_input_relation",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-generics-terminal_qualified_callable_helper_retains_its_own_input_relation.log",
+      "sha256": "43eea7414f955392777152240b5b0c3df1db1c718fd3ea82f972f794a22c7cec",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 1.70s"
+    },
+    {
+      "target": "aggregates",
+      "filter": "terminal340_owner_replacement",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-aggregates-terminal340_owner_replacement.log",
+      "sha256": "16dc47b33c8783368ed5eac3e4a2fbd46996b5a2ff90dbffa8bf13a54d32998d",
+      "test_result": "test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 150 filtered out; finished in 1.93s"
+    },
+    {
+      "target": "aggregates",
+      "filter": "terminal340_unused_generic_error_ref_origins",
+      "exit": 0,
+      "log": "/workspace/.zil-env/G10.1.5-results/accept-aggregates-terminal340_unused_generic_error_ref_origins.log",
+      "sha256": "00037d0ad0d554dc3541cc100240780eb4403f0489bd2cf3d641d143c3560e4c",
+      "test_result": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 157 filtered out; finished in 0.36s"
+    }
+  ],
+  "component": {
+    "command": "cargo test --locked --offline -j2 -p zil-expand --lib nested_storage_role_binders -- --nocapture",
+    "result": "1 passed; 46 filtered",
+    "log": "/workspace/.zil-env/G10.1.5-results/role-binders.log",
+    "sha256": "00a06f43690aedd334b115ae8e633c1cd6152d0641dcc1e48831b1e9ee84057c"
+  },
+  "clippy": {
+    "command": "cargo clippy --locked --offline -j2 -p zil-expand -p zil-types --lib -- -D warnings",
+    "exit": 0,
+    "log": "/workspace/.zil-env/G10.1.5-results/clippy-final.log",
+    "sha256": "6284b378ec12029e9c6430f2a242c12de55d6274d68d78be363da7b801623e5f"
+  },
+  "measurements": "changes/G10.1.5-budget-regressions.md",
+  "historical_failures": {
+    "frozen_source_commit": "8477e08c1d8e124f6b9b920295cc461332213c49",
+    "root_full_log": "/tmp/zil-G10.1/workspace-final.log",
+    "limited_results": "/workspace/.zil-env/G10.1.5-results/baseline-results.json",
+    "limited_results_sha256": "934e1ecc20ba569f5b38ea22048aedac72aa9b9c6224fe1fa8da7000049ed304",
+    "status": "Failures retained, not relabeled as passes.",
+    "initial_native_replay": "First unsourced replay failed clang lookup; final replay sources toolchain and passes."
+  },
+  "safety_controls": [
+    "Literal/Binary cannot return Managed; original assign_address normal evaluation/type/permission checks remain.",
+    "No-callable role-scope query does not suppress full AST lifetime or unused parametric body checking.",
+    "has_role_binders derives from actual grouped ForLifetime header, not FunctionLifeContract presence; component covers nested storage binder with direct relation None.",
+    "Existing nominal shadowing, where unsupported unused bodies, independent-life qualified Code and owning replacement source/raw/Wire controls pass."
+  ],
+  "cache_scope": "Direct Expand/Types API calls have fresh ledgers and no shared compilation cache. Existing impl229 shared-cache and owner replacement tests separately verify fresh/warm exhausted retry; no direct API cache-hit claim.",
+  "not_run": [
+    "full workspace/reference tests",
+    "full workspace all-targets strict Clippy",
+    "Rust comparative performance/product net gate"
+  ],
+  "review": "Pending non-author review; author does not approve integration."
+}

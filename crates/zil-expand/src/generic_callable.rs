@@ -9,6 +9,9 @@ pub(crate) use hrtb::{inner as bound_inner, inner_mut as bound_inner_mut};
 #[derive(Clone)]
 pub(crate) struct CallableTemplate {
     pub life: Option<zil_ir::FunctionLifeContract>,
+    // Header shape, separate from the direct-address life relation: a
+    // quantified storage class can exist without such a direct relation.
+    pub has_role_binders: bool,
     pub index: usize,
     pub generic_index: u32,
     pub generic_name: String,
@@ -814,6 +817,10 @@ fn template_with_state(
             }
             let binding = CallableTemplate {
                 life: life.clone(),
+                has_role_binders: matches!(
+                    grouped(callable_bound).kind,
+                    TypeKind::ForLifetime { .. }
+                ),
                 index,
                 generic_index: generic_index as u32,
                 generic_name: parameter.name.clone(),

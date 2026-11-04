@@ -1,0 +1,12 @@
+{
+  "source_commit": "53241529410353160263af8b8672d60a6ad0ef5d",
+  "command": "cargo test --locked -p zil-llvm-api --features text-reference",
+  "status": "Pass",
+  "exit_code": 0,
+  "groups": 10,
+  "passed": 70,
+  "failed": 0,
+  "ignored": 0,
+  "log_sha256": "7216ed2146b54da02505d84afc22261eb3e3b173fe84980c4770116e20711855",
+  "scope": "Package text-reference checks only; not the complete workspace or reference feature suite"
+}
