@@ -165,7 +165,11 @@ fn relation_inner(
                 {
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
-            } else if !target.is_copy_value() {
+            } else if !(target.is_copy_value()
+                || self.allow_callback
+                    && self.inputs.is_none()
+                    && matches!(target, Type::Closure(_)))
+            {
                 return Err(bad("signature value needs its ownership consumer"));
             }
             Ok(())

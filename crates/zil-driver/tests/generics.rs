@@ -1558,7 +1558,9 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
 #[test]
 fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
     for body in ["42", "p.n+*q"] {
-        let text = format!("struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}");
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}"
+        );
         let report = compile_source(&source(&text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -1600,13 +1602,26 @@ fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
                 }
                 assert_eq!(warm.active_query_count(), 0);
             }
-            eprintln!("qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh");
+            eprintln!(
+                "qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh"
+            );
         }
     }
     let unused = "struct Tag<life s>{n:i32} fn invoke<life s,life t,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'t i32)->i32{return f(p,q)} fn main()->i32{return 0}";
     let report = compile_source(&source(unused), &CompileOptions::default());
-    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-    assert!(report.diagnostics.iter().any(|d| d.message.contains("cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("cannot equate distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
 }
 
 fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
@@ -1646,4 +1661,169 @@ fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
             fs::remove_dir_all(out).unwrap();
         }
     }
+}
+
+#[test]
+fn g3_3_qualified_inline_environment_modes() {
+    for (kind, passing, argument, closure, body) in [
+        (
+            "Fn",
+            "&F",
+            "&f",
+            "let marker=1;let f=move (p,q)=>p.n+*q+marker",
+            "invoke(&f,&v,x)-1",
+        ),
+        (
+            "FnMut",
+            "&mut F",
+            "&mut f",
+            "var marker=0;var f=move (p,q)=>{marker=marker+1;return p.n+*q+marker}",
+            "invoke(&mut f,&v,x)+invoke(&mut f,&v,x)-45",
+        ),
+        (
+            "FnOnce",
+            "F",
+            "f",
+            "var marker=0;let f=move (p,q)=>{marker=marker+1;return p.n+*q+marker}",
+            "invoke(f,&v,x)-1",
+        ),
+    ] {
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>{kind}(&'a Tag<'b>,&'b i32)->i32>(f:{passing},p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};{closure};return {body}}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}"
+        );
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{kind} {argument}: {}",
+            report.to_json()
+        );
+        terminal_native_profiles(&text, "result", 42);
+    }
+}
+
+#[test]
+fn g3_3_qualified_environment_raw_and_wire_neighbors() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallableKind, InstructionKind, Type};
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>FnMut(&'a Tag<'b>,&'b i32)->i32>(f:&mut F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};var marker=0;var f=move (p,q)=>{marker=marker+1;return p.n+*q+marker};return invoke(&mut f,&v,x)-1} fn main()->i32{let n=21;return apply(&n)}";
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    assert_eq!(typed.closures.len(), 1);
+    assert_eq!(typed.closures[0].captures, vec![Type::I32]);
+    assert_eq!(typed.closures[0].kind, CallableKind::FnMut);
+    assert!(
+        typed
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::WriteCapture { .. }))
+    );
+    for mutation in 0..5 {
+        let mut wrong = typed.clone();
+        match mutation {
+            0 => wrong.closures[0].kind = CallableKind::Fn,
+            1 => wrong.closures[0].captures[0] = Type::I64,
+            2 => {
+                let i = wrong
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+                    .unwrap();
+                let InstructionKind::MakeClosure { captures, .. } = &mut i.kind else {
+                    unreachable!()
+                };
+                captures.clear();
+            }
+            3 => {
+                let i = wrong
+                    .functions
+                    .iter_mut()
+                    .flat_map(|f| &mut f.blocks)
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::ReadCapture { .. }))
+                    .unwrap();
+                let InstructionKind::ReadCapture { index } = &mut i.kind else {
+                    unreachable!()
+                };
+                *index = 1;
+            }
+            4 => {
+                let role = wrong
+                    .functions
+                    .iter_mut()
+                    .filter_map(|f| f.callable_contract.as_mut())
+                    .flat_map(|c| &mut c.roles)
+                    .find(|r| r.life.is_some())
+                    .unwrap();
+                role.life.as_mut().unwrap().classes[0].binder =
+                    zil_ir::StorageBinder::Invocation(0);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            zil_analyze::analyze(&wrong, &limits).is_err(),
+            "Analyze accepted mutation {mutation}"
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = wrong.fingerprint();
+        assert!(
+            zil_verify::verify_module(wrong.clone(), candidate.clone(), &target, &limits).is_err(),
+            "Verify accepted mutation {mutation}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&wrong, &candidate, &limits).unwrap();
+        assert!(
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+            "Wire Verify accepted mutation {mutation}"
+        );
+    }
+    for (before, after) in [
+        ("var f=move", "let f=move"),
+        ("f:&mut F", "f:&F"),
+        ("FnMut(", "FnOnce("),
+    ] {
+        let report = compile_source(
+            &source(&text.replace(before, after)),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+    let unused = "struct Tag<life s>{n:i32} fn bad<life s,F:for<life a>for<life b>FnOnce(&'a Tag<'b>,&'b i32)->i32>(f:F,p:&Tag<'s>,q:&'s i32)->i32{let first=f(p,q);return f(p,q)} fn main()->i32{return 0}";
+    let report = compile_source(&source(unused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
 }

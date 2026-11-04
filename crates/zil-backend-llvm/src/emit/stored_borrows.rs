@@ -211,6 +211,7 @@ pub(super) fn reserve_callable_metadata(
         }
     }
     for closure in &module.closures {
+        pay(work, closure.captures.len())?;
         if let Some(life) = &closure.storage_life {
             contract(life, work)?;
         }
@@ -301,15 +302,21 @@ pub(super) fn reserve_binding(
                     | InstructionKind::MakeAggregate { fields: arguments } => arguments.len(),
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
+                    | InstructionKind::CallClosureOnce { arguments, .. }
                     | InstructionKind::CallClosureBorrowed { arguments, .. }
-                    | InstructionKind::CallClosureShared { arguments, .. } => {
+                    | InstructionKind::CallClosureShared { arguments, .. }
+                    | InstructionKind::CallClosureMut { arguments, .. } => {
                         arguments.len().saturating_add(1)
                     }
                     InstructionKind::MakeClosure { captures, .. } => {
                         captures.len().saturating_add(1)
                     }
                     InstructionKind::FunctionRef { .. } => 1,
-                    InstructionKind::ExtractField { .. } => 1,
+                    InstructionKind::ExtractField { .. }
+                    | InstructionKind::ReadCapture { .. }
+                    | InstructionKind::WriteCapture { .. }
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::DropClosure { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
@@ -356,16 +363,21 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
             captures: arguments,
             ..
         }
-        | InstructionKind::CallClosureShared { arguments, .. } => arguments.clone(),
+        | InstructionKind::CallClosureShared { arguments, .. }
+        | InstructionKind::CallClosureMut { arguments, .. } => arguments.clone(),
         InstructionKind::CallIndirect { callee, arguments }
         | InstructionKind::CallClosure { callee, arguments }
+        | InstructionKind::CallClosureOnce { callee, arguments }
         | InstructionKind::CallClosureBorrowed {
             callee, arguments, ..
         } => std::iter::once(*callee)
             .chain(arguments.iter().copied())
             .collect(),
-        InstructionKind::ExtractField { aggregate: value, .. }
+        InstructionKind::ExtractField {
+            aggregate: value, ..
+        }
         | InstructionKind::Store { value, .. }
+        | InstructionKind::WriteCapture { value, .. }
         | InstructionKind::Unary { operand: value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::ConvertNumber { value, .. } => vec![*value],
@@ -416,9 +428,11 @@ pub(super) fn reserve_emission(
                     captures: arguments,
                     ..
                 }
-                | InstructionKind::CallClosureShared { arguments, .. } => arguments.len(),
+                | InstructionKind::CallClosureShared { arguments, .. }
+                | InstructionKind::CallClosureMut { arguments, .. } => arguments.len(),
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
+                | InstructionKind::CallClosureOnce { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. } => {
                     arguments.len().saturating_add(1)
                 }
@@ -434,7 +448,11 @@ pub(super) fn reserve_emission(
                     .ok_or_else(exhausted)?;
                 pay(work, cost)?;
             }
-            if let InstructionKind::CallClosureShared { callee, .. } = &i.kind {
+            if let InstructionKind::CallClosureShared { callee, .. }
+            | InstructionKind::CallClosureMut { callee, .. }
+            | InstructionKind::TakeLocal { local: callee }
+            | InstructionKind::DropClosure { local: callee } = &i.kind
+            {
                 type_work(&f.locals[callee.0 as usize].ty, work, limits, 0)?;
             }
             for v in operands(&i.kind).into_iter().chain(i.result) {
