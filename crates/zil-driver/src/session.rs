@@ -642,7 +642,12 @@ impl CompilationSession {
                 let syntax = selected
                     .as_ref()
                     .map_or(&parsed.module, |selected| &selected.modules[0]);
-                let expanded = zil_expand::expand_with_map_limits(source, syntax, &options.limits)?;
+                let expanded = zil_expand::expand_with_map_limits_target(
+                    source,
+                    syntax,
+                    &options.limits,
+                    &options.target,
+                )?;
                 expanded
                     .source_map
                     .validate(std::slice::from_ref(source), &options.limits)?;

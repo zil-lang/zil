@@ -155,3 +155,28 @@ native Type selectors are not a claim that those whole bridges are complete.
 Rust safety and actual static machine behavior have the limited evidence above;
 runtime/RSS, maintenance and compile-cost comparisons and product gates remain
 unmeasured. Independent review of this associated checkpoint is pending.
+
+Independent review of `fffdbb111` is PassLimited (`d2b9558c6`): the exact
+eleven controls and retained source/harness bindings passed. The branch then
+merged the complete numeric/lifetime/task base `e953fd381`; all 19 + 54 targeted
+tests passed on that combined production source.
+
+The next checkpoint extends scalar function const domains to `u64` and `usize`.
+The target-aware expansion entry points retain the requested pointer width
+through source, project and CT snapshot specialization. Normalization uses
+that target domain's full unsigned range, never a host `usize` or signed i64
+carrier. Definition integer and pattern checking retain that full range too.
+Native profiles are x64, while 32-bit CT/frontend requests independently admit
+usize MAX and reject MAX+1 even when the const value is erased. Overflow,
+wrong suffix/domain and invalid unused
+definitions remain rejecting controls. Signed negative const arguments, general
+CT const expressions and aggregate const parameters remain separate work.
+
+Ordinary generic functions returning Type, generic record field reflection,
+generic Syntax<Expr>/Syntax<Type> return values and full nominal/phantom
+arguments are exercised by actual source through the existing CT bridge.
+`syntax.literal(T)` under only `T:Copy` remains invalid: that bound also admits
+records, whereas literal requires Scalar/Text. A concrete scalar field provides
+the nearest valid generic Syntax producer. This checkpoint adds evidence and
+unsigned const handling; it does not relax CT definition checking or change
+public IR, Wire or syntax.

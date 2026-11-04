@@ -908,8 +908,13 @@ impl FrozenReadView<'_> {
             .iter()
             .map(|module| module.imports.clone())
             .collect::<Vec<_>>();
-        let expanded =
-            zil_expand::expand_program_with_limits(self.sources, &refs, &imports, &limits)?;
+        let expanded = zil_expand::expand_program_with_limits_target(
+            self.sources,
+            &refs,
+            &imports,
+            &limits,
+            &self.target,
+        )?;
         let modules = expanded
             .into_iter()
             .map(|(module, _)| ProgramModule {

@@ -8,6 +8,7 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    pub(crate) target_pointer_width: Option<u16>,
     templates: Vec<(Aggregate, Span)>,
     applications: Vec<Application>,
     pub(crate) allowance: Option<Limits>,
