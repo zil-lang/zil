@@ -421,3 +421,26 @@ This checkpoint only unblocks composed builds. Full authenticated invocation
 context, rich CT graph validation, source capture/reification and actual VM
 backing-byte accounting remain work in progress. It does not replace the CT4
 source/native receipt or its later per-use owner-lookup accounting correction.
+
+The Driver CT compile adapter now also builds on the composed40 baseline.
+Compiler metadata, runtime source visitors, checked-type conversions, read-view
+comparison and program/value-context copies pay all rich binding/class paths.
+Returned value contexts retain the complete ambient inventory with its dynamic
+bytes. Closed new graphs initialize empty mappings; legacy assembly/compaction
+and reification explicitly reject contextual inputs until joint authenticated
+relocation is implemented. This is a compile checkpoint only. The retained
+CT4 source fixtures have not been attributed to this40 build, and no rich CT5
+signature/ambient/cache/native acceptance is claimed.
+### Mixed full nominal ordinal source completion
+
+341's ordinary source producer correction e90572dff (39 integration c4c4b44f1)
+now preserves the full life/type/const parameter positions. The retained mixed
+Phantom source reaches Verify and real Clang/API O0/O2 execution with stdout42;
+its const7-declaration/const8-construction neighbor rejects. The same actual
+source runs in the default worker and has whole-source analysis N26283,
+N−1 ResourceLimit, warm reuse and fresh exact-N controls. The existing base,
+joint and generic CT4 controls remain included: four source positives now give
+16 native profiles, and the invocation-scoped rich BFP fixture stays explicitly
+pending its different producer/consumer obligation. Historical e65 rejection
+and629 three-source accounting receipts remain tied to their original sources.
+No full CT5 semantic or language-terminal conclusion follows from this fix.

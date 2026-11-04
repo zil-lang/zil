@@ -677,7 +677,7 @@ impl Materializer<'_, '_> {
                                     span,
                                 ));
                             };
-                            if binder >= life.binder_count {
+                            if binder >= life.invocation_binder_count {
                                 return Err(runtime(
                                     "lifetime metadata ordinal exceeds its owner",
                                     span,
@@ -799,6 +799,11 @@ impl Materializer<'_, '_> {
                 result,
                 life,
             } => {
+                let life = super::scope_metadata::closed_signature(
+                    life,
+                    parameters.len(),
+                    &mut self.environment.budget,
+                )?;
                 self.environment.budget.reserve_analysis_work(
                     (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
                 )?;
