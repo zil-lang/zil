@@ -1457,11 +1457,10 @@ impl FunctionEmitter<'_> {
                 if let Some(actions) = self
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))
+                    && !pollable_drop
                 {
-                    if !pollable_drop {
-                        for &action in actions.before() {
-                            self.event(tasks::owner_marker(action));
-                        }
+                    for &action in actions.before() {
+                        self.event(tasks::owner_marker(action));
                     }
                 }
                 self.instruction(instruction)?;
