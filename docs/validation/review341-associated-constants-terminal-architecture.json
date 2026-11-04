@@ -1,0 +1,124 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "d9d4182181be2f2b49cdbe94110d49ea15726240",
+  "scope": "Declared scalar associated constants, committed concrete lookup and closed explicit-scalar CT equations; symbolic equations and wider constant consumers remain incomplete.",
+  "identity": {
+    "production_rust_path_nul_bytes_nul_sha256": "19ac4008bb7fed7f3a4026cdbf8029d5831406600d634013994a42fcd50a348c",
+    "test_rust_path_nul_bytes_nul_sha256": "e5b88a30daa82609677d148b769058d324edcdd835d61efaf493e3a29ec6a01b",
+    "executables": {
+      "/workspace/.zil-env/target341/debug/deps/generics-ba4159fc2009dbc9": "8260b283860712b6e6bca6faee266f640137176658bbf664a6b6b895e0fed373",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-114d8b728f7714b2": "4f4b05872ed32693f6b1bfa2374c6f507a76b1564c289cd2024463cd29aaf55a"
+    },
+    "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
+    "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
+    "production_file_count": 325,
+    "test_selection": [
+      "crates/zil-driver/tests/generics.rs",
+      "crates/zil-driver/tests/impl162_trait_bounds.rs"
+    ]
+  },
+  "retained_copies": {
+    "/workspace/.zil-env/terminal-20261104/reviewer-retained/associated-constants341-generics": "8260b283860712b6e6bca6faee266f640137176658bbf664a6b6b895e0fed373",
+    "/workspace/.zil-env/terminal-20261104/reviewer-retained/associated-constants341-traits": "4f4b05872ed32693f6b1bfa2374c6f507a76b1564c289cd2024463cd29aaf55a"
+  },
+  "binding": "Copied both exact harnesses before target reuse and independently checked SHA256; recomputed all 325 production Rust files and both test sources directly from exact Git blobs using author Path-component ordering. Fixtures are include_str inputs in the bound harnesses.",
+  "fixture_sha256": {
+    "tests/language-readiness/terminal/341/associated-constants.zil": "d61fd5da57ada5dba812c3e5740b0bf37d3d0ee955de12ed5b5fc015c12c180d",
+    "tests/language-readiness/terminal/341/associated-constant-computed.zil": "f95cc0af631878cc55ceef8ad27e47989203f1455a2ee8deac6e38f4fcbb779e"
+  },
+  "independent_execution": [
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/associated-constants341-generics",
+      "filter": "terminal341",
+      "arguments": [
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 16,
+      "seconds": 0.18
+    },
+    {
+      "executable": "/workspace/.zil-env/terminal-20261104/reviewer-retained/associated-constants341-traits",
+      "filter": "terminal341",
+      "arguments": [
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 46,
+      "seconds": 5.91
+    }
+  ],
+  "source_review": [
+    "Associated value atoms retain actual host, ordered trait arguments and member identity. Symbolic use obtains only the declared result type under available bounds; concrete value lookup requires a fully solved witness before reading an impl/default equation. Candidate values do not prove their own premises.",
+    "Unused and overridden trait defaults and impl values are checked, including missing/duplicate/mistyped members, unformed declared types, unsupported symbolic bodies and ordinary lexical value shadowing. Existing scoped substitutions hide associated namespaces when a runtime binding shadows their subject.",
+    "Closed explicit-scalar equations are evaluated by the existing verified source CT compiler and VM before ordinary Expand. The receiving scalar type and selected target width are retained; no new unverified evaluator was added to Expand. Private helper lookup uses the declaring module.",
+    "The WIP classifier accounting finding is corrected: group/type/literal inspection is iterative and depth-bounded, with payment before each traversal step and scalar name inspection. Dependency visitors, host and closed-value scans, namespace clone/retain and substituted bodies are charged through existing ledgers.",
+    "Raw shared-Span controls preserve trait/impl/item/member/function/value/type distinctions through static dispatch, Types/Analyze, raw and decoded-Wire Verify and actual native execution."
+  ],
+  "new_controls": [
+    "Required/default constants, same Self with distinct Config<i32>/Config<bool> values, inherited constants and associated declared types; runtime namespace shadows preserve their own field lookup.",
+    "Actual local computed scalar fixture and declaring-module private-helper project execute Clang and LLVM API at O0/O2 without fallback. Raw repeated-Span associated fixture also executes all four profiles.",
+    "Closed equations include i64 arithmetic, full u64 values and grouped types/expressions. Selected 32-bit usize rejects MAX+1 while selected 64-bit accepts. Unused overflow, overridden divide-by-zero and foreign-call equations reject.",
+    "An invalid unused equation requested at Stage::Build rejects in CT with no native command, native_codegen result or executable publication.",
+    "Actual CT-materialized computed-constant candidate recovered from the existing trusted semantic cache is decoded and independently replayed through raw and byte verifier entry points. Recovery supplies no verifier proof authority."
+  ],
+  "exact_budgets": {
+    "expand_const_exact_steps": 1381,
+    "request_supertrait": {
+      "work": 3713,
+      "nodes": 1102
+    },
+    "request_const_match_shadow": {
+      "work": 2414,
+      "nodes": 913
+    },
+    "expand_generic_impl_exact_steps": 5905,
+    "request_generic_impl": {
+      "work": 6271,
+      "nodes": 2078
+    },
+    "request_symbolic_trait_arguments": {
+      "work": 9824,
+      "nodes": 2757
+    },
+    "request_associated_types": {
+      "work": 26395,
+      "nodes": 4701
+    },
+    "request_unsigned_const": {
+      "work": 3215,
+      "nodes": 877
+    },
+    "request_ct_generic_type_syntax_reflection": {
+      "work": 258043,
+      "nodes": 63574
+    },
+    "request_associated_constants": {
+      "work": 39815,
+      "nodes": 5704
+    },
+    "request_associated_constant_computed": {
+      "work": 13896,
+      "nodes": 1919
+    }
+  },
+  "budget_controls": "All nine retained source request work/node boundaries independently replay N success, N-1 ResourceLimit, cold/warm/fresh identity and persisted-cache verification_runs=1. Const Expand 1381 and generic impl Expand 5905 also pass their exact controls. Limits were not raised; earlier source identities retain their historical values.",
+  "limitations": [
+    "General verified CT expression arguments and const inference",
+    "Aggregate/enum/trait const parameter consumers and mixed lifetime/const support",
+    "Symbolic/type-dependent associated constant equations, active constant cycle normalization, constants in array lengths/generic arguments, qualified/applied/nested source type projections, richer associated equalities and generic associated items",
+    "Blanket/primitive/enum impls, richer symbolic trait-parameter obligations and broader local-trait/foreign-Self ownership cases",
+    "Generic methods and remaining generic supertrait argument composition",
+    "Broader Type/Syntax combinations beyond the explicit generic Type/Syntax/reflection fixture remain subject to actual-source checks; generic const CT functions and general const expressions are still pending",
+    "Closed associated CT equations with inherited, aliased or dependent receiving type context; aggregate/Type/Syntax associated constants; generic impl/member-dependent CT staging.",
+    "No reviewer full-workspace or Clippy replay, native Windows execution, Rust cost comparison or global integration acceptance."
+  ],
+  "full_language_and_ZUI": "NotSatisfied"
+}

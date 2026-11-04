@@ -367,7 +367,8 @@ pub(super) fn closed_environment(
                     pay(&mut work, 2)?;
                     types.extend([error.as_ref(), result.as_ref()])
                 }
-                Type::FunctionPointer { .. }
+                Type::BorrowedFunctionPointer { .. }
+                | Type::FunctionPointer { .. }
                 | Type::ForeignCallback { .. }
                 | Type::Unit
                 | Type::Bool
@@ -375,6 +376,10 @@ pub(super) fn closed_environment(
                 | Type::U16
                 | Type::I32
                 | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
                 | Type::ForeignHandle
                 | Type::CWideString
                 | Type::ByteBuffer

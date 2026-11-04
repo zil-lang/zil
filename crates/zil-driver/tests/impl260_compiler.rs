@@ -1,5 +1,9 @@
 //! Actual source -> ordinary parser AST -> raw CT CFG. Independent verification
 //! and VM execution are exercised once the frozen 259 delivery is composed.
+#[expect(
+    dead_code,
+    reason = "This standalone compiler harness omits the project associated-constant caller"
+)]
 #[path = "../src/ct_artifact/compiler.rs"]
 mod compiler;
 use compiler::*;
@@ -80,6 +84,7 @@ fn try_build_with_limits(
         requested_queries: Vec::new(),
     };
     compile(CompileRequest {
+        target_pointer_width: 64,
         modules: &modules,
         source_fingerprint: source.fingerprint(),
         entry: Entry::Function(symbols[index].1.clone()),
@@ -569,6 +574,7 @@ fn cross_module_alias_uses_its_definition_imports_and_distinct_identity() {
     let entry = symbols[0][2].1.clone();
     let context = build("fn build()->Type{return i32}", "build");
     let raw = compile(CompileRequest {
+        target_pointer_width: 64,
         modules: &modules,
         source_fingerprint: Fingerprint::of(
             format!(

@@ -4,6 +4,9 @@
 use super::*;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
+pub(super) fn head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
+}
 pub(super) mod product;
 mod summary_graph;
 pub(crate) mod sums;
@@ -257,10 +260,18 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 description: false,
             }
         }
-        Type::Enum { .. } if budget.sum_type(ty)? => Shape {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sum_type(ty)? => Shape {
             owned: true,
             description: false,
         },
+        Type::Address { .. }
+            if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Desc(_) => Shape {
             owned: false,
             description: true,
@@ -422,6 +433,16 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::TaskPollClose { task }
         | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
         InstructionKind::TaskYield => (None, None, &[]),
+        InstructionKind::MakeOwnedTuple { fields } => (None, None, fields),
+        InstructionKind::BorrowPlaceLocal { .. }
+        | InstructionKind::PlaceTagLocal { .. }
+        | InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::TakeTupleField { .. }
+        | InstructionKind::TakeVariantField { .. } => (None, None, &[]),
+
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => (Some(*address), None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
@@ -441,8 +462,10 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::OwnedStorePop { store }
         | InstructionKind::OwnedStoreLen { store }
         | InstructionKind::OwnedStoreCapacity { store } => (Some(*store), None, &[]),
-        InstructionKind::Store { value, .. }
+        InstructionKind::DescribeAddress { address: value }
+        | InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => (Some(*value), None, &[]),
@@ -508,6 +531,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -723,7 +748,11 @@ fn address_afters_inner(
     ) {
         let captured = captures && capture_carrier(ty, budget)?;
         has_capture |= captured;
-        if captured || matches!(ty, Type::Address { .. }) {
+        if captured
+            || matches!(ty, Type::Address { .. })
+            || ((budget.head_descriptions || budget.invocation_callbacks)
+                && matches!(ty, Type::Desc(_) | Type::Closure(_)))
+        {
             budget.lookup(shapes.len(), "captured Store address shape insertion")?;
             shapes.insert(
                 place,
@@ -1040,7 +1069,11 @@ impl Flow<'_> {
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. } => {
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(
@@ -1051,15 +1084,47 @@ impl Flow<'_> {
                         return Err(error("Sum observation needs a live local"));
                     }
                 }
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    if check {
+                        if !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        ) {
+                            return Err(error("selective source is not a live owning local"));
+                        }
+                        no_later_use(
+                            state,
+                            &self.after[b][position],
+                            Source::Head(*local),
+                            budget,
+                        )?;
+                    }
+                    if out_shape.is_some_and(|s| s.owned) {
+                        produced = Some(Fact {
+                            life: BTreeSet::from([Life::Available]),
+                            birth: BTreeSet::from([Birth::Incoming]),
+                            sources: BTreeSet::new(),
+                        });
+                    }
+                }
                 InstructionKind::UnpackVariant {
                     local,
-                    variant,
+                    variant: _,
                     fields,
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, fields } => {
+                    let variant = if let InstructionKind::UnpackVariant { variant, .. } = i.kind {
+                        variant
+                    } else {
+                        u32::MAX
+                    };
                     let plan = self
                         .sums
                         .ok_or_else(|| error("Unpack has no finite Sum plan"))?;
-                    plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    if matches!(i.kind, InstructionKind::UnpackVariant { .. }) {
+                        plan.validate_unpack(f, i, &state.sums, check, budget)?;
+                    }
                     let mut source = copied(state, Place::Local(*local), budget)?;
                     if check {
                         if !exact(&source, Life::Available) {
@@ -1096,7 +1161,7 @@ impl Flow<'_> {
                             .get(&Place::Local(*target))
                             .is_some_and(|s| s.owned)
                         {
-                            let birth = state.sums.unpack_birth(*local, *variant, index, budget)?;
+                            let birth = state.sums.unpack_birth(*local, variant, index, budget)?;
                             forget_order(state, *target, budget)?;
                             for (place, fact) in &state.cells {
                                 budget.spend(1, "Unpack actual initialization order")?;
@@ -1122,7 +1187,8 @@ impl Flow<'_> {
                         }
                     }
                 }
-                InstructionKind::MakeVariant { fields, .. }
+                InstructionKind::MakeOwnedTuple { fields }
+                | InstructionKind::MakeVariant { fields, .. }
                     if out_shape.is_some_and(|s| s.owned) =>
                 {
                     for value in fields {
@@ -1863,6 +1929,40 @@ impl Flow<'_> {
                         return Err(error("head address requires a live managed position"));
                     }
                 }
+                InstructionKind::DescribeAddress { address } => {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    produced = Some(Fact {
+                        sources: fact.sources,
+                        ..Fact::default()
+                    });
+                }
+                InstructionKind::AddressField { address, index }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let fact = copied(state, Place::Value(*address), budget)?;
+                    let mut sources = BTreeSet::new();
+                    budget.spend(fact.sources.len(), "actual resource head field sources")?;
+                    for source in fact.sources {
+                        sources.insert(match source {
+                            Source::Head(local)
+                                if matches!(
+                                    f.locals[local.0 as usize].ty,
+                                    Type::Package { .. }
+                                ) =>
+                            {
+                                Source::PackageField {
+                                    local,
+                                    index: *index,
+                                }
+                            }
+                            other => other,
+                        });
+                    }
+                    produced = Some(Fact {
+                        sources,
+                        ..Fact::default()
+                    });
+                }
                 InstructionKind::DescribeLocal { local } => {
                     if !self.views.is_empty() {
                         budget.lookup(self.views.len(), "Package view description boundary")?;
@@ -1956,7 +2056,10 @@ impl Flow<'_> {
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
                     }
-                    if matches!(ty, Type::Desc(_)) {
+                    if matches!(ty, Type::Desc(_))
+                        || (budget.head_descriptions
+                            && (head_address(ty) || ty.is_package_address()))
+                    {
                         produced = Some(Fact {
                             sources: BTreeSet::from([Source::BorrowedField(*index)]),
                             ..Fact::default()
@@ -2133,7 +2236,8 @@ impl Flow<'_> {
                         replace(state, Place::Local(*local), source, budget)?;
                     }
                 }
-                InstructionKind::DropEnum { local }
+                InstructionKind::DropTuple { local }
+                | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }
@@ -2600,6 +2704,21 @@ impl Flow<'_> {
                     }
                 }
                 _ => {}
+            }
+            if produced.is_none()
+                && budget.head_descriptions
+                && out_shape.is_some_and(|s| s.description)
+                && let InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local } = i.kind
+                && matches!(
+                    f.locals[local.0 as usize].ty,
+                    Type::Package { .. } | Type::Managed(_)
+                )
+            {
+                produced = Some(Fact {
+                    sources: BTreeSet::from([Source::Head(local)]),
+                    ..Fact::default()
+                });
             }
             if let Some(plan) = self.sums
                 && let Some(birth) =

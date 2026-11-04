@@ -155,7 +155,15 @@ pub(super) fn select(
         budget.copy(cost, module.span)?;
         budget.copy(cost, module.span)?;
     }
-    let context = Context::freeze(sources, modules, imports, root, fingerprint, &mut budget)?;
+    let context = Context::freeze(
+        sources,
+        modules,
+        imports,
+        root,
+        fingerprint,
+        &mut budget,
+        target,
+    )?;
     let mut output: Vec<_> = modules.iter().map(|module| (*module).clone()).collect();
     let mut trace = Vec::new();
     let mut generations = Vec::new();

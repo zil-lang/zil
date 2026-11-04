@@ -377,11 +377,8 @@ fn view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper() {
 #[test]
 fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
     use zil_base::Phase::Types;
-    for tail in [
-        "fn bad(x:&P)->&P{return x}fn main(){}",
-        "fn bad(x:&P)->&i32{return &x.n}fn main(){}",
-        "fn bad(s:Store<P>)->&i32{let x=store_at(s,0);return &x.n}fn main(){}",
-    ] {
+    {
+        let tail = "fn bad(x:&P)->&P{return x}fn main(){}";
         reject_source(
             &format!("{PACKAGE}{tail}"),
             ResultCategory::Unsupported,
@@ -389,6 +386,20 @@ fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
             "E-UNSUPPORTED",
             "Store element windows are synchronous",
         );
+    }
+    // Copy-field references retain the actual parameter/Store root through return.
+    for tail in [
+        "fn bad(x:&P)->&i32{return &x.n}fn main(){}",
+        "fn bad(s:Store<P>)->&i32{let x=store_at(s,0);return &x.n}fn main(){}",
+    ] {
+        let result = check(&format!("{PACKAGE}{tail}"));
+        assert_eq!(
+            result.status,
+            ResultCategory::Success,
+            "{}",
+            result.to_json()
+        );
+        assert_eq!(result.verification_runs, 1);
     }
     // 226 admits the shared shape, but actual Store origins remain forbidden.
     // Preserve this exact source and require the independent origin diagnostic.

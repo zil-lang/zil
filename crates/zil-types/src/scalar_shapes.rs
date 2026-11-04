@@ -64,7 +64,16 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::U64
+            | Type::Usize
+            | Type::F64
     )
 }
 
@@ -157,7 +166,8 @@ impl Walker {
         self.charge(depth, expression.span)?;
         match &expression.kind {
             CoreExprKind::Ascribed { ty, value }
-            | CoreExprKind::IntegerConvert { target: ty, value } => {
+            | CoreExprKind::IntegerConvert { target: ty, value }
+            | CoreExprKind::NumericConvert { target: ty, value } => {
                 self.ty(ty, depth + 1, expression.span)?;
                 self.expr(value, depth + 1)?;
             }
@@ -183,6 +193,7 @@ impl Walker {
                 self.expr(else_value, depth + 1)?;
             }
             CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::Unit
             | CoreExprKind::Name(_)
@@ -191,6 +202,10 @@ impl Walker {
                 | Constant::Bool(_)
                 | Constant::I32(_)
                 | Constant::I64(_)
+                | Constant::F32(_)
+                | Constant::F64(_)
+                | Constant::U64(_)
+                | Constant::Usize(_)
                 | Constant::U8(_)
                 | Constant::U16(_),
             ) => {}

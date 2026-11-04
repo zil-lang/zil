@@ -41,6 +41,8 @@ use zil_base::{
 };
 use zil_ir::*;
 
+mod address_sums;
+mod borrowed_fp;
 mod borrows;
 mod byte_buffers;
 mod c_layout;
@@ -58,6 +60,7 @@ mod dynamic_store;
 mod error_scope_tests;
 mod errors;
 mod foreign;
+mod head_access;
 #[cfg(test)]
 mod helper_tests;
 mod helpers;
@@ -284,6 +287,9 @@ struct Budget {
     private_slot_functions: Option<Vec<bool>>,
     scoped_functions: Option<Vec<bool>>,
     shared_thread_functions: Option<Vec<bool>>,
+    borrowed_function_pointers: bool,
+    invocation_callbacks: bool,
+    head_descriptions: bool,
 }
 impl Budget {
     fn new(limits: &Limits) -> Self {
@@ -302,6 +308,9 @@ impl Budget {
             private_slot_functions: None,
             scoped_functions: None,
             shared_thread_functions: None,
+            borrowed_function_pointers: false,
+            invocation_callbacks: false,
+            head_descriptions: false,
         }
     }
     fn spend(&mut self, amount: usize) -> Check<()> {
@@ -647,6 +656,7 @@ fn check_module(
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedArray { elements: fields }
                     | InstructionKind::MakeAggregate { fields }
+                    | InstructionKind::MakeOwnedTuple { fields }
                     | InstructionKind::MakeVariant { fields, .. } => budget.spend(fields.len())?,
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::SuspendCall { arguments, .. }
@@ -672,7 +682,8 @@ fn check_module(
                     InstructionKind::MakeClosure { captures, .. } => {
                         budget.spend(captures.len())?
                     }
-                    InstructionKind::ConvertInteger { target, .. } => {
+                    InstructionKind::ConvertInteger { target, .. }
+                    | InstructionKind::ConvertNumber { target, .. } => {
                         // This embedded raw type is not necessarily one of the
                         // function value types. Bound it before fingerprinting.
                         check_type_shape(target, &module.target, limits, &mut budget)?;
@@ -731,6 +742,7 @@ fn check_module(
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
+    head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,
@@ -750,6 +762,109 @@ fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usi
         _ => Err(limit(format!("{kind} count exceeds verification limit"))),
     }
 }
+fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> Check<()> {
+    let Type::Enum { name, variants } = ty else {
+        unreachable!()
+    };
+    if name != "@anonymous-sum:v1" || variants.len() < 2 {
+        return Err(reject(
+            "E-VERIFY-ENUM",
+            None,
+            "invalid anonymous sum family or arity",
+        ));
+    }
+    let mut identity_work = 0usize;
+    let mut pending = Vec::new();
+    for (index, (label, fields)) in variants.iter().enumerate() {
+        budget.spend(32)?;
+        if label != &format!("Member{index}") || fields.len() != 1 {
+            return Err(reject(
+                "E-VERIFY-ENUM",
+                None,
+                "anonymous sum requires canonical ordinal labels and one payload per member",
+            ));
+        }
+        if matches!(&fields[0], Type::Enum { name, .. } if name == "@anonymous-sum:v1") {
+            return Err(reject(
+                "E-VERIFY-ENUM",
+                None,
+                "anonymous sum directly nests another anonymous sum",
+            ));
+        }
+        pending.push((&fields[0], 0usize));
+    }
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1)?;
+        identity_work = identity_work.saturating_add(1);
+        if depth > limits.max_call_depth {
+            return Err(limit(
+                "anonymous sum identity nesting exceeds verification limit",
+            ));
+        }
+        let text = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                for (label, field) in fields {
+                    budget.spend(label.len())?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.push((field, depth + 1));
+                }
+                name.len()
+            }
+            Type::Enum { name, variants } => {
+                for (label, fields) in variants {
+                    budget.spend(label.len())?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                }
+                name.len()
+            }
+            Type::Tuple(fields) => {
+                pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                0
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element) => {
+                pending.push((element, depth + 1));
+                0
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                pending.extend(parameters.iter().map(|field| (field, depth + 1)));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::Named(_) | Type::Unsupported(_) | Type::Opaque { .. } | Type::Closure(_) => {
+                return Err(reject(
+                    "E-VERIFY-ENUM",
+                    None,
+                    "anonymous sum identity contains an unresolved or nonordinary member type",
+                ));
+            }
+            _ => 0,
+        };
+        budget.spend(text)?;
+        identity_work = identity_work.saturating_add(text);
+    }
+    budget.spend(identity_work.saturating_mul(2))?;
+    if variants.windows(2).any(|pair| pair[0].1[0] >= pair[1].1[0]) {
+        return Err(reject(
+            "E-VERIFY-ENUM",
+            None,
+            "anonymous sum members are repeated or not in complete-type canonical order",
+        ));
+    }
+    Ok(())
+}
+
 fn check_type_shape(
     ty: &Type,
     target: &TargetProfile,
@@ -758,15 +873,18 @@ fn check_type_shape(
 ) -> Check<()> {
     let mut first = Some((ty, 0usize, 0u8));
     let mut pending = Vec::new();
+    let mut options = Vec::new();
+    let mut anonymous = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
-        if (context & 1 != 0
-            && matches!(
-                ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ))
+        if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
+            || (context & 1 != 0
+                && matches!(
+                    ty,
+                    Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                ))
             || (context & 8 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))
             || (context & 32 != 0 && context & 4 != 0 && matches!(ty, Type::Package { .. }))
             || (context & 2 != 0
@@ -805,7 +923,7 @@ fn check_type_shape(
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
                 for ty in fields {
-                    pending.push((ty, depth + 1, context));
+                    pending.push((ty, depth + 1, context | 64));
                 }
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -823,7 +941,14 @@ fn check_type_shape(
                 }
             }
             Type::Enum { name, variants } => {
+                if name.starts_with("@anonymous-sum") {
+                    budget.spend(1)?;
+                    anonymous.push(ty);
+                }
                 budget.spend(name.len().saturating_add(variants.len()))?;
+                if name.starts_with("@builtin:Option") {
+                    options.push((name, variants));
+                }
                 for (name, fields) in variants {
                     budget.spend(name.len().saturating_add(fields.len()))?;
                     for ty in fields {
@@ -853,6 +978,23 @@ fn check_type_shape(
                 pending.push((error, depth + 1, context));
                 pending.push((result, depth + 1, context));
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.borrowed_function_pointers = true;
+                budget.spend(
+                    (life.binder_count as usize)
+                        .saturating_add(life.parameter_lives.len().saturating_mul(2))
+                        .saturating_add(2),
+                )?;
+                borrowed_fp::relation(parameters, result, life, None)?;
+                pending.push((result, depth + 1, context));
+                for parameter in parameters {
+                    pending.push((parameter, depth + 1, context));
+                }
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
@@ -863,6 +1005,42 @@ fn check_type_shape(
             }
             _ => {}
         }
+    }
+    // Fingerprint only after the complete raw type tree has been bounded.
+    // This independently checks the sealed family key and payload shape.
+    for (name, variants) in options {
+        let [(none, empty), (some, payload)] = variants.as_slice() else {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Option must have exactly None and Some variants",
+            ));
+        };
+        let [payload] = payload.as_slice() else {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Some requires exactly one payload",
+            ));
+        };
+        if none != "None" || !empty.is_empty() || some != "Some" {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "invalid Option variant shape",
+            ));
+        }
+        resources::charge_payload(payload, budget)?;
+        if *name != format!("@builtin:Option:{}", payload.fingerprint()) {
+            return Err(reject(
+                "E-VERIFY-OPTION",
+                None,
+                "Option identity does not match its complete payload type",
+            ));
+        }
+    }
+    for ty in anonymous {
+        check_anonymous_sum(ty, limits, budget)?;
     }
     Ok(())
 }
@@ -878,6 +1056,10 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             | Type::Bool
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::U8
             | Type::U16
             | Type::ForeignHandle
@@ -891,6 +1073,17 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
             Type::FunctionPointer { parameters, result } => {
                 pending.extend(parameters);
                 pending.push(result);
+            }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                for parameter in parameters {
+                    check_signature_type(parameter, span)?;
+                }
+                check_signature_type(result, span)?;
             }
             Type::ForeignCallback { parameters, result } => {
                 native_values::callback_signature(parameters, result, span)?;
@@ -968,18 +1161,26 @@ fn check_function_signature_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
+        Type::Address { inner, .. }
+            if matches!(
+                inner.as_ref(),
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) =>
+        {
+            sums::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. }
-            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+            if resources::head_address(ty) || ty.is_exclusive_task_head_address() =>
         {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sums && sums::owned(ty) => {
             sums::check_type_for(module, ty, span, budget)
         }
         ty if resources::arrays::is_owned_type(ty) => {
@@ -1011,11 +1212,19 @@ fn check_local_type(
         {
             packages::check_shared_product_type(module, inner, span, budget)
         }
+        Type::Address { inner, .. }
+            if matches!(
+                inner.as_ref(),
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) =>
+        {
+            sums::check_type_for(module, inner, span, budget)
+        }
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
         Type::Address { inner, .. }
-            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+            if resources::head_address(ty) || ty.is_exclusive_task_head_address() =>
         {
             resources::check_type_for(module, inner, span, budget)
         }
@@ -1026,7 +1235,7 @@ fn check_local_type(
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
         Type::Package { .. } => packages::check_ordinary_type(module, ty, span, budget),
         Type::ErrorUnion { .. } => errors::check_type_for(module, ty, span, budget),
-        Type::Enum { .. } if budget.sums && sums::owned_enum(ty) => {
+        Type::Enum { .. } | Type::Tuple(_) if budget.sums && sums::owned(ty) => {
             sums::check_type_for(module, ty, span, budget)
         }
         _ => check_type(ty, span),
@@ -1139,7 +1348,7 @@ fn check_function(
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&function.values)
-                .any(Type::is_package_address)
+                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner)))
         {
             return Err(unsupported(
                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
@@ -1163,6 +1372,7 @@ fn check_function(
     let mut predecessors = vec![Vec::<usize>::new(); n];
     let mut successors = vec![Vec::<usize>::new(); n];
     let mut definitions = vec![None; function.values.len()];
+    let mut addressed_sums = false;
     let mut immutable_stores = vec![0usize; m];
     for (block_index, block) in function.blocks.iter().enumerate() {
         budget.spend(1)?;
@@ -1194,6 +1404,11 @@ fn check_function(
                     ));
                 }
             }
+            addressed_sums |= matches!(
+                instruction.kind,
+                InstructionKind::VariantTagAddress { .. }
+                    | InstructionKind::BorrowVariantAddress { .. }
+            );
             check_instruction(module, function, instruction, budget)?;
             if let InstructionKind::Store { local, .. }
             | InstructionKind::BindPackageCapture { local, .. } = instruction.kind
@@ -1210,7 +1425,9 @@ fn check_function(
                     }
                 }
             }
-            if let InstructionKind::UnpackVariant { ref fields, .. } = instruction.kind {
+            if let InstructionKind::UnpackVariant { ref fields, .. }
+            | InstructionKind::UnpackTuple { ref fields, .. } = instruction.kind
+            {
                 budget.spend(fields.len())?;
                 for target in fields {
                     let index = target.0 as usize;
@@ -1299,6 +1516,9 @@ fn check_function(
         ));
     }
     let dominators = dominators(function.entry.0 as usize, &predecessors, &reachable, budget)?;
+    if addressed_sums {
+        address_sums::check(function, &successors, &reachable, budget)?;
+    }
     let (initialized_in, initialized_out) =
         initialization(function, &predecessors, &reachable, &parameters, budget)?;
     for (b, block) in function.blocks.iter().enumerate() {
@@ -1341,6 +1561,12 @@ fn check_function(
                 InstructionKind::Load(local)
                 | InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
+                | InstructionKind::BorrowPlaceLocal { local, .. }
+                | InstructionKind::PlaceTagLocal { local, .. }
+                | InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. }
                 | InstructionKind::RegisterDefer { local, .. }
                 | InstructionKind::DescribeLocal { local }
                 | InstructionKind::ReadPackageField { local, .. }
@@ -1373,7 +1599,8 @@ fn check_function(
                 }
                 InstructionKind::UnpackVariant {
                     local, ref fields, ..
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, ref fields } => {
                     if !initialized[local.0 as usize] {
                         return Err(reject(
                             "E-VERIFY-INITIALIZATION",
@@ -1392,6 +1619,7 @@ fn check_function(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropEnum { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -1505,6 +1733,14 @@ fn check_instruction(
         | InstructionKind::BorrowPackageField { .. } => {
             packages::check_instruction(module, function, instruction, budget)?
         }
+        InstructionKind::BorrowPlaceLocal { .. } | InstructionKind::PlaceTagLocal { .. } => {
+            sums::place_instruction(module, function, instruction, budget)?
+        }
+        InstructionKind::BorrowFieldLocal { .. }
+        | InstructionKind::VariantTagAddress { .. }
+        | InstructionKind::BorrowVariantAddress { .. } => {
+            address_sums::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::MakeOwnedArray { .. }
         | InstructionKind::ProjectOwnedArrayField { .. }
         | InstructionKind::TakeOwnedArrayElement { .. }
@@ -1527,8 +1763,14 @@ fn check_instruction(
             local_type(function, *local, span)?;
             None
         }
-        InstructionKind::VariantTagLocal { .. }
+        InstructionKind::TakeTupleField { .. }
+        | InstructionKind::TakeVariantField { .. }
+        | InstructionKind::MakeOwnedTuple { .. }
+        | InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. } => {
             let limits = budget.limits.clone();
@@ -1616,6 +1858,11 @@ fn check_instruction(
             ..
         } => foreign::check_call(module, function, *callee, arguments, span, budget)?,
         InstructionKind::Constant(constant) => Some(constant.ty()),
+        InstructionKind::ConvertNumber { value, target } => Some(number_conversion(
+            value_type(function, *value, span)?,
+            target,
+            span,
+        )?),
         InstructionKind::ConvertInteger { value, target } => Some(integer_conversion(
             value_type(function, *value, span)?,
             target,
@@ -1623,7 +1870,7 @@ fn check_instruction(
         )?),
         InstructionKind::Load(local) => {
             let ty = local_type(function, *local, span)?;
-            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned_enum(ty)) {
+            if errors::owned(ty, budget.sums) || (budget.sums && sums::owned(ty)) {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,
@@ -1653,7 +1900,7 @@ fn check_instruction(
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
                 && !errors::owned(ty, budget.sums)
-                && !(budget.sums && sums::owned_enum(ty))
+                && !(budget.sums && sums::owned(ty))
                 && !resources::arrays::is_owned_type(ty)
                 && !closures::owned_type(module, ty, budget)?
             {
@@ -1669,6 +1916,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(
+                inner,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
@@ -1686,6 +1938,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if matches!(
+                inner,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) {
+                sums::check_type_for(module, inner, span, budget)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
             } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
@@ -1793,10 +2050,23 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
-            } else if !*mutable && matches!(field, Type::Package { .. }) {
+            } else if budget.sums
+                && matches!(
+                    field,
+                    Type::Tuple(_)
+                        | Type::Package { .. }
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
+                )
+            {
+                sums::check_type_for(module, field, span, budget)?;
+            } else if matches!(field, Type::Package { .. }) {
                 packages::check_shared_product_type(module, field, span, budget)?;
-            } else if !*mutable
-                && matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }))
+            } else if matches!(field, Type::Managed(_))
+                && resources::head_address(&Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(field.clone()),
+                })
             {
                 resources::check_type_for(module, field, span, budget)?;
             } else {
@@ -2004,26 +2274,61 @@ fn check_instruction(
                     "function pointer target requires a closure environment",
                 ));
             }
-            let mut parameters = Vec::with_capacity(target.parameters.len());
-            for parameter in &target.parameters {
-                let ty = local_type(target, *parameter, span)?;
-                check_type(ty, span)?;
-                parameters.push(ty.clone());
+            if let Some(
+                pointer @ Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                },
+            ) = instruction
+                .result
+                .and_then(|id| function.values.get(id.0 as usize))
+            {
+                borrowed_fp::relation(parameters, result, life, span)?;
+                if target.parameters.len() != parameters.len() || target.return_type != **result {
+                    return Err(reject(
+                        "E-VERIFY-FUNCTION-LIFE",
+                        span,
+                        "borrowed pointer target has a different complete signature",
+                    ));
+                }
+                for (parameter, expected) in target.parameters.iter().zip(parameters) {
+                    if local_type(target, *parameter, span)? != expected {
+                        return Err(reject(
+                            "E-VERIFY-FUNCTION-LIFE",
+                            span,
+                            "borrowed pointer target parameter mode differs",
+                        ));
+                    }
+                }
+                Some(pointer.clone())
+            } else {
+                let mut parameters = Vec::with_capacity(target.parameters.len());
+                for parameter in &target.parameters {
+                    let ty = local_type(target, *parameter, span)?;
+                    check_type(ty, span)?;
+                    parameters.push(ty.clone());
+                }
+                check_type(&target.return_type, span)?;
+                Some(Type::FunctionPointer {
+                    parameters,
+                    result: Box::new(target.return_type.clone()),
+                })
             }
-            check_type(&target.return_type, span)?;
-            Some(Type::FunctionPointer {
-                parameters,
-                result: Box::new(target.return_type.clone()),
-            })
         }
         InstructionKind::CallIndirect { callee, arguments } => {
-            let Type::FunctionPointer { parameters, result } = value_type(function, *callee, span)?
-            else {
-                return Err(reject(
-                    "E-VERIFY-INDIRECT-CALL",
-                    span,
-                    "callee must be a function pointer",
-                ));
+            let (parameters, result) = match value_type(function, *callee, span)? {
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                } => (parameters, result),
+                _ => {
+                    return Err(reject(
+                        "E-VERIFY-INDIRECT-CALL",
+                        span,
+                        "callee must be a function pointer",
+                    ));
+                }
             };
             if arguments.len() != parameters.len() {
                 return Err(reject(
@@ -2180,7 +2485,7 @@ fn check_instruction(
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
-            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned_enum(ty)) {
+            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -2483,6 +2788,25 @@ fn check_instruction(
             }
             Some(ty.clone())
         }
+        InstructionKind::DescribeAddress { address } => {
+            budget.head_descriptions = true;
+            let ty = value_type(function, *address, span)?;
+            if !resources::head_address(ty) {
+                return Err(reject(
+                    "E-VERIFY-RESOURCE",
+                    span,
+                    "DescribeAddress requires an actual finite resource head address",
+                ));
+            }
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
+            };
+            resources::check_type_for(module, inner, span, budget)?;
+            let Type::Managed(payload) = inner.as_ref() else {
+                unreachable!()
+            };
+            Some(Type::Desc(payload.clone()))
+        }
         InstructionKind::DescribeLocal { local } => {
             let Type::Managed(inner) = local_type(function, *local, span)? else {
                 return Err(reject(
@@ -2577,9 +2901,20 @@ fn integer_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check
     Ok(target.clone())
 }
 
+fn number_conversion(source: &Type, target: &Type, span: Option<Span>) -> Check<Type> {
+    if !source.is_numeric() || !target.is_numeric() || !(source.is_float() || target.is_float()) {
+        return Err(reject(
+            "E-VERIFY-TYPE",
+            span,
+            "ConvertNumber requires numeric types and a floating endpoint",
+        ));
+    }
+    Ok(target.clone())
+}
 fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> {
     match op {
         UnaryOp::Not if operand == &Type::Bool => Ok(Type::Bool),
+        UnaryOp::Negate if operand.is_float() => Ok(operand.clone()),
         UnaryOp::Negate | UnaryOp::BitNot if operand.is_integer() => Ok(operand.clone()),
         UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference | UnaryOp::Give => {
             Err(unsupported(
@@ -2596,7 +2931,11 @@ fn unary_result(op: UnaryOp, operand: &Type, span: Option<Span>) -> Check<Type> 
 }
 fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) -> Check<Type> {
     if matches!(op, BinaryOp::ShiftLeft | BinaryOp::ShiftRight) {
-        if matches!(left, Type::U8 | Type::U16 | Type::I32 | Type::I64) && left == right {
+        if matches!(
+            left,
+            Type::U8 | Type::U16 | Type::U64 | Type::Usize | Type::I32 | Type::I64
+        ) && left == right
+        {
             return Ok(left.clone());
         }
         return Err(unsupported(
@@ -2611,6 +2950,24 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
             "binary operands have different types",
         ));
     }
+    if left.is_float() {
+        return match op {
+            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide => {
+                Ok(left.clone())
+            }
+            BinaryOp::Equal
+            | BinaryOp::NotEqual
+            | BinaryOp::Less
+            | BinaryOp::LessEqual
+            | BinaryOp::Greater
+            | BinaryOp::GreaterEqual => Ok(Type::Bool),
+            _ => Err(reject(
+                "E-VERIFY-TYPE",
+                span,
+                "operator is not an IEEE floating operation",
+            )),
+        };
+    }
     match op {
         BinaryOp::Equal | BinaryOp::NotEqual
             if matches!(
@@ -2618,6 +2975,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
                 Type::Bool
                     | Type::I32
                     | Type::I64
+                    | Type::U64
+                    | Type::Usize
                     | Type::U8
                     | Type::U16
                     | Type::Unit
@@ -2667,9 +3026,21 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TaskPollClose { task }
         | InstructionKind::TaskFinishDestroy { task } => ([Some(*task), None], &[]),
         InstructionKind::TaskYield => ([None, None], &[]),
+        InstructionKind::MakeOwnedTuple { fields } => ([None, None], fields),
+        InstructionKind::BorrowPlaceLocal { .. }
+        | InstructionKind::PlaceTagLocal { .. }
+        | InstructionKind::UnpackTuple { .. }
+        | InstructionKind::DropTuple { .. }
+        | InstructionKind::TakeTupleField { .. }
+        | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
+
+        InstructionKind::VariantTagAddress { address, .. }
+        | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
+        | InstructionKind::BorrowFieldLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::RegisterDefer { .. }
@@ -2730,6 +3101,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::OwnedStoreCapacity { store } => ([Some(*store), None], &[]),
         InstructionKind::Store { value, .. }
         | InstructionKind::ConvertInteger { value, .. }
+        | InstructionKind::ConvertNumber { value, .. }
         | InstructionKind::StorePackageField { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::WriteCapture { value, .. } => ([Some(*value), None], &[]),
@@ -2745,6 +3117,7 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::ByteBufferBorrow { buffer, .. } => ([Some(*buffer), None], &[]),
         InstructionKind::Unary { operand, .. } => ([Some(*operand), None], &[]),
         InstructionKind::ReadDesc { desc: address, .. }
+        | InstructionKind::DescribeAddress { address }
         | InstructionKind::ReadAddress { address }
         | InstructionKind::SliceLength { address }
         | InstructionKind::ReborrowAddress { address, .. }
@@ -2886,7 +3259,8 @@ fn initialization(
                 }
                 InstructionKind::UnpackVariant {
                     local, ref fields, ..
-                } => {
+                }
+                | InstructionKind::UnpackTuple { local, ref fields } => {
                     outputs[b][local.0 as usize] = false;
                     for target in fields {
                         outputs[b][target.0 as usize] = true;
@@ -2897,6 +3271,7 @@ fn initialization(
                 | InstructionKind::DropClosure { local }
                 | InstructionKind::DropErrorUnion { local }
                 | InstructionKind::DropEnum { local }
+                | InstructionKind::DropTuple { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropOwnedArray { local }
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -2937,7 +3312,8 @@ fn initialization(
                     }
                     InstructionKind::UnpackVariant {
                         local, ref fields, ..
-                    } => {
+                    }
+                    | InstructionKind::UnpackTuple { local, ref fields } => {
                         out[local.0 as usize] = false;
                         budget.spend(fields.len())?;
                         for target in fields {
@@ -2949,6 +3325,7 @@ fn initialization(
                     | InstructionKind::DropClosure { local }
                     | InstructionKind::DropErrorUnion { local }
                     | InstructionKind::DropEnum { local }
+                    | InstructionKind::DropTuple { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropOwnedArray { local }
                     | InstructionKind::EndPackageCapture { local, .. }
@@ -3071,7 +3448,7 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
         budget.spend(match &instruction.kind {
             CtInstructionKind::Constant(_) => 1,
             CtInstructionKind::Unary { .. } => 2,
-            CtInstructionKind::ConvertInteger { .. } => 2,
+            CtInstructionKind::ConvertInteger { .. } | CtInstructionKind::ConvertNumber { .. } => 2,
             CtInstructionKind::Binary { .. } => 3,
             CtInstructionKind::Forbidden(name) => name.len().saturating_add(1),
         })?;
@@ -3083,7 +3460,9 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             ));
         }
         check_type_shape(&instruction.ty, &module.target, limits, &mut budget)?;
-        if let CtInstructionKind::ConvertInteger { target, .. } = &instruction.kind {
+        if let CtInstructionKind::ConvertInteger { target, .. }
+        | CtInstructionKind::ConvertNumber { target, .. } = &instruction.kind
+        {
             check_type_shape(target, &module.target, limits, &mut budget)?;
         }
         // CT has its own closed capability set. Expanding runtime Copy
@@ -3113,8 +3492,14 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
             })
         };
         let ty = match &instruction.kind {
-            CtInstructionKind::Constant(constant) => constant.ty(),
+            CtInstructionKind::Constant(constant) => {
+                native_values::constant(constant, &module.target, None, limits, &mut budget)?;
+                constant.ty()
+            }
             CtInstructionKind::Unary { op, operand } => unary_result(*op, lookup(*operand)?, None)?,
+            CtInstructionKind::ConvertNumber { value, target } => {
+                number_conversion(lookup(*value)?, target, None)?
+            }
             CtInstructionKind::ConvertInteger { value, target } => {
                 integer_conversion(lookup(*value)?, target, None)?
             }

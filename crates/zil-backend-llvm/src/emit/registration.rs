@@ -711,7 +711,9 @@ pub(super) fn reserve_function(
                 ty(error, closures, active, depth + 1, meter)?;
                 ty(result, closures, active, depth + 1, meter)?
             }
-            Type::FunctionPointer { .. } | Type::ForeignCallback { .. } => {}
+            Type::BorrowedFunctionPointer { .. }
+            | Type::FunctionPointer { .. }
+            | Type::ForeignCallback { .. } => {}
             Type::Named(name) | Type::Unsupported(name) => meter.spend(name.len())?,
             Type::Unit
             | Type::Bool
@@ -719,6 +721,10 @@ pub(super) fn reserve_function(
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
             | Type::ForeignHandle
             | Type::CWideString
             | Type::ByteBuffer

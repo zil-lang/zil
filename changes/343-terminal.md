@@ -216,6 +216,9 @@ nested aggregate/array signature types and long type/global/function/operand
 names; its N/N−1/fresh-N boundary is 257884. This is machine-level accounting
 evidence, separate from the source-to-native SABI tests.
 
+## 集成 Float×Task 的固定原子身份计费
+
+Task machine identity walker 在与 Float 实现合并时显式处理 F32/F64 类型及原始位常量；这些固定大小原子仍由每节点16费用覆盖，不增加默认额度，不跳过Hash前预付。原字节/类型/长名累积反例及N−1门保持。
 ## Returned same-thread Registration construction
 
 The first retained route uses the existing explicit unsafe Register/Close roles:
@@ -280,6 +283,15 @@ This is a bounded same-thread StrongClose milestone, not task343 completion.
 Owned Suspend child frames, PendingExit responsibility, stable waker roots,
 asynchronous no-future/drain, general Mutex<T>/Guard/Transfer/Share and native
 Windows remain continuation work under the parent task.
+
+Integration with the current integer/float and borrowed-code-pointer types keeps
+ClosedEnvironment structural: stored u64/usize/f32/f64 and static borrowed
+function pointers contain no external data loan. A pointer's invocation signature
+is still validated by the ordinary signature/lifetime walkers; captured actual
+Address/Desc/Slice positions still reject. The split recursive Types dispatch is
+preserved. The combined generic_regressions target passes all 52 tests, including
+registration native success/failure/close paths and existing Task/synchronization.
+This is limited integration validation, not terminal or full-workspace acceptance.
 
 ### Static Suspend children and the owning continuation framework
 
@@ -466,3 +478,8 @@ kind and all ordinary source/root/operation checks. No schema, access grant or
 general Transfer/Share claim follows. The regression must exercise both cell
 kinds through imported public helpers, both native backends, and distinguish
 their signature identities when names and remaining signatures are the same.
+Root Wire37 integration preserves the current UInt/Float/BFP/Registration and
+split recursive dispatch paths. Combined generic_regressions59/0 and IR lib61/0
+pass, including actual static child/C SABI/native failure and retained Registration
+composition. Higher-rank life transport remains temporarily fail-closed until
+corrected342 proof consumers are composed; no source role is silently erased.

@@ -1,4 +1,4 @@
-// Vec-based schema34 reference extended from the retained schema32 reference.
+// Independent Vec-based current TypedV37 reference; callable contract domain5.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +32,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V34\0"
+        b"ZIL-TYPED-MODULE-V37\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -115,6 +115,40 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
+        Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
+        Type::TaskI32 => b.push(33),
+        Type::Registration { environment } => {
+            b.push(32);
+            encode_type(b, environment);
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            b.push(31);
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for index in &life.parameter_lives {
+                b.push(u8::from(index.is_some()));
+                if let Some(index) = index {
+                    encode_u32(b, *index);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(index) = life.result_life {
+                encode_u32(b, index);
+            }
+            encode_len(b, parameters.len());
+            for ty in parameters {
+                encode_type(b, ty);
+            }
+            encode_type(b, result);
+        }
         Type::OwnedStore { element } => {
             b.push(25);
             encode_type(b, element);
@@ -221,6 +255,18 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     if v32 {
+        b.push(match f.call_kind {
+            CallKind::Direct => 0,
+            CallKind::Suspend => 1,
+        });
+    } else {
+        assert_eq!(
+            f.call_kind,
+            CallKind::Direct,
+            "schema31 cannot represent Suspend selection"
+        );
+    }
+    if v32 {
         b.push(u8::from(f.reference_return_bound.is_some()));
         if let Some(bound) = &f.reference_return_bound {
             encode_len(b, bound.len());
@@ -240,7 +286,7 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
     }
     b.push(u8::from(f.callable_contract.is_some()));
     if let Some(contract) = &f.callable_contract {
-        encode_callable_contract(b, contract);
+        encode_callable_contract(b, contract, v32);
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
@@ -338,6 +384,18 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
             b.push(5);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U64(v) | Constant::Usize(v) | Constant::F64(v) => {
+            b.push(match c {
+                Constant::U64(_) => 9,
+                Constant::Usize(_) => 10,
+                _ => 12,
+            });
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::F32(v) => {
+            b.push(11);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
         Constant::NullHandle => b.push(6),
         Constant::NullWideString => b.push(7),
         Constant::WideString(units) => {
@@ -359,6 +417,205 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            assert!(v32, "schema31 cannot represent floating conversions");
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            assert!(v32, "schema31 cannot represent sync cells");
+            b.extend_from_slice(&[96, *kind as u8]);
+            encode_u32(b, initial.0);
+            encode_u32(b, body.0);
+        }
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            assert!(v32, "schema31 cannot represent sync operations");
+            b.extend_from_slice(&[97, *op as u8]);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
+        }
+        InstructionKind::SuspendCall {
+            function,
+            arguments,
+        } => {
+            assert!(v32, "schema31 cannot represent Suspend child calls");
+            b.push(125);
+            encode_u32(b, function.0);
+            encode_len(b, arguments.len());
+            for argument in arguments {
+                encode_u32(b, argument.0);
+            }
+        }
+        InstructionKind::TaskStart { worker, argument } => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(99);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+        }
+        InstructionKind::RegistrationStart {
+            register,
+            close,
+            callback,
+            region,
+        } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(111);
+            encode_u32(b, register.0);
+            encode_u32(b, close.0);
+            encode_u32(b, callback.0);
+            encode_u32(b, *region);
+        }
+        InstructionKind::RegistrationValid { registration } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(112);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::RegistrationClose { registration } => {
+            assert!(v32, "schema31 cannot represent retained registration");
+            b.push(113);
+            encode_u32(b, registration.0);
+        }
+        InstructionKind::TaskYield => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(100);
+        }
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(match i {
+                InstructionKind::TaskValid { .. } => 101,
+                InstructionKind::TaskPoll { .. } => 102,
+                InstructionKind::TaskRequestCancel { .. } => 103,
+                InstructionKind::TaskPollClose { .. } => 104,
+                _ => 105,
+            });
+            encode_u32(b, task.0);
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            assert!(v32, "schema31 cannot represent local variant loans");
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            assert!(v32, "schema31 cannot represent addressed variants");
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::DescribeAddress { address } => {
+            assert!(v32, "schema31 cannot represent actual head descriptions");
+            b.push(109);
+            encode_u32(b, address.0);
+        }
+        InstructionKind::MakeOwnedTuple { fields } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(114);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(115);
+            encode_u32(b, local.0);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropTuple { local } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(116);
+            encode_u32(b, local.0);
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path }
+        | InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => {
+            assert!(v32, "schema31 cannot represent partial owning paths");
+            b.push(match i {
+                InstructionKind::TakeTupleField { .. } => 117,
+                InstructionKind::TakeVariantField { .. } => 118,
+                InstructionKind::BorrowPlaceLocal { .. } => 119,
+                _ => 120,
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(error) => {
+                        b.push(2);
+                        b.push(u8::from(*error));
+                    }
+                }
+            }
+            if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            assert!(v32, "schema31 cannot represent actual local field loans");
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for index in path {
+                encode_u32(b, *index);
+            }
+            b.push(u8::from(*mutable));
+        }
         InstructionKind::WithScopedThread {
             worker,
             argument,
@@ -943,8 +1200,8 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-4\0".to_vec();
-    encode_callable_contract(&mut bytes, contract);
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    encode_callable_contract(&mut bytes, contract, true);
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
@@ -978,12 +1235,34 @@ fn callable_kind_tag(kind: CallableKind) -> u8 {
         CallableKind::FnOnce => 3,
     }
 }
-fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract) {
+fn encode_callable_contract(b: &mut Vec<u8>, c: &CallableParameterContract, current: bool) {
     encode_len(b, c.roles.len());
     for role in &c.roles {
         encode_u32(b, role.parameter);
         encode_u32(b, role.closure.0);
         b.push(callable_kind_tag(role.kind));
+        if current {
+            b.push(u8::from(role.life.is_some()));
+            if let Some(life) = &role.life {
+                encode_u32(b, life.binder_count);
+                encode_len(b, life.parameter_lives.len());
+                for tag in &life.parameter_lives {
+                    b.push(u8::from(tag.is_some()));
+                    if let Some(tag) = tag {
+                        encode_u32(b, *tag);
+                    }
+                }
+                b.push(u8::from(life.result_life.is_some()));
+                if let Some(tag) = life.result_life {
+                    encode_u32(b, tag);
+                }
+            }
+        } else {
+            assert!(
+                role.life.is_none(),
+                "schema31 cannot represent invocation-local role life"
+            );
+        }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());
             for index in indices {

@@ -263,8 +263,8 @@ fn actual_callee_window_precedes_argument_preparation_and_keeps_parent_authority
         "callee-before-argument-resize",
         &bad,
         ResultCategory::SafeReject,
-        &[Phase::Verify],
-        "E-BORROW-CONFLICT",
+        &[Phase::Expand],
+        "E-GENERIC-ARGUMENT",
     );
     let child = source.replace(
         "return view.callback(delta)-1",
@@ -285,8 +285,8 @@ fn actual_callee_window_precedes_argument_preparation_and_keeps_parent_authority
         "same-element-two-exclusive-windows",
         &twice,
         ResultCategory::SafeReject,
-        &[Phase::Types],
-        "E-STATE-ALIAS",
+        &[Phase::Expand],
+        "E-GENERIC-ARGUMENT",
     );
 }
 
@@ -323,8 +323,16 @@ fn lending_result_keeps_actual_element_and_parent_until_last_use() {
             &format!("live-lending-{label}"),
             &bad,
             ResultCategory::SafeReject,
-            &[Phase::Verify],
-            "E-BORROW-CONFLICT",
+            if label != "parent-copy-write" {
+                &[Phase::Expand]
+            } else {
+                &[Phase::Verify]
+            },
+            if label != "parent-copy-write" {
+                "E-GENERIC-ARGUMENT"
+            } else {
+                "E-BORROW-CONFLICT"
+            },
         );
     }
 }

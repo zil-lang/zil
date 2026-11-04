@@ -2,11 +2,30 @@
 //! the ordinary static collector, Types, Analyze and independent Verify.
 use super::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug)]
 pub(crate) struct Key {
     pub declaration: Span,
     pub name: String,
     pub arguments: Vec<String>,
+}
+// `name` is the unique declaration symbol registered by the actual input
+// module normalizer, including its module qualification. Source coordinates
+// remain diagnostic data and never participate in semantic equality or hashing.
+impl PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name && self.arguments == other.arguments
+    }
+}
+impl Eq for Key {}
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Key {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (&self.name, &self.arguments).cmp(&(&other.name, &other.arguments))
+    }
 }
 #[derive(Clone, Debug)]
 pub(crate) struct Reference {
@@ -19,6 +38,16 @@ pub(crate) enum Bound {
     StoreElement,
     Nominal(Reference),
 }
+impl PartialEq for Bound {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Copy, Self::Copy) | (Self::StoreElement, Self::StoreElement) => true,
+            (Self::Nominal(a), Self::Nominal(b)) => a.key == b.key,
+            _ => false,
+        }
+    }
+}
+impl Eq for Bound {}
 impl PartialEq<str> for Bound {
     fn eq(&self, other: &str) -> bool {
         matches!(
@@ -32,7 +61,13 @@ impl PartialEq<&str> for Bound {
         self == *other
     }
 }
-pub(crate) type Calls = BTreeMap<String, BTreeMap<Span, String>>;
+pub(crate) struct CallTarget {
+    pub reference: Reference,
+    pub member: String,
+    pub generic: bool,
+}
+pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
+pub(crate) type Calls = BTreeMap<String, CallTargets>;
 pub(crate) fn remaining(budget: &Budget<'_>) -> Limits {
     budget.remaining_limits()
 }
@@ -40,10 +75,9 @@ pub(crate) fn remaining(budget: &Budget<'_>) -> Limits {
 pub(crate) struct ConcreteSignature {
     pub key: Key,
     pub host: String,
-    pub declaration: Span,
     pub method: Function,
 }
-pub(crate) type Signatures = BTreeMap<(Span, Span), ConcreteSignature>;
+pub(crate) type Signatures = BTreeMap<(Key, String, String), ConcreteSignature>;
 pub(crate) fn copy_key(key: &Key, budget: &mut Budget<'_>, span: Span) -> R<Key> {
     budget.text(&key.name, span)?;
     for arg in &key.arguments {
@@ -107,18 +141,25 @@ pub(crate) fn method_name(
     budget: &mut Budget<'_>,
     span: Span,
 ) -> R<String> {
-    if reference.arguments.is_empty() {
+    method_name_with(reference, method, false, budget, span)
+}
+pub(crate) fn method_name_with(
+    reference: &Reference,
+    method: &str,
+    generic: bool,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<String> {
+    if reference.arguments.is_empty() && !generic {
         budget.text(method, span)?;
         return Ok(method.to_owned());
     }
     use zil_base::FingerprintBuilder;
     budget.text(&reference.key.name, span)?;
     let mut hash = FingerprintBuilder::new();
-    hash.update(b"zil/trait-instance-method/v1\0");
+    hash.update(b"zil/trait-instance-method/v2\0");
+    hash.update(&(reference.key.name.len() as u64).to_le_bytes());
     hash.update(reference.key.name.as_bytes());
-    hash.update(&(reference.key.declaration.file.0).to_le_bytes());
-    hash.update(&(reference.key.declaration.start as u64).to_le_bytes());
-    hash.update(&(reference.key.declaration.end as u64).to_le_bytes());
     for key in &reference.key.arguments {
         budget.text(key, span)?;
         hash.update(&(key.len() as u64).to_le_bytes());
@@ -158,14 +199,28 @@ pub(crate) fn signature<'a>(
     }
     budget.substituted_item(member, &substitutions)?;
     let mut result = method.clone();
-    let visitor = Substitution {
-        substitutions: &substitutions,
-    };
-    for p in &mut result.params {
-        visitor.ty(&mut p.ty);
-    }
-    if let Some(t) = &mut result.return_type {
-        visitor.ty(t);
+    if method.generics.is_empty() && method.where_clause.is_empty() {
+        let visitor = Substitution {
+            substitutions: &substitutions,
+        };
+        for parameter in &mut result.params {
+            visitor.ty(&mut parameter.ty);
+        }
+        if let Some(ty) = &mut result.return_type {
+            visitor.ty(ty);
+        }
+    } else {
+        let mut item = Item {
+            span: member.span,
+            public: false,
+            attributes: vec![],
+            kind: ItemKind::Function(result),
+        };
+        substitute_item(&mut item, &substitutions)?;
+        let ItemKind::Function(function) = item.kind else {
+            unreachable!()
+        };
+        result = function;
     }
     Ok(Cow::Owned(result))
 }
@@ -180,9 +235,6 @@ pub(crate) fn validate_declaration(
             item.span,
             "built-in capability traits cannot be redeclared",
         ));
-    }
-    if !declaration.bounds.is_empty() {
-        return Err(unsupported(item.span, "supertraits require their solver"));
     }
     let mut variables = BTreeSet::from(["Self".to_owned()]);
     for parameter in &declaration.generics {
@@ -207,33 +259,110 @@ pub(crate) fn validate_declaration(
             }
         }
     }
+    let mut members = BTreeSet::new();
     for member in &declaration.members {
         budget.node(member.span, 0)?;
+        let member_name = match &member.kind {
+            ItemKind::Function(f) => Some(f.name.as_str()),
+            ItemKind::TypeAlias(a) => Some(a.name.as_str()),
+            ItemKind::Const(c) => Some(c.name.as_str()),
+            _ => None,
+        };
+        if let Some(name) = member_name {
+            budget.text(name, member.span)?;
+            if !members.insert(name) {
+                return Err(error(member.span, "duplicate trait member"));
+            }
+        }
+        if let ItemKind::TypeAlias(alias) = &member.kind {
+            if !alias.generics.is_empty() || !member.attributes.is_empty() {
+                return Err(unsupported(
+                    member.span,
+                    "generic or attributed associated type",
+                ));
+            }
+            if let Some(value) = &alias.value {
+                known_type(value, &variables, nominals, budget, 0)?;
+            }
+            for bound in &alias.bounds {
+                budget.ty(bound)?;
+            }
+            continue;
+        }
         let ItemKind::Function(method) = &member.kind else {
+            if let ItemKind::Const(constant) = &member.kind {
+                if !member.attributes.is_empty() {
+                    return Err(unsupported(member.span, "associated constant attributes"));
+                }
+                let ty = constant.ty.as_ref().ok_or_else(|| {
+                    error(member.span, "associated constant requires a declared type")
+                })?;
+                known_type(ty, &variables, nominals, budget, 0)?;
+                continue;
+            }
             return Err(unsupported(
                 member.span,
                 "associated trait items require their solver",
             ));
         };
-        if !method.generics.is_empty()
-            || !method.where_clause.is_empty()
-            || !method.contract.is_empty()
-        {
+        if !method.contract.is_empty() {
             return Err(unsupported(
                 member.span,
                 "generic or contract-bearing trait method",
             ));
         }
-        for parameter in &method.params {
-            known_type(&parameter.ty, &variables, nominals, budget, 0)?;
+        let mut method_variables = Cow::Borrowed(&variables);
+        for parameter in &method.generics {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            match &parameter.kind {
+                GenericParamKind::Type(bounds) => {
+                    if matches!(method_variables, Cow::Borrowed(_)) {
+                        for name in &variables {
+                            budget.text(name, member.span)?;
+                        }
+                    }
+                    if !method_variables.to_mut().insert(parameter.name.clone()) {
+                        return Err(error(parameter.span, "duplicate method type binder"));
+                    }
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                    }
+                }
+                GenericParamKind::Const(ty) => {
+                    consts::domain(ty)?;
+                    budget.ty(ty)?;
+                }
+                GenericParamKind::Lifetime => {}
+            }
+        }
+        if !method.generics.is_empty()
+            && let Some(receiver) = method.params.first().filter(|p| p.name == "self")
+        {
+            budget.ty(&receiver.ty)?;
+            if receiver.give || !super::super::static_traits::receiver_type(&receiver.ty) {
+                return Err(error(
+                    receiver.span,
+                    "trait receiver requires Self, &Self or &mut Self",
+                ));
+            }
+        }
+        for (index, parameter) in method.params.iter().enumerate() {
+            if !method.generics.is_empty() && index > 0 && parameter.name == "self" {
+                return Err(error(
+                    parameter.span,
+                    "trait receiver must be parameter zero",
+                ));
+            }
+            known_type(&parameter.ty, &method_variables, nominals, budget, 0)?;
         }
         if let Some(result) = &method.return_type {
-            known_type(result, &variables, nominals, budget, 0)?;
+            known_type(result, &method_variables, nominals, budget, 0)?;
         }
     }
     Ok(())
 }
-fn known_type(
+pub(crate) fn known_type(
     ty: &TypeRef,
     variables: &BTreeSet<String>,
     nominals: &BTreeMap<String, &Item>,
@@ -244,6 +373,18 @@ fn known_type(
     match &ty.kind {
         TypeKind::Named { path, args } => {
             budget.ty(ty)?;
+            if let Some((_, host, application)) = trait_bounds::associated::parts(ty) {
+                known_type(host, variables, nominals, budget, depth + 1)?;
+                let TypeKind::Named { args, .. } = &application.kind else {
+                    unreachable!()
+                };
+                for argument in args {
+                    if let GenericArg::Type(argument) = argument {
+                        known_type(argument, variables, nominals, budget, depth + 1)?;
+                    }
+                }
+                return Ok(());
+            }
             if path.len() != 1 {
                 return Err(error(
                     ty.span,
@@ -258,8 +399,12 @@ fn known_type(
                         | "bool"
                         | "u8"
                         | "u16"
+                        | "u64"
+                        | "usize"
                         | "i32"
                         | "i64"
+                        | "f32"
+                        | "f64"
                         | "c_handle"
                         | "c_wstr"
                         | "ByteBuffer"
@@ -332,14 +477,131 @@ fn known_type(
     Ok(())
 }
 
+/// Expression identities belong to one immutable declaration, in deterministic
+/// structural traversal order. Addresses are only a temporary lookup into that
+/// declaration; source coordinates never select a dispatch target.
+pub(crate) fn expression_ids(
+    body: &FunctionBody,
+    budget: &mut Budget<'_>,
+) -> R<BTreeMap<usize, usize>> {
+    use super::super::ct_selection::Visitor;
+    struct Ordinals<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+        ids: BTreeMap<usize, usize>,
+    }
+    impl Visitor for Ordinals<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+            self.node(expression.span, depth)?;
+            self.ids
+                .insert(expression as *const Expr as usize, self.ids.len());
+            super::super::ct_selection::walk_expression(self, expression, depth)
+        }
+    }
+    let mut visitor = Ordinals {
+        budget,
+        ids: BTreeMap::new(),
+    };
+    match body {
+        FunctionBody::Block(block) => visitor.block(block, 0),
+        FunctionBody::Expression(expression) => visitor.expression(expression, 0),
+        FunctionBody::Declaration => Ok(()),
+    }
+    .map_err(|mut e| e.remove(0))?;
+    Ok(visitor.ids)
+}
+
+pub(crate) fn resolve_generic_calls(
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<CallTargets> {
+    let mut resolved = BTreeMap::new();
+    for (ordinal, target) in symbolic {
+        budget.node(span, 0)?;
+        if !target.generic {
+            continue;
+        }
+        let mut reference = Reference {
+            key: copy_key(&target.reference.key, budget, span)?,
+            arguments: Vec::new(),
+        };
+        reference.key.arguments.clear();
+        for argument in &target.reference.arguments {
+            let argument = super::enums::substituted(argument, substitutions, budget)?;
+            reference.key.arguments.push(type_key(&argument, budget)?);
+            reference.arguments.push(argument);
+        }
+        budget.text(&target.member, span)?;
+        resolved.insert(
+            *ordinal,
+            CallTarget {
+                reference,
+                member: target.member.clone(),
+                generic: true,
+            },
+        );
+    }
+    Ok(resolved)
+}
+
 pub(crate) fn rewrite_calls(
     item: &mut Item,
-    calls: &BTreeMap<Span, String>,
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let mut resolved = BTreeMap::new();
+    for (ordinal, target) in symbolic {
+        budget.node(item.span, 0)?;
+        let mut reference = Reference {
+            key: copy_key(&target.reference.key, budget, item.span)?,
+            arguments: Vec::new(),
+        };
+        reference.key.arguments.clear();
+        for argument in &target.reference.arguments {
+            budget.substituted_type(argument, substitutions)?;
+            let mut argument = argument.clone();
+            Substitution { substitutions }.ty(&mut argument);
+            reference.key.arguments.push(type_key(&argument, budget)?);
+            reference.arguments.push(argument);
+        }
+        let name = method_name_with(
+            &reference,
+            &target.member,
+            target.generic,
+            budget,
+            item.span,
+        )?;
+        resolved.insert(*ordinal, name);
+    }
+    rewrite_resolved_calls(item, &resolved, budget)
+}
+fn rewrite_resolved_calls(
+    item: &mut Item,
+    calls: &BTreeMap<usize, String>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
     use super::super::ct_selection::Visitor;
+    let ids = if calls.is_empty() {
+        BTreeMap::new()
+    } else if let ItemKind::Function(function) = &item.kind {
+        expression_ids(&function.body, budget)?
+    } else {
+        return Err(error(
+            item.span,
+            "trait call rewrite requires a function declaration",
+        ));
+    };
     struct Prepay<'a, 'b, 'l> {
-        calls: &'a BTreeMap<Span, String>,
+        calls: &'a BTreeMap<usize, String>,
+        ids: &'a BTreeMap<usize, usize>,
         budget: &'b mut Budget<'l>,
     }
     impl Visitor for Prepay<'_, '_, '_> {
@@ -351,18 +613,24 @@ pub(crate) fn rewrite_calls(
         }
         fn expression(&mut self, e: &Expr, depth: usize) -> CompileResult<()> {
             if let ExprKind::Member { object, .. } = &e.kind
-                && let Some(target) = self.calls.get(&object.span)
+                && let Some(ordinal) = self.ids.get(&(&**object as *const Expr as usize))
+                && let Some(target) = self.calls.get(ordinal)
             {
                 self.text(target, e.span)?;
             }
             super::super::ct_selection::walk_expression(self, e, depth)
         }
     }
-    Prepay { calls, budget }
-        .item(item, 0)
-        .map_err(|mut e| e.remove(0))?;
+    Prepay {
+        calls,
+        ids: &ids,
+        budget,
+    }
+    .item(item, 0)
+    .map_err(|mut e| e.remove(0))?;
     let visitor = CallRewrite {
         calls,
+        ids: &ids,
         receiver: None,
     };
     if let ItemKind::Function(f) = &mut item.kind {
@@ -375,7 +643,8 @@ pub(crate) fn rewrite_calls(
     Ok(())
 }
 struct CallRewrite<'a> {
-    calls: &'a BTreeMap<Span, String>,
+    calls: &'a BTreeMap<usize, String>,
+    ids: &'a BTreeMap<usize, usize>,
     receiver: Option<&'a str>,
 }
 
@@ -401,6 +670,7 @@ pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) 
     let empty = BTreeMap::new();
     let visitor = CallRewrite {
         calls: &empty,
+        ids: &BTreeMap::new(),
         receiver: Some(NAME),
     };
     if let ItemKind::Function(function) = &mut item.kind {
@@ -492,7 +762,8 @@ impl CallRewrite<'_> {
             object,
             member: MemberName::Name(name) | MemberName::Constrained { name, .. },
         } = &mut e.kind
-            && let Some(target) = self.calls.get(&object.span)
+            && let Some(ordinal) = self.ids.get(&(&**object as *const Expr as usize))
+            && let Some(target) = self.calls.get(ordinal)
         {
             name.clone_from(target);
         }
@@ -642,6 +913,8 @@ mod trait_request_ledger {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine_products,
+            false, // This retained source fixture has no associated declarations.
+            false, // No generic methods in this retained source fixture.
         )
         .unwrap();
         let engine_left = engine_products.allowance.unwrap();

@@ -451,7 +451,7 @@
       "state": "ContractToImplement",
       "schema_version": 3,
       "domains": "artifact/provider/dependencies and standalone function/value v3; old v2 rejected",
-      "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTy)|Scalar(Constant)> in complete declaration order including phantom/const",
+      "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTypeRef)|Scalar(Constant)> in complete declaration order including phantom/const; canonical bounded full type DAG preserves callable/life metadata, while actual fields/values retain CtTy pure-value eligibility and no runtime pointer value or authority",
       "transport": "CtTy::AnonymousSum tag16, CtValue::AnonymousSum{members,active,payload} tag16, MakeAnonymousSum opcode37",
       "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
     },

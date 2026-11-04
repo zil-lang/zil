@@ -82,10 +82,16 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         let owning_signature = (owning_result || owning_parameters)
             && complete_parameters
             && (closure.result.is_copy_value() || owning_result);
+        let invocation_signature = closure.lending_captures.is_empty()
+            && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
+            && closure
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Type::Address { .. }));
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -108,7 +114,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             })
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
-                    || (closure.result.is_copy_value()
+                    || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {
@@ -184,7 +190,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 && !concrete_closure
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-                && !ty.is_shared_resource_head_address()
+                && !resource_head_address(ty)
                 && !ty.is_exclusive_task_head_address()
                 && !ty.is_package_address()
                 && !resource_type(ty, &module.resources)
@@ -215,6 +221,10 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         closures: &module.closures,
         layouts: std::borrow::Cow::Owned(scalar_layouts()),
     })
+}
+
+fn resource_head_address(ty: &Type) -> bool {
+    matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
 
 fn resource_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
@@ -357,6 +367,16 @@ pub fn scalar_layouts() -> Vec<ScalarLayout> {
         },
         ScalarLayout {
             ty: Type::I64,
+            size: 8,
+            alignment: 8,
+        },
+        ScalarLayout {
+            ty: Type::F32,
+            size: 4,
+            alignment: 4,
+        },
+        ScalarLayout {
+            ty: Type::F64,
             size: 8,
             alignment: 8,
         },
@@ -541,6 +561,8 @@ mod tests {
             vec![
                 (0, 1),
                 (1, 1),
+                (4, 4),
+                (8, 8),
                 (4, 4),
                 (8, 8),
                 (1, 1),

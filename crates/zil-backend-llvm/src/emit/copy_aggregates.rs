@@ -205,6 +205,9 @@ pub(super) fn reserve_enum_metadata(
             reserve_enum_metadata(result, work, depth + 1, limits)?;
         }
         Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        }
         | Type::ForeignCallback { parameters, result } => {
             for parameter in parameters {
                 reserve_enum_metadata(parameter, work, depth + 1, limits)?;
@@ -260,6 +263,9 @@ pub(super) fn reserve(
             reserve(result, work, depth + 1, limits)?;
         }
         Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        }
         | Type::ForeignCallback { parameters, result } => {
             for parameter in parameters {
                 reserve(parameter, work, depth + 1, limits)?;
@@ -321,6 +327,8 @@ fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
             let bytes = u64::from(*bits).div_ceil(8);
             (bytes, bytes.next_power_of_two().min(8) as u32)
         }
+        m::Ty::F32 => (4, 4),
+        m::Ty::F64 => (8, 8),
         m::Ty::Ptr => (8, 8),
         m::Ty::Array(length, element) => {
             let (bytes, align) = layout(element)?;

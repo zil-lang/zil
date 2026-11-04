@@ -10,6 +10,8 @@ mod factory;
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub source_definition: Option<&'a Function>,
+    pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
     pub nominals: &'a BTreeMap<String, &'l Item>,
     pub enums: &'a BTreeMap<String, &'l EnumDecl>,
     pub signatures: &'a BTreeMap<String, Cow<'l, Function>>,
@@ -37,6 +39,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        source_definition,
+        definition_equations,
         nominals,
         enums,
         signatures,
@@ -49,7 +53,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     // separately checked against actual parameter origins below.
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
-    let callable = callable::template(function)?;
+    let callable = callable::template(function, budget)?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
@@ -65,9 +69,25 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             return Err(error(p.span, "duplicate generic function parameter"));
         }
         type_key(&p.ty, budget)?;
+        if matches!(&group(&p.ty).kind, TypeKind::Reference { inner, .. }
+            if matches!(group(inner).kind, TypeKind::Reference { .. }))
+        {
+            return Err(unsupported(
+                p.span,
+                "nested generic addresses are not supported",
+            ));
+        }
         super::super::foreign::callback_type_tree(&p.ty, &variables, budget, 0)?;
     }
     if let Some(t) = &function.return_type {
+        if matches!(&group(t).kind, TypeKind::Reference { inner, .. }
+            if matches!(group(inner).kind, TypeKind::Reference { .. }))
+        {
+            return Err(unsupported(
+                t.span,
+                "nested generic addresses are not supported",
+            ));
+        }
         if owned_factory {
             budget.ty(t)?;
         } else {
@@ -79,18 +99,30 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
+    let expression_ids = if traits.has_instances {
+        trait_instances::expression_ids(&function.body, budget)?
+    } else {
+        BTreeMap::new()
+    };
+    let higher_rank = callable
+        .as_ref()
+        .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        higher_rank,
         variables,
         definition_bound_context,
         callable,
         owned_dispatch,
         definition: &function.name,
+        source_definition: source_definition.unwrap_or(function),
+        definition_equations,
         dependencies,
         bounds: match supplied_bounds {
             Some(bounds) => bounds,
             None => traits.bounds(function, budget)?,
         },
         trait_calls,
+        expression_ids,
         traits,
         next_local: function.params.len(),
         enum_resource_flow: false,
@@ -116,6 +148,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         pattern_types,
         result_mode: stores::result_mode(function)?,
         life_allowed: None,
+        life_mutable_inputs: BTreeSet::new(),
         result: function
             .return_type
             .clone()
@@ -135,13 +168,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .chain(function.return_type.iter())
         {
             check.budget.node(ty.span, 0)?;
-            if let TypeKind::Reference { mutable, inner, .. } = &group(ty).kind {
-                if *mutable {
-                    return Err(unsupported(
-                        ty.span,
-                        "mixed type and life headers require shared addresses",
-                    ));
-                }
+            if let TypeKind::Reference { inner, .. } = &group(ty).kind {
                 let pointee = match &group(inner).kind {
                     TypeKind::Array {
                         element,
@@ -162,17 +189,29 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             let mut allowed = BTreeSet::new();
             for (index, parameter) in function.params.iter().enumerate() {
                 check.budget.node(parameter.span, 0)?;
-                if matches!(
-                    group(&parameter.ty).kind,
-                    TypeKind::Reference { mutable: false, .. }
-                ) && life
-                    .result_life
-                    .is_none_or(|tag| life.parameter_lives[index] == Some(tag))
+                if matches!(group(&parameter.ty).kind, TypeKind::Reference { .. })
+                    && life
+                        .result_life
+                        .is_none_or(|tag| life.parameter_lives[index] == Some(tag))
                 {
                     allowed.insert(index);
                 }
             }
             check.life_allowed = Some(allowed);
+            if matches!(
+                group(&check.result).kind,
+                TypeKind::Reference { mutable: true, .. }
+            ) {
+                for (index, parameter) in function.params.iter().enumerate() {
+                    check.budget.node(parameter.span, 0)?;
+                    if matches!(
+                        group(&parameter.ty).kind,
+                        TypeKind::Reference { mutable: true, .. }
+                    ) {
+                        check.life_mutable_inputs.insert(index);
+                    }
+                }
+            }
         }
     }
     // Mixed Copy-T templates can disappear without a concrete instantiation.
@@ -272,11 +311,15 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         life_origins: BTreeMap::new(),
     };
     for (id, parameter) in function.params.iter().enumerate() {
+        if let TypeKind::Reference { mutable, .. } = &group(&parameter.ty).kind {
+            check.alias_parameter(&mut state, id, *mutable, parameter.span)?;
+        } else if !parameter.give
+            && (stores::element(&parameter.ty).is_some() || check.declared_resource(&parameter.ty))
+        {
+            check.alias_parameter(&mut state, id, true, parameter.span)?;
+        }
         if check.life_allowed.is_some()
-            && matches!(
-                group(&parameter.ty).kind,
-                TypeKind::Reference { mutable: false, .. }
-            )
+            && matches!(group(&parameter.ty).kind, TypeKind::Reference { .. })
         {
             check.budget.node(parameter.span, 0)?;
             state.life_origins.insert(id, BTreeSet::from([id]));
@@ -415,6 +458,22 @@ pub(super) fn same_return(
             return Err(error(span, "error union payload matches both sides"));
         }
     }
+    if let TypeKind::Union(members) = &group(expected).kind {
+        fn matches(actual: &str, members: &[TypeRef], budget: &mut Budget<'_>) -> R<usize> {
+            let mut found = 0;
+            for member in members {
+                if let TypeKind::Union(nested) = &group(member).kind {
+                    found += matches(actual, nested, budget)?;
+                } else if actual == type_key(member, budget)? {
+                    found += 1;
+                }
+            }
+            Ok(found)
+        }
+        if matches(&actual_key, members, budget)? == 1 {
+            return Ok(());
+        }
+    }
     same(actual, expected, span, budget)
 }
 fn substituted_type(
@@ -427,8 +486,103 @@ fn substituted_type(
     Substitution { substitutions }.ty(&mut result);
     Ok(result)
 }
+/// Only floating literals can receive a floating format from the other operand.
+/// Group/unary inspection is metadata work, before either value is evaluated.
+pub(super) fn uncontextual_float(
+    expression: &Expr,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    match &expression.kind {
+        ExprKind::Literal(Literal::Float(text)) => {
+            Ok(!text.starts_with("@bits:") && !text.ends_with("f32") && !text.ends_with("f64"))
+        }
+        ExprKind::Group(inner)
+        | ExprKind::Unary {
+            op: UnaryOp::Negate,
+            operand: inner,
+        } => {
+            budget.node(expression.span, depth)?;
+            uncontextual_float(inner, budget, depth + 1)
+        }
+        _ => Ok(false),
+    }
+}
+pub(super) fn floating(ty: &TypeRef) -> bool {
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "f32" | "f64")))
+}
+fn checked_float(
+    text: &str,
+    expected: Option<&TypeRef>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    use zil_base::numeric::{FloatFormat, FloatValue};
+    if text.starts_with("@bits:") {
+        budget.numeric_work(text.len(), span)?;
+        let value = FloatValue::from_generated_spelling(text).map_err(|_| {
+            Diagnostic::error(
+                Phase::Expand,
+                "E-FLOAT-LITERAL",
+                Some(span),
+                "invalid generated floating bits",
+            )
+        })?;
+        let name = if value.format() == FloatFormat::F32 {
+            "f32"
+        } else {
+            "f64"
+        };
+        if let Some(expected) = expected.filter(|ty| floating(ty))
+            && !matches!(&group(expected).kind, TypeKind::Named { path, .. } if path.as_slice() == [name])
+        {
+            return Err(error(
+                span,
+                "generated floating format differs from expected type",
+            ));
+        }
+        return Ok(named(name, span));
+    }
+    budget.numeric_work(zil_base::numeric::decimal_work(text.len()), span)?;
+    let suffix = ["f32", "f64"]
+        .into_iter()
+        .find(|suffix| text.ends_with(suffix));
+    let context = expected.filter(|ty| floating(ty));
+    if let (Some(suffix), Some(expected)) = (suffix, context)
+        && !matches!(&group(expected).kind, TypeKind::Named { path, .. } if path.as_slice() == [suffix])
+    {
+        return Err(error(span, "floating suffix differs from expected type"));
+    }
+    let ty = if let Some(suffix) = suffix {
+        named(suffix, span)
+    } else if let Some(expected) = context {
+        budget.ty(expected)?;
+        expected.clone()
+    } else {
+        named("f64", span)
+    };
+    let format = if matches!(&group(&ty).kind, TypeKind::Named { path, .. } if path.as_slice() == ["f32"])
+    {
+        FloatFormat::F32
+    } else {
+        FloatFormat::F64
+    };
+    let spelling = text
+        .strip_suffix("f32")
+        .or_else(|| text.strip_suffix("f64"))
+        .unwrap_or(text);
+    FloatValue::from_decimal(spelling, format).map_err(|_| {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-FLOAT-LITERAL",
+            Some(span),
+            "floating literal is invalid or overflows its finite format",
+        )
+    })?;
+    Ok(ty)
+}
 pub(super) fn integer(ty: &TypeRef) -> bool {
-    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "i32" | "i64")))
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u64" | "usize" | "i32" | "i64")))
 }
 // An unused template cannot erase an out-of-range literal or an explicit
 // suffix mismatch. Concrete instances still enter ordinary Types and Verify.
@@ -437,9 +591,10 @@ fn checked_integer(
     expected: Option<&TypeRef>,
     negative: bool,
     span: Span,
-) -> R<(TypeRef, i64)> {
+    pointer_width: u16,
+) -> R<(TypeRef, i128)> {
     let clean = text.replace('_', "");
-    let suffix = ["u8", "u16", "i32", "i64"]
+    let suffix = ["u8", "u16", "u64", "usize", "i32", "i64"]
         .into_iter()
         .find(|name| clean.ends_with(name));
     let expected_name = expected.and_then(|ty| match &group(ty).kind {
@@ -451,6 +606,8 @@ fn checked_integer(
     let name = suffix.unwrap_or(match expected_name {
         Some("u8") => "u8",
         Some("u16") => "u16",
+        Some("u64") => "u64",
+        Some("usize") => "usize",
         Some("i64") => "i64",
         _ => "i32",
     });
@@ -467,19 +624,25 @@ fn checked_integer(
     let value = i128::from_str_radix(digits, radix)
         .map_err(|_| error(span, "generic integer literal is invalid or too large"))?;
     let value = if negative { -value } else { value };
-    let value = match name {
-        "u8" => u8::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit u8"))?,
-        "u16" => u16::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit u16"))?,
-        "i32" => i32::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit i32"))?,
-        _ => i64::try_from(value)
-            .map_err(|_| error(span, "generic integer literal does not fit i64"))?,
+    let fits = match name {
+        "u8" => u8::try_from(value).is_ok(),
+        "u16" => u16::try_from(value).is_ok(),
+        "u64" => u64::try_from(value).is_ok(),
+        "usize" => match pointer_width {
+            32 => u32::try_from(value).is_ok(),
+            64 => u64::try_from(value).is_ok(),
+            _ => return Err(unsupported(span, "generic usize target width")),
+        },
+        "i32" => i32::try_from(value).is_ok(),
+        "i64" => i64::try_from(value).is_ok(),
+        _ => unreachable!(),
     };
+    if !fits {
+        return Err(error(
+            span,
+            format!("generic integer literal does not fit {name}"),
+        ));
+    }
     Ok((named(name, span), value))
 }
 fn boolean(ty: &TypeRef) -> bool {
@@ -502,7 +665,7 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {
             dependent(inner, vars)
         }
-        TypeKind::Tuple(ts) => ts.iter().any(|t| dependent(t, vars)),
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => ts.iter().any(|t| dependent(t, vars)),
         TypeKind::Array { element, .. } => dependent(element, vars),
         TypeKind::Error { error, result } => dependent(error, vars) || dependent(result, vars),
         TypeKind::Function { params, result }
@@ -527,7 +690,7 @@ fn known_copy(
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => {
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => {
             for t in ts {
                 if !known_copy(t, vars, nominals)? {
                     return Some(false);
@@ -595,14 +758,18 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    source_definition: &'s Function,
+    definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
     variables: BTreeSet<String>,
     definition_bound_context: bool,
     callable: Option<callable::CallableTemplates>,
+    higher_rank: bool,
     owned_dispatch: bool,
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
     trait_calls: &'b mut trait_instances::Calls,
+    expression_ids: BTreeMap<usize, usize>,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
@@ -629,6 +796,7 @@ struct Check<'s, 'b, 'l> {
     result: TypeRef,
     result_mode: zil_ir::PassingMode,
     life_allowed: Option<BTreeSet<usize>>,
+    life_mutable_inputs: BTreeSet<usize>,
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
@@ -657,7 +825,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
             ExprKind::Unary {
-                op: UnaryOp::Borrow,
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
             } => self.life_place(operand, state),
             ExprKind::If {
@@ -681,8 +849,52 @@ impl Check<'_, '_, '_> {
                     },
                     _ => None,
                 };
+                if self.higher_rank
+                    && let Some(local) = target.and_then(|name| state.locals.get(name))
+                    && let Some(scope) = &self.callable
+                {
+                    for bound in scope.bindings() {
+                        self.budget.text(&bound.generic_name, expression.span)?;
+                        self.budget.ty(&local.ty)?;
+                    }
+                }
+                if self.higher_rank
+                    && let Some(bound) =
+                        target
+                            .and_then(|name| state.locals.get(name))
+                            .and_then(|local| {
+                                self.callable.as_ref().and_then(|scope| {
+                                    scope.bindings().find(|bound| {
+                                        callable::parameter_mode(&local.ty, &bound.generic_name)
+                                            .is_some()
+                                    })
+                                })
+                            })
+                    && let Some(life) = &bound.life
+                {
+                    self.budget.node(expression.span, 0)?;
+                    let mut allowed = Vec::new();
+                    for (index, parameter) in bound.parameters.iter().enumerate() {
+                        self.budget.node(parameter.span, 0)?;
+                        if life.result_life.is_some()
+                            && life.parameter_lives[index] == life.result_life
+                            && matches!(group(parameter).kind,TypeKind::Reference{mutable,..}
+                                if !matches!(group(&bound.result).kind,TypeKind::Reference{mutable:true,..}) || mutable)
+                        {
+                            allowed.push(index);
+                        }
+                    }
+                    let mut roots = BTreeSet::new();
+                    for index in allowed {
+                        for root in self.life_expression(&arguments[index].value, state)? {
+                            self.budget.node(expression.span, 0)?;
+                            roots.insert(root);
+                        }
+                    }
+                    return Ok(roots);
+                }
                 let function = target.and_then(|name| self.signatures.get(name)).ok_or_else(||
-                    unsupported(expression.span, "generic shared return requires a static helper with an explicit life relation"))?;
+                    unsupported(expression.span, "generic borrowed return requires a static helper with an explicit life relation"))?;
                 self.budget.node(callee.span, 0)?;
                 self.budget.text(&function.name, callee.span)?;
                 let result = function.return_type.as_ref().map(group);
@@ -690,7 +902,7 @@ impl Check<'_, '_, '_> {
                     kind:
                         TypeKind::Reference {
                             lifetime: Some(result),
-                            mutable: false,
+                            mutable: result_mutable,
                             ..
                         },
                     ..
@@ -698,14 +910,15 @@ impl Check<'_, '_, '_> {
                 else {
                     return Err(unsupported(
                         expression.span,
-                        "generic shared forwarding requires an explicit callee return life",
+                        "generic borrowed forwarding requires an explicit callee return life",
                     ));
                 };
                 let mut roots = BTreeSet::new();
                 for (parameter, argument) in function.params.iter().zip(arguments) {
                     self.budget.node(parameter.span, 0)?;
                     self.budget.text(result, parameter.span)?;
-                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(name), mutable: false, .. } if name == result)
+                    if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(name), mutable: input_mutable, .. }
+                        if name == result && (!result_mutable || *input_mutable))
                     {
                         for root in self.life_expression(&argument.value, state)? {
                             self.budget.node(argument.span, 0)?;
@@ -717,7 +930,7 @@ impl Check<'_, '_, '_> {
             }
             _ => Err(unsupported(
                 expression.span,
-                "this generic shared reference expression needs additional symbolic origin checking",
+                "this generic reference expression needs additional symbolic origin checking",
             )),
         }
     }
@@ -1298,8 +1511,24 @@ impl Check<'_, '_, '_> {
                     Phase::Expand,
                     "E-LIFE-ORIGIN",
                     Some(expression.span),
-                    "generic return source is outside its declared shared input life set",
+                    "generic return source is outside its declared input life set",
                 ));
+            }
+            if matches!(
+                group(&self.result).kind,
+                TypeKind::Reference { mutable: true, .. }
+            ) {
+                for root in &roots {
+                    self.budget.node(expression.span, 0)?;
+                    if !self.life_mutable_inputs.contains(root) {
+                        return Err(Diagnostic::error(
+                            Phase::Expand,
+                            "E-LIFE-ORIGIN",
+                            Some(expression.span),
+                            "generic mutable return requires exclusive actual input authority",
+                        ));
+                    }
+                }
             }
         }
         // Capture the ownership facts before expression evaluation consumes
@@ -1314,6 +1543,9 @@ impl Check<'_, '_, '_> {
         let fresh = owns && self.fresh_store_expression(expression, state)?;
         let expected = self.result.clone();
         let actual = self.expr(expression, state, Some(&expected), false)?;
+        if matches!(group(&actual).kind, TypeKind::Reference { .. }) {
+            self.alias_return(state, expression.span)?;
+        }
         if self
             .callable
             .as_ref()
@@ -1757,10 +1989,22 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, span)?;
-                Ok(["u8", "u16", "i32", "i64"]
+                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
                     .or(default_integer.then_some("i32"))
+                    .map(|suffix| named(suffix, span)))
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                self.budget.text(text, span)?;
+                Ok(["f32", "f64"]
+                    .into_iter()
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
+                    .or(default_integer.then_some("f64"))
                     .map(|suffix| named(suffix, span)))
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(Some(named("bool", span))),
@@ -2065,6 +2309,7 @@ impl Check<'_, '_, '_> {
         state: &mut State,
         parameter: &TypeRef,
         expected: Option<&TypeRef>,
+        index: usize,
     ) -> R<TypeRef> {
         let TypeKind::Reference { mutable, .. } = &group(parameter).kind else {
             return self.expr(expression, state, expected, false);
@@ -2093,8 +2338,44 @@ impl Check<'_, '_, '_> {
             unreachable!()
         };
         *mode = *mutable;
-        self.alias_hold_result(state, *mutable, expression.span)?;
+        self.alias_hold_result(state, *mutable, expression.span, Some(index))?;
         Ok(actual)
+    }
+
+    fn method_argument_hint(
+        &mut self,
+        expression: &Expr,
+        state: &State,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.budget.node(expression.span, depth)?;
+        match &expression.kind {
+            ExprKind::Group(inner) => self.method_argument_hint(inner, state, depth + 1),
+            ExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                operand,
+            } => {
+                let Some(inner) = self.value_hint(operand, state, depth + 1, true)? else {
+                    return Ok(None);
+                };
+                self.budget.node(expression.span, depth)?;
+                Ok(Some(TypeRef {
+                    span: expression.span,
+                    kind: TypeKind::Reference {
+                        lifetime: None,
+                        mutable: matches!(
+                            &expression.kind,
+                            ExprKind::Unary {
+                                op: UnaryOp::BorrowMut,
+                                ..
+                            }
+                        ),
+                        inner: Box::new(inner),
+                    },
+                }))
+            }
+            _ => self.value_hint(expression, state, depth + 1, true),
+        }
     }
 
     fn bound_method(
@@ -2102,32 +2383,71 @@ impl Check<'_, '_, '_> {
         object: &Expr,
         actual: &TypeRef,
         name: &str,
-        arguments: &[Argument],
+        arguments: trait_methods::Arguments<'_>,
         state: &mut State,
     ) -> R<TypeRef> {
+        let trait_methods::Arguments {
+            values: arguments,
+            explicit,
+            expected: expected_result,
+        } = arguments;
         let host = match &group(actual).kind {
             TypeKind::Reference { inner, .. } => inner.as_ref(),
             _ => actual,
         };
-        let variable = trait_bounds::plain(host)
-            .filter(|name| self.variables.contains(*name))
-            .ok_or_else(|| {
-                unsupported(
+        let subject_key;
+        let variable = if let Some(variable) =
+            trait_bounds::plain(host).filter(|name| self.variables.contains(*name))
+        {
+            variable
+        } else {
+            subject_key = trait_bounds::subject_key(host, self.budget)?;
+            if !self.bounds.contains_key(&subject_key) {
+                return Err(error(
                     object.span,
-                    "parametric method receiver requires a declared type-parameter bound",
-                )
-            })?;
+                    "method receiver requires a declared nominal bound for this type",
+                ));
+            }
+            &subject_key
+        };
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
-        if method.name != name {
+        let mut method_origin = self.budget.context.origin;
+        if method.name != name || !method.generics.is_empty() {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
+            let reference = self.traits.method_reference(
+                &self.bounds,
+                variable,
+                name,
+                &method.name,
+                self.budget,
+                object.span,
+            )?;
+            let (owner, _) = self.traits.declaration_item(&reference);
+            method_origin = self.traits.origin(owner, self.budget)?;
+            self.budget.text(name, object.span)?;
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
-                .insert(object.span, method.name.clone());
+                .insert(
+                    *self
+                        .expression_ids
+                        .get(&(object as *const Expr as usize))
+                        .ok_or_else(|| {
+                            error(
+                                object.span,
+                                "method receiver lost its declaration-local expression identity",
+                            )
+                        })?,
+                    trait_instances::CallTarget {
+                        reference,
+                        member: name.to_owned(),
+                        generic: !method.generics.is_empty(),
+                    },
+                );
         }
         let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
             return Err(error(
@@ -2147,12 +2467,71 @@ impl Check<'_, '_, '_> {
                 "trait-bound method argument count differs",
             ));
         }
-        let substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let mut substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let mut variables = BTreeSet::new();
+        for parameter in type_parameters(&method) {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(&parameter.name, parameter.span)?;
+            variables.insert(parameter.name.clone());
+        }
+        if let Some(explicit) = explicit {
+            if method.generics.is_empty() || explicit.len() != consts::parameters(&method).count() {
+                return Err(error(object.span, "generic method argument arity differs"));
+            }
+            for (parameter, argument) in consts::parameters(&method).zip(explicit) {
+                let value = consts::argument(argument, Some(parameter), self.budget)?;
+                let value = if let GenericParamKind::Const(domain) = &parameter.kind
+                    && let Some(Expr {
+                        kind: ExprKind::Name(name),
+                        ..
+                    }) = consts::expression(&value)
+                {
+                    let (ordinal, binder) =
+                        consts::symbolic_parameter(self.source_definition, name).ok_or_else(
+                            || error(object.span, "method const argument names a runtime value"),
+                        )?;
+                    let GenericParamKind::Const(actual_domain) = &binder.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, object.span, self.budget)?;
+                    if state.locals.get(name).is_none_or(|local| {
+                        local.id != self.source_definition.params.len() + ordinal
+                    }) {
+                        return Err(error(
+                            object.span,
+                            "method const argument is shadowed by a runtime value",
+                        ));
+                    }
+                    value
+                } else {
+                    consts::normalize(parameter, &value, self.budget)?
+                };
+                self.budget.text(&parameter.name, object.span)?;
+                substitutions.insert(parameter.name.clone(), value);
+            }
+        }
+        if let (Some(result), Some(expected)) = (&method.return_type, expected_result)
+            && !variables.is_empty()
+        {
+            let result = substituted_type(result, &substitutions, self.budget)?;
+            if !self.traits.has_associated
+                || !trait_bounds::associated::contains(&result, self.budget)?
+            {
+                unify(
+                    &result,
+                    expected,
+                    &variables,
+                    &mut substitutions,
+                    object.span,
+                    self.budget,
+                )?;
+            }
+        }
         let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
         match &group(&expected).kind {
             TypeKind::Reference { mutable, .. } => {
                 if matches!(group(actual).kind, TypeKind::Reference { .. }) {
-                    let actual = self.argument(object, state, &expected, Some(&expected))?;
+                    let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
                     same(&actual, &expected, object.span, self.budget)?;
                 } else {
                     let (place, writable) = self.place(object, state)?;
@@ -2176,19 +2555,133 @@ impl Check<'_, '_, '_> {
                 same(&consumed, &expected, object.span, self.budget)?;
             }
         }
-        for (argument, parameter) in arguments.iter().zip(&method.params[1..]) {
+        for (index, (argument, parameter)) in arguments.iter().zip(&method.params[1..]).enumerate()
+        {
             if argument.spread {
                 return Err(unsupported(
                     argument.span,
                     "trait-bound method tuple spread",
                 ));
             }
-            let expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
-            let actual = self.argument(&argument.value, state, &expected, Some(&expected))?;
-            same(&actual, &expected, argument.span, self.budget)?;
+            let mut expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+            if dependent(&expected, &variables) {
+                let hint = self.method_argument_hint(&argument.value, state, 0)?;
+                if let Some(hint) = hint {
+                    unify_argument(
+                        &expected,
+                        &hint,
+                        &variables,
+                        &mut substitutions,
+                        argument.span,
+                        self.budget,
+                    )?;
+                    expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+                }
+            }
+            if let Some(equations) = self.definition_equations {
+                self.budget.substituted_type(&expected, equations)?;
+                Substitution {
+                    substitutions: equations,
+                }
+                .ty(&mut expected);
+            }
+            if self.traits.has_associated && !dependent(&expected, &variables) {
+                expected = self.traits.normalize_associated(
+                    &expected,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                )?;
+            }
+            let reference_parameter = matches!(group(&expected).kind, TypeKind::Reference { .. });
+            let actual = self.argument(
+                &argument.value,
+                state,
+                &expected,
+                (!dependent(&expected, &variables)).then_some(&expected),
+                index + 1,
+            )?;
+            if variables.is_empty() {
+                same(&actual, &expected, argument.span, self.budget)?;
+            } else {
+                unify_argument(
+                    &expected,
+                    &actual,
+                    &variables,
+                    &mut substitutions,
+                    argument.span,
+                    self.budget,
+                )?;
+            }
+            if !reference_parameter
+                && let TypeKind::Reference { mutable, .. } = &group(&actual).kind
+            {
+                self.alias_hold_result(state, *mutable, argument.span, Some(index + 1))?;
+            }
         }
+        for parameter in consts::parameters(&method) {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(&parameter.name, parameter.span)?;
+            let value = substitutions.get(&parameter.name).ok_or_else(|| {
+                error(
+                    object.span,
+                    "generic method argument has no unique constraint",
+                )
+            })?;
+            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                trait_instances::known_type(value, &self.variables, self.nominals, self.budget, 0)?;
+                self.traits.store_types(
+                    value,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                    callable::StoreCallbacks::None,
+                )?;
+            }
+        }
+        self.budget.with_origin(method_origin, |budget| {
+            self.traits.check_arguments(
+                &method.generics,
+                &substitutions,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+                budget,
+                object.span,
+                None,
+            )?;
+            self.traits.check_where(
+                &method.where_clause,
+                &substitutions,
+                &self.bounds,
+                &self.variables,
+                budget,
+            )?;
+            Ok(())
+        })?;
         match &method.return_type {
-            Some(result) => substituted_type(result, &substitutions, self.budget),
+            Some(result) => {
+                let mut result = substituted_type(result, &substitutions, self.budget)?;
+                if let Some(equations) = self.definition_equations {
+                    self.budget.substituted_type(&result, equations)?;
+                    Substitution {
+                        substitutions: equations,
+                    }
+                    .ty(&mut result);
+                }
+                if self.traits.has_associated {
+                    self.traits.normalize_associated(
+                        &result,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                    )
+                } else {
+                    Ok(result)
+                }
+            }
             None => Ok(unit(object.span)),
         }
     }
@@ -2202,9 +2695,16 @@ impl Check<'_, '_, '_> {
     ) -> R<TypeRef> {
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        let mut ty = self.expr_inner(e, state, expected, borrowing)?;
+        if let Some(equations) = self.definition_equations {
+            self.budget.substituted_type(&ty, equations)?;
+            Substitution {
+                substitutions: equations,
+            }
+            .ty(&mut ty);
+        }
         match &e.kind {
-            ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e.span)?,
+            ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
             | ExprKind::Group(_)
             | ExprKind::MetaEval(_)
@@ -2226,6 +2726,35 @@ impl Check<'_, '_, '_> {
         borrowing: bool,
     ) -> R<TypeRef> {
         self.tick(e.span)?;
+        if self.traits.has_constants
+            && let ExprKind::Member {
+                object,
+                member: MemberName::Name(member),
+            } = &e.kind
+            && let Some(host) = trait_bounds::constants::host_expression(
+                object,
+                self.nominals,
+                |name| !state.locals.contains_key(name),
+                self.budget,
+            )?
+            && let Some(value) = self.traits.recipe_constant(
+                &host,
+                member,
+                &self.bounds,
+                &self.variables,
+                self.budget,
+                e.span,
+            )?
+        {
+            return self
+                .traits
+                .constant_type(&value, &self.bounds, &self.variables, self.budget);
+        }
+        if trait_bounds::constants::parts(e).is_some() {
+            return self
+                .traits
+                .constant_type(e, &self.bounds, &self.variables, self.budget);
+        }
         let enum_context = expected.map(|ty| stores::success(ty).map_or(ty, |(error, _)| error));
         if let Some(ty) = self.enum_expression(e, state, enum_context)? {
             return Ok(ty);
@@ -2277,6 +2806,13 @@ impl Check<'_, '_, '_> {
                     ));
                 }
                 self.alias_use_local(state, id, e.span)?;
+                if !borrowing
+                    && !matches!(group(&ty).kind, TypeKind::Reference { .. })
+                    && stores::element(&ty).is_none()
+                    && !self.declared_resource(&ty)
+                {
+                    self.alias_read_place(e, state)?;
+                }
                 let scoped_copy = self.scoped_copy_local(id, e.span)?;
                 let owning_package = self
                     .callable
@@ -2319,7 +2855,21 @@ impl Check<'_, '_, '_> {
                 }) {
                     return Err(needs_bound());
                 }
-                Ok(checked_integer(text, expected, false, e.span)?.0)
+                Ok(checked_integer(
+                    text,
+                    expected,
+                    false,
+                    e.span,
+                    self.budget.target_pointer_width,
+                )?
+                .0)
+            }
+            ExprKind::Literal(Literal::Float(text)) => {
+                let expected = self.literal_context(expected);
+                if expected.is_some_and(|ty| dependent(ty, &self.variables)) {
+                    return Err(needs_bound());
+                }
+                checked_float(text, expected, e.span, self.budget)
             }
             ExprKind::Literal(Literal::Bool(_)) => Ok(named("bool", e.span)),
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
@@ -2472,6 +3022,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, .. } => {
                 let (ty, _) = self.place(e, state)?;
+                if !borrowing {
+                    self.alias_read_place(e, state)?;
+                }
                 let actual_description = self.resource_desc_roots
                     && self.transferred_resource_expression(e, state)?.declaration;
                 if !borrowing && !actual_description && !self.known_copy(&ty)? {
@@ -2525,6 +3078,12 @@ impl Check<'_, '_, '_> {
                 );
                 self.factory_place(operand, state, mutable)?;
                 let (inner, writable) = self.place(operand, state)?;
+                if matches!(group(&inner).kind, TypeKind::Reference { .. }) {
+                    return Err(unsupported(
+                        e.span,
+                        "nested generic addresses are not supported",
+                    ));
+                }
                 if let Some(slot) = self.existing_field_slot(operand, state)?
                     && state.moved.contains(&slot)
                 {
@@ -2573,7 +3132,14 @@ impl Check<'_, '_, '_> {
                 let ExprKind::Literal(Literal::Integer(text)) = &operand.kind else {
                     unreachable!()
                 };
-                Ok(checked_integer(text, expected, true, e.span)?.0)
+                Ok(checked_integer(
+                    text,
+                    expected,
+                    true,
+                    e.span,
+                    self.budget.target_pointer_width,
+                )?
+                .0)
             }
             ExprKind::Unary {
                 op: UnaryOp::Give,
@@ -2585,7 +3151,8 @@ impl Check<'_, '_, '_> {
                     return Err(needs_bound());
                 }
                 let valid = match op {
-                    UnaryOp::Negate | UnaryOp::BitNot => integer(&ty),
+                    UnaryOp::Negate => integer(&ty) || floating(&ty),
+                    UnaryOp::BitNot => integer(&ty),
                     UnaryOp::Not => boolean(&ty),
                     UnaryOp::BorrowMut | UnaryOp::Give => {
                         return Err(unsupported(
@@ -2619,7 +3186,13 @@ impl Check<'_, '_, '_> {
                 } else {
                     expected
                 };
-                let lhs = self.expr(left, state, operand_hint, false)?;
+                let float_hint =
+                    if operand_hint.is_none() && uncontextual_float(left, self.budget, 0)? {
+                        self.value_hint(right, state, 1, false)?.filter(floating)
+                    } else {
+                        None
+                    };
+                let lhs = self.expr(left, state, operand_hint.or(float_hint.as_ref()), false)?;
                 let rhs = self.expr(right, state, Some(&lhs), false)?;
                 if dependent(&lhs, &self.variables) || dependent(&rhs, &self.variables) {
                     return Err(needs_bound());
@@ -2629,10 +3202,19 @@ impl Check<'_, '_, '_> {
                     BinaryOp::And | BinaryOp::Or => boolean(&lhs),
                     BinaryOp::Equal | BinaryOp::NotEqual => {
                         integer(&lhs)
+                            || floating(&lhs)
                             || boolean(&lhs)
                             || matches!(&group(&lhs).kind, TypeKind::Tuple(ts) if ts.is_empty())
                     }
                     BinaryOp::Range => return Err(unsupported(e.span, "generic range value")),
+                    BinaryOp::Add
+                    | BinaryOp::Subtract
+                    | BinaryOp::Multiply
+                    | BinaryOp::Divide
+                    | BinaryOp::Less
+                    | BinaryOp::LessEqual
+                    | BinaryOp::Greater
+                    | BinaryOp::GreaterEqual => integer(&lhs) || floating(&lhs),
                     _ => integer(&lhs),
                 };
                 if !valid {
@@ -2705,6 +3287,15 @@ impl Check<'_, '_, '_> {
                         let actual = self.expr(&arguments[1].value, state, Some(&wanted), false)?;
                         same(&actual, &wanted, arguments[1].span, self.budget)?;
                     }
+                    if matches!(name, "store_at" | "store_at_mut") {
+                        self.alias_borrow(&arguments[0].value, state, name == "store_at_mut")?;
+                    } else if name != "store_new" {
+                        if matches!(name, "store_len" | "store_capacity") {
+                            self.alias_read_place(&arguments[0].value, state)?;
+                        } else {
+                            self.alias_replace_place(&arguments[0].value, state)?;
+                        }
+                    }
                     return Ok(stores::result(name, &element, e.span));
                 }
                 if let Some((parameters, result)) = super::super::foreign::bare_name(callee)
@@ -2726,15 +3317,37 @@ impl Check<'_, '_, '_> {
                             self.expr(&argument.value, state, Some(parameter), index == 0)?;
                         same(&actual, parameter, argument.span, self.budget)?;
                     }
+                    let name = super::super::foreign::bare_name(callee).expect("byte primitive");
+                    if name != "bytes_new" {
+                        if matches!(name, "bytes_view" | "bytes_view_mut") {
+                            self.alias_borrow(
+                                &arguments[0].value,
+                                state,
+                                name == "bytes_view_mut",
+                            )?;
+                        } else if matches!(name, "bytes_len" | "bytes_capacity") {
+                            self.alias_read_place(&arguments[0].value, state)?;
+                        } else {
+                            self.alias_replace_place(&arguments[0].value, state)?;
+                        }
+                    }
                     self.budget.ty(&result)?;
                     return Ok(result);
                 }
+                let (method_callee, method_explicit) = match &callee.kind {
+                    ExprKind::TypeApply { callee, arguments } => {
+                        (callee.as_ref(), Some(arguments.as_slice()))
+                    }
+                    _ => (callee.as_ref(), None),
+                };
                 if let ExprKind::Member {
                     object,
                     member: MemberName::Name(name) | MemberName::Constrained { name, .. },
-                } = &callee.kind
+                } = &method_callee.kind
                 {
-                    if let Some(result) = self.state_field_call(callee, arguments, state)? {
+                    if method_explicit.is_none()
+                        && let Some(result) = self.state_field_call(callee, arguments, state)?
+                    {
                         return Ok(result);
                     }
                     let ty = self.expr(object, state, None, true)?;
@@ -2746,7 +3359,17 @@ impl Check<'_, '_, '_> {
                         }
                         return Ok(named("i64", e.span));
                     }
-                    return self.bound_method(object, &ty, name, arguments, state);
+                    return self.bound_method(
+                        object,
+                        &ty,
+                        name,
+                        trait_methods::Arguments {
+                            values: arguments,
+                            explicit: method_explicit,
+                            expected,
+                        },
+                        state,
+                    );
                 }
 
                 if let Some(value) =
@@ -2818,7 +3441,7 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                     let actual = self.expr(&arguments[0].value, state, None, false)?;
-                    if !integer(&actual) {
+                    if !integer(&actual) && !floating(&actual) {
                         return Err(super::super::conversion_error(
                             e.span,
                             "integer conversion requires a known integer operand",
@@ -2957,14 +3580,22 @@ impl Check<'_, '_, '_> {
                             state,
                             kind == zil_ir::CallableKind::FnMut,
                             callee.span,
+                            None,
                         )?;
                     }
-                    for (argument, parameter) in arguments.iter().zip(&parameters) {
+                    for (index, (argument, parameter)) in
+                        arguments.iter().zip(&parameters).enumerate()
+                    {
                         if argument.spread {
                             return Err(unsupported(argument.span, "callable helper tuple spread"));
                         }
-                        let actual =
-                            self.argument(&argument.value, state, parameter, Some(parameter))?;
+                        let actual = self.argument(
+                            &argument.value,
+                            state,
+                            parameter,
+                            Some(parameter),
+                            index,
+                        )?;
                         same(&actual, parameter, argument.span, self.budget)?;
                     }
                     return Ok(result);
@@ -3023,13 +3654,16 @@ impl Check<'_, '_, '_> {
                             "foreign call argument count or shape differs",
                         ));
                     }
-                    for (argument, parameter) in arguments.iter().zip(&function.params) {
+                    for (index, (argument, parameter)) in
+                        arguments.iter().zip(&function.params).enumerate()
+                    {
                         self.budget.ty(&parameter.ty)?;
                         let actual = self.argument(
                             &argument.value,
                             state,
                             &parameter.ty,
                             Some(&parameter.ty),
+                            index,
                         )?;
                         same(&actual, &parameter.ty, argument.span, self.budget)?;
                     }
@@ -3044,7 +3678,7 @@ impl Check<'_, '_, '_> {
                     .signatures
                     .get(target)
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if self.callable.is_some() && callable::template(function)?.is_some() {
+                if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
                     self.dependencies.edge(
                         self.definition,
                         &function.name,
@@ -3059,14 +3693,44 @@ impl Check<'_, '_, '_> {
                     type_parameters(function).map(|p| p.name.clone()).collect();
                 let mut found = BTreeMap::new();
                 if let Some(args) = explicit {
-                    if args.len() != type_parameters(function).count() {
+                    if args.len() != consts::parameters(function).count() {
                         return Err(error(e.span, "parametric type argument arity mismatch"));
                     }
-                    for (param, arg) in type_parameters(function).zip(args) {
-                        let GenericArg::Type(ty) = arg else {
-                            return Err(unsupported(e.span, "const generic argument"));
+                    for (param, arg) in consts::parameters(function).zip(args) {
+                        let actual = consts::argument(arg, Some(param), self.budget)?;
+                        let actual = if let GenericParamKind::Const(wanted) = &param.kind
+                            && let Some(Expr {
+                                kind: ExprKind::Name(name),
+                                ..
+                            }) = consts::expression(&actual)
+                        {
+                            // Only this declaration's original immutable const
+                            // binder is compile-time evidence. A same-spelled
+                            // runtime parameter or shadowing local is not.
+                            let source = self.source_definition;
+                            let (ordinal, binder) = consts::symbolic_parameter(source, name)
+                                .ok_or_else(|| {
+                                    error(e.span, "const argument names a runtime value")
+                                })?;
+                            let GenericParamKind::Const(domain) = &binder.kind else {
+                                unreachable!()
+                            };
+                            same(domain, wanted, e.span, self.budget)?;
+                            if state
+                                .locals
+                                .get(name)
+                                .is_none_or(|local| local.id != source.params.len() + ordinal)
+                            {
+                                return Err(error(
+                                    e.span,
+                                    "const argument is shadowed by a runtime value",
+                                ));
+                            }
+                            actual
+                        } else {
+                            consts::normalize(param, &actual, self.budget)?
                         };
-                        found.insert(param.name.clone(), ty.clone());
+                        found.insert(param.name.clone(), actual);
                     }
                 }
                 if self.callable.as_ref().is_some_and(|bounds| {
@@ -3101,7 +3765,9 @@ impl Check<'_, '_, '_> {
                         self.budget,
                     )?;
                 }
-                for (parameter, argument) in function.params.iter().zip(arguments) {
+                for (index, (parameter, argument)) in
+                    function.params.iter().zip(arguments).enumerate()
+                {
                     if argument.spread {
                         return Err(unsupported(argument.span, "parametric tuple spread"));
                     }
@@ -3159,6 +3825,7 @@ impl Check<'_, '_, '_> {
                         state,
                         &hint,
                         (!dependent(&hint, &variables)).then_some(&hint),
+                        index,
                     )?;
                     if !context_argument(
                         &parameter.ty,
@@ -3181,16 +3848,51 @@ impl Check<'_, '_, '_> {
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
-                let callable = callable::template(function)?;
+                let callable = callable::template(function, self.budget)?;
                 if let Some(callees) = &callable {
                     for callee in callees.bindings() {
                         self.budget.node(e.span, 0)?;
                         let actual = &found[&callee.generic_name];
+                        if callee.life.is_some()
+                            && let Some(bounds) = &self.callable
+                        {
+                            for bound in bounds.bindings() {
+                                self.budget.ty(actual)?;
+                                self.budget.text(&bound.generic_name, e.span)?;
+                            }
+                        }
                         let caller = self.callable.as_ref().and_then(|bounds| {
                             bounds.bindings().find(|caller| {
                                 callable::parameter_mode(actual, &caller.generic_name) == Some(None)
                             })
                         });
+                        if let Some(wanted) = &callee.life {
+                            let available=caller.and_then(|caller|caller.life.as_ref()).ok_or_else(||error(e.span,"nested higher-rank helper requires its declared universal invocation relation"))?;
+                            self.budget.node(e.span, 0)?;
+                            for _ in available
+                                .parameter_lives
+                                .iter()
+                                .chain(&wanted.parameter_lives)
+                            {
+                                self.budget.node(e.span, 0)?;
+                            }
+                            if available.parameter_lives.len() != wanted.parameter_lives.len()
+                                || (available.result_life.is_some()
+                                    && available
+                                        .parameter_lives
+                                        .iter()
+                                        .zip(&wanted.parameter_lives)
+                                        .any(|(actual, expected)| {
+                                            *actual == available.result_life
+                                                && *expected != wanted.result_life
+                                        }))
+                            {
+                                return Err(error(
+                                    e.span,
+                                    "forwarded callback return relation is wider than the requested invocation bound",
+                                ));
+                            }
+                        }
                         let (kind, parameters, result) = if let Some(caller) = caller {
                             if !callees.owned_state
                                 && !callees.forwarded
@@ -3234,21 +3936,32 @@ impl Check<'_, '_, '_> {
                         same(result, &expected, e.span, self.budget)?;
                     }
                 }
-                self.traits.check_arguments(
-                    &function.generics,
-                    &found,
-                    (
+                let origin = self.traits.function_origin(function, self.budget)?;
+                self.budget.with_origin(origin, |budget| {
+                    self.traits.check_arguments(
+                        &function.generics,
+                        &found,
+                        (
+                            &self.bounds,
+                            &self.variables,
+                            self.callable.as_ref().map_or(
+                                callable::StoreCallbacks::None,
+                                callable::CallableTemplates::store_callbacks,
+                            ),
+                        ),
+                        budget,
+                        e.span,
+                        callable.as_ref(),
+                    )?;
+                    self.traits.check_where(
+                        &function.where_clause,
+                        &found,
                         &self.bounds,
                         &self.variables,
-                        self.callable.as_ref().map_or(
-                            callable::StoreCallbacks::None,
-                            callable::CallableTemplates::store_callbacks,
-                        ),
-                    ),
-                    self.budget,
-                    e.span,
-                    callable.as_ref(),
-                )?;
+                        budget,
+                    )?;
+                    Ok(())
+                })?;
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
                     None => Ok(unit(e.span)),
@@ -3581,13 +4294,15 @@ impl Check<'_, '_, '_> {
                 state,
                 bound.kind == zil_ir::CallableKind::FnMut,
                 callee.span,
+                None,
             )?;
         }
-        for (argument, parameter) in arguments.iter().zip(&bound.parameters) {
+        for (index, (argument, parameter)) in arguments.iter().zip(&bound.parameters).enumerate() {
             if argument.spread {
                 return Err(unsupported(argument.span, "callable State tuple spread"));
             }
-            let actual = self.argument(&argument.value, state, parameter, Some(parameter))?;
+            let actual =
+                self.argument(&argument.value, state, parameter, Some(parameter), index)?;
             same(&actual, parameter, argument.span, self.budget)?;
         }
         Ok(Some(bound.result))
@@ -3783,6 +4498,7 @@ impl Check<'_, '_, '_> {
                 StmtKind::Assign { target, op, value } => {
                     self.factory_place(target, state, true)?;
                     let (ty, writable) = self.assignment_place(target, state)?;
+                    let target_aliases = self.alias_result_copy(target.span)?;
                     if stores::success(&ty).is_some() {
                         return Err(unsupported(
                             target.span,
@@ -3860,7 +4576,10 @@ impl Check<'_, '_, '_> {
                     if let Some((name, flow)) = resource_replacement {
                         self.resource_description_replace(&name, flow, state, target.span)?;
                     }
+                    let result_aliases = self.alias_result_copy(value.span)?;
+                    self.alias_result_restore(target_aliases);
                     self.alias_replace_place(target, state)?;
+                    self.alias_result_restore(result_aliases);
                     let mut whole = target;
                     while let ExprKind::Group(inner) = &whole.kind {
                         self.budget.node(whole.span, 0)?;

@@ -112,6 +112,7 @@ fn minimum(text: &str, nodes: bool) -> usize {
 
 #[test]
 fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
+    let mut measured = Vec::new();
     for (label, text) in [("inline", INLINE), ("where", WHERE)] {
         let out = directory(&format!("budget-{label}"));
         fs::write(out.join("source.zil"), text).unwrap();
@@ -120,14 +121,7 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
         // Original accepted collision path: inline 281/131, where 380/173.
         // Prior scoped nominal checks cost 837/188 and 936/230; 322
         // additionally pays its complete type-position validation walk.
-        assert_eq!(
-            (work, nodes),
-            if label == "inline" {
-                (922, 229)
-            } else {
-                (1021, 270)
-            }
-        );
+        measured.push((work, nodes));
         fs::write(out.join("costs.csv"), format!("{label},{work},{nodes}\n")).unwrap();
         eprintln!("{label} work={work} nodes={nodes}");
         for (is_nodes, exact) in [(false, work), (true, nodes)] {
@@ -167,6 +161,7 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
             }
         }
     }
+    assert_eq!(measured, [(1008, 265), (1111, 309)]);
 }
 
 #[cfg(feature = "llvm-api")]

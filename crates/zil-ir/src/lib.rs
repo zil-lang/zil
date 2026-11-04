@@ -74,6 +74,11 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    U64,
+    /// Target pointer-width unsigned integer; constants retain mathematical bits.
+    Usize,
+    F32,
+    F64,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -146,6 +151,13 @@ pub enum Type {
         parameters: Vec<Type>,
         result: Box<Type>,
     },
+    /// Thin code pointer with a fresh address relation at every invocation.
+    /// Its target, complete signature and actual return sources remain untrusted.
+    BorrowedFunctionPointer {
+        parameters: Vec<Type>,
+        result: Box<Type>,
+        life: FunctionLifeContract,
+    },
     Closure(ClosureId),
     Opaque {
         identity: NodeId,
@@ -154,10 +166,27 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Stable complete type identity, never a proof of type or access validity.
+    /// Untrusted callers must validate and prepay the type traversal first.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V35\0");
+        encode_type(&mut bytes, self);
+        bytes.finish()
+    }
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
-            Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
+            Self::Unit
+                | Self::Bool
+                | Self::I32
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::F32
+                | Self::F64
+                | Self::U8
+                | Self::U16
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
@@ -220,6 +249,10 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::U64
+            | Self::Usize
+            | Self::F32
+            | Self::F64
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -235,6 +268,9 @@ impl Type {
             Self::FunctionPointer { parameters, result } => {
                 parameters.iter().all(Self::is_copy_value) && result.is_copy_value()
             }
+            // Copying the code address never copies its invocation payload.
+            // Signature and relation eligibility must be validated separately.
+            Self::BorrowedFunctionPointer { .. } => true,
             _ => false,
         }
     }
@@ -247,7 +283,16 @@ impl Type {
         }
     }
     pub fn is_integer(&self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
+        matches!(
+            self,
+            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+        )
+    }
+    pub fn is_float(&self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
+    pub fn is_numeric(&self) -> bool {
+        self.is_integer() || self.is_float()
     }
     pub fn name(&self) -> String {
         match self {
@@ -255,6 +300,10 @@ impl Type {
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::U64 => "u64".into(),
+            Self::Usize => "usize".into(),
+            Self::F32 => "f32".into(),
+            Self::F64 => "f64".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
@@ -313,6 +362,11 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    U64(u64),
+    Usize(u64),
+    /// Exact IEEE bits; identity preserves signed zero and every NaN spelling.
+    F32(u32),
+    F64(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -327,6 +381,10 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::U64(_) => Type::U64,
+            Self::Usize(_) => Type::Usize,
+            Self::F32(_) => Type::F32,
+            Self::F64(_) => Type::F64,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -573,6 +631,10 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    Reference {
+        mutable: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
@@ -689,6 +751,12 @@ pub enum CoreExprKind {
         value: Box<CoreExpr>,
     },
     Integer(String),
+    Float(String),
+    /// Numeric conversion with numeric endpoints before Types resolves the operand.
+    NumericConvert {
+        value: Box<CoreExpr>,
+        target: Type,
+    },
     IntegerConvert {
         value: Box<CoreExpr>,
         target: Type,
@@ -1056,6 +1124,15 @@ pub struct VariantProjection {
     pub variant: u32,
     pub index: u32,
 }
+/// One actual inline place step. Field never crosses Managed, Address or
+/// external stable storage; Variant always retains its selected tag and field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlaceProjection {
+    Field(u32),
+    Variant(VariantProjection),
+    /// Follow the actual active error/success slot, retaining its discriminator.
+    ErrorArm(bool),
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
     /// Construct an empty owning prefix; no allocation. Element metadata is a
@@ -1272,6 +1349,11 @@ pub enum InstructionKind {
     DescribeLocal {
         local: LocalId,
     },
+    /// A weak access description of a live, actually borrowed resource header.
+    /// Address provenance and permissions remain independent proof obligations.
+    DescribeAddress {
+        address: ValueId,
+    },
     ReadDesc {
         desc: ValueId,
         index: u32,
@@ -1288,6 +1370,11 @@ pub enum InstructionKind {
     Constant(Constant),
     /// Preserve the mathematical integer value, trapping when out of range.
     ConvertInteger {
+        value: ValueId,
+        target: Type,
+    },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
         value: ValueId,
         target: Type,
     },
@@ -1478,6 +1565,58 @@ pub enum InstructionKind {
         variant: u32,
         index: u32,
     },
+    /// Construct a complete ordinary owning Tuple, preserving field order and
+    /// each actual input responsibility. No implicit allocation or clone.
+    MakeOwnedTuple {
+        fields: Vec<ValueId>,
+    },
+    /// Atomically consume a complete Tuple into exact distinct vacant locals.
+    /// Registers the actual destinations in reverse order; no SSA result.
+    UnpackTuple {
+        local: LocalId,
+        fields: Vec<LocalId>,
+    },
+    /// Conditionally drop only the Tuple's actual remaining initialized fields.
+    /// Independent CFG reconstruction qualifies storage state and cleanup age.
+    DropTuple {
+        local: LocalId,
+    },
+    /// Selectively transfer one initialized subtree of a real Tuple local.
+    /// Nonempty mixed path; every active tag and every field initialization is
+    /// checked anew. The parent retains storage and all remaining responsibility.
+    TakeTupleField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Selectively transfer one initialized subtree of a real Enum/ErrorUnion local.
+    /// Same path/loan rules as Tuple Take; every variant step names tag+field.
+    TakeVariantField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Borrow one initialized subtree of actual inline local storage. The
+    /// nonempty bounded path retains every Field/Variant/ErrorArm ancestor,
+    /// active tag and actual parent authority; no intermediate whole loan.
+    BorrowPlaceLocal {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+        mutable: bool,
+    },
+    /// Read the actual final Enum/ErrorUnion header through a bounded mixed
+    /// path; empty observes the root. Every ancestor tag/init is checked anew.
+    /// Result i32: Enum ordinal, or ErrorUnion0 success/1 error. Reading the
+    /// header grants no payload access or parent replacement permission.
+    PlaceTagLocal {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Borrow a real inline finite Copy Tuple/Record field place. The bounded
+    /// nonempty field path retains parent storage, initialization and mutability.
+    BorrowFieldLocal {
+        local: LocalId,
+        path: Vec<u32>,
+        mutable: bool,
+    },
     /// Observe a complete live local through Enum-only checked projections.
     /// Empty path observes the root tag; the terminal type must be Enum.
     VariantTagLocal {
@@ -1489,6 +1628,26 @@ pub enum InstructionKind {
     ReadVariantLocal {
         local: LocalId,
         path: Vec<VariantProjection>,
+    },
+    /// Borrow a real active payload place through an Enum-only path.
+    /// The nonempty path, all active tags and exact local mutability are raw
+    /// claims checked independently. The address retains its parent local loan.
+    BorrowVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
+    },
+    /// Observe the actual Enum addressed by this value through active prefixes.
+    /// Address identity, current tag epochs and permission are untrusted claims.
+    VariantTagAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+    },
+    /// Borrow an actual addressed payload, retaining its real parent loan.
+    BorrowVariantAddress {
+        address: ValueId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
     },
     /// Atomically consume one complete Enum and initialize all variant fields.
     /// Fields are exact distinct vacant locals, registered in reverse order;
@@ -1781,6 +1940,11 @@ pub enum CtInstructionKind {
         value: ValueId,
         target: Type,
     },
+    /// Checked numeric conversion with numeric endpoints before Types resolves the operand.
+    ConvertNumber {
+        value: ValueId,
+        target: Type,
+    },
     Unary {
         op: UnaryOp,
         operand: ValueId,
@@ -1950,6 +2114,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -2048,6 +2216,30 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_len(b, parameters.len());
             for t in parameters {
                 encode_type(b, t);
+            }
+            encode_type(b, result);
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            b.push(31);
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for tag in &life.parameter_lives {
+                b.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag {
+                    encode_u32(b, *tag);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life {
+                encode_u32(b, tag);
+            }
+            encode_len(b, parameters.len());
+            for ty in parameters {
+                encode_type(b, ty);
             }
             encode_type(b, result);
         }
@@ -2185,10 +2377,31 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
             b.push(3);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U64(v) => {
+            b.push(9);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Usize(v) => {
+            b.push(10);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::F32(bits) => {
+            b.push(11);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
+        Constant::F64(bits) => {
+            b.push(12);
+            b.extend_from_slice(&bits.to_le_bytes());
+        }
     }
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
         InstructionKind::ConvertInteger { value, target } => {
             b.push(59);
             encode_u32(b, value.0);
@@ -2349,6 +2562,10 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for field in fields {
                 encode_u32(b, field.0);
             }
+        }
+        InstructionKind::DescribeAddress { address } => {
+            b.push(109);
+            encode_u32(b, address.0);
         }
         InstructionKind::DescribeLocal { local } => {
             b.push(35);
@@ -2637,6 +2854,71 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, *variant);
             encode_u32(b, *index);
         }
+        InstructionKind::MakeOwnedTuple { fields } => {
+            b.push(114);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            b.push(115);
+            encode_u32(b, local.0);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropTuple { local } => {
+            b.push(116);
+            encode_u32(b, local.0);
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path }
+        | InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => {
+            b.push(match i {
+                InstructionKind::TakeTupleField { .. } => 117,
+                InstructionKind::TakeVariantField { .. } => 118,
+                InstructionKind::BorrowPlaceLocal { .. } => 119,
+                _ => 120,
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
+                }
+            }
+            if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for field in path {
+                encode_u32(b, *field);
+            }
+            b.push(u8::from(*mutable));
+        }
         InstructionKind::VariantTagLocal { local, path }
         | InstructionKind::ReadVariantLocal { local, path } => {
             b.push(if matches!(i, InstructionKind::VariantTagLocal { .. }) {
@@ -2649,6 +2931,37 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for step in path {
                 encode_u32(b, step.variant);
                 encode_u32(b, step.index);
+            }
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
             }
         }
         InstructionKind::UnpackVariant {

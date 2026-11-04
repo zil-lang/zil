@@ -2,9 +2,13 @@
 //! identity is known. This module checks syntax shapes, never ownership facts.
 use super::*;
 use zil_ir::CallableKind;
+#[path = "generic_hrtb.rs"]
+mod hrtb;
+pub(crate) use hrtb::{inner as bound_inner, inner_mut as bound_inner_mut};
 
 #[derive(Clone)]
 pub(crate) struct CallableTemplate {
+    pub life: Option<zil_ir::FunctionLifeContract>,
     pub index: usize,
     pub generic_index: u32,
     pub generic_name: String,
@@ -333,14 +337,24 @@ pub(crate) fn registration_environment(ty: &TypeRef) -> Option<&TypeRef> {
 pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ClosedEnvironment"] && args.is_empty())
 }
-pub(crate) fn template(function: &Function) -> R<Option<CallableTemplates>> {
-    template_with_state(function, |ty, name, dual| {
-        if dual {
-            dual_state_type(ty, name)
-        } else {
-            state_type(ty, name)
-        }
-    })
+pub(crate) fn template(
+    function: &Function,
+    budget: &mut Budget<'_>,
+) -> R<Option<CallableTemplates>> {
+    let mut limits = budget.remaining_limits();
+    let result = template_with_state(
+        function,
+        &mut limits.max_analysis_steps,
+        |ty, name, dual| {
+            if dual {
+                dual_state_type(ty, name)
+            } else {
+                state_type(ty, name)
+            }
+        },
+    );
+    budget.adopt_remaining(&limits);
+    result
 }
 
 /// The generic engine has already replaced State<F> applications with nominal
@@ -378,7 +392,7 @@ pub(crate) fn expanded_template(
             })?;
         }
     }
-    let mut classified = template_with_state(function, |ty, name, dual| {
+    let mut classified = template_with_state(function, remaining, |ty, name, dual| {
         if if dual {
             dual_state_type(ty, name)
         } else {
@@ -554,10 +568,11 @@ pub(crate) fn expanded_template(
 
 fn template_with_state(
     function: &Function,
+    remaining: &mut usize,
     is_state: impl Fn(&TypeRef, &str, bool) -> bool,
 ) -> R<Option<CallableTemplates>> {
     let callables: Vec<_> = function.generics.iter().filter(|p| matches!(&p.kind,
-        GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&b.kind,
+        GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&bound_inner(b).kind,
             TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce"))))).collect();
     if callables.is_empty() {
         return Ok(None);
@@ -633,7 +648,7 @@ fn template_with_state(
                 "one callable bound and optional ClosedEnvironment are implemented",
             ));
         };
-        let TypeKind::Named { path, args } = &callable_bound.kind else {
+        let TypeKind::Named { path, args } = &bound_inner(callable_bound).kind else {
             return Err(unsupported(parameter.span, "invalid callable bound"));
         };
         let closed_environment = closed_environment == 1;
@@ -675,6 +690,7 @@ fn template_with_state(
                 "recursive callable signature is not implemented",
             ));
         }
+        let life = hrtb::relation(callable_bound, remaining)?;
         let returns_state = function
             .return_type
             .as_ref()
@@ -688,6 +704,12 @@ fn template_with_state(
             return Err(unsupported(
                 parameter.span,
                 "ClosedEnvironment currently requires a direct callable input, not State binding metadata",
+            ));
+        }
+        if owning && life.is_some() {
+            return Err(unsupported(
+                parameter.span,
+                "higher-rank State callback relations require actual state projection support",
             ));
         }
         if owned_factory && owning {
@@ -777,7 +799,18 @@ fn template_with_state(
                     "at most two nonescaping callable environment roles are implemented",
                 ));
             }
+            if let Some(life) = &life {
+                hrtb::pay(
+                    remaining,
+                    life.parameter_lives
+                        .len()
+                        .saturating_add(life.binder_count as usize)
+                        .saturating_add(2),
+                    parameter.span,
+                )?;
+            }
             let binding = CallableTemplate {
+                life: life.clone(),
                 index,
                 generic_index: generic_index as u32,
                 generic_name: parameter.name.clone(),

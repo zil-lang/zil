@@ -9,6 +9,334 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_generic_methods_specialize_ordinary_calls() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+        "struct P{}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item{return x}}impl Echo for P{type Item=i32;}fn main()->i32{let p=P{};return p.echo::<bool>(7)-7}",
+        "struct Box<T:Copy>{value:T}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item;}impl<T:Copy> Echo for Box<T>{type Item=T;fn echo<U:Copy>(x:Self.Item)->Self.Item{return x}}fn main()->i32{let p=Box::<bool>{value:true};if p.echo::<i32>(true){return 0}return 1}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
+        "trait Item{type Value:Copy;}struct P{}impl Item for P{type Value=i32;}struct Host{}trait Echo{fn echo<T:Item>(self:&Self,x:T.Value)->T.Value;}impl Echo for Host{fn echo<U>(x:U.Value)->U.Value{return x}}fn main()->i32{let p=Host{};return p.echo::<P>(7)-7}",
+        "struct P{n:i32}trait Echo<T:Copy>{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo<bool> for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main()->i32{let p=P{n:1};return p.echo::<i32>(7)-7}",
+        "struct P{n:i32}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T{return x}}impl Echo for P{}fn main()->i32{let p=P{n:1};return p.echo(7)-7}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_generic_methods_reject_unused_invalid_contracts() {
+    for text in [
+        "trait Echo{fn bad<T:Copy>(self:&Self,x:T)->T{return x+1}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<#N:i32>(x:i32)->i32{return x}}fn main(){}",
+        "struct P{}trait Echo{fn echo<#N:usize>(self:&Self)->usize;}impl Echo for P{fn echo<#M:u64>()->usize{return 3usize}}fn main(){}",
+        "struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x+1}}fn main(){}",
+        "trait Echo{fn bad<#N:i32>(self:&Self)->&i32{return &N}}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    let output = std::env::temp_dir()
+        .join(format!(
+            "341-method-failed-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ))
+        .join("program");
+    let report = compile_source(
+        &source(
+            "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main(){}",
+        ),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(output.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.commands.is_empty());
+    assert!(!report.artifacts.contains_key("executable"));
+    assert!(!output.exists());
+}
+
+#[test]
+fn terminal341_unsigned_const_domains_keep_full_target_bits() {
+    let positive =
+        include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+    for text in [
+        positive,
+        "fn value<#N:usize>()->usize{return N}fn main()->i32{if value::<18446744073709551615usize>()==18446744073709551615usize{return 0}return 1}",
+        "fn unused<T:Copy>(x:T)->u64{return 18446744073709551615u64}fn main(){}",
+        "fn unused<T:Copy>(x:T,v:u64)->i32{match v{18446744073709551615u64=>{return 0},_=>{return 1}}}fn main()->i32{return unused(true,18446744073709551615u64)}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for target in [
+        zil_base::TargetProfile::default(),
+        zil_base::TargetProfile::windows_x64_llvm(),
+    ] {
+        let report = compile_source(
+            &source(positive),
+            &CompileOptions {
+                target,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    let target = zil_base::TargetProfile {
+        pointer_width: 32,
+        ..Default::default()
+    };
+    for (text, expected) in [
+        (positive, ResultCategory::Success),
+        (
+            "fn value<#N:usize>(){}fn main(){value::<4294967295>()}",
+            ResultCategory::Success,
+        ),
+        (
+            "fn value<#N:usize>(){}fn main(){value::<4294967296>()}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "fn value<#N:usize>(){}fn main(){value::<4294967296usize>()}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "fn value<T:Copy>(x:T)->usize{return 4294967295usize}fn main(){}",
+            ResultCategory::Success,
+        ),
+        (
+            "fn value<T:Copy>(x:T)->usize{return 4294967296usize}fn main(){}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "fn value<T:Copy>(x:T,n:usize){match n{4294967296usize=>{},_=>{}}}fn main(){}",
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                target: target.clone(),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{text}: {}", report.to_json());
+    }
+    for text in [
+        "fn value<#N:u64>(){}fn main(){value::<18446744073709551616u64>()}",
+        "fn value<#N:usize>(){}fn main(){value::<18446744073709551616usize>()}",
+        "fn value<#N:usize>(){}fn main(){value::<3u64>()}",
+        "fn bad<T:Copy>(x:T)->u64{return 18446744073709551616u64}fn main(){}",
+        "fn bad<T:Copy>(x:T)->u64{return -1u64}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil"),
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
+        "struct Box<T:Copy>{value:T}fn select<T:Copy>(x:T)->Type{return T}fn main()->i32{let value:#(select(Box::<i32>{value:7}))=Box::<i32>{value:7};return value.value-7}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected()->Type{return meta.field_type(meta.field(Box::<i64>,\"value\"))}fn main()->i32{let n:#(selected())=3000000000;return i32(n-3000000000)}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected<T:Copy>(x:T)->Type{return meta.field_type(meta.field(T,\"value\"))}fn main()->i32{let n:#(selected(Box::<i64>{value:7}))=3000000000;return i32(n-3000000000)}",
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn expression<T:Copy>(x:Config<T,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main(){}",
+        "fn invalid<T:Copy>(x:T)->Type{let n=x+1;return T}fn main(){}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected()->Type{return meta.field_type(meta.field(Box::<i64>,\"absent\"))}fn main(){let n:#(selected())=7}",
+        "import std.syntax as syntax;struct Box<T:Copy,P:Copy>{value:T}fn selected<T:Copy>(x:T)->Syntax<Type>{return syntax.type_ref(T)}fn main(){let value:#splice(selected(Box::<i32,bool>{value:7}))=Box::<i32,u8>{value:7}}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_values() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/const-functions.zil"),
+        "fn constant<#N:i32>()->i32{return N}fn main()->i32{return constant::<7>()-7}",
+        "fn pick<T:Copy,#N:i32>(x:T)->T{let n:i32=N;return x}fn main()->i32{return pick::<i32,3>(7)-7}",
+        "fn flag<#B:bool>()->bool{return B}fn main()->i32{if flag::<true>(){return 0}return 1}",
+        "fn constant<#N:u8>()->u8{return N}fn main()->i32{let x:u8=constant::<255>();return 0}",
+        "fn scoped<#N:i32>()->i32{let N:i32=8;return N}fn main()->i32{return scoped::<7>()-8}",
+        "fn scoped<#N:i32>()->i32{let N:i32=8;let p=&N;return *p}fn main()->i32{return scoped::<7>()-8}",
+        "fn array<#N:i32>(x:[i32;N])->[i32;N]{return x}fn main()->i32{let x=array::<2>([3,4]);return x[0]-3}",
+        "fn array<#N:i32>(x:[i32;N])->[i32;N]{let M=3;let a:[i32;N]=x;return a}fn main()->i32{let x=array::<2>([3,4]);return x[0]-3}",
+        "fn scoped<#N:i32>(N:i32)->i32{return N}fn main()->i32{return scoped::<7>(8)-8}",
+        "fn inner<#N:i32>()->i32{return N}fn outer<#M:i32>()->i32{return inner::<M>()}fn main()->i32{return outer::<7>()-7}",
+        "enum E{A(i32),B(i32),C(i32),D(i32)}fn sink(n:i32){}fn arms<#N:i32>(e:E)->i32{match e{E.A(N)=>sink(N),E.B(N)=>sink(N),E.C(N)=>sink(N),E.D(N)=>sink(N)}return N}fn main()->i32{return arms::<7>(E.B(9))-7}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/const-unused-invalid.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/const-shadow-length-invalid.zil"
+        ),
+        "fn bad<#B:bool>()->i32{return B}fn main()->i32{return 0}",
+        "fn bad<T,#N:i32>(x:T)->T{return x+x}fn main()->i32{return 0}",
+        "fn value<#N:u8>()->u8{return N}fn main()->i32{value::<256>();return 0}",
+        "fn value<#N:u8>()->u8{return N}fn main()->i32{value::<3i32>();return 0}",
+        "fn value<#N:bool>()->bool{return N}fn main()->i32{value::<1>();return 0}",
+        "fn value<T>(x:T)->T{return x}fn main()->i32{return value::<3>(7)}",
+        "fn inner<#N:i32>()->i32{return N}fn bad<#M:i32>(x:i32)->i32{return inner::<x>()}fn main(){}",
+        "fn inner<#N:i32>()->i32{return N}fn bad<#M:i32>()->i32{let M=2;return inner::<M>()}fn main(){}",
+        "fn bad<#N:bool>(x:[i32;N])->[i32;N]{return x}fn main(){}",
+        "fn bad<#N:i32>()->&i32{return &N}fn main(){}",
+        "fn bad<#N:i32>(){let p=&N;}fn main(){}",
+        "fn bad<#N:i32>(x:[i32;N])->[i32;N]{let N=3;let a:[i32;N]=x;return a}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_const_instances_reach_wire_native_and_exact_budget() {
+    use zil_base::{Limits, TargetProfile};
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/341/const-array-machine.zil");
+    let src = source(text);
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &typed.target, &Limits::default()).unwrap();
+    let llvm = native(text, 7);
+    assert!(!llvm.contains("dictionary"));
+    let check = |steps| {
+        zil_expand::expand_with_map_limits(
+            &src,
+            &ast,
+            &Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            },
+        )
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    assert!(check(high).is_ok());
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if check(middle).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    assert_eq!(
+        check(low - 1).unwrap_err()[0].category,
+        ResultCategory::ResourceLimit
+    );
+    assert!(check(low).is_ok());
+    assert!(check(low).is_ok());
+    eprintln!("341 const Expand exact work limit: {low}");
+}
+
+#[test]
+fn terminal341_const_generated_binders_use_declaration_ordinals_with_shared_spans() {
+    let src =
+        source("fn pair<#A:i32,#B:i32>()->i32{return A+B}fn main()->i32{return pair::<3,4>()-7}");
+    let mut ast = zil_syntax::parse(&src).into_result().unwrap();
+    let zil_syntax::ast::ItemKind::Function(function) = &mut ast.items[0].kind else {
+        unreachable!()
+    };
+    function.generics[1].span = function.generics[0].span;
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &zil_base::Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &zil_base::Limits::default()).unwrap();
+    zil_verify::verify_module(
+        typed.clone(),
+        plan,
+        &typed.target,
+        &zil_base::Limits::default(),
+    )
+    .unwrap();
+}
+
+#[test]
 fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
     use zil_driver::{NativeBackend, Optimization};
     for text in [

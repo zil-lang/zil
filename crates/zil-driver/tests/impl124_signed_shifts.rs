@@ -231,9 +231,9 @@ fn source_ct_agrees_on_signed_extremes_and_bit_discarding() {
                 (0, 0),
             ] {
                 index += 1;
-                functions.push_str(&format!("fn f{index}()->{ty}{{let a:{ty}={value};let n:{ty}={count};return a{operator}n}}"));
+                functions.push_str(&format!("fn shift_case_{index}()->{ty}{{let a:{ty}={value};let n:{ty}={count};return a{operator}n}}"));
                 let result = expected(value, count, width, left);
-                checks.push_str(&format!("let x{index}:{ty}=#(f{index}());let e{index}:{ty}={result};if x{index}!=e{index}{{return {index}}}"));
+                checks.push_str(&format!("let x{index}:{ty}=#(shift_case_{index}());let e{index}:{ty}={result};if x{index}!=e{index}{{return {index}}}"));
             }
         }
     }

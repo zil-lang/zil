@@ -335,6 +335,41 @@ fn internal_capture_windows_propagate_separation_to_each_actual_call() {
 }
 
 #[test]
+fn nested_helpers_substitute_each_symbolic_capture_before_claiming_separation() {
+    use zil_ir::InstructionKind as I;
+    let source = format!(
+        "{SUPPORT}fn relay<G:Fn()->i32>(g:&G)->i32{{return call(g)}}fn main()->i32{{let a=bytes_new();let b=bytes_new();bytes_reserve(a,1);bytes_push(a,u8(65));let read=a;let edit=b;let f=()=>{{let view=bytes_view(read);bytes_reserve(edit,8);return i32(view[0])}};return relay(&f)-65}}"
+    );
+    native(&[("main", &source)], b"", 0);
+    rejected(
+        &source.replace("let edit=b", "let edit=a"),
+        ResultCategory::SafeReject,
+        Phase::Verify,
+        "E-BORROW-CONFLICT",
+    );
+    let (mut module, plan) = candidate(&source);
+    let captures = module
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            I::MakeClosure { captures, .. } => Some(captures),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(captures.len(), 2);
+    captures[1] = captures[0];
+    reject_candidate(
+        "nested-helper-symbolic-capture-alias",
+        module,
+        plan,
+        "E-BORROW-CONFLICT",
+        "window contract requires separation",
+    );
+}
+
+#[test]
 fn helper_body_accesses_do_not_disappear_behind_its_callback_contract() {
     for (body, answer) in [
         ("bytes_reserve(b,4);return f()", 66),

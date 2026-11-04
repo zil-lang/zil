@@ -424,7 +424,23 @@ fn privacy_local_self_and_nominal_identity_remain_required() {
 
 #[test]
 fn original_single_module_and_drop_work_budgets_remain_exact() {
-    for (text, minimum) in [
+    fn measure(mut run: impl FnMut(usize) -> zil_driver::CompileReport) -> usize {
+        let (mut low, mut high) = (0, zil_base::Limits::default().max_analysis_steps);
+        assert_eq!(run(high).status, ResultCategory::Success);
+        while high - low > 1 {
+            let mid = low + (high - low) / 2;
+            let report = run(mid);
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        high
+    }
+    let mut observed = Vec::new();
+    let mut recorded = Vec::new();
+    for (text, expected_minimum) in [
         ("fn main()->i32=>0", 242),
         (
             "resource R{n:i32}impl Drop for R{fn drop(self:Self){}}fn main()->i32{let r=R{n:1};return 0}",
@@ -432,10 +448,18 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         ),
         (
             "trait Code{fn code(self:&Self)->i32;}struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}fn main()->i32{let x=Payload{n:13};return x.code()-13}",
-            1432,
+            1455,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text);
+        let minimum = measure(|steps| {
+            let mut options = CompileOptions::default();
+            options.limits.max_analysis_steps = steps;
+            compile_source(&unit, &options)
+        });
+        eprintln!("single source {text:?}: N={minimum}, prior={expected_minimum}");
+        observed.push(minimum);
+        recorded.push(expected_minimum);
         for (steps, expected) in [
             (minimum, ResultCategory::Success),
             (minimum - 1, ResultCategory::ResourceLimit),
@@ -456,10 +480,18 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
             "pub trait Code{fn code(self:&Self)->i32;}pub struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}pub fn make()->Payload=>Payload{n:13}",
         ),
     ];
+    let project_minimum = measure(|steps| {
+        let mut options = CompileOptions::default();
+        options.limits.max_analysis_steps = steps;
+        CompilationSession::default().compile_project(&project(&files), &options)
+    });
+    eprintln!("two-module trait: N={project_minimum}, prior=1471");
+    observed.push(project_minimum);
+    recorded.push(1471);
     for (steps, expected) in [
-        (1412, ResultCategory::Success),
-        (1411, ResultCategory::ResourceLimit),
-        (1412, ResultCategory::Success),
+        (project_minimum, ResultCategory::Success),
+        (project_minimum - 1, ResultCategory::ResourceLimit),
+        (project_minimum, ResultCategory::Success),
     ] {
         let mut options = CompileOptions::default();
         options.limits.max_analysis_steps = steps;
@@ -470,6 +502,10 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
             expected
         );
     }
+    assert_eq!(
+        observed, recorded,
+        "exact current original source boundaries"
+    );
 }
 
 #[test]

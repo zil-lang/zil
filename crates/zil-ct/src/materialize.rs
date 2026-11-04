@@ -12,6 +12,7 @@ fn quota(span: Span) -> Vec<Diagnostic> {
 
 pub(super) fn scalar(c: Constant) -> CoreExprKind {
     match c {
+        c @ (Constant::F32(_) | Constant::F64(_)) => CoreExprKind::Literal(c),
         Constant::Unit => CoreExprKind::Unit,
         Constant::Bool(v) => CoreExprKind::Bool(v),
         Constant::U8(v) => CoreExprKind::Integer(format!("{v}u8")),
@@ -21,6 +22,8 @@ pub(super) fn scalar(c: Constant) -> CoreExprKind {
         }
         Constant::I32(v) => CoreExprKind::Integer(format!("{v}i32")),
         Constant::I64(v) => CoreExprKind::Integer(format!("{v}i64")),
+        Constant::U64(v) => CoreExprKind::Integer(format!("{v}u64")),
+        Constant::Usize(v) => CoreExprKind::Integer(format!("{v}usize")),
     }
 }
 pub(super) struct Reifier<'a> {
@@ -105,6 +108,24 @@ impl Reifier<'_> {
                     unreachable!("verified enum result shape")
                 };
                 let (variant_name, types) = &variants[variant as usize];
+                if name == "@anonymous-sum:v1" {
+                    let [payload_type] = types.as_slice() else {
+                        unreachable!("verified anonymous member")
+                    };
+                    let [payload]: [_; 1] = fields
+                        .try_into()
+                        .unwrap_or_else(|_| unreachable!("verified anonymous payload"));
+                    crate::source::hint_type(ty, depth, self.nodes, self.work_left, self.limits)?;
+                    let value = self.child(payload, payload_type, span, depth + 1)?;
+                    return Ok(CoreExpr {
+                        id,
+                        span,
+                        kind: CoreExprKind::Ascribed {
+                            value: Box::new(value),
+                            ty: ty.clone(),
+                        },
+                    });
+                }
                 // These are actual ordinary Core nodes, not a privileged tag.
                 self.node(span, depth + 1)?;
                 self.node(span, depth + 2)?;
@@ -312,7 +333,8 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         callee: operand, ..
                     }
                     | CoreExprKind::Ascribed { value: operand, .. }
-                    | CoreExprKind::IntegerConvert { value: operand, .. } => {
+                    | CoreExprKind::IntegerConvert { value: operand, .. }
+                    | CoreExprKind::NumericConvert { value: operand, .. } => {
                         pending.push((Visit::Expr(operand), depth + 1))
                     }
                     CoreExprKind::Binary { left, right, .. } => {

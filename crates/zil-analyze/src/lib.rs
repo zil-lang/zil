@@ -8,6 +8,8 @@
 //! CFG visits, instruction visits, matrix cells, and set elements traversed or
 //! materialized are charged before the corresponding work or allocation. These
 //! are deterministic logical units, not elapsed time or an allocator byte count.
+mod address_sums;
+mod borrowed_fp;
 mod budget;
 mod callable_fields;
 #[cfg(test)]
@@ -16,6 +18,8 @@ mod defers;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
+mod head_access;
+mod head_loans;
 mod helpers;
 mod holds;
 mod incremental;
@@ -99,6 +103,7 @@ fn analyze_budgeted(
         // Share the established CFG walk with returned-environment checks;
         // modules with no callable factory need no extra whole-module pass.
         retained::check_function(module, f, &reachable, budget)?;
+        address_sums::check(module, f, &reachable, limits, budget)?;
         hold_graphs.push((predecessors, reachable));
         plan.functions.push(FunctionPlan {
             function: f.id,
@@ -116,13 +121,11 @@ fn analyze_budgeted(
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
+    let head_effects = head_access::check(module, &hold_graphs, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
-    for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
-        module,
-        &hold_graphs,
-        &store_profiles,
-        budget,
-    )?) {
+    let actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    head_loans::check(module, &hold_graphs, &actual_holds, &head_effects, budget)?;
+    for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;
     }
     tasks::loans(module, &plan, &hold_graphs, budget)?;
@@ -264,7 +267,9 @@ fn initialize(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Initializ
         let mut state = clone_set(&ins[bi], budget)?;
         for i in &b.instructions {
             budget.spend(1, "initialization instruction scan")?;
-            if let InstructionKind::UnpackVariant { local, fields, .. } = &i.kind {
+            if let InstructionKind::UnpackVariant { local, fields, .. }
+            | InstructionKind::UnpackTuple { local, fields } = &i.kind
+            {
                 budget.spend(fields.len().saturating_add(1), "Unpack initialization atom")?;
                 budget.lookup(state.len(), "Unpack initialized source")?;
                 if !state.contains(local) || fields.iter().any(|l| state.contains(l)) {
@@ -346,7 +351,9 @@ fn transfer(
     let mut state = clone_set(input, budget)?;
     for instruction in &block.instructions {
         budget.spend(1, "initialization transfer")?;
-        if let InstructionKind::UnpackVariant { local, fields, .. } = &instruction.kind {
+        if let InstructionKind::UnpackVariant { local, fields, .. }
+        | InstructionKind::UnpackTuple { local, fields } = &instruction.kind
+        {
             budget.spend(
                 fields.len().saturating_add(1),
                 "Unpack initialization transfer atom",

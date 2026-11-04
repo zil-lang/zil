@@ -15,6 +15,8 @@ use zil_syntax::{ParseResult, ast};
 
 #[path = "project_discovery_cache.rs"]
 mod discovery_cache;
+#[path = "stdlib.rs"]
+mod stdlib;
 
 /// All bytes are supplied by the caller; compiling this value never loads an
 /// import from disk. Paths are root-relative logical import segments. Multiple
@@ -85,6 +87,7 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
                     token.text(&source.text),
                     "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
                 )
+                || token.text(&source.text) == "const"
         })
 }
 
@@ -614,11 +617,12 @@ impl CompilationSession {
                 }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
-                for (module, map) in zil_expand::expand_program_with_limits(
+                for (module, map) in zil_expand::expand_program_with_limits_target(
                     &project.modules,
                     syntax,
                     &runtime_imports,
                     &options.limits,
+                    &options.target,
                 )? {
                     modules.push(module);
                     maps.push(map);
@@ -910,11 +914,37 @@ fn validate_sources<'a>(
     }
     for (path, id) in &project.paths {
         if path.first().is_some_and(|segment| segment == "std") {
-            return Err(reject(
-                "E-STD-RESERVED",
-                None,
-                "std modules are reserved for the compiler's closed CT interface",
-            ));
+            let Some(expected) = stdlib::source(path) else {
+                return Err(reject(
+                    "E-STD-RESERVED",
+                    None,
+                    "compiler CT modules and unknown standard modules cannot be supplied",
+                ));
+            };
+            take(
+                &mut work,
+                project.modules.len(),
+                Phase::Expand,
+                "standard library source identity lookup budget exceeded",
+            )?;
+            let source = project
+                .modules
+                .iter()
+                .find(|source| source.module_id == *id)
+                .ok_or_else(|| reject("E-MODULE-ID", None, "standard source module is missing"))?;
+            take(
+                &mut work,
+                expected.len(),
+                Phase::Expand,
+                "standard library source identity byte budget exceeded",
+            )?;
+            if source.text.as_str() != expected {
+                return Err(reject(
+                    "E-STD-RESERVED",
+                    None,
+                    "standard library bytes must match the distributed ordinary source",
+                ));
+            }
         }
         take(
             &mut work,
@@ -1003,16 +1033,18 @@ fn resolve_imports(
             )?;
             unsupported_import(item, import)?;
             if import.path.first().is_some_and(|part| part == "std") {
-                if import.syntax
-                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
-                {
+                let compiler_module = matches!(import.path.as_slice(),
+                    [a, b] if a == "std" && (b == "meta" || b == "syntax"));
+                if import.syntax || (!compiler_module && stdlib::source(&import.path).is_none()) {
                     return Err(reject(
                         "E-STD-IMPORT",
                         Some(item.span),
-                        "only ordinary imports of std.meta and std.syntax are available",
+                        "unknown or nonordinary standard library import",
                     ));
                 }
-                continue;
+                if compiler_module {
+                    continue;
+                }
             }
             if import.syntax && locked.is_none() {
                 return Err(reject(
@@ -1403,20 +1435,27 @@ fn load_sources(
                 ));
             }
             if import.path.first().is_some_and(|part| part == "std") {
-                if import.syntax
-                    || !matches!(import.path.as_slice(), [a, b] if a == "std" && (b == "meta" || b == "syntax"))
-                {
+                let compiler_module = matches!(import.path.as_slice(),
+                    [a, b] if a == "std" && (b == "meta" || b == "syntax"));
+                if import.syntax || (!compiler_module && stdlib::source(&import.path).is_none()) {
                     return Err(reject(
                         "E-STD-IMPORT",
                         Some(item.span),
-                        "only ordinary imports of std.meta and std.syntax are available",
+                        "unknown or nonordinary standard library import",
                     ));
                 }
-                continue;
+                if compiler_module {
+                    continue;
+                }
             }
             // Resolve even an already registered path: the root is preseeded
             // in `paths`, but that must not hide a second directory entry.
-            let canonical = resolve_file_module(directory, &import.path, item.span)?;
+            let embedded = stdlib::source(&import.path);
+            let canonical = if embedded.is_some() {
+                PathBuf::from(format!("<{}>", import.path.join(".")))
+            } else {
+                resolve_file_module(directory, &import.path, item.span)?
+            };
             let id = if let Some(id) = known.get(&canonical) {
                 *id
             } else {
@@ -1427,7 +1466,24 @@ fn load_sources(
                     .map_err(|_| limit(Phase::Parse, "project module identity budget exceeded"))?;
                 let mut read_options = options.clone();
                 read_options.limits.max_source_bytes = remaining.max_source_bytes;
-                let mut source = (if let Some(source) = prefetched.remove(&canonical) {
+                let mut source = (if let Some(text) = embedded {
+                    if text.len() > read_options.limits.max_source_bytes {
+                        Err(limit(
+                            Phase::Parse,
+                            "standard library source byte budget exceeded",
+                        ))
+                    } else {
+                        // Embedded modules use the ordinary source graph and all normal kernels.
+                        // Filesystem-only discovery receipts deliberately do not cache virtual paths.
+                        stable_modules = None;
+                        Ok(SourceUnit::new(
+                            FileId(number),
+                            ModuleId(number),
+                            canonical.to_string_lossy().into_owned(),
+                            text,
+                        ))
+                    }
+                } else if let Some(source) = prefetched.remove(&canonical) {
                     options
                         .cancellation
                         .check(Phase::Driver)

@@ -105,6 +105,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
+                    life: None,
                     id: Some(FunctionId(i as u32)),
                     callable: Vec::new(),
                     state_parameter: None,
@@ -479,6 +480,8 @@ fn expression_variant(kind: &CoreExprKind) -> &'static str {
         Literal(_) => "Literal",
         Ascribed { .. } => "Ascribed",
         Integer(_) => "Integer",
+        Float(_) => "Float",
+        NumericConvert { .. } => "NumericConvert",
         IntegerConvert { .. } => "IntegerConvert",
         Bool(_) => "Bool",
         String(_) => "String",
@@ -537,6 +540,11 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             value: Box::new(name("a")),
         },
         CoreExprKind::Integer("0".into()),
+        CoreExprKind::Float("1.25".into()),
+        CoreExprKind::NumericConvert {
+            value: Box::new(call_expr()),
+            target: Type::F64,
+        },
         CoreExprKind::IntegerConvert {
             value: Box::new(name("a")),
             target: Type::I64,
@@ -615,7 +623,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
             .map(expression_variant)
             .collect::<BTreeSet<_>>()
             .len(),
-        26
+        28
     );
     let mut compared = 0;
     for kind in expressions {
@@ -726,7 +734,7 @@ fn every_current_core_variant_preserves_origin_support_and_transfer() {
         ]);
         compared += compare_transfers(&core, label);
     }
-    assert_eq!(compared, (26 + 18) * 16 * 2);
+    assert_eq!(compared, (28 + 18) * 16 * 2);
 }
 
 #[test]

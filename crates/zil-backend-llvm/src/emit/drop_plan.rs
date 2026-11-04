@@ -4,7 +4,10 @@ use super::*;
 use std::hash::Hash;
 
 pub(super) fn owned_sum(ty: &Type) -> bool {
-    matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && !ty.is_copy_value()
+    matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) && !ty.is_copy_value()
 }
 pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     if ty.is_copy_value() {
@@ -12,6 +15,7 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     }
     match ty {
         Type::Managed(_) => resources::supported_type(ty, resources),
+        Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
         Type::Package { fields, .. } => fields.iter().all(|(_, t)| value_type(t, resources)),
         Type::Enum { variants, .. } => variants
             .iter()
@@ -21,6 +25,9 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
         }
         _ => false,
     }
+}
+pub(super) fn sum_address(ty: &Type, resources: &[ResourceDefinition]) -> bool {
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Tuple(_)|Type::Enum { .. }|Type::ErrorUnion{..}) && value_type(inner, resources))
 }
 fn has_store(ty: &Type) -> bool {
     match ty {
@@ -35,7 +42,7 @@ fn legacy_flat(ty: &Type) -> bool {
 /// Old Copy and already implemented flat error protocols retain their old path.
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
-        Type::Enum { .. } => !ty.is_copy_value(),
+        Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned_sum(t) || new_shape(t)),
         Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().any(|t| {
             owned_sum(t)
@@ -53,7 +60,7 @@ fn key(ty: &Type) -> zil_base::Fingerprint {
     ty.hash(&mut hash);
     hash.digest()
 }
-struct Budget<'a> {
+pub(super) struct Budget<'a> {
     limits: &'a zil_base::Limits,
     nodes: usize,
     work: usize,
@@ -66,7 +73,10 @@ impl<'a> Budget<'a> {
             work: 0,
         }
     }
-    fn pay(&mut self, depth: usize, work: usize) -> CompileResult<()> {
+    pub(super) fn spent(&self) -> usize {
+        self.work
+    }
+    pub(super) fn pay(&mut self, depth: usize, work: usize) -> CompileResult<()> {
         self.nodes = self.nodes.checked_add(1).ok_or_else(limit)?;
         self.work = self.work.checked_add(work).ok_or_else(limit)?;
         if depth > self.limits.max_call_depth
@@ -77,7 +87,7 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
-    fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
+    pub(super) fn machine_weight(&mut self, ty: &Type, depth: usize) -> CompileResult<usize> {
         self.pay(depth, 1)?;
         Ok(match ty {
             Type::Managed(t) => self.machine_weight(t, depth + 1)?,
@@ -155,7 +165,7 @@ impl<'a> Budget<'a> {
     }
 
     // Prepay the complete subtree before LLVM type construction or Type clones.
-    fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
+    pub(super) fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.pay(depth, 32)?;
         match ty {
             Type::Package { name, fields } | Type::Record { name, fields } => {
@@ -185,6 +195,9 @@ impl<'a> Budget<'a> {
             | Type::Slice { element: t }
             | Type::Opaque { hidden: t, .. } => self.tree(t, depth + 1)?,
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 for t in parameters {
                     self.tree(t, depth + 1)?;
@@ -235,7 +248,7 @@ fn link(
     }
     if matches!(
         ty,
-        Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+        Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
     ) {
         return Ok(DropPlan::Leaf(symbol(ty)));
     }
@@ -525,12 +538,17 @@ pub(super) fn functions(
         if !ty.is_copy_value()
             && matches!(
                 ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             )
         {
             found.insert(hash, ty);
         }
         match ty {
+            Type::Tuple(fields) => {
+                for t in fields {
+                    visit(t, found, seen, budget, true, depth + 1)?;
+                }
+            }
             Type::Package { fields, .. } => {
                 for (_, t) in fields {
                     visit(t, found, seen, budget, true, depth + 1)?;
@@ -567,7 +585,7 @@ pub(super) fn functions(
         for ty in std::iter::once(&closure.result).chain(closure.parameters.iter()) {
             if matches!(
                 ty,
-                Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
+                Type::Tuple(_) | Type::Package { .. } | Type::Enum { .. } | Type::ErrorUnion { .. }
             ) && !ty.is_copy_value()
             {
                 visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
@@ -594,15 +612,48 @@ pub(super) fn functions(
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
                 match &instruction.kind {
+                    InstructionKind::TakeTupleField { local, .. }
+                    | InstructionKind::TakeVariantField { local, .. } => {
+                        partial_places::prepay(
+                            &f.locals[local.0 as usize].ty,
+                            f,
+                            lir.resources,
+                            &mut budget,
+                        )?;
+                    }
+                    InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    | InstructionKind::PlaceTagLocal { local, path } => {
+                        for _ in 0..=path.len() {
+                            budget.tree(&f.locals[local.0 as usize].ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_add(1).saturating_mul(64))?;
+                    }
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        let ty = &f.locals[local.0 as usize].ty;
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(32))?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        let ty = &f.values[address.0 as usize];
+                        for _ in 0..=path.len() {
+                            budget.tree(ty, 0)?;
+                        }
+                        budget.pay(path.len(), path.len().saturating_mul(64))?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                         let ty = &f.locals[local.0 as usize].ty;
                         for _ in 0..=path.len() {
                             budget.tree(ty, 0)?;
                         }
                         budget.pay(path.len(), path.len().saturating_mul(64))?;
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         for _ in 0..=fields.len() {
                             budget.tree(&f.locals[local.0 as usize].ty, 0)?;
                         }
@@ -611,7 +662,8 @@ pub(super) fn functions(
                         }
                         budget.pay(0, fields.len().saturating_mul(64))?;
                     }
-                    InstructionKind::DropEnum { local }
+                    InstructionKind::DropTuple { local }
+                    | InstructionKind::DropEnum { local }
                     | InstructionKind::DropPackage { local }
                     | InstructionKind::DropErrorUnion { local } => {
                         // Existing cleanup opcodes also hash Sum helper keys and
@@ -634,7 +686,8 @@ pub(super) fn functions(
                             }
                         }
                     }
-                    InstructionKind::MakeVariant { fields, .. }
+                    InstructionKind::MakeOwnedTuple { fields }
+                    | InstructionKind::MakeVariant { fields, .. }
                         if !f.values
                             [instruction.result.expect("verified variant result").0 as usize]
                             .is_copy_value() =>

@@ -636,7 +636,8 @@ impl MoveWalk<'_, '_> {
             }
             CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Try(operand)
-            | CoreExprKind::IntegerConvert { value: operand, .. } => {
+            | CoreExprKind::IntegerConvert { value: operand, .. }
+            | CoreExprKind::NumericConvert { value: operand, .. } => {
                 self.expr(operand, Access::Move, depth + 1)?
             }
             CoreExprKind::Binary { left, right, .. }
@@ -2192,7 +2193,8 @@ impl Walk<'_, '_> {
                 self.capture = previous;
                 Shape::None
             }
-            CoreExprKind::IntegerConvert { value, .. } => {
+            CoreExprKind::IntegerConvert { value, .. }
+            | CoreExprKind::NumericConvert { value, .. } => {
                 self.expr(value, depth + 1)?;
                 Shape::None
             }

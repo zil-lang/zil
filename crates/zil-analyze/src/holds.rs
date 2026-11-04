@@ -8,12 +8,16 @@ use std::collections::BTreeMap;
 enum Root {
     Local(LocalId),
     Field(LocalId, u32),
+    Projection(LocalId, u32, u32),
+    Window(HoldRoot, u32, u32),
     Capture(u32),
     Parameter(u32),
     // A borrowed environment keeps these positions alive, but its pointer
     // addresses the environment itself. They are not additional pointees.
     RetainedLocal(LocalId),
     RetainedField(LocalId, u32),
+    RetainedProjection(LocalId, u32, u32),
+    RetainedWindow(HoldRoot, u32, u32),
     RetainedCapture(u32),
     RetainedParameter(u32),
 }
@@ -23,6 +27,8 @@ impl Root {
         match self {
             Self::RetainedLocal(local) => Self::Local(local),
             Self::RetainedField(local, index) => Self::Field(local, index),
+            Self::RetainedProjection(local, start, end) => Self::Projection(local, start, end),
+            Self::RetainedWindow(root, start, end) => Self::Window(root, start, end),
             Self::RetainedCapture(index) => Self::Capture(index),
             Self::RetainedParameter(index) => Self::Parameter(index),
             root => root,
@@ -32,6 +38,8 @@ impl Root {
         match self.position() {
             Self::Local(local) => Self::RetainedLocal(local),
             Self::Field(local, index) => Self::RetainedField(local, index),
+            Self::Projection(local, start, end) => Self::RetainedProjection(local, start, end),
+            Self::Window(root, start, end) => Self::RetainedWindow(root, start, end),
             Self::Capture(index) => Self::RetainedCapture(index),
             Self::Parameter(index) => Self::RetainedParameter(index),
             _ => unreachable!(),
@@ -252,6 +260,22 @@ fn delegated(
     budget: &mut Budget,
 ) -> CompileResult<bool> {
     use resources::Place;
+    let mut active_load = None;
+    if let Place::Value(active_value) = active {
+        for block in &f.blocks {
+            budget.spend(
+                block.instructions.len().saturating_add(1),
+                "actual address alias producer",
+            )?;
+            for instruction in &block.instructions {
+                if instruction.result == Some(active_value)
+                    && let InstructionKind::Load(local) = instruction.kind
+                {
+                    active_load = Some(local)
+                }
+            }
+        }
+    }
     let mut pending = vec![callback];
     let mut seen = BTreeSet::new();
     while let Some(value) = pending.pop() {
@@ -273,11 +297,12 @@ fn delegated(
                 }
                 match instruction.kind {
                     InstructionKind::ReborrowAddress { address, .. }
+                    | InstructionKind::BorrowVariantAddress { address, .. }
                     | InstructionKind::AddressField { address, .. }
                     | InstructionKind::AddressIndex { address, .. }
                     | InstructionKind::AddressSlice { address, .. } => pending.push(address),
                     InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
-                        if active == Place::Local(local) =>
+                        if active == Place::Local(local) || active_load == Some(local) =>
                     {
                         return Ok(true);
                     }
@@ -289,15 +314,132 @@ fn delegated(
     Ok(false)
 }
 
+fn root_overlap(a: Root, b: Root) -> bool {
+    match (a.position(), b.position()) {
+        (Root::Window(x, a, b), Root::Window(y, c, d)) => x == y && a < d && c < b,
+        (Root::Window(HoldRoot::Local(x), a, b), Root::Projection(y, c, d))
+        | (Root::Projection(y, c, d), Root::Window(HoldRoot::Local(x), a, b)) => {
+            x == y && a < d && c < b
+        }
+        (Root::Window(root, ..), other) | (other, Root::Window(root, ..)) => match (root, other) {
+            (HoldRoot::Local(x), Root::Local(y) | Root::Field(y, _) | Root::Projection(y, ..)) => {
+                x == y
+            }
+            (HoldRoot::Parameter(x), Root::Parameter(y)) => x == y,
+            (HoldRoot::Capture(x), Root::Capture(y)) => x == y,
+            _ => false,
+        },
+        (Root::Projection(x, a, b), Root::Projection(y, c, d)) => x == y && a < d && c < b,
+        (Root::Projection(x, ..), Root::Local(y) | Root::Field(y, _))
+        | (Root::Local(x) | Root::Field(x, _), Root::Projection(y, ..)) => x == y,
+        (a, b) => {
+            a == b
+                || matches!((a,b),(Root::Local(x),Root::Field(y,_))|(Root::Field(x,_),Root::Local(y)) if x==y)
+        }
+    }
+}
 fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
-    budget.product(a.len(), b.len(), 1, "scoped actual storage overlap")?;
-    Ok(a.iter().any(|a| {
-        b.iter().any(|b| {
-            a.position() == b.position()
-                || matches!((a.position(), b.position()),
-        (Root::Local(x), Root::Field(y, _)) | (Root::Field(x, _), Root::Local(y)) if x == y)
-        })
-    }))
+    budget.product(a.len(), b.len(), 1, "actual storage interval overlap")?;
+    Ok(a.iter().any(|a| b.iter().any(|b| root_overlap(*a, *b))))
+}
+fn variant_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[VariantProjection],
+    budget: &mut Budget,
+) -> CompileResult<Root> {
+    fn size(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "payload interval node")?;
+        let mut total = 1u32;
+        let mut add = |child: &Type| -> CompileResult<()> {
+            total = total.checked_add(size(child, b)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "payload interval overflow",
+                    None,
+                )]
+            })?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(total)
+    }
+    let mut ty = &f.locals[local.0 as usize].ty;
+    let mut offset = 0u32;
+    for part in path {
+        let Type::Enum { variants, .. } = ty else {
+            return Err(bad("payload interval crosses non-Enum"));
+        };
+        offset = offset.checked_add(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Analyze,
+                "payload interval overflow",
+                None,
+            )]
+        })?;
+        for (_, fs) in variants.iter().take(part.variant as usize) {
+            for t in fs {
+                offset = offset.checked_add(size(t, budget)?).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Analyze,
+                        "payload interval overflow",
+                        None,
+                    )]
+                })?;
+            }
+        }
+        let fs = &variants
+            .get(part.variant as usize)
+            .ok_or_else(|| bad("payload interval tag outside declaration"))?
+            .1;
+        for t in fs.iter().take(part.index as usize) {
+            offset = offset.checked_add(size(t, budget)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "payload interval overflow",
+                    None,
+                )]
+            })?;
+        }
+        ty = fs
+            .get(part.index as usize)
+            .ok_or_else(|| bad("payload interval field outside declaration"))?;
+    }
+    let end = offset.checked_add(size(ty, budget)?).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Analyze,
+            "payload interval overflow",
+            None,
+        )]
+    })?;
+    Ok(if path.is_empty() {
+        Root::Local(local)
+    } else {
+        Root::Projection(local, offset, end)
+    })
 }
 
 fn scoped_captures_address(
@@ -392,6 +534,7 @@ fn capture_transition(
         | InstructionKind::DropManaged { local }
         | InstructionKind::DropPackage { local }
         | InstructionKind::DropErrorUnion { local }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::DropOwnedArray { local }
         | InstructionKind::TakeOwnedArrayElement { local, .. }
@@ -532,6 +675,166 @@ fn capture_transition(
     Ok(())
 }
 
+// Actual pattern projections carry their own fresh window. The parent address
+// delegates authority; sibling windows still require real disjoint intervals.
+fn pattern_window_transition(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Roots],
+    state: &State,
+    live: &resources::Live,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let projected =
+        |address: ValueId, path: &[VariantProjection], b: &mut Budget| -> CompileResult<Roots> {
+            b.spend(values[address.0 as usize].len(), "pattern projected roots")?;
+            values[address.0 as usize]
+                .iter()
+                .map(|root| address_root(f, address, path, *root, b))
+                .collect()
+        };
+    let (roots, exclusive, parent) = match &i.kind {
+        InstructionKind::BorrowPlaceLocal {
+            local,
+            path,
+            mutable,
+        } => (
+            Roots::from([mixed_root(f, *local, path, false, b)?]),
+            *mutable,
+            None,
+        ),
+        InstructionKind::PlaceTagLocal { local, path } => (
+            Roots::from([mixed_root(f, *local, path, true, b)?]),
+            false,
+            None,
+        ),
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => (
+            Roots::from([mixed_root(f, *local, path, false, b)?]),
+            true,
+            None,
+        ),
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => (
+            Roots::from([inline_root(f, *local, path, b)?]),
+            *mutable,
+            None,
+        ),
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => (
+            Roots::from([variant_root(f, *local, path, b)?]),
+            *mutable,
+            None,
+        ),
+        InstructionKind::VariantTagLocal { local, path }
+        | InstructionKind::ReadVariantLocal { local, path } => (
+            Roots::from([variant_root(f, *local, path, b)?]),
+            false,
+            None,
+        ),
+        InstructionKind::BorrowLocal { local } | InstructionKind::Load(local) => {
+            (Roots::from([Root::Local(*local)]), false, None)
+        }
+        InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::Store { local, .. }
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::StorageLive(local)
+        | InstructionKind::StorageDead(local)
+        | InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
+        | InstructionKind::DropEnum { local }
+        | InstructionKind::DropPackage { local }
+        | InstructionKind::DropManaged { local } => {
+            (Roots::from([Root::Local(*local)]), true, None)
+        }
+        InstructionKind::ReadAddress { address }
+        | InstructionKind::WriteAddress { address, .. }
+        | InstructionKind::ReborrowAddress { address, .. } => {
+            if let InstructionKind::ReborrowAddress { mutable, .. } = i.kind {
+                let Type::Address {
+                    mutable: available,
+                    inner,
+                } = &f.values[address.0 as usize]
+                else {
+                    return Err(bad("pattern reborrow base has no address authority"));
+                };
+                if (mutable && !*available)
+                    || !matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address{mutable:m,inner:t})if *m==mutable&&t==inner)
+                {
+                    return Err(bad("pattern reborrow cannot upgrade actual authority"));
+                }
+            }
+            b.spend(
+                values[address.0 as usize].len(),
+                "pattern address access roots",
+            )?;
+            (
+                values[address.0 as usize].clone(),
+                matches!(
+                    i.kind,
+                    InstructionKind::WriteAddress { .. }
+                        | InstructionKind::ReborrowAddress { mutable: true, .. }
+                ),
+                Some(*address),
+            )
+        }
+        InstructionKind::VariantTagAddress { address, path } => {
+            (projected(*address, path, b)?, false, Some(*address))
+        }
+        InstructionKind::BorrowVariantAddress {
+            address,
+            path,
+            mutable,
+        } => (projected(*address, path, b)?, *mutable, Some(*address)),
+        _ => return Ok(()),
+    };
+    let empty = Roots::new();
+    for active in live {
+        b.spend(1, "pattern live actual window")?;
+        let (ty, held) = match active {
+            resources::Place::Value(v) if i.result == Some(*v) => continue,
+            resources::Place::Value(v) => (&f.values[v.0 as usize], &values[v.0 as usize]),
+            resources::Place::Local(l) => {
+                (&f.locals[l.0 as usize].ty, state.get(l).unwrap_or(&empty))
+            }
+            _ => continue,
+        };
+        let mutable = match ty {
+            Type::Address { mutable, .. } => *mutable,
+            Type::Closure(_) => {
+                if !resources::capture_carrier(ty, b)? {
+                    continue;
+                }
+                thread_exclusive_type(module, ty, b)?
+            }
+            _ => continue,
+        };
+        if !exclusive && !mutable {
+            continue;
+        }
+        if overlaps(&roots, held, b)? {
+            if let Some(parent) = parent
+                && delegated(f, parent, *active, b)?
+            {
+                continue;
+            }
+            return Err(window_conflict(
+                i,
+                "pattern projection overlaps a live address window",
+            ));
+        }
+    }
+    Ok(())
+}
+
 // This uses actual Hold roots, never nominal ClosureId equality. It protects
 // the preparation interval as well as B's complete captured dependency set.
 fn scoped_transition(
@@ -601,7 +904,8 @@ fn scoped_transition(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. } => Some(local),
-        InstructionKind::BorrowPackageField { local, .. }
+        InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
@@ -892,6 +1196,8 @@ fn store_window_transition(
             Some(Root::Capture(index))
         }
         InstructionKind::UnpackVariant { local, .. }
+        | InstructionKind::UnpackTuple { local, .. }
+        | InstructionKind::DropTuple { local }
         | InstructionKind::DropEnum { local }
         | InstructionKind::TakeLocal { local }
         | InstructionKind::DropManaged { local }
@@ -993,6 +1299,33 @@ fn store_window_transition(
     }
     budget.spend(live.len(), "captured Store live windows")?;
     for place in live {
+        if budget.head_descriptions
+            && matches!(place,resources::Place::Value(id) if instruction.result==Some(*id))
+        {
+            continue;
+        }
+        if budget.head_descriptions {
+            let ty = match place {
+                resources::Place::Value(v) => Some(&f.values[v.0 as usize]),
+                resources::Place::Local(l) => Some(&f.locals[l.0 as usize].ty),
+                _ => None,
+            };
+            if (matches!(ty, Some(Type::Desc(_)))
+                || ty.is_some_and(|ty| resources::head_address(ty) || ty.is_package_address()))
+                && matches!(
+                    instruction.kind,
+                    InstructionKind::ByteBufferReserve { .. }
+                        | InstructionKind::ByteBufferPush { .. }
+                        | InstructionKind::ByteBufferTruncate { .. }
+                        | InstructionKind::ByteBufferBorrow { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                )
+            {
+                continue;
+            }
+        }
         let held = match place {
             resources::Place::Value(value) => values.get(value.0 as usize),
             resources::Place::Local(local) => {
@@ -1010,16 +1343,23 @@ fn store_window_transition(
             1,
             "captured Store window overlap",
         )?;
-        if changed.iter().any(|changed| {
-            held.iter().any(|root| {
-                changed.position() == root.position()
-                    || matches!((changed.position(), root.position()), (Root::Local(a), Root::Field(b, _)) if a == b)
-            })
-        }) {
+        if changed
+            .iter()
+            .any(|changed| held.iter().any(|root| root_overlap(*changed, *root)))
+        {
             if parameter_windows {
                 return Err(window_conflict(
                     instruction,
                     "Store transition invalidates a live element window",
+                ));
+            }
+            if budget.head_descriptions {
+                return Err(window_conflict(
+                    instruction,
+                    &format!(
+                        "owned storage transition invalidates a live address window in {}",
+                        f.name
+                    ),
                 ));
             }
             return Err(bad(if callback_windows {
@@ -1129,13 +1469,35 @@ fn infer_with_private(
             }
         }
     }
-    let callback_windows = if budget.owned_callback_window_functions.is_empty() {
-        false
-    } else {
-        budget.spend(1, "owned callback window function lookup")?;
-        budget.owned_callback_window_functions[f.id.0 as usize]
-    };
-    let address_afters = if store_windows || callback_windows || scoped {
+    let callback_windows = budget.head_descriptions
+        || if budget.owned_callback_window_functions.is_empty() {
+            false
+        } else {
+            budget.spend(1, "owned callback window function lookup")?;
+            budget.owned_callback_window_functions[f.id.0 as usize]
+        };
+    let mut pattern_windows = false;
+    if budget.addressed_sums {
+        budget.spend(f.blocks.len(), "pattern window function scan")?;
+        for block in &f.blocks {
+            budget.spend(block.instructions.len(), "pattern window instruction scan")?;
+            pattern_windows |= block.instructions.iter().any(|i| {
+                matches!(
+                    i.kind,
+                    InstructionKind::BorrowPlaceLocal { .. }
+                        | InstructionKind::PlaceTagLocal { .. }
+                        | InstructionKind::TakeTupleField { .. }
+                        | InstructionKind::TakeVariantField { .. }
+                        | InstructionKind::BorrowFieldLocal { .. }
+                        | InstructionKind::BorrowVariantLocal { .. }
+                        | InstructionKind::VariantTagAddress { .. }
+                        | InstructionKind::BorrowVariantAddress { .. }
+                )
+            });
+        }
+    }
+
+    let address_afters = if store_windows || callback_windows || scoped || pattern_windows {
         resources::address_afters(f, reachable, budget)?
     } else {
         Vec::new()
@@ -1242,7 +1604,18 @@ fn infer_with_private(
                         budget,
                     )?;
                 }
-                if !address_afters.is_empty() {
+                if pattern_windows {
+                    pattern_window_transition(
+                        module,
+                        f,
+                        instruction,
+                        &values,
+                        &state,
+                        &address_afters[b][position],
+                        budget,
+                    )?;
+                }
+                if (store_windows || callback_windows || scoped) && !address_afters.is_empty() {
                     store_window_transition(
                         module,
                         f,
@@ -1256,192 +1629,251 @@ fn infer_with_private(
                     )?;
                 }
                 let mut found = Roots::new();
-                match &instruction.kind {
-                    InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
-                    {
-                        found.insert(Root::Local(*local));
+                if let Some((definition, arguments)) =
+                    super::borrowed_fp::invocation_call(module, f, &instruction.kind)
+                {
+                    for root in &summaries[definition.function.0 as usize] {
+                        budget.spend(1, "invocation callback result substitution")?;
+                        let Root::Parameter(index) = root else {
+                            return Err(bad("invocation result has a non-input summary"));
+                        };
+                        let actual = arguments
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("invocation callback input absent"))?;
+                        extend(&mut found, &values[actual.0 as usize], budget)?;
                     }
-                    InstructionKind::DescribePackageField { local, index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        let root = match &f.locals[local.0 as usize].ty {
+                } else {
+                    match &instruction.kind {
+                        InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                        {
+                            found.insert(Root::Local(*local));
+                        }
+                        InstructionKind::DescribePackageField { local, index }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                        {
+                            let root = match &f.locals[local.0 as usize].ty {
                             Type::Package { fields, .. } if fields.get(*index as usize)
                                 .is_some_and(|(_, ty)| matches!(ty, Type::Managed(inner) if **inner == Type::ByteBuffer || matches!(inner.as_ref(), Type::OwnedStore { .. }))) => Root::Field(*local, *index),
                             _ => Root::Local(*local),
                         };
-                        found.insert(root);
-                    }
-                    InstructionKind::ProjectOwnedArrayField { local, .. }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        // Array element slots are independently owned, but the
-                        // initial window profile keeps a conservative whole
-                        // array storage origin across element replacement.
-                        found.insert(Root::Local(*local));
-                    }
-                    InstructionKind::DescribeCapture { index }
-                        if instruction
-                            .result
-                            .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
-                    {
-                        found.insert(Root::Capture(*index));
-                    }
-                    InstructionKind::ByteBufferBorrow { buffer, .. }
-                    | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                    | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
-                        let source = values
-                            .get(buffer.0 as usize)
-                            .ok_or_else(|| bad("ByteBuffer source outside table"))?;
-                        extend(&mut found, source, budget)?;
-                    }
-                    InstructionKind::BorrowOwnedArrayElement { local, .. } => {
-                        found.insert(Root::Local(*local));
-                    }
-                    InstructionKind::BorrowPackageField { local, index, .. } => {
-                        // The checked instruction borrows this actual inline
-                        // field. Keep sibling fields separate for private
-                        // windows; exporting the Hold still retains the parent.
-                        found.insert(Root::Field(*local, *index));
-                    }
-                    InstructionKind::BorrowLocal { local }
-                    | InstructionKind::BorrowLocalMut { local } => {
-                        found.insert(Root::Local(*local));
-                        if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
-                            && let Some(held) = state.get(local)
-                        {
-                            if budget.address_capture {
-                                for root in held {
-                                    budget.lookup(
-                                        found.len(),
-                                        "captured environment retained dependency",
-                                    )?;
-                                    found.insert(root.retained());
-                                }
-                            } else {
-                                extend(&mut found, held, budget)?;
-                            }
+                            found.insert(root);
                         }
-                    }
-                    InstructionKind::ReborrowAddress { address, .. }
-                    | InstructionKind::AddressSlice { address, .. }
-                    | InstructionKind::AddressField { address, .. }
-                    | InstructionKind::AddressIndex { address, .. } => {
-                        let source = values
-                            .get(address.0 as usize)
-                            .ok_or_else(|| bad("projection address outside table"))?;
-                        extend(&mut found, source, budget)?;
-                    }
-                    InstructionKind::BorrowCapture { index, .. }
-                    | InstructionKind::ReadCapture { index } => {
-                        let ty = instruction
-                            .result
-                            .and_then(|id| f.values.get(id.0 as usize));
-                        if matches!(ty, Some(Type::Address { .. })) || ty.is_some_and(tracked_desc)
+                        InstructionKind::ProjectOwnedArrayField { local, .. }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
+                        {
+                            // Array element slots are independently owned, but the
+                            // initial window profile keeps a conservative whole
+                            // array storage origin across element replacement.
+                            found.insert(Root::Local(*local));
+                        }
+                        InstructionKind::DescribeCapture { index }
+                            if instruction
+                                .result
+                                .is_some_and(|value| tracked_desc(&f.values[value.0 as usize])) =>
                         {
                             found.insert(Root::Capture(*index));
                         }
-                    }
-                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                        budget.lookup(state.len(), "Hold load lookup")?;
-                        if let Some(source) = state.get(local) {
-                            budget.spend(source.len(), "Hold load")?;
-                            found = source.clone();
+                        InstructionKind::ByteBufferBorrow { buffer, .. }
+                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                            let source = values
+                                .get(buffer.0 as usize)
+                                .ok_or_else(|| bad("ByteBuffer source outside table"))?;
+                            extend(&mut found, source, budget)?;
                         }
-                        if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
-                            state.remove(local);
+                        InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                            found.insert(Root::Local(*local));
                         }
-                    }
-                    InstructionKind::Store { local, value } => {
-                        let source = values
-                            .get(value.0 as usize)
-                            .ok_or_else(|| bad("Hold value outside table"))?;
-                        budget.lookup(state.len(), "Hold store lookup")?;
-                        budget.spend(source.len(), "Hold store")?;
-                        if source.is_empty() {
-                            state.remove(local);
-                        } else {
-                            state.insert(*local, source.clone());
+                        InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                            found.insert(mixed_root(f, *local, path, false, budget)?);
                         }
-                    }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
-                        budget.spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
-                        state.remove(local);
-                        for local in fields {
-                            state.remove(local);
+                        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                            found.insert(inline_root(f, *local, path, budget)?);
                         }
-                    }
-                    InstructionKind::DropEnum { local }
-                    | InstructionKind::StorageLive(local)
-                    | InstructionKind::StorageDead(local)
-                    | InstructionKind::BindPackageCapture { local, .. }
-                    | InstructionKind::EndPackageCapture { local, .. }
-                    | InstructionKind::DropManaged { local }
-                    | InstructionKind::DropClosure { local } => {
-                        budget.lookup(state.len(), "Hold storage lookup")?;
-                        state.remove(local);
-                    }
-                    InstructionKind::CallClosureShared { callee, .. }
-                    | InstructionKind::CallClosureMut { callee, .. }
-                        if instruction.result.is_some_and(|value| {
-                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                        }) =>
-                    {
-                        found.insert(Root::Local(*callee));
-                    }
-                    InstructionKind::CallClosureBorrowed { callee, .. }
-                        if instruction.result.is_some_and(|value| {
-                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                        }) =>
-                    {
-                        let actual = values
-                            .get(callee.0 as usize)
-                            .ok_or_else(|| bad("lending callee outside value table"))?;
-                        extend(&mut found, actual, budget)?;
-                    }
-                    InstructionKind::Call {
-                        function,
-                        arguments,
-                    } if instruction.result.is_some_and(|value| {
-                        matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
-                    }) =>
-                    {
-                        let incoming = summaries
-                            .get(function.0 as usize)
-                            .ok_or_else(|| bad("call refers to an absent function"))?;
-                        for root in incoming {
-                            budget.spend(1, "call result Hold substitution")?;
-                            let Root::Parameter(index) = root else {
-                                return Err(bad("call summary has a non-parameter root"));
-                            };
-                            let argument = arguments
-                                .get(*index as usize)
-                                .ok_or_else(|| bad("call summary parameter is absent"))?;
-                            let actual = values
-                                .get(argument.0 as usize)
-                                .ok_or_else(|| bad("call argument outside value table"))?;
-                            extend(&mut found, actual, budget)?;
-                        }
-                    }
-                    InstructionKind::MakeClosure { captures, .. } => {
-                        for value in captures {
-                            budget.spend(1, "Hold capture operand")?;
-                            let ty = f
-                                .values
-                                .get(value.0 as usize)
-                                .ok_or_else(|| bad("Hold capture outside table"))?;
-                            if matches!(ty, Type::Address { .. }) || captured_address(ty, budget)? {
-                                let source = values
-                                    .get(value.0 as usize)
-                                    .ok_or_else(|| bad("Hold capture outside table"))?;
-                                extend(&mut found, source, budget)?;
+                        InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                            for root in &values[address.0 as usize] {
+                                found.insert(address_root(f, *address, path, *root, budget)?);
                             }
                         }
+                        InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                            budget.spend(path.len().saturating_add(1), "payload borrow root")?;
+                            found.insert(variant_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowPackageField { local, index, .. } => {
+                            // The checked instruction borrows this actual inline
+                            // field. Keep sibling fields separate for private
+                            // windows; exporting the Hold still retains the parent.
+                            found.insert(Root::Field(*local, *index));
+                        }
+                        InstructionKind::BorrowLocal { local }
+                        | InstructionKind::BorrowLocalMut { local } => {
+                            found.insert(Root::Local(*local));
+                            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                                && let Some(held) = state.get(local)
+                            {
+                                if budget.address_capture {
+                                    for root in held {
+                                        budget.lookup(
+                                            found.len(),
+                                            "captured environment retained dependency",
+                                        )?;
+                                        found.insert(root.retained());
+                                    }
+                                } else {
+                                    extend(&mut found, held, budget)?;
+                                }
+                            }
+                        }
+                        InstructionKind::AddressField { address, index } => {
+                            for root in &values[address.0 as usize] {
+                                budget.lookup(found.len(), "inline field root insertion")?;
+                                found.insert(inline_address_field_root(
+                                    f, *address, *index, *root, budget,
+                                )?);
+                            }
+                        }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::ReborrowAddress { address, .. }
+                        | InstructionKind::AddressSlice { address, .. }
+                        | InstructionKind::AddressIndex { address, .. } => {
+                            let source = values
+                                .get(address.0 as usize)
+                                .ok_or_else(|| bad("projection address outside table"))?;
+                            extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::BorrowCapture { index, .. }
+                        | InstructionKind::ReadCapture { index } => {
+                            let ty = instruction
+                                .result
+                                .and_then(|id| f.values.get(id.0 as usize));
+                            if matches!(ty, Some(Type::Address { .. }))
+                                || ty.is_some_and(tracked_desc)
+                            {
+                                found.insert(Root::Capture(*index));
+                            }
+                        }
+                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                            budget.lookup(state.len(), "Hold load lookup")?;
+                            if let Some(source) = state.get(local) {
+                                budget.spend(source.len(), "Hold load")?;
+                                found = source.clone();
+                            }
+                            if matches!(instruction.kind, InstructionKind::TakeLocal { .. }) {
+                                state.remove(local);
+                            }
+                        }
+                        InstructionKind::Store { local, value } => {
+                            let source = values
+                                .get(value.0 as usize)
+                                .ok_or_else(|| bad("Hold value outside table"))?;
+                            budget.lookup(state.len(), "Hold store lookup")?;
+                            budget.spend(source.len(), "Hold store")?;
+                            if source.is_empty() {
+                                state.remove(local);
+                            } else {
+                                state.insert(*local, source.clone());
+                            }
+                        }
+                        InstructionKind::UnpackVariant { local, fields, .. }
+                        | InstructionKind::UnpackTuple { local, fields } => {
+                            budget
+                                .spend(fields.len().saturating_add(1), "Unpack Hold local reset")?;
+                            state.remove(local);
+                            for local in fields {
+                                state.remove(local);
+                            }
+                        }
+                        InstructionKind::DropTuple { local }
+                        | InstructionKind::DropEnum { local }
+                        | InstructionKind::StorageLive(local)
+                        | InstructionKind::StorageDead(local)
+                        | InstructionKind::BindPackageCapture { local, .. }
+                        | InstructionKind::EndPackageCapture { local, .. }
+                        | InstructionKind::DropManaged { local }
+                        | InstructionKind::DropClosure { local } => {
+                            budget.lookup(state.len(), "Hold storage lookup")?;
+                            state.remove(local);
+                        }
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. }
+                            if instruction.result.is_some_and(|value| {
+                                matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                            }) =>
+                        {
+                            found.insert(Root::Local(*callee));
+                        }
+                        InstructionKind::CallClosureBorrowed { callee, .. }
+                            if instruction.result.is_some_and(|value| {
+                                matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                            }) =>
+                        {
+                            let actual = values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("lending callee outside value table"))?;
+                            extend(&mut found, actual, budget)?;
+                        }
+                        InstructionKind::CallIndirect { callee, arguments } => {
+                            let ty = f
+                                .values
+                                .get(callee.0 as usize)
+                                .ok_or_else(|| bad("indirect callee outside value table"))?;
+                            for index in super::borrowed_fp::allowed(ty, budget)? {
+                                let argument = arguments
+                                    .get(index)
+                                    .ok_or_else(|| bad("indirect result parameter absent"))?;
+                                let actual = values
+                                    .get(argument.0 as usize)
+                                    .ok_or_else(|| bad("indirect argument outside value table"))?;
+                                extend(&mut found, actual, budget)?;
+                            }
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } if instruction.result.is_some_and(|value| {
+                            matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                        }) =>
+                        {
+                            let incoming = summaries
+                                .get(function.0 as usize)
+                                .ok_or_else(|| bad("call refers to an absent function"))?;
+                            for root in incoming {
+                                budget.spend(1, "call result Hold substitution")?;
+                                let Root::Parameter(index) = root else {
+                                    return Err(bad("call summary has a non-parameter root"));
+                                };
+                                let argument = arguments
+                                    .get(*index as usize)
+                                    .ok_or_else(|| bad("call summary parameter is absent"))?;
+                                let actual = values
+                                    .get(argument.0 as usize)
+                                    .ok_or_else(|| bad("call argument outside value table"))?;
+                                extend(&mut found, actual, budget)?;
+                            }
+                        }
+                        InstructionKind::MakeClosure { captures, .. } => {
+                            for value in captures {
+                                budget.spend(1, "Hold capture operand")?;
+                                let ty = f
+                                    .values
+                                    .get(value.0 as usize)
+                                    .ok_or_else(|| bad("Hold capture outside table"))?;
+                                if matches!(ty, Type::Address { .. })
+                                    || captured_address(ty, budget)?
+                                {
+                                    let source = values
+                                        .get(value.0 as usize)
+                                        .ok_or_else(|| bad("Hold capture outside table"))?;
+                                    extend(&mut found, source, budget)?;
+                                }
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
                 if let Some(result) = instruction.result {
                     let value = values
@@ -1538,8 +1970,11 @@ fn infer_with_private(
             coarse.insert(match root {
                 Root::Local(local)
                 | Root::Field(local, _)
+                | Root::Projection(local, ..)
                 | Root::RetainedLocal(local)
-                | Root::RetainedField(local, _) => HoldRoot::Local(local),
+                | Root::RetainedField(local, _)
+                | Root::RetainedProjection(local, ..) => HoldRoot::Local(local),
+                Root::Window(origin, ..) | Root::RetainedWindow(origin, ..) => origin,
                 Root::Capture(index) | Root::RetainedCapture(index) => HoldRoot::Capture(index),
                 Root::Parameter(index) | Root::RetainedParameter(index) => {
                     HoldRoot::Parameter(index)
@@ -1699,6 +2134,7 @@ fn product_may_store_write(
                         | InstructionKind::DropPackage { local }
                         | InstructionKind::DropClosure { local }
                         | InstructionKind::DropOwnedArray { local }
+                        | InstructionKind::DropTuple { local }
                         | InstructionKind::DropEnum { local }
                         | InstructionKind::DropErrorUnion { local }
                         | InstructionKind::TakePackageField { local, .. }
@@ -1806,7 +2242,7 @@ fn product_parameter_of(
 ) -> CompileResult<Option<u32>> {
     match root.position() {
         Root::Parameter(index) => Ok(Some(index)),
-        Root::Local(local) | Root::Field(local, _) => {
+        Root::Local(local) | Root::Field(local, _) | Root::Projection(local, ..) => {
             budget.spend(function.parameters.len(), "Product actual parameter lookup")?;
             Ok(function
                 .parameters
@@ -2120,6 +2556,7 @@ fn parameter_product_windows(
                         InstructionKind::MakePackage { fields }
                         | InstructionKind::MakeAggregate { fields }
                         | InstructionKind::MakeVariant { fields, .. }
+                        | InstructionKind::MakeOwnedTuple { fields }
                         | InstructionKind::MakeOwnedArray { elements: fields } => {
                             children = fields;
                             true
@@ -2512,6 +2949,7 @@ pub(super) fn infer_module(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     let result = infer_module_inner(module, graphs, store_profiles, budget)?;
+    super::borrowed_fp::targets(module, graphs, &result, budget)?;
     super::lifetimes::returns(module, graphs, &result, budget)?;
     if !budget.shared_product_capture {
         return Ok(result);
@@ -2661,9 +3099,12 @@ fn infer_module_inner(
             }
             for instruction in &block.instructions {
                 budget.spend(1, "return frontier instruction")?;
-                if let InstructionKind::Call {
-                    function: callee, ..
-                } = instruction.kind
+                let callee = match instruction.kind {
+                    InstructionKind::Call { function, .. } => Some(function),
+                    _ => super::borrowed_fp::invocation_call(module, function, &instruction.kind)
+                        .map(|(d, _)| d.function),
+                };
+                if let Some(callee) = callee
                     && instruction.result.is_some_and(|value| {
                         matches!(
                             function.values.get(value.0 as usize),
@@ -3161,4 +3602,411 @@ mod product_parameter_dependency_tests {
             vec![false, false]
         );
     }
+}
+
+fn inline_width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+    b.spend(1, "inline place interval")?;
+    let mut n = 1u32;
+    let mut add = |t: &Type| -> CompileResult<()> {
+        n = n.checked_add(inline_width(t, b)?).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Analyze,
+                "inline interval overflow",
+                None,
+            )]
+        })?;
+        Ok(())
+    };
+    match t {
+        Type::Tuple(fs) => {
+            for t in fs {
+                add(t)?
+            }
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, t) in fields {
+                add(t)?
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fs) in variants {
+                for t in fs {
+                    add(t)?
+                }
+            }
+        }
+        Type::ErrorUnion { error, result } => {
+            add(error)?;
+            add(result)?;
+        }
+        _ => {}
+    }
+    Ok(n)
+}
+fn inline_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[u32],
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let mut ty = &f.locals[local.0 as usize].ty;
+    let mut at = 0u32;
+    for field in path {
+        at = at
+            .checked_add(1)
+            .ok_or_else(|| bad("inline interval overflow"))?;
+        ty = match ty {
+            Type::Tuple(fs) => {
+                for t in fs.iter().take(*field as usize) {
+                    at = at
+                        .checked_add(inline_width(t, b)?)
+                        .ok_or_else(|| bad("inline interval overflow"))?;
+                }
+                fs.get(*field as usize)
+            }
+            Type::Record { fields, .. } => {
+                for (_, t) in fields.iter().take(*field as usize) {
+                    at = at
+                        .checked_add(inline_width(t, b)?)
+                        .ok_or_else(|| bad("inline interval overflow"))?;
+                }
+                fields.get(*field as usize).map(|(_, t)| t)
+            }
+            _ => None,
+        }
+        .ok_or_else(|| bad("inline field outside actual aggregate"))?;
+    }
+    let end = at
+        .checked_add(inline_width(ty, b)?)
+        .ok_or_else(|| bad("inline interval overflow"))?;
+    Ok(Root::Projection(local, at, end))
+}
+fn address_root(
+    f: &TypedFunction,
+    address: ValueId,
+    path: &[VariantProjection],
+    root: Root,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+        return Err(bad("payload source is not an address"));
+    };
+    let mut ty = inner.as_ref();
+    let mut at = 0u32;
+    for part in path {
+        let Type::Enum { variants, .. } = ty else {
+            return Err(bad("payload interval crosses non-Enum"));
+        };
+        at = at
+            .checked_add(1)
+            .ok_or_else(|| bad("address interval overflow"))?;
+        for (_, fs) in variants.iter().take(part.variant as usize) {
+            for t in fs {
+                at = at
+                    .checked_add(inline_width(t, b)?)
+                    .ok_or_else(|| bad("address interval overflow"))?;
+            }
+        }
+        let fs = &variants
+            .get(part.variant as usize)
+            .ok_or_else(|| bad("payload tag outside Enum"))?
+            .1;
+        for t in fs.iter().take(part.index as usize) {
+            at = at
+                .checked_add(inline_width(t, b)?)
+                .ok_or_else(|| bad("address interval overflow"))?;
+        }
+        ty = fs
+            .get(part.index as usize)
+            .ok_or_else(|| bad("payload field outside Enum"))?;
+    }
+    let end = at
+        .checked_add(inline_width(ty, b)?)
+        .ok_or_else(|| bad("address interval overflow"))?;
+    Ok(match root {
+        Root::Local(l) => Root::Projection(l, at, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), at, end),
+        Root::Projection(l, offset, limit) => {
+            let a = offset
+                .checked_add(at)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Projection(l, a, z)
+        }
+        Root::Window(origin, offset, limit) => {
+            let a = offset
+                .checked_add(at)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            let z = offset
+                .checked_add(end)
+                .ok_or_else(|| bad("address interval overflow"))?;
+            if z > limit {
+                return Err(bad("payload escapes its actual parent interval"));
+            }
+            Root::Window(origin, a, z)
+        }
+        root => root,
+    })
+}
+
+fn inline_address_field_root(
+    f: &TypedFunction,
+    address: ValueId,
+    index: u32,
+    root: Root,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+        return Err(bad("inline field base is not an address"));
+    };
+    b.type_work(inner, true, "inline address field shape")?;
+    if !matches!(
+        inner.as_ref(),
+        Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+    ) {
+        return Ok(root);
+    }
+    fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "inline field interval node")?;
+        let mut total = 1u32;
+        let mut add = |t: &Type| -> CompileResult<()> {
+            total = total
+                .checked_add(width(t, b)?)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(total)
+    }
+    let mut begin = 1u32;
+    let ty = match inner.as_ref() {
+        Type::Tuple(fs) => {
+            b.spend(fs.len(), "inline tuple field lookup")?;
+            for t in fs.iter().take(index as usize) {
+                begin = begin
+                    .checked_add(width(t, b)?)
+                    .ok_or_else(|| bad("inline field interval overflow"))?;
+            }
+            fs.get(index as usize)
+        }
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            b.spend(fields.len(), "inline record field lookup")?;
+            for (_, t) in fields.iter().take(index as usize) {
+                begin = begin
+                    .checked_add(width(t, b)?)
+                    .ok_or_else(|| bad("inline field interval overflow"))?;
+            }
+            fields.get(index as usize).map(|(_, t)| t)
+        }
+        _ => unreachable!(),
+    }
+    .ok_or_else(|| bad("inline address field out of range"))?;
+    let end = begin
+        .checked_add(width(ty, b)?)
+        .ok_or_else(|| bad("inline field interval overflow"))?;
+    Ok(match root.position() {
+        Root::Local(l) => Root::Projection(l, begin, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), begin, end),
+        Root::Projection(l, base, bound) => {
+            let a = base
+                .checked_add(begin)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            let z = base
+                .checked_add(end)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            if z > bound {
+                return Err(bad("inline field escapes parent interval"));
+            }
+            Root::Projection(l, a, z)
+        }
+        Root::Window(origin, base, bound) => {
+            let a = base
+                .checked_add(begin)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            let z = base
+                .checked_add(end)
+                .ok_or_else(|| bad("inline field interval overflow"))?;
+            if z > bound {
+                return Err(bad("inline field escapes parent interval"));
+            }
+            Root::Window(origin, a, z)
+        }
+        root => root,
+    })
+}
+
+fn mixed_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[zil_ir::PlaceProjection],
+    header: bool,
+    b: &mut Budget,
+) -> CompileResult<Root> {
+    use zil_ir::PlaceProjection;
+    fn width(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "mixed inline root interval")?;
+        let mut n = 1u32;
+        let mut add = |t: &Type| -> CompileResult<()> {
+            n = n.checked_add(width(t, b)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "mixed interval overflow",
+                    None,
+                )]
+            })?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?;
+                }
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(n)
+    }
+    let mut ty = &f
+        .locals
+        .get(local.0 as usize)
+        .ok_or_else(|| bad("mixed root local absent"))?
+        .ty;
+    let mut start = 0u32;
+    for step in path {
+        b.spend(1, "mixed inline root interval")?;
+        start = start.checked_add(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Analyze,
+                "mixed interval overflow",
+                None,
+            )]
+        })?;
+        ty = match (step, ty) {
+            (PlaceProjection::Field(i), Type::Tuple(fs)) => {
+                for t in fs.iter().take(*i as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fs.get(*i as usize)
+            }
+            (PlaceProjection::Field(i), Type::Package { fields, .. }) => {
+                for (_, t) in fields.iter().take(*i as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fields.get(*i as usize).map(|(_, t)| t)
+            }
+            (PlaceProjection::Variant(p), Type::Enum { variants, .. }) => {
+                for (_, fs) in variants.iter().take(p.variant as usize) {
+                    for t in fs {
+                        start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                            vec![Diagnostic::limit(
+                                Phase::Analyze,
+                                "mixed interval overflow",
+                                None,
+                            )]
+                        })?;
+                    }
+                }
+                let fs = &variants
+                    .get(p.variant as usize)
+                    .ok_or_else(|| bad("mixed actual place route invalid"))?
+                    .1;
+                for t in fs.iter().take(p.index as usize) {
+                    start = start.checked_add(width(t, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                fs.get(p.index as usize)
+            }
+            (PlaceProjection::ErrorArm(e), Type::ErrorUnion { error, result }) => {
+                if !*e {
+                    start = start.checked_add(width(error, b)?).ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Analyze,
+                            "mixed interval overflow",
+                            None,
+                        )]
+                    })?;
+                }
+                Some(if *e { error.as_ref() } else { result.as_ref() })
+            }
+            _ => None,
+        }
+        .ok_or_else(|| bad("mixed actual place route invalid"))?;
+    }
+    let length = if header {
+        if !matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+            return Err(bad("mixed actual place route invalid"));
+        }
+        1
+    } else {
+        width(ty, b)?
+    };
+    let end = start.checked_add(length).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Analyze,
+            "mixed interval overflow",
+            None,
+        )]
+    })?;
+    Ok(Root::Projection(local, start, end))
 }

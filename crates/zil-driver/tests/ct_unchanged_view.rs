@@ -209,7 +209,7 @@ fn raw_schema_and_conversion_errors_match_and_transforming_shapes_fall_back() {
     else {
         panic!("actual source return");
     };
-    let CoreExprKind::IntegerConvert { target, .. } = &mut expression.kind else {
+    let CoreExprKind::NumericConvert { target, .. } = &mut expression.kind else {
         panic!("actual source integer conversion");
     };
     *target = Type::Bool;

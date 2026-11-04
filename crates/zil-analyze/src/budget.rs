@@ -16,6 +16,7 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
     pub(super) helper_edges: usize,
@@ -26,6 +27,7 @@ pub(super) struct Budget {
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
     pub(super) sum_functions: Vec<bool>,
+    pub(super) addressed_sums: bool,
     pub(super) owned_callbacks: BTreeSet<zil_ir::ClosureId>,
     pub(super) owned_callback_helpers: BTreeSet<zil_ir::FunctionId>,
     pub(super) owned_callback_window_functions: Vec<bool>,
@@ -34,7 +36,10 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
+    pub(super) invocation_callbacks: bool,
+    pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
@@ -46,6 +51,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
             helper_edges: limits.max_analysis_steps,
@@ -55,6 +61,7 @@ impl Budget {
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
+            addressed_sums: false,
             owned_callbacks: BTreeSet::new(),
             owned_callback_helpers: BTreeSet::new(),
             owned_callback_window_functions: Vec::new(),
@@ -63,7 +70,10 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            borrowed_function_pointers: false,
             tasks: false,
+            invocation_callbacks: false,
+            head_descriptions: false,
             registrations: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
@@ -167,6 +177,17 @@ impl Budget {
                 self.type_work(error, copy_check, context)?;
                 self.type_work(result, copy_check, context)?;
             }
+            Type::BorrowedFunctionPointer {
+                life,
+                parameters,
+                result,
+            } => {
+                self.spend(super::borrowed_fp::work(life), context)?;
+                for parameter in parameters {
+                    self.type_work(parameter, copy_check, context)?;
+                }
+                self.type_work(result, copy_check, context)?;
+            }
             Type::FunctionPointer { parameters, result }
             | Type::ForeignCallback { parameters, result } => {
                 for parameter in parameters {
@@ -192,6 +213,10 @@ impl Budget {
             | Type::U16
             | Type::I32
             | Type::I64
+            | Type::F32
+            | Type::F64
+            | Type::U64
+            | Type::Usize
             | Type::ForeignHandle
             | Type::CWideString
             | Type::Closure(_) => {}
@@ -229,6 +254,7 @@ fn scalar(ty: &Type, span: Span) -> CompileResult<()> {
 struct SumContext {
     blocked: bool,
     in_enum: bool,
+    in_tuple: bool,
     in_product: bool,
     in_error: bool,
     error_products: u8,
@@ -303,7 +329,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || ty.is_shared_sync_cell_address()
         || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-        || ty.is_shared_resource_head_address()
+        || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
@@ -322,6 +348,14 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address { inner, .. } = ty
+        && matches!(
+            inner.as_ref(),
+            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        )
+    {
+        return super::resources::sums::admit(module, inner, budget).map(|_| false);
+    }
     if budget.sum_type(ty)? {
         return super::resources::sums::admit(module, ty, budget);
     }
@@ -337,6 +371,96 @@ fn local_value(
     } else {
         legacy_value(ty, span, module).map(|_| false)
     }
+}
+
+fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> CompileResult<()> {
+    let Type::Enum { name, variants } = ty else {
+        unreachable!()
+    };
+    if name != "@anonymous-sum:v1" || variants.len() < 2 {
+        return Err(bad("invalid anonymous sum family or arity"));
+    }
+    let mut identity_work = 0usize;
+    let mut pending = Vec::new();
+    for (index, (label, fields)) in variants.iter().enumerate() {
+        budget.spend(32, "anonymous canonical label")?;
+        if label != &format!("Member{index}") || fields.len() != 1 {
+            return Err(bad(
+                "anonymous sum requires canonical ordinal labels and one payload per member",
+            ));
+        }
+        if matches!(&fields[0], Type::Enum { name, .. } if name == "@anonymous-sum:v1") {
+            return Err(bad("anonymous sum directly nests another anonymous sum"));
+        }
+        pending.push((&fields[0], 0usize));
+    }
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, "anonymous identity node")?;
+        identity_work = identity_work.saturating_add(1);
+        if depth > limits.max_call_depth {
+            return Err(exhausted("anonymous identity nesting"));
+        }
+        let text = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                for (label, field) in fields {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.push((field, depth + 1));
+                }
+                name.len()
+            }
+            Type::Enum { name, variants } => {
+                for (label, fields) in variants {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                }
+                name.len()
+            }
+            Type::Tuple(fields) => {
+                pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                0
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element) => {
+                pending.push((element, depth + 1));
+                0
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                pending.extend(parameters.iter().map(|field| (field, depth + 1)));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::Named(_) | Type::Unsupported(_) | Type::Opaque { .. } | Type::Closure(_) => {
+                return Err(bad(
+                    "anonymous sum identity contains an unresolved or nonordinary member type",
+                ));
+            }
+            _ => 0,
+        };
+        budget.spend(text, "anonymous identity text")?;
+        identity_work = identity_work.saturating_add(text);
+    }
+    budget.spend(
+        identity_work.saturating_mul(2),
+        "anonymous canonical comparison",
+    )?;
+    if variants.windows(2).any(|pair| pair[0].1[0] >= pair[1].1[0]) {
+        return Err(bad(
+            "anonymous sum members are repeated or not in complete-type canonical order",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn preflight(
@@ -390,7 +514,8 @@ pub(super) fn preflight(
                         .iter()
                         .flat_map(|b| b.instructions.iter())
                         .filter_map(|i| match &i.kind {
-                            InstructionKind::ConvertInteger { target, .. } => {
+                            InstructionKind::ConvertInteger { target, .. }
+                            | InstructionKind::ConvertNumber { target, .. } => {
                                 Some((target, None, None, false))
                             }
                             InstructionKind::OwnedStoreNew { element } => {
@@ -429,8 +554,13 @@ pub(super) fn preflight(
         let root = ty as *const Type as usize;
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
+        let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
+            && store_element.is_none()
+            && capture_owner.is_none()
+            && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
+        let mut anonymous = Vec::new();
         let mut new_sum = false;
         let mut first = Some((
             ty,
@@ -460,6 +590,7 @@ pub(super) fn preflight(
             let mut child = context;
             match ty {
                 Type::Enum { .. } => child.in_enum = true,
+                Type::Tuple(_) => child.in_tuple = true,
                 Type::Package { .. } => {
                     child.in_product = true;
                     if context.in_error {
@@ -472,6 +603,7 @@ pub(super) fn preflight(
                 }
                 Type::Managed(_) => {
                     let extension = context.in_enum
+                        || context.in_tuple
                         || context.product_sum
                         || (context.error_products >= 2
                             && (!legacy_product_union
@@ -494,12 +626,16 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Address { .. } if depth == 0 && sum_address_root => {
+                    child = SumContext::default();
+                }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Opaque { .. }
                 | Type::FunctionPointer { .. }
+                | Type::BorrowedFunctionPointer { .. }
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
@@ -590,6 +726,10 @@ pub(super) fn preflight(
                     }
                 }
                 Type::Enum { name, variants } => {
+                    if name.starts_with("@anonymous-sum") {
+                        budget.spend(1, "anonymous shape inventory")?;
+                        anonymous.push(ty);
+                    }
                     budget.input(
                         name.len().saturating_add(variants.len()),
                         "enum identity and variants",
@@ -625,6 +765,22 @@ pub(super) fn preflight(
                 | Type::Opaque { hidden: inner, .. } => {
                     pending.push((inner, depth + 1, store_element, None, resource_head, child))
                 }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    budget.borrowed_function_pointers = true;
+                    budget.input(
+                        super::borrowed_fp::work(life),
+                        "borrowed function pointer relation",
+                    )?;
+                    super::borrowed_fp::relation(parameters, result, life)?;
+                    pending.push((result, depth + 1, store_element, None, false, child));
+                    for parameter in parameters {
+                        pending.push((parameter, depth + 1, store_element, None, false, child));
+                    }
+                }
                 Type::FunctionPointer { parameters, result }
                 | Type::ForeignCallback { parameters, result } => {
                     budget.input(parameters.len(), "function pointer signature")?;
@@ -657,6 +813,9 @@ pub(super) fn preflight(
                 }
                 _ => {}
             }
+        }
+        for ty in anonymous {
+            check_anonymous_sum(ty, limits, budget)?;
         }
         if new_sum {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
@@ -691,6 +850,24 @@ pub(super) fn preflight(
             closure.parameters.len().saturating_add(1),
             "closure signature preflight",
         )?;
+        let invocation = closure.lending_captures.is_empty()
+            && crate::borrowed_fp::invocation(&closure.parameters, &closure.result);
+        if invocation {
+            budget.type_work(
+                &closure.result,
+                true,
+                "finite invocation result eligibility",
+            )?;
+            if !matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            {
+                return Err(bad(
+                    "invocation callback result requires a finite Copy or slice pointee",
+                ));
+            }
+            budget.borrowed_function_pointers = true;
+            budget.invocation_callbacks = true;
+        }
+
         for ty in &closure.captures {
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
@@ -761,7 +938,7 @@ pub(super) fn preflight(
                 continue;
             }
             if let Type::Address { inner, .. } = ty
-                && closure.result.is_copy_value()
+                && (closure.result.is_copy_value() || invocation)
             {
                 // A slice is unsized only at this pointee position; its
                 // elements remain independently restricted to finite Copy.
@@ -776,13 +953,14 @@ pub(super) fn preflight(
         }
         if owned_signature {
             super::owned_callbacks::data(module, &closure.result, budget)?;
-        } else if matches!(&closure.result, Type::Address { inner, mutable: false }
+        } else if invocation
+            || (matches!(&closure.result, Type::Address { inner, mutable: false }
             if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))
-            && matches!(
-                closure.kind,
-                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
-            )
-            && !closure.lending_captures.is_empty()
+                && matches!(
+                    closure.kind,
+                    zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+                )
+                && !closure.lending_captures.is_empty())
         {
             legacy_value(&closure.result, Span::default(), module)?;
         } else {
@@ -839,6 +1017,14 @@ pub(super) fn preflight(
                 "callable role table",
             )?;
             for role in &contract.roles {
+                if let Some(life) = &role.life {
+                    budget.input(
+                        crate::borrowed_fp::work(life),
+                        "higher-rank callable metadata",
+                    )?;
+                    budget.borrowed_function_pointers = true;
+                    budget.invocation_callbacks = true;
+                }
                 budget.input(
                     role.hold
                         .len()
@@ -847,11 +1033,6 @@ pub(super) fn preflight(
                         .saturating_add(5),
                     "callable role metadata",
                 )?;
-                if role.life.is_some() {
-                    return Err(bad(
-                        "higher-rank callable role life requires the complete life consumer",
-                    ));
-                }
             }
             match &contract.traces {
                 CallableTraces::Finite(traces) => {
@@ -1058,6 +1239,9 @@ pub(super) fn preflight(
                         }
                         budget.scoped_threads = true;
                     }
+                    InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,
@@ -1096,8 +1280,53 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                         budget.scoped_foreign = true;
                     }
+                    InstructionKind::TakeTupleField { local, path }
+                    | InstructionKind::TakeVariantField { local, path }
+                    | InstructionKind::BorrowPlaceLocal { local, path, .. }
+                    | InstructionKind::PlaceTagLocal { local, path } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("mixed local place outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "mixed local path")?;
+                        budget.input(
+                            path.len().saturating_mul(3).saturating_add(1),
+                            "mixed local path preflight",
+                        )?;
+                        if path.is_empty()
+                            && !matches!(instruction.kind, InstructionKind::PlaceTagLocal { .. })
+                        {
+                            return Err(bad("mixed local path must be nonempty"));
+                        }
+                    }
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        budget.addressed_sums = true;
+                        if local.0 as usize >= function.locals.len() {
+                            return Err(bad("field place local outside table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "field place path")?;
+                        budget.input(path.len().saturating_add(1), "field place preflight")?;
+                    }
+                    InstructionKind::VariantTagAddress { address, path }
+                    | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                        sum_function = true;
+                        budget.addressed_sums = true;
+                        if address.0 as usize >= function.values.len() {
+                            return Err(bad("address Sum base outside value table"));
+                        }
+                        count(0, path.len(), limits.max_call_depth, "address Sum path")?;
+                        budget.input(
+                            path.len().saturating_mul(2).saturating_add(1),
+                            "address Sum path preflight",
+                        )?;
+                    }
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        budget.addressed_sums |=
+                            matches!(instruction.kind, InstructionKind::BorrowVariantLocal { .. });
+
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("Sum local outside table"));
@@ -1108,7 +1337,8 @@ pub(super) fn preflight(
                             "Sum path preflight",
                         )?;
                     }
-                    InstructionKind::UnpackVariant { local, fields, .. } => {
+                    InstructionKind::UnpackVariant { local, fields, .. }
+                    | InstructionKind::UnpackTuple { local, fields } => {
                         sum_function = true;
                         count(0, fields.len(), limits.max_locals, "Unpack fields")?;
                         budget.input(fields.len().saturating_add(1), "Unpack target preflight")?;
@@ -1121,7 +1351,7 @@ pub(super) fn preflight(
                             return Err(bad("Unpack local outside table"));
                         }
                     }
-                    InstructionKind::DropEnum { local } => {
+                    InstructionKind::DropEnum { local } | InstructionKind::DropTuple { local } => {
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("DropEnum local outside table"));
@@ -1129,6 +1359,20 @@ pub(super) fn preflight(
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
+                    }
+                    InstructionKind::ConvertNumber { value, target } => {
+                        let source = function
+                            .values
+                            .get(value.0 as usize)
+                            .ok_or_else(|| bad("numeric conversion value outside table"))?;
+                        if !source.is_numeric()
+                            || !target.is_numeric()
+                            || !(source.is_float() || target.is_float())
+                        {
+                            return Err(bad(
+                                "numeric conversion requires numeric endpoints and at least one float",
+                            ));
+                        }
                     }
                     InstructionKind::ConvertInteger { target, .. } if !target.is_integer() => {
                         return Err(bad("integer conversion target is not a supported integer"));
@@ -1185,7 +1429,8 @@ pub(super) fn preflight(
                     | InstructionKind::MakeManaged { fields }
                     | InstructionKind::MakePackage { fields }
                     | InstructionKind::MakeOwnedArray { elements: fields }
-                    | InstructionKind::MakeVariant { fields, .. } => {
+                    | InstructionKind::MakeVariant { fields, .. }
+                    | InstructionKind::MakeOwnedTuple { fields } => {
                         budget.input(fields.len(), "aggregate operands")?;
                     }
                     InstructionKind::MakeClosure { captures, .. } => {

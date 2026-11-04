@@ -53,15 +53,33 @@ impl Expander<'_> {
                 let callable_parameters = template
                     .roles
                     .into_iter()
-                    .map(|role| CoreCallableParameter {
-                        life: None,
-                        index: role.index as u32,
-                        generic_index: role.generic_index,
-                        generic_name: role.generic_name,
-                        closed_environment: role.closed_environment,
-                        kind: role.kind,
-                        parameters: role.parameters.iter().map(type_ref).collect(),
-                        result: type_ref(&role.result),
+                    .map(|role| {
+                        let parameters = role
+                            .parameters
+                            .iter()
+                            .map(|ty| {
+                                if role.life.is_some() {
+                                    lifetimes::signature_type(self, ty)
+                                } else {
+                                    type_ref(ty)
+                                }
+                            })
+                            .collect();
+                        let result = if role.life.is_some() {
+                            lifetimes::signature_type(self, &role.result)
+                        } else {
+                            type_ref(&role.result)
+                        };
+                        CoreCallableParameter {
+                            life: role.life,
+                            index: role.index as u32,
+                            generic_index: role.generic_index,
+                            generic_name: role.generic_name,
+                            closed_environment: role.closed_environment,
+                            kind: role.kind,
+                            parameters,
+                            result,
+                        }
                     })
                     .collect::<Vec<_>>();
                 (callable_parameters, state_parameters)

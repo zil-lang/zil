@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/terminal_architecture",
+  "implementation_author": "/root/life342",
+  "reviewed_delivery_commit": "50ec87cb2a8eacacf93450d4ab8a0ea8f2058551",
+  "status": "PassLimited",
+  "scope": "Definition-time ordinary generic borrow windows and Copy-T mutable life; not general lifetime, dyn, state or full-language acceptance",
+  "source_sha256": {
+    "crates/zil-expand/src/generic_aliases.rs": "f6e4f7c87f55dd6a1bf2a2a7b30eddd54efe2542ee02db38447b43857dba5192",
+    "crates/zil-expand/src/generic_check.rs": "0d47b170b166d542cd09c5ea014e6d6b833a8d517552fbe389443eb7d43cfb82",
+    "crates/zil-expand/src/generic_places.rs": "cdfc06dffca9e25b64b851da4a3aa39a21bcd5552814a1410fae34db0a721517",
+    "crates/zil-expand/src/lifetimes.rs": "c926f9d48a444d026cba447974568726213e3968cb4babfff0701742c74fab3f",
+    "tests/language-readiness/terminal/342/loans.rs": "04104955085d5afe61399dff40546395b25d34bbe3aa147b9839fdc4c29addf4",
+    "tests/language-readiness/terminal/342/mutable_life.rs": "f125d915ad6f2dc78c03e3f342463b13b80f449acc96af7ece62a5efeb2686d9"
+  },
+  "executable_sha256": {
+    "cross_function_borrows-492a6902b3023121": "48168fadb04e7cab29fce058e12d8b0568678c15f748789a1f240cbe64b3a936",
+    "generic_regressions-500f6ba56884c876": "c80b92de27d4dce7b83a7a82cb2826814ab9aec7d220353f0b9bc558918d2d10"
+  },
+  "binding": "Author identified both retained executables as built and replayed at clean exact50ec. Reviewer copied them before further author work and independently checked the supplied SHA-256 values. Exact source and test hashes are recorded above; no independent Cargo rebuild.",
+  "static_review": [
+    "Reviewed first milestone f1d4ad204 and final50ec alias/check/place/lifetime changes. Incoming referents have separate owners from pointer slots; ordinary reads, branches, call-wide holds and backedges retain alias obligations.",
+    "Final implementation addresses reviewer probes: every reference return requires an actual external parameter root, nested pointer headers are explicitly unsupported, direct helper-call place origins survive index/RHS evaluation, and argument relationships use semantic positions rather than source spans.",
+    "Callee lifetime filtering preserves argument modes; mutable results require exclusive input authority; declared result bounds remain independently checked against instantiated CFG by both kernels."
+  ],
+  "commands": [
+    {
+      "command": "source /workspace/.zil-env/env.sh; TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/generic_regressions-500f6ba56884c876 terminal342 --nocapture --test-threads=1",
+      "exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "elapsed_seconds": 0.03
+    },
+    {
+      "command": "source /workspace/.zil-env/env.sh; TMPDIR=/tmp/zil-terminal-review /tmp/zil-terminal-review/cross_function_borrows-492a6902b3023121 terminal342 --nocapture --test-threads=1",
+      "exit_code": 0,
+      "passed": 5,
+      "failed": 0,
+      "elapsed_seconds": 1.53
+    }
+  ],
+  "observed": {
+    "source": "Unused alias/local-escape/direct-call negatives reject at Expand; nearest last-use, disjoint-parameter, direct helper and slice controls accept; nested generic pointer headers reject as Unsupported.",
+    "native": "Nine real mutable-life sources execute to42 with Clang and LLVM API, O0/O2:36 successful builds and runs.",
+    "raw": "Current typed module Analyze/Wire/Verify accepts; altered empty, wrong, duplicate and out-of-range result bounds reject in Analyze and raw/Wire Verify.",
+    "request_limits": {
+      "Expand_N": 1669,
+      "Types_N": 248,
+      "Analyze_N": 2227,
+      "Verify_N": 7927,
+      "N_minus_1": "ResourceLimit in each phase",
+      "fresh_N": "identical result"
+    },
+    "cache": "Module CT live and restored caches recheck changed bodies, modes and caller conflicts."
+  },
+  "setup_note": "Initial --list calls without sourcing env.sh could not load libLLVM.so.23.1; no tests ran. Sourcing the documented environment resolved this; all recorded test runs passed.",
+  "Rust_goals": {
+    "safety": "Independently reproduced definition-time rejection and actual CFG/Wire checks within this slice.",
+    "runtime_memory": "Actual mutable addresses execute across both backends/optimizations; Rust time/RSS comparison NotRun.",
+    "expression_maintenance": "Generic Copy-T mutable forwarding and disjoint lifetimes compose; whole-library comparison NotRun.",
+    "compile_cost": "Exact budgets reproduced with unchanged defaults; Rust compile-time comparison NotRun.",
+    "breakthrough": "Finite ordinary-template alias and mutable-life improvement, not terminal product completion."
+  },
+  "limits": [
+    "No full workspace gate run by reviewer.",
+    "HRTB/borrowed function pointers, nested borrow storage, general lending, explicit dyn and general state remain separate obligations.",
+    "Author full-target42/35 counts were reported separately; reviewer replayed the eight terminal342 tests only."
+  ]
+}

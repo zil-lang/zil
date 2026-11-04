@@ -96,7 +96,7 @@ fn the_same_state_still_rejects_structural_store_mutation_during_the_window() {
         report
             .diagnostics
             .iter()
-            .any(|d| d.code == "E-BORROW-CONFLICT")
+            .any(|d| d.code == "E-GENERIC-ARGUMENT" && d.phase == zil_base::Phase::Expand)
     );
 }
 

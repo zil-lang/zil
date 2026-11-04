@@ -138,7 +138,8 @@ fn closed(
                     budget.spend(2)?;
                     fields.extend([error.as_ref(), result.as_ref()])
                 }
-                Type::FunctionPointer { .. }
+                Type::BorrowedFunctionPointer { .. }
+                | Type::FunctionPointer { .. }
                 | Type::ForeignCallback { .. }
                 | Type::Unit
                 | Type::Bool
@@ -146,6 +147,10 @@ fn closed(
                 | Type::U16
                 | Type::I32
                 | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
                 | Type::ForeignHandle
                 | Type::CWideString
                 | Type::ByteBuffer

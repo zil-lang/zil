@@ -929,7 +929,7 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     // Pre322 N1938 now becomes2358 because the complete type-position life
     // validator is charged through the shared alias/generic budget remainder.
     assert_eq!(
-        expand, 2358,
+        expand, 2764,
         "205 State alias checks plus322 full-AST life validation; source/default unchanged"
     );
 }

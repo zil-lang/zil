@@ -51,7 +51,10 @@ fn dependency(
     }
     let mut changed = false;
     match ty {
-        Type::FunctionPointer { parameters, result } => {
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } => {
             for parameter in parameters {
                 changed |= classify(parameter, remaining, limits)?.is_some();
                 changed |= dependency(parameter, remaining, limits, depth + 1)?;
@@ -202,7 +205,11 @@ pub(super) fn plan(
         }
         plans.functions.insert(function.id, abi);
         for (index, ty) in function.values.iter().enumerate() {
-            if let Type::FunctionPointer { parameters, result } = ty {
+            if let Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            } = ty
+            {
                 let abi = signature(parameters.iter(), result, remaining, limits)?;
                 if abi.large() {
                     plans

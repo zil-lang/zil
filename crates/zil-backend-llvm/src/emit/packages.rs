@@ -530,6 +530,9 @@ impl FunctionEmitter<'_> {
         instruction: &Instruction,
         local: LocalId,
     ) -> CompileResult<()> {
+        if self.drop_partial_place(local)? {
+            return Ok(());
+        }
         let ty = self.local_type(local)?;
         let Type::Package { fields, .. } = ty else {
             return invalid(

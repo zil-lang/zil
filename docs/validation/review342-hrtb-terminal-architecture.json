@@ -1,0 +1,101 @@
+{
+  "status": "PassLimitedSemanticsWithOpenSignatureAccounting",
+  "reviewer": "/root/terminal_architecture",
+  "source_commit": "13677ef8c0da8bd9d80957513e6616dd0060f8a0",
+  "scope": "Finite explicit invocation-local HRTB Fn/FnMut/FnOnce; independent focused native, raw/Wire, lifetime identity, ownership preparation and request-budget replay.",
+  "identity": {
+    "production_file_count": 351,
+    "production_sha256": "23f77117c7d181841e4e280286f8a0fd11bedce42a5e12b83389ad5f0ecbe022",
+    "algorithm": "SHA256 over lexically sorted repository-relative UTF-8 paths: tracked crates/**/src/**/*.rs, every Cargo.toml, Cargo.lock, lib/**/*.zil, and crates/zil-llvm-api/build.rs; path + NUL + exact Git bytes + NUL. Independently recomputed from the exact commit.",
+    "focused_test": "tests/language-readiness/terminal/342/higher_rank.rs",
+    "focused_test_sha256": "d70fc91c684370c61e6fd716297ff79f4f26a8ca2853f3d82ccc501329210288",
+    "runtime_C": "tools/byte-buffer/096/fault-allocator.c",
+    "runtime_C_sha256": "658bad6fad8c799aabb976778781c0ec73e7048ad5a2131e602e388b3bfb2b7b",
+    "runtime_C_matches_exact_Git_before_and_after_replay": true,
+    "construction": "Author froze the exact clean candidate before copying. Recorded schema36 log explicitly rebuilds producer/consumer crates from /workspace/zil-342 after same-content mtime refresh. That earlier construction log retains an intermediate failing test; it is not presented as the final replay.",
+    "construction_log_sha256": "b7bcf0924f9b5e9f8d3a9b6d0da15c2ad666cf3b5bf169c9fe0080bdf568fc57",
+    "mtime_refresh_receipt_sha256": "7ae21bdcd9965d4a4317a4bc2e582d41e797b54b90a2ab15300ea2d314c518c7"
+  },
+  "harness": {
+    "path": "/workspace/.zil-env/terminal-20261104/reviewer-retained/hrtb342-cross",
+    "sha256": "59225b1025574c67449b13762b997b33427088e03302009f7202df8f65f3538b"
+  },
+  "independent_execution": {
+    "filter": "terminal342_higher_rank --test-threads=1 --nocapture",
+    "passed": 10,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 57,
+    "seconds": 3.63,
+    "log": "/workspace/.zil-env/terminal-20261104/reviewer-hrtb342.log",
+    "log_sha256": "f88ccfb4eefdf91e35909de878d977af38193bca8eeaa85639af1d17f39b8b37",
+    "native_configurations": 64,
+    "native_breakdown": {
+      "ordinary_sources_13_times_4_profiles": 52,
+      "unchanged_original_4_profiles": 4,
+      "owned_preparation_success_and_failure_4_profiles_each": 8
+    },
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "fallback": false,
+    "phase_N": {
+      "Expand": 1514,
+      "Types": 526,
+      "Analyze": 11700,
+      "Verify": 12306
+    },
+    "N_minus_one_ResourceLimit_and_fresh_N_identical": true
+  },
+  "source_and_test_review": [
+    "Each declared role is validated independently even when F and G instantiate to the same ClosureId. Widened/different input relations do not merge into one callback-wide authority.",
+    "Canonical relation labels use first actual input occurrence; unused lexical binders vanish. Typed/Wire36 and callable-contract5 encode the complete relation with bounded counts. Alpha-renaming/reordering/vacuous binders preserve signature and contract identity; changed relations change both.",
+    "Actual callback returns are proved from reachable CFG return roots in separate Analyze and Verify implementations. Only permitted invocation Parameter roots may supply results; fixed captures and local storage cannot.",
+    "The producer loan proof preserves actual parameter/capture environment paths, substitutes actual argument and capture positions through helpers, and imports symbolic separation obligations. New path search, cloning, comparison and insertion fees are prepaid on the existing ledger.",
+    "Source alias-call completion filters positional arguments by the callee relation and excludes fixed environment holds from HRTB invocation results. Native and raw controls cover fresh mutable calls, duplicate actual targets, stale parents, borrowed Desc captures and owned capture storage.",
+    "Types carries closure-state remaining work into lending::populate instead of resetting to the request maximum.",
+    "Later owned-argument preparation failure cleans the moved FnOnce environment without invoking its body: actual allocator observations attempts2/releases1/live0/calls0; the nearest success has attempts2/releases2/live0/calls1."
+  ],
+  "raw_and_Wire_replay": [
+    "Same ClosureId with a wrong second role relation; dense-label gap; oversized binder ResourceLimit.",
+    "Fixed capture forged as invocation result; duplicate exclusive actual argument; stale parent access while returned child lives.",
+    "Actual nested captured storage alias through helper substitution, checked independently by Analyze and raw/decoded-Wire Verify."
+  ],
+  "open_finding": {
+    "kind": "Signature accounting correction requested; no demonstrated authority escape",
+    "Analyze": [
+      "borrowed_fp::callback_returns invokes relation after paying only relation metadata and compares f.return_type with closure.result without result-shape reservation.",
+      "helpers role.life relation check similarly pays only binder/parameter metadata."
+    ],
+    "Verify": [
+      "borrows::check_callback_return and helpers role relation checks reserve relation metadata, while relation recursively classifies actual parameter/result types."
+    ],
+    "shared_issue": "Invocation classifiers also recursively call is_address_pointee. Full input preflight bounds depth but does not reserve every later per-role or fixed-point signature classification/comparison.",
+    "requested_correction": "Prepay actual signature work on the existing shared ledger before each new recursive check, or use a shallow admission trigger where normal independent signature proof already provides full eligibility; retain deep/wide pointee N/N-1 controls.",
+    "author_notified": true,
+    "acceptance": "The exact replay is preserved; complete request-accounting acceptance awaits a corrected exact candidate."
+  },
+  "historical_failures_separate": {
+    "author_Analyze_unit_result": "122 passed, 2 unchanged frozen Wire34 fixture mismatches under Wire36; not independently rerun here.",
+    "error": "E-WIRE-VERSION",
+    "tests": [
+      "forward::tests::reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges",
+      "forward::tests::reviewed_ordinary_arguments_and_symbolic_copy_authority_raw_wire"
+    ],
+    "scope": "Historical codec/fixture integration remains with root; no safety counterexample was removed or reclassified by this review."
+  },
+  "integration_obligations": [
+    "Preserve root WithSyncCell actual body/head/capture/effects and alias checks when merging.",
+    "Retain343 actual/transitive Suspend exclusion for ordinary and borrowed code references when integrating effects.",
+    "Compose complete Wire36/37 consumers and migrate historical fixtures explicitly."
+  ],
+  "limitations": [
+    "No independent full67 cross target, other full targets, unit suite, Clippy, full workspace, native Windows or Rust cost comparison.",
+    "General stored borrows, State/lending, dyn, generic ForLifetime keys and terminal language completion remain outside this finite milestone."
+  ]
+}

@@ -56,6 +56,11 @@ pub fn encode_ct(module: &CtModule, limits: &Limits) -> CompileResult<Vec<u8>> {
                     writer.u8(0)?;
                     writer.constant(constant)?;
                 }
+                CtInstructionKind::ConvertNumber { value, target } => {
+                    writer.u8(4)?;
+                    writer.u32(value.0)?;
+                    writer.ty(target, 0)?;
+                }
                 CtInstructionKind::ConvertInteger { value, target } => {
                     writer.u8(3)?;
                     writer.u32(value.0)?;
@@ -127,6 +132,10 @@ pub fn decode_ct(bytes: &[u8], limits: &Limits) -> CompileResult<CtModule> {
                     op: reader.binary()?,
                     left: ValueId(reader.u32()?),
                     right: ValueId(reader.u32()?),
+                },
+                4 => CtInstructionKind::ConvertNumber {
+                    value: ValueId(reader.u32()?),
+                    target: reader.ty(0)?,
                 },
                 3 => CtInstructionKind::ConvertInteger {
                     value: ValueId(reader.u32()?),
@@ -428,6 +437,10 @@ impl<'a> Writer<'a> {
                 Type::Bool => self.u8(1)?,
                 Type::I32 => self.u8(2)?,
                 Type::I64 => self.u8(3)?,
+                Type::U64 => self.u8(26)?,
+                Type::Usize => self.u8(27)?,
+                Type::F32 => self.u8(28)?,
+                Type::F64 => self.u8(29)?,
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
@@ -505,6 +518,28 @@ impl<'a> Writer<'a> {
                     pending.push(Task::Type(result, depth + 1));
                     pending.push(Task::Types(parameters, depth + 1));
                 }
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    self.u8(31)?;
+                    self.count(life.binder_count as usize, self.limits.max_locals)?;
+                    self.count(life.parameter_lives.len(), self.limits.max_locals)?;
+                    for tag in &life.parameter_lives {
+                        self.boolean(tag.is_some())?;
+                        if let Some(tag) = tag {
+                            self.u32(*tag)?;
+                        }
+                    }
+                    self.boolean(life.result_life.is_some())?;
+                    if let Some(tag) = life.result_life {
+                        self.u32(tag)?;
+                    }
+                    self.count(parameters.len(), self.limits.max_locals)?;
+                    pending.push(Task::Type(result, depth + 1));
+                    pending.push(Task::Types(parameters, depth + 1));
+                }
                 Type::Closure(id) => {
                     self.u8(10)?;
                     self.u32(id.0)?;
@@ -550,6 +585,22 @@ impl<'a> Writer<'a> {
             Constant::I64(value) => {
                 self.u8(3)?;
                 self.bytes(&value.to_le_bytes())
+            }
+            Constant::U64(value) => {
+                self.u8(9)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::Usize(value) => {
+                self.u8(10)?;
+                self.bytes(&value.to_le_bytes())
+            }
+            Constant::F32(bits) => {
+                self.u8(11)?;
+                self.bytes(&bits.to_le_bytes())
+            }
+            Constant::F64(bits) => {
+                self.u8(12)?;
+                self.bytes(&bits.to_le_bytes())
             }
         }
     }
@@ -942,6 +993,10 @@ impl<'a> Writer<'a> {
                     self.u32(field.0)?;
                 }
             }
+            InstructionKind::DescribeAddress { address } => {
+                self.u8(109)?;
+                self.u32(address.0)?;
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.u8(35)?;
                 self.u32(local.0)?;
@@ -1040,6 +1095,11 @@ impl<'a> Writer<'a> {
                 self.u8(2)?;
                 self.u32(local.0)?;
                 self.u32(value.0)?;
+            }
+            InstructionKind::ConvertNumber { value, target } => {
+                self.u8(98)?;
+                self.u32(value.0)?;
+                self.ty(target, 0)?;
             }
             InstructionKind::ConvertInteger { value, target } => {
                 self.u8(59)?;
@@ -1234,6 +1294,72 @@ impl<'a> Writer<'a> {
                 self.u32(*variant)?;
                 self.u32(*index)?;
             }
+            InstructionKind::MakeOwnedTuple { fields } => {
+                self.u8(114)?;
+                self.count(fields.len(), self.limits.max_values)?;
+                for field in fields {
+                    self.u32(field.0)?;
+                }
+            }
+            InstructionKind::UnpackTuple { local, fields } => {
+                self.u8(115)?;
+                self.u32(local.0)?;
+                self.count(fields.len(), self.limits.max_locals)?;
+                for field in fields {
+                    self.u32(field.0)?;
+                }
+            }
+            InstructionKind::DropTuple { local } => {
+                self.u8(116)?;
+                self.u32(local.0)?;
+            }
+            InstructionKind::TakeTupleField { local, path }
+            | InstructionKind::TakeVariantField { local, path }
+            | InstructionKind::BorrowPlaceLocal { local, path, .. }
+            | InstructionKind::PlaceTagLocal { local, path } => {
+                self.u8(match &instruction.kind {
+                    InstructionKind::TakeTupleField { .. } => 117,
+                    InstructionKind::TakeVariantField { .. } => 118,
+                    InstructionKind::BorrowPlaceLocal { .. } => 119,
+                    _ => 120,
+                })?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    match step {
+                        PlaceProjection::Field(index) => {
+                            self.u8(0)?;
+                            self.u32(*index)?;
+                        }
+                        PlaceProjection::Variant(part) => {
+                            self.u8(1)?;
+                            self.u32(part.variant)?;
+                            self.u32(part.index)?;
+                        }
+                        PlaceProjection::ErrorArm(is_error) => {
+                            self.u8(2)?;
+                            self.boolean(*is_error)?;
+                        }
+                    }
+                }
+                if let InstructionKind::BorrowPlaceLocal { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
+                }
+            }
+
+            InstructionKind::BorrowFieldLocal {
+                local,
+                path,
+                mutable,
+            } => {
+                self.u8(110)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for field in path {
+                    self.u32(*field)?;
+                }
+                self.boolean(*mutable)?;
+            }
             InstructionKind::VariantTagLocal { local, path }
             | InstructionKind::ReadVariantLocal { local, path } => {
                 self.u8(
@@ -1248,6 +1374,39 @@ impl<'a> Writer<'a> {
                 for step in path {
                     self.u32(step.variant)?;
                     self.u32(step.index)?;
+                }
+            }
+            InstructionKind::BorrowVariantLocal {
+                local,
+                path,
+                mutable,
+            } => {
+                self.u8(106)?;
+                self.u32(local.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+                self.boolean(*mutable)?;
+            }
+            InstructionKind::VariantTagAddress { address, path }
+            | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                self.u8(
+                    if matches!(&instruction.kind, InstructionKind::VariantTagAddress { .. }) {
+                        107
+                    } else {
+                        108
+                    },
+                )?;
+                self.u32(address.0)?;
+                self.count(path.len(), self.limits.max_call_depth)?;
+                for step in path {
+                    self.u32(step.variant)?;
+                    self.u32(step.index)?;
+                }
+                if let InstructionKind::BorrowVariantAddress { mutable, .. } = &instruction.kind {
+                    self.boolean(*mutable)?;
                 }
             }
             InstructionKind::UnpackVariant {
@@ -1756,6 +1915,10 @@ impl<'a> Reader<'a> {
                 start: usize,
                 foreign: bool,
             },
+            BorrowedFunction {
+                start: usize,
+                life: FunctionLifeContract,
+            },
             Record {
                 start: usize,
                 names: usize,
@@ -1832,6 +1995,16 @@ impl<'a> Reader<'a> {
                         Type::ForeignCallback { parameters, result }
                     } else {
                         Type::FunctionPointer { parameters, result }
+                    });
+                    continue;
+                }
+                Task::BorrowedFunction { start, life } => {
+                    let result = Box::new(values.pop().expect("read borrowed function result"));
+                    let parameters = values.split_off(start);
+                    values.push(Type::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
                     });
                     continue;
                 }
@@ -1913,6 +2086,10 @@ impl<'a> Reader<'a> {
                 1 => Type::Bool,
                 2 => Type::I32,
                 3 => Type::I64,
+                26 => Type::U64,
+                27 => Type::Usize,
+                28 => Type::F32,
+                29 => Type::F64,
                 18 => Type::U8,
                 19 => Type::U16,
                 33 => Type::TaskI32,
@@ -1927,6 +2104,38 @@ impl<'a> Reader<'a> {
                 4 => {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     pending.push(Task::Tuple(values.len()));
+                    pending.push(Task::Types {
+                        left: count,
+                        depth: depth + 1,
+                    });
+                    continue;
+                }
+                31 => {
+                    let binder_count = self.count(self.limits.max_locals, 0)? as u32;
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    let mut parameter_lives = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        parameter_lives.push(if self.boolean()? {
+                            Some(self.u32()?)
+                        } else {
+                            None
+                        });
+                    }
+                    let result_life = if self.boolean()? {
+                        Some(self.u32()?)
+                    } else {
+                        None
+                    };
+                    let count = self.count(self.limits.max_locals, 1)?;
+                    pending.push(Task::BorrowedFunction {
+                        start: values.len(),
+                        life: FunctionLifeContract {
+                            binder_count,
+                            parameter_lives,
+                            result_life,
+                        },
+                    });
+                    pending.push(Task::Type(depth + 1));
                     pending.push(Task::Types {
                         left: count,
                         depth: depth + 1,
@@ -2028,7 +2237,19 @@ impl<'a> Reader<'a> {
             2 => Constant::I32(i32::from_le_bytes(
                 self.take(4)?.try_into().expect("checked length"),
             )),
+            11 => Constant::F32(u32::from_le_bytes(
+                self.take(4)?.try_into().expect("four float32 bytes"),
+            )),
+            12 => Constant::F64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("eight float64 bytes"),
+            )),
             3 => Constant::I64(i64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            9 => Constant::U64(u64::from_le_bytes(
+                self.take(8)?.try_into().expect("checked length"),
+            )),
+            10 => Constant::Usize(u64::from_le_bytes(
                 self.take(8)?.try_into().expect("checked length"),
             )),
             _ => return Err(malformed("E-WIRE-CONSTANT", "unknown wire constant tag")),
@@ -2480,6 +2701,10 @@ impl<'a> Reader<'a> {
                 local: LocalId(self.u32()?),
                 value: ValueId(self.u32()?),
             },
+            98 => InstructionKind::ConvertNumber {
+                value: ValueId(self.u32()?),
+                target: self.ty(0)?,
+            },
             59 => InstructionKind::ConvertInteger {
                 value: ValueId(self.u32()?),
                 target: self.ty(0)?,
@@ -2536,6 +2761,108 @@ impl<'a> Reader<'a> {
                     arguments.push(ValueId(self.u32()?));
                 }
                 InstructionKind::CallClosureMut { callee, arguments }
+            }
+            114 => {
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut fields = Vec::with_capacity(count);
+                for _ in 0..count {
+                    fields.push(ValueId(self.u32()?));
+                }
+                InstructionKind::MakeOwnedTuple { fields }
+            }
+            115 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_locals, 4)?;
+                let mut fields = Vec::with_capacity(count);
+                for _ in 0..count {
+                    fields.push(LocalId(self.u32()?));
+                }
+                InstructionKind::UnpackTuple { local, fields }
+            }
+            116 => InstructionKind::DropTuple {
+                local: LocalId(self.u32()?),
+            },
+            tag @ 117..=120 => {
+                let local = LocalId(self.u32()?);
+                // ErrorArm uses two bytes; all longer steps debit through the
+                // same primitive reads before extending the bounded vector.
+                let count = self.count(self.limits.max_call_depth, 2)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(match self.u8()? {
+                        0 => PlaceProjection::Field(self.u32()?),
+                        1 => PlaceProjection::Variant(VariantProjection {
+                            variant: self.u32()?,
+                            index: self.u32()?,
+                        }),
+                        2 => PlaceProjection::ErrorArm(self.boolean()?),
+                        _ => {
+                            return Err(malformed(
+                                "E-WIRE-TAG",
+                                "unknown inline place projection tag",
+                            ));
+                        }
+                    });
+                }
+                match tag {
+                    117 => InstructionKind::TakeTupleField { local, path },
+                    118 => InstructionKind::TakeVariantField { local, path },
+                    119 => InstructionKind::BorrowPlaceLocal {
+                        local,
+                        path,
+                        mutable: self.boolean()?,
+                    },
+                    _ => InstructionKind::PlaceTagLocal { local, path },
+                }
+            }
+            110 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 4)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(self.u32()?);
+                }
+                InstructionKind::BorrowFieldLocal {
+                    local,
+                    path,
+                    mutable: self.boolean()?,
+                }
+            }
+            tag @ (107 | 108) => {
+                let address = ValueId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                if tag == 107 {
+                    InstructionKind::VariantTagAddress { address, path }
+                } else {
+                    InstructionKind::BorrowVariantAddress {
+                        address,
+                        path,
+                        mutable: self.boolean()?,
+                    }
+                }
+            }
+            106 => {
+                let local = LocalId(self.u32()?);
+                let count = self.count(self.limits.max_call_depth, 8)?;
+                let mut path = Vec::with_capacity(count);
+                for _ in 0..count {
+                    path.push(VariantProjection {
+                        variant: self.u32()?,
+                        index: self.u32()?,
+                    });
+                }
+                InstructionKind::BorrowVariantLocal {
+                    local,
+                    path,
+                    mutable: self.boolean()?,
+                }
             }
             9 => InstructionKind::BorrowLocal {
                 local: LocalId(self.u32()?),
@@ -2684,6 +3011,9 @@ impl<'a> Reader<'a> {
                 }
                 InstructionKind::MakeManaged { fields }
             }
+            109 => InstructionKind::DescribeAddress {
+                address: ValueId(self.u32()?),
+            },
             35 => InstructionKind::DescribeLocal {
                 local: LocalId(self.u32()?),
             },
