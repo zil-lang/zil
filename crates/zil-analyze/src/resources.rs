@@ -412,6 +412,13 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::TaskStart { argument, .. } => (Some(*argument), None, &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => (Some(*task), None, &[]),
+        InstructionKind::TaskYield => (None, None, &[]),
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
@@ -1309,7 +1316,8 @@ impl Flow<'_> {
                 }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
-                | InstructionKind::ByteBufferNew => {
+                | InstructionKind::ByteBufferNew
+                | InstructionKind::TaskStart { .. } => {
                     produced = Some(Fact {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),
@@ -1833,6 +1841,7 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::BorrowLocal { local }
+                | InstructionKind::BorrowLocalMut { local }
                     if matches!(f.locals[local.0 as usize].ty, Type::Managed(_)) =>
                 {
                     if check
@@ -2254,6 +2263,9 @@ impl Flow<'_> {
                         fact.birth.insert(Birth::Incoming);
                     }
                     produced = Some(fact);
+                }
+                InstructionKind::TaskFinishDestroy { task } => {
+                    self.consume(state, *task, check, budget)?;
                 }
                 InstructionKind::Call {
                     function,

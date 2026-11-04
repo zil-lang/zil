@@ -258,7 +258,9 @@ fn link(
                 None,
             );
         };
-        return Ok(if r.payload == Type::ByteBuffer {
+        return Ok(if r.payload == Type::TaskI32 {
+            DropPlan::Leaf("zil.task.drop".into())
+        } else if r.payload == Type::ByteBuffer {
             DropPlan::Leaf("zil.bytes.drop".into())
         } else if let Some(f) = r.teardown {
             DropPlan::Leaf(super::symbol(f))

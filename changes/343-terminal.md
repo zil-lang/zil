@@ -90,3 +90,78 @@ Transfer/Share、拥有单元构造、返回登记、Suspend/SABI、取消排空
 | 至少一项突破 | 原本没有的受保护并发更新已由原源到实际机器运行；相对 Rust 的可重复产品净突破及四目标合取未建立。 |
 
 本提案及里程碑不变更父 B0、完整语言/ZUI 和既有 product-gates 状态。
+
+## Scalar cooperative SABI construction contract
+
+`task_start(worker, i32)` explicitly allocates one stable frame and returns a
+nullable `Managed(TaskI32)` head. `task_valid` observes allocation success through
+its descriptor. Allocation failure creates no frame and the null head drops as a
+no-op. The independently reconstructed initial worker profile contains only
+scalar storage, scalar operations and `TaskYield`; it admits no foreign code,
+callbacks, wakers, addresses or owned cleanup. This actual closed profile, rather
+than a producer flag, alone permits immediate close after a poll activation exits.
+
+`task_poll(&mut task)` returns `(status, value)`: Pending=0, Ready=1,
+Complete=2, Cancelled=3 and Invalid=4. Only Ready carries the worker result and it
+occurs once. The mutable borrow is of the actual owning head; generic Managed
+pointees acquire no address permission. `task_request_cancel` is sticky and
+idempotent. `task_poll_close` returns true only after the activation has exited;
+`task_finish_destroy(give task)` consumes a closed owner. Default Drop requests
+cancel, closes and destroys only this checked scalar task kind. Future tasks with
+external users cannot inherit its close proof.
+
+Each worker has distinct init/poll/request_cancel/poll_close/finish_destroy
+symbols. Source yields become saved instruction positions; actual scalar locals
+and SSA values live in the persistent frame. Actual reachable yields determine
+Suspend transitively. Ordinary calls, function references, thread workers and
+exported Direct entry signatures cannot grant execution of a Suspend function.
+This bounded frame is a continuation milestone, not completion of retained
+registration, general owned spills, wakers or no-future/drain obligations.
+
+The scalar machine candidate now covers conditional yields, backedges and
+locals/SSA live across several polls on both native backends at O0 and O2.
+Cancellation is exercised before the first poll, after each of two yields and
+after completion. A moved owning head can pass through an ordinary factory and
+relay and be polled through an actual checked `&mut TaskI32` helper parameter.
+An unused yielding definition still receives all required runtime declarations.
+
+The init boundary is deliberately `noinline`: even a source-visible
+`task_valid` observation was insufficient to preserve the explicitly fallible
+allocation under O2 inlining. The same default-Drop source now produces AVF on
+success and AN on injected allocation failure (A=allocation attempt,
+V/N=source observation, F=free). This preserves the frozen fallibility contract
+with a real ABI call; its runtime/code-size cost has not been compared to Rust.
+Explicit destroy before Closed traps without freeing. Null operations have
+defined results and null Drop is a no-op.
+
+The first native task lane is Linux x64. The five worker entry symbols are
+currently internal implementation boundaries; semantic public SABI interfaces
+and physical export artifacts are the next milestone. No frame-layout assertion
+is accepted from Types. The actual closed worker graph excludes foreign calls,
+callbacks, addresses, owned cleanup and wakers; this is the sole reason its close
+does not need an external no-future handshake. General task cleanup cannot reuse
+this shortcut.
+
+New task lowering shares the existing request planning balance across parallel
+function batches. Kernel loan checks use actual owning-head ancestry and
+liveness. Exact task fixture limits are Analyze 26182 and Verify 142578, with
+N/N−1/fresh-N checked and no default limit increase. The sync regression bounds
+remain 5152/11506 on their original fixture. Broad all-target lint remains blocked
+by the old shared cp34 reference encoder's missing new schema variants; changed
+libraries and the changed test target pass lint.
+
+| Rust four goals | Scalar task evidence and limits |
+| --- | --- |
+| Comparable safety | Actual head loans and closed worker graphs are checked independently; malformed raw and decoded Wire candidates reject. General retained/external task safety remains unfinished. |
+| Runtime and memory | Persistent native frames, one-shot results, cancellation and real allocation/free failures execute on two backends. Explicit allocation and init call are present; matched Rust runtime/RSS costs are unmeasured. |
+| Expression and maintenance | Ordinary source branches, loops, owner moves and mutable helper parameters resume after poll returns. General owned spills, public SABI, registration and wakers remain under construction. |
+| Compile cost | New work consumes the existing cumulative balance, including parallel lowering. Matched Rust compile-cost comparison is unmeasured. |
+| At least one advance | Source suspension now produces a real persistent native continuation; no product-level four-goal or net-performance conclusion follows. |
+
+Independent review of the first scalar candidate found a missing Direct boundary:
+`c_callback(yielding_worker)` could still create `ForeignFunctionRef`. Both
+kernels now reject that target using their independently derived Suspend graph.
+The retained original source and a tenth raw/decoded-Wire mutation exercise this
+case. Its ordinary non-Suspend static callback neighbor is accepted and builds
+on both backends at O0/O2. The first candidate is superseded by this correction;
+its passing tests alone did not establish that boundary.

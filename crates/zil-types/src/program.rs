@@ -367,6 +367,13 @@ pub(super) fn check_resolved_program_with_reuse(
                 root_functions.push(export.clone());
             }
             if signature.public {
+                if tasks::suspends(&typed) {
+                    return Err(vec![error(
+                        "E-TASK-DIRECT-EXPORT",
+                        f.span,
+                        "Suspend export requires a separate SABI descriptor",
+                    )]);
+                }
                 exports.push(export);
             }
             functions.push(typed);
@@ -405,9 +412,11 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
+    let mut task_work = closure_state.remaining_work();
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resources, &mut task_work).map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
         &functions,
@@ -530,6 +539,7 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::Usize => bytes.push(24),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
+        Type::TaskI32 => bytes.push(33),
         Type::OwnedStore { element } => {
             bytes.push(22);
             type_identity(bytes, element, closures);

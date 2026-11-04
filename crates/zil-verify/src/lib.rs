@@ -79,6 +79,7 @@ mod scoped_callback;
 mod scoped_thread;
 mod slices;
 mod sums;
+mod tasks;
 pub use ct_artifact::{
     CtArtifactAuthority, CtSymbolUsage, CtVerificationMeter, VerifiedCTArtifactProgram,
     verify_ct_artifact, verify_ct_artifact_metered,
@@ -93,6 +94,9 @@ pub struct VerifiedModule {
     fingerprint: Fingerprint,
     limits: Limits,
     uses_owned_sum_extension: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
+    uses_scalar_tasks: bool,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -155,6 +159,15 @@ impl VerifiedModule {
         &self.limits
     }
     /// Enables additional lowering work only; it grants no type permission.
+    pub fn task_worker_ids(&self) -> &BTreeSet<FunctionId> {
+        &self.task_workers
+    }
+    pub fn is_suspend(&self, id: FunctionId) -> bool {
+        self.suspend_functions.contains(&id)
+    }
+    pub fn uses_scalar_tasks(&self) -> bool {
+        self.uses_scalar_tasks
+    }
     pub fn uses_owned_sum_extension(&self) -> bool {
         self.uses_owned_sum_extension
     }
@@ -234,6 +247,9 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 struct Budget {
     remaining: usize,
     sums: bool,
+    tasks: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -248,6 +264,9 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             sums: false,
+            tasks: false,
+            task_workers: BTreeSet::new(),
+            suspend_functions: BTreeSet::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -345,11 +364,14 @@ fn verify_inputs(
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
     match check_module(inputs.module(), inputs.plan(), expected_target, limits) {
-        Ok((fingerprint, uses_owned_sum_extension)) => Ok(VerifiedModule {
+        Ok(checked) => Ok(VerifiedModule {
             inputs,
-            fingerprint,
+            fingerprint: checked.fingerprint,
             limits: limits.clone(),
-            uses_owned_sum_extension,
+            uses_owned_sum_extension: checked.uses_owned_sum_extension,
+            uses_scalar_tasks: checked.uses_scalar_tasks,
+            task_workers: checked.task_workers,
+            suspend_functions: checked.suspend_functions,
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -397,12 +419,19 @@ fn check_target(actual: &TargetProfile, expected: &TargetProfile) -> Check<()> {
     Ok(())
 }
 
+struct CheckedModule {
+    fingerprint: Fingerprint,
+    uses_owned_sum_extension: bool,
+    uses_scalar_tasks: bool,
+    task_workers: BTreeSet<FunctionId>,
+    suspend_functions: BTreeSet<FunctionId>,
+}
 fn check_module(
     module: &TypedModule,
     plan: &CandidatePlan,
     expected_target: &TargetProfile,
     limits: &Limits,
-) -> Check<(Fingerprint, bool)> {
+) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
             "E-VERIFY-SCHEMA",
@@ -651,10 +680,17 @@ fn check_module(
         retained::check_body(module, function, &graph, &mut budget)?;
         graphs.push(graph);
     }
+    tasks::module(module, &mut budget)?;
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
-    Ok((fingerprint, budget.sums))
+    Ok(CheckedModule {
+        fingerprint,
+        uses_owned_sum_extension: budget.sums,
+        uses_scalar_tasks: budget.tasks,
+        task_workers: budget.task_workers,
+        suspend_functions: budget.suspend_functions,
+    })
 }
 
 fn add_count(before: usize, add: usize, maximum: usize, kind: &str) -> Check<usize> {
@@ -948,7 +984,9 @@ fn check_function_signature_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. }
+            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+        {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Managed(_) | Type::Desc(_) => resources::check_type_for(module, ty, span, budget),
@@ -989,7 +1027,9 @@ fn check_local_type(
         Type::Address { inner, .. } if ty.is_package_address() => {
             dynamic_store::check_element(module, inner, span, budget)
         }
-        Type::Address { inner, .. } if ty.is_shared_resource_head_address() => {
+        Type::Address { inner, .. }
+            if ty.is_shared_resource_head_address() || ty.is_exclusive_task_head_address() =>
+        {
             resources::check_type_for(module, inner, span, budget)
         }
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -1433,6 +1473,15 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::TaskStart { .. }
+        | InstructionKind::TaskYield
+        | InstructionKind::TaskValid { .. }
+        | InstructionKind::TaskPoll { .. }
+        | InstructionKind::TaskRequestCancel { .. }
+        | InstructionKind::TaskPollClose { .. }
+        | InstructionKind::TaskFinishDestroy { .. } => {
+            tasks::instruction(module, function, instruction, budget)?
+        }
         InstructionKind::OwnedStoreNew { .. }
         | InstructionKind::OwnedStoreReserve { .. }
         | InstructionKind::OwnedStorePush { .. }
@@ -1648,6 +1697,8 @@ fn check_instruction(
                 closures::definition(module, *id, span)?;
             } else if matches!(inner, Type::Package { .. }) {
                 packages::check_shared_product_type(module, inner, span, budget)?;
+            } else if matches!(inner, Type::Managed(p) if **p == Type::TaskI32) {
+                tasks::carrier(module, inner, span, budget)?;
             } else {
                 check_type(inner, span)?;
             }
@@ -2656,6 +2707,13 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::TaskStart { argument, .. } => ([Some(*argument), None], &[]),
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => ([Some(*task), None], &[]),
+        InstructionKind::TaskYield => ([None, None], &[]),
         InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }

@@ -806,6 +806,7 @@ impl Resolver<'_> {
         }
         Ok(match ty {
             Type::Named(name) if self.ordinary_parameter.as_ref() == Some(name) => ty.clone(),
+            Type::Named(name) if name == "TaskI32" => Type::Desc(Box::new(Type::TaskI32)),
             Type::Named(name) if name == "ByteBuffer" => Type::Desc(Box::new(Type::ByteBuffer)),
             Type::Named(name)
                 if self.declarations.contains_key(name)
@@ -1043,6 +1044,9 @@ impl Resolver<'_> {
                     {
                         Box::new(resolved)
                     }
+                    Type::TaskI32 if matches!(inner.as_ref(), Type::TaskI32) => {
+                        Box::new(Type::TaskI32)
+                    }
                     Type::ByteBuffer if matches!(inner.as_ref(), Type::ByteBuffer) => {
                         Box::new(Type::ByteBuffer)
                     }
@@ -1066,6 +1070,11 @@ impl Resolver<'_> {
             Type::Address { mutable, inner } => {
                 let inner = self.ty(inner, depth + 1, span)?;
                 let inner = match inner {
+                    Type::Managed(payload) | Type::Desc(payload)
+                        if *mutable && *payload == Type::TaskI32 =>
+                    {
+                        Type::Managed(payload)
+                    }
                     Type::Managed(payload) | Type::Desc(payload)
                         if !*mutable
                             && matches!(payload.as_ref(), Type::Record { .. })

@@ -296,6 +296,7 @@ impl Builder<'_, '_> {
                 if !decl.ty.is_copy_value()
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
+                    && !(mutable && decl.ty == tasks::owner())
                     && !product_head
                 {
                     return Err(unsupported(

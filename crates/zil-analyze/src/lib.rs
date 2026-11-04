@@ -30,6 +30,7 @@ mod scoped_thread;
 mod scopes;
 #[cfg(test)]
 mod sum_tests;
+mod tasks;
 
 use std::collections::{BTreeSet, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase};
@@ -100,6 +101,7 @@ fn analyze_budgeted(
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
+    tasks::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }
@@ -115,6 +117,7 @@ fn analyze_budgeted(
     )?) {
         function.holds = holds;
     }
+    tasks::loans(module, &plan, &hold_graphs, budget)?;
     Ok(plan)
 }
 

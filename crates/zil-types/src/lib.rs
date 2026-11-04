@@ -49,6 +49,7 @@ mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
 mod store_templates;
+mod tasks;
 mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
@@ -327,7 +328,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address()))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address()))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
@@ -440,9 +441,12 @@ pub fn check(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
+    let mut task_work = closure_state.remaining_work();
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resource_definitions, &mut task_work)
+        .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
@@ -1800,6 +1804,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Some(name) = dynamic_store::primitive(callee) {
                 return self.dynamic_store_call(name, arguments, expected, e.span);
+            }
+            if let Some(name) = tasks::primitive(callee) {
+                return self.task_call(name, arguments, expected, e.span);
             }
             if let Some(name) = byte_buffer::primitive(callee) {
                 return self.byte_buffer_call(name, arguments, expected, e.span);

@@ -172,6 +172,7 @@ impl Builder<'_> {
             | Type::Opaque { .. }
             | Type::Closure(_)
             | Type::Unsupported(_)
+            | Type::TaskI32
             | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }
     }

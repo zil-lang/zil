@@ -35,6 +35,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
+    pub(super) tasks: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -63,6 +64,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             borrowed_function_pointers: false,
+            tasks: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -186,6 +188,9 @@ impl Budget {
             Type::Named(name) | Type::Unsupported(name) => {
                 self.spend(name.len(), context)?;
             }
+            Type::TaskI32 => {
+                self.tasks = true;
+            }
             Type::ByteBuffer
             | Type::SyncCell(_)
             | Type::Unit
@@ -305,11 +310,12 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         }
     } else if crate::dynamic_store::is_carrier(ty)
         || ty.is_shared_sync_cell_address()
+        || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer
+            if **inner == Type::ByteBuffer || **inner == Type::TaskI32
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -981,6 +987,21 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::TaskStart { .. }
+                    | InstructionKind::TaskYield
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. } => {
+                        budget.tasks = true;
+                        budget.input(3, "task ABI operands")?;
+                        for v in crate::resources::uses(&instruction.kind) {
+                            if v.0 as usize >= function.values.len() {
+                                return Err(bad("task operand is outside actual table"));
+                            }
+                        }
+                    }
                     InstructionKind::WithSyncCell { initial, body, .. } => {
                         budget.input(3, "sealed cell scope operands")?;
                         if initial.0 as usize >= function.values.len()

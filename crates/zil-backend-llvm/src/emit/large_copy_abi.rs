@@ -17,6 +17,7 @@ impl Signature {
 }
 #[derive(Default)]
 pub(super) struct Plans {
+    pub(super) remaining_work: usize,
     pub(super) values: BTreeMap<FunctionId, copy_aggregates::Plan>,
     pub(super) functions: BTreeMap<FunctionId, Signature>,
     pub(super) indirect: BTreeMap<(FunctionId, ValueId), Signature>,
@@ -220,7 +221,8 @@ pub(super) fn plan(
     }
     for function in lir.functions {
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
-            if let InstructionKind::WithScopedThread { worker, .. } = instruction.kind
+            if let InstructionKind::TaskStart { worker, .. }
+            | InstructionKind::WithScopedThread { worker, .. } = instruction.kind
                 && plans
                     .functions
                     .get(&worker)

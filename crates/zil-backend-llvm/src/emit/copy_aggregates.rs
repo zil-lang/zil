@@ -113,7 +113,7 @@ pub(super) fn plan(
     }
     let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
     if !plans.is_empty() || abi.functions.values().any(|s| s.large()) {
-        work.checked_sub(256).ok_or_else(|| {
+        work = work.checked_sub(256).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
                 "Copy helper emission budget exceeded",
@@ -122,6 +122,7 @@ pub(super) fn plan(
         })?;
     }
     Ok(super::large_copy_abi::Plans {
+        remaining_work: work,
         values: plans,
         functions: abi.functions,
         indirect: abi.indirect,

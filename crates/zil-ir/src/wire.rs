@@ -433,6 +433,7 @@ impl<'a> Writer<'a> {
                 Type::U8 => self.u8(18)?,
                 Type::U16 => self.u8(19)?,
                 Type::ByteBuffer => self.u8(24)?,
+                Type::TaskI32 => self.u8(33)?,
                 Type::ForeignHandle => self.u8(20)?,
                 Type::SyncCell(kind) => {
                     self.u8(30)?;
@@ -1117,6 +1118,32 @@ impl<'a> Writer<'a> {
                     self.u32(value.0)?;
                 }
                 self.u8(*ordering as u8)?;
+            }
+            InstructionKind::TaskStart { worker, argument } => {
+                self.u8(99)?;
+                self.u32(worker.0)?;
+                self.u32(argument.0)?;
+            }
+            InstructionKind::TaskYield => self.u8(100)?,
+            InstructionKind::TaskValid { task } => {
+                self.u8(101)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskPoll { task } => {
+                self.u8(102)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskRequestCancel { task } => {
+                self.u8(103)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskPollClose { task } => {
+                self.u8(104)?;
+                self.u32(task.0)?;
+            }
+            InstructionKind::TaskFinishDestroy { task } => {
+                self.u8(105)?;
+                self.u32(task.0)?;
             }
             InstructionKind::ForeignFunctionRef { function } => {
                 self.u8(60)?;
@@ -1888,6 +1915,7 @@ impl<'a> Reader<'a> {
                 27 => Type::Usize,
                 18 => Type::U8,
                 19 => Type::U16,
+                33 => Type::TaskI32,
                 20 => Type::ForeignHandle,
                 30 => Type::SyncCell(match self.u8()? {
                     0 => SyncCellKind::MutexI32,
@@ -2914,6 +2942,26 @@ impl<'a> Reader<'a> {
                     4 => AtomicOrdering::SeqCst,
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
                 },
+            },
+            99 => InstructionKind::TaskStart {
+                worker: FunctionId(self.u32()?),
+                argument: ValueId(self.u32()?),
+            },
+            100 => InstructionKind::TaskYield,
+            101 => InstructionKind::TaskValid {
+                task: ValueId(self.u32()?),
+            },
+            102 => InstructionKind::TaskPoll {
+                task: ValueId(self.u32()?),
+            },
+            103 => InstructionKind::TaskRequestCancel {
+                task: ValueId(self.u32()?),
+            },
+            104 => InstructionKind::TaskPollClose {
+                task: ValueId(self.u32()?),
+            },
+            105 => InstructionKind::TaskFinishDestroy {
+                task: ValueId(self.u32()?),
             },
             255 => InstructionKind::Unsupported(self.text()?),
             _ => return Err(malformed("E-WIRE-OPCODE", "unknown CFG instruction opcode")),
