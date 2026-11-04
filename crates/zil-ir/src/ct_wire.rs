@@ -2191,6 +2191,10 @@ impl Wire for CtTypeConstructor {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
             match self {
+                Self::BorrowedFunctionPointer { life } => {
+                    10u8.encode(e)?;
+                    life.encode(e)?;
+                }
                 Self::Array => {
                     0u8.encode(e)?;
                 }
@@ -2225,6 +2229,9 @@ impl Wire for CtTypeConstructor {
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
         d.descend(|d| match u8::decode(d)? {
+            10 => Ok(Self::BorrowedFunctionPointer {
+                life: FunctionLifeContract::decode(d)?,
+            }),
             0 => Ok(Self::Array),
             1 => Ok(Self::Tuple),
             2 => Ok(Self::FunctionPointer),

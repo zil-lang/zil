@@ -403,12 +403,18 @@ pub enum CtTerminator {
     },
     Trap,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeConstructor {
+    /// Raw invocation relation; children remain actual Type arguments.
+    BorrowedFunctionPointer {
+        life: crate::FunctionLifeContract,
+    },
     Array,
     Tuple,
     FunctionPointer,
-    Address { mutable: bool },
+    Address {
+        mutable: bool,
+    },
     Slice,
     Managed,
     Desc,
