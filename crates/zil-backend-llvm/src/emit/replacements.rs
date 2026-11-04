@@ -35,9 +35,11 @@ pub(super) fn reserve(
             }
             _ => continue,
         };
+        let before = budget.spent();
         for _ in 0..=path.len() {
             budget.tree(root, 0)?;
         }
+        let structure = budget.spent() - before;
         // Each static recipe can serve several mutually exclusive settlements.
         let before = budget.spent();
         for r in resources {
@@ -51,7 +53,8 @@ pub(super) fn reserve(
                 path.len()
                     .saturating_add(1)
                     .saturating_mul(128)
-                    .saturating_add(metadata),
+                    .saturating_add(metadata)
+                    .saturating_add(structure),
             ),
         )?;
     }
@@ -121,5 +124,60 @@ impl FunctionEmitter<'_> {
             },
         )));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+mod fixture;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owning_replacement_machine_recipe_charges_repeated_settlements() {
+        // Raw component metering only; the native/source tests independently
+        // establish permission, initialization and actual drop/store behavior.
+        let mut module = fixture::module_with_relay_and_caller(true);
+        let minimum = |f: &TypedFunction| {
+            let run = |work| {
+                let limits = zil_base::Limits {
+                    max_analysis_steps: work,
+                    ..zil_base::Limits::default()
+                };
+                reserve(f, &module.resources, &limits, &tasks::Meter::new(work))
+            };
+            let (mut lo, mut hi) = (1, zil_base::Limits::default().max_analysis_steps);
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2;
+                if run(mid).is_ok() {
+                    hi = mid
+                } else {
+                    lo = mid + 1
+                }
+            }
+            run(lo).unwrap();
+            assert!(
+                run(lo - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|e| e.category == zil_base::ResultCategory::ResourceLimit)
+            );
+            run(lo).unwrap();
+            lo
+        };
+        let single = minimum(&module.functions[0]);
+        let last = module.functions[0].blocks[0]
+            .instructions
+            .last()
+            .unwrap()
+            .clone();
+        module.functions[0].blocks[0].instructions.push(last);
+        let repeated = minimum(&module.functions[0]);
+        assert!(repeated > single);
+        println!(
+            "G1.3 machine replacement recipe single N={single}; repeated N={repeated}; N-1 rejects; fresh retry agrees"
+        );
     }
 }

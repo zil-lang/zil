@@ -389,6 +389,48 @@ fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
             "mode {mode}"
         );
     }
+    // Preserve all producer claims while changing the actual staged debt from
+    // Created to Incoming. Verify must derive the transfer through both calls.
+    let text = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+        .replace("fn make()", "fn make(give incoming:R)")
+        .replace(
+            "relay(&mut packet)",
+            "replace_value(&mut packet,R{code:66})",
+        )
+        .replace("let owner=make()", "let owner=make(R{code:67})");
+    let text =
+        format!("{text}fn replace_value(target:&mut P,give next:R){{target.owner=give next}}");
+    let input = source(&text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut raw = typed;
+    let f = raw.functions.iter_mut().find(|f| f.name == "make").unwrap();
+    let incoming = f.parameters[0];
+    let new = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+        .last()
+        .unwrap();
+    new.kind = InstructionKind::TakeLocal { local: incoming };
+    let mut claim = plan;
+    claim.module_fingerprint = raw.fingerprint();
+    let errors =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("fresh")),
+        "{errors:?}"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("fresh")),
+        "{errors:?}"
+    );
 }
 
 #[test]
