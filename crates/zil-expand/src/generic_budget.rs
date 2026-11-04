@@ -12,6 +12,7 @@ pub(crate) struct Budget<'a> {
     enum_header: Option<Span>,
     primitive_binders: bool,
     generic_methods: bool,
+    dynamic_interfaces: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -25,7 +26,14 @@ impl<'a> Budget<'a> {
             enum_header: None,
             primitive_binders: false,
             generic_methods: false,
+            dynamic_interfaces: false,
         }
+    }
+    pub(crate) fn has_dynamic(&self) -> bool {
+        self.dynamic_interfaces
+    }
+    pub(crate) fn note_dynamic(&mut self) {
+        self.dynamic_interfaces = true;
     }
     pub(crate) fn has_generic_methods(&self) -> bool {
         self.generic_methods
@@ -184,6 +192,9 @@ impl<'a> Budget<'a> {
                 // merely because the callee's type parameter is also named T.
                 return self.ty_context(value, depth, None, slice_element);
             }
+        }
+        if matches!(ty.kind, TypeKind::Dyn { .. }) {
+            self.dynamic_interfaces = true;
         }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;
