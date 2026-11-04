@@ -2103,3 +2103,79 @@ fn g3_3_once_consumption_is_proved_after_source_in_raw_and_wire() {
         assert_eq!(decoded[0].message, verified[0].message);
     }
 }
+
+#[test]
+fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
+    let constructors = [
+        "Phantom::<'CLASS>{n:42}",
+        "#(Phantom::<'CLASS>{n:scalar(i32,42)})",
+        "#((Phantom::<'a>{n:scalar(i32,0)},Phantom::<'CLASS>{n:scalar(i32,42)}).1)",
+    ];
+    for constructor in constructors {
+        for intermediate in [false, true] {
+            for actual in ["a", "b"] {
+                let init = constructor.replace("CLASS", actual);
+                let binding = if intermediate {
+                    format!("let saved={init};let x:Phantom<'a>=saved;")
+                } else {
+                    format!("let x:Phantom<'a>={init};")
+                };
+                let text = format!(
+                    "struct Phantom<life s>{{n:i32}}fn scalar(t:Type,n:i32)->i32{{return n}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{{binding}return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}"
+                );
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    terminal_native_profiles(&text, "main", 42);
+                } else {
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::SafeReject,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+                    assert!(
+                        report.diagnostics.iter().any(|d| d.message.contains(
+                            "source annotation cannot equate distinct declared lifetime classes"
+                        )),
+                        "{}",
+                        report.to_json()
+                    );
+                }
+            }
+        }
+    }
+    // The outer reference relation is not nominal class equality. Preserve a
+    // genuine borrow return through a helper, along with a class-bearing helper.
+    let compatible = "struct Phantom<life s>{n:i32}fn borrow<life x>(p:&'x i32)->&'x i32{return p}fn make<life x>(p:&'x i32)->Phantom<'x>{return Phantom::<'x>{n:*p}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{let x:Phantom<'a>=make(borrow(pa));return x.n}fn main()->i32{let a=42;let b=0;return value(&a,&b)}";
+    let report = compile_source(&source(compatible), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    terminal_native_profiles(compatible, "main", 42);
+    let wrong = compatible.replace("make(borrow(pa))", "make(borrow(pb))");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
