@@ -266,14 +266,97 @@
         "No common39/CT4 consumer integration, whole-language acceptance, full workspace gate, Rust runtime/RSS/compile comparison or formal performance claim."
       ],
       "rust_goals": "Safety: actual tagged places and independent raw/Wire rejection plus native owning cleanup. Runtime/memory: existing inline ErrorUnion slots and real addresses without wrappers or payload copies. Expression/maintenance: direct generic E!T match/conditions and complete member identity. Compile cost: paid copies and exact request/fresh/warm boundaries, without a Rust comparative claim. Breakthrough: direct generic ErrorUnion destructuring composes with actual owning success/error cleanup."
+    },
+    {
+      "name": "generic-pattern-reference-origins-root39",
+      "result": "PassLimitedPendingIndependentReview",
+      "source_parent": "4f5dfe01b",
+      "implementation_commits": [
+        "6f27d38a9",
+        "6279afa86",
+        "cb3a380b2"
+      ],
+      "evidence": "Exact019 independent review confirmed erased unused generic stale-reference acceptance in match/if-let/while-let and mutable-authority promotion. The corrected definition-time alias engine retains the actual scrutinee root once before bindings, real Field/Variant/ErrorArm paths, actual parent loan ancestry and mode. It preserves last-use positives, disjoint Tuple siblings, grouped fresh rvalues, saved relay-call results across two arms, independent Copy snapshots and temporary expiry on normal/break/continue joins. Whole-tree disjointness planning and string/set/path work are prepaid. All21 Expand units and terminal40 now execute on this combined common39/CT4 baseline. The new driver control has bad=SafeReject, nearest=Success, with the real instantiated good function running Clang/API O0/O2. Historical019 runtime evidence remains separate.",
+      "commands": [
+        "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture",
+        "cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes",
+        "cargo test -p zil-expand --lib -- --nocapture",
+        "cargo test -p zil-analyze --lib sum_tests::",
+        "cargo test -p zil-verify --lib package_tests::sums",
+        "cargo test -p zil-verify --lib borrow"
+      ],
+      "gates": {
+        "terminal340": "40/0",
+        "impl187_borrowed_bytes": "25/0",
+        "expand_lib": "21/0",
+        "analyze_sum": "26/0",
+        "verify_sum": "16/0",
+        "verify_borrow": "23/0",
+        "expand_clippy_all": "Pass with4 preexisting dyn-catalog dead-code warnings; -D warnings not claimed",
+        "seven_library_clippy_all": "Blocked by shared Task39 collapsible_if in crates/zil-types/src/tasks/hint.rs270; reported to343/root",
+        "full_workspace": "NotRun"
+      },
+      "source_boundaries": {
+        "unsigned": 9050,
+        "option": 38301,
+        "complete_tuple": 20265,
+        "local_reference": 17540,
+        "addressed": 91861,
+        "mixed_long_prefix": 2093659,
+        "actual_mixed_address": 102269,
+        "direct_error_union": 83726
+      },
+      "expand_boundaries": {
+        "member_disjointness_wide_grouped_prefix": 37839,
+        "nested_reference_pattern_origins": 8103
+      },
+      "raw_observation64_boundaries": {
+        "mixed_analyze": 133566,
+        "mixed_verify": 246133,
+        "mixed_decoded_wire": 246133,
+        "legacy_analyze": 41628,
+        "legacy_verify": 41013,
+        "legacy_decoded_wire": 41013
+      },
+      "retained_executables": {
+        "aggregates": {
+          "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+          "sha256": "566c9131a68ab34186e3df0b641a26dfebda064776dda921009d90ef482d72c1"
+        },
+        "impl187": {
+          "path": "/workspace/.zil-env/target340/debug/deps/impl187_borrowed_bytes-182a7c94849f47e8",
+          "sha256": "cd7a223b5421205a6164980d594a43a9c5e5394bb2ee7f76de1b128c6982e74c"
+        },
+        "expand": {
+          "path": "/workspace/.zil-env/target340/debug/deps/zil_expand-f102b30535c7baef",
+          "sha256": "69b902c386fc4cbb9ac3005fbd222735e0ab6730b1e230fe94d3fb656bc94635"
+        }
+      },
+      "source_binding": {
+        "algorithm": "Sorted unique git ls-files paths; feed UTF8(path), NUL, lowercase SHA256(file), LF into SHA256. Only root Cargo.lock.",
+        "production_selector": "(path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+        "production_count": 418,
+        "production_sha256": "ad88b3c522cfe0f589c6b060505250353ecf0fa7e2a9efaf171ebf955233d520",
+        "test_selector": "All tracked terminal/340 paths plus driver aggregates,impl187,impl030,impl042,impl260 tests",
+        "test_count": 17,
+        "test_sha256": "1ef5691e5c308cbc4ad1d6b109ec26aafd14642690840cc27cdd995b1210c0e7"
+      },
+      "limitations": [
+        "Full132 aggregates target and full Rust comparison/formal workspace gates not run at this39 identity.",
+        "Anonymous generic member ref windows conservatively retain the actual whole parent when final runtime tag order is unresolved; no syntax ordinal becomes a physical tag/apart proof.",
+        "Captured owning-base Address, partial Product-root/nested Package transfer, actual reservation121-124 pin/commit and physical CT ErrorUnion values remain ongoing.",
+        "Two unlinked reservation inventory prototypes remain untracked outside delivered source; fences are not replacement functionality."
+      ],
+      "rust_goals": "Safety: invalid unused definitions now reject before erasure with actual source roots/modes. Runtime/memory: no new runtime op, ABI object or allocation. Expression/maintenance: ordinary last-use and disjoint sibling positives remain available, including address-return helper calls and fresh temporary conditions. Compile cost: two exact paid Expand boundaries plus source/raw request retries; no Rust performance comparison. Breakthrough: definition-time reference-pattern safety agrees with concrete independent kernels without relying on observed instantiations."
     }
   ],
   "remaining": [
-    "physical CT ErrorUnion value construction/execution/patterns (coordinated344)",
     "finite ordinary captured owning-base Address profile",
     "selective Product-root and nested consuming Package member patterns",
     "transactional actual owning-field replacement121-124",
-    "independent review of this direct ErrorUnion checkpoint",
+    "physical CT ErrorUnion value construction/execution/patterns (coordinated344)",
+    "remaining anonymous generic projected-ref expressiveness under unresolved member order",
+    "independent review of this combined root39 origin checkpoint",
     "whole-language acceptance"
   ],
   "rust_goals": {
