@@ -850,8 +850,10 @@ mod source_tests {
         );
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
         let aliases = BTreeMap::new();
-        let mut target = zil_base::TargetProfile::default();
-        target.pointer_width = 32;
+        let target = zil_base::TargetProfile {
+            pointer_width: 32,
+            ..Default::default()
+        };
         let rejected = expand_with_map_limits_target_context(
             &source,
             &syntax,
