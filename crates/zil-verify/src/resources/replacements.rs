@@ -23,6 +23,47 @@ struct Invocation<'a> {
     captures: Option<&'a actual::Captures>,
     carrier: Option<usize>,
 }
+fn nested_descriptor_boundary(module: &TypedModule, b: &mut Budget) -> Check<()> {
+    b.spend(module.closures.len())?;
+    for environment in &module.closures {
+        b.spend(environment.captures.len())?;
+        for field in &environment.captures {
+            let inner = match field {
+                Type::Closure(id) => Some(*id),
+                Type::Address { inner, .. } => {
+                    if let Type::Closure(id) = inner.as_ref() {
+                        Some(*id)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            let Some(id) = inner else {
+                continue;
+            };
+            let target = module.closures.get(id.0 as usize).ok_or_else(|| {
+                reject(
+                    "E-VERIFY-RESOURCE",
+                    None,
+                    "nested description closure identity absent",
+                )
+            })?;
+            b.spend(target.captures.len())?;
+            if target
+                .captures
+                .iter()
+                .any(|capture| matches!(capture, Type::Desc(_)))
+            {
+                return Err(unsupported(
+                    "nested closure resource descriptions need their transitive carrier bridge",
+                    None,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
 impl Plan {
     pub(super) fn new(
         module: &TypedModule,
@@ -31,6 +72,7 @@ impl Plan {
         targets: &BTreeMap<usize, Vec<actual::Target>>,
         b: &mut Budget,
     ) -> Check<Self> {
+        nested_descriptor_boundary(module, b)?;
         let actual = actual::Program::reconstruct(module, graphs, b)?;
         b.spend(module.functions.len().saturating_add(writes.len()))?;
         let mut inventories = Vec::with_capacity(module.functions.len());
@@ -150,7 +192,9 @@ impl Plan {
                     .zip(&transfer.slots.desc_local),
             ) {
                 b.spend(1)?;
-                if !matches!(ty, Type::Desc(_) | Type::Closure(_)) {
+                if !(matches!(ty, Type::Desc(_) | Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
+                {
                     continue;
                 }
                 let Some(slot) = *slot else {
