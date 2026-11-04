@@ -4,6 +4,48 @@ use super::*;
 use cfg::{Builder, Value};
 
 impl Compiler<'_> {
+    pub(super) fn has_ambient_use(&mut self) -> R<bool> {
+        if self.source_instance_calls.is_empty() {
+            return Ok(true);
+        }
+        // This finite projection only removes the unused Definition row of a
+        // scalar/closed-Type call. No Instance row or live reference is relabeled.
+        self.budget
+            .work(self.ambient_life_scopes.len(), Span::default())?;
+        if self
+            .ambient_life_scopes
+            .iter()
+            .any(|scope| matches!(scope.instance, CtScopeInstance::Instantiated(_)))
+        {
+            return Ok(true);
+        }
+        for (arguments, context) in self
+            .records
+            .iter()
+            .map(|s| (&s.arguments, &s.life_context))
+            .chain(self.enums.iter().map(|s| (&s.arguments, &s.life_context)))
+        {
+            self.budget.work(arguments.len() + 1, Span::default())?;
+            if context
+                .as_ref()
+                .is_some_and(|graph| !graph.ambient_classes.is_empty())
+            {
+                return Ok(true);
+            }
+            if arguments.iter().any(|arg| matches!(arg, CtSchemaArgument::Type(graph) if !graph.ambient_classes.is_empty())) { return Ok(true); }
+        }
+        for template in &self.templates {
+            self.budget
+                .work(template.syntax.nodes.len(), Span::default())?;
+            for node in &template.syntax.nodes {
+                if matches!(node, CtSyntaxNode::Token(CtToken { name: Some(CtIdent { member_owner_type: Some(graph), .. }), .. }) if !graph.ambient_classes.is_empty())
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
     pub(super) fn mixed_parameters(parameters: &[s::GenericParam]) -> bool {
         parameters
             .iter()
@@ -238,6 +280,32 @@ impl Builder<'_, '_> {
         // item_symbol uses actual immutable AST placement, never Span/name.
         self.compiler.item_symbol(d.module, d.item)?;
         self.compiler.ensure_generic_definition(declaration)?;
+        // This event is emitted by the actual source call before any raw scope
+        // can be presented to Verify. Its caller token is the current lexical
+        // scope, not a row accepted from the eventual artifact.
+        let scope = self
+            .compiler
+            .source_life_scope
+            .as_ref()
+            .ok_or_else(|| error(span, "CT factory call lacks authentic caller scope"))?;
+        let first_name = &scope
+            .binders
+            .first()
+            .ok_or_else(|| error(span, "CT factory caller has no life binder"))?
+            .0;
+        self.compiler.budget.text(first_name, span)?;
+        let first_name = first_name.clone();
+        let caller_reference = self.compiler.ambient_actual(&first_name, span)?;
+        let scope = self.compiler.source_life_scope.as_ref().unwrap();
+        self.compiler.budget.work(32, span)?;
+        if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+            Compiler::actual_cost(&mut self.compiler.budget, actuals, span)?;
+        }
+        let caller_scope = CtAmbientLifeScope {
+            declaration: scope.definition.clone(),
+            binder_site: Vec::new(),
+            instance: scope.instance.clone(),
+        };
         let mut actuals = Vec::new();
         for (parameter, actual) in d.function.generics.iter().zip(explicit) {
             self.compiler.budget.node(span)?;
@@ -271,6 +339,26 @@ impl Builder<'_, '_> {
         let function = self
             .compiler
             .enqueue_mixed_instance(declaration, &actuals)?;
+        self.compiler.mixed_actual_cost(&actuals, span)?;
+        self.compiler.budget.node(span)?;
+        Budget::take(
+            &mut self.compiler.budget.bytes,
+            std::mem::size_of::<SourceInstanceCall>(),
+            span,
+            "CT actual call ledger bytes exhausted",
+        )?;
+        let callee = self.compiler.item_symbol(d.module, d.item)?;
+        self.compiler
+            .source_instance_calls
+            .push(SourceInstanceCall {
+                caller: self.function_id(),
+                caller_definition: self.definition.clone(),
+                caller_scope,
+                caller_scope_id: caller_reference.scope,
+                callee,
+                instance: function,
+                actuals,
+            });
         if result == CtTy::Scalar(CtScalarTy::Unit) {
             self.op(
                 CtInstructionKind::Call {

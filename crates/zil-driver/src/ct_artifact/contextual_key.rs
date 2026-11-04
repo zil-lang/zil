@@ -21,6 +21,7 @@ struct Key<'a, 'b> {
     out: Vec<u8>,
     owned: u64,
     visiting: Vec<(bool, u32)>,
+    scope_visiting: Vec<u32>,
 }
 impl Key<'_, '_> {
     fn reserve(&mut self, bytes: u64) -> CompileResult<()> {
@@ -84,6 +85,34 @@ impl Key<'_, '_> {
         self.number(bits)
     }
     fn scope_key(&mut self, id: u32) -> CompileResult<Vec<u8>> {
+        let instantiated = matches!(
+            self.scopes.get(id as usize).map(|s| &s.instance),
+            Some(CtScopeInstance::Instantiated(_))
+        );
+        if !instantiated {
+            return self.scope_key_inner(id);
+        }
+        self.budget
+            .reserve_analysis_work(self.scope_visiting.len() as u64 + 1)?;
+        if self.scope_visiting.contains(&id) {
+            return Err(bad("CT instantiated contextual scope cycle"));
+        }
+        if self.scope_visiting.len() >= self.limits.max_call_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Ct,
+                "CT instantiated contextual scope depth exceeded",
+                None,
+            )]);
+        }
+        self.reserve(4)?;
+        self.scope_visiting.reserve_exact(1);
+        self.scope_visiting.push(id);
+        let result = self.scope_key_inner(id);
+        self.scope_visiting.pop();
+        self.release(4);
+        result
+    }
+    fn scope_key_inner(&mut self, id: u32) -> CompileResult<Vec<u8>> {
         let scope = self
             .scopes
             .get(id as usize)
@@ -98,12 +127,36 @@ impl Key<'_, '_> {
             }
             match &scope.instance {
                 CtScopeInstance::Definition => self.bytes(&[0])?,
-                CtScopeInstance::Instantiated(_) => {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Ct,
-                        "full specialization contextual key awaits its authentic actual-vector producer",
-                        None,
-                    )]);
+                CtScopeInstance::Instantiated(actuals) => {
+                    self.bytes(&[1])?;
+                    self.number(actuals.len() as u64)?;
+                    for actual in actuals {
+                        match actual {
+                            CtScopeActual::Type(graph) => {
+                                self.bytes(&[0])?;
+                                self.graph(graph)?;
+                            }
+                            CtScopeActual::Scalar(value) => {
+                                self.bytes(&[1])?;
+                                self.scalar(value)?;
+                            }
+                            CtScopeActual::Lifetime(reference) => {
+                                self.bytes(&[2])?;
+                                self.context.validate_reference(
+                                    self.scopes,
+                                    *reference,
+                                    self.budget,
+                                )?;
+                                let key = self.scope_key(reference.scope.0)?;
+                                let bytes = key.capacity() as u64;
+                                self.number(key.len() as u64)?;
+                                self.bytes(&key)?;
+                                self.number(u64::from(reference.parameter))?;
+                                drop(key);
+                                self.release(bytes);
+                            }
+                        }
+                    }
                 }
             }
             let count = self
@@ -765,6 +818,7 @@ pub(super) fn contextual_value_key(
         out: Vec::new(),
         owned: 0,
         visiting: Vec::new(),
+        scope_visiting: Vec::new(),
     };
     let result = (|| {
         key.bytes(b"zil/ct-contextual-value/v1\0")?;

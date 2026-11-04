@@ -1,6 +1,8 @@
 //! Immutable source witnesses for one actual CT invocation. Raw table indices,
 //! source names and spans never select a lexical owner.
 use super::{compiler::Entry, source_index::SourceIndex};
+#[path = "invocation_context_calls.rs"]
+mod calls;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ct::CtExecutionBudget;
@@ -347,6 +349,55 @@ impl FrozenInvocationContext {
             ));
         }
         Ok(())
+    }
+    pub(super) fn resolve_reference<'a>(
+        &self,
+        scopes: &'a [CtAmbientLifeScope],
+        mut reference: CtAmbientLifeReference,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<(&'a CtSymbolId, u32)> {
+        let mut visited = Vec::new();
+        let mut bytes = 0u64;
+        let result = (|| {
+            loop {
+                self.validate_reference(scopes, reference, budget)?;
+                budget.reserve_analysis_work(visited.len() as u64 + 1)?;
+                if visited.contains(&reference) {
+                    return Err(unsupported("CT actual life reference cycle"));
+                }
+                if visited.len() >= budget.remaining().max_call_depth as usize {
+                    return Err(vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "CT actual life reference depth exceeded",
+                        None,
+                    )]);
+                }
+                let scope = &scopes[reference.scope.0 as usize];
+                match &scope.instance {
+                    CtScopeInstance::Definition => {
+                        return Ok((&scope.declaration, reference.parameter));
+                    }
+                    CtScopeInstance::Instantiated(actuals) => {
+                        let Some(CtScopeActual::Lifetime(next)) =
+                            actuals.get(reference.parameter as usize)
+                        else {
+                            return Err(unsupported(
+                                "CT actual life reference selects another parameter kind",
+                            ));
+                        };
+                        budget.reserve_temporary_bytes(
+                            std::mem::size_of::<CtAmbientLifeReference>() as u64,
+                        )?;
+                        bytes += std::mem::size_of::<CtAmbientLifeReference>() as u64;
+                        visited.reserve_exact(1);
+                        visited.push(reference);
+                        reference = *next;
+                    }
+                }
+            }
+        })();
+        budget.release_temporary_bytes(bytes);
+        result
     }
     pub(super) fn parameter_count(&self, scope: &CtAmbientLifeScope) -> Option<usize> {
         self.active

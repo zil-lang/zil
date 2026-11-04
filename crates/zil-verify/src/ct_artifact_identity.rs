@@ -286,6 +286,23 @@ pub(super) fn check_argument_graphs(
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
+    for scope in &raw.ambient_life_scopes {
+        if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+            meter.charge(actuals.len(), None)?;
+            for actual in actuals {
+                if let CtScopeActual::Type(graph) = actual {
+                    Identity {
+                        raw,
+                        limits,
+                        meter,
+                        bytes: 0,
+                        visiting: Vec::new(),
+                    }
+                    .graph(graph)?;
+                }
+            }
+        }
+    }
     for (name, arguments, context) in raw
         .record_schemas
         .iter()

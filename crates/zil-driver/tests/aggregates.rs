@@ -7675,6 +7675,7 @@ fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{
     });
     return value.n
 }
+
 fn main()->i32{let n=0;let m=0;return result(&n,&m)}
 "#;
     let report = compile_source(&source(text), &CompileOptions::default());
@@ -7737,6 +7738,62 @@ fn main()->i32{let n=0;let m=0;return result(&n,&m)}
             .iter()
             .any(|d| d.message.contains("actual expected type"))
     );
+}
+
+#[test]
+fn g442_mixed_ct_phantom_call_actuals() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+    );
+    let permuted = text
+        .replace(
+            "fn make<T:Copy,#N:i32,life a>",
+            "fn make<life a,#N:i32,T:Copy>",
+        )
+        .replace("make::<i32,7,'s>", "make::<'s,7,i32>")
+        .replace("make::<bool,35,'t>", "make::<'t,35,bool>");
+    for input in [text, permuted.as_str()] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", input)], "main", b"42\n");
+    }
+    // The concrete call already supplies i32/7. Those actuals cannot prove
+    // the generic equation for arbitrary T/N, including an unused definition.
+    let minimal = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+    );
+    for input in [
+        minimal.replace("return Phantom::<'a,T,N>", "return Phantom::<'a,i32,N>"),
+        minimal.replace("return Phantom::<'a,T,N>", "return Phantom::<'a,T,7>"),
+        minimal
+            .replace("return Phantom::<'a,T,N>", "return Phantom::<'a,i32,N>")
+            .replace(
+                "fn main()->i32{let n=0;return result(&n)}",
+                "fn main()->i32{return 0}",
+            ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual expected type")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
