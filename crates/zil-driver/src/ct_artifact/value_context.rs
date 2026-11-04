@@ -316,7 +316,6 @@ pub(in crate::ct_artifact) struct ValueContext {
     pub enums: Vec<CtEnumSchema>,
     pub ty: CtTy,
     pub bytes: u64,
-    pub source_bindings: Vec<compiler::SourceLifeBinding>,
     pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
     pub invocation_context:
         Option<std::sync::Arc<crate::ct_artifact::invocation_context::FrozenInvocationContext>>,
@@ -336,17 +335,18 @@ impl ValueContext {
         >,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Self> {
+        // This private producer ledger belongs to each complete schema, not
+        // every later child value that happens to share the artifact tables.
+        Self::validate_source_bindings(
+            program,
+            source_bindings,
+            invocation_context.as_deref(),
+            budget,
+        )?;
         let ty = &program.functions[program.entry.0 as usize].result_type;
         let mut bytes = schema_copy_cost(&program.record_schemas, &program.enum_schemas, budget)?
             .saturating_add(ty_cost(ty, budget)?)
             .saturating_add(ambient_cost(&program.ambient_life_scopes, budget)?);
-        budget.reserve_analysis_work(source_bindings.len() as u64)?;
-        for binding in source_bindings {
-            budget.reserve_analysis_work(binding.parameters.len() as u64)?;
-            bytes = bytes
-                .saturating_add(std::mem::size_of::<compiler::SourceLifeBinding>() as u64)
-                .saturating_add(binding.parameters.len() as u64 * 4);
-        }
         budget.reserve_temporary_bytes(bytes)?;
         bytes = bytes.saturating_add(
             invocation_context
@@ -358,10 +358,62 @@ impl ValueContext {
             enums: program.enum_schemas.clone(),
             ty: ty.clone(),
             bytes,
-            source_bindings: source_bindings.to_vec(),
             ambient_life_scopes: program.ambient_life_scopes.clone(),
             invocation_context,
         })
+    }
+    fn validate_source_bindings(
+        program: &CtArtifactProgram,
+        bindings: &[compiler::SourceLifeBinding],
+        invocation: Option<&crate::ct_artifact::invocation_context::FrozenInvocationContext>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        budget.reserve_analysis_work(bindings.len() as u64)?;
+        for binding in bindings {
+            budget.reserve_analysis_work(1)?;
+            let graph = if binding.enumeration {
+                program
+                    .enum_schemas
+                    .get(binding.schema as usize)
+                    .and_then(|s| s.life_context.as_ref())
+            } else {
+                program
+                    .record_schemas
+                    .get(binding.schema as usize)
+                    .and_then(|s| s.life_context.as_ref())
+            }
+            .ok_or_else(bad)?;
+            let Some(CtTypeNode::BorrowedStorage { life, .. }) =
+                graph.nodes.get(graph.root.0 as usize)
+            else {
+                return Err(bad());
+            };
+            if life.binder_count as usize != binding.parameters.len() {
+                return Err(bad());
+            }
+            let context = invocation.ok_or_else(bad)?;
+            budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
+            let mut class = 0usize;
+            for row in &graph.ambient_classes {
+                if row.owner != graph.root {
+                    continue;
+                }
+                context.validate_reference(&program.ambient_life_scopes, row.source, budget)?;
+                let scope = &program.ambient_life_scopes[row.source.scope.0 as usize];
+                budget.reserve_analysis_work(32)?;
+                if row.class as usize != class
+                    || scope.declaration != binding.definition
+                    || binding.parameters.get(class) != Some(&row.source.parameter)
+                {
+                    return Err(bad());
+                }
+                class += 1;
+            }
+            if class != binding.parameters.len() {
+                return Err(bad());
+            }
+        }
+        Ok(())
     }
     pub(in crate::ct_artifact) fn type_with_scopes(
         &self,
@@ -401,21 +453,6 @@ impl ValueContext {
                     definition: ambient.declaration.clone(),
                     parameters: vec![row.source.parameter],
                 });
-            }
-        }
-        // The legacy private source bindings remain a consistency check during
-        // migration; the authenticated public context carries value identity.
-        budget.reserve_analysis_work(self.source_bindings.len() as u64)?;
-        for binding in &self.source_bindings {
-            budget.reserve_analysis_work(
-                (binding.parameters.len() as u64).saturating_mul(scopes.len() as u64),
-            )?;
-            if !scopes.is_empty()
-                && !scopes.iter().any(|scope| {
-                    scope.definition == binding.definition && scope.parameters == binding.parameters
-                })
-            {
-                return Err(bad());
             }
         }
         Ok((graph, scopes))
