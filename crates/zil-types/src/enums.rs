@@ -752,6 +752,10 @@ impl Builder<'_, '_> {
             return self.owned_enum_match(expression, arms, span);
         }
         let (value, ty) = self.expr(expression, None)?;
+        self.closures.snapshot_type(&ty, 1, 0, span)?;
+        if owned_shapes::enumeration(&ty) {
+            return self.owned_enum_match_value(value, ty, arms, span);
+        }
         if !ty.is_copy_value() {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }
