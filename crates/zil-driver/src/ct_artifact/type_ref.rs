@@ -70,6 +70,11 @@ impl Builder<'_> {
     fn ty(&mut self, ty: &Type) -> CompileResult<CtTypeNodeId> {
         use CtScalarTy as S;
         match ty {
+            Type::Dyn { .. } => Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "dyn Type metadata requires a complete CT4 node and context bridge",
+                None,
+            )]),
             Type::Unit => self.push(CtTypeNode::Primitive(S::Unit)),
             Type::Bool => self.push(CtTypeNode::Primitive(S::Bool)),
             Type::U8 => self.push(CtTypeNode::Primitive(S::U8)),

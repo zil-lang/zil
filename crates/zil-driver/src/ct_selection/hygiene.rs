@@ -86,8 +86,33 @@ impl<'a> Renamer<'a> {
     }
     fn ty(&mut self, ty: &mut s::TypeRef, depth: usize) -> CompileResult<()> {
         self.budget.node(ty.span, depth)?;
+        if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+            for binding in bindings {
+                self.budget.node(binding.span, depth + 1)?;
+                let member = match &mut binding.kind {
+                    s::DynBindingKind::Type { member, value } => {
+                        self.ty(value, depth + 2)?;
+                        member
+                    }
+                    s::DynBindingKind::Constant { member, ty, value } => {
+                        self.ty(ty, depth + 2)?;
+                        self.expression(value, depth + 2)?;
+                        member
+                    }
+                    s::DynBindingKind::Method { member, arguments } => {
+                        for arg in arguments {
+                            self.argument(arg, depth + 2)?;
+                        }
+                        member
+                    }
+                };
+                for name in member {
+                    self.budget.text(name, binding.span)?;
+                }
+            }
+        }
         match &mut ty.kind {
-            s::TypeKind::Named { path, args } | s::TypeKind::Dyn { path, args } => {
+            s::TypeKind::Named { path, args } | s::TypeKind::Dyn { path, args, .. } => {
                 if path.len() == 1 {
                     self.type_reference(&mut path[0], ty.span)?;
                 }
