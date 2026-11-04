@@ -1023,6 +1023,14 @@ impl Visitor<'_, '_, '_> {
                     self.ty(t, &types, depth + 1)?;
                 }
             }
+            ItemKind::Const(c) if !top => {
+                if let Some(ty) = &mut c.ty {
+                    self.ty(ty, &types, depth + 1)?;
+                }
+                if let Some(value) = &mut c.value {
+                    self.expr(value, &types, &Names::new(), depth + 1)?;
+                }
+            }
             ItemKind::Impl(i) => {
                 self.ty(&mut i.target, &types, depth + 1)?;
                 if let Some(t) = &mut i.trait_type {

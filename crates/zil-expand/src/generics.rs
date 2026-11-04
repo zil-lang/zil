@@ -75,6 +75,8 @@ mod bytes;
 pub(super) mod callable;
 #[path = "generic_closure_context.rs"]
 pub(super) mod closure_context;
+#[path = "generic_constant_plan.rs"]
+pub(crate) mod constant_plan;
 #[path = "generic_const.rs"]
 mod consts;
 #[path = "generic_copy.rs"]
@@ -859,6 +861,7 @@ impl<'a> Engine<'a> {
         self.budget.node(span, depth)
     }
     fn run(&mut self, module: &Module, products: &mut products::Products) -> R<Module> {
+        self.require_evaluated_constants(module)?;
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();

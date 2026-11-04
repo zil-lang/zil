@@ -1,0 +1,134 @@
+{
+  "task": "G1.3.3",
+  "reviewer": "g4_4 (not author of this production change)",
+  "status": "LimitedPass",
+  "head": "b2ad4782b56b9ea72d8fa51644cbbbbb2e101501",
+  "source_test_sha": "031eac7c86e60ae828aa97125dd51dc03bafc14b",
+  "production_sha": "c3a60116e636909c09c559cf52d79d927558a22c",
+  "normal_dependency_merge": "634f61a060d978e0cc048f6278da0bfcde5de12a (53ae71252)",
+  "clean": true,
+  "scope": "Actual initialized local ErrorUnion, current executable tag observation, real mutable alias (including unique local Address Store/TakeLocal relay), and direct Managed<Copy Record> field replacement. Single active arm remains mandatory.",
+  "static_findings": [
+    "Actual address origin derives LocalId+Route from executable definitions, not equality of holder types. Multiple Store origins are discarded; Load/TakeLocal of an Address parameter is not attributed to a later unique Store.",
+    "Existing paid inventory enables partial tag tracking only for actual address tag plus address reservation. Depth, active-cycle traversal, parameter lookup, route copies and arm pruning are charged.",
+    "Current tag reads survive only permitted pure operations; invalidating operations clear reads/tags, and joins intersect available facts. Edges inspect actual binary compare and successor, not declared payload arm.",
+    "Analyze narrows its actual local Tree. Verify independently consumes the actual edge fact only for empty route at real local ErrorUnion root, translating runtime is_error0/1 to its Content success/error1/0 convention.",
+    "Verify requires initialized state and preserves conservative unreachable-edge handling; selected replacement subtree still requires exactly one active arm and full initialization. No absent alternative creates initialized data.",
+    "Reservation/pin/old-teardown->Store and Abort protocol consumers remain in force. Wrong-root sibling, wrong selected arm and stale tag observation controls are source-derived and keep the original valid raw/Wire positive."
+  ],
+  "validation": {
+    "mode": "Independently replayed frozen exact-hash executables; no reviewer rebuild/clean/full suite. Author confirmed target340 exclusively stopped and never cross-built after final receipt. All8 listed source SHA256 and all5 unique executable SHA256 independently matched author receipt.",
+    "total_passed": 48,
+    "failed": 0,
+    "checks": [
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/replacements-default.log",
+        "sha256": "cf2c54f56bfb4d831a5f9b1016d2d660ed58f7518d0101e7566809c3d515cf5f",
+        "passed": 12,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/replacements-api.log",
+        "sha256": "9e783201440b3369833cf7a06c2dbeec1c9ca66ab8be09eb69effb9bf0b7b3c7",
+        "passed": 12,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/mixed-address.log",
+        "sha256": "351e41c8e18c78af11540ef7513d6cc22b316347067d8f25dd0bf8957eb330cb",
+        "passed": 5,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/copy-epoch.log",
+        "sha256": "1d7ce7a34813c49e7f970ce5ce81338a261ef2263ac47e6e500ea4ee3ce6ffa6",
+        "passed": 1,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/store-budgets.log",
+        "sha256": "4d8eeab6a71c44f27ed4444ea9f916889eddc214a91ccef0f52634589bf3df62",
+        "passed": 2,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/analyze-replacement.log",
+        "sha256": "9b25f2447210f44bf31caec4e6bdfa9109b1991c6a09037eea856408d11d78c1",
+        "passed": 7,
+        "failed": 0
+      },
+      {
+        "log": "/workspace/.zil-env/G1.3.3-review-tmp/verify-replacement.log",
+        "sha256": "0b8d618d0d4a30c1e0c2492b600833251b9867da2df74c2e75f927e4d21a2f92",
+        "passed": 9,
+        "failed": 0
+      }
+    ],
+    "features": {
+      "69ffa20fbaa0b0e1": "[\"default\"]",
+      "e68efd3bca6e242d": "[\"default\", \"llvm-api\"]"
+    },
+    "budgets": {
+      "new_Analyze": 46908,
+      "new_Verify": 97818,
+      "old_store_Analyze_Verify": [
+        19754,
+        54842
+      ],
+      "old_call_invalidation_Analyze_Verify": [
+        23731,
+        63080
+      ],
+      "evidence": "N-1 correct-phase ResourceLimit, fresh/warm/retry and zero active query checks independently replayed. Earlier47040/98052 remain pre-dependency history."
+    },
+    "new_lane_native": {
+      "distinct_sources": 5,
+      "distinct_backend_optimization_configurations": 20,
+      "independent_executions": 30,
+      "why_30": "Default10 Clang runs; API-enabled20 runs includes repeated10 Clang plus10 LLVM API. Other old native controls replayed but not counted in these new-lane totals.",
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "assertions": "Success, verification_runs1, exact requested backend, fallbackNone, API builder object reports, native exit success, exact stdout, empty stderr.",
+      "success_stdout": "AB42\n",
+      "failure_stdout": "BA42\n",
+      "interpretation": "A old owner teardown precedes B new owner storage/teardown, then actual new-owner read contributes42. Failure observes prepared B cleanup before still-original A(code65) cleanup. Trailing42 in failure is the error-wrapper result, not a postfailure read of old n."
+    },
+    "builds_by_reviewer": 0,
+    "formal_gate_runs": 0,
+    "tmpdir": "/workspace/.zil-env/G1.3.3-review-tmp"
+  },
+  "author_only_validation_not_repeated": [
+    "Strict two-crate Clippy",
+    "cargo fmt --all --check"
+  ],
+  "remaining": [
+    "No external incoming Address/capture-root activity profile opened.",
+    "Saved old Desc from addressed Sum remains earlier Analyze producer rejection, not a proved new invalidation consumer.",
+    "No general nested owning payload, whole Package/Sum endpoint or complete G1.4 completion.",
+    "No runtime/RSS/Rust comparative performance claim."
+  ],
+  "source_sha256_checked": {
+    "crates/zil-analyze/src/resources/sums.rs": "2fbf9105858a7af745604a16a8893e5d8c599d0dc0729c56daf62a78e37ef194",
+    "crates/zil-analyze/src/resources/sums/partial_places.rs": "ca8be783f9a2b44ed189c3976ca4727f516ec6e7cd7a87998bca791f808d363b",
+    "crates/zil-verify/src/sums.rs": "f4d906bd80a420e507e09b47a66b68aa172edb38f4148b08ce2f6621c5d0b3c5",
+    "crates/zil-verify/src/sums/partial_places.rs": "8b2b8fd87291a92b3adbb58da82339a5be40009f1d9efdad78abbb4e461de885",
+    "crates/zil-verify/src/sums/replacements.rs": "4df0b84caad2a4fec51f00822e6c5a6c8e78eefe5d9b5430f4bd9b610d42d4af",
+    "crates/zil-driver/tests/aggregates.rs": "a2b67588b95ec6c02ada094fa97b2991cc53a9a9bf1dc87e28419191dcf57737",
+    "tests/language-readiness/terminal/340/replace-error-arm-alias.zil": "3f2b4a724a5d34cd7b12ff7f10e3492efc8569fe6d493c37b672b600fc09c09f",
+    "tests/language-readiness/terminal/340/replace-error-arm-alias-failure.zil": "46a6b186c85af64fda1524f1abfabb6088dabb99b35fa9cde1dfc465c97d41b4"
+  },
+  "binary_sha256_checked": {
+    "/workspace/.zil-env/target340/debug/deps/aggregates-69ffa20fbaa0b0e1": "9f65ef0b592da7d779716f98221b04dc20abc8f7cea9c5a42cdcf5b7c9659770",
+    "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d": "a1706c565f12352fbfb7df972fe98c68bebf60a4d27ae85bce336c0be623035d",
+    "/workspace/.zil-env/target340/debug/deps/impl180_store_mut-0ecbf88db537b83c": "67363516f4bb2b90fb67e172f4d4e5d2b4c646ba90cec17288a6a91be8aa985a",
+    "/workspace/.zil-env/target340/debug/deps/zil_analyze-8dde3b1c204420d7": "b4a898d9d8ad7bc98677745a5537e4c55d59efa4adaaa53124ea60ffc9a1a0ce",
+    "/workspace/.zil-env/target340/debug/deps/zil_verify-e5c00ec0866c83e5": "18f84b7a21861646bd78c80dda7d5d6687621b485b5540c8c2888931cec1fc59"
+  },
+  "mutations": "Review JSON/logs only; author/root source, refs and caches were not changed."
+}

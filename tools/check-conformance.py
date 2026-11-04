@@ -28,5 +28,6 @@ for c in cases:
 covered={v for c in cases for v in c['requirements']}
 ck('all surface families represented',{'ZIL-CAPTURE','ZIL-RECEIVER','ZIL-RECORD','ZIL-PIPE','ZIL-SCRIPT'}<=covered)
 report={'scope':'authored source expectations and metadata only; zero ZIL compiler executions','cases':len(cases),'accepted_expectations':sum(c['kind']=='accept' for c in cases),'rejected_expectations':sum(c['kind']=='reject' for c in cases),'not_run':len(cases),'fixture_dependent':sum(bool(c['expected'].get('fixture')) for c in cases),'total':len(checks),'passed':sum(c['pass_'] for c in checks),'failures':[c for c in checks if not c['pass_']]}
+(R/'evidence').mkdir(parents=True, exist_ok=True)
 (R/'evidence/conformance-integrity.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps(report,ensure_ascii=False,indent=2));sys.exit(bool(report['failures']))
