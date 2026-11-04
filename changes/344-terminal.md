@@ -150,3 +150,19 @@ wildcard patterns, CT/Wire/cache identity, ordinary closures/helpers, large
 Copy and active owned cleanup/borrow behavior, nearest raw canonical violations,
 N/N−1/fresh bounds and Clang/API O0/O2. Unused invalid definitions reject; no
 implicit heap/RC/lock, larger budgets or raw Type permissions are introduced.
+
+### Follow-up: every generic structural key pays its own work
+
+Independent review of f01e61bcc replayed all source/CT/native controls but found
+that alias normalization prepayment did not cover later generic-instance and
+coverage key construction. The recursive Union renderer could flatten, copy
+and compare complete long keys without debiting those operations at each call.
+Thread the existing expansion Budget through bounded unification/key entry
+points. For requests whose existing AST walk recorded anonymous sums, compute
+an allocation-free bounded key layout, including nested constructor keys,
+flattened member counts, copied string bytes and worst-case full comparisons,
+and reserve that work before rendering or sorting. No-Union requests retain
+the original path and fees. Alias sorting remains a separate paid operation;
+it is not a transferable credit for a later key construction. Retain real
+long-common-prefix members nested inside generic/tuple/sum types and exact
+warm/fresh N/N-1 controls, alongside inherited float/UInt budget neighbors.

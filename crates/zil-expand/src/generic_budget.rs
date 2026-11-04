@@ -82,6 +82,17 @@ impl<'a> Budget<'a> {
         })?;
         Ok(())
     }
+    pub(crate) fn identity_node(&mut self, depth: usize, span: Span) -> R<()> {
+        self.identity_work(1, span)?;
+        if depth > self.limits.max_call_depth {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "structural type key nesting exhausted",
+                Some(span),
+            ));
+        }
+        Ok(())
+    }
     pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(

@@ -3695,3 +3695,57 @@ fn anonymous_sum_float_unsigned_nested_generic_enum_layout() {
         42,
     );
 }
+
+#[test]
+fn anonymous_sum_generic_long_prefix_key_budget_is_request_local() {
+    use zil_driver::CompilationSession;
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil"
+    );
+    review329_native(&[("main", text)], 42);
+    let input = source(text);
+    let options = |n| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1usize, Limits::default().max_analysis_steps);
+    let report = compile_source(&input, &options(high));
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let report = compile_source(&input, &options(mid));
+        match report.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    assert_eq!(
+        warm.compile_source(&input, &options(low)).status,
+        ResultCategory::Success
+    );
+    for (n, status) in [
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(report.status, status, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!(
+        "344 nested/generic common-prefix key exact N={low}; N-1 ResourceLimit and warm/fresh agree"
+    );
+}

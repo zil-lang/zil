@@ -2667,9 +2667,17 @@ fn bind(pattern: &Pattern, ty: Option<TypeRef>, env: &mut Env) {
 }
 fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     budget.ty(ty)?;
-    type_key_bounded(ty)
+    type_key_bounded(ty, budget)
 }
-fn type_key_bounded(ty: &TypeRef) -> R<String> {
+fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    // The profile is recorded during the existing bounded AST walk. Requests
+    // without anonymous sums retain their original key fees and traversal.
+    if budget.has_anonymous_sums() {
+        type_keys::prepay(ty, budget)?;
+    }
+    render_type_key(ty)
+}
+fn render_type_key(ty: &TypeRef) -> R<String> {
     Ok(match &ty.kind {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
             "()".into()
@@ -2680,13 +2688,13 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
                 let GenericArg::Type(t) = a else {
                     return Err(unsupported(ty.span, "const generic argument"));
                 };
-                key.push_str(&format!("<{}>", type_key_bounded(t)?));
+                key.push_str(&format!("<{}>", render_type_key(t)?));
             }
             key
         }
-        TypeKind::Group(t) => return type_key_bounded(t),
+        TypeKind::Group(t) => return render_type_key(t),
         TypeKind::Reference { mutable, inner, .. } => {
-            format!("R{mutable}<{}>", type_key_bounded(inner)?)
+            format!("R{mutable}<{}>", render_type_key(inner)?)
         }
         TypeKind::Union(ts) => {
             fn members(ty: &TypeRef, out: &mut Vec<String>) -> R<()> {
@@ -2695,7 +2703,7 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
                         members(part, out)?;
                     }
                 } else {
-                    out.push(type_key_bounded(ty)?);
+                    out.push(render_type_key(ty)?);
                 }
                 Ok(())
             }
@@ -2715,25 +2723,25 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
         TypeKind::Tuple(ts) => format!(
             "({})",
             ts.iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(",")
         ),
         TypeKind::Array {
             element,
             length: Some(length),
-        } => format!("A{}<{}>", array_length(length)?, type_key_bounded(element)?),
+        } => format!("A{}<{}>", array_length(length)?, render_type_key(element)?),
         TypeKind::Array {
             element,
             length: None,
-        } => format!("S<{}>", type_key_bounded(element)?),
+        } => format!("S<{}>", render_type_key(element)?),
         TypeKind::Optional(t) => {
-            format!("?{}", type_key_bounded(t)?)
+            format!("?{}", render_type_key(t)?)
         }
         TypeKind::Error { error, result } => format!(
             "E<{}><{}>",
-            type_key_bounded(error)?,
-            type_key_bounded(result)?
+            render_type_key(error)?,
+            render_type_key(result)?
         ),
         TypeKind::ForeignFunction {
             abi,
@@ -2745,19 +2753,19 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
             abi,
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            render_type_key(result)?
         ),
         TypeKind::Function { params, result } => format!(
             "F({})->{}",
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            render_type_key(result)?
         ),
         _ => {
             return Err(unsupported(
@@ -2777,7 +2785,7 @@ fn unify(
 ) -> R<()> {
     budget.ty(pattern)?;
     budget.ty(actual)?;
-    unify_bounded(pattern, actual, variables, found, span)
+    unify_bounded(pattern, actual, variables, found, span, budget)
 }
 fn unify_argument(
     pattern: &TypeRef,
@@ -2819,9 +2827,9 @@ fn unify_argument(
                 "shared reference cannot grant exclusive access",
             ));
         }
-        return unify_bounded(expected, actual, variables, found, span);
+        return unify_bounded(expected, actual, variables, found, span, budget);
     }
-    unify_bounded(pattern, actual, variables, found, span)
+    unify_bounded(pattern, actual, variables, found, span, budget)
 }
 // Only an independently complete parameter union can select an injection.
 // Missing variables still use ordinary whole-type unification, never two
@@ -2891,12 +2899,13 @@ fn unify_bounded(
     variables: &BTreeSet<String>,
     found: &mut BTreeMap<String, TypeRef>,
     span: Span,
+    budget: &mut Budget<'_>,
 ) -> R<()> {
     if let TypeKind::Group(t) = &pattern.kind {
-        return unify_bounded(t, actual, variables, found, span);
+        return unify_bounded(t, actual, variables, found, span, budget);
     }
     if let TypeKind::Group(t) = &actual.kind {
-        return unify_bounded(pattern, t, variables, found, span);
+        return unify_bounded(pattern, t, variables, found, span, budget);
     }
     if let TypeKind::Named { path, args } = &pattern.kind
         && path.len() == 1
@@ -2904,7 +2913,7 @@ fn unify_bounded(
         && variables.contains(&path[0])
     {
         if let Some(prior) = found.get(&path[0]) {
-            if type_key_bounded(prior)? != type_key_bounded(actual)? {
+            if type_key_bounded(prior, budget)? != type_key_bounded(actual, budget)? {
                 return Err(error(span, "conflicting generic argument constraints"));
             }
         } else {
@@ -2923,8 +2932,8 @@ fn unify_bounded(
                 result: y,
             },
         ) => {
-            unify_bounded(a, b, variables, found, span)?;
-            unify_bounded(x, y, variables, found, span)
+            unify_bounded(a, b, variables, found, span, budget)?;
+            unify_bounded(x, y, variables, found, span, budget)
         }
         (TypeKind::Named { path: a, args: x }, TypeKind::Named { path: b, args: y })
             if a == b && x.len() == y.len() =>
@@ -2933,7 +2942,7 @@ fn unify_bounded(
                 let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b) else {
                     return Err(unsupported(span, "const generic unification"));
                 };
-                unify_bounded(a, b, variables, found, span)?;
+                unify_bounded(a, b, variables, found, span, budget)?;
             }
             Ok(())
         }
@@ -2948,10 +2957,10 @@ fn unify_bounded(
                 inner: y,
                 ..
             },
-        ) if a == b => unify_bounded(x, y, variables, found, span),
+        ) if a == b => unify_bounded(x, y, variables, found, span, budget),
         (TypeKind::Tuple(a), TypeKind::Tuple(b)) if a.len() == b.len() => {
             for (a, b) in a.iter().zip(b) {
-                unify_bounded(a, b, variables, found, span)?;
+                unify_bounded(a, b, variables, found, span, budget)?;
             }
             Ok(())
         }
@@ -2964,7 +2973,9 @@ fn unify_bounded(
                 element: b,
                 length: Some(y),
             },
-        ) if array_length(x)? == array_length(y)? => unify_bounded(a, b, variables, found, span),
+        ) if array_length(x)? == array_length(y)? => {
+            unify_bounded(a, b, variables, found, span, budget)
+        }
         (
             TypeKind::Array {
                 element: a,
@@ -2974,8 +2985,8 @@ fn unify_bounded(
                 element: b,
                 length: None,
             },
-        ) => unify_bounded(a, b, variables, found, span),
-        _ if type_key_bounded(pattern)? == type_key_bounded(actual)? => Ok(()),
+        ) => unify_bounded(a, b, variables, found, span, budget),
+        _ if type_key_bounded(pattern, budget)? == type_key_bounded(actual, budget)? => Ok(()),
         _ => Err(error(
             span,
             "generic parameter does not match argument type",
@@ -3252,3 +3263,6 @@ impl Substitution<'_> {
 #[path = "generic_check.rs"]
 mod check;
 use check::validate_parametric;
+
+#[path = "generic_type_keys.rs"]
+mod type_keys;
