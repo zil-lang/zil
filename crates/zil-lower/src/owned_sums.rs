@@ -71,10 +71,74 @@ impl<'a> Budget<'a> {
             fixed_binder_count: _,
             invocation_binder_count: _,
             bindings: _,
+<<<<<<< HEAD
         } = life;
         self.metadata(life.bindings.len().saturating_add(2))?;
+=======
+            classes: _,
+        } = life;
+        self.metadata(
+            life.bindings
+                .len()
+                .saturating_add(life.classes.len())
+                .saturating_mul(16)
+                .saturating_add(32),
+        )?;
+>>>>>>> 38bd3376d
         for row in &life.bindings {
-            self.metadata(row.position.path.len().saturating_add(2))?;
+            self.metadata(row.position.path.len().saturating_mul(8))?;
+        }
+        for row in &life.classes {
+            self.metadata(row.position.path.len().saturating_mul(8))?;
+        }
+        Ok(())
+    }
+    pub(super) fn callable_metadata(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
+        self.metadata(
+            module
+                .functions
+                .len()
+                .saturating_add(module.closures.len())
+                .saturating_add(module.resources.len()),
+        )?;
+        for function in &module.functions {
+            if let Some(life) = &function.storage_life {
+                self.stored_contract(life)?;
+            }
+            if let Some(contract) = &function.callable_contract {
+                self.metadata(contract.roles.len())?;
+                for role in &contract.roles {
+                    if let Some(life) = &role.life {
+                        self.stored_contract(life)?;
+                    }
+                }
+            }
+            self.pay(&function.return_type, 0)?;
+            self.copy_work(&function.return_type, 0)?;
+            for ty in function
+                .locals
+                .iter()
+                .map(|l| &l.ty)
+                .chain(&function.values)
+            {
+                self.pay(ty, 0)?;
+                self.copy_work(ty, 0)?;
+            }
+        }
+        for closure in &module.closures {
+            if let Some(life) = &closure.storage_life {
+                self.stored_contract(life)?;
+            }
+            self.pay(&closure.result, 0)?;
+            self.copy_work(&closure.result, 0)?;
+            for ty in closure.parameters.iter().chain(&closure.captures) {
+                self.pay(ty, 0)?;
+                self.copy_work(ty, 0)?;
+            }
+        }
+        for resource in &module.resources {
+            self.pay(&resource.payload, 0)?;
+            self.copy_work(&resource.payload, 0)?;
         }
         Ok(())
     }
@@ -100,6 +164,9 @@ impl<'a> Budget<'a> {
         }
     }
     fn copy_work(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
+        if let Type::BorrowedFunctionPointer { life, .. } = ty {
+            self.stored_contract(life)?;
+        }
         match ty {
             Type::BorrowedStorage { storage, life } => {
                 self.stored_shape(life)?;
@@ -121,6 +188,9 @@ impl<'a> Budget<'a> {
             Type::Managed(element)
             | Type::Desc(element)
             | Type::OwnedStore { element }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::Array { element, .. }
             | Type::Slice { element }
             | Type::Address { inner: element, .. }
@@ -140,6 +210,31 @@ impl<'a> Budget<'a> {
                     self.copy_work(t, depth + 1)?;
                 }
                 self.pay(result, depth)?;
+                self.copy_work(result, depth + 1)?;
+            }
+            Type::Task {
+                result,
+                retained_life,
+            } => {
+                self.metadata(
+                    retained_life
+                        .ports
+                        .len()
+                        .saturating_add(retained_life.retained.len())
+                        .saturating_add(retained_life.nominal_arguments.len())
+                        .saturating_add(1),
+                )?;
+                for port in &retained_life.ports {
+                    self.pay(&port.leaf, depth + 1)?;
+                    self.copy_work(&port.leaf, depth + 1)?;
+                }
+                for row in &retained_life.retained {
+                    self.metadata(row.path.len().saturating_add(2))?;
+                }
+                for row in &retained_life.nominal_arguments {
+                    self.metadata(row.path.len().saturating_add(4))?;
+                }
+                self.pay(result, depth + 1)?;
                 self.copy_work(result, depth + 1)?;
             }
             Type::Enum { variants, .. } => {
@@ -228,6 +323,54 @@ fn limit() -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod impl243_tests {
+    #[test]
+    fn callable40_lower_complete_relation_uses_existing_remaining_ledger() {
+        use zil_ir::{
+            LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding, StorageBase,
+            StorageBinder, StorageLifeContract,
+        };
+        let defaults = zil_base::Limits::default();
+        for (rows, path) in [(0, 0), (8, 4), (32, 32)] {
+            let life = StorageLifeContract {
+                fixed_binder_count: 0,
+                invocation_binder_count: 1,
+                bindings: vec![],
+                classes: (0..rows)
+                    .map(|class| SignatureLifeClassBinding {
+                        position: SignatureLifeClass {
+                            base: StorageBase::Parameter(0),
+                            path: vec![LifeTypeProjection::Pointee; path],
+                            class,
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    })
+                    .collect(),
+            };
+            let needed = {
+                let mut budget = Budget::new(&defaults);
+                budget.pay(&Type::I32, 0).unwrap();
+                budget.stored_contract(&life).unwrap();
+                budget.work
+            };
+            let run = |n| {
+                let limits = zil_base::Limits {
+                    max_analysis_steps: n,
+                    ..defaults.clone()
+                };
+                let mut budget = Budget::new(&limits);
+                budget.pay(&Type::I32, 0)?;
+                budget.stored_contract(&life)
+            };
+            run(needed).unwrap();
+            assert_eq!(
+                run(needed - 1).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            run(needed).unwrap();
+            eprintln!("callable40 relation rows={rows} path={path} Lower N={needed}");
+        }
+    }
+
     use super::*;
     #[test]
     fn impl243_lower_uses_one_actual_request_budget_and_fresh_boundary() {

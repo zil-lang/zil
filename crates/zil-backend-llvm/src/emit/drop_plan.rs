@@ -167,7 +167,44 @@ impl<'a> Budget<'a> {
     // Prepay the complete subtree before LLVM type construction or Type clones.
     pub(super) fn tree(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.pay(depth, 32)?;
+        if let Type::BorrowedFunctionPointer { life, .. } = ty {
+            self.pay(
+                depth,
+                life.bindings
+                    .len()
+                    .saturating_add(life.classes.len())
+                    .saturating_mul(16)
+                    .saturating_add(32),
+            )?;
+            for row in &life.bindings {
+                self.pay(depth, row.position.path.len().saturating_mul(8))?;
+            }
+            for row in &life.classes {
+                self.pay(depth, row.position.path.len().saturating_mul(8))?;
+            }
+        }
         match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.pay(
+                    depth,
+                    life.slots
+                        .len()
+                        .saturating_add(life.retained.len())
+                        .saturating_add(life.nominal_arguments.len())
+                        .saturating_mul(16)
+                        .saturating_add(32),
+                )?;
+                for row in &life.slots {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                for row in &life.retained {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                for row in &life.nominal_arguments {
+                    self.pay(depth, row.path.len().saturating_mul(8))?;
+                }
+                self.tree(storage, depth + 1)?;
+            }
             Type::Package { name, fields } | Type::Record { name, fields } => {
                 self.pay(depth, name.len().saturating_add(fields.len()))?;
                 for (name, t) in fields {
