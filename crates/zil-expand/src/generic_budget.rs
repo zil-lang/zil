@@ -140,14 +140,28 @@ impl<'a> Budget<'a> {
         slice_element: bool,
     ) -> R<()> {
         self.node(ty.span, depth)?;
-        if let TypeKind::Named { path, args } = &ty.kind
-            && path.len() == 1
-            && args.is_empty()
-            && let Some(value) = substitutions.and_then(|s| s.get(&path[0]))
+        if let Some(substitutions)=substitutions
+            && super::trait_bounds::associated::parts(ty).is_some()
         {
+            self.ty(ty)?;
+            let key=super::trait_bounds::associated::equation_key(ty)?;
+            self.text(&key,ty.span)?;
+            if let Some(value)=substitutions.get(&key) {
+                return self.ty_context(value,depth,None,slice_element);
+            }
+        }
+        if let TypeKind::Named { path, args } = &ty.kind
+            && args.is_empty()
+            && let Some(substitutions) = substitutions
+        {
+            if path.len()!=1 {
+                for part in path { self.text(part,ty.span)?; self.node(ty.span,depth)?; }
+            }
+            if let Some(value)=substitutions.get(super::substitution_name(path).as_ref()) {
             // A substitution is simultaneous. Do not substitute caller T again
             // merely because the callee's type parameter is also named T.
             return self.ty_context(value, depth, None, slice_element);
+            }
         }
         if let TypeKind::ForeignFunction { abi, .. } = &ty.kind {
             self.text(abi, ty.span)?;

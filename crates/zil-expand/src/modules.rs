@@ -536,7 +536,7 @@ impl Visitor<'_, '_, '_> {
         type_position: bool,
     ) -> R<Option<String>> {
         if let Mode::Binders { bindings, .. } = &self.mode {
-            let [name] = path else { return Ok(None) };
+            let Some(name) = path.first() else { return Ok(None) };
             let name = name.as_ref();
             if type_position
                 && types.contains(name)
@@ -649,7 +649,11 @@ impl Visitor<'_, '_, '_> {
         match &mut ty.kind {
             TypeKind::Named { path, args } | TypeKind::Dyn { path, args } => {
                 if let Some(name) = self.symbol(path, types, &Names::new(), ty.span, true)? {
-                    *path = vec![name];
+                    if matches!(self.mode, Mode::Binders { .. }) {
+                        path[0] = name;
+                    } else {
+                        *path = vec![name];
+                    }
                 }
                 for (position, arg) in args.iter_mut().enumerate() {
                     self.const_arg(

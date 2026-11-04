@@ -73,6 +73,7 @@ impl<'a> Expander<'a> {
         let mut valid = true;
         for member in &t.members {
             self.unexecuted_attributes(&member.attributes, "trait member");
+            if matches!(member.kind,s::ItemKind::TypeAlias(_)) { continue; }
             let s::ItemKind::Function(f) = &member.kind else {
                 self.unsupported(
                     "associated trait items are not in the static local trait slice",
@@ -305,7 +306,12 @@ impl<'a> Expander<'a> {
                 .get(trait_name)
                 .expect("collected local declaration");
             let mut instance_reference = None;
-            if !declaration.generics.is_empty() {
+            let Some(left)=work.checked_sub(declaration.members.len()) else {
+                self.diagnostics.push(Diagnostic::limit(Phase::Expand,"trait member scan budget exhausted",Some(item.span)));
+                return;
+            };
+            work=left;
+            if !declaration.generics.is_empty() || declaration.members.iter().any(|m|matches!(m.kind,s::ItemKind::TypeAlias(_))) {
                 let mut found = None;
                 for source in declarations.iter().copied().chain(std::iter::once(module)) {
                     for item in &source.items {

@@ -15,6 +15,29 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
+    for text in [
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}fn unused<T:Read>(p:&T)->T.Item{return p.read()}fn main(){}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct P{n:i32}impl Read for P{type Item=i32;fn read()->i32{return .n}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn main()->i32{let p=P{n:7};return get::<P>(&p)-7}",
+        "trait Read{type Item:Copy;fn read(self:&Self)->Self.Item;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{type Item=T;fn read()->T{return .value}}fn get<T:Read>(p:&T)->T.Item{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<Box<i32>>(&p)-7}",
+    ] {
+        let report=check(text);
+        assert_eq!(report.status,ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+    for text in [
+        "trait Read{type Item:Copy;}fn bad<T:Read>(x:T.Item)->T.Item{return x+1}fn main(){}",
+        "trait Read{type Item;}fn bad<T:Read>(x:T.Item)->(T.Item,T.Item){return (x,x)}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=Missing;}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{}fn main(){}",
+        "trait Read{type Item:Copy;}struct P{}impl Read for P{type Item=Self.Item;}fn main(){}",
+        "trait Read{type Item:Copy;}fn bad<T>(x:T.Item){}fn main(){}",
+    ] {
+        let report=check(text);
+        assert_ne!(report.status,ResultCategory::Success,"{text}: {}",report.to_json());
+    }
+}
+
+#[test]
 fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil"),

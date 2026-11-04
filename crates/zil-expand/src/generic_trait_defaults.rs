@@ -2,14 +2,16 @@
 //! selected. Concrete bodies remain ordinary functions in the trait's module.
 use super::*;
 
-pub(crate) fn present(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<bool> {
+pub(crate) fn features(declaration: &TraitDecl, budget: &mut Budget<'_>) -> R<(bool,bool)> {
     let mut found = false;
+    let mut associated = false;
     for member in &declaration.members {
         budget.node(member.span, 0)?;
+        associated |= matches!(member.kind,ItemKind::TypeAlias(_)|ItemKind::Const(_));
         found |= matches!(&member.kind, ItemKind::Function(f)
             if !matches!(f.body, FunctionBody::Declaration));
     }
-    Ok(found)
+    Ok((found,associated))
 }
 
 fn contains_reference(ty: &TypeRef, budget: &mut Budget<'_>) -> R<bool> {

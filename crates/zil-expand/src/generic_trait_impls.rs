@@ -14,6 +14,7 @@ impl<'a> Engine<'a> {
             if implementation.generics.is_empty()
                 && implementation.where_clause.is_empty()
                 && trait_bounds::plain(&implementation.target).is_some()
+                && !self.traits.has_associated
             {
                 continue;
             }
@@ -115,6 +116,40 @@ impl<'a> Engine<'a> {
             )?;
             self.traits
                 .reference_arguments(&reference, &bounds, &variables, &mut self.budget)?;
+            let equations=if self.traits.has_associated {
+                self.traits.associated_subject(&implementation.target,&reference,&mut bounds,&mut self.budget)?;
+                let equations=self.traits.definition_equations(implementation,&reference,&mut self.budget)?;
+                for value in equations.values() {
+                    trait_instances::known_type(value,&variables,&self.nominals,&mut self.budget,0)?;
+                    self.traits.store_types(value,&bounds,&variables,&mut self.budget,callable::StoreCallbacks::None)?;
+                }
+                for member in &declaration.members {
+                    self.budget.node(member.span,0)?;
+                    let ItemKind::TypeAlias(alias)=&member.kind else { continue };
+                    let projected=trait_bounds::associated::atom(&implementation.target,&reference,&alias.name,&mut self.budget,member.span)?;
+                    let key=trait_bounds::associated::equation_key(&projected)?;
+                    self.budget.text(&key,member.span)?;
+                    let value=&equations[&key];
+                    let mut substitutions=BTreeMap::new();
+                    self.budget.ty(&implementation.target)?;
+                    substitutions.insert("Self".into(),implementation.target.clone());
+                    for (parameter,actual) in declaration.generics.iter().zip(&reference.arguments) {
+                        self.budget.text(&parameter.name,parameter.span)?;self.budget.ty(actual)?;
+                        substitutions.insert(parameter.name.clone(),actual.clone());
+                    }
+                    for bound in &alias.bounds {
+                        self.budget.substituted_type(bound,&substitutions)?;
+                        let mut bound=bound.clone();Substitution{substitutions:&substitutions}.ty(&mut bound);
+                        if copy::is_bound(&bound) { copy::require(value,&self.nominals,&bounds,&variables,&mut self.budget)?; }
+                        else if stores::is_bound(&bound) { self.traits.store_element(value,&bounds,&variables,&mut self.budget,callable::StoreCallbacks::None)?; }
+                        else {
+                            let reference=self.traits.pattern_reference(&bound,&mut self.budget)?;
+                            self.traits.solve(&reference,value,&bounds,&variables,&mut self.budget)?;
+                        }
+                    }
+                }
+                equations
+            } else { BTreeMap::new() };
             let declared_arity = match &host.kind {
                 ItemKind::Aggregate(a) => a.generics.len(),
                 ItemKind::Enum(e) => e.generics.len(),
@@ -150,6 +185,7 @@ impl<'a> Engine<'a> {
             let mut methods = BTreeSet::new();
             for (ordinal, member) in implementation.members.iter().enumerate() {
                 self.budget.item(member)?;
+                if matches!(member.kind,ItemKind::TypeAlias(_)) { continue; }
                 let ItemKind::Function(method) = &member.kind else {
                     return Err(unsupported(
                         member.span,
@@ -235,6 +271,18 @@ impl<'a> Engine<'a> {
                 };
                 self.budget.substituted_item(&checked, &substitutions)?;
                 substitute_item(&mut checked, &substitutions)?;
+                if !equations.is_empty() {
+                    self.budget.substituted_item(&checked,&equations)?;
+                    substitute_item(&mut checked,&equations)?;
+                    for parameter in &mut signature.params {
+                        self.budget.substituted_type(&parameter.ty,&equations)?;
+                        Substitution{substitutions:&equations}.ty(&mut parameter.ty);
+                    }
+                    if let Some(result)=&mut signature.return_type {
+                        self.budget.substituted_type(result,&equations)?;
+                        Substitution{substitutions:&equations}.ty(result);
+                    }
+                }
                 let ItemKind::Function(mut function) = checked.kind else {
                     unreachable!()
                 };
