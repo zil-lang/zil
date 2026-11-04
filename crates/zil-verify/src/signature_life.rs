@@ -31,23 +31,44 @@ pub(super) fn relation(
     c: &StorageLifeContract,
     span: Option<Span>,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, false)
+    relation_inner(parameters, result, c, span, false, None, None)
 }
 pub(super) fn function_relation(
+    module: &TypedModule,
     parameters: &[Type],
     result: &Type,
     c: &StorageLifeContract,
     span: Option<Span>,
     allow_callback: bool,
 ) -> Check<()> {
-    relation_inner(parameters, result, c, span, allow_callback)
+    relation_inner(
+        parameters,
+        result,
+        c,
+        span,
+        allow_callback,
+        None,
+        Some(module),
+    )
 }
+pub(super) fn closure_relation(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+    span: Option<Span>,
+) -> Check<()> {
+    relation_inner(parameters, result, c, span, false, Some(captures), None)
+}
+#[allow(clippy::too_many_arguments)]
 fn relation_inner(
     parameters: &[Type],
     result: &Type,
     c: &StorageLifeContract,
     span: Option<Span>,
     allow_callback: bool,
+    captures: Option<&[Type]>,
+    module: Option<&TypedModule>,
 ) -> Check<()> {
     let invalid = || {
         reject(
@@ -67,7 +88,7 @@ fn relation_inner(
     let domains = (c.fixed_binder_count as usize)
         .checked_add(c.invocation_binder_count as usize)
         .ok_or_else(invalid)?;
-    if domains > rows || c.fixed_binder_count as usize > c.classes.len() {
+    if domains > rows || captures.is_none() && c.fixed_binder_count as usize > c.classes.len() {
         return Err(invalid());
     }
     let input_classes = c
@@ -75,7 +96,7 @@ fn relation_inner(
         .iter()
         .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
         .count();
-    if c.fixed_binder_count as usize > input_classes {
+    if captures.is_none() && c.fixed_binder_count as usize > input_classes {
         return Err(invalid());
     }
     let mut borrow = 0usize;
@@ -83,17 +104,29 @@ fn relation_inner(
     let mut next = [0u32; 2];
     let mut inputs = [0u32; 2];
     let mut grounded = vec![false; c.fixed_binder_count as usize];
-    for (ordinal, ty) in parameters.iter().chain(std::iter::once(result)).enumerate() {
-        let output = ordinal == parameters.len();
+    let capture_types = captures.unwrap_or(&[]);
+    for (ordinal, ty) in parameters
+        .iter()
+        .chain(capture_types)
+        .chain(std::iter::once(result))
+        .enumerate()
+    {
+        let output = ordinal == parameters.len() + capture_types.len();
+        let capture = !output && ordinal >= parameters.len();
         if output {
             inputs = next;
         }
         let base = if output {
             StorageBase::Result
+        } else if capture {
+            StorageBase::Capture(u32::try_from(ordinal - parameters.len()).map_err(|_| invalid())?)
         } else {
             StorageBase::Parameter(u32::try_from(ordinal).map_err(|_| invalid())?)
         };
         let mut visit = |binder: StorageBinder, retained: bool| -> Check<()> {
+            if capture && matches!(binder, StorageBinder::Invocation(_)) {
+                return Err(invalid());
+            }
             let (domain, id, count) = match binder {
                 StorageBinder::Fixed(i) => (0, i, c.fixed_binder_count),
                 StorageBinder::Invocation(i) => (1, i, c.invocation_binder_count),
@@ -116,7 +149,7 @@ fn relation_inner(
                     return Err(invalid());
                 }
                 borrow += 1;
-                visit(row.binder, false)?;
+                visit(row.binder, capture)?;
                 (inner.as_ref(), true)
             }
             _ => (ty, false),
@@ -147,7 +180,31 @@ fn relation_inner(
                         return Err(invalid());
                     }
                     class += 1;
-                    visit(row.binder, !output)?;
+                    visit(
+                        row.binder,
+                        if captures.is_some() { capture } else { !output },
+                    )?;
+                }
+            }
+            Type::Closure(id) if allow_callback && !output => {
+                let count = module
+                    .and_then(|m| m.closures.get(id.0 as usize))
+                    .and_then(|d| d.storage_life.as_ref())
+                    .map_or(0, |c| c.fixed_binder_count);
+                for local in 0..count {
+                    let row = c.classes.get(class).ok_or_else(invalid)?;
+                    if row.position.base != base
+                        || row.position.class != local
+                        || if pointee {
+                            row.position.path.as_slice() != [LifeTypeProjection::Pointee]
+                        } else {
+                            !row.position.path.is_empty()
+                        }
+                    {
+                        return Err(invalid());
+                    }
+                    class += 1;
+                    visit(row.binder, true)?;
                 }
             }
             t if pointee => {
