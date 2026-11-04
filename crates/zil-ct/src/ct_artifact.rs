@@ -1483,6 +1483,51 @@ mod tests {
         }
     }
     #[test]
+    fn ieee_float_raw_artifact_constants_and_identity_casts_preserve_bits() {
+        for constant in [
+            Constant::F32(0x7fc00001),
+            Constant::F32(0xff800001),
+            Constant::F64(0x7ff8000000000001),
+            Constant::F64(0xfff0000000000001),
+        ] {
+            for cast in [false, true] {
+                let mut raw = raw();
+                let ty = if matches!(constant, Constant::F32(_)) {
+                    CtScalarTy::F32
+                } else {
+                    CtScalarTy::F64
+                };
+                raw.constants = vec![CtConstant::Scalar(constant.clone())];
+                let function = &mut raw.functions[0];
+                function.result_type = CtTy::Scalar(ty);
+                function.values = vec![CtTy::Scalar(ty); if cast { 2 } else { 1 }];
+                function.blocks[0].instructions.truncate(1);
+                if cast {
+                    function.blocks[0].instructions.push(CtInstruction {
+                        result: Some(CtValueId(1)),
+                        kind: CtInstructionKind::ConvertNumber {
+                            value: CtValueId(0),
+                            target: ty,
+                        },
+                        span: Span::default(),
+                    });
+                }
+                function.blocks[0].terminator =
+                    CtTerminator::Return(Some(CtValueId(u32::from(cast))));
+                let authority = Authority {
+                    snapshot: raw.snapshot.clone(),
+                };
+                let verified =
+                    verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+                let mut budget = CtExecutionBudget::new(raw.budget);
+                let (value, _) =
+                    evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap();
+                assert_eq!(value, CtValue::Scalar(constant.clone()));
+            }
+        }
+    }
+
+    #[test]
     fn executes_verified_scalar_cfg_with_shared_target_arithmetic() {
         let raw = raw();
         let authority = Authority {

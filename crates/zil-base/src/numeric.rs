@@ -16,13 +16,6 @@ pub enum FloatValue {
     F32(u32),
     F64(u64),
 }
-/// Finite decimal spelling, or an IEEE exceptional value for source reification.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FloatSource {
-    Finite(String),
-    Infinity { negative: bool },
-    Nan,
-}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntegerValue {
     Signed(i128),
@@ -111,23 +104,39 @@ impl FloatValue {
             }
         }
     }
-    /// Fixed IEEE formats bound software decimal formatting work independently
-    /// of source input. Callers reserve 8192 work units and 64 output bytes.
-    pub fn source(self) -> FloatSource {
-        fn source<F: Float + std::fmt::Display>(value: F) -> FloatSource {
-            if value.is_nan() {
-                FloatSource::Nan
-            } else if value.is_infinite() {
-                FloatSource::Infinity {
-                    negative: value.is_negative(),
-                }
-            } else {
-                FloatSource::Finite(value.to_string())
-            }
-        }
+    /// Generated AST only; callers prepay 26 bytes/work and one node before
+    /// allocating the spelling. Source lexing cannot produce the `@` prefix.
+    pub fn generated_spelling(self) -> String {
         match self {
-            Self::F32(bits) => source(Single::from_bits(bits.into())),
-            Self::F64(bits) => source(Double::from_bits(bits.into())),
+            Self::F32(bits) => format!("@bits:f32:{bits:08x}"),
+            Self::F64(bits) => format!("@bits:f64:{bits:016x}"),
+        }
+    }
+    /// Decode only fixed-width canonical lower-case hex. Callers debit the
+    /// entire spelling byte length before this method; no APFloat parse occurs.
+    pub fn from_generated_spelling(text: &str) -> Result<Self, NumericError> {
+        let (digits, format) = if let Some(digits) = text.strip_prefix("@bits:f32:") {
+            (digits, FloatFormat::F32)
+        } else if let Some(digits) = text.strip_prefix("@bits:f64:") {
+            (digits, FloatFormat::F64)
+        } else {
+            return Err(NumericError::Spelling);
+        };
+        let length = if format == FloatFormat::F32 { 8 } else { 16 };
+        if digits.len() != length
+            || !digits
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(NumericError::Spelling);
+        }
+        match format {
+            FloatFormat::F32 => u32::from_str_radix(digits, 16)
+                .map(Self::F32)
+                .map_err(|_| NumericError::Spelling),
+            FloatFormat::F64 => u64::from_str_radix(digits, 16)
+                .map(Self::F64)
+                .map_err(|_| NumericError::Spelling),
         }
     }
     pub fn format(self) -> FloatFormat {
@@ -186,12 +195,8 @@ impl FloatValue {
                 }
                 Ok(Self::F32(canonical(output).to_bits() as u32))
             }
-            (Self::F32(bits), FloatFormat::F32) => Ok(Self::F32(
-                canonical(Single::from_bits(bits.into())).to_bits() as u32,
-            )),
-            (Self::F64(bits), FloatFormat::F64) => Ok(Self::F64(
-                canonical(Double::from_bits(bits.into())).to_bits() as u64,
-            )),
+            (Self::F32(bits), FloatFormat::F32) => Ok(Self::F32(bits)),
+            (Self::F64(bits), FloatFormat::F64) => Ok(Self::F64(bits)),
         }
     }
     pub fn to_integer(self, signed: bool, width: usize) -> Result<IntegerValue, NumericError> {
@@ -252,15 +257,34 @@ mod tests {
             FloatValue::F32(1),
             FloatValue::F32(0x7f7fffff),
             FloatValue::F32(0x80000000),
+            FloatValue::F32(0x7fc00001),
+            FloatValue::F32(0x7f800001),
             FloatValue::F64(1),
             FloatValue::F64(0x7fefffffffffffff),
             FloatValue::F64(0x8000000000000000),
+            FloatValue::F64(0x7ff8000000000001),
+            FloatValue::F64(0xfff0000000000001),
         ] {
-            let FloatSource::Finite(text) = value.source() else {
-                panic!("finite bits")
-            };
-            assert_eq!(FloatValue::from_decimal(&text, value.format()), Ok(value));
+            assert_eq!(
+                FloatValue::from_generated_spelling(&value.generated_spelling()),
+                Ok(value)
+            );
+            assert_eq!(value.convert(value.format()), Ok(value));
         }
+        for invalid in [
+            "@bits:f32:0",
+            "@bits:f32:000000000",
+            "@bits:f32:7FC00001",
+            "@bits:f64:7ff800000000000g",
+            "@bits:f16:00000000",
+            "@bits:f64:0000000000000000f64",
+        ] {
+            assert_eq!(
+                FloatValue::from_generated_spelling(invalid),
+                Err(NumericError::Spelling)
+            );
+        }
+
         assert_eq!(
             FloatValue::F64(0x7fefffffffffffff).convert(FloatFormat::F32),
             Err(NumericError::Range)

@@ -1261,6 +1261,24 @@ impl Expander<'_> {
         let kind = match &e.kind {
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
+                s::Literal::Float(v) if v.starts_with("@bits:") => {
+                    let parsed = self.enum_meter(|meter| {
+                        meter.text(v, e.span)?;
+                        zil_base::numeric::FloatValue::from_generated_spelling(v).map_err(|_| Diagnostic::error(Phase::Expand, "E-FLOAT-LITERAL", Some(e.span), "generated floating constant requires fixed-width canonical hexadecimal bits"))
+                    });
+                    match parsed {
+                        Ok(zil_base::numeric::FloatValue::F32(bits)) => {
+                            CoreExprKind::Literal(Constant::F32(bits))
+                        }
+                        Ok(zil_base::numeric::FloatValue::F64(bits)) => {
+                            CoreExprKind::Literal(Constant::F64(bits))
+                        }
+                        Err(error) => {
+                            self.diagnostics.push(error);
+                            CoreExprKind::Unit
+                        }
+                    }
+                }
                 s::Literal::Float(v) => CoreExprKind::Float(v.clone()),
                 s::Literal::Bool(v) => CoreExprKind::Bool(*v),
                 s::Literal::String(v) => CoreExprKind::String(v.clone()),

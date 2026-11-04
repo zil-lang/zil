@@ -433,7 +433,7 @@ pub(super) fn uncontextual_float(
 ) -> R<bool> {
     match &expression.kind {
         ExprKind::Literal(Literal::Float(text)) => {
-            Ok(!text.ends_with("f32") && !text.ends_with("f64"))
+            Ok(!text.starts_with("@bits:") && !text.ends_with("f32") && !text.ends_with("f64"))
         }
         ExprKind::Group(inner)
         | ExprKind::Unary {
@@ -456,6 +456,31 @@ fn checked_float(
     budget: &mut Budget<'_>,
 ) -> R<TypeRef> {
     use zil_base::numeric::{FloatFormat, FloatValue};
+    if text.starts_with("@bits:") {
+        budget.numeric_work(text.len(), span)?;
+        let value = FloatValue::from_generated_spelling(text).map_err(|_| {
+            Diagnostic::error(
+                Phase::Expand,
+                "E-FLOAT-LITERAL",
+                Some(span),
+                "invalid generated floating bits",
+            )
+        })?;
+        let name = if value.format() == FloatFormat::F32 {
+            "f32"
+        } else {
+            "f64"
+        };
+        if let Some(expected) = expected.filter(|ty| floating(ty))
+            && !matches!(&group(expected).kind, TypeKind::Named { path, .. } if path.as_slice() == [name])
+        {
+            return Err(error(
+                span,
+                "generated floating format differs from expected type",
+            ));
+        }
+        return Ok(named(name, span));
+    }
     budget.numeric_work(zil_base::numeric::decimal_work(text.len()), span)?;
     let suffix = ["f32", "f64"]
         .into_iter()
@@ -1821,7 +1846,11 @@ impl Check<'_, '_, '_> {
                 self.budget.text(text, span)?;
                 Ok(["f32", "f64"]
                     .into_iter()
-                    .find(|suffix| text.ends_with(suffix))
+                    .find(|suffix| {
+                        text.ends_with(suffix)
+                            || (suffix == &"f32" && text.starts_with("@bits:f32:"))
+                            || (suffix == &"f64" && text.starts_with("@bits:f64:"))
+                    })
                     .or(default_integer.then_some("f64"))
                     .map(|suffix| named(suffix, span)))
             }

@@ -69,11 +69,18 @@ integer machine instructions applied to float types. Actual CT/native O0/O2
 agreement and edge values are required before declaring this capability closed.
 
 Float source parsing debits `bytes² + 64` work before underscore normalization
-or software decimal conversion. Fixed-format software reification reserves 8192
-work units, 64 temporary bytes and three generated nodes before formatting;
-finite values use round-trip software decimal, infinity uses signed `1/0`, and
-canonical NaN uses `0/0`. The lower storage table gains the two natural float
-layouts. Ordinary C scalar parameters/results and borrowed POD leaves admit
+or software decimal conversion. Independent review found that reconstructing
+NaNs with arithmetic would lose raw payload bits from a constant-returning CT
+artifact. Reification therefore reserves 26 work units, 26 temporary bytes and
+one generated node before emitting generated-only `Literal::Float` spelling
+`@bits:f32:XXXXXXXX` or `@bits:f64:XXXXXXXXXXXXXXXX`, using exactly 8/16 canonical
+lowercase hex digits. Source lexing cannot produce that prefix. Every generated
+AST remains untrusted: Expand prepays its full byte length before validating and
+emits the existing Core raw Constant directly; the artifact compiler uses the
+same fixed-byte charge and no decimal conversion. Malformed width/case/hex and
+format mismatches reject. Same-format conversions preserve every raw bit;
+true CT arithmetic retains its specified canonical quiet NaN behavior.
+The lower storage table gains the two natural float layouts. Ordinary C scalar parameters/results and borrowed POD leaves admit
 f32/f64 with matching independent Verify layouts; ownership, escape and
 callback contracts retain their existing meaning.
 

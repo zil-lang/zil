@@ -3006,12 +3006,34 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
 }
 /// Parse a floating literal without providing type or verification authority.
-/// Callers reserve numeric::decimal_work(text.len()) before parsing.
+/// Callers reserve the full byte length for generated `@bits:` spellings, or
+/// numeric::decimal_work(text.len()) for source decimal spellings, before parsing.
 pub fn parse_float_literal(
     text: &str,
     expected: Option<&Type>,
     span: Span,
 ) -> CompileResult<Constant> {
+    if text.starts_with("@bits:") {
+        let value = zil_base::numeric::FloatValue::from_generated_spelling(text).map_err(|_| {
+            vec![error(
+                "E-FLOAT-LITERAL",
+                span,
+                "invalid generated floating bits",
+            )]
+        })?;
+        let constant = match value {
+            zil_base::numeric::FloatValue::F32(bits) => Constant::F32(bits),
+            zil_base::numeric::FloatValue::F64(bits) => Constant::F64(bits),
+        };
+        if expected.is_some_and(|expected| expected.is_float() && *expected != constant.ty()) {
+            return Err(vec![error(
+                "E-TYPE-MISMATCH",
+                span,
+                "generated floating format differs from expected type",
+            )]);
+        }
+        return Ok(constant);
+    }
     floats::literal(text, expected, span).map_err(|error| vec![error])
 }
 /// Parse a target integer literal using the ordinary language's exact rules.

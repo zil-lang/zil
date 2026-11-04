@@ -121,9 +121,12 @@ impl Builder<'_, '_> {
                 self.constant(CtConstant::Scalar(c), ty, span)?
             }
             s::ExprKind::Literal(s::Literal::Float(spelling)) => {
-                self.compiler
-                    .budget
-                    .work(zil_base::numeric::decimal_work(spelling.len()), span)?;
+                let work = if spelling.starts_with("@bits:") {
+                    spelling.len()
+                } else {
+                    zil_base::numeric::decimal_work(spelling.len())
+                };
+                self.compiler.budget.work(work, span)?;
                 let c = zil_types::parse_float_literal(
                     spelling,
                     runtime_scalar(expected).as_ref(),
