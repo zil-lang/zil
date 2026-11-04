@@ -37,10 +37,21 @@ fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
     }
     Ok(())
 }
-fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileResult<()> {
-    pay(work, life.bindings.len().saturating_add(2))?;
+pub(super) fn contract(life: &StorageLifeContract, work: &mut usize) -> CompileResult<()> {
+    // A public successor must update this visitor instead of silently adding
+    // unmetered semantic signature metadata.
+    let StorageLifeContract {
+        fixed_binder_count: _,
+        invocation_binder_count: _,
+        bindings: _,
+        classes: _,
+    } = life;
+    pay(work, life.bindings.len().saturating_add(life.classes.len()).saturating_add(2))?;
     for row in &life.bindings {
         pay(work, row.position.path.len().saturating_add(2))?;
+    }
+    for row in &life.classes {
+        pay(work, row.position.path.len().saturating_add(4))?;
     }
     Ok(())
 }
@@ -80,23 +91,100 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         | Type::Managed(inner)
         | Type::Desc(inner)
         | Type::Array { element: inner, .. }
-        | Type::Slice { element: inner } => type_work(inner, work, limits, depth + 1)?,
+        | Type::Slice { element: inner }
+        | Type::OwnedStore { element: inner }
+        | Type::Registration { environment: inner }
+        | Type::Opaque { hidden: inner, .. } => type_work(inner, work, limits, depth + 1)?,
         Type::ErrorUnion { error, result } => {
             type_work(error, work, limits, depth + 1)?;
             type_work(result, work, limits, depth + 1)?;
         }
-        Type::FunctionPointer { parameters, result }
-        | Type::BorrowedFunctionPointer {
-            parameters, result, ..
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
         } => {
+            contract(life,work)?;
             pay(work, parameters.len())?;
             for t in parameters {
                 type_work(t, work, limits, depth + 1)?;
             }
             type_work(result, work, limits, depth + 1)?;
         }
-        _ => {}
+        Type::FunctionPointer { parameters, result }
+        | Type::ForeignCallback { parameters, result } => {
+            pay(work, parameters.len())?;
+            for t in parameters {
+                type_work(t, work, limits, depth + 1)?;
+            }
+            type_work(result, work, limits, depth + 1)?;
+        }
+        Type::Task {
+            result,
+            retained_life,
+        } => {
+            pay(
+                work,
+                retained_life
+                    .ports
+                    .len()
+                    .saturating_add(retained_life.retained.len())
+                    .saturating_add(retained_life.nominal_arguments.len())
+                    .saturating_add(1),
+            )?;
+            for port in &retained_life.ports {
+                pay(work, 2)?;
+                type_work(&port.leaf, work, limits, depth + 1)?;
+            }
+            for row in &retained_life.retained {
+                pay(work, row.path.len().saturating_add(2))?;
+            }
+            for row in &retained_life.nominal_arguments {
+                pay(work, row.path.len().saturating_add(4))?;
+            }
+            type_work(result, work, limits, depth + 1)?;
+        }
+        Type::Named(text) | Type::Unsupported(text) => pay(work, text.len())?,
+        Type::Dyn { .. }
+        | Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F32
+        | Type::F64
+        | Type::U8
+        | Type::U16
+        | Type::ByteBuffer
+        | Type::ForeignHandle
+        | Type::SyncCell(_)
+        | Type::TaskI32
+        | Type::CWideString
+        | Type::Closure(_) => {}
     }
+    Ok(())
+}
+
+/// Reserve full new callable metadata before raw LIR equality or any retained
+/// source-type clone. ABI erasure is physical only; no relation is flattened.
+pub(super) fn reserve_callable_metadata(module:&TypedModule,limits:&Limits,work:&mut usize)->CompileResult<()> {
+    pay(work,module.functions.len().saturating_add(module.closures.len()).saturating_add(module.resources.len()))?;
+    for function in &module.functions {
+        if let Some(life)=&function.storage_life {contract(life,work)?;}
+        if let Some(c)=&function.callable_contract {
+            pay(work,c.roles.len())?;
+            for role in &c.roles {if let Some(life)=&role.life {contract(life,work)?;}}
+        }
+        type_work(&function.return_type,work,limits,0)?;
+        for ty in function.locals.iter().map(|l|&l.ty).chain(&function.values) {type_work(ty,work,limits,0)?;}
+    }
+    for closure in &module.closures {
+        if let Some(life)=&closure.storage_life {contract(life,work)?;}
+        type_work(&closure.result,work,limits,0)?;
+        for ty in closure.parameters.iter().chain(&closure.captures) {type_work(ty,work,limits,0)?;}
+    }
+    for resource in &module.resources {type_work(&resource.payload,work,limits,0)?;}
     Ok(())
 }
 
@@ -114,6 +202,9 @@ pub(super) fn reserve_binding(
     limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
+    // Both stored-profile kernels structurally reject every other instruction
+    // in every block, including unreachable blocks. The only variable-length
+    // instruction payloads in that admitted profile are enumerated below.
     pay(work, module.functions.len())?;
     for f in &module.functions {
         pay(
@@ -144,7 +235,33 @@ pub(super) fn reserve_binding(
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
-                    _ => 1,
+                    InstructionKind::Constant(_)
+                    | InstructionKind::Load(_)
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::AddressIndex { .. }
+                    | InstructionKind::AddressSlice { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::SliceLength { .. }
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. } => 1,
+                    _ => {
+                        return invalid(
+                            "E-CODEGEN-STORAGE-PROFILE",
+                            "stored profile instruction comparison has no prepaid consumer",
+                            Some(i.span),
+                        );
+                    }
                 };
                 pay(work, n.saturating_add(4))?;
             }
@@ -192,6 +309,13 @@ pub(super) fn reserve_emission(
     limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
+    pay(work, lir.functions.len())?;
+    let total_instructions = lir.functions.iter().try_fold(0usize, |n, f| {
+        pay(work, f.blocks.len())?;
+        f.blocks.iter().try_fold(n, |n, b| {
+            n.checked_add(b.instructions.len()).ok_or_else(exhausted)
+        })
+    })?;
     for f in lir.functions {
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             let count = match &i.kind {
@@ -200,6 +324,15 @@ pub(super) fn reserve_emission(
                 _ => 3,
             };
             pay(work, count.saturating_add(32))?;
+            if let InstructionKind::Constant(Constant::WideString(s)) = &i.kind {
+                let cost = s
+                    .len()
+                    .checked_add(1)
+                    .and_then(|n| n.checked_mul(total_instructions.saturating_add(1)))
+                    .and_then(|n| n.checked_mul(16))
+                    .ok_or_else(exhausted)?;
+                pay(work, cost)?;
+            }
             for v in operands(&i.kind).into_iter().chain(i.result) {
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;
             }
@@ -307,5 +440,169 @@ impl FunctionEmitter<'_> {
             },
         )));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_ir::{BlockId, BlockPlan, CandidatePlan, FunctionPlan, HoldRoot, ValueHold};
+    #[allow(dead_code)]
+    mod fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+        ));
+    }
+    fn verified() -> VerifiedModule {
+        let module = fixture::wide_shared(64);
+        let origins = vec![
+            vec![
+                vec![HoldRoot::Parameter(0)],
+                vec![HoldRoot::Parameter(0)],
+                vec![HoldRoot::Parameter(0)],
+                vec![],
+            ],
+            vec![vec![HoldRoot::Parameter(0)]; 2],
+            vec![vec![HoldRoot::Parameter(0)]; 2],
+            vec![
+                vec![],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![HoldRoot::Local(LocalId(0)), HoldRoot::Local(LocalId(1))],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![],
+            ],
+            vec![vec![HoldRoot::Parameter(0)]],
+        ];
+        let mut plan = CandidatePlan::empty_for(&module);
+        plan.functions = module
+            .functions
+            .iter()
+            .zip(origins)
+            .enumerate()
+            .map(|(i, (f, rows))| FunctionPlan {
+                function: f.id,
+                blocks: vec![BlockPlan {
+                    block: BlockId(0),
+                    initialized_in: if i == 3 { vec![] } else { vec![LocalId(0)] },
+                    initialized_out: vec![LocalId(0)],
+                }],
+                holds: rows
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, roots)| ValueHold {
+                        value: ValueId(i as u32),
+                        roots,
+                    })
+                    .collect(),
+            })
+            .collect();
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default()).unwrap()
+    }
+    fn lir(v: &VerifiedModule) -> LirModule {
+        let m = v.module();
+        LirModule {
+            schema_version: m.schema_version,
+            module_id: m.module_id,
+            verified_fingerprint: v.fingerprint(),
+            target: m.target.clone(),
+            functions: m.functions.clone(),
+            closures: m.closures.clone(),
+            resources: m.resources.clone(),
+            layouts: vec![
+                ScalarLayout {
+                    ty: Type::Unit,
+                    size: 0,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::Bool,
+                    size: 1,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::I32,
+                    size: 4,
+                    alignment: 4,
+                },
+                ScalarLayout {
+                    ty: Type::I64,
+                    size: 8,
+                    alignment: 8,
+                },
+                ScalarLayout {
+                    ty: Type::F32,
+                    size: 4,
+                    alignment: 4,
+                },
+                ScalarLayout {
+                    ty: Type::F64,
+                    size: 8,
+                    alignment: 8,
+                },
+                ScalarLayout {
+                    ty: Type::U8,
+                    size: 1,
+                    alignment: 1,
+                },
+                ScalarLayout {
+                    ty: Type::U16,
+                    size: 2,
+                    alignment: 2,
+                },
+                ScalarLayout {
+                    ty: Type::ForeignHandle,
+                    size: 8,
+                    alignment: 8,
+                },
+                ScalarLayout {
+                    ty: Type::CWideString,
+                    size: 8,
+                    alignment: 8,
+                },
+            ],
+        }
+    }
+    #[test]
+    fn stored_lir_binding_reservation_is_exact_before_separate_matching_or_forged_input() {
+        let verified = verified();
+        let lir = lir(&verified);
+        let full = verified.limits().max_analysis_steps;
+        let mut left = full;
+        reserve_binding(verified.module(), verified.limits(), &mut left).unwrap();
+        let needed = full - left;
+        let run = |n, raw: &LirModule| -> CompileResult<usize> {
+            let mut left = n;
+            reserve_binding(verified.module(), verified.limits(), &mut left)?;
+            bind_lir(&verified, &raw.as_view(), EntryPoint::None)?;
+            Ok(left)
+        };
+        assert_eq!(run(needed, &lir).unwrap(), 0);
+        assert!(
+            run(needed - 1, &lir)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == Phase::Codegen
+                    && d.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(needed, &lir).unwrap(), 0);
+        let mut forged = lir.clone();
+        forged.functions[1].storage_life = None;
+        assert!(
+            run(needed, &forged)
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-CODEGEN-UNBOUND-LIR")
+        );
+        assert!(
+            run(needed - 1, &forged)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        println!(
+            "342 actual verified wide stored LIR binding component Codegen N={needed}; N-1/fresh and forged-input prepayment verified"
+        );
     }
 }

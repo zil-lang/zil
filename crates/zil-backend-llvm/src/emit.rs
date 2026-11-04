@@ -110,6 +110,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     jobs: usize,
 ) -> CompileResult<(m::Module, bool, usize)> {
     let mut remaining_work = verified.limits().max_analysis_steps;
+    stored_borrows::reserve_callable_metadata(verified.module(),verified.limits(),&mut remaining_work)?;
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
