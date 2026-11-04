@@ -29,22 +29,22 @@ identity!(
 /// Sealed native cell kind; this raw tag grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SyncCellKind {
-    MutexI32,
-    AtomicI32,
+    MutexI32 = 0,
+    AtomicI32 = 1,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SyncI32Op {
-    Load,
-    Store,
-    FetchAdd,
+    Load = 0,
+    Store = 1,
+    FetchAdd = 2,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AtomicOrdering {
-    Relaxed,
-    Acquire,
-    Release,
-    AcqRel,
-    SeqCst,
+    Relaxed = 0,
+    Acquire = 1,
+    Release = 2,
+    AcqRel = 3,
+    SeqCst = 4,
 }
 
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
