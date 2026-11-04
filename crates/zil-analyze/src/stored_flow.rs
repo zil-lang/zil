@@ -108,7 +108,13 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
     Ok(result)
 }
 fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
-    fee(b, s.locals.len().saturating_add(s.external.len()))?;
+    fee(
+        b,
+        s.locals
+            .len()
+            .saturating_add(s.external.len())
+            .saturating_add(s.captures.len()),
+    )?;
     let mut out = State::default();
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
@@ -131,7 +137,13 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     Ok(out)
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
-    fee(b, s.locals.len().saturating_add(s.external.len()))?;
+    fee(
+        b,
+        s.locals
+            .len()
+            .saturating_add(s.external.len())
+            .saturating_add(s.captures.len()),
+    )?;
     for value in s.locals.values().chain(s.captures.values()) {
         target_work(&value.held.targets, b)?;
         fee(b, value.held.loans.len())?;
@@ -626,6 +638,13 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             return Err(failure("signature parameter outside actual local table"));
         }
     }
+    if super::stored_callables::fixed_value(module, &f.return_type) {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "captured Fixed environment escape needs its retained result target transfer",
+            Some(f.span),
+        )]);
+    }
     let Some(c) = &f.storage_life else {
         for ty in f
             .parameters
@@ -858,7 +877,7 @@ fn seed_value(
     let mut value = Value::default();
     if let Type::Address { mutable, .. } = ty {
         let target = Target {
-            base: base,
+            base,
             stored: Vec::new(),
             place: Vec::new(),
         };
@@ -880,7 +899,7 @@ fn seed_value(
         for decl in &life.slots {
             fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
             let target = Target {
-                base: base,
+                base,
                 stored: decl.path.clone(),
                 place: Vec::new(),
             };
@@ -1091,13 +1110,15 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
-            out = snapshot(
-                state
-                    .locals
-                    .get(local)
-                    .ok_or_else(|| failure("move of unavailable environment"))?,
-                b,
-            )?;
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
+                out = snapshot(
+                    state
+                        .locals
+                        .get(local)
+                        .ok_or_else(|| failure("move of unavailable environment"))?,
+                    b,
+                )?;
+            }
             state.locals.remove(local);
         }
         InstructionKind::StorageLive(local)
@@ -1113,10 +1134,11 @@ fn transfer(
                 stored: Vec::new(),
                 place: Vec::new(),
             });
-            if super::stored_callables::value(module, &f.locals[local.0 as usize].ty)
-                && let Some(held) = state.locals.get(local)
-            {
-                union(&mut out.held, &held.held, b)?;
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
+                ordered(b, state.locals.len(), 0)?;
+                if let Some(held) = state.locals.get(local) {
+                    union(&mut out.held, &held.held, b)?;
+                }
             }
             if carrier(&f.locals[local.0 as usize].ty).is_some() {
                 ordered(b, state.locals.len(), 0)?;
@@ -1525,6 +1547,7 @@ fn active(
     ancestry(&direct.loans, loans, b)
 }
 fn reverse(
+    module: &TypedModule,
     f: &TypedFunction,
     i: &Instruction,
     live: &mut [bool],
@@ -1540,11 +1563,15 @@ fn reverse(
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
         | InstructionKind::BorrowLocal { local }
-        | InstructionKind::BorrowLocalMut { local }
-        | InstructionKind::TakeLocal { local }
+        | InstructionKind::BorrowLocalMut { local } => {
+            live[f.values.len() + local.0 as usize] = true
+        }
+        InstructionKind::TakeLocal { local }
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
-        | InstructionKind::CallClosureMut { callee: local, .. } => {
+        | InstructionKind::CallClosureMut { callee: local, .. }
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) =>
+        {
             live[f.values.len() + local.0 as usize] = true
         }
         _ => {}
@@ -1564,6 +1591,7 @@ fn term_live(t: &Terminator, live: &mut [bool]) {
     }
 }
 fn liveness(
+    module: &TypedModule,
     f: &TypedFunction,
     preds: &[Vec<usize>],
     reachable: &[bool],
@@ -1588,7 +1616,7 @@ fn liveness(
             let mut live = outputs[bi].clone();
             term_live(&f.blocks[bi].terminator, &mut live);
             for i in f.blocks[bi].instructions.iter().rev() {
-                reverse(f, i, &mut live, b)?;
+                reverse(module, f, i, &mut live, b)?;
             }
             fee(b, width)?;
             if live != inputs[bi] {
@@ -1626,7 +1654,7 @@ fn windows(
     apart: &mut BTreeSet<(Target, Target)>,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let live_out = liveness(f, preds, reachable, b)?;
+    let live_out = liveness(module, f, preds, reachable, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         fee(b, 1)?;
         if !reachable[bi] {
@@ -1655,7 +1683,7 @@ fn windows(
         let mut after = vec![vec![false; width]; block.instructions.len()];
         for (position, i) in block.instructions.iter().enumerate().rev() {
             after[position].clone_from(&live);
-            reverse(f, i, &mut live, b)?;
+            reverse(module, f, i, &mut live, b)?;
         }
         for (position, i) in block.instructions.iter().enumerate() {
             fee(b, width)?;
@@ -1769,7 +1797,13 @@ fn windows(
 
                     let receiver_held = match &i.kind {
                         InstructionKind::CallClosureShared { callee, .. }
-                        | InstructionKind::CallClosureMut { callee, .. } => {
+                        | InstructionKind::CallClosureMut { callee, .. }
+                            if super::stored_callables::fixed_value(
+                                module,
+                                &f.locals[callee.0 as usize].ty,
+                            ) =>
+                        {
+                            ordered(b, state.locals.len(), 0)?;
                             state.locals.get(callee).map(|v| &v.held)
                         }
                         InstructionKind::CallClosure { callee, .. }
@@ -2534,6 +2568,14 @@ fn actual_instructions(
             }
         }
     }
+    if b.capture_relations {
+        fee(b, definitions.len())?;
+        if definitions.iter().any(|defined| !defined) {
+            return Err(failure(
+                "captured context SSA slot has no actual definition",
+            ));
+        }
+    }
     for block in &f.blocks {
         fee(b, 1)?;
         match block.terminator {
@@ -2657,6 +2699,208 @@ mod tests {
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn captured_fixed_persists_while_invocation_is_fresh() {
+        for mode in [CallableKind::Fn, CallableKind::FnMut] {
+            let mut m = fixture::captured_fixed(mode, false);
+            let caller = &mut m.functions[1];
+            let header = caller.storage_life.as_mut().unwrap();
+            header.fixed_binder_count = 1;
+            header.classes[1].binder = StorageBinder::Fixed(0);
+            caller.values.push(Type::I64);
+            caller.blocks[0].instructions.push(instruction(
+                Some(4),
+                if mode == CallableKind::Fn {
+                    InstructionKind::CallClosureShared {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(1)],
+                    }
+                } else {
+                    InstructionKind::CallClosureMut {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(1)],
+                    }
+                },
+            ));
+            caller.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+            super::super::analyze(&m, &Limits::default()).unwrap();
+            // Both independent outer input borrows are used with the same
+            // retained Tag class. Reusing Invocation would incorrectly reject.
+        }
+    }
+    #[test]
+    fn captured_fixed_helper_cannot_choose_context_from_its_claim() {
+        for missing in [true, false] {
+            let mut m = fixture::captured_fixed_helper(CallableKind::Fn, false);
+            if missing {
+                m.functions[2].storage_life = None;
+            } else {
+                let life = m.functions[2].callable_contract.as_mut().unwrap().roles[0]
+                    .life
+                    .as_mut()
+                    .unwrap();
+                life.invocation_binder_count = 2;
+                life.classes[0].binder = StorageBinder::Invocation(1);
+                life.bindings[1].binder = StorageBinder::Fixed(0);
+                life.classes[1].binder = StorageBinder::Fixed(1);
+            }
+            let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+            assert!(
+                error.iter().all(|d| d.code != "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            println!(
+                "G3.3.2 missing/mismatched helper context {missing}: {}",
+                error[0].message
+            );
+        }
+    }
+    #[test]
+    fn captured_fixed_relations_and_consumption_are_not_permissions() {
+        let base = fixture::captured_fixed(CallableKind::FnOnce, false);
+        for mutation in 0..8 {
+            let mut m = base.clone();
+            match mutation {
+                0 => {
+                    m.closures[0].storage_life.as_mut().unwrap().bindings[1].binder =
+                        StorageBinder::Invocation(0);
+                    m.functions[0].storage_life = m.closures[0].storage_life.clone();
+                }
+                1 => {
+                    m.closures[0].storage_life.as_mut().unwrap().classes[1]
+                        .position
+                        .path
+                        .clear();
+                    m.functions[0].storage_life = m.closures[0].storage_life.clone();
+                }
+                2 => {
+                    m.functions[0].storage_life.as_mut().unwrap().classes[1].binder =
+                        StorageBinder::Fixed(1);
+                }
+                3 => {
+                    m.functions[1].values.push(Type::I64);
+                    m.functions[1].blocks[0].instructions.push(instruction(
+                        Some(4),
+                        InstructionKind::CallClosureOnce {
+                            callee: ValueId(2),
+                            arguments: vec![ValueId(0)],
+                        },
+                    ));
+                }
+                4 => {
+                    m.functions[1].values.push(Type::Closure(ClosureId(0)));
+                    let code = &mut m.functions[1].blocks[0].instructions;
+                    code.insert(
+                        3,
+                        instruction(
+                            None,
+                            InstructionKind::Store {
+                                local: LocalId(2),
+                                value: ValueId(2),
+                            },
+                        ),
+                    );
+                    code.insert(4, instruction(Some(4), InstructionKind::Load(LocalId(2))));
+                }
+                5 => {
+                    m.closures[0].kind = CallableKind::FnMut;
+                }
+                6 => {
+                    m.functions[1].return_type = Type::Closure(ClosureId(0));
+                    m.functions[1].blocks[0].instructions.pop();
+                    m.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+                }
+                _ => m.functions[1].values.push(Type::I64),
+            }
+            let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+            assert!(
+                error.iter().all(|d| d.code != "E-RESOURCE-LIMIT"),
+                "mutation {mutation}: {error:?}"
+            );
+            if mutation == 5 {
+                assert!(
+                    error
+                        .iter()
+                        .any(|d| d.message.contains("consumption ledger")),
+                    "{error:?}"
+                );
+            }
+            if mutation == 6 {
+                assert!(
+                    error
+                        .iter()
+                        .any(|d| d.message.contains("retained result target transfer")),
+                    "{error:?}"
+                );
+            }
+            println!(
+                "G3.3.2 malformed/consume neighbor {mutation}: {}",
+                error[0].message
+            );
+        }
+    }
+    #[test]
+    fn captured_fixed_fnmut_writes_its_actual_inline_scalar_capture() {
+        let mut m = fixture::captured_fixed(CallableKind::FnMut, false);
+        m.closures[0].captures.push(Type::I64);
+        m.functions[0].blocks[0].instructions.push(instruction(
+            None,
+            InstructionKind::WriteCapture {
+                index: 1,
+                value: ValueId(6),
+            },
+        ));
+        let caller = &mut m.functions[1];
+        caller.values.push(Type::I64);
+        caller.blocks[0].instructions.insert(
+            2,
+            instruction(Some(4), InstructionKind::Constant(Constant::I64(0))),
+        );
+        let InstructionKind::MakeClosure { captures, .. } =
+            &mut caller.blocks[0].instructions[3].kind
+        else {
+            unreachable!()
+        };
+        captures.push(ValueId(4));
+        super::super::analyze(&m, &Limits::default()).unwrap();
+        m.closures[0].kind = CallableKind::Fn;
+        let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.message.contains("capture write")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn captured_fixed_context_uses_one_request_budget() {
+        for mode in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            let m = fixture::captured_fixed_helper(mode, false);
+            let limit = |n| Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            };
+            let expected = super::super::analyze(&m, &Limits::default()).unwrap();
+            let mut low = 1;
+            let mut high = Limits::default().max_analysis_steps;
+            while low < high {
+                let mid = low + (high - low) / 2;
+                if super::super::analyze(&m, &limit(mid)).is_ok() {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+            let error = super::super::analyze(&m, &limit(low - 1)).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+            assert_eq!(super::super::analyze(&m, &limit(low)).unwrap(), expected);
+            println!(
+                "G3.3.2 {mode:?} full Typed helper Analyze N={low}; N-1 ResourceLimit/fresh N identical"
+            );
+        }
     }
     #[test]
     fn captured_fixed_instances_and_helpers_keep_receiver_context() {

@@ -354,7 +354,17 @@ fn check_with(
             b.spend(1, "class equation instruction")?;
             let out = i.result.map(|v| &values[v.0 as usize]);
             match &i.kind {
-                InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                InstructionKind::Load(local) => {
+                    if let Some(out) = out {
+                        e.copy(out, &locals[local.0 as usize], b)?;
+                    }
+                }
+                InstructionKind::TakeLocal { local }
+                    if super::stored_callables::fixed_value(
+                        module,
+                        &f.locals[local.0 as usize].ty,
+                    ) =>
+                {
                     if let Some(out) = out {
                         e.copy(out, &locals[local.0 as usize], b)?;
                     }
@@ -555,11 +565,17 @@ fn check_with(
     // Ordinary sources and structural propagation precede any use of a free
     // environment class. An unanchored capture gets one persistent identity;
     // the first caller cannot choose or refresh it.
-    for p in values.iter().chain(&locals) {
-        if p.environment {
-            b.spend(p.classes.len(), "actual environment class retention")?;
-            for variable in &p.classes {
-                e.retain(*variable, b)?;
+    if retained_environment {
+        b.spend(
+            values.len().saturating_add(locals.len()),
+            "retained environment inventory",
+        )?;
+        for p in values.iter().chain(&locals) {
+            if p.environment {
+                b.spend(p.classes.len(), "actual environment class retention")?;
+                for variable in &p.classes {
+                    e.retain(*variable, b)?;
+                }
             }
         }
     }

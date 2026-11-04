@@ -209,12 +209,29 @@ pub(super) fn types(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<()> {
+    if let InstructionKind::CallClosureOnce { callee, .. } = &i.kind
+        && let Some(Type::Closure(id)) = f.values.get(callee.0 as usize)
+        && let Some(d) = module.closures.get(id.0 as usize)
+        && d.storage_life.is_some()
+        && d.kind != CallableKind::FnOnce
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "captured Fixed Once adaptation needs its actual environment consumption ledger",
+            Some(i.span),
+        )]);
+    }
     if let InstructionKind::MakeClosure { closure, captures } = &i.kind {
         let d = module
             .closures
             .get(closure.0 as usize)
             .ok_or_else(|| bad("qualified environment definition is absent"))?;
         b.spend(captures.len(), "qualified environment operands")?;
+        if d.storage_life.is_some() {
+            for ty in &d.captures {
+                b.type_work(ty, true, "actual captured environment type comparison")?;
+            }
+        }
         if captures.len() != d.captures.len()
             || d.captures
                 .iter()
@@ -238,6 +255,9 @@ pub(super) fn types(
                 .captures
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
+            if d.storage_life.is_some() {
+                b.type_work(t, true, "actual captured field type comparison")?;
+            }
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
                 if d.kind == zil_ir::CallableKind::Fn
                     || !scalar(t)

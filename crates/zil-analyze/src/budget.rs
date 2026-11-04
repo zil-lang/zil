@@ -45,6 +45,7 @@ pub(super) struct Budget {
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
     pub(super) stored_borrows: bool,
+    pub(super) capture_relations: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -83,6 +84,7 @@ impl Budget {
             head_descriptions: false,
             registrations: false,
             stored_borrows: false,
+            capture_relations: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -931,6 +933,7 @@ pub(super) fn preflight(
         if let Some(life) = &closure.storage_life {
             super::signature_life::charge(life, budget)?;
             budget.stored_borrows = true;
+            budget.capture_relations = true;
         }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
