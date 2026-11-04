@@ -17,16 +17,11 @@ impl Builder<'_, '_> {
         match &pattern.kind {
             CorePatternKind::Name(_) | CorePatternKind::Wildcard => Ok(()),
             CorePatternKind::Variant {
-                variant, fields, ..
+                ty: declared,
+                variant,
+                fields,
             } => {
-                let Type::Enum { variants, .. } = ty else {
-                    return Err(unsupported(pattern.span, "owning pattern requires an Enum"));
-                };
-                let (index, (_, types)) = variants
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (name, _))| name == variant)
-                    .expect("covered variant");
+                let (index, types) = enums::pattern_variant(declared, variant, ty, pattern.span)?;
                 let tag = self.value(
                     InstructionKind::VariantTagLocal {
                         local: root,
@@ -90,16 +85,11 @@ impl Builder<'_, '_> {
                 Ok(())
             }
             CorePatternKind::Variant {
-                variant, fields, ..
+                ty: declared,
+                variant,
+                fields,
             } => {
-                let Type::Enum { variants, .. } = ty else {
-                    unreachable!("checked pattern")
-                };
-                let (variant, (_, types)) = variants
-                    .iter()
-                    .enumerate()
-                    .find(|(_, (name, _))| name == variant)
-                    .expect("checked variant");
+                let (variant, types) = enums::pattern_variant(declared, variant, ty, pattern.span)?;
                 let mut destinations = Vec::with_capacity(types.len());
                 for ty in types {
                     destinations.push(self.temp(ty.clone(), pattern.span)?);

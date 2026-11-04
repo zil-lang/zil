@@ -967,6 +967,33 @@ impl Resolver<'_> {
                 }
                 ty.clone()
             }
+            Type::Enum { name, variants } if name == enums::ANONYMOUS_SUM => {
+                let mut members = Vec::new();
+                for (_, fields) in variants {
+                    if fields.len() != 1 {
+                        return Err(error(
+                            "E-ANONYMOUS-SUM",
+                            span,
+                            "anonymous sum variants require exactly one member type",
+                        ));
+                    }
+                    let member = self.ty(&fields[0], depth + 1, span)?;
+                    match member {
+                        Type::Enum { name, variants } if name == enums::ANONYMOUS_SUM => {
+                            for (_, mut fields) in variants {
+                                members.push(fields.pop().expect("canonical anonymous member"));
+                            }
+                        }
+                        member => members.push(member),
+                    }
+                }
+                enums::canonical_anonymous(
+                    members,
+                    &mut self.remaining,
+                    &self.generic_limits,
+                    span,
+                )?
+            }
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
                 if !self.store_element_shape(&element, depth, span)? {

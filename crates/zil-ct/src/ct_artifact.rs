@@ -394,6 +394,7 @@ pub fn evaluate_ct_artifact(
         return Err(error("CT invocation argument count differs"));
     }
     for (index, (value, ty)) in arguments.iter().zip(&entry.parameter_types).enumerate() {
+        validate_anonymous_types(value, budget)?;
         if !value_matches_type(value, ty, raw, 0) {
             return Err(error("CT invocation argument type differs"));
         }
@@ -440,6 +441,7 @@ pub fn evaluate_ct_artifact(
             let produced = execute_instruction(raw, frame, inst, arguments, reader, budget)?;
             if let Some(id) = inst.result {
                 let value = produced.expect("verified CT value instruction has result");
+                validate_anonymous_types(&value, budget)?;
                 if !value_matches_type(&value, &frame.function.values[id.0 as usize], raw, 0) {
                     return Err(error("CT read view returned a value of the wrong type"));
                 }
@@ -586,6 +588,33 @@ fn value_matches_type(value: &CtValue, ty: &CtTy, raw: &CtArtifactProgram, depth
     }
 }
 
+// Only anonymous graphs need the new full structural canonicality check.
+// Existing type-value validation retains its original work and budget behavior.
+fn validate_anonymous_types(value: &CtValue, budget: &mut CtExecutionBudget) -> CompileResult<()> {
+    let mut values = vec![value];
+    while let Some(value) = values.pop() {
+        let reference = match value {
+            CtValue::Type(reference) => Some(reference),
+            CtValue::Ident(ident) => ident.member_owner_type.as_ref(),
+            CtValue::Tuple(v) | CtValue::Array(v) | CtValue::List(v)
+            | CtValue::Record { fields: v, .. } | CtValue::Variant { fields: v, .. } => {
+                values.extend(v); None
+            }
+            _ => None,
+        };
+        if let Some(reference) = reference {
+            if reference.nodes.iter().any(|n| matches!(n, CtTypeNode::AnonymousSum(_))) {
+                let canonical = crate::canonicalize_anonymous_type(reference, budget)?;
+                budget.reserve_analysis_work((canonical.nodes.len() as u64).saturating_mul(128))?;
+                let valid = canonical == *reference;
+                budget.release_temporary_bytes(16u64.saturating_add((canonical.nodes.len() as u64).saturating_mul(64)));
+                if !valid { return Err(error("anonymous Type value is not structurally canonical")); }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
     if reference.nodes.len() as u64 > raw.budget.max_generated_nodes
         || reference.root.0 as usize >= reference.nodes.len()
@@ -601,6 +630,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram) -> bool {
                 CtTypeArgument::Scalar(c) => scalar_ty(c).is_some(),
             }),
             CtTypeNode::Tuple(v) => v.iter().all(|id| child(*id)),
+            CtTypeNode::AnonymousSum(v) => v.len() >= 2 && v.iter().all(|id| child(*id)),
             CtTypeNode::Array { element, .. }
             | CtTypeNode::Slice(element)
             | CtTypeNode::Managed(element)
@@ -691,61 +721,7 @@ fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<C
                     .ok_or_else(|| limit("CT type node ID overflow"))?,
             ))
         };
-        let mapped = match node {
-            CtTypeNode::Primitive(s) => CtTypeNode::Primitive(*s),
-            CtTypeNode::Builtin(b) => CtTypeNode::Builtin(*b),
-            CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal {
-                symbol: symbol.clone(),
-                arguments: arguments
-                    .iter()
-                    .map(|a| match a {
-                        CtTypeArgument::Type(id) => plus(*id).map(CtTypeArgument::Type),
-                        CtTypeArgument::Scalar(c) => Ok(CtTypeArgument::Scalar(c.clone())),
-                    })
-                    .collect::<CompileResult<Vec<_>>>()?,
-            },
-            CtTypeNode::Tuple(v) => CtTypeNode::Tuple(
-                v.iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-            ),
-            CtTypeNode::Array { element, length } => CtTypeNode::Array {
-                element: plus(*element)?,
-                length: *length,
-            },
-            CtTypeNode::FunctionPointer { parameters, result } => CtTypeNode::FunctionPointer {
-                parameters: parameters
-                    .iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-                result: plus(*result)?,
-            },
-            CtTypeNode::Address { mutable, inner } => CtTypeNode::Address {
-                mutable: *mutable,
-                inner: plus(*inner)?,
-            },
-            CtTypeNode::Slice(inner) => CtTypeNode::Slice(plus(*inner)?),
-            CtTypeNode::Managed(inner) => CtTypeNode::Managed(plus(*inner)?),
-            CtTypeNode::Desc(inner) => CtTypeNode::Desc(plus(*inner)?),
-            CtTypeNode::OwnedStore(inner) => CtTypeNode::OwnedStore(plus(*inner)?),
-            CtTypeNode::ForeignCallback { parameters, result } => CtTypeNode::ForeignCallback {
-                parameters: parameters
-                    .iter()
-                    .copied()
-                    .map(plus)
-                    .collect::<CompileResult<Vec<_>>>()?,
-                result: plus(*result)?,
-            },
-            CtTypeNode::Opaque { identity } => CtTypeNode::Opaque {
-                identity: identity.clone(),
-            },
-            CtTypeNode::ErrorUnion { error, result } => CtTypeNode::ErrorUnion {
-                error: plus(*error)?,
-                result: plus(*result)?,
-            },
-        };
+        let mapped = crate::anonymous_type::remap(node, plus)?;
         out.push(mapped);
     }
     Ok(CtTypeNodeId(
@@ -789,6 +765,7 @@ fn construct_type(
             }
         }
         CtTypeConstructor::Tuple => CtTypeNode::Tuple(children),
+        CtTypeConstructor::AnonymousSum => CtTypeNode::AnonymousSum(children),
         CtTypeConstructor::FunctionPointer => {
             let result = children.pop().expect("verified function Type result");
             CtTypeNode::FunctionPointer {
@@ -810,10 +787,12 @@ fn construct_type(
         },
     };
     nodes.push(node);
-    Ok(CtTypeRef {
-        nodes,
-        root: CtTypeNodeId(last),
-    })
+    let value = CtTypeRef { nodes, root: CtTypeNodeId(last) };
+    if kind == CtTypeConstructor::AnonymousSum {
+        let canonical = crate::canonicalize_anonymous_type(&value, budget)?;
+        budget.release_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)));
+        Ok(canonical)
+    } else { Ok(value) }
 }
 fn project_meta(
     value: &CtValue,

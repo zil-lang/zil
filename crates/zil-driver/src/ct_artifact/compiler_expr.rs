@@ -710,7 +710,7 @@ impl Builder<'_, '_> {
                 )
             }
             s::TypeKind::Group(inner) => self.type_ref(module, inner, depth + 1),
-            s::TypeKind::Tuple(fields) => {
+            s::TypeKind::Tuple(fields) | s::TypeKind::Union(fields) => {
                 let mut arguments = Vec::new();
                 for field in fields {
                     let v = self.type_ref(module, field, depth + 1)?;
@@ -719,7 +719,7 @@ impl Builder<'_, '_> {
                 }
                 self.emit(
                     CtInstructionKind::TypeConstruct {
-                        constructor: CtTypeConstructor::Tuple,
+                        constructor: if matches!(ty.kind, s::TypeKind::Union(_)) { CtTypeConstructor::AnonymousSum } else { CtTypeConstructor::Tuple },
                         arguments,
                     },
                     CtTy::Type,
