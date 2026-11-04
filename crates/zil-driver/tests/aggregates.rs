@@ -7998,3 +7998,181 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
         println!("G1.3.3 {stage:?} N={low}; N-1/fresh/warm/retry");
     }
 }
+
+#[test]
+fn terminal340_package_terminal_source_types_and_analyze() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    );
+    for (name, text, abort) in [
+        ("complete", text, false),
+        (
+            "failed preparation",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+            ),
+            true,
+        ),
+    ] {
+        let temp = Temp::new();
+        let typed = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                emit_dir: Some(temp.0.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            typed.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            typed.to_json()
+        );
+        let ir = fs::read_to_string(&typed.artifacts["typed"]).unwrap();
+        assert!(
+            ir.contains("ReservePlaceAddress") && ir.contains("CommitPlaceReplace"),
+            "{name}: {ir}"
+        );
+        assert!(!ir.contains("WriteAddress"), "{name}: {ir}");
+        if abort {
+            assert!(ir.contains("AbortPlaceReservation"), "{name}: {ir}");
+        }
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+    let old = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+    );
+    let report = compile_source(
+        &source(old),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("description required later")),
+        "{}",
+        report.to_json()
+    );
+    let shared = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-shared.zil"
+    );
+    let report = compile_source(
+        &source(shared),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-ADDRESS-PERMISSION")
+    );
+    let partial = text
+        .replace("let target=", "let taken=give packet.owner;let target=")
+        .replace("packet.n+packet.owner.code-66", "taken.code");
+    let report = compile_source(
+        &source(&partial),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("Product borrow requires every owned child live")),
+        "{}",
+        report.to_json()
+    );
+    let prefix = "resource R{code:i32}package P{manages owner:R;n:i32}";
+    let nonlocal = format!(
+        "{prefix}fn replace(target:&mut P){{*target=P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var p=P{{owner:R{{code:65}},n:0}};replace(&mut p);return p.n}}"
+    );
+    let report = compile_source(
+        &source(&nonlocal),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("exact whole local owner")),
+        "{}",
+        report.to_json()
+    );
+    let pin = format!(
+        "{prefix}fn change(p:&mut P)->P{{p.n=9;return P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};let target=&mut packet;*target=change(target);return packet.n}}"
+    );
+    let report = compile_source(
+        &source(&pin),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+}
