@@ -10,6 +10,8 @@ mod factory;
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub source_definition: Option<&'a Function>,
+    pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
     pub nominals: &'a BTreeMap<String, &'l Item>,
     pub enums: &'a BTreeMap<String, &'l EnumDecl>,
     pub signatures: &'a BTreeMap<String, Cow<'l, Function>>,
@@ -37,6 +39,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        source_definition,
+        definition_equations,
         nominals,
         enums,
         signatures,
@@ -106,6 +110,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         callable,
         owned_dispatch,
         definition: &function.name,
+        source_definition: source_definition.unwrap_or(function),
+        definition_equations,
         dependencies,
         bounds: match supplied_bounds {
             Some(bounds) => bounds,
@@ -729,6 +735,8 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    source_definition: &'s Function,
+    definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
     variables: BTreeSet<String>,
     definition_bound_context: bool,
     callable: Option<callable::CallableTemplates>,
@@ -1900,7 +1908,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Literal(Literal::Integer(text)) => {
                 self.budget.text(text, span)?;
-                Ok(["u8", "u16", "i32", "i64"]
+                Ok(["u8", "u16", "u64", "usize", "i32", "i64"]
                     .into_iter()
                     .find(|suffix| text.ends_with(suffix))
                     .or(default_integer.then_some("i32"))
@@ -2253,14 +2261,55 @@ impl Check<'_, '_, '_> {
         Ok(actual)
     }
 
+    fn method_argument_hint(
+        &mut self,
+        expression: &Expr,
+        state: &State,
+        depth: usize,
+    ) -> R<Option<TypeRef>> {
+        self.budget.node(expression.span, depth)?;
+        match &expression.kind {
+            ExprKind::Group(inner) => self.method_argument_hint(inner, state, depth + 1),
+            ExprKind::Unary {
+                op: UnaryOp::Borrow | UnaryOp::BorrowMut,
+                operand,
+            } => {
+                let Some(inner) = self.value_hint(operand, state, depth + 1, true)? else {
+                    return Ok(None);
+                };
+                self.budget.node(expression.span, depth)?;
+                Ok(Some(TypeRef {
+                    span: expression.span,
+                    kind: TypeKind::Reference {
+                        lifetime: None,
+                        mutable: matches!(
+                            &expression.kind,
+                            ExprKind::Unary {
+                                op: UnaryOp::BorrowMut,
+                                ..
+                            }
+                        ),
+                        inner: Box::new(inner),
+                    },
+                }))
+            }
+            _ => self.value_hint(expression, state, depth + 1, true),
+        }
+    }
+
     fn bound_method(
         &mut self,
         object: &Expr,
         actual: &TypeRef,
         name: &str,
-        arguments: &[Argument],
+        arguments: trait_methods::Arguments<'_>,
         state: &mut State,
     ) -> R<TypeRef> {
+        let trait_methods::Arguments {
+            values: arguments,
+            explicit,
+            expected: expected_result,
+        } = arguments;
         let host = match &group(actual).kind {
             TypeKind::Reference { inner, .. } => inner.as_ref(),
             _ => actual,
@@ -2283,7 +2332,8 @@ impl Check<'_, '_, '_> {
         let method = self
             .traits
             .method(&self.bounds, variable, name, self.budget, object.span)?;
-        if method.name != name {
+        let mut method_origin = self.budget.context.origin;
+        if method.name != name || !method.generics.is_empty() {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
@@ -2295,6 +2345,8 @@ impl Check<'_, '_, '_> {
                 self.budget,
                 object.span,
             )?;
+            let (owner, _) = self.traits.declaration_item(&reference);
+            method_origin = self.traits.origin(owner, self.budget)?;
             self.budget.text(name, object.span)?;
             self.trait_calls
                 .entry(self.definition.to_owned())
@@ -2312,6 +2364,7 @@ impl Check<'_, '_, '_> {
                     trait_instances::CallTarget {
                         reference,
                         member: name.to_owned(),
+                        generic: !method.generics.is_empty(),
                     },
                 );
         }
@@ -2333,7 +2386,66 @@ impl Check<'_, '_, '_> {
                 "trait-bound method argument count differs",
             ));
         }
-        let substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let mut substitutions = BTreeMap::from([("Self".to_owned(), host.clone())]);
+        let mut variables = BTreeSet::new();
+        for parameter in type_parameters(&method) {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(&parameter.name, parameter.span)?;
+            variables.insert(parameter.name.clone());
+        }
+        if let Some(explicit) = explicit {
+            if method.generics.is_empty() || explicit.len() != consts::parameters(&method).count() {
+                return Err(error(object.span, "generic method argument arity differs"));
+            }
+            for (parameter, argument) in consts::parameters(&method).zip(explicit) {
+                let value = consts::argument(argument, Some(parameter), self.budget)?;
+                let value = if let GenericParamKind::Const(domain) = &parameter.kind
+                    && let Some(Expr {
+                        kind: ExprKind::Name(name),
+                        ..
+                    }) = consts::expression(&value)
+                {
+                    let (ordinal, binder) =
+                        consts::symbolic_parameter(self.source_definition, name).ok_or_else(
+                            || error(object.span, "method const argument names a runtime value"),
+                        )?;
+                    let GenericParamKind::Const(actual_domain) = &binder.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, object.span, self.budget)?;
+                    if state.locals.get(name).is_none_or(|local| {
+                        local.id != self.source_definition.params.len() + ordinal
+                    }) {
+                        return Err(error(
+                            object.span,
+                            "method const argument is shadowed by a runtime value",
+                        ));
+                    }
+                    value
+                } else {
+                    consts::normalize(parameter, &value, self.budget)?
+                };
+                self.budget.text(&parameter.name, object.span)?;
+                substitutions.insert(parameter.name.clone(), value);
+            }
+        }
+        if let (Some(result), Some(expected)) = (&method.return_type, expected_result)
+            && !variables.is_empty()
+        {
+            let result = substituted_type(result, &substitutions, self.budget)?;
+            if !self.traits.has_associated
+                || !trait_bounds::associated::contains(&result, self.budget)?
+            {
+                unify(
+                    &result,
+                    expected,
+                    &variables,
+                    &mut substitutions,
+                    object.span,
+                    self.budget,
+                )?;
+            }
+        }
         let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
         match &group(&expected).kind {
             TypeKind::Reference { mutable, .. } => {
@@ -2370,18 +2482,125 @@ impl Check<'_, '_, '_> {
                     "trait-bound method tuple spread",
                 ));
             }
-            let expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+            let mut expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+            if dependent(&expected, &variables) {
+                let hint = self.method_argument_hint(&argument.value, state, 0)?;
+                if let Some(hint) = hint {
+                    unify_argument(
+                        &expected,
+                        &hint,
+                        &variables,
+                        &mut substitutions,
+                        argument.span,
+                        self.budget,
+                    )?;
+                    expected = substituted_type(&parameter.ty, &substitutions, self.budget)?;
+                }
+            }
+            if let Some(equations) = self.definition_equations {
+                self.budget.substituted_type(&expected, equations)?;
+                Substitution {
+                    substitutions: equations,
+                }
+                .ty(&mut expected);
+            }
+            if self.traits.has_associated && !dependent(&expected, &variables) {
+                expected = self.traits.normalize_associated(
+                    &expected,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                )?;
+            }
+            let reference_parameter = matches!(group(&expected).kind, TypeKind::Reference { .. });
             let actual = self.argument(
                 &argument.value,
                 state,
                 &expected,
-                Some(&expected),
+                (!dependent(&expected, &variables)).then_some(&expected),
                 index + 1,
             )?;
-            same(&actual, &expected, argument.span, self.budget)?;
+            if variables.is_empty() {
+                same(&actual, &expected, argument.span, self.budget)?;
+            } else {
+                unify_argument(
+                    &expected,
+                    &actual,
+                    &variables,
+                    &mut substitutions,
+                    argument.span,
+                    self.budget,
+                )?;
+            }
+            if !reference_parameter
+                && let TypeKind::Reference { mutable, .. } = &group(&actual).kind
+            {
+                self.alias_hold_result(state, *mutable, argument.span, Some(index + 1))?;
+            }
         }
+        for parameter in consts::parameters(&method) {
+            self.budget.node(parameter.span, 0)?;
+            self.budget.text(&parameter.name, parameter.span)?;
+            let value = substitutions.get(&parameter.name).ok_or_else(|| {
+                error(
+                    object.span,
+                    "generic method argument has no unique constraint",
+                )
+            })?;
+            if matches!(parameter.kind, GenericParamKind::Type(_)) {
+                trait_instances::known_type(value, &self.variables, self.nominals, self.budget, 0)?;
+                self.traits.store_types(
+                    value,
+                    &self.bounds,
+                    &self.variables,
+                    self.budget,
+                    callable::StoreCallbacks::None,
+                )?;
+            }
+        }
+        self.budget.with_origin(method_origin, |budget| {
+            self.traits.check_arguments(
+                &method.generics,
+                &substitutions,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+                budget,
+                object.span,
+                None,
+            )?;
+            self.traits.check_where(
+                &method.where_clause,
+                &substitutions,
+                &self.bounds,
+                &self.variables,
+                budget,
+            )?;
+            Ok(())
+        })?;
         match &method.return_type {
-            Some(result) => substituted_type(result, &substitutions, self.budget),
+            Some(result) => {
+                let mut result = substituted_type(result, &substitutions, self.budget)?;
+                if let Some(equations) = self.definition_equations {
+                    self.budget.substituted_type(&result, equations)?;
+                    Substitution {
+                        substitutions: equations,
+                    }
+                    .ty(&mut result);
+                }
+                if self.traits.has_associated {
+                    self.traits.normalize_associated(
+                        &result,
+                        &self.bounds,
+                        &self.variables,
+                        self.budget,
+                    )
+                } else {
+                    Ok(result)
+                }
+            }
             None => Ok(unit(object.span)),
         }
     }
@@ -2395,7 +2614,14 @@ impl Check<'_, '_, '_> {
     ) -> R<TypeRef> {
         self.aliases.result.clear();
         let base = self.alias_call_start();
-        let ty = self.expr_inner(e, state, expected, borrowing)?;
+        let mut ty = self.expr_inner(e, state, expected, borrowing)?;
+        if let Some(equations) = self.definition_equations {
+            self.budget.substituted_type(&ty, equations)?;
+            Substitution {
+                substitutions: equations,
+            }
+            .ty(&mut ty);
+        }
         match &e.kind {
             ExprKind::Call { .. } => self.alias_call_end(state, base, &ty, e)?,
             ExprKind::Name(_)
@@ -3027,12 +3253,20 @@ impl Check<'_, '_, '_> {
                     self.budget.ty(&result)?;
                     return Ok(result);
                 }
+                let (method_callee, method_explicit) = match &callee.kind {
+                    ExprKind::TypeApply { callee, arguments } => {
+                        (callee.as_ref(), Some(arguments.as_slice()))
+                    }
+                    _ => (callee.as_ref(), None),
+                };
                 if let ExprKind::Member {
                     object,
                     member: MemberName::Name(name) | MemberName::Constrained { name, .. },
-                } = &callee.kind
+                } = &method_callee.kind
                 {
-                    if let Some(result) = self.state_field_call(callee, arguments, state)? {
+                    if method_explicit.is_none()
+                        && let Some(result) = self.state_field_call(callee, arguments, state)?
+                    {
                         return Ok(result);
                     }
                     let ty = self.expr(object, state, None, true)?;
@@ -3044,7 +3278,17 @@ impl Check<'_, '_, '_> {
                         }
                         return Ok(named("i64", e.span));
                     }
-                    return self.bound_method(object, &ty, name, arguments, state);
+                    return self.bound_method(
+                        object,
+                        &ty,
+                        name,
+                        trait_methods::Arguments {
+                            values: arguments,
+                            explicit: method_explicit,
+                            expected,
+                        },
+                        state,
+                    );
                 }
 
                 if let Some(value) =
@@ -3374,9 +3618,7 @@ impl Check<'_, '_, '_> {
                             // Only this declaration's original immutable const
                             // binder is compile-time evidence. A same-spelled
                             // runtime parameter or shadowing local is not.
-                            let source = self.signatures.get(self.definition).ok_or_else(|| {
-                                error(e.span, "symbolic const call has no declaration context")
-                            })?;
+                            let source = self.source_definition;
                             let (ordinal, binder) = consts::symbolic_parameter(source, name)
                                 .ok_or_else(|| {
                                     error(e.span, "const argument names a runtime value")
@@ -3570,21 +3812,32 @@ impl Check<'_, '_, '_> {
                         same(result, &expected, e.span, self.budget)?;
                     }
                 }
-                self.traits.check_arguments(
-                    &function.generics,
-                    &found,
-                    (
+                let origin = self.traits.function_origin(function, self.budget)?;
+                self.budget.with_origin(origin, |budget| {
+                    self.traits.check_arguments(
+                        &function.generics,
+                        &found,
+                        (
+                            &self.bounds,
+                            &self.variables,
+                            self.callable.as_ref().map_or(
+                                callable::StoreCallbacks::None,
+                                callable::CallableTemplates::store_callbacks,
+                            ),
+                        ),
+                        budget,
+                        e.span,
+                        callable.as_ref(),
+                    )?;
+                    self.traits.check_where(
+                        &function.where_clause,
+                        &found,
                         &self.bounds,
                         &self.variables,
-                        self.callable.as_ref().map_or(
-                            callable::StoreCallbacks::None,
-                            callable::CallableTemplates::store_callbacks,
-                        ),
-                    ),
-                    self.budget,
-                    e.span,
-                    callable.as_ref(),
-                )?;
+                        budget,
+                    )?;
+                    Ok(())
+                })?;
                 match &function.return_type {
                     Some(result) => substituted_type(result, &found, self.budget),
                     None => Ok(unit(e.span)),

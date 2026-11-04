@@ -8,6 +8,7 @@ impl<'a> Engine<'a> {
         }
         for recipe in 0..self.traits.recipes.len() {
             let item = self.traits.recipes[recipe];
+            self.budget.context.origin = self.traits.origin(item, &mut self.budget)?;
             self.budget.item(item)?;
             let ItemKind::Impl(implementation) = &item.kind else {
                 unreachable!()
@@ -16,6 +17,7 @@ impl<'a> Engine<'a> {
                 && implementation.where_clause.is_empty()
                 && trait_bounds::plain(&implementation.target).is_some()
                 && !self.traits.has_associated
+                && !self.traits.has_generic_methods
             {
                 continue;
             }
@@ -32,7 +34,30 @@ impl<'a> Engine<'a> {
                     "impl Self needs an outer nominal declaration",
                 ));
             };
-            if trait_item.span.file != item.span.file && host.span.file != item.span.file {
+            let foreign = if self.origins.is_some() {
+                let owner = self
+                    .traits
+                    .origin(item, &mut self.budget)?
+                    .expect("ledger")
+                    .declaration
+                    .module;
+                self.traits
+                    .origin(trait_item, &mut self.budget)?
+                    .expect("ledger")
+                    .declaration
+                    .module
+                    != owner
+                    && self
+                        .traits
+                        .origin(host, &mut self.budget)?
+                        .expect("ledger")
+                        .declaration
+                        .module
+                        != owner
+            } else {
+                trait_item.span.file != item.span.file && host.span.file != item.span.file
+            };
+            if foreign {
                 return Err(error(
                     item.span,
                     "impl requires its trait or outer Self declaration in the current module",
@@ -117,7 +142,7 @@ impl<'a> Engine<'a> {
             )?;
             self.traits
                 .reference_arguments(&reference, &bounds, &variables, &mut self.budget)?;
-            let equations = if self.traits.has_associated {
+            let equations = if self.traits.has_associated || self.traits.has_generic_methods {
                 self.traits.add_subject_bounds(
                     &implementation.target,
                     std::slice::from_ref(application),
@@ -281,12 +306,6 @@ impl<'a> Engine<'a> {
                 if !methods.insert(method.name.as_str()) {
                     return Err(error(member.span, "duplicate impl method"));
                 }
-                if !method.generics.is_empty() || !method.where_clause.is_empty() {
-                    return Err(unsupported(
-                        member.span,
-                        "generic impl method requires method specialization",
-                    ));
-                }
                 let mut required = None;
                 for candidate in &declaration.members {
                     self.budget.node(candidate.span, 0)?;
@@ -323,20 +342,36 @@ impl<'a> Engine<'a> {
                     self.budget.ty(&receiver.ty)?;
                     function.params.insert(0, receiver.clone());
                 }
-                for parameter in &mut signature.params {
+                if signature.generics.is_empty() && signature.where_clause.is_empty() {
+                    for parameter in &mut signature.params {
+                        self.budget
+                            .substituted_type(&parameter.ty, &substitutions)?;
+                        Substitution {
+                            substitutions: &substitutions,
+                        }
+                        .ty(&mut parameter.ty);
+                    }
+                    if let Some(result) = &mut signature.return_type {
+                        self.budget.substituted_type(result, &substitutions)?;
+                        Substitution {
+                            substitutions: &substitutions,
+                        }
+                        .ty(result);
+                    }
+                } else {
+                    let mut required_signature = Item {
+                        span: required.span,
+                        public: false,
+                        attributes: vec![],
+                        kind: ItemKind::Function(signature),
+                    };
                     self.budget
-                        .substituted_type(&parameter.ty, &substitutions)?;
-                    Substitution {
-                        substitutions: &substitutions,
-                    }
-                    .ty(&mut parameter.ty);
-                }
-                if let Some(result) = &mut signature.return_type {
-                    self.budget.substituted_type(result, &substitutions)?;
-                    Substitution {
-                        substitutions: &substitutions,
-                    }
-                    .ty(result);
+                        .substituted_item(&required_signature, &substitutions)?;
+                    substitute_item(&mut required_signature, &substitutions)?;
+                    let ItemKind::Function(required_function) = required_signature.kind else {
+                        unreachable!()
+                    };
+                    signature = required_function;
                 }
                 let mut checked = Item {
                     kind: ItemKind::Function(function),
@@ -367,6 +402,7 @@ impl<'a> Engine<'a> {
                 let ItemKind::Function(mut function) = checked.kind else {
                     unreachable!()
                 };
+                function = trait_methods::align(function, &signature, &mut self.budget)?;
                 if function.params.len() != signature.params.len() {
                     return Err(error(
                         member.span,
@@ -422,7 +458,22 @@ impl<'a> Engine<'a> {
                         }
                     }
                 }
+                let own_parameters = std::mem::take(&mut function.generics);
                 function.generics = parameters.clone();
+                function.generics.extend(own_parameters);
+                let method_bounds = if method.generics.is_empty() && method.where_clause.is_empty()
+                {
+                    None
+                } else {
+                    let mut method_bounds = self.traits.bounds(&function, &mut self.budget)?;
+                    trait_methods::extend_bounds(
+                        &mut method_bounds,
+                        &bounds,
+                        &mut self.budget,
+                        member.span,
+                    )?;
+                    Some(method_bounds)
+                };
                 self.budget.text(&method.name, member.span)?;
                 self.budget
                     .text("$impl_definition_00000000000000000000_", member.span)?;
@@ -431,9 +482,15 @@ impl<'a> Engine<'a> {
                     self.impl_definitions.len(),
                     method.name
                 );
+                let checked = consts::definition(&function, &mut self.budget)?;
+                let mut calls = trait_instances::Calls::new();
                 check::validate_parametric_with_bounds(
-                    &function,
+                    &checked,
                     check::ParametricTables {
+                        source_definition: Some(&function),
+                        definition_equations: (self.traits.has_generic_methods
+                            && !equations.is_empty())
+                        .then_some(&equations),
                         nominals: &self.nominals,
                         enums: &self.enums,
                         signatures: &self.signatures,
@@ -443,9 +500,16 @@ impl<'a> Engine<'a> {
                     },
                     &mut helper_graph::Dependencies::default(),
                     &mut self.budget,
-                    &mut self.trait_calls,
-                    Some(bounds.clone()),
+                    &mut calls,
+                    Some(match method_bounds {
+                        Some(bounds) => bounds,
+                        None => bounds.clone(),
+                    }),
                 )?;
+                if let Some(calls) = calls.remove(&function.name) {
+                    self.budget.node(member.span, 0)?;
+                    self.impl_calls.insert((recipe, ordinal), calls);
+                }
                 self.impl_definitions
                     .insert((recipe, ordinal), function.name);
             }
@@ -460,6 +524,57 @@ impl<'a> Engine<'a> {
             }
         }
         Ok(())
+    }
+
+    pub(super) fn impl_method_calls(
+        &mut self,
+        item: &Item,
+        substitutions: &BTreeMap<String, TypeRef>,
+    ) -> R<BTreeMap<usize, trait_instances::CallTargets>> {
+        let mut result = BTreeMap::new();
+        if !self.traits.has_generic_methods {
+            return Ok(result);
+        }
+        let mut recipe = None;
+        for (ordinal, candidate) in self.traits.recipes.iter().enumerate() {
+            self.budget.node(item.span, 0)?;
+            if std::ptr::eq(*candidate, item) {
+                recipe = Some(ordinal);
+                break;
+            }
+        }
+        let Some(recipe) = recipe else {
+            return Ok(result);
+        };
+        let ItemKind::Impl(implementation) = &item.kind else {
+            unreachable!()
+        };
+        let mut substitution = BTreeMap::new();
+        for (name, value) in substitutions {
+            self.budget.text(name, item.span)?;
+            self.budget.ty(value)?;
+            substitution.insert(name.clone(), value.clone());
+        }
+        if !substitution.contains_key("Self") {
+            self.budget.ty(&implementation.target)?;
+            self.budget.text("Self", item.span)?;
+            substitution.insert("Self".into(), implementation.target.clone());
+        }
+        for (ordinal, member) in implementation.members.iter().enumerate() {
+            self.budget.node(member.span, 0)?;
+            if let Some(calls) = self.impl_calls.get(&(recipe, ordinal)) {
+                result.insert(
+                    ordinal,
+                    trait_instances::resolve_generic_calls(
+                        calls,
+                        &substitution,
+                        &mut self.budget,
+                        member.span,
+                    )?,
+                );
+            }
+        }
+        Ok(result)
     }
 
     pub(super) fn realize_witness(&mut self, witness: trait_bounds::Witness<'a>) -> R<()> {
@@ -511,38 +626,36 @@ impl<'a> Engine<'a> {
         let (_, declaration) = self.traits.declaration_item(&witness.reference);
         let self_substitution = BTreeMap::from([("Self".into(), witness.actual)]);
         for (ordinal, member) in implementation.members.iter_mut().enumerate() {
-            if let ItemKind::Function(function) = &mut member.kind {
-                if !function.params.first().is_some_and(|p| p.name == "self") {
-                    for candidate in &declaration.members {
-                        self.budget.node(candidate.span, 0)?;
-                        if let ItemKind::Function(signature) = &candidate.kind {
-                            self.budget.text(&signature.name, candidate.span)?;
-                            self.budget.text(&function.name, member.span)?;
-                            if signature.name == function.name {
-                                let signature = trait_instances::signature(
-                                    declaration,
-                                    candidate,
-                                    &witness.reference,
-                                    &mut self.budget,
-                                )?;
-                                if let Some(receiver) =
-                                    signature.params.first().filter(|p| p.name == "self")
-                                {
-                                    self.budget.ty(&receiver.ty)?;
-                                    self.budget.text(&receiver.name, receiver.span)?;
-                                    function.params.insert(0, receiver.clone());
-                                }
-                                break;
+            if let ItemKind::Function(function) = &mut member.kind
+                && !function.params.first().is_some_and(|p| p.name == "self")
+            {
+                for candidate in &declaration.members {
+                    self.budget.node(candidate.span, 0)?;
+                    if let ItemKind::Function(signature) = &candidate.kind {
+                        self.budget.text(&signature.name, candidate.span)?;
+                        self.budget.text(&function.name, member.span)?;
+                        if signature.name == function.name {
+                            let signature = trait_instances::signature(
+                                declaration,
+                                candidate,
+                                &witness.reference,
+                                &mut self.budget,
+                            )?;
+                            if let Some(receiver) =
+                                signature.params.first().filter(|p| p.name == "self")
+                            {
+                                self.budget.ty(&receiver.ty)?;
+                                self.budget.text(&receiver.name, receiver.span)?;
+                                function.params.insert(0, receiver.clone());
                             }
+                            break;
                         }
                     }
                 }
             }
             self.budget.substituted_item(member, &self_substitution)?;
             substitute_item(member, &self_substitution)?;
-            if let Some(definition) = self.impl_definitions.get(&(witness.recipe, ordinal))
-                && let Some(calls) = self.trait_calls.get(definition)
-            {
+            if let Some(calls) = self.impl_calls.get(&(witness.recipe, ordinal)) {
                 trait_instances::rewrite_calls(
                     member,
                     calls,
@@ -555,7 +668,10 @@ impl<'a> Engine<'a> {
         implementation.generics.clear();
         implementation.where_clause.clear();
         self.realized_impls.insert(key);
-        self.pending.push_back(instance);
+        let origin = self.template_origin(witness.item)?;
+        let calls = self.impl_method_calls(witness.item, &witness.substitutions)?;
+        self.enqueue(instance, origin)?;
+        self.pending.back_mut().expect("just enqueued").member_calls = calls;
         Ok(())
     }
 

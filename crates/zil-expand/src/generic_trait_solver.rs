@@ -42,6 +42,7 @@ impl<'a> Index<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn solve_active(
         &self,
         reference: &trait_instances::Reference,
@@ -126,7 +127,9 @@ impl<'a> Index<'a> {
             )? {
                 continue;
             }
-            let pattern = self.pattern_reference(application, budget)?;
+            let origin = self.origin(item, budget)?;
+            let pattern =
+                budget.with_origin(origin, |budget| self.pattern_reference(application, budget))?;
             if pattern.arguments.len() != reference.arguments.len() {
                 continue;
             }
@@ -166,25 +169,79 @@ impl<'a> Index<'a> {
         let ItemKind::Impl(implementation) = &item.kind else {
             unreachable!()
         };
-        if self.has_associated {
+        if self.has_associated || self.has_generic_methods {
             budget.text("Self", actual.span)?;
             budget.ty(actual)?;
             substitutions.insert("Self".into(), actual.clone());
         }
-        let mut dependencies = Vec::new();
-        // Do not add the selected head or its equations to available evidence.
-        for parameter in &implementation.generics {
-            let GenericParamKind::Type(bounds) = &parameter.kind else {
-                return Err(unsupported(
-                    parameter.span,
-                    "impl lifetime/const binders require their solver",
-                ));
-            };
-            let subject = &substitutions[&parameter.name];
-            for bound in bounds {
-                let bound = substituted(bound, &substitutions, budget)?;
+        let origin = self.origin(item, budget)?;
+        let mut dependencies = budget.with_origin(origin, |budget| {
+            let mut dependencies = Vec::new();
+            // Do not add the selected head or its equations to available evidence.
+            for parameter in &implementation.generics {
+                let GenericParamKind::Type(bounds) = &parameter.kind else {
+                    return Err(unsupported(
+                        parameter.span,
+                        "impl lifetime/const binders require their solver",
+                    ));
+                };
+                let subject = &substitutions[&parameter.name];
+                for bound in bounds {
+                    let bound = substituted(bound, &substitutions, budget)?;
+                    if let Some(witness) = self.prove_premise(
+                        subject,
+                        &bound,
+                        available,
+                        variables,
+                        budget,
+                        active,
+                        depth + 1,
+                    )? {
+                        dependencies.push(witness);
+                    }
+                }
+            }
+            for clause in &implementation.where_clause {
+                budget.node(clause.span, depth)?;
+                let BoundSubject::Type(subject) = &clause.subject else {
+                    return Err(unsupported(clause.span, "impl lifetime where premise"));
+                };
+                if clause.lifetime_bound.is_some() {
+                    return Err(unsupported(clause.span, "impl lifetime where premise"));
+                }
+                let subject = substituted(subject, &substitutions, budget)?;
+                for bound in &clause.bounds {
+                    let bound = substituted(bound, &substitutions, budget)?;
+                    if let Some(witness) = self.prove_premise(
+                        &subject,
+                        &bound,
+                        available,
+                        variables,
+                        budget,
+                        active,
+                        depth + 1,
+                    )? {
+                        dependencies.push(witness);
+                    }
+                }
+            }
+            Ok(dependencies)
+        })?;
+        let (declaration_item, declaration) = self.declaration_item(reference);
+        let trait_origin = self.origin(declaration_item, budget)?;
+        budget.with_origin(trait_origin, |budget| {
+            let mut inherited_substitutions = BTreeMap::new();
+            budget.ty(actual)?;
+            inherited_substitutions.insert("Self".into(), actual.clone());
+            for (parameter, argument) in declaration.generics.iter().zip(&reference.arguments) {
+                budget.text(&parameter.name, parameter.span)?;
+                budget.ty(argument)?;
+                inherited_substitutions.insert(parameter.name.clone(), argument.clone());
+            }
+            for bound in &declaration.bounds {
+                let bound = substituted(bound, &inherited_substitutions, budget)?;
                 if let Some(witness) = self.prove_premise(
-                    subject,
+                    actual,
                     &bound,
                     available,
                     variables,
@@ -195,54 +252,8 @@ impl<'a> Index<'a> {
                     dependencies.push(witness);
                 }
             }
-        }
-        for clause in &implementation.where_clause {
-            budget.node(clause.span, depth)?;
-            let BoundSubject::Type(subject) = &clause.subject else {
-                return Err(unsupported(clause.span, "impl lifetime where premise"));
-            };
-            if clause.lifetime_bound.is_some() {
-                return Err(unsupported(clause.span, "impl lifetime where premise"));
-            }
-            let subject = substituted(subject, &substitutions, budget)?;
-            for bound in &clause.bounds {
-                let bound = substituted(bound, &substitutions, budget)?;
-                if let Some(witness) = self.prove_premise(
-                    &subject,
-                    &bound,
-                    available,
-                    variables,
-                    budget,
-                    active,
-                    depth + 1,
-                )? {
-                    dependencies.push(witness);
-                }
-            }
-        }
-        let (_, declaration) = self.declaration_item(reference);
-        let mut inherited_substitutions = BTreeMap::new();
-        budget.ty(actual)?;
-        inherited_substitutions.insert("Self".into(), actual.clone());
-        for (parameter, argument) in declaration.generics.iter().zip(&reference.arguments) {
-            budget.text(&parameter.name, parameter.span)?;
-            budget.ty(argument)?;
-            inherited_substitutions.insert(parameter.name.clone(), argument.clone());
-        }
-        for bound in &declaration.bounds {
-            let bound = substituted(bound, &inherited_substitutions, budget)?;
-            if let Some(witness) = self.prove_premise(
-                actual,
-                &bound,
-                available,
-                variables,
-                budget,
-                active,
-                depth + 1,
-            )? {
-                dependencies.push(witness);
-            }
-        }
+            Ok(())
+        })?;
         active.remove(&goal);
         budget.ty(actual)?;
         trait_instances::copy_key(&reference.key, budget, actual.span)?;
@@ -259,6 +270,7 @@ impl<'a> Index<'a> {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn prove_premise(
         &self,
         subject: &TypeRef,
@@ -791,6 +803,25 @@ impl<'a> Index<'a> {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<Option<(String, Function, Witness<'a>)>> {
+        self.recipe_method_inner(actual, name, false, budget, span)
+    }
+    pub(crate) fn recipe_generic_method(
+        &self,
+        actual: &TypeRef,
+        name: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<(String, Function, Witness<'a>)>> {
+        self.recipe_method_inner(actual, name, true, budget, span)
+    }
+    fn recipe_method_inner(
+        &self,
+        actual: &TypeRef,
+        name: &str,
+        generic_only: bool,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<(String, Function, Witness<'a>)>> {
         let mut selected = None;
         for item in &self.recipes {
             budget.node(item.span, 0)?;
@@ -825,6 +856,20 @@ impl<'a> Index<'a> {
                 &found,
                 budget,
             )?;
+            if self.origins.is_some()
+                && let Some((owner, _)) =
+                    trait_instances::head(&application).and_then(|name| self.declarations.get(name))
+                && !owner.public
+            {
+                let origin = self.origin(owner, budget)?.expect("ledger");
+                if budget
+                    .context
+                    .origin
+                    .is_none_or(|caller| caller.declaration.module != origin.declaration.module)
+                {
+                    continue;
+                }
+            }
             let reference = self.reference(&application, budget)?;
             let (_, declaration) = self.declaration_item(&reference);
             for member in &declaration.members {
@@ -832,7 +877,16 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                if generic_only && method.generics.is_empty() {
+                    continue;
+                }
+                let target = trait_instances::method_name_with(
+                    &reference,
+                    &method.name,
+                    !method.generics.is_empty(),
+                    budget,
+                    span,
+                )?;
                 if method.name != name && target != name {
                     continue;
                 }
@@ -1189,5 +1243,44 @@ impl Index<'_> {
             )?);
         }
         Ok(selected)
+    }
+}
+
+impl Index<'_> {
+    pub(crate) fn check_where(
+        &self,
+        clauses: &[BoundClause],
+        substitutions: &BTreeMap<String, TypeRef>,
+        available: &Bounds,
+        variables: &BTreeSet<String>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        let mut active = BTreeSet::new();
+        for clause in clauses {
+            budget.node(clause.span, 0)?;
+            if clause.lifetime_bound.is_some() {
+                return Err(unsupported(
+                    clause.span,
+                    "generic method lifetime where relation",
+                ));
+            }
+            let BoundSubject::Type(subject) = &clause.subject else {
+                return Err(unsupported(clause.span, "generic method where subject"));
+            };
+            let subject = substituted(subject, substitutions, budget)?;
+            for bound in &clause.bounds {
+                let bound = substituted(bound, substitutions, budget)?;
+                self.prove_premise(
+                    &subject,
+                    &bound,
+                    available,
+                    variables,
+                    budget,
+                    &mut active,
+                    0,
+                )?;
+            }
+        }
+        Ok(())
     }
 }

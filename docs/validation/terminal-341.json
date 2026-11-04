@@ -1,20 +1,23 @@
 {
   "task": "341",
   "status": "MilestoneInProgress",
-  "scope": "Target-width const functions, first-order nominal trait solver, associated types and scalar associated constants with symbolic declared types and committed values; closed explicit-scalar equations enter verified driver CT staging. Generic methods and broader symbolic equations remain active work",
+  "scope": "Receiver generic method type/const specialization and private declaration provenance atop target-width const/trait/associated slices. Full generic methods, dyn, lending and symbolic associated equations remain in progress.",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "commands": [
     "cargo check -p zil-expand --quiet",
     "cargo test -p zil-driver --test generics --test impl162_trait_bounds -- --nocapture",
     "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds -- --nocapture",
     "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture",
-    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture # target-width unsigned and actual CT bridge checkpoint"
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture # target-width unsigned and actual CT bridge checkpoint",
+    "cargo check -p zil-expand --tests",
+    "cargo clippy -p zil-expand --lib -- -D warnings",
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds -- --nocapture # receiver-method checkpoint, log341-method-accounting-final"
   ],
   "observed": {
-    "targeted_feature_tests_passed": 15,
+    "targeted_feature_tests_passed": 19,
     "existing_test_targets_with_llvm_api": {
-      "generics": 21,
-      "impl162_trait_bounds": 56,
+      "generics": 23,
+      "impl162_trait_bounds": 58,
       "failed": 0,
       "ignored": 0,
       "filtered": 0
@@ -40,13 +43,13 @@
     },
     "N_minus_1": "ResourceLimit for every listed ledger",
     "cold_warm_fresh_N": "Pass",
-    "persisted_cache": "Hit with verification_runs=1 for all nine retained sources; exact work/node N/N-1 cold/warm/fresh and persisted controls pass",
+    "persisted_cache": "Hit with verification_runs=1 for all eleven retained sources; work/node N/N-1 cold/warm/fresh and persisted controls pass.",
     "active_repeated_supertrait_cycles": "SafeReject",
     "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
     "old_controls": {
-      "copy_record_work": 863,
-      "old_unbound_work": 319,
-      "primitive_binder_work": 1850
+      "copy_record_work": 996,
+      "old_unbound_work": 381,
+      "primitive_binder_work": 2058
     },
     "expand_generic_impl_exact_steps": 5905,
     "request_generic_impl": {
@@ -64,8 +67,8 @@
     "symbolic_trait_arguments": "Pass: declared symbolic arguments, forwarding, same Self with bool/i32 trait applications from one generic impl and distinct native signatures, project-module composition, unused invalid bodies",
     "recipe_admission": "Unused unknown trait and generic builtin Drop impls reject before recipe filtering; retained nearest local-trait positive reaches native code",
     "request_associated_types": {
-      "work": 26395,
-      "nodes": 4701
+      "work": 26770,
+      "nodes": 4765
     },
     "associated_types": "Pass: opaque declared-bound projections; required/default equations, unused Copy and nominal-argument formation, acyclic/circular equations, nested impl dependency composition, same-spelled trait/impl binders, aliases and nominal shadow, generic forwarding/inference and overridden default definition checks. One actual Self has distinct bool/i32 trait applications and associated machine signatures.",
     "associated_proof_boundary": "Source candidate Self.Item premise cannot be proved by its own equation; concrete normalization shares active goals with premise solving and reads equations only after a Witness is returned. Definition-local equation maps never enter candidate evidence.",
@@ -81,8 +84,8 @@
     "ct_generic_bridges": "Actual ordinary generic Type result, generic record field reflection through a generic Type-return function, generic Syntax<Expr> from a concrete scalar field, generic Syntax<Type> with complete nominal/phantom arguments. Scalar-only syntax.literal cannot be justified by Copy alone; unused invalid body and changed phantom argument reject.",
     "ct_raw_wire": "Pass: actual generic Type/Syntax/reflection and computed-associated-constant candidates recovered from trusted frontend cache, decoded and independently raw+byte verified",
     "request_associated_constants": {
-      "work": 39815,
-      "nodes": 5704
+      "work": 39822,
+      "nodes": 5706
     },
     "request_associated_constant_computed": {
       "work": 13896,
@@ -91,14 +94,25 @@
     "associated_constants": "PassLimited candidate: required/default values, declared associated result types, exact same-Self distinct ordered trait instances, direct/applied/bound-selected uses, inherited constants, lexical nominal/value shadowing, all unused/overridden equations and missing/duplicate/wrong typed members, u64/usize/f32/f64 signature formation. Generic type/Self-dependent value equations and cycle normalization remain pending.",
     "associated_constant_ct_equations": "Actual closed explicit-scalar equations compile to verified CT artifact CFG and run in the existing VM before ordinary Expand; private module helper defaults retain declaring-module context. Unused overflow, overridden divide-by-zero and foreign calls reject; 32/64-bit usize boundaries are checked. Both grouped receiving types and grouped equations exercise paid iterative classifiers.",
     "associated_constant_identity": "Raw AST trait/impl/member/function/value/type nodes share source spans; distinct associated values and generic trait actuals survive Types/Analyze/raw Verify/Wire and Clang+LLVM API O0/O2.",
-    "associated_constant_failure_cleanup": "Invalid unused CT equation at Stage::Build rejects in CT, runs no native command, publishes no native_codegen and creates no executable."
+    "associated_constant_failure_cleanup": "Invalid unused CT equation at Stage::Build rejects in CT, runs no native command, publishes no native_codegen and creates no executable.",
+    "request_generic_methods": {
+      "work": 69617,
+      "nodes": 10074
+    },
+    "request_generic_method_no_outer": {
+      "work": 8963,
+      "nodes": 2612
+    },
+    "generic_methods": "PassLimited candidate: type/const receiver-method inference/explicit actuals; inherited method qualification before projection normalization; canonical inline/where contract comparison and omitted weaker impl premises; generic nominal impls; method/default/nongeneric delegation; associated types/constants; mutable receiver index0; module-private helpers/premises and same-spelled traits; unused invalid bodies, stronger/kind/domain premises and const storage; failed Build publishes no native commands/executable.",
+    "generic_method_provenance": "Actual module/item/member Origins ledger survives alias removal, helper insertion, instance queue and output placement. Scoped caller/provider contexts restore on Result paths. Complete resolved trait references flow in private expression-ordinal frames; impl captures use a separate recipe/member map. Key equality/order and method/default hashes exclude diagnostic Span; registered canonical declaration symbols retain module qualification. Compiler/source declaration ordinal spaces are distinct.",
+    "generic_method_raw_wire_native": "Pass: generated AST shares receiver/item/member/function Span; independent raw/Wire verification, Clang and LLVM API O0/O2; llvm-api feature explicitly enabled; no fallback."
   },
   "remaining": [
     "General verified CT expression arguments and const inference",
     "Aggregate/enum/trait const parameter consumers and mixed lifetime/const support",
     "Symbolic/type-dependent associated constant equations, active constant cycle normalization, constants in array lengths/generic arguments, qualified/applied/nested source type projections, richer associated equalities and generic associated items",
     "Blanket/primitive/enum impls, richer symbolic trait-parameter obligations and broader local-trait/foreign-Self ownership cases",
-    "Generic methods and remaining generic supertrait argument composition",
+    "General life/lending and static symbolic generic methods, semantic premise implication and remaining generic supertrait argument composition",
     "Independent review of the latest exact source milestone",
     "Broader Type/Syntax combinations beyond the explicit generic Type/Syntax/reflection fixture remain subject to actual-source checks; generic const CT functions and general const expressions are still pending",
     "Closed associated CT equations with inherited/aliased/dependent receiving type context, aggregate/Type/Syntax associated constants and generic impl/member-dependent CT staging remain active extensions"
@@ -106,7 +120,7 @@
   "rust_goals": {
     "safety": "Unused generic impl methods are checked under declared inline/where bounds; candidates prove their premise trees before materialization, dispatch uses declaration-local expression ordinals; actual downstream Types/Analyze/Verify/Wire replayed; target-width usize arguments reject before specialization can erase them; unused generic literal/pattern range and scalar-only Syntax API obligations checked; associated constant declared types and unused equations checked independently of selected instances; committed lookup and CT VM forbid equation self-justification/effects",
     "runtime_memory": "Existing static calls and fixed arrays reach native code; no runtime dictionary introduced; Rust runtime/RSS comparison NotRun",
-    "expression_maintenance": "Scalar associated constants compose with associated types, generic impls, supertraits, generic functions and CT functions; actual cross-module helper ownership and repeated-Span behavior verified. Broader const equations and generic methods remain incomplete. Full Rust maintenance comparison NotRun",
+    "expression_maintenance": "Receiver generic methods specialize to ordinary calls and compose with generic impls, defaults, associated types/constants and private module helpers. Complete method/dyn/const equations remain open; full Rust maintenance comparison NotRun.",
     "compile_cost": "Request limits unchanged; exact N/N-1/fresh boundary measured; Rust compile-cost comparison NotRun",
     "breakthrough": "Incremental source expressiveness only; product-gates conjunction and terminal completion remain unestablished"
   },
@@ -117,15 +131,19 @@
     "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
   },
   "identity": {
-    "production_rust_path_nul_bytes_nul_sha256": "19ac4008bb7fed7f3a4026cdbf8029d5831406600d634013994a42fcd50a348c",
-    "test_rust_path_nul_bytes_nul_sha256": "e5b88a30daa82609677d148b769058d324edcdd835d61efaf493e3a29ec6a01b",
+    "production_rust_path_nul_bytes_nul_sha256": "87e684622c824971ec86ecb1e990e00817261d8e43c1f8233da77f1b001cd6f9",
+    "test_rust_path_nul_bytes_nul_sha256": "17bd907b3afbebd82b5e2f3e2c0e720bb4f8e064fa81ee2904c2c8c16295bb6a",
     "executables": {
-      "/workspace/.zil-env/target341/debug/deps/generics-ba4159fc2009dbc9": "8260b283860712b6e6bca6faee266f640137176658bbf664a6b6b895e0fed373",
-      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-114d8b728f7714b2": "4f4b05872ed32693f6b1bfa2374c6f507a76b1564c289cd2024463cd29aaf55a"
+      "/workspace/.zil-env/target341/debug/deps/generics-ba4159fc2009dbc9": "361a983972eaa2187c990c0e4603fc845942b0e1c9f59d735fa591640db2d7a3",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-114d8b728f7714b2": "332a60aecdab9fbb6fd11c96743db5c31ba6426a583d2a9a29df0f7ba00c9638"
+    },
+    "retained_executables": {
+      "/workspace/.zil-env/terminal-20261104/retained-341/methods/generics-ba4159fc2009dbc9": "361a983972eaa2187c990c0e4603fc845942b0e1c9f59d735fa591640db2d7a3",
+      "/workspace/.zil-env/terminal-20261104/retained-341/methods/impl162_trait_bounds-114d8b728f7714b2": "332a60aecdab9fbb6fd11c96743db5c31ba6426a583d2a9a29df0f7ba00c9638"
     },
     "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
     "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
-    "production_file_count": 325,
+    "production_file_count": 327,
     "test_selection": [
       "crates/zil-driver/tests/generics.rs",
       "crates/zil-driver/tests/impl162_trait_bounds.rs"
@@ -365,5 +383,133 @@
     "identity": "Independent production323-file/test/harness hashes matched"
   },
   "associated_constant_limitations": "Explicit-scalar closed CT equations and literal scalar values only; no terminal claim for symbolic equations/cycles, generic methods, const array/type argument consumers or broader CT receiving types. Expand never runs a CT evaluator. Driver dependency scan skips symbolic bindings; concrete lookup reads only a fully proven witness.",
-  "associated_constant_review_accounting": "WIP architecture review found literal/type group classifier scans before fees. Corrected to iterative paid depth-bounded classifiers. Expand host and closed-value classifiers likewise pay each inspected node; substitution namespace clone/retain and discovery scans are prepaid. Limits unchanged; current boundaries above supersede earlier source bindings."
+  "associated_constant_review_accounting": "WIP architecture review found literal/type group classifier scans before fees. Corrected to iterative paid depth-bounded classifiers. Expand host and closed-value classifiers likewise pay each inspected node; substitution namespace clone/retain and discovery scans are prepaid. Limits unchanged; current boundaries above supersede earlier source bindings.",
+  "associated_constants_frozen_d9d418218": {
+    "identity": {
+      "production_rust_path_nul_bytes_nul_sha256": "19ac4008bb7fed7f3a4026cdbf8029d5831406600d634013994a42fcd50a348c",
+      "test_rust_path_nul_bytes_nul_sha256": "e5b88a30daa82609677d148b769058d324edcdd835d61efaf493e3a29ec6a01b",
+      "executables": {
+        "/workspace/.zil-env/target341/debug/deps/generics-ba4159fc2009dbc9": "8260b283860712b6e6bca6faee266f640137176658bbf664a6b6b895e0fed373",
+        "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-114d8b728f7714b2": "4f4b05872ed32693f6b1bfa2374c6f507a76b1564c289cd2024463cd29aaf55a"
+      },
+      "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
+      "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
+      "production_file_count": 325,
+      "test_selection": [
+        "crates/zil-driver/tests/generics.rs",
+        "crates/zil-driver/tests/impl162_trait_bounds.rs"
+      ]
+    },
+    "observed": {
+      "targeted_feature_tests_passed": 15,
+      "existing_test_targets_with_llvm_api": {
+        "generics": 21,
+        "impl162_trait_bounds": 56,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "const_source_positive_cases": 12,
+      "const_source_negative_cases": 14,
+      "supertrait_source_positive_cases": 7,
+      "supertrait_source_negative_cases": 5,
+      "unused_invalid_definitions_rejected": true,
+      "generated_ast_shared_span_control": "Pass, declaration-scoped const ordinals remain distinct",
+      "typed_analyze_verify": "Pass",
+      "wire_independent_verify": "Pass",
+      "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; symbolic trait arguments local/project; associated types local/project; unsigned const and CT generic Type/Syntax/reflection fixture; associated constants local/project, closed CT equations and repeated-Span raw AST",
+      "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback; symbolic trait arguments local/project; associated types local/project; unsigned const and CT generic Type/Syntax/reflection fixture; associated constants local/project, closed CT equations and repeated-Span raw AST",
+      "expand_const_exact_steps": 1381,
+      "request_supertrait": {
+        "work": 3713,
+        "nodes": 1102
+      },
+      "request_const_match_shadow": {
+        "work": 2414,
+        "nodes": 913
+      },
+      "N_minus_1": "ResourceLimit for every listed ledger",
+      "cold_warm_fresh_N": "Pass",
+      "persisted_cache": "Hit with verification_runs=1 for all nine retained sources; exact work/node N/N-1 cold/warm/fresh and persisted controls pass",
+      "active_repeated_supertrait_cycles": "SafeReject",
+      "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
+      "old_controls": {
+        "copy_record_work": 863,
+        "old_unbound_work": 319,
+        "primitive_binder_work": 1850
+      },
+      "expand_generic_impl_exact_steps": 5905,
+      "request_generic_impl": {
+        "work": 6271,
+        "nodes": 2078
+      },
+      "generic_impls": "Pass: nominal applied heads, inline and direct/applied where premises, concrete/generic superclass proof, unused method definitions, overlap and unconstrained binders, ordered fixed trait instances, function constructor matching/coherence, project foreign-trait/local-Self and foreign-trait/foreign-outer-Self rejection",
+      "impl_cycles": "Repeated active goal SafeReject; nonrepeating growing where subject ResourceLimit at work12000; unused generic conditional definitions checked under their declared bounds",
+      "trait_dispatch_shared_span": "Pass: two receiver expressions and distinct impl/item/member/function nodes share source Span; raw AST -> Types/Analyze/Verify/Wire and actual Clang/LLVM API O0/O2 through downstream static dispatch publication",
+      "supertrait_argument_formation": "Pass: unknown actual, non-Copy actual with Copy premise and nested Box<R> failure; nearest ordinary struct and Self from declared Copy premise success",
+      "request_symbolic_trait_arguments": {
+        "work": 9824,
+        "nodes": 2757
+      },
+      "symbolic_trait_arguments": "Pass: declared symbolic arguments, forwarding, same Self with bool/i32 trait applications from one generic impl and distinct native signatures, project-module composition, unused invalid bodies",
+      "recipe_admission": "Unused unknown trait and generic builtin Drop impls reject before recipe filtering; retained nearest local-trait positive reaches native code",
+      "request_associated_types": {
+        "work": 26395,
+        "nodes": 4701
+      },
+      "associated_types": "Pass: opaque declared-bound projections; required/default equations, unused Copy and nominal-argument formation, acyclic/circular equations, nested impl dependency composition, same-spelled trait/impl binders, aliases and nominal shadow, generic forwarding/inference and overridden default definition checks. One actual Self has distinct bool/i32 trait applications and associated machine signatures.",
+      "associated_proof_boundary": "Source candidate Self.Item premise cannot be proved by its own equation; concrete normalization shares active goals with premise solving and reads equations only after a Witness is returned. Definition-local equation maps never enter candidate evidence.",
+      "request_unsigned_const": {
+        "work": 3215,
+        "nodes": 877
+      },
+      "request_ct_generic_type_syntax_reflection": {
+        "work": 258043,
+        "nodes": 63574
+      },
+      "unsigned_const": "Full u64/usize bits survive forwarding and definition integer/pattern checking. Explicit 32-bit frontend accepts usize MAX, rejects MAX+1 suffixed/unsuffixed erased arguments and unused generic integer/pattern bodies; source/project target plumbing exercised. Windows-x64 Verify positive retained.",
+      "ct_generic_bridges": "Actual ordinary generic Type result, generic record field reflection through a generic Type-return function, generic Syntax<Expr> from a concrete scalar field, generic Syntax<Type> with complete nominal/phantom arguments. Scalar-only syntax.literal cannot be justified by Copy alone; unused invalid body and changed phantom argument reject.",
+      "ct_raw_wire": "Pass: actual generic Type/Syntax/reflection and computed-associated-constant candidates recovered from trusted frontend cache, decoded and independently raw+byte verified",
+      "request_associated_constants": {
+        "work": 39815,
+        "nodes": 5704
+      },
+      "request_associated_constant_computed": {
+        "work": 13896,
+        "nodes": 1919
+      },
+      "associated_constants": "PassLimited candidate: required/default values, declared associated result types, exact same-Self distinct ordered trait instances, direct/applied/bound-selected uses, inherited constants, lexical nominal/value shadowing, all unused/overridden equations and missing/duplicate/wrong typed members, u64/usize/f32/f64 signature formation. Generic type/Self-dependent value equations and cycle normalization remain pending.",
+      "associated_constant_ct_equations": "Actual closed explicit-scalar equations compile to verified CT artifact CFG and run in the existing VM before ordinary Expand; private module helper defaults retain declaring-module context. Unused overflow, overridden divide-by-zero and foreign calls reject; 32/64-bit usize boundaries are checked. Both grouped receiving types and grouped equations exercise paid iterative classifiers.",
+      "associated_constant_identity": "Raw AST trait/impl/member/function/value/type nodes share source spans; distinct associated values and generic trait actuals survive Types/Analyze/raw Verify/Wire and Clang+LLVM API O0/O2.",
+      "associated_constant_failure_cleanup": "Invalid unused CT equation at Stage::Build rejects in CT, runs no native command, publishes no native_codegen and creates no executable."
+    },
+    "commands": [
+      "cargo check -p zil-expand --quiet",
+      "cargo test -p zil-driver --test generics --test impl162_trait_bounds -- --nocapture",
+      "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds -- --nocapture",
+      "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture",
+      "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture # target-width unsigned and actual CT bridge checkpoint"
+    ],
+    "review": {
+      "status": "PassLimited",
+      "review_commit": "dc8e56334",
+      "targeted_tests": 15
+    }
+  },
+  "generic_method_limitations": "Receiver-method checkpoint only. General life/lending headers, static associated functions, type-qualified symbolic calls, semantic implication beyond canonical direct-premise subsets, remaining const/associated equation consumers and dyn stay open. No product-gate/terminal claim.",
+  "generic_method_accounting_review": "Live independent review found a repeated borrowed signature Function clone at captured no-outer-trait calls. Fixed: const_function prepays Cow::Borrowed before into_owned, owned path unchanged; member-name clones removed. The no-outer default body/two captured calls fixture is retained with work8963/nodes2612 exact/cache/native controls. All other into_owned consumers audited for existing borrowed-member payment.",
+  "generic_method_review": {
+    "status": "Pending",
+    "known_finding": "Borrowed signature clone corrected before freeze; exact candidate independent replay not yet run."
+  },
+  "generic_method_fixture_sha256": {
+    "tests/language-readiness/terminal/341/generic-method-no-outer.zil": "8201da112c41ab7e4ff7d18a817c79c284ae0ed2d93535deea8af186ca38e743",
+    "tests/language-readiness/terminal/341/generic-method-shared-spans.zil": "12decfbc3a95fe1fda563f3c1e448b184c4deec891fd6a5ec42ac89da6429fac",
+    "tests/language-readiness/terminal/341/generic-methods.zil": "574d4de476e5711fb6349fd426618095131acdb967e1df4c68a4f94ec904b813"
+  },
+  "generic_method_logs": [
+    "341-method-accounting-final.log",
+    "341-method-clippy-bound.log",
+    "341-method-unit-compile.log"
+  ]
 }
