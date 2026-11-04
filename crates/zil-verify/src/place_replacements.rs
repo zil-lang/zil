@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use zil_ir::{PlaceProjection, ReservationId};
+pub(crate) mod actual;
 
 #[derive(Clone)]
 pub(super) enum Origin {
