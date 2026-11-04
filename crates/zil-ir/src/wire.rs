@@ -2513,7 +2513,7 @@ impl<'a> Reader<'a> {
             116 => InstructionKind::DropTuple {
                 local: LocalId(self.u32()?),
             },
-            tag @ (117 | 118 | 119 | 120) => {
+            tag @ 117..=120 => {
                 let local = LocalId(self.u32()?);
                 // ErrorArm uses two bytes; all longer steps debit through the
                 // same primitive reads before extending the bounded vector.
