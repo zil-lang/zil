@@ -1130,6 +1130,8 @@ pub struct VariantProjection {
 pub enum PlaceProjection {
     Field(u32),
     Variant(VariantProjection),
+    /// Follow the actual active error/success slot, retaining its discriminator.
+    ErrorArm(bool),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
@@ -1586,9 +1588,25 @@ pub enum InstructionKind {
         local: LocalId,
         path: Vec<PlaceProjection>,
     },
-    /// Selectively transfer one initialized subtree of a real Enum local.
+    /// Selectively transfer one initialized subtree of a real Enum/ErrorUnion local.
     /// Same path/loan rules as Tuple Take; every variant step names tag+field.
     TakeVariantField {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+    },
+    /// Borrow one initialized subtree of actual inline local storage. The
+    /// nonempty bounded path retains every Field/Variant/ErrorArm ancestor,
+    /// active tag and actual parent authority; no intermediate whole loan.
+    BorrowPlaceLocal {
+        local: LocalId,
+        path: Vec<PlaceProjection>,
+        mutable: bool,
+    },
+    /// Read the actual final Enum/ErrorUnion header through a bounded mixed
+    /// path; empty observes the root. Every ancestor tag/init is checked anew.
+    /// Result i32: Enum ordinal, or ErrorUnion0 success/1 error. Reading the
+    /// header grants no payload access or parent replacement permission.
+    PlaceTagLocal {
         local: LocalId,
         path: Vec<PlaceProjection>,
     },
@@ -2856,11 +2874,14 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, local.0);
         }
         InstructionKind::TakeTupleField { local, path }
-        | InstructionKind::TakeVariantField { local, path } => {
-            b.push(if matches!(i, InstructionKind::TakeTupleField { .. }) {
-                117
-            } else {
-                118
+        | InstructionKind::TakeVariantField { local, path }
+        | InstructionKind::BorrowPlaceLocal { local, path, .. }
+        | InstructionKind::PlaceTagLocal { local, path } => {
+            b.push(match i {
+                InstructionKind::TakeTupleField { .. } => 117,
+                InstructionKind::TakeVariantField { .. } => 118,
+                InstructionKind::BorrowPlaceLocal { .. } => 119,
+                _ => 120,
             });
             encode_u32(b, local.0);
             encode_len(b, path.len());
@@ -2875,7 +2896,14 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                         encode_u32(b, part.variant);
                         encode_u32(b, part.index);
                     }
+                    PlaceProjection::ErrorArm(is_error) => {
+                        b.push(2);
+                        b.push(u8::from(*is_error));
+                    }
                 }
+            }
+            if let InstructionKind::BorrowPlaceLocal { mutable, .. } = i {
+                b.push(u8::from(*mutable));
             }
         }
         InstructionKind::BorrowFieldLocal {

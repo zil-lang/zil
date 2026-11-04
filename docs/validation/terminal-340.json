@@ -64,15 +64,60 @@
       ],
       "rust_goals": "Safety: real field intervals and independent atomic transfer checks, with executable drop-once failure cleanup. Abstraction cost: actual inline Tuple ABI without a Package disguise or wrapper allocation. Ergonomics: ordinary nested Tuple destruction and reference conditions compose. Compile cost: three prior boundaries remain stable; the addressed-fixture migration and new owned Tuple boundary have exact fresh/warm evidence. Breakthrough: true nonCopy Type::Tuple now traverses ordinary function arguments/results and destructuring with native cleanup.",
       "retained_test_executable_sha256": "48adb3eb97b9f69039ea4326a9705bdeda71d2791fcb4be4ce9f2eb9665c5d1a"
+    },
+    {
+      "name": "selective-mixed-inline-ownership-patterns",
+      "source_parent": "f52ba08cc0ee8b1cd30a69ce80dbbaf5b02dad46",
+      "authority": "Current main-tree .task/impl/340.md; partial-place contract published in2223a5827. This branch has schema35 only; later main Wire37/HRTB/Task integration is separate.",
+      "result": "PassLimited",
+      "command": "cargo test -p zil-driver --features llvm-api --test aggregates terminal340 -- --nocapture; cargo test -p zil-ir --lib; cargo test -p zil-analyze --lib sum_tests::; cargo test -p zil-verify --lib package_tests::sums; cargo test -p zil-verify --lib borrow; cargo test -p zil-driver --features llvm-api --test impl187_borrowed_bytes; cargo clippy -p zil-types -p zil-analyze -p zil-verify -p zil-lower -p zil-backend-llvm --lib -- -D warnings",
+      "gates": {
+        "terminal340": "28/0",
+        "ir_lib": "60/0",
+        "analyze_sum_tests": "26/0",
+        "verify_package_sums": "16/0",
+        "verify_borrow": "23/0",
+        "impl187_borrowed_bytes": "24/0",
+        "scoped_library_clippy": "Pass"
+      },
+      "retained_test_executable": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+      "retained_test_executable_sha256": "dbe4d0ddca0109382e6352051fb78df8587179bda668e41df50d2a4217d34886",
+      "impl187_executable_sha256": "3d15bd3ccd44c718cb35e43924586f4a552714975bdea19da305bf7c056a45cb",
+      "content_identity": {
+        "algorithm": "Sort unique repository-relative file paths; concatenate path NUL lowercase-SHA256(file-bytes) LF; SHA256 of that stream. production selects all /src/ .rs files, all Cargo.toml files and Cargo.lock; targeted_tests selects aggregates.rs, impl187_borrowed_bytes.rs and terminal/340 fixtures.",
+        "production_files": 360,
+        "production_sha256": "c0dad6f4b9121ca6d6468b171387747999c5a9a9c32b504b9966614cc637f9da",
+        "targeted_test_files": 11,
+        "targeted_tests_sha256": "c843b4e4cab0409947922a3e0a2aebc3f2ae914f66de688bc3f125fc78fb06ce"
+      },
+      "evidence": "117/118 transfer only the initialized selected subtree of the actual Tuple/Enum root;119/120 use real mixed Field/Variant/ErrorArm paths, active-tag epochs and exact inline storage. Analyze and Verify independently reconstruct missing children, tag observations and loan roots; parent whole moves and endpoint borrows require completeness while the live partially moved parent header remains readable. LLVM rebuilds private per-leaf remaining flags and follows actual active tags; residual aggregate leaves drop in declaration order, taken values clean independently. New mixed native fixture plus20 source controls run Clang/API O0/O2 (84 profiles), including middle sibling move+ref with BAC order, opposite ErrorUnion residual cleanup, failed literal arm before moves, mutable borrowed owned Tuple, fresh versus named parent cleanup and nested let on normal fallthrough/return/break/continue. Per-statement resource-temp floors preserve enclosing prepared owners; real exits retain lexical cleanup. Raw/Wire repeated take, prefix/parent take, alias ref, malformed ErrorArm path, duplicate true/false successor and opposite variant proofs reject independently; unused create contracts cannot launder input responsibility. Mutable119 CopyEnum tags are forgotten at the actual endpoint and subsequent calls/writes without erasing owned births or missing children. Fresh-after-mutation source executes; derived stale proof rejects with E-VERIFY-SUM. Long common-prefix route sets are charged before comparison/clone/insert and pass exact N2094103,N-1 ResourceLimit,fresh/warm repeated with no active-query leak.",
+      "budget_boundaries": {
+        "unsigned": 9050,
+        "option": 38035,
+        "local_reference": 18127,
+        "addressed": 90264,
+        "complete_owned_tuple": 20265,
+        "mixed_long_prefix": 2094103
+      },
+      "budget_migration": "Addressed90248->90264 accounts for the additional ordinary shape handling. Complete Tuple23399->20265 follows direct reverse-registered atomic destructuring targets instead of republishing temporary targets. Each boundary is measured by full-request binary search, N-1 and fresh/warm retries; default limits and formal product gates are unchanged.",
+      "limitations": [
+        "Independent nonauthor review of this exact new checkpoint is pending.",
+        "Selective Product-root/nested consuming Package member patterns still require their actual initialized-field path implementation.",
+        "Direct ErrorUnion TypeName(payload) source destructuring awaits the agreed344 full-type transport integration; ErrorArm residual cleanup is exercised but is not claimed as direct source-pattern support.",
+        "General addressed mixed paths126/127 and transactional owned-field replacement121-124 are not part of this checkpoint.",
+        "Later main-tree Wire37/HRTB/Task/float combinations are not tested by this branch. The historical frozen-v34 broad Analyze fixture migration remains root-owned; this stage runs the narrow sum_tests target.",
+        "Same-semantic Rust runtime/RSS/compile comparison and whole-language acceptance are NotRun."
+      ],
+      "rust_goals": "Safety: independent actual tag/init/loan checks and real cleanup order, including negative raw/Wire proof neighbors. Runtime/memory: inline storage, actual GEPs and private bounded stack flags without payload copies, RC or wrapper allocation; Rust runtime/RSS comparison NotRun. Expression/maintenance: ordinary mixed move/ref Tuple/Enum and nested statement control flow compose. Compile cost: charged route comparison/state copies and measured exact request boundaries, no Rust compile-time advantage claim. Breakthrough: a real partially moved aggregate retains disjoint owning siblings and header/tag authority with native declaration-order residual cleanup."
     }
   ],
   "remaining": [
-    "selective117/118 real partial initialization and residual cleanup",
-    "general mixed move/ref and nonCopy Tuple reference patterns",
+    "selective Product-root and nested consuming Package member patterns",
     "direct ErrorUnion destructuring and owning arm cleanup",
-    "independent review of new stage",
-    "whole-language acceptance",
-    "partial-pattern budget/cache boundary"
+    "general actual-address mixed paths126/127",
+    "transactional actual-address owning-field replacement121-124",
+    "independent review of the selective mixed checkpoint",
+    "whole-language acceptance"
   ],
   "rust_goals": {
     "safety": "Typed and independent Wire verifier accept real inferred source; nearest nominal mismatch rejects. General safety is unfinished.",

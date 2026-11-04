@@ -205,11 +205,23 @@ pub(super) fn check(
                             return Err(bad_path());
                         }
                         if !ty.is_copy_value()
-                            && !matches!(ty, Type::Package { .. } | Type::Enum { .. })
+                            && !matches!(
+                                ty,
+                                Type::Tuple(_)
+                                    | Type::Package { .. }
+                                    | Type::Enum { .. }
+                                    | Type::ErrorUnion { .. }
+                            )
                         {
                             return Err(bad_path());
                         }
-                        if matches!(ty, Type::Package { .. } | Type::Enum { .. }) {
+                        if matches!(
+                            ty,
+                            Type::Tuple(_)
+                                | Type::Package { .. }
+                                | Type::Enum { .. }
+                                | Type::ErrorUnion { .. }
+                        ) {
                             resources::sums::admit(module, ty, b)?;
                         }
                     }

@@ -14,6 +14,7 @@ mod foreign;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
+mod partial_places;
 mod registration;
 mod resource_closures;
 mod resources;
@@ -554,6 +555,7 @@ fn lower_function_batch(
             temporary: 0,
             continuation: 0,
             partial_packages: BTreeSet::new(),
+            partial_sums: BTreeMap::new(),
             safe_divisors: incremental_scalar_policy.then(BTreeSet::new),
             copy_values: copy_plans
                 .values
@@ -1159,6 +1161,7 @@ struct FunctionEmitter<'a> {
     // Only locals with field ownership/update operations need field flags.
     // Complete values retain the existing inline ABI and whole-local path.
     partial_packages: BTreeSet<LocalId>,
+    partial_sums: BTreeMap<LocalId, Vec<partial_places::Leaf>>,
     safe_divisors: Option<BTreeSet<ValueId>>,
     copy_values: &'a copy_aggregates::Plan,
     abi_plans: &'a large_copy_abi::Plans,
@@ -1240,6 +1243,16 @@ impl FunctionEmitter<'_> {
                     right,
                     ..
                 } => constant_divisors::record(&mut self.safe_divisors, right),
+                InstructionKind::TakeTupleField { local, .. }
+                | InstructionKind::TakeVariantField { local, .. } => {
+                    if !self.partial_sums.contains_key(&local) {
+                        let leaves = partial_places::leaves(
+                            &self.function.locals[local.0 as usize].ty,
+                            self.resources,
+                        )?;
+                        self.partial_sums.insert(local, leaves);
+                    }
+                }
                 InstructionKind::TakePackageField { local, .. }
                 | InstructionKind::DropPackageField { local, .. }
                 | InstructionKind::StorePackageField { local, .. } => {
@@ -1301,6 +1314,7 @@ impl FunctionEmitter<'_> {
                 )));
             }
             self.package_flags(local.id, true, self.function.parameters.contains(&local.id))?;
+            self.partial_flags(local.id, true, self.function.parameters.contains(&local.id))?;
             self.owned_array_flags(local.id, true, self.function.parameters.contains(&local.id))?;
         }
         // Fixed entry-block scratch slots prevent dynamic indexing inside a
@@ -1445,11 +1459,15 @@ impl FunctionEmitter<'_> {
             | InstructionKind::TaskRequestCancel { .. }
             | InstructionKind::TaskPollClose { .. }
             | InstructionKind::TaskFinishDestroy { .. } => self.task_instruction(instruction)?,
-            InstructionKind::TakeTupleField { .. } | InstructionKind::TakeVariantField { .. } => {
-                return unsupported(
-                    "partial inline ownership consumer is under implementation",
-                    Some(instruction.span),
-                );
+            InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                self.borrow_actual_place(instruction, *local, path)?
+            }
+            InstructionKind::PlaceTagLocal { local, path } => {
+                self.tag_actual_place(instruction, *local, path)?
+            }
+            InstructionKind::TakeTupleField { local, path }
+            | InstructionKind::TakeVariantField { local, path } => {
+                self.take_actual_place(instruction, *local, path)?
             }
 
             InstructionKind::OwnedStoreNew { .. }
@@ -1699,6 +1717,7 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, false)?;
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
@@ -1727,6 +1746,7 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, true)?;
                     self.package_flags(*local, false, true)?;
                     self.owned_array_flags(*local, false, true)?;
                 }
@@ -1898,6 +1918,7 @@ impl FunctionEmitter<'_> {
                             align: 1,
                         },
                     )));
+                    self.partial_flags(*local, false, false)?;
                     self.package_flags(*local, false, false)?;
                     self.owned_array_flags(*local, false, false)?;
                 }
@@ -3231,7 +3252,10 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
-                || matches!(inner.as_ref(), Type::Enum { .. }) =>
+                || matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
         {
             Ok("ptr".into())
         }
@@ -3300,7 +3324,10 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address()
-                || matches!(inner.as_ref(), Type::Enum { .. }) =>
+                || matches!(
+                    inner.as_ref(),
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) =>
         {
             Ok(8)
         }
