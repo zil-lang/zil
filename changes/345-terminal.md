@@ -40,3 +40,11 @@ Its original consumer currently exposes the missing mutable nested Package-field
 borrow (`string.clear(&mut session.text)`);342 is implementing that actual language
 path. This UI source is preserved without flattening its nested String ownership.
 No native window/OS IME or complete ZUI acceptance is claimed by these kernels.
+
+Integrated nested Product fix5fceac301 preserves the original ui_input source.
+The combined cross-function target58/0 and library target16/0 pass; all four new
+UI tests use real Clang/API O0/O2 (16 builds,24 executions). The allocator observer
+forces16 actual failures: early document/preedit creation cleans owners, and
+failed preedit growth/document commit preserve the prior bytes/cursor/session.
+All observed exits have live0; scoped Clippy passes. Exact source/harness binding
+is in docs/validation/terminal-345-ui.json; OS/window/IME/product limits remain.

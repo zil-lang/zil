@@ -767,3 +767,94 @@ fn ordinary_ui_input_preedit_commit_cancel_and_stale_revision() {
         }
     }
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn ordinary_ui_input_allocation_failures_keep_preedit_document_and_cleanup() {
+    use std::{os::unix::fs::PermissionsExt, path::Path};
+    let extra = r#"
+extern "C" fn probe_fail_next() contract{effects(ffi);};
+fn fail_update(session:&mut input.Composition,continued:&mut bool)->string.Error!void {
+    let text=[65u8,66u8,67u8,68u8,69u8,70u8,71u8,72u8,73u8,74u8,75u8,76u8]
+    unsafe{probe_fail_next()}
+    input.update(session,&text[..],3,64)?;*continued=true;return ()
+}
+fn fail_commit(session:&mut input.Composition,document:&mut string.String,continued:&mut bool)->string.Error!void {
+    let text=[65u8,66u8,67u8,68u8,69u8,70u8,71u8,72u8,73u8,74u8,75u8,76u8]
+    unsafe{probe_fail_next()}
+    input.commit(session,document,7u64,&text[..],64)?;*continued=true;return ()
+}
+"#;
+    let input = format!("{}\n{extra}", include_str!("ui_input.zil").replace(
+        "    var continued=false", r#"    var continued=false
+    fail_update(&mut session,&mut continued)
+    fail_commit(&mut session,&mut document,&mut continued)
+    if continued || !input.active(&session) || input.cursor(&session)!=1 || input.preedit(&session).len()!=4 || string.byte_len(&document)!=6{return 20}
+    if input.preedit(&session)[0]!=228u8 || input.preedit(&session)[3]!=66u8 || string.as_bytes(&document)[1]!=240u8 || string.as_bytes(&document)[5]!=90u8{return 21}"#));
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |p: &Path| format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"));
+    let dir = directory("ui-input-failure-observer");
+    let observer = dir.join("observer.o");
+    let built = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tools/language/173/allocator_probe.c"),
+        )
+        .arg("-o")
+        .arg(&observer)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=realloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi)
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let path = directory(&format!("ui-input-failure-{backend:?}-{optimization:?}"));
+            fs::write(path.join("main.zil"), &input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &path.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(path.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            for (fail_at, exit, failures) in [(0, 0, 2), (1, 1, 1), (2, 1, 1)] {
+                let output = Command::new(&report.artifacts["executable"])
+                    .env("ZIL_TEST_FAIL_AT", fail_at.to_string())
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    output.status.code(),
+                    Some(exit),
+                    "{backend:?}/{optimization:?}/{fail_at}: {output:?}"
+                );
+                assert!(output.stdout.is_empty());
+                let audit = String::from_utf8(output.stderr).unwrap();
+                assert!(audit.contains("\"live\":0"), "{audit}");
+                assert!(
+                    audit.contains(&format!("\"failures\":{failures}")),
+                    "{audit}"
+                );
+            }
+        }
+    }
+}

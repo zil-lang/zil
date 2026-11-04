@@ -4,7 +4,7 @@
 
 主集成已推进到返回式Registration、完整拥有Tuple、UInt/Float及普通Type/Syntax、关联类型/常量的组合；远端接受main仍为bcc5714f2，不能把施工分支当作终态验收。当前schema/Wire35，HRTB36及显式Suspend子任务37分别已有待合流候选；未来公共合同不等于实际消费者完成。
 
-Registration组合7项含56次原生执行已独立复跑，原大数组/聚合106项通过。新增嵌套调用揭示后续Types/CT默认栈溢出，机械缩小递归帧的最终组合仍在复验。HRTB候选13677ef8c的10项/64原生配置已独立复跑；泛型方法、混合模式、一般存储/lending、dyn/状态、拥有异步与waker等继续并行施工。普通UI布局/光栅8次原生执行通过，输入组合原源正在补其可变嵌套Product借用前置。
+Registration组合7项含56次原生执行已独立复跑，原大数组/聚合106项通过。新增嵌套调用揭示后续Types/CT默认栈溢出，机械缩小递归帧的最终组合仍在复验。HRTB候选13677ef8c的10项/64原生配置已独立复跑；泛型方法、混合模式、一般存储/lending、dyn/状态、拥有异步与waker等继续并行施工。普通UI布局/光栅/输入组合原源已随可变嵌套Product借用修复贯通，16构建/24原生执行含16真实分配失败且live0；完整OS窗口/IME服务仍未实现。
 
 所有实际源码和tracked/untracked施工快照按阶段atomic推送并逐完整SHA核对；见docs/PROGRESS-BACKUP.md及/workspace/backups/zil-terminal-20261104。旧不可恢复断点、legacy Fail及原生Windows/完整产品未执行边界保持；本段为当前施工摘要，下面各日期验收是其各自历史范围。
 
