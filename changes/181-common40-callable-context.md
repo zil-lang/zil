@@ -47,3 +47,26 @@ The exact test source has also run independently with the built public40
 Expand/Types libraries while composed Driver remains blocked on the CT consumer
 migration. This source-level check complements the private encoder component
 controls; it does not grant rich callable execution or new native behavior.
+
+### Actual inferred static qualified code values
+
+Types retains the complete ordinary definition relation in its private signature
+snapshot. For a static environment-free definition with no receiver, template,
+foreign/cleanup/callable dependency and a Copy result, its inferred code value
+abstracts input-grounded definition Fixed and Invocation variables into one new
+Invocation domain, preserving disjoint variables and every equality in joint
+parameter/borrow/class order. The original definition remains unchanged for the
+independent target implication and actual body/root checks. Actual argument
+classes are not freshened. Captured ambient Fixed, callable-helper dependencies,
+bound receivers and borrowed-result execution are not admitted by this slice.
+
+The existing `generics` target now checks actual `let f=read` source on a
+lifetime-qualified Tag input, a distinct-rigid-input negative, and four real
+Clang/API O0/O2 executions with stdout42 and no fallback. The whole source
+analysis boundary is N12633, N−1 ResourceLimit, warm reuse and fresh N. This is
+not an isolated Types fee. Types43/0 and library/test Clippy with warnings denied
+pass; impossible metadata counts reject before allocating domain vectors.
+The initial native run reached the actual paid-binding consumer fence;343's
+7cf8ed22f adds the FunctionRef/CallIndirect occurrence reservation and the four
+native runs then pass. The earlier failed log remains retained. No new public
+schema, implicit environment allocation or borrowed-result root is introduced.

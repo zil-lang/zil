@@ -119,6 +119,9 @@ pub(super) fn signature_snapshot_work(
     limits: &Limits,
 ) -> R<usize> {
     let mut budget = Budget::new(limits);
+    if let Some(life) = &signature.storage_life {
+        borrowed_fp::charge_contract(life, |cost| budget.work(cost, span), 1)?;
+    }
     if let Some(life) = &signature.life {
         budget.work(life.parameter_lives.len().saturating_add(1), span)?;
     }
@@ -542,6 +545,9 @@ fn headers(
     let mut table = BTreeMap::new();
     for (index, function) in core.functions.iter().enumerate() {
         lifetimes::preflight(function, &mut budget.work)?;
+        if let Some(life) = &function.storage_life {
+            borrowed_fp::charge_contract(life, |cost| budget.work(cost, function.span), 1)?;
+        }
         if let Some(life) = &function.life {
             budget.work(
                 life.binders
@@ -649,6 +655,7 @@ fn headers(
         table.insert(
             function.name.clone(),
             Signature {
+                storage_life: function.storage_life.clone(),
                 life: function.life.as_ref().map(borrowed_fp::from_life),
                 callable: state_origins::bounds(function).into_owned(),
                 state_parameter: function.state_parameters.first().cloned(),
@@ -2474,7 +2481,17 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     .iter()
                     .chain(std::iter::once(&signature.result))
                 {
-                    validate_type(ty, 0, span, self.budget)?;
+                    if signature.storage_life.is_some() {
+                        charge_type_snapshot(
+                            ty,
+                            span,
+                            self.budget.limits,
+                            &mut self.budget.work,
+                            3,
+                        )?;
+                    } else {
+                        validate_type(ty, 0, span, self.budget)?;
+                    }
                 }
                 self.budget
                     .work(borrowed_fp::pointer_work(signature), span)?;

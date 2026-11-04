@@ -4672,6 +4672,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         self.lookup(name).is_none() && !self.outer.contains_key(name)
     }
     fn reserve_signature(&self, signature: &Signature, span: Span) -> R<()> {
+        if let Some(life) = &signature.storage_life {
+            borrowed_fp::charge_contract(life, |work| self.graph.spend_count(work, span), 1)?;
+        }
         if let Some(life) = &signature.life {
             self.graph
                 .spend_count(life.parameter_lives.len().saturating_add(1), span)?;
@@ -4698,6 +4701,16 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
     }
     fn pointer_type(&self, signature: &Signature, span: Span) -> R<Type> {
         self.reserve_signature(signature, span)?;
+        if signature.storage_life.is_some() {
+            for ty in signature
+                .parameters
+                .iter()
+                .chain(std::iter::once(&signature.result))
+            {
+                self.graph.reserve_type(ty, 0, span)?;
+                self.graph.reserve_type(ty, 0, span)?;
+            }
+        }
         self.graph
             .spend_count(borrowed_fp::pointer_work(signature), span)?;
         signature.pointer_type().ok_or_else(|| unsupported(span,

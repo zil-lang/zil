@@ -303,6 +303,7 @@ mod terminal343_hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
+            storage_life: None,
             life: None,
             id: Some(FunctionId(1)),
             callable: vec![],
