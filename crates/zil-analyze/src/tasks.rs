@@ -1,5 +1,28 @@
 //! Producer checks reconstruct the scalar task profile and actual suspension.
 use super::*;
+fn empty_context() -> zil_ir::RetainedLifeShape {
+    zil_ir::RetainedLifeShape {
+        binder_count: 0,
+        ports: vec![],
+        retained: vec![],
+        nominal_arguments: vec![],
+    }
+}
+pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
+    if let Type::Task { retained_life, .. } = ty
+        && (retained_life.binder_count != 0
+            || !retained_life.ports.is_empty()
+            || !retained_life.retained.is_empty()
+            || !retained_life.nominal_arguments.is_empty())
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "borrowed Task retained classes require actual implemented frame port mappings",
+            None,
+        )]);
+    }
+    Ok(())
+}
 
 fn task_payload(ty: &Type) -> Option<&Type> {
     match ty {
@@ -16,6 +39,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
+            retained_life: empty_context(),
         }))),
     }
 }
@@ -208,19 +232,20 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 false,
                 "canonical general Task definition identity",
             )?;
-            if matches!(&r.payload,Type::Task{result} if **result!=Type::I32) {
+            if matches!(&r.payload,Type::Task{result,..} if **result!=Type::I32) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
                     "general owning task result lowering is not yet admitted by this frame profile",
                     None,
                 )]);
             }
-            let Type::Task { result } = &r.payload else {
+            require_closed_context(&r.payload)?;
+            let Type::Task { .. } = &r.payload else {
                 return Err(bad("general Task canonical name has another payload"));
             };
             budget.spend(module.resources.len(), "general Task uniqueness")?;
             if r.teardown.is_some()
-                || r.name != format!("{TASK_RESOURCE_NAME_PREFIX}{}", result.fingerprint())
+                || r.name != format!("{TASK_RESOURCE_NAME_PREFIX}{}", r.payload.fingerprint())
                 || module
                     .resources
                     .iter()
@@ -393,7 +418,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         }
                         Some(match i.kind {
                             InstructionKind::TaskPoll { .. } => match task_payload(ty(task)?) {
-                                Some(Type::Task { result }) => {
+                                Some(Type::Task { result, .. }) => {
                                     for _ in 0..4 {
                                         budget.type_work(
                                             result,
