@@ -10,6 +10,20 @@ use zil_ir::LifeDeclarationIdentity;
 mod lineage;
 pub(crate) use lineage::capture_original_impl;
 
+/// Capture actual original declarations before moving or removing AST items.
+/// `None` means the bounded syntax needs no declaration inventory. Returned
+/// limits debit discovery, namespace construction and row allocation; producers
+/// must continue that remainder and move rows with their actual AST items.
+/// These untrusted identities grant no visibility, life or call permission.
+pub fn capture_original(
+    sources: &[SourceUnit],
+    modules: &[&zil_syntax::ast::Module],
+    context: SourceIdentityContext<'_>,
+    limits: &zil_base::Limits,
+) -> zil_base::CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, zil_base::Limits)> {
+    capture_original_impl(sources, modules, context, limits)
+}
+
 /// One actual output item retains its original source declaration, or an
 /// explicitly allocated generated declaration. Vector position is current AST
 /// placement, not a source declaration identity. Spans are diagnostics only.
