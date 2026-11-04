@@ -38,6 +38,58 @@ fn mul(a: u64, b: u64) -> CompileResult<u64> {
     a.checked_mul(b).ok_or_else(bound)
 }
 
+/// Paid, lossless projection for the closed direct-address adapter profile.
+/// Rich signatures remain explicit candidates until their independent consumer lands.
+pub(crate) fn flat_life(
+    life: &zil_ir::StorageLifeContract,
+    parameters: usize,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<zil_ir::FunctionLifeContract> {
+    budget.reserve_analysis_work(add(
+        add(life.bindings.len() as u64, life.classes.len() as u64)?,
+        parameters as u64,
+    )?)?;
+    for row in &life.bindings {
+        budget.reserve_analysis_work(row.position.path.len() as u64)?;
+    }
+    for row in &life.classes {
+        budget.reserve_analysis_work(row.position.path.len() as u64)?;
+    }
+    let bytes = mul(parameters as u64, std::mem::size_of::<Option<u32>>() as u64)?;
+    budget.reserve_temporary_bytes(bytes)?;
+    let result = life.to_flat(parameters).ok_or_else(|| {
+        vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "rich CT5 signature consumer is not yet implemented",
+            None,
+        )]
+    });
+    budget.release_temporary_bytes(bytes);
+    result
+}
+pub(crate) fn life_bytes(life: &zil_ir::StorageLifeContract) -> u64 {
+    let rows = (life.bindings.len() as u64)
+        .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>() as u64)
+        .saturating_add(
+            (life.classes.len() as u64)
+                .saturating_mul(std::mem::size_of::<zil_ir::SignatureLifeClassBinding>() as u64),
+        );
+    life.bindings
+        .iter()
+        .fold(rows, |n, row| {
+            n.saturating_add(
+                (row.position.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::ContractProjection>() as u64),
+            )
+        })
+        .saturating_add(life.classes.iter().fold(0u64, |n, row| {
+            n.saturating_add(
+                (row.position.path.len() as u64)
+                    .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>() as u64),
+            )
+        }))
+}
+
 pub(crate) fn children(node: &CtTypeNode) -> Vec<CtTypeNodeId> {
     match node {
         CtTypeNode::BorrowedStorage { storage, .. } => vec![*storage],
@@ -244,6 +296,13 @@ fn canonical_type_key_mode(
     budget: &mut CtExecutionBudget,
     keep_key: bool,
 ) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    if !reference.ambient_classes.is_empty() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "authenticated CT5 ambient graph normalization is not yet implemented",
+            None,
+        )]);
+    }
     budget.reserve_analysis_work(reference.nodes.len() as u64)?;
     if scoped_graph(reference) {
         return scoped::canonical(reference, budget, keep_key);
@@ -283,10 +342,12 @@ fn canonical_type_key_mode(
             {
                 return Err(bad("CT type argument is not a pure scalar"));
             }
-            let life_bytes = if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
-                let slots = life.parameter_lives.len() as u64;
-                budget.reserve_analysis_work(add(slots, 3)?)?;
-                add(mul(slots, std::mem::size_of::<Option<u32>>() as u64)?, 32)?
+            let life_bytes = if let CtTypeNode::BorrowedFunctionPointer {
+                life, parameters, ..
+            } = node
+            {
+                flat_life(life, parameters.len(), budget)?;
+                life_bytes(life)
             } else {
                 0
             };
@@ -432,7 +493,12 @@ fn canonical_type_key_mode(
                         }
                     }
                 }
-                CtTypeNode::BorrowedFunctionPointer { life, .. } => key.life(life)?,
+                CtTypeNode::BorrowedFunctionPointer {
+                    life, parameters, ..
+                } => {
+                    let life = flat_life(life, parameters.len(), key.budget)?;
+                    key.life(&life)?;
+                }
                 CtTypeNode::Opaque { identity } => key.symbol(identity)?,
                 CtTypeNode::Array { length, .. } => key.number(u64::from(*length))?,
                 CtTypeNode::Address { mutable, .. } => key.bytes(&[u8::from(*mutable)])?,
@@ -457,7 +523,11 @@ fn canonical_type_key_mode(
             let root = CtTypeNodeId(u32::try_from(nodes.len()).map_err(|_| bound())?);
             nodes.push(final_node);
             canonical.push(Canonical {
-                ty: CtTypeRef { nodes, root },
+                ty: CtTypeRef {
+                    nodes,
+                    root,
+                    ambient_classes: Vec::new(),
+                },
                 key,
                 depth,
             });

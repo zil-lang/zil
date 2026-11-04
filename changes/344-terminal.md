@@ -404,3 +404,20 @@ Complete source/toolchain/production/retained-executable bindings are recorded i
 344-ct4-source-milestone.json. The mixed const ordinary producer and rich BFP
 source remain explicitly pending; this milestone grants no general CT5 context,
 physical CT borrow, ownership cleanup, performance or product acceptance.
+
+
+### CT5 compile adapter checkpoint (not semantic acceptance)
+
+The frozen40/CT5 public graph and artifact representation now compile through
+Verify and CT after the rich runtime-kernel adapter is composed. Closed direct
+address signatures use a paid lossless projection and retain the existing local
+arity, canonical-label, mutable-result and grounding checks. Rich signatures and
+nonempty ambient mappings remain explicit Unsupported at evaluation boundaries;
+ordinary runtime hints pay and preserve all rich binding/class paths. Genuine
+new closed Type graphs initialize an empty ambient table; incoming nonempty
+maps are rejected before legacy transformations rather than erased.
+
+This checkpoint only unblocks composed builds. Full authenticated invocation
+context, rich CT graph validation, source capture/reification and actual VM
+backing-byte accounting remain work in progress. It does not replace the CT4
+source/native receipt or its later per-use owner-lookup accounting correction.

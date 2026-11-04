@@ -322,7 +322,7 @@ fn value_storage(
             |bytes, node| {
                 bytes.saturating_add(match node {
                     CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        (life.parameter_lives.len() as u64).saturating_mul(8)
+                        crate::anonymous_type::life_bytes(life)
                     }
                     _ => 0,
                 })
@@ -762,6 +762,7 @@ fn type_ref_matches(
 fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mut bool) -> bool {
     if reference.nodes.len() as u64 > raw.budget.max_generated_nodes
         || reference.root.0 as usize >= reference.nodes.len()
+        || !reference.ambient_classes.is_empty()
     {
         return false;
     }
@@ -790,6 +791,9 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
                 result,
                 life,
             } => {
+                let Some(life) = life.to_flat(parameters.len()) else {
+                    return false;
+                };
                 let mut dense = 0;
                 let inputs = parameters.len() == life.parameter_lives.len()
                     && parameters
@@ -896,6 +900,13 @@ fn text(value: &CtValue) -> &str {
     v
 }
 fn append_type(out: &mut Vec<CtTypeNode>, source: &CtTypeRef) -> CompileResult<CtTypeNodeId> {
+    if !source.ambient_classes.is_empty() {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "authenticated CT5 ambient graph relocation is not yet implemented",
+            None,
+        )]);
+    }
     let offset = u32::try_from(out.len()).map_err(|_| limit("CT type node count overflow"))?;
     for node in &source.nodes {
         let plus = |id: CtTypeNodeId| -> CompileResult<CtTypeNodeId> {
@@ -953,11 +964,8 @@ fn construct_type(
         CtTypeConstructor::Tuple => CtTypeNode::Tuple(children),
         CtTypeConstructor::AnonymousSum => CtTypeNode::AnonymousSum(children),
         CtTypeConstructor::BorrowedFunctionPointer { life } => {
-            budget.reserve_analysis_work(
-                (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
-            )?;
-            budget
-                .reserve_temporary_bytes((life.parameter_lives.len() as u64).saturating_mul(8))?;
+            crate::anonymous_type::flat_life(life, children.len().saturating_sub(1), budget)?;
+            budget.reserve_temporary_bytes(crate::anonymous_type::life_bytes(life))?;
             let result = children.pop().expect("verified borrowed pointer result");
             CtTypeNode::BorrowedFunctionPointer {
                 parameters: children,
@@ -981,7 +989,8 @@ fn construct_type(
                 CtTypeNode::BorrowedFunctionPointer {
                     parameters: children,
                     result,
-                    life,
+                    life: zil_ir::StorageLifeContract::from_flat(life)
+                        .expect("bounded legacy signature"),
                 }
             } else {
                 CtTypeNode::FunctionPointer {
@@ -1007,6 +1016,7 @@ fn construct_type(
     let value = CtTypeRef {
         nodes,
         root: CtTypeNodeId(last),
+        ambient_classes: Vec::new(),
     };
     if *kind == CtTypeConstructor::AnonymousSum {
         let canonical = crate::canonicalize_anonymous_type(&value, budget)?;
@@ -1385,10 +1395,12 @@ fn execute_instruction(
         K::TypePrimitive(s) => Some(CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Primitive(*s)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         })),
         K::TypeBuiltin(b) => Some(CtValue::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Builtin(*b)],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         })),
         K::TypeName(symbol) => Some(CtValue::Type(reader.type_name(
             &frame.function.definition,
