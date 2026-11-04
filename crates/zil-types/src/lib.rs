@@ -53,6 +53,7 @@ mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
 mod store_templates;
+mod stored;
 mod tasks;
 mod tuple_bindings;
 pub use inference::{infer_program_closures, infer_source_closures};
@@ -127,10 +128,16 @@ fn signatures(
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
     'function: for f in &core.functions {
-        if f.storage_life.is_some() {
+        if f.storage_life.is_some()
+            && (f.foreign.is_some()
+                || !f.type_parameters.is_empty()
+                || !f.callable_parameters.is_empty()
+                || !f.state_parameters.is_empty()
+                || f.callable_return.is_some())
+        {
             return Err(vec![unsupported(
                 f.span,
-                "stored-borrow signature consumer is not yet implemented",
+                "stored-borrow generic, foreign or callable signature requires its definition consumer",
             )]);
         }
         if let Some(life) = &f.life {
@@ -297,6 +304,8 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
         || f.return_type.is_scalar_or_address()
+        || stored::shared_value(&f.return_type)
+        || stored::shared_address(&f.return_type)
         || reference_patterns::sum_address(&f.return_type)
         || packages::ordinary(&f.return_type)
         || errors::supported(&f.return_type)
@@ -340,6 +349,8 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         }
         if !(p.ty.is_copy_value()
             || p.ty.is_scalar_or_address()
+            || stored::shared_value(&p.ty)
+            || stored::shared_address(&p.ty)
             || reference_patterns::sum_address(&p.ty)
             || resources::supported(&p.ty)
             || packages::ordinary(&p.ty)
@@ -364,6 +375,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
                 || p.ty.is_shared_sync_cell_address()
                 || p.ty.is_shared_resource_head_address()
                 || p.ty.is_shared_package_address()
+                || stored::shared_address(&p.ty)
                 || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::BorrowMut
                 && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
@@ -501,9 +513,11 @@ pub fn check(
         limits,
     )
     .map_err(|e| vec![e])?;
+    let (life_declarations, life_instances) =
+        stored::copy_inventory(core, &mut remaining, limits).map_err(|e| vec![e])?;
     let mut module = TypedModule {
-        life_declarations: Vec::new(),
-        life_instances: Vec::new(),
+        life_declarations,
+        life_instances,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -583,11 +597,17 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
+        if let Some(contract) = &f.storage_life {
+            let work = contract.bindings.iter().fold(1usize, |n, row| {
+                n.saturating_add(row.position.path.len()).saturating_add(1)
+            });
+            closures.snapshot(work, f.span)?;
+        }
         let first_closure = closures.pending.len();
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
-                storage_life: None,
+                storage_life: f.storage_life.clone(),
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,
@@ -2244,6 +2264,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self
                 .known_type(operand)
                 .filter(|ty| ty.is_address_pointee()
+                    || stored::shared_value(ty)
                     || (*op == UnaryOp::BorrowMut && matches!(ty,Type::Managed(_)) && tasks::resource(ty))
                     || owned_shapes::sum(ty)
                     || matches!(ty, Type::Package { .. })
@@ -2258,6 +2279,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 operand,
             } => match self.known_type(operand)? {
                 Type::Address { inner, .. } if inner.is_address_pointee()
+                    || stored::shared_value(&inner)
                     || owned_shapes::sum(&inner)
                     || matches!(inner.as_ref(), Type::Package { .. }) => Some(*inner),
                 _ => None,

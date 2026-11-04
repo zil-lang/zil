@@ -353,8 +353,18 @@ pub(super) fn check_resolved_program_with_reuse(
             if core.module_id != program.root {
                 typed.name = format!("@module{}:function{}", core.module_id.0, id.0);
             }
+            if let Some(contract) = &typed.storage_life {
+                let work = contract.bindings.iter().fold(1usize, |n, row| {
+                    n.saturating_add(row.position.path.len()).saturating_add(1)
+                });
+                // Export and root-function/interface snapshots below preserve
+                // this complete relation, never an independently flat claim.
+                closure_state
+                    .snapshot(work.saturating_mul(3), f.span)
+                    .map_err(|e| vec![e])?;
+            }
             let export = ScalarFunction {
-                storage_life: None,
+                storage_life: typed.storage_life.clone(),
                 reference_return_bound: typed.reference_return_bound.clone(),
                 result_mode: f.result_mode,
                 name: f.name.clone(),
@@ -453,9 +463,17 @@ pub(super) fn check_resolved_program_with_reuse(
         limits,
     )
     .map_err(|e| vec![e])?;
+    let mut life_declarations = Vec::new();
+    let mut life_instances = Vec::new();
+    for source in &program.modules {
+        let (declarations, instances) =
+            stored::copy_inventory(&source.core, &mut remaining, limits).map_err(|e| vec![e])?;
+        life_declarations.extend(declarations);
+        life_instances.extend(instances);
+    }
     let mut module = TypedModule {
-        life_declarations: Vec::new(),
-        life_instances: Vec::new(),
+        life_declarations,
+        life_instances,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -471,13 +489,8 @@ pub(super) fn check_resolved_program_with_reuse(
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
-        interface.signature_fingerprint = interface_fingerprint(
-            &interface.exports,
-            target,
-            &module.closures,
-            &module.functions,
-            &mut remaining,
-        )?;
+        interface.signature_fingerprint =
+            interface_fingerprint(&interface.exports, target, &module, &mut remaining, limits)?;
     }
     Ok(TypedProgram {
         task_interfaces,
@@ -523,10 +536,60 @@ fn imports_for<'a>(
 fn interface_fingerprint(
     exports: &[ScalarFunction],
     target: &TargetProfile,
-    closures: &[ClosureDefinition],
-    functions: &[TypedFunction],
+    module: &TypedModule,
     remaining: &mut usize,
+    limits: &Limits,
 ) -> CompileResult<Fingerprint> {
+    let closures = &module.closures;
+    let functions = &module.functions;
+    let stored = !module.life_declarations.is_empty() || !module.life_instances.is_empty();
+    if stored {
+        let work = inference::life_table_snapshot_work(
+            &module.life_declarations,
+            &module.life_instances,
+            &Limits {
+                max_analysis_steps: *remaining,
+                ..limits.clone()
+            },
+        )
+        .map_err(|e| vec![e])?;
+        *remaining = remaining
+            .checked_sub(work.saturating_mul(64).saturating_add(128))
+            .ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Types,
+                    "stored interface context identity budget exceeded",
+                    None,
+                )]
+            })?;
+        for export in exports {
+            for ty in export
+                .parameters
+                .iter()
+                .map(|(_, ty)| ty)
+                .chain(std::iter::once(&export.result))
+            {
+                let cost = inference::type_snapshot_work(
+                    ty,
+                    Span::default(),
+                    &Limits {
+                        max_analysis_steps: *remaining,
+                        ..limits.clone()
+                    },
+                )
+                .map_err(|e| vec![e])?;
+                *remaining = remaining
+                    .checked_sub(cost.saturating_mul(64))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Types,
+                            "stored interface type identity budget exceeded",
+                            None,
+                        )]
+                    })?;
+            }
+        }
+    }
     let mut bytes = b"ZIL-SCALAR-INTERFACE-2\0".to_vec();
     bytes.extend_from_slice(&target.fingerprint().0);
     bytes.extend_from_slice(&(exports.len() as u64).to_le_bytes());
@@ -573,6 +636,26 @@ fn interface_fingerprint(
             None,
         )]
     };
+    if stored {
+        bytes.extend_from_slice(b"STORED-CONTEXT-1\0");
+        bytes.extend_from_slice(
+            &life_inventory_fingerprint(&module.life_declarations, &module.life_instances).0,
+        );
+    }
+    for export in exports {
+        if let Some(contract) = &export.storage_life {
+            let work = contract.bindings.iter().fold(128usize, |n, row| {
+                n.saturating_add(row.position.path.len().saturating_add(1).saturating_mul(64))
+            });
+            *remaining = remaining
+                .checked_sub(work.saturating_add(export.name.len().saturating_mul(2)))
+                .ok_or_else(exhausted)?;
+            bytes.extend_from_slice(b"STORED-SIGNATURE-1\0");
+            bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(export.name.as_bytes());
+            bytes.extend_from_slice(&contract.fingerprint().0);
+        }
+    }
     *remaining = remaining.checked_sub(exports.len()).ok_or_else(exhausted)?;
     for export in exports {
         if let Some(contract) = &functions[export.function.0 as usize].callable_contract {
@@ -641,6 +724,12 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             bytes.push(34);
             // Full semantic payload identity includes the retained class domain,
             // typed ports and nested/nominal mappings, never result alone.
+            bytes.extend_from_slice(&ty.fingerprint().0);
+        }
+        Type::BorrowedStorage { .. } => {
+            bytes.push(35);
+            // The complete nominal inventory is appended by the interface
+            // caller. The standalone structural digest is not that context.
             bytes.extend_from_slice(&ty.fingerprint().0);
         }
         Type::SyncCell(kind) => bytes.extend_from_slice(&[

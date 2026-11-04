@@ -23,15 +23,45 @@ pub(super) struct Catalog {
     /// Actual specialized function spelling -> retained source relation. These
     /// are output lookup keys, never declaration identities or capabilities.
     pub(super) functions: BTreeMap<String, StorageLifeContract>,
+    project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
 }
 
 impl Catalog {
+    pub(super) fn restore_functions(
+        &mut self,
+        functions: &BTreeMap<String, (zil_base::ModuleId, String, bool)>,
+        budget: &mut generics::Budget<'_>,
+    ) -> R<()> {
+        for (canonical, contract) in std::mem::take(&mut self.functions) {
+            let span = Span::default();
+            spend(
+                budget,
+                span,
+                functions
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(canonical.len().saturating_add(1)),
+            )?;
+            let (module, restored, _) = functions
+                .get(&canonical)
+                .ok_or_else(|| invalid(span, "stored function lost actual project declaration"))?;
+            budget.text(restored, span)?;
+            budget.node(span, 0)?;
+            self.project_functions
+                .push((*module, restored.clone(), contract));
+        }
+        Ok(())
+    }
+
     pub(super) fn publish(
         &self,
         core: &mut CoreModule,
         budget: &mut generics::Budget<'_>,
     ) -> R<()> {
-        if self.instances.is_empty() && self.functions.is_empty() {
+        if self.instances.is_empty()
+            && self.functions.is_empty()
+            && self.project_functions.is_empty()
+        {
             return Ok(());
         }
         for produced in &self.instances {
@@ -100,7 +130,21 @@ impl Catalog {
                 budget.text(name, function.span)?;
                 budget.text(&function.name, function.span)?;
             }
-            if let Some(contract) = self.functions.get(&function.name) {
+            for (_, name, _) in &self.project_functions {
+                budget.node(function.span, 0)?;
+                budget.text(name, function.span)?;
+                budget.text(&function.name, function.span)?;
+            }
+            let contract = if self.project_functions.is_empty() {
+                self.functions.get(&function.name)
+            } else {
+                self.project_functions
+                    .iter()
+                    .find_map(|(module, name, contract)| {
+                        (*module == core.module_id && *name == function.name).then_some(contract)
+                    })
+            };
+            if let Some(contract) = contract {
                 for binding in &contract.bindings {
                     spend(
                         budget,

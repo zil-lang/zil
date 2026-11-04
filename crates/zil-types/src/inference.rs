@@ -724,7 +724,69 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         unsupported: core.unsupported.clone(),
     }
 }
+pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
+    life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits)
+}
+pub(super) fn life_table_snapshot_work(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+    limits: &Limits,
+) -> R<usize> {
+    let mut budget = Budget::new(limits);
+    validate_life_inventory_parts(declarations, instances, &mut budget)?;
+    Ok(limits.max_analysis_steps - budget.work)
+}
+
+fn validate_life_inventory(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    validate_life_inventory_parts(&core.life_declarations, &core.life_instances, budget)
+}
+fn validate_life_inventory_parts(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let span = Span::default();
+    for declaration in declarations {
+        budget.node(0, span)?;
+        budget.work(declaration.identity.package.len(), span)?;
+        for component in declaration
+            .identity
+            .module_path
+            .iter()
+            .chain(&declaration.identity.declaration_path)
+        {
+            budget.node(0, span)?;
+            budget.work(component.len(), span)?;
+        }
+        for _ in &declaration.identity.generation_path {
+            budget.node(0, span)?;
+        }
+        for parameter in &declaration.parameters {
+            budget.node(0, span)?;
+            if let LifeParameterKind::Const(ty) = parameter {
+                validate_type(ty, 0, span, budget)?;
+            }
+        }
+    }
+    for instance in instances {
+        budget.node(0, span)?;
+        validate_type(&instance.ty, 0, span, budget)?;
+        for argument in &instance.arguments {
+            budget.node(0, span)?;
+            match argument {
+                LifeNominalActual::Type(ty) => validate_type(ty, 0, span, budget)?,
+                LifeNominalActual::Const(Constant::WideString(units)) => {
+                    budget.work(units.len(), span)?;
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()> {
+    validate_life_inventory(core, budget)?;
     aggregate_templates::metadata_snapshot(core, budget.limits, &mut budget.work)?;
     for aggregate in &core.aggregates {
         budget.node(0, aggregate.span)?;
@@ -768,11 +830,20 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
                 "dyn type consumer is not yet implemented",
             ));
         }
-        Type::BorrowedStorage { .. } => {
-            return Err(unsupported(
-                span,
-                "stored-borrow type consumer is not yet implemented",
-            ));
+        Type::BorrowedStorage { storage, life } => {
+            for slot in &life.slots {
+                budget.node(depth + 1, span)?;
+                budget.work(slot.path.len(), span)?;
+            }
+            for row in &life.retained {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            for row in &life.nominal_arguments {
+                budget.node(depth + 1, span)?;
+                budget.work(row.path.len(), span)?;
+            }
+            validate_type(storage, depth + 1, span, budget)?;
         }
         Type::Array { element, length } => {
             budget.work(*length as usize, span)?;
@@ -5247,12 +5318,6 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
 
 /// Initial39 boundary: nonempty new data must reach a real bounded consumer.
 pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
-    if !core.life_declarations.is_empty() || !core.life_instances.is_empty() {
-        return Err(unsupported(
-            Span::default(),
-            "stored nominal declaration/instance inventory consumer is not yet implemented",
-        ));
-    }
     if !core.dyn_declarations.is_empty()
         || !core.dyn_interfaces.is_empty()
         || !core.dyn_vtables.is_empty()

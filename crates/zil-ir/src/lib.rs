@@ -213,6 +213,16 @@ pub struct StorageLifeContract {
     pub invocation_binder_count: u32,
     pub bindings: Vec<StorageLifeBinding>,
 }
+impl StorageLifeContract {
+    /// Complete untrusted relation identity. Validate and prepay every row and
+    /// selector before hashing; this fingerprint grants no borrowing authority.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-STORAGE-LIFE-CONTRACT-1\0");
+        encode_required_storage_contract(&mut bytes, self);
+        bytes.finish()
+    }
+}
 /// Actual permission, initialization, target/parent loans and epochs are checked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredBorrowLoad {
@@ -268,6 +278,19 @@ pub struct LifeNominalInstance {
     pub declaration: LifeDeclarationId,
     pub ty: Type,
     pub arguments: Vec<LifeNominalActual>,
+}
+
+/// Complete declaration context for table-bearing stored types. Callers must
+/// validate and prepay the full inventory, including each type and identity.
+/// This raw context digest is not an independent semantic or permission proof.
+pub fn life_inventory_fingerprint(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) -> Fingerprint {
+    let mut bytes = FingerprintStream::new();
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V39\0");
+    encode_life_inventory(&mut bytes, declarations, instances);
+    bytes.finish()
 }
 
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other

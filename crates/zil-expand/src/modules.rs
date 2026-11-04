@@ -592,6 +592,9 @@ fn normalize(
             visitor.item(item, &Names::new(), true, 0)?;
         }
     }
+    products
+        .storage
+        .restore_functions(&functions, &mut budget)?;
     if has_trait_instances {
         products.allowance = Some(budget.remaining_limits());
     }
