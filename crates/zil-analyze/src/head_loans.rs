@@ -4,11 +4,32 @@ use super::head_access::{Requirement, Summary};
 use super::*;
 use std::collections::BTreeMap;
 type Loans = BTreeSet<usize>;
-type Apart = BTreeSet<(HoldRoot, HoldRoot)>;
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum LoanRoot {
+    Local(LocalId),
+    Parameter(u32, Vec<u32>),
+    Capture(u32, Vec<u32>),
+}
+impl LoanRoot {
+    fn from_hold(root: HoldRoot) -> Self {
+        match root {
+            HoldRoot::Local(l) => Self::Local(l),
+            HoldRoot::Parameter(p) => Self::Parameter(p, vec![]),
+            HoldRoot::Capture(c) => Self::Capture(c, vec![]),
+        }
+    }
+    fn path(&self) -> &[u32] {
+        match self {
+            Self::Local(_) => &[],
+            Self::Parameter(_, p) | Self::Capture(_, p) => p,
+        }
+    }
+}
+type Apart = BTreeSet<(LoanRoot, LoanRoot)>;
 type Carrier = BTreeMap<Vec<u32>, Loans>;
 type Locals = BTreeMap<LocalId, Carrier>;
 struct Node {
-    roots: Vec<HoldRoot>,
+    roots: Vec<LoanRoot>,
     exclusive: bool,
     weak: bool,
     parents: Loans,
@@ -173,77 +194,197 @@ fn transfer(
     }
     Ok(())
 }
-fn overlap(a: &[HoldRoot], c: &[HoldRoot], b: &mut Budget) -> CompileResult<bool> {
+fn overlap(a: &[LoanRoot], c: &[LoanRoot], b: &mut Budget) -> CompileResult<bool> {
     fee(b, a.len().saturating_mul(c.len()))?;
+    if a.is_empty() || c.is_empty() {
+        return Ok(false);
+    }
+    let pa = a
+        .iter()
+        .fold(0usize, |n, r| n.saturating_add(r.path().len()));
+    let pc = c
+        .iter()
+        .fold(0usize, |n, r| n.saturating_add(r.path().len()));
+    fee(
+        b,
+        pa.saturating_mul(c.len())
+            .saturating_add(pc.saturating_mul(a.len())),
+    )?;
     Ok(a.iter().any(|r| c.contains(r)))
 }
-fn external(root: HoldRoot) -> bool {
-    matches!(root, HoldRoot::Parameter(_) | HoldRoot::Capture(_))
+fn external(
+    root: &LoanRoot,
+    context: (&TypedModule, &TypedFunction),
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    let (module, f) = context;
+    let (mut ty, path) = match root {
+        LoanRoot::Local(_) => return Ok(false),
+        LoanRoot::Parameter(i, path) => (&f.locals[f.parameters[*i as usize].0 as usize].ty, path),
+        LoanRoot::Capture(i, path) => (
+            &module.closures[f
+                .environment
+                .ok_or_else(|| bad("capture separation outside environment"))?
+                .0 as usize]
+                .captures[*i as usize],
+            path,
+        ),
+    };
+    for index in path {
+        fee(b, 1)?;
+        if let Type::Address { inner, .. } = ty {
+            ty = inner;
+        }
+        let Type::Closure(id) = ty else {
+            return Err(bad("symbolic capture path crosses a non-environment"));
+        };
+        ty = module
+            .closures
+            .get(id.0 as usize)
+            .and_then(|d| d.captures.get(*index as usize))
+            .ok_or_else(|| bad("symbolic capture path outside actual layout"))?;
+    }
+    Ok(matches!(ty, Type::Desc(_) | Type::Address { .. })
+        && !matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_))))
 }
 fn require_apart(
-    left: &[HoldRoot],
-    right: &[HoldRoot],
+    left: &[LoanRoot],
+    right: &[LoanRoot],
     apart: &mut Apart,
+    context: (&TypedModule, &TypedFunction),
     b: &mut Budget,
 ) -> CompileResult<()> {
     for a in left {
         for c in right {
-            fee(b, 1)?;
-            if a != c && external(*a) && external(*c) {
-                fee(b, apart.len().saturating_add(1))?;
-                apart.insert(((*a).min(*c), (*a).max(*c)));
+            let paths = a.path().len().saturating_add(c.path().len());
+            fee(b, paths.saturating_add(1))?;
+            if a != c && external(a, context, b)? && external(c, context, b)? {
+                fee(
+                    b,
+                    apart
+                        .len()
+                        .saturating_add(1)
+                        .saturating_mul(paths.saturating_add(1)),
+                )?;
+                apart.insert(if a < c {
+                    (a.clone(), c.clone())
+                } else {
+                    (c.clone(), a.clone())
+                });
             }
         }
     }
     Ok(())
 }
 fn actual_root(
-    root: HoldRoot,
+    root: &LoanRoot,
     args: &[ValueId],
     env: Option<&Carrier>,
     values: &[Carrier],
     nodes: &[Node],
     b: &mut Budget,
-) -> CompileResult<Vec<HoldRoot>> {
-    let loans = match root {
-        HoldRoot::Parameter(i) => direct(
-            &values[args
-                .get(i as usize)
-                .ok_or_else(|| bad("head separation actual input absent"))?
-                .0 as usize],
-            b,
-        )?,
-        HoldRoot::Capture(i) => {
-            let env = env.ok_or_else(|| bad("head separation actual capture absent"))?;
-            let mut loans = Loans::new();
-            for (path, row) in env {
-                fee(b, path.len())?;
-                if path.first() == Some(&i) {
-                    union(&mut loans, row, b)?;
-                }
-            }
-            loans
+) -> CompileResult<Vec<LoanRoot>> {
+    let (carrier, path) = match root {
+        LoanRoot::Parameter(i, path) => {
+            let arg = args
+                .get(*i as usize)
+                .ok_or_else(|| bad("head separation actual input absent"))?;
+            fee(b, path.len())?;
+            (&values[arg.0 as usize], path.clone())
         }
-        HoldRoot::Local(_) => {
+        LoanRoot::Capture(i, path) => {
+            fee(b, path.len().saturating_add(1))?;
+            let mut full = vec![*i];
+            full.extend(path);
+            (
+                env.ok_or_else(|| bad("head separation actual capture absent"))?,
+                full,
+            )
+        }
+        LoanRoot::Local(_) => {
             return Err(bad("local root cannot enter a head separation contract"));
         }
     };
+    fee(b, carrier.len().saturating_add(path.len()))?;
     let mut result = vec![];
-    for id in loans {
-        fee(b, nodes[id].roots.len())?;
-        result.extend(&nodes[id].roots);
+    if let Some(loans) = carrier.get(&path) {
+        fee(b, loans.len())?;
+        for id in loans {
+            fee(b, nodes[*id].roots.len())?;
+            for root in &nodes[*id].roots {
+                fee(b, root.path().len())?;
+            }
+            result.extend(nodes[*id].roots.iter().cloned());
+        }
     }
     Ok(result)
+}
+fn seed_paths(
+    module: &TypedModule,
+    ty: &Type,
+    owner: Option<u32>,
+    capture: Option<u32>,
+    reuse: Option<usize>,
+    nodes: &mut Vec<Node>,
+    b: &mut Budget,
+) -> CompileResult<Carrier> {
+    fee(b, 1)?;
+    let mut out = Carrier::new();
+    let mut stack = vec![(ty, Vec::<u32>::new())];
+    while let Some((ty, path)) = stack.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
+            let id = if path.is_empty() && reuse.is_some() {
+                reuse.expect("present")
+            } else {
+                fee(b, path.len().saturating_mul(2).saturating_add(4))?;
+                let id = nodes.len();
+                let root = if let Some(i) = owner {
+                    LoanRoot::Parameter(i, path.clone())
+                } else {
+                    LoanRoot::Capture(capture.expect("capture seed"), path.clone())
+                };
+                nodes.push(Node {
+                    roots: vec![root],
+                    exclusive: matches!(ty, Type::Address { mutable: true, .. }),
+                    weak: matches!(ty, Type::Desc(_)),
+                    parents: Loans::new(),
+                });
+                id
+            };
+            out.insert(path.clone(), Loans::from([id]));
+        }
+        let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        if let Type::Closure(id) = ty {
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| bad("seed environment outside actual layout"))?;
+            fee(b, d.captures.len())?;
+            for (i, t) in d.captures.iter().enumerate() {
+                fee(b, path.len().saturating_add(1))?;
+                let mut child = path.clone();
+                child.push(u32::try_from(i).map_err(|_| bad("capture path index overflow"))?);
+                stack.push((t, child));
+            }
+        }
+    }
+    Ok(out)
 }
 #[allow(clippy::too_many_arguments)]
 fn access(
     own: &Loans,
-    roots: &[HoldRoot],
+    roots: &[LoanRoot],
     write: bool,
     active: &Loans,
     ignore: Option<usize>,
     nodes: &[Node],
     apart: &mut Apart,
+    context: (&TypedModule, &TypedFunction),
     b: &mut Budget,
 ) -> CompileResult<()> {
     for other in active {
@@ -256,7 +397,7 @@ fn access(
             continue;
         }
         if !overlap(roots, &nodes[*other].roots, b)? {
-            require_apart(roots, &nodes[*other].roots, apart, b)?;
+            require_apart(roots, &nodes[*other].roots, apart, context, b)?;
             continue;
         }
         let mut relevant = false;
@@ -280,6 +421,7 @@ fn pairs(
     carriers: &[Loans],
     nodes: &[Node],
     apart: &mut Apart,
+    context: (&TypedModule, &TypedFunction),
     b: &mut Budget,
 ) -> CompileResult<()> {
     for (i, a) in carriers.iter().enumerate() {
@@ -291,7 +433,7 @@ fn pairs(
                         && !nodes[*r].weak
                         && (nodes[*l].exclusive || nodes[*r].exclusive)
                     {
-                        require_apart(&nodes[*l].roots, &nodes[*r].roots, apart, b)?;
+                        require_apart(&nodes[*l].roots, &nodes[*r].roots, apart, context, b)?;
                     }
                     if !nodes[*l].weak
                         && !nodes[*r].weak
@@ -331,7 +473,12 @@ fn check_function(
     for (index, ty) in f.values.iter().enumerate() {
         fee(b, facts[index].roots.len())?;
         nodes.push(Node {
-            roots: facts[index].roots.clone(),
+            roots: facts[index]
+                .roots
+                .iter()
+                .copied()
+                .map(LoanRoot::from_hold)
+                .collect(),
             exclusive: matches!(ty, Type::Address { mutable: true, .. }),
             weak: matches!(ty, Type::Desc(_)),
             parents: Loans::new(),
@@ -341,13 +488,48 @@ fn check_function(
     for (index, l) in f.parameters.iter().enumerate() {
         let ty = &f.locals[l.0 as usize].ty;
         nodes.push(Node {
-            roots: vec![HoldRoot::Parameter(index as u32)],
+            roots: vec![LoanRoot::Parameter(index as u32, vec![])],
             exclusive: matches!(ty, Type::Address { mutable: true, .. }),
             weak: matches!(ty, Type::Desc(_)),
             parents: Loans::new(),
         });
         if matches!(ty, Type::Address { .. } | Type::Desc(_)) {
             seed.insert(*l, Carrier::from([(vec![], Loans::from([v + index]))]));
+        }
+    }
+    for (index, local) in f.parameters.iter().enumerate() {
+        let ty = &f.locals[local.0 as usize].ty;
+        if matches!(ty, Type::Closure(_))
+            || matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Closure(_)))
+        {
+            let carrier = seed_paths(
+                module,
+                ty,
+                Some(index as u32),
+                None,
+                Some(v + index),
+                &mut nodes,
+                b,
+            )?;
+            if !carrier.is_empty() {
+                seed.insert(*local, carrier);
+            }
+        }
+    }
+    let mut capture_seed = Vec::new();
+    if let Some(id) = f.environment {
+        let definition = &module.closures[id.0 as usize];
+        fee(b, definition.captures.len())?;
+        for (index, ty) in definition.captures.iter().enumerate() {
+            capture_seed.push(seed_paths(
+                module,
+                ty,
+                None,
+                Some(index as u32),
+                None,
+                &mut nodes,
+                b,
+            )?);
         }
     }
     let mut values = vec![Carrier::new(); v];
@@ -390,7 +572,7 @@ fn check_function(
                         | InstructionKind::BorrowLocalMut { local } => {
                             fresh = true;
                             if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
-                                nodes[id].roots = vec![HoldRoot::Local(*local)];
+                                nodes[id].roots = vec![LoanRoot::Local(*local)];
                                 if let Some(c) = state.get(local) {
                                     carrier = copy(c, b)?;
                                 }
@@ -412,11 +594,23 @@ fn check_function(
                         | InstructionKind::AddressIndex { address, .. } => {
                             carrier = copy(&values[address.0 as usize], b)?;
                         }
+                        InstructionKind::ReadCapture { index }
+                        | InstructionKind::BorrowCapture { index, .. } => {
+                            carrier = copy(
+                                capture_seed
+                                    .get(*index as usize)
+                                    .ok_or_else(|| bad("actual capture seed absent"))?,
+                                b,
+                            )?;
+                            if matches!(f.values[id], Type::Address { .. } | Type::Desc(_)) {
+                                parents = direct(&carrier, b)?;
+                                carrier.remove(&Vec::new());
+                                fresh = true;
+                            }
+                        }
                         InstructionKind::DescribeLocal { .. }
                         | InstructionKind::DescribePackageField { .. }
                         | InstructionKind::DescribeCapture { .. }
-                        | InstructionKind::ReadCapture { .. }
-                        | InstructionKind::BorrowCapture { .. }
                         | InstructionKind::BorrowPackageField { .. }
                         | InstructionKind::BorrowOwnedArrayElement { .. } => {
                             fresh = matches!(f.values[id], Type::Address { .. } | Type::Desc(_));
@@ -432,7 +626,7 @@ fn check_function(
                         {
                             fresh = true;
                             for argument in arguments {
-                                if overlap(&facts[id].roots, &facts[argument.0 as usize].roots, b)?
+                                if overlap(&nodes[id].roots, &nodes[argument.0 as usize].roots, b)?
                                 {
                                     union(
                                         &mut parents,
@@ -528,8 +722,8 @@ fn check_function(
             if let Some((target, args, env)) = invocation(module, f, i, &state, &values) {
                 fee(b, previous_apart[target].len())?;
                 for (left, right) in &previous_apart[target] {
-                    let left = actual_root(*left, args, env, &values, &nodes, b)?;
-                    let right = actual_root(*right, args, env, &values, &nodes, b)?;
+                    let left = actual_root(left, args, env, &values, &nodes, b)?;
+                    let right = actual_root(right, args, env, &values, &nodes, b)?;
                     if left.is_empty() || right.is_empty() {
                         return Err(bad("head separation has no actual grounded source"));
                     }
@@ -538,16 +732,29 @@ fn check_function(
                             "actual caller aliases storage required separate by the callee's independently reconstructed live windows",
                         ));
                     }
-                    require_apart(&left, &right, &mut apart, b)?;
+                    require_apart(&left, &right, &mut apart, (module, f), b)?;
                 }
                 for q in &summaries[target].writes {
                     let own = select(q, args, env, &values, b)?;
                     let mut roots = vec![];
                     for id in &own {
                         fee(b, nodes[*id].roots.len())?;
-                        roots.extend(&nodes[*id].roots);
+                        for root in &nodes[*id].roots {
+                            fee(b, root.path().len())?;
+                        }
+                        roots.extend(nodes[*id].roots.iter().cloned());
                     }
-                    access(&own, &roots, true, &active, ignore, &nodes, &mut apart, b)?;
+                    access(
+                        &own,
+                        &roots,
+                        true,
+                        &active,
+                        ignore,
+                        &nodes,
+                        &mut apart,
+                        (module, f),
+                        b,
+                    )?;
                 }
             }
             let primitive = match i.kind {
@@ -571,12 +778,13 @@ fn check_function(
             if let Some((id, write)) = primitive {
                 access(
                     &direct(&values[id.0 as usize], b)?,
-                    &facts[id.0 as usize].roots,
+                    &nodes[id.0 as usize].roots,
                     write,
                     &active,
                     ignore,
                     &nodes,
                     &mut apart,
+                    (module, f),
                     b,
                 )?;
             }
@@ -591,12 +799,13 @@ fn check_function(
                     );
                     access(
                         &direct(&values[address.0 as usize], b)?,
-                        &facts[address.0 as usize].roots,
+                        &nodes[address.0 as usize].roots,
                         write,
                         &active,
                         ignore,
                         &nodes,
                         &mut apart,
+                        (module, f),
                         b,
                     )?;
                 }
@@ -613,12 +822,13 @@ fn check_function(
                 {
                     access(
                         &empty,
-                        &[HoldRoot::Local(*local)],
+                        &[LoanRoot::Local(*local)],
                         true,
                         &active,
                         ignore,
                         &nodes,
                         &mut apart,
+                        (module, f),
                         b,
                     )?;
                 }
@@ -626,12 +836,13 @@ fn check_function(
                 | InstructionKind::BorrowLocalMut { local } => {
                     access(
                         &empty,
-                        &[HoldRoot::Local(*local)],
+                        &[LoanRoot::Local(*local)],
                         matches!(i.kind, InstructionKind::BorrowLocalMut { .. }),
                         &active,
                         ignore,
                         &nodes,
                         &mut apart,
+                        (module, f),
                         b,
                     )?;
                 }
@@ -656,7 +867,7 @@ fn check_function(
             for id in args {
                 prepared.push(all(&values[id.0 as usize], b)?);
             }
-            pairs(&prepared, &nodes, &mut apart, b)?;
+            pairs(&prepared, &nodes, &mut apart, (module, f), b)?;
             transfer(&mut state, i, &values, b)?;
         }
     }
@@ -669,7 +880,7 @@ pub(super) fn check(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.head_descriptions {
+    if !b.head_descriptions && !b.invocation_callbacks {
         return Ok(());
     }
     fee(b, module.functions.len())?;
@@ -687,6 +898,15 @@ pub(super) fn check(
                 b,
             )?;
             fee(b, found.len().saturating_add(apart[index].len()))?;
+            for (left, right) in &found {
+                fee(
+                    b,
+                    apart[index]
+                        .len()
+                        .saturating_add(1)
+                        .saturating_mul(left.path().len().saturating_add(right.path().len())),
+                )?;
+            }
             let old = apart[index].len();
             apart[index].extend(found);
             changed |= apart[index].len() != old;

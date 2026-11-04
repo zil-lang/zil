@@ -643,11 +643,26 @@ impl State {
         Ok((slot, pending))
     }
 
-    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
+    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+        let mut remaining = self.work_left;
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
         for mut pending in self.pending {
-            let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+            let (parameters, result) =
+                pending
+                    .inference
+                    .resolve_shared(true, pending.span, &mut remaining)?;
+            remaining = remaining
+                .checked_sub(pending.captures.len().saturating_add(1))
+                .ok_or_else(|| limit("completed closure metadata budget exceeded", pending.span))?;
+            for capture in &pending.captures {
+                pending
+                    .inference
+                    .graph
+                    .thread_query(&mut remaining, |graph| {
+                        graph.reserve_type(&capture.ty, 0, capture.span)
+                    })?;
+            }
             let kind = pending.callable_kind();
             let typed = pending.typed.ok_or_else(|| {
                 error(
@@ -678,7 +693,7 @@ impl State {
         }
         functions.extend(self.helper_functions);
         functions.sort_by_key(|function| function.id);
-        Ok((definitions, functions))
+        Ok((definitions, functions, remaining))
     }
 }
 
@@ -702,6 +717,7 @@ pub(super) fn signature_parameter(ty: &Type) -> bool {
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
     parameters.iter().all(signature_parameter)
         && (result.is_copy_value()
+            || borrowed_fp::invocation(parameters, result)
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained
@@ -1650,6 +1666,19 @@ impl Inference {
             }
         }
         Ok(true)
+    }
+    fn resolve_shared(
+        &mut self,
+        defaults: bool,
+        span: Span,
+        remaining: &mut usize,
+    ) -> R<(Vec<Type>, Type)> {
+        let original = self.graph.work_left.get();
+        let allowance = original.min(*remaining);
+        self.graph.work_left.set(allowance);
+        let result = self.resolve(defaults, span);
+        self.graph
+            .thread_finish(original, allowance, remaining, result)
     }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
         self.resolve_inner(defaults, None, span)

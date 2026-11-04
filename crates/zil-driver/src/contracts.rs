@@ -92,8 +92,13 @@ pub(super) fn callable_json(interface: &ScalarInterface) -> String {
             let c = &entry.contract;
             let traces = traces_json(&c.traces);
             let roles = c.roles.iter().map(|role| {
-                format!("{{\"parameter\":{},\"closure\":{},\"kind\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{}}}",
-                    role.parameter, role.closure.0, json_string(&format!("{:?}", role.kind)),
+                let life=role.life.as_ref().map_or_else(||"null".into(),|life| {
+                    let parameters=life.parameter_lives.iter().map(|v|v.map_or_else(||"null".into(),|v|v.to_string())).collect::<Vec<_>>().join(",");
+                    let result=life.result_life.map_or_else(||"null".into(),|v|v.to_string());
+                    format!("{{\"binder_count\":{},\"parameter_lives\":[{}],\"result_life\":{}}}",life.binder_count,parameters,result)
+                });
+                format!("{{\"parameter\":{},\"closure\":{},\"kind\":{},\"life\":{},\"hold\":{:?},\"call\":{:?},\"writes\":{:?},\"cleanup\":{}}}",
+                    role.parameter, role.closure.0, json_string(&format!("{:?}", role.kind)), life,
                     role.hold, role.call, role.writes, json_string(&format!("{:?}", role.cleanup)))
             }).collect::<Vec<_>>().join(",");
             format!("{{\"name\":{},\"roles\":[{}],\"traces\":{}}}", json_string(&entry.name), roles, traces)
