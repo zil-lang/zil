@@ -13,6 +13,6 @@ git show refs/remotes/origin/goal:goal.md
 
 `node tools/handoff.mjs --check`检查本地主树工程记录完整性；它不读取实时goal内容，也不验证全部开发分支或语言终态。`check-plan`继续检查工程合同、规范与既有验收约束，不承担当前排期。
 
-历史资料保留：[迁移前完整总计划（c15b77847）](https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/_zil_goal.md)、[2026-11-04进度复核](docs/LANGUAGE-PROGRESS-20261104.md)及相应源码/验收收据。它们是固定时点记录，不再追加实时状态。
+历史资料保留：[迁移前完整总计划（c15b77847）](https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/_zil_goal.md)、[2026-11-04进度复核（c15b77847）](https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/docs/LANGUAGE-PROGRESS-20261104.md)及相应源码/验收收据。它们是固定时点记录，不再追加实时状态。
 
 源码和计划分别备份。离线恢复包必须显式包含goal引用；仅保存main不足以恢复当前任务分配。新流程不降低任何语言、安全、独审或产品门槛。
