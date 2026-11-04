@@ -3035,14 +3035,51 @@ impl Check<'_, '_, '_> {
                     type_parameters(function).map(|p| p.name.clone()).collect();
                 let mut found = BTreeMap::new();
                 if let Some(args) = explicit {
-                    if args.len() != type_parameters(function).count() {
+                    if args.len() != consts::parameters(function).count() {
                         return Err(error(e.span, "parametric type argument arity mismatch"));
                     }
-                    for (param, arg) in type_parameters(function).zip(args) {
-                        let GenericArg::Type(ty) = arg else {
-                            return Err(unsupported(e.span, "const generic argument"));
+                    for (param, arg) in consts::parameters(function).zip(args) {
+                        let actual = consts::argument(arg, Some(param), self.budget)?;
+                        let actual = if let GenericParamKind::Const(wanted) = &param.kind
+                            && let Some(Expr {
+                                kind: ExprKind::Name(name),
+                                ..
+                            }) = consts::expression(&actual)
+                        {
+                            // Only this declaration's original immutable const
+                            // binder is compile-time evidence. A same-spelled
+                            // runtime parameter or shadowing local is not.
+                            let source = self.signatures.get(self.definition).ok_or_else(|| {
+                                error(e.span, "symbolic const call has no declaration context")
+                            })?;
+                            let (ordinal, binder) = source
+                                .generics
+                                .iter()
+                                .filter(|p| matches!(p.kind, GenericParamKind::Const(_)))
+                                .enumerate()
+                                .find(|(_, p)| p.name == *name)
+                                .ok_or_else(|| {
+                                    error(e.span, "const argument names a runtime value")
+                                })?;
+                            let GenericParamKind::Const(domain) = &binder.kind else {
+                                unreachable!()
+                            };
+                            same(domain, wanted, e.span, self.budget)?;
+                            if state
+                                .locals
+                                .get(name)
+                                .is_none_or(|local| local.id != source.params.len() + ordinal)
+                            {
+                                return Err(error(
+                                    e.span,
+                                    "const argument is shadowed by a runtime value",
+                                ));
+                            }
+                            actual
+                        } else {
+                            consts::normalize(param, &actual, self.budget)?
                         };
-                        found.insert(param.name.clone(), ty.clone());
+                        found.insert(param.name.clone(), actual);
                     }
                 }
                 if self.callable.as_ref().is_some_and(|bounds| {
