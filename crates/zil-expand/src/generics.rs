@@ -601,8 +601,8 @@ impl<'a> Engine<'a> {
                 {
                     continue;
                 }
-                if stored_nominal::has_life(item)
-                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                if matches!(parameter.kind, GenericParamKind::Lifetime)
+                    && matches!(item.kind, ItemKind::Aggregate(_))
                 {
                     continue;
                 }
@@ -1129,10 +1129,7 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path, args } => {
                 if self.stored_nominals
                     && path.len() == 1
-                    && self
-                        .templates
-                        .get(&path[0])
-                        .is_some_and(|item| stored_nominal::has_life(item))
+                    && self.stored_declaration(&path[0], ty.span)?
                 {
                     let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
                     *path = vec![name];
@@ -1241,6 +1238,7 @@ impl<'a> Engine<'a> {
                 if self.stored_signature(f)? {
                     self.budget.function_snapshot(f)?;
                     self.budget.text(&f.name, f.span)?;
+                    self.stored_lookup_fee(self.signatures.len(), f.name.len(), f.span)?;
                     self.signatures
                         .insert(f.name.clone(), Cow::Owned(f.clone()));
                 }

@@ -11,6 +11,30 @@ pub(super) fn has_life(item: &Item) -> bool {
 }
 
 impl Engine<'_> {
+    pub(super) fn stored_lookup_fee(&mut self, entries: usize, bytes: usize, span: Span) -> R<()> {
+        self.budget.identity_work(
+            entries
+                .checked_ilog2()
+                .map_or(1, |n| n as usize + 2)
+                .saturating_mul(bytes.saturating_add(1)),
+            span,
+        )
+    }
+
+    pub(super) fn stored_declaration(&mut self, name: &str, span: Span) -> R<bool> {
+        self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
+        let Some(item) = self.templates.get(name) else {
+            return Ok(false);
+        };
+        if let ItemKind::Aggregate(aggregate) = &item.kind {
+            for _ in &aggregate.generics {
+                self.budget.node(span, 0)?;
+            }
+            Ok(has_life(item))
+        } else {
+            Ok(false)
+        }
+    }
     pub(super) fn prepare_stored_headers(&mut self) -> R<()> {
         if !self.stored_nominals {
             return Ok(());
@@ -31,6 +55,11 @@ impl Engine<'_> {
                     if engine.stored_signature(function)? {
                         engine.budget.function_snapshot(function)?;
                         engine.budget.text(&function.name, function.span)?;
+                        engine.stored_lookup_fee(
+                            engine.signatures.len(),
+                            function.name.len(),
+                            function.span,
+                        )?;
                         engine
                             .signatures
                             .insert(function.name.clone(), Cow::Owned(function.clone()));
@@ -94,6 +123,11 @@ impl Engine<'_> {
         }
         let contract = stored_types::contract(occurrences, &mut self.budget, function.span)?;
         self.budget.text(&function.name, function.span)?;
+        self.stored_lookup_fee(
+            self.products.storage.functions.len(),
+            function.name.len(),
+            function.span,
+        )?;
         self.products
             .storage
             .functions
@@ -186,13 +220,10 @@ impl Engine<'_> {
                     depth + 1,
                 )
             }
-            TypeKind::Named { path: name, args }
-                if name.len() == 1
-                    && self
-                        .templates
-                        .get(&name[0])
-                        .is_some_and(|item| has_life(item)) =>
-            {
+            TypeKind::Named { path: name, args } if name.len() == 1 => {
+                if !self.stored_declaration(&name[0], ty.span)? {
+                    return Ok(());
+                }
                 let (generated, classes) =
                     self.stored_nominal(&name[0], args, ty.span, depth + 1)?;
                 for item in &self.products.storage.instances {
@@ -308,6 +339,7 @@ impl Engine<'_> {
     ) -> R<(String, Vec<LexicalLife>)> {
         self.budget.node(span, depth)?;
         self.budget.text(template, span)?;
+        self.stored_lookup_fee(self.templates.len(), template.len(), span)?;
         let item = self
             .templates
             .get(template)
@@ -386,7 +418,7 @@ impl Engine<'_> {
                         });
                     // Length-delimited generic keys retain kind and every full
                     // ordinal, including phantom arguments; names do not enter.
-                    self.budget.node(span, depth)?;
+                    self.budget.identity_work(15, span)?;
                     keys.push(format!("life:{class}"));
                     parameters.push(LifeParameterKind::Lifetime);
                     actuals.push(LifeNominalActual::Lifetime(class as u32));
@@ -434,8 +466,24 @@ impl Engine<'_> {
         // Reconstructing classes on every use is deliberate: the cached shape
         // does not bind a new caller's lexical lifetime numbers.
         let key = (template.to_owned(), keys);
-        let existing = self.instances.get(&key).cloned();
+        let key_bytes = key.1.iter().try_fold(template.len(), |size, part| {
+            size.checked_add(part.len().saturating_add(1))
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Expand,
+                        "stored instance key size overflow",
+                        Some(span),
+                    )
+                })
+        })?;
+        self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
+        let existing = self.instances.get(&key);
+        if let Some(name) = existing {
+            self.budget.text(name, span)?;
+        }
+        let existing = existing.cloned();
         let generated = if let Some(existing) = &existing {
+            self.budget.text(existing, span)?;
             existing.clone()
         } else {
             if self.instances.len() >= self.limits.max_functions.min(512) {
@@ -445,6 +493,8 @@ impl Engine<'_> {
                     Some(span),
                 ));
             }
+            self.budget
+                .identity_work(template.len().saturating_add(19), span)?;
             format!("$stored_{}_{}", template, self.instances.len())
         };
         self.budget.substituted_item(item, &substitution)?;
@@ -474,6 +524,8 @@ impl Engine<'_> {
         let classes = produced.classes;
         if existing.is_none() {
             physical.generics.clear();
+            self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
+            self.budget.text(&generated, span)?;
             self.instances.insert(key, generated.clone());
             self.products
                 .storage

@@ -771,4 +771,61 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
             );
         }
     }
+
+    #[test]
+    fn stored_instances_and_header_maps_pay_common_prefix_searches() {
+        let prefix = "long_stored_prefix_".repeat(12);
+        let nominal = format!("{prefix}View");
+        let mut text = format!("struct {nominal}<life a, T> {{ p: &'a i64 }}\n");
+        for index in 1..=12 {
+            text.push_str(&format!("fn {prefix}make{index}<life a>(p: &'a i64) -> {nominal}<'a, [i64; {index}]> {{ return {nominal}::<'a, [i64; {index}]> {{ p: p }}; }}\n"));
+        }
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "stored-budget.zil", &text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let aliases = BTreeMap::new();
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            expand_with_map_limits_target_context(
+                &source,
+                &syntax,
+                &limits,
+                &zil_base::TargetProfile::default(),
+                source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: source.module_id,
+                    aliases: &aliases,
+                    declarations: source_context::DeclarationPlacement::Original,
+                },
+            )
+            .map(|expanded| expanded.core)
+        };
+        let reference = run(Limits::default().max_analysis_steps).unwrap();
+        assert_eq!(reference.life_instances.len(), 12);
+        let (mut lo, mut hi) = (1, Limits::default().max_analysis_steps);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            match run(mid) {
+                Ok(_) => hi = mid,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .any(|error| error.category == zil_base::ResultCategory::ResourceLimit)
+                    );
+                    lo = mid + 1;
+                }
+            }
+        }
+        assert_eq!(run(lo).unwrap(), reference);
+        assert!(
+            run(lo - 1)
+                .unwrap_err()
+                .iter()
+                .any(|error| error.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(lo).unwrap(), reference);
+        eprintln!("stored source common-prefix work boundary N={lo}");
+    }
 }

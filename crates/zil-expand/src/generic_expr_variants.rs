@@ -375,12 +375,7 @@ impl Engine<'_> {
                     Some(ItemKind::Aggregate(_))
                 )
             {
-                if self.stored_nominals
-                    && self
-                        .templates
-                        .get(template)
-                        .is_some_and(|item| stored_nominal::has_life(item))
-                {
+                if self.stored_nominals && self.stored_declaration(template, e.span)? {
                     let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
                     t.kind = ExprKind::Name(name);
                 } else {
