@@ -1379,6 +1379,10 @@ impl Check<'_, '_, '_> {
                 Ok(())
             }
             PatternKind::Wildcard => Ok(()),
+            PatternKind::ErrorArm { .. } => Err(error(
+                pattern.span,
+                "ordinary binding requires an irrefutable pattern",
+            )),
             PatternKind::Tuple(patterns) => {
                 let fields = match &group(ty).kind {
                     TypeKind::Tuple(fields) => fields.as_slice(),
@@ -4475,6 +4479,14 @@ impl Check<'_, '_, '_> {
                         }
                     }
                 }
+                StmtKind::Binding { pattern, .. }
+                    if matches!(pattern.kind, PatternKind::ErrorArm { .. }) =>
+                {
+                    return Err(error(
+                        pattern.span,
+                        "ordinary binding requires an irrefutable pattern",
+                    ));
+                }
                 StmtKind::Binding {
                     pattern,
                     ty,
@@ -4673,6 +4685,30 @@ impl Check<'_, '_, '_> {
                 }
                 StmtKind::Expression(e) => {
                     self.expr(e, state, None, false)?;
+                }
+                StmtKind::If {
+                    condition: Condition::Let { pattern, value },
+                    then_body,
+                    else_body,
+                } => {
+                    let checked = self.enum_if_let(
+                        pattern,
+                        value,
+                        then_body,
+                        else_body.as_ref(),
+                        state,
+                        statement.span,
+                    )?;
+                    flow.returns |= checked.returns;
+                    flow.fallthrough = checked.fallthrough;
+                }
+                StmtKind::While {
+                    condition: Condition::Let { pattern, value },
+                    body,
+                } => {
+                    let checked =
+                        self.enum_while_let(pattern, value, body, state, statement.span)?;
+                    flow.returns |= checked.returns;
                 }
                 StmtKind::If {
                     condition: Condition::Expression(condition),

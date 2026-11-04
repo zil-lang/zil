@@ -368,6 +368,18 @@ impl Parser<'_> {
                     mutable,
                     pattern: Box::new(p.pattern()?),
                 }
+            } else if p.eat(Symbol::Dot) {
+                let is_error = if p.eat_word("ok") {
+                    false
+                } else if p.eat_word("err") {
+                    true
+                } else {
+                    return p.fail("E-PARSE-PATTERN", "expected .ok(pattern) or .err(pattern)");
+                };
+                p.expect(Symbol::LParen)?;
+                let pattern = Box::new(p.pattern()?);
+                p.expect(Symbol::RParen)?;
+                PatternKind::ErrorArm { is_error, pattern }
             } else if p.eat(Symbol::LParen) {
                 PatternKind::Tuple(p.pattern_list()?)
             } else {

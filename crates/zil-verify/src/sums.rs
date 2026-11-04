@@ -1699,12 +1699,21 @@ impl Flow<'_> {
                     function,
                     arguments,
                 } => {
-                    let mut returned = self.instantiate(
-                        &self.summaries[function.0 as usize],
-                        arguments,
-                        state,
-                        budget,
-                    )?;
+                    let result_ty = &self.module.functions[function.0 as usize].return_type;
+                    resources::charge_payload(result_ty, budget)?;
+                    let mut returned = if result_ty.is_copy_value() {
+                        // Copy callees have no owning-source summary. Its
+                        // bottom placeholder is not an impossible runtime
+                        // value: rebuild all actual Copy alternatives.
+                        content(result_ty, None, &mut Vec::new(), false, budget)?
+                    } else {
+                        self.instantiate(
+                            &self.summaries[function.0 as usize],
+                            arguments,
+                            state,
+                            budget,
+                        )?
+                    };
                     returned.returned(budget)?;
                     if self.module.functions[function.0 as usize].result_mode == PassingMode::Create
                         && errors::managed_success(

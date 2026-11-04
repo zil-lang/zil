@@ -497,7 +497,9 @@ pub(super) fn hide(pattern: &Pattern, substitutions: &mut BTreeMap<String, TypeR
         PatternKind::Name(name) => {
             hide_name(name, substitutions);
         }
-        PatternKind::Reference { pattern, .. } => hide(pattern, substitutions),
+        PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
+            hide(pattern, substitutions)
+        }
         PatternKind::Tuple(patterns)
         | PatternKind::Constructor {
             arguments: patterns,
@@ -525,7 +527,9 @@ pub(super) fn scoped<'a>(
             PatternKind::Name(name) => substitutions
                 .get(name)
                 .is_some_and(|t| expression(t).is_some()),
-            PatternKind::Reference { pattern, .. } => shadows(pattern, substitutions),
+            PatternKind::Reference { pattern, .. } | PatternKind::ErrorArm { pattern, .. } => {
+                shadows(pattern, substitutions)
+            }
             PatternKind::Tuple(ps) | PatternKind::Constructor { arguments: ps, .. } => {
                 ps.iter().any(|p| shadows(p, substitutions))
             }

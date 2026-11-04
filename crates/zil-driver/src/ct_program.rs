@@ -914,6 +914,8 @@ impl Collector<'_> {
     fn pattern(&mut self, pattern: &CorePattern, depth: usize) -> CompileResult<()> {
         self.charge(depth)?;
         match &pattern.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, depth + 1)?,
             CorePatternKind::Tuple(fields) => {
                 for field in fields {
                     self.pattern(field, depth + 1)?;

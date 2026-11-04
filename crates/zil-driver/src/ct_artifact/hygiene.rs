@@ -106,7 +106,8 @@ impl Renamer<'_> {
     fn pattern(&mut self, pattern: &mut s::Pattern) -> CompileResult<()> {
         match &mut pattern.kind {
             s::PatternKind::Name(name) => self.bind(name, pattern.span),
-            s::PatternKind::Reference { pattern, .. } => self.pattern(pattern),
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => self.pattern(pattern),
             s::PatternKind::RecordConstructor { fields, .. } => {
                 // Only value binders are renamed. Member labels retain their
                 // source spelling for the later nominal field check.

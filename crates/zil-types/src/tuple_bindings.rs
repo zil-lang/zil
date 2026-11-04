@@ -19,6 +19,11 @@ fn validate(pattern: &CorePattern, remaining: &mut usize, depth_limit: usize) ->
         })?;
         match &pattern.kind {
             CorePatternKind::Name(_) | CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::ErrorArm { .. } => Err(error(
+                "E-PATTERN-REFUTABLE",
+                pattern.span,
+                "ordinary binding requires an irrefutable pattern",
+            )),
             CorePatternKind::Reference { pattern, .. } => {
                 visit(pattern, remaining, depth + 1, limit)
             }

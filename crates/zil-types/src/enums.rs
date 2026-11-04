@@ -105,6 +105,33 @@ pub(super) fn pattern_variant<'a>(
     expected: &'a Type,
     span: Span,
 ) -> R<(usize, &'a [Type])> {
+    if let Type::ErrorUnion {
+        error: error_ty,
+        result,
+    } = expected
+    {
+        if variant != TYPE_MEMBER {
+            return Err(error(
+                "E-MATCH-TYPE",
+                span,
+                "ErrorUnion member needs an exact payload type",
+            ));
+        }
+        return match (declared == error_ty.as_ref(), declared == result.as_ref()) {
+            (true, false) => Ok((1, std::slice::from_ref(error_ty.as_ref()))),
+            (false, true) => Ok((0, std::slice::from_ref(result.as_ref()))),
+            (true, true) => Err(error(
+                "E-ERROR-PATTERN-AMBIGUOUS",
+                span,
+                "equal error and success types need .ok or .err",
+            )),
+            _ => Err(error(
+                "E-MATCH-TYPE",
+                span,
+                "pattern type is not an exact ErrorUnion payload",
+            )),
+        };
+    }
     let Type::Enum { variants, .. } = expected else {
         return Err(error(
             "E-MATCH-TYPE",
@@ -280,6 +307,7 @@ enum Pattern {
     Constructor(Constructor, Vec<Pattern>),
 }
 struct Coverage<'a> {
+    error_arms: bool,
     remaining: &'a mut usize,
     depth_limit: usize,
     span: Span,
@@ -333,6 +361,25 @@ impl Coverage<'_> {
             CorePatternKind::Reference { pattern, .. } => {
                 self.pattern(pattern, ty, names, depth + 1)?
             }
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                self.error_arms = true;
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = ty
+                else {
+                    return Err(invalid());
+                };
+                Pattern::Constructor(
+                    Constructor::Variant(u32::from(*is_error)),
+                    vec![self.pattern(
+                        pattern,
+                        if *is_error { error_ty } else { result },
+                        names,
+                        depth + 1,
+                    )?],
+                )
+            }
             CorePatternKind::Bool(value) if *ty == Type::Bool => {
                 Pattern::Constructor(Constructor::Bool(*value), Vec::new())
             }
@@ -369,13 +416,22 @@ impl Coverage<'_> {
                 variant,
                 fields,
             } => {
-                if anonymous(ty) {
+                if anonymous(ty) || matches!(ty, Type::ErrorUnion { .. }) {
+                    self.error_arms |= matches!(ty, Type::ErrorUnion { .. });
                     let limits = Limits {
                         max_call_depth: self.depth_limit,
                         ..Limits::default()
                     };
-                    let work = inference::type_snapshot_work(ty, raw.span, &limits)?;
-                    self.spend(work.saturating_mul(2), depth)?;
+                    inference::charge_type_snapshot(ty, raw.span, &limits, self.remaining, 2)?;
+                    if self.error_arms {
+                        inference::charge_type_snapshot(
+                            declared,
+                            raw.span,
+                            &limits,
+                            self.remaining,
+                            1,
+                        )?;
+                    }
                 }
                 let (index, types) = pattern_variant(declared, variant, ty, raw.span)?;
                 if fields.len() != types.len() {
@@ -394,6 +450,37 @@ impl Coverage<'_> {
             }
             _ => return Err(invalid()),
         })
+    }
+    fn reserve_copies(
+        &mut self,
+        rows: &[Vec<Pattern>],
+        query: &[Pattern],
+        types: &[Type],
+        depth: usize,
+    ) -> R<()> {
+        if !self.error_arms {
+            return Ok(());
+        }
+        fn patterns(this: &mut Coverage<'_>, ps: &[Pattern], depth: usize) -> R<()> {
+            this.spend(ps.len() + 1, depth)?;
+            for p in ps {
+                if let Pattern::Constructor(_, fields) = p {
+                    patterns(this, fields, depth + 1)?;
+                }
+            }
+            Ok(())
+        }
+        let limits = Limits {
+            max_call_depth: self.depth_limit,
+            ..Limits::default()
+        };
+        for ty in types {
+            inference::charge_type_snapshot(ty, self.span, &limits, self.remaining, 2)?;
+        }
+        for row in rows {
+            patterns(self, row, depth)?;
+        }
+        patterns(self, query, depth)
     }
     fn useful(
         &mut self,
@@ -418,6 +505,7 @@ impl Coverage<'_> {
             return Ok(false);
         }
         if let Pattern::Constructor(constructor, fields) = &query[0] {
+            self.reserve_copies(rows, query, types, depth)?;
             let field_types = constructor_fields(constructor, &types[0]);
             let rows = specialize(rows, constructor, fields.len());
             let next = fields
@@ -431,10 +519,12 @@ impl Coverage<'_> {
                 .collect::<Vec<_>>();
             return self.useful(&rows, &next, &types, depth + 1);
         }
+        self.reserve_copies(&[], &[], types, depth)?;
         let constructors = match &types[0] {
             Type::Unit => vec![Constructor::Unit],
             Type::Bool => vec![Constructor::Bool(false), Constructor::Bool(true)],
             Type::Tuple(_) => vec![Constructor::Tuple],
+            Type::ErrorUnion { .. } => vec![Constructor::Variant(0), Constructor::Variant(1)],
             Type::Enum { variants, .. } => (0..variants.len())
                 .map(|i| Constructor::Variant(i as u32))
                 .collect(),
@@ -449,6 +539,7 @@ impl Coverage<'_> {
             _ => vec![Constructor::Opaque],
         };
         for constructor in constructors {
+            self.reserve_copies(rows, query, types, depth)?;
             let fields = constructor_fields(&constructor, &types[0]);
             let rows = specialize(rows, &constructor, fields.len());
             let next = std::iter::repeat_n(Pattern::Any, fields.len())
@@ -468,6 +559,9 @@ impl Coverage<'_> {
 fn constructor_fields(constructor: &Constructor, ty: &Type) -> Vec<Type> {
     match (constructor, ty) {
         (Constructor::Tuple, Type::Tuple(fields)) => fields.clone(),
+        (Constructor::Variant(index), Type::ErrorUnion { error, result }) => {
+            vec![if *index == 1 { error } else { result }.as_ref().clone()]
+        }
         (Constructor::Variant(index), Type::Enum { variants, .. }) => {
             variants[*index as usize].1.clone()
         }
@@ -501,6 +595,7 @@ impl Builder<'_, '_> {
     }
     pub(super) fn irrefutable_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
         let mut coverage = Coverage {
+            error_arms: false,
             remaining: &mut self.match_work_left,
             depth_limit: self.limits.max_call_depth,
             span: pattern.span,
@@ -627,7 +722,7 @@ impl Builder<'_, '_> {
         {
             return self.partial_pattern_match(expression, arms, span);
         }
-        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}))))
+        if (matches!(&expression.kind,CoreExprKind::Unary{op:UnaryOp::Dereference,operand} if matches!(self.known_type(operand),Some(Type::Address{inner,..}) if matches!(inner.as_ref(),Type::Enum{..}|Type::ErrorUnion{..}))))
             || arms
                 .iter()
                 .any(|a| reference_patterns::has_reference(&a.pattern))
@@ -684,6 +779,7 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<()> {
         let mut coverage = Coverage {
+            error_arms: false,
             remaining: &mut self.match_work_left,
             depth_limit: self.limits.max_call_depth,
             span,
@@ -753,6 +849,38 @@ impl Builder<'_, '_> {
                 bindings.push((name.clone(), value, ty.clone(), pattern.span))
             }
             CorePatternKind::Wildcard => {}
+            CorePatternKind::ErrorArm {
+                is_error,
+                pattern: payload,
+            } => {
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = ty
+                else {
+                    return Err(error(
+                        "E-MATCH-TYPE",
+                        pattern.span,
+                        "error arm requires an ErrorUnion",
+                    ));
+                };
+                let tag = self.value(
+                    InstructionKind::ErrorTag { value },
+                    Type::Bool,
+                    pattern.span,
+                )?;
+                self.pattern_branch(tag, Constant::Bool(*is_error), fail, pattern.span)?;
+                let payload_ty = if *is_error { error_ty } else { result };
+                let payload_value = self.value(
+                    InstructionKind::ReadErrorUnion {
+                        value,
+                        is_error: *is_error,
+                    },
+                    payload_ty.as_ref().clone(),
+                    pattern.span,
+                )?;
+                self.pattern_test(payload, payload_value, payload_ty, fail, bindings)?;
+            }
             CorePatternKind::Reference { .. } => {
                 return Err(unsupported(
                     pattern.span,
@@ -789,9 +917,7 @@ impl Builder<'_, '_> {
                 fields,
             } => {
                 if anonymous(ty) {
-                    let work = inference::type_snapshot_work(ty, pattern.span, self.limits)?;
-                    self.closures
-                        .snapshot(work.saturating_mul(2), pattern.span)?;
+                    self.closures.snapshot_type(ty, 2, 0, pattern.span)?;
                 }
                 let (index, types) = pattern_variant(declared, variant, ty, pattern.span)?;
                 let tag = self.value(

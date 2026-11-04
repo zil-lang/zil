@@ -87,6 +87,10 @@ impl Rewriter<'_> {
     fn pattern(&mut self, p: &CorePattern, names: &mut BTreeSet<String>, depth: usize) -> R<()> {
         self.charge(depth, p.span)?;
         match &p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => {
+                self.pattern(pattern, names, depth + 1)?
+            }
             CorePatternKind::Name(n) => {
                 names.insert(n.clone());
             }
@@ -358,6 +362,8 @@ impl BindingScan {
     fn pattern(&mut self, p: &CorePattern, d: usize) -> R<()> {
         self.charge(1, d, p.span)?;
         match &p.kind {
+            CorePatternKind::Reference { pattern, .. }
+            | CorePatternKind::ErrorArm { pattern, .. } => self.pattern(pattern, d + 1)?,
             CorePatternKind::Name(n) => {
                 self.scopes.last_mut().unwrap().insert(n.clone(), None);
             }

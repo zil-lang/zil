@@ -4,6 +4,7 @@ type PatternBindings = Vec<(String, ValueId, Type, Span)>;
 pub(super) fn has_reference(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { .. } => true,
+        CorePatternKind::ErrorArm { pattern, .. } => has_reference(pattern),
         CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. } => {
             fields.iter().any(has_reference)
         }
@@ -13,6 +14,7 @@ pub(super) fn has_reference(p: &CorePattern) -> bool {
 fn needs_mutable(p: &CorePattern) -> bool {
     match &p.kind {
         CorePatternKind::Reference { mutable, pattern } => *mutable || needs_mutable(pattern),
+        CorePatternKind::ErrorArm { pattern, .. } => needs_mutable(pattern),
         CorePatternKind::Tuple(fs) | CorePatternKind::Variant { fields: fs, .. } => {
             fs.iter().any(needs_mutable)
         }
@@ -252,14 +254,17 @@ impl Builder<'_, '_> {
     }
     pub(super) fn condition_uses_place(&self, p: &CorePattern, e: &CoreExpr) -> bool {
         has_reference(p)
-            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t))
+            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..}))
             || matches!(
                 &e.kind,
                 CoreExprKind::Unary {
                     op: UnaryOp::Dereference,
                     ..
                 }
-            ) && matches!(self.known_type(e), Some(Type::Enum { .. } | Type::Tuple(_)))
+            ) && matches!(
+                self.known_type(e),
+                Some(Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. })
+            )
     }
     pub(super) fn reference_condition(
         &mut self,
@@ -273,7 +278,10 @@ impl Builder<'_, '_> {
                 op: UnaryOp::Dereference,
                 ..
             }
-        ) && self.known_type(e).as_ref().is_some_and(owned_shapes::sum)
+        ) && self
+            .known_type(e)
+            .as_ref()
+            .is_some_and(|ty| owned_shapes::sum(ty) || matches!(ty, Type::ErrorUnion { .. }))
         {
             return self.partial_pattern_condition(p, e, fail);
         }
@@ -643,7 +651,9 @@ impl Builder<'_, '_> {
     ) -> R<()> {
         if matches!(
             p.kind,
-            CorePatternKind::Tuple(_) | CorePatternKind::Variant { .. }
+            CorePatternKind::Tuple(_)
+                | CorePatternKind::Variant { .. }
+                | CorePatternKind::ErrorArm { .. }
         ) {
             fn profile(ty: &Type) -> (bool, bool) {
                 let fold = |fields: &[Type]| {
@@ -853,6 +863,41 @@ impl Builder<'_, '_> {
         self.closures.snapshot(path.len() + 1, p.span)?;
         match &p.kind {
             CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Tuple(fields) if fields.is_empty() && *ty == Type::Unit => Ok(()),
+            CorePatternKind::ErrorArm { is_error, pattern } => {
+                let Type::ErrorUnion {
+                    error: error_ty,
+                    result,
+                } = ty
+                else {
+                    return Err(error(
+                        "E-MATCH-TYPE",
+                        p.span,
+                        "error arm requires an ErrorUnion",
+                    ));
+                };
+                let tag = self.value(
+                    InstructionKind::PlaceTagAddress {
+                        address,
+                        path: path.clone(),
+                    },
+                    Type::I32,
+                    p.span,
+                )?;
+                self.pattern_branch(tag, Constant::I32(i32::from(*is_error)), fail, p.span)?;
+                path.push(zil_ir::PlaceProjection::ErrorArm(*is_error));
+                self.reference_mixed_address_test(
+                    pattern,
+                    address,
+                    path,
+                    if *is_error { error_ty } else { result },
+                    available,
+                    fail,
+                    bindings,
+                )?;
+                path.pop();
+                Ok(())
+            }
             CorePatternKind::Tuple(fields) if matches!(ty, Type::Tuple(_)) => {
                 let Type::Tuple(types) = ty else {
                     unreachable!()

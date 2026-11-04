@@ -107,6 +107,10 @@ impl Expander<'_> {
                 mutable: *mutable,
                 pattern: Box::new(self.pattern(pattern)),
             },
+            s::PatternKind::ErrorArm { is_error, pattern } => CorePatternKind::ErrorArm {
+                is_error: *is_error,
+                pattern: Box::new(self.pattern(pattern)),
+            },
             s::PatternKind::Literal(s::Literal::Integer(value)) => {
                 CorePatternKind::Integer(value.clone())
             }

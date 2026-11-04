@@ -33,7 +33,8 @@ impl Selection<'_, '_> {
         self.compiler.budget.depth(depth, pattern.span)?;
         match &pattern.kind {
             s::PatternKind::Name(name) => self.bind(locals, name, domain, pattern.span)?,
-            s::PatternKind::Reference { pattern, .. } => {
+            s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern(locals, pattern, domain, depth + 1)?
             }
             s::PatternKind::RecordConstructor { fields, .. } => {

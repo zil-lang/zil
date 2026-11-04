@@ -1,0 +1,9 @@
+# 340 direct ErrorUnion patterns
+
+Root norm/grammar dcc036b76 and public AST 8b3d69aa1 define `.ok(pattern)` and `.err(pattern)` against the actual ErrorUnion success/error discriminant. Parsing does not inspect types. Coverage and definition checking retain both tags even when payload types coincide. Generic definitions must check both selected payload types before instantiation; `Copy` does not establish distinct identity.
+
+Lowering reuses actual `ErrorArm(bool)` mixed place paths and existing local/address tag, borrow and take operations. It tests the complete pattern before publishing any reference or moving a payload, retains the parent for partial cleanup, and uses the established tag epochs and parent-loan checks in both independent kernels. A unit payload has no physical projection to read. Native cleanup remains declaration order. Type-name member patterns remain exact full-type selection and require definition-time provable uniqueness; explicit tags cover generic same-type possibilities.
+
+Validation will include both owning arms/drop-once, nested mutable/shared references, equal-type raw values, unused generic negative definitions, raw/decoded-Wire stale proofs and source/native O0/O2 profiles. Reservation121–124, captured-owning-base and partial Product-root obligations remain separately in construction.
+
+Both-owning ErrorUnion arms exposed an existing compile-time temporary-debt bug: the first successful arm drained the common prepared owner list, leaving later mutually exclusive arms without shell cleanup. Each consuming arm now restores the same bounded pending-tail snapshot above the caller's statement floor, then emits its own cleanup before publication. The enclosing prepared owners remain in the prefix. The same narrow correction applies to the existing consuming Enum matcher. Actual branches still own one activation; no runtime owner is copied.

@@ -11,6 +11,253 @@ use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn terminal340_error_arm_patterns_native() {
+    let text = r#"enum F{Bad}fn number(x:F!i32)->i32{match x{.ok(n)=>{return n},.err(F.Bad())=>{return 0}}}fn make(b:bool)->F!i32{if b{return 42}else{return F.Bad()}}fn result()->i32{return number(make(true))+number(make(false))}"#;
+    review329_native(&[("main", text)], 42);
+    let generic = r#"enum F{Bad}fn get<T:Copy>(x:F!T,fallback:T)->T{match x{.ok(n)=>{return n},.err(_)=>{return fallback}}}fn make()->F!i32{return 42}fn result()->i32{return get(make(),0)}"#;
+    review329_native(&[("main", generic)], 42);
+    for body in [
+        "if let .ok(n)=x{return n}return fallback",
+        "while let .ok(n)=x{return n}return fallback",
+    ] {
+        let generic = format!(
+            "enum F{{Bad}}fn get<T:Copy>(x:F!T,fallback:T)->T{{{body}}}fn make()->F!i32{{return 42}}fn result()->i32{{return get(make(),0)}}"
+        );
+        review329_native(&[("main", &generic)], 42);
+    }
+    let unit = r#"enum F{Bad}fn make()->F!(){return ()}fn result()->i32{match make(){.ok(())=>{return 42},.err(_)=>{return 0}}}"#;
+    review329_native(&[("main", unit)], 42);
+    let named = r#"enum F{Bad}type Number=i32;fn make()->F!Number{return 42}fn result()->i32{match make(){Number(n)=>{return n},F(F.Bad())=>{return 0}}}"#;
+    review329_native(&[("main", named)], 42);
+    let same = "fn inspect<T:Copy>(x:T!T)->i32{match x{.ok(_)=>{return 42},.err(_)=>{return 0}}}fn concrete(x:i32!i32)->i32{match x{.ok(_)=>{return 42},.err(_)=>{return 0}}}fn result()->i32{return 42}";
+    review329_native(&[("main", same)], 42);
+}
+
+#[test]
+fn terminal340_error_arm_owned_and_borrowed_native() {
+    review329_native_output(
+        &[(
+            "main",
+            include_str!("../../../tests/language-readiness/terminal/340/error-arms.zil"),
+        )],
+        b"AXBX42\n",
+    );
+    let prefix = r#"extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages r:R;n:i32}package Failure{manages r:R;n:i32}"#;
+    for (body, expected) in [
+        (
+            "enum E{Left(P),Right(P)}fn make(b:bool)->E{if b{return E.Left(P{r:R{code:65},n:20})}return E.Right(P{r:R{code:66},n:22})}fn work(b:bool)->i32{match make(b){E.Left(p)=>{let n=p.n;return n},E.Right(p)=>{let n=p.n;return n}}}fn result()->i32{return work(true)+work(false)}",
+            "AB42\n",
+        ),
+        (
+            "fn make(b:bool)->Failure!P{if b{return P{r:R{code:65},n:20}}return Failure{r:R{code:66},n:22}}fn work(b:bool)->i32{match make(b){.ok(p)=>{let n=p.n;return n},.err(p)=>{return p.n}}}fn result()->i32{return work(true)+work(false)}",
+            "AB42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:42}}fn result()->i32{var value=make();match value{.ok(ref p)=>{let n=p.n;return n},.err(_)=>{return 0}}}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:20}}fn work(value:&mut(F!P))->i32{match *value{.ok(ref mut p)=>{p.n+=22;return p.n},.err(_)=>{return 0}}}fn result()->i32{var value=make();return work(&mut value)}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!P{return P{r:R{code:65},n:42}}fn result()->i32{var value=make();if let .ok(ref p)=value{return p.n}return 0}",
+            "A42\n",
+        ),
+        (
+            "enum F{Bad}fn make()->F!i32{return 20}fn work(value:&mut(F!i32))->i32{match *value{.ok(ref mut p)=>{*p+=22;return *p},.err(_)=>{return 0}}}fn result()->i32{var value=make();return work(&mut value)}",
+            "42\n",
+        ),
+    ] {
+        eprintln!("340 ErrorUnion owning case {body}");
+        let text = format!("{prefix}{body}");
+        review329_native_output(&[("main", &text)], expected.as_bytes());
+    }
+}
+
+#[test]
+fn terminal340_error_arm_equal_type_raw_wire_and_native() {
+    use zil_ir::{Constant, PlaceProjection};
+    let text = "fn make()->i32!bool{return true}fn inspect(value:&(i32!bool))->i32{match *value{.ok(ref n)=>{return 42},.err(_)=>{return 0}}}fn result()->i32{let value=make();return inspect(&value)}";
+    let input = source(text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    fn substitute(ty: &mut Type) {
+        match ty {
+            Type::ErrorUnion { result, .. } => **result = Type::I32,
+            Type::Address { inner, .. } => {
+                if **inner == Type::Bool {
+                    **inner = Type::I32
+                } else {
+                    substitute(inner)
+                }
+            }
+            _ => {}
+        }
+    }
+    for f in &mut raw.functions {
+        substitute(&mut f.return_type);
+        for local in &mut f.locals {
+            substitute(&mut local.ty)
+        }
+        for ty in &mut f.values {
+            substitute(ty)
+        }
+        for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if matches!(i.kind, InstructionKind::Constant(Constant::Bool(true))) {
+                i.kind = InstructionKind::Constant(Constant::I32(7));
+                f.values[i.result.unwrap().0 as usize] = Type::I32;
+            }
+        }
+    }
+    let entry = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "result")
+        .unwrap()
+        .id;
+    for is_error in [false, true] {
+        let mut candidate = raw.clone();
+        for i in candidate
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::MakeErrorUnion { is_error: e, .. } = &mut i.kind {
+                *e = is_error
+            }
+        }
+        let plan = zil_analyze::analyze(&candidate, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&candidate, &plan, &limits).unwrap();
+        let verified = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        assert_eq!(verified.module(), &candidate);
+        let lir = zil_lower::lower(&verified).unwrap();
+        for backend in [
+            zil_backend_llvm::NativeBackend::Clang,
+            zil_backend_llvm::NativeBackend::LlvmApi,
+        ] {
+            if backend == zil_backend_llvm::NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [
+                zil_backend_llvm::Optimization::O0,
+                zil_backend_llvm::Optimization::O2,
+            ] {
+                let out = Temp::new();
+                let mut options = zil_backend_llvm::BuildOptions::new(out.0.join("program"));
+                options.backend = backend;
+                options.optimization = optimization;
+                options.emit.entry = zil_backend_llvm::EntryPoint::ReturnValue(entry);
+                let built = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+                let ran = Command::new(built.executable).output().unwrap();
+                assert!(ran.status.success(), "{ran:?}");
+                assert_eq!(
+                    ran.stdout,
+                    if is_error {
+                        b"0\n".as_slice()
+                    } else {
+                        b"42\n".as_slice()
+                    }
+                );
+            }
+        }
+    }
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let mut wrong = raw.clone();
+    let projection = wrong
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| match &mut i.kind {
+            InstructionKind::BorrowPlaceAddress { path, .. }
+                if path == &[PlaceProjection::ErrorArm(false)] =>
+            {
+                Some(path)
+            }
+            _ => None,
+        })
+        .unwrap();
+    projection[0] = PlaceProjection::ErrorArm(true);
+    assert!(zil_analyze::analyze(&wrong, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = wrong.fingerprint();
+    assert!(zil_verify::verify_module(wrong.clone(), claim.clone(), &target, &limits).is_err());
+    let wire = zil_ir::wire::encode_module_candidate(&wrong, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+#[test]
+fn terminal340_error_arm_budget_fresh_and_warm() {
+    use zil_driver::CompilationSession;
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/error-arms.zil"
+    ));
+    let options = |work| CompileOptions {
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let r = compile_source(&input, &options(mid));
+        match r.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", r.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (n, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("340 direct ErrorUnion patterns N={low}, N-1 rejects, fresh/warm agree");
+}
+
+#[test]
+fn terminal340_error_arm_patterns_definition_neighbors() {
+    for text in [
+        "enum F{Bad}fn make()->F!i32{return 42}fn result()->i32{let .ok(n)=make();return n}",
+        "fn bad<T:Copy>(x:i32!T)->T{let .ok(n)=x;return n}fn result()->i32{return 0}",
+        "enum F{Bad}fn bad(value:F!i32)->i32{match value{.ok(ref self)=>{return 0},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "enum F{Bad}fn bad(value:F!i32)->i32{match value{.ok(ref u64)=>{return 0},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T,fallback:T)->T{if let .err(n)=x{return n}return fallback}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T,fallback:T)->T{while let .err(n)=x{return n}return fallback}fn result()->i32{return 0}",
+        "enum F{Bad}fn make()->F!i32{return 42}fn result()->i32{var value=make();match value{.ok(ref n)=>{value=F.Bad();return *n},.err(_)=>{return 0}}}",
+        "enum Failure{Bad}fn bad<T:Copy>(x:Failure!T)->i32{match x{Failure(_)=>{return 0},T(_)=>{return 1}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T)->T{match x{.ok(n)=>{return n}}}fn result()->i32{return 0}",
+        "fn bad<T:Copy>(x:i32!T)->T{match x{.ok(n)=>{return n},.err(n)=>{return n}}}fn result()->i32{return 0}",
+        "fn bad(x:i32)->i32{match x{.ok(n)=>{return n},.err(_)=>{return 0}}}fn result()->i32{return 0}",
+        "fn bad(x:i32!bool)->i32{match x{.ok(_)=>{return 0},.ok(_)=>{return 1},.err(n)=>{return n}}}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{text}\n{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn terminal340_fnptr_record_enum_result_inference() {
     let text = "enum E{Data{n:i32},Empty}fn keep(x:E)->E{return x}fn result()->i32{let pass:fn(E)->E=keep;let value=pass(E.Data{n:42});match value{E.Data{n:x}=>{return x},E.Empty()=>{return 0}}}";
     review329_native(&[("main", text)], 42);
