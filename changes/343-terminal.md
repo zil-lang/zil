@@ -472,3 +472,15 @@ split recursive dispatch paths. Combined generic_regressions59/0 and IR lib61/0
 pass, including actual static child/C SABI/native failure and retained Registration
 composition. Higher-rank life transport remains temporarily fail-closed until
 corrected342 proof consumers are composed; no source role is silently erased.
+
+### Scalar synchronization library identity correction
+
+The original-source library probe exports an ordinary helper taking
+`&AtomicI32` or `&MutexI32`, then calls it from the existing real thread scope.
+Those argument shapes are already admitted, but the Types scalar-interface
+identity walker lacked the sealed SyncCell leaf and panicked. Add the existing
+kind-bearing tag30 identity to this private interface walker; retain the exact
+kind and all ordinary source/root/operation checks. No schema, access grant or
+general Transfer/Share claim follows. The regression must exercise both cell
+kinds through imported public helpers, both native backends, and distinguish
+their signature identities when names and remaining signatures are the same.

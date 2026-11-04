@@ -15,6 +15,62 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
+    );
+    for count in [0, 1, 2, 4, 7] {
+        let (ty, value) = if count == 0 {
+            ("bool".to_string(), "true".to_string())
+        } else if count == 1 {
+            ("[i32;1]".to_string(), "[1]".to_string())
+        } else {
+            (
+                format!("({})", vec!["[i32;1]"; count].join(",")),
+                format!("({})", vec!["[1]"; count].join(",")),
+            )
+        };
+        for reverse in [false, true] {
+            for between in [false, true] {
+                let body = if between {
+                    "let first=p.a(true);let same=identity::<T>(value);return first+p.b(true)"
+                } else {
+                    "let same=identity::<T>(value);return p.a(true)+p.b(true)"
+                };
+                let body = if reverse {
+                    body.replace("p.a(true)", "p.TEMP(true)")
+                        .replace("p.b(true)", "p.a(true)")
+                        .replace("p.TEMP(true)", "p.b(true)")
+                } else {
+                    body.into()
+                };
+                let text = original
+                    .replace("([i32;1],[i32;1],[i32;1],[i32;1])", &ty)
+                    .replace("([1],[2],[3],[4])", &value)
+                    .replace(
+                        "let same=identity::<T>(value);return p.a(true)+p.b(true)",
+                        &body,
+                    );
+                native_both(&[("main", &text)]);
+            }
+        }
+    }
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-method-impl-growth.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-method-default-growth.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/generic-method-const-growth.zil"
+        ),
+    ] {
+        native_both(&[("main", text)]);
+    }
+}
+
+#[test]
 fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances() {
     native_both(&[(
         "main",
@@ -351,7 +407,7 @@ fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
 fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
-        "../../../tests/language-readiness/terminal/341/generic-method-shared-spans.zil"
+        "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
     ));
     let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
     let function = ast
@@ -365,7 +421,7 @@ fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
     let FunctionBody::Block(block) = &mut function.body else {
         unreachable!()
     };
-    let StmtKind::Return(Some(expression)) = &mut block.statements[0].kind else {
+    let StmtKind::Return(Some(expression)) = &mut block.statements.last_mut().unwrap().kind else {
         unreachable!()
     };
     let ExprKind::Binary { left, right, .. } = &mut expression.kind else {
@@ -381,6 +437,13 @@ fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
         object
     }
     receiver(right).span = receiver(left).span;
+    fn call_site(expression: &mut zil_syntax::ast::Expr) -> &mut zil_syntax::ast::Expr {
+        let ExprKind::Call { callee, .. } = &mut expression.kind else {
+            unreachable!()
+        };
+        callee
+    }
+    call_site(right).span = call_site(left).span;
     let positions = ast
         .items
         .iter()
@@ -1069,6 +1132,18 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("associated-constants", associated_constants_source),
         ("associated-constant-computed", computed_constants_source),
         ("ct-generic-type-syntax-reflection", ct_source),
+        (
+            "generic-method-substitution-growth",
+            include_str!(
+                "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
+            ),
+        ),
+        (
+            "generic-method-const-growth",
+            include_str!(
+                "../../../tests/language-readiness/terminal/341/generic-method-const-growth.zil"
+            ),
+        ),
         (
             "generic-method-no-outer",
             include_str!(

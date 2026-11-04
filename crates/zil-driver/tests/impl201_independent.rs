@@ -270,12 +270,19 @@ fn actual_callee_window_precedes_argument_preparation_and_keeps_parent_authority
         "return view.callback(delta)-1",
         "let child=&mut view.callback;view.value+=1;return child(delta)-1",
     );
+    // Both kernels prove these concrete fields disjoint while retaining the
+    // actual Store/parent dependency; the original source is unchanged.
+    native("actual-child-disjoint-parent-field", &child, "T", 0);
+    let overlap = source.replace(
+        "return view.callback(delta)-1",
+        "let child=&mut view.callback;view.callback(delta);return child(delta)-2",
+    );
     rejected(
-        "actual-child-blocks-parent-write",
-        &child,
+        "actual-child-blocks-same-callback",
+        &overlap,
         ResultCategory::SafeReject,
-        &[Phase::Verify],
-        "E-BORROW-CONFLICT",
+        &[Phase::Expand],
+        "E-GENERIC-ARGUMENT",
     );
     let twice = source.replace(
         "return view.callback(delta)-1",
@@ -307,13 +314,17 @@ fn main()->i32{return run(pack(make(7u8)))}
 #[test]
 fn lending_result_keeps_actual_element_and_parent_until_last_use() {
     native("lending-last-use-before-reserve", LENDING, "", 0);
+    let sibling = LENDING.replace(
+        "let value=i32(bytes[0]);",
+        "view.value+=1;let value=i32(bytes[0]);",
+    );
+    native("live-lending-disjoint-parent-field", &sibling, "", 0);
     for (label, invalidation) in [
         ("reserve", "store_reserve(items,2);"),
         ("reserve-with-enough-capacity", "store_reserve(items,1);"),
         ("reserve-that-would-fail", "store_reserve(items,-1);"),
         ("pop", "store_pop(items);"),
         ("recall", "view.callback();"),
-        ("parent-copy-write", "view.value+=1;"),
     ] {
         let bad = LENDING.replace(
             "let value=i32(bytes[0]);",
@@ -323,16 +334,8 @@ fn lending_result_keeps_actual_element_and_parent_until_last_use() {
             &format!("live-lending-{label}"),
             &bad,
             ResultCategory::SafeReject,
-            if label != "parent-copy-write" {
-                &[Phase::Expand]
-            } else {
-                &[Phase::Verify]
-            },
-            if label != "parent-copy-write" {
-                "E-GENERIC-ARGUMENT"
-            } else {
-                "E-BORROW-CONFLICT"
-            },
+            &[Phase::Expand],
+            "E-GENERIC-ARGUMENT",
         );
     }
 }
@@ -815,4 +818,104 @@ fn callback_store_has_bounded_fresh_phase_work_without_raising_defaults() {
         .map(|_| ())
     });
     Case::new("exact-budgets").write("boundaries.json", format!("{{\"expand\":{expand},\"types\":{types},\"analyze\":{analyze},\"verify\":{verify},\"checks\":\"N, N-1 ResourceLimit, fresh N\",\"defaults_unchanged\":true}}\n"));
+}
+
+#[test]
+fn disjoint_callback_fields_do_not_allow_a_second_parent_reborrow() {
+    let source = format!("{PREFIX}{WINDOW}").replace(
+        "return view.callback(delta)-1",
+        "let child=&mut view.callback;view.value+=1;return child(delta)-1",
+    );
+    let (mut module, original) = baseline("disjoint-child-raw-baseline", &source);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|function| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| matches!(instruction.kind, I::OwnedStoreBorrowMut { .. }))
+        })
+        .unwrap();
+    let (block, position) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block.instructions.iter().position(|instruction| {
+            matches!(instruction.kind, I::ReborrowAddress { mutable: true, .. })
+                && matches!(instruction.result.map(|value| &function.values[value.0 as usize]),
+                    Some(Type::Address { inner, .. }) if matches!(inner.as_ref(), Type::Closure(_)))
+        }).map(|position| (block_index, position))
+        })
+        .unwrap();
+    let mut duplicate = function.blocks[block].instructions[position].clone();
+    let old_result = duplicate.result.unwrap();
+    let result = ValueId(function.values.len() as u32);
+    function
+        .values
+        .push(function.values[old_result.0 as usize].clone());
+    duplicate.result = Some(result);
+    function.blocks[block]
+        .instructions
+        .insert(position + 1, duplicate);
+    raw_reject(
+        "disjoint-fields-do-not-permit-same-callback-parent-reborrow",
+        module,
+        original,
+        true,
+        ResultCategory::SafeReject,
+        "E-BORROW-CONFLICT",
+    );
+}
+
+#[test]
+fn disjoint_value_write_does_not_allow_recalling_a_lending_callback() {
+    let source = LENDING.replace(
+        "let value=i32(bytes[0]);",
+        "view.value+=1;let value=i32(bytes[0]);",
+    );
+    let (mut module, original) = baseline("disjoint-lending-raw-baseline", &source);
+    let function = module
+        .functions
+        .iter_mut()
+        .find(|function| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| matches!(instruction.kind, I::OwnedStoreBorrowMut { .. }))
+        })
+        .unwrap();
+    let (block, position) = function
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block_index, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|instruction| matches!(instruction.kind, I::CallClosureBorrowed { .. }))
+                .map(|position| (block_index, position))
+        })
+        .unwrap();
+    let mut duplicate = function.blocks[block].instructions[position].clone();
+    let old_result = duplicate.result.unwrap();
+    let result = ValueId(function.values.len() as u32);
+    function
+        .values
+        .push(function.values[old_result.0 as usize].clone());
+    duplicate.result = Some(result);
+    function.blocks[block]
+        .instructions
+        .insert(position + 1, duplicate);
+    raw_reject(
+        "disjoint-value-write-does-not-permit-same-callback-recall",
+        module,
+        original,
+        true,
+        ResultCategory::SafeReject,
+        "E-BORROW-CONFLICT",
+    );
 }

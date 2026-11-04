@@ -222,7 +222,7 @@ check_access(op, state):
 
 对普通 Desc，复制只传播来源；读取/写入的短权限在实际操作时核验。因此同源“读完再写”可合法，而“先失效再读”拒绝。对 `&T`，窗口期间相交写仍拒绝，即使对象地址保持不变。对 `&mut T`，相交的另一个可独立使用窗口仍拒绝。
 
-本轮不开放对任意普通 Value 建立可共享可写的新引用模式。将来若确有必要，应单独给出其源面、内存模型、线程规则、FFI及优化属性，而不是悄悄重解释现有 `&`。
+不开放对任意普通 Value 建立可共享可写的新引用模式。将来若确有必要，应单独给出其源面、内存模型、线程规则、FFI及优化属性，而不是悄悄重解释现有 `&`。
 
 ### 4.4 受限独占 Store 元素窗口
 
@@ -230,7 +230,7 @@ check_access(op, state):
 
 窗口可读取及更新其 Copy 字段和这些字段内已支持的 Copy 投影；不复制整个 Package、不取走或覆盖 Managed 字段、不制造部分初始化孔洞。传给具有受支持明确地址参数的同步 helper 必须保持来源与独占重借关系。返回、直接保存到拥有环境或逃逸均须额外合同，当前片不开放。
 
-201的有限callback元素profile另允许借入实际元素中的直接具体回调字段：Fn使用共享窗口，FnMut要求独占窗口，沿真实元素地址、字段索引和环境重借形成调用位置。FnOnce不得从借入元素消费；须先合法pop取得完整拥有元素，再沿普通拥有字段规则调用。字段和重借的派生必须继续持有父Store的结构依赖，lending结果继续持有真实环境/元素依赖；不能因从Package地址转为Closure地址而清空来源或提前结束窗口。本片仍保守按相交Store前缀核窗口，两个动态索引或两个字段不自动获得并行apart权限。
+201的有限callback元素profile另允许借入实际元素中的直接具体回调字段：Fn使用共享窗口，FnMut要求独占窗口，沿真实元素地址、字段索引和环境重借形成调用位置。FnOnce不得从借入元素消费；须先合法pop取得完整拥有元素，再沿普通拥有字段规则调用。字段和重借的派生必须继续持有父Store的结构依赖，lending结果继续持有真实环境/元素依赖；不能因从Package地址转为Closure地址而清空来源或提前结束窗口。Store结构依赖仍按相交前缀保守保持；只有两核从同一实际元素、已核内联布局和具体字段路径独立证明区间不相交时，才可分离这些字段的访问窗口。此分离不缩短父Store结构依赖或真实父借用，不许可重入同一回调、破坏仍有lending结果的环境、移动/替换父壳或执行相交Store结构操作。不同动态索引、字段名、同型值和未知或符号捕获来源不自行构成apart证明。
 
 独占窗口与相交共享、独占及结构操作互斥；不同未知索引不产生不交证明。reserve、push、pop、give、drop、拥有字段替换和父壳移动均按实际已发布 may 效果检查。最后实际使用结束后方可执行失效操作，不能在当前调用仍以实参或捕获使用时提前结束窗口。该规则不增加运行时保活、别名表或世代。
 
@@ -834,9 +834,23 @@ SABI 保留 init/poll/request_cancel/poll_close/finish_destroy。poll/poll_close
 
 SuspendCall{function,arguments}以实际SSA结果槽表示恢复结果，opcode125；普通源码task_await(static_worker,args...)只在合法Suspend执行根内使用。静态Direct目标可经任务adapter调用而保留其普通Direct正文，不因被await引用改变目标选择；SuspendCall操作本身仍要求Suspend执行根。实参按源序准备一次，部分失败责任由父保持，child初始化提交时一次转入；父在Await重poll只恢复同一实例，不能重算实参或重建child。同一站点循环复用须前实例完全结算；相同worker不同活实例不合并。无环静态子帧按实际并存布局嵌入父稳定帧，有环要求显式BoxTask/arena/调用者存储边界，不隐式逐child堆装箱。参数借用在Pending、取消及draining期间由真实child帧持续持有，不能在源Call的SSA末用处提前结束。
 
-普通名义Poll<T>使用Pending、Ready(T)、Complete、Cancelled、Invalid，只有Ready持有且转交一次T；其它tag不得读取载荷。借child帧的结果须保留实际child/root直至loan结束，未实现该责任前拒绝相应签名，不把Ready直接当作可destroy。PendingExit保存真实退出原因及已准备结果责任，原位置仍核return读取/移动；cancel先通知实际活child，按既有创建序推进drain，主体异常优先，未观察结果按实际flag清理。poll_close允许真实Pending；Closed要求child、全部外部users/waker/no-future、结果与loan全部结清。Direct AutoDrop不挂起，只可消费已Closed或两核证明关闭必同步完成的实例；一般关闭由可推进的执行根/父帧接管，不以遇Pending后abort或遗忘handle替代。TaskI32外部ABI1保留，拥有T的外部SABI须另定完整参数/结果PassingMode、布局与版本符号，不能悄改ABI1。
+一般拥有任务使用普通名义Poll<T>{Pending,Ready(T)}，只有Ready持有且转交一次T；一般task_poll返回TaskPollState!Poll<T>，普通名义TaskPollState为Complete、Cancelled、Invalid，不在这些状态伪造T。TaskI32的兼容二元组及外部ABI1仍保留原五tag；借child帧的结果须保留实际child/root直至loan结束，未实现该责任前拒绝相应签名，不把Ready直接当作可destroy。PendingExit保存真实退出原因及已准备结果责任，原位置仍核return读取/移动；cancel先通知实际活child，按既有创建序推进drain，主体异常优先，未观察结果按实际flag清理。poll_close允许真实Pending；Closed要求child、全部外部users/waker/no-future、结果与loan全部结清。Direct AutoDrop不挂起，只可消费已Closed或两核证明关闭必同步完成的实例；一般关闭由可推进的执行根/父帧接管，不以遇Pending后abort或遗忘handle替代。TaskI32外部ABI1保留，拥有T的外部SABI须另定完整参数/结果PassingMode、布局与版本符号，不能悄改ABI1。
 
 联合公共Typed/Wire37保留342的调用局部life字段和callable contract5，并增加函数CallKind字节与SuspendCall125；Typed域为V37，旧Wire版本拒绝。此为接续消费者合同，公共登记、表示或单纯可解码不等于能力已实现。
+
+### 12.1.3 一般拥有Task与普通轮询值（343接续）
+
+联合Typed/Wire38增加密封载荷Type::Task{result:Box<Type>}（tag34）、CoreAggregateTypeRecipe::Task{result}与TaskCreate{worker,arguments}（opcode128）；126/127留给独立的地址路径接口。完整实际T保留在类型、泛型family实参、Wire/指纹、布局与清理身份中。Task<T>只在Managed/Desc及精确AddressMut(Managed(Task<T>))头边界合法，不开放任意Managed pointee。泛型recipe、类型形状或声明不证明帧/关闭/Transfer/Share资格；普通MakeManaged、ReadDesc、WriteDesc不得制造或揭示任务帧。
+
+源码task_create(static_worker,args...)是一般执行根；task_start/TaskI32保留显式兼容通路。TaskCreate不改变实际worker的Direct/Suspend选择，Direct目标保留普通正文并另有任务adapter。实参按普通源序及转交规则求值一次；提交给构造器的实际责任不回滚。结果为普通TaskCreateError!Task<T>，TaskCreateError只有Allocation；分配失败准确清理所有已转交输入一次，并仅返回错误分支，成功持有完整初始化的非空任务。不得返回bool加未初始化拥有头。失败清理的实际Cleanup效果进入调用选择；若可能挂起，必须由合法Suspend/推进根保持稳定部分输入责任，Direct不隐藏阻塞，也不以abort冒充一般清理完成。
+
+std.task.Poll<T>{Pending,Ready(T)}、TaskCreateError{Allocation}、TaskPollState{Complete,Cancelled,Invalid}由编译器提供的标准模块声明经普通名义Enum/family规则解析、实例化，保持真实模块/声明身份及完整T实参；并非新特权Type或另一套loan许可。用户可用已持有值构造、匹配普通变体。同形用户Enum不因此成为任务接口类型，普通Enum也不能制造Task拥有责任。Task边界的两个核分别核实际规范名义身份、完整T、活分支与真实责任；源码名字、形状或producer标志均不能代替这些检查。
+
+一般task_poll(&mut task)返回TaskPollState!Poll<T>；成功的Pending没有T，成功的Ready一次转交实际T，错误Complete/Cancelled/Invalid没有虚假T。结果槽有独立live/部分责任标志；完成先存入一次，Ready移出才清除该责任。取消/关闭须清未转交结果，Ready后取消不回收调用者的T。Invalid仅为防御性无效状态，不授予构造无效任务的资格。若T借入实际任务/child帧，真实帧及root须保持到loan结束；ComputationComplete不等于Closed。
+
+一般task_request_cancel(&mut task)持久、幂等地请求取消；一般task_poll_close(&mut task)返回普通Poll<Unit>，Pending保留完整拥有头、child、部分输入/结果、借入及外部user根；仅Ready(Unit)表示Closed。重复驱动不能重复移出结果、unlink或清理。关闭先通知全部活child，再按实际创建序排空，保留它们仍借用的父存储；PendingExit保持真实Normal/Error/Cancel/Panic及其责任，主体异常优先。结果/loan、全部child和外部users/wakers及实际no-future/drain均结清后才能Closed。task_finish_destroy(give task)仅消费Closed拥有头，不能提前释放。仅Closed或两核完整实际child/teardown/allocator图证明关闭必同步完成时，Direct默认Drop才合法；其它情况由可推进的显式根/父帧持有，而非遇Pending后遗忘或abort。TaskI32的既有nullable/Bool兼容行为不变。
+
+每个实际保存PC都须覆盖所有拥有责任：规范帧槽与live/partial/result标志对应真实局部、prepared输入及未消费临时；SSA别名没有第二份Drop资格。普通位置/loan/清理顺序由两个核分别重建，不能读取CandidatePlan责任位当证明。内联静态child、循环站点复用、并存实例、失败准备和一次Ready均进入真实布局、方法/Drop及cache身份，所有新增遍历与增长预付同一余额。拥有T的外部SABI仍须独立的完整参数/结果PassingMode、实际布局、版本与符号；本组不把scalar ABI1或旧TaskInterface描述冒充一般拥有外部接口。
 
 ### 12.2 异常与待退出状态
 
@@ -1285,6 +1299,20 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 
 可调用参数的高阶life关系（342）：`F: for<life a> Fn(&'a T)->&'a T`把FunctionLifeContract保留在CoreCallableParameter及Typed CallableRole，约束每次真实调用的输入/返回关系，固定环境Hold仍独立保留。未用定义须按声明关系验证，具体闭包的实际CFG返回根须在该次声明允许的输入集合内；固定捕获根不能洗为新调用binder。参数顺序、可变模式、密集binder、非空返回来源及同时活动窗口由两个核分别重建。源/Core签名依赖、JSON接口、Wire及缓存身份均包含关系，旧候选不能复用旧核验结论。新字段使旧无life角色字节也改变，因此该候选使用Typed/Wire36、typed module域V36、CallableParameterContract域5；CT artifact域2和CallableReturnContract域3在字节不变时保持。现有Type编码未变，不由角色字段自动更改Type身份域。只有完整消费者与独立证据完成后才升级实际接收版本，登记不算通过。
 
+普通有限借入存储共同合同（342，后继Wire38）：`BorrowedStorage{storage,life}`保留有限Record/Package/Tuple/Enum/ErrorUnion的完整底层布局与相对存储叶关系，不制造实际目标或权限。`StorageLifeShape`以声明顺序记录`StorageLifeSlot{path,binder,mode}`；路径仅含真实内联Field/Variant/ErrorArm，完整覆盖每个实际Address/Desc叶恰一次，保留实际tag与初始化。binder按首次出现规范密集编号；空、重复、漏项、错误模式、无用尾类、直接双wrapper及相互不一致的嵌套关系拒绝。可写/只读描述模式只是访问上界；Copy/StoreElement/capture/Transfer/Share、拥有叶责任与raw pointee资格仍分别证明。机器布局可擦除关系，语义身份不可擦除。
+
+`StorageLifeContract`把持久Fixed与每次新鲜Invocation分域，绑定到真实Parameter/Capture/Result及其完整位置。Fixed须从实际保留的载体类（capture、存储载体或dyn环境port）独立建立，不限语法Capture位置，但裸新调用输入/结果不能凭空引入Fixed。满足已有Fixed的调用不得缩短、重命名为新类或选择较短交集；结果只能引用已实际建立的类。声明同类不证明对象相同、不相交或可变权限。参数空路径选实际外层Address；非空物理路径最多在入口解开一次外层Address，不能隐式穿过存储Address/Desc。合同路径独立为`ContractProjection::Place`或终端`DynPort`；后者只在真实Address<Dyn>界面选择已核环境port，不是GEP、物理字段或加载权限。dyn值须保持接收者和映射到的实际目标根。
+
+`LoadStoredBorrow`（129）从实际storage Address和物理路径取得叶。CopyShared分离结果与指针槽epoch/短载体借用，保留真实目标拥有者、父loan链和不变Fixed上界；指针槽可换成仍满足同上界的另一合法目标。若旧目标实际由载体拥有，该拥有依赖不得被分离。CopyDescription的有效权限为实际存储事实、声明上界和实际base权限之交；共享载体或可变借入载体都不能将原只读描述升级。描述实际拥有Managed字段仍用既有DescribeAddress/DescribePackageField，不能与加载存储描述混同。Reborrow保留槽epoch/载体借用并建立真实子loan。Take转交实际许可、使原槽未初始化，保留目标祖先与Fixed上界；refill不使已转交许可失效，但第二次Take、重复独占目标或不完整整体move/call/return均拒绝。
+
+`StoreStoredBorrow`（130）要求真实独占storage、活的初始化祖先、精确叶类型/模式及同一不变上界；同时支持初始化叶替换和空槽refill。新Hold准备并核验后才结束旧权限/清理，所有相交call/result loan仍受保护。借入外部&mut载体在每条普通/错误返回须恢复声明的完整状态，或实际转入合法空enum分支；跨调用部分状态须另有真实状态协议，不能交还一个被假定完整的残缺值。部分本地清理只处理真实剩余责任；本合同不引入隐式Box、RC、pin或运行时借用检查。
+
+Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关系；涉及存储的签名以它为唯一声明关系，旧flat life若保留须是精确核验的导出投影，矛盾双合同拒绝。未调用定义、实际CFG、目标/alias/权限、导出与缓存分别由现有独立核检查。所有新扫描、路径比较、映射、clone、join、固定点及分配先从同一请求剩余额度付费；先界定深度/尺寸再递归分类。旧function/closure字节新增可选关系使Typed/Wire统一升38及TypedModule域V38；旧TypeIdentityV35/callable域在其既有字节不变时保持。恢复候选仍重新核验，不复用旧权限结论。
+
+名义life实参的AST `GenericArg::Lifetime`须保留真实参数种类、声明序号、词法scope及联合规范关系，字符串只为语法。普通`SliceIter<life s,T:Copy>`与`Option<&'s T>`及trait方法为真实库消费者，不设Iterator内建特权。CT BorrowedStorage节点16/构造器12保存实际storage子节点及完整shape，codec界定类数、路径、增长、分配和DAG边。全名义phantom/lifetime实参仍须有封闭数值scope引用、参数位置及种类核验；不能丢弃实参或使用自由life名字冒充完成，在该消费者落地前显式Unsupported并继续施工。
+
+Task<T>的结果类型不代表隐藏frame依赖；Create后尚未首次poll的入口PC0也保留全部实参/捕获/子frame依赖。当前仅有result类型的Task公共形状不许可借入frame导出或线程转移，除非独立证明没有外部frame依赖；一般借入Task需真实可检查的固定port及完整类型关系后继续开放。request_cancel或Ready不提前释放保留依赖，只有实际关闭排空才归还；Ready转出的借用继续保护实际目标和父链。storage签名单独增加行不能为无port的Task创造可检查的隐藏环境权限。
+
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 
 普通 Struct 的直接 Copy 参数约束（320）：在已有普通泛型 Struct 范围，类型参数可声明直接保留 `Copy` bound；每个 bound 只约束其具名参数，其余无 bound 参数保持原规则，不据此推断整个 Struct 为 Copy。字段声明及嵌套泛型应用在定义期核验，未使用的声明同样检查；内层 Copy obligation 须由当前真实 binder 的已声明约束证明，不能等实际 i32 特化后补证。实际实例逐一验证受约束参数的完整普通 Copy 资格，包含未出现在字段中的 phantom 参数；透明别名正规化、名义身份与完整实例键沿现有规则。此片不开放 aggregate where、任意 trait bound、Package/Resource 的新约束、方法或默认字段；既有字段资格保持。新增遍历/类型比较在增长前累计收费，默认额度不变，源正反例、实例身份和预算以及原生结果须实际核回。
@@ -1400,7 +1428,7 @@ TypedCFG、名义声明和候选计划可以由不可变共享快照承载。Ver
 
 对象 action key 至少覆盖规范化单元 LIR、实际布局/ABI与被消费依赖、目标三元组/CPU/features/data-layout、算术/异常模式、编译器与后端版本、优化 pipeline、调试/重定位/代码模型和相关运行时输入。链接键覆盖对象内容、顺序与链接器/选项/运行库。常量、CT、内联或LTO依赖按实际消费补入，不能只对函数正文哈希。
 
-缓存来自明确可信的构建环境，损坏或不匹配时按 miss 重建；错误、取消和半成品不缓存。内容哈希不能证明不可信对象文件与 LIR 语义一致。共享/远端缓存的真实性与权限必须单独纳入供应链可信边界；本轮不因有 SHA256 就默认信任任意缓存对象。
+缓存来自明确可信的构建环境，损坏或不匹配时按 miss 重建；错误、取消和半成品不缓存。内容哈希不能证明不可信对象文件与 LIR 语义一致。共享/远端缓存的真实性与权限必须单独纳入供应链可信边界；不因有 SHA256 就默认信任任意缓存对象。
 
 每次请求先满足当前语言核验，再按正确机器键复用对象。缓存命中不恢复一张过期安全许可，不抹掉当前源码的错误。局部机器输入未变而全局验证摘要变化，可以在上述条件下合法复用。
 
@@ -1420,7 +1448,7 @@ TypedCFG、名义声明和候选计划可以由不可变共享快照承载。Ver
 
 可借鉴按需求传播“泛型真正需要的布局/操作”来减少无意义实例，不据同尺寸合并不同 Drop、名义身份、错误或调用合同。存在化可作为后续独立开发构建实验，不和当前 ZUI 所需语言缺口捆绑交付，也不预设比单态化更快。
 
-访问/失效效果分析与用户可捕获/恢复的代数效应不是同一功能。本轮只精化前者及现有高阶合同，不引入隐式协程栈、多次恢复或新的动态分派。若未来引入后者，必须与第12章的存储、取消、清理、重入及帧责任共同证明。
+访问/失效效果分析与用户可捕获/恢复的代数效应不是同一功能。这里仅规定前者及现有高阶合同，不引入隐式协程栈、多次恢复或新的动态分派。若未来引入后者，必须与第12章的存储、取消、清理、重入及帧责任共同证明。
 
 <a id="ZIL-ACCEPT"></a>
 

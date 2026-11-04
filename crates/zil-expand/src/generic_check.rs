@@ -11,6 +11,7 @@ mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
     pub source_definition: Option<&'a Function>,
+    pub expression_origins: Option<&'a BTreeMap<usize, usize>>,
     pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
     pub nominals: &'a BTreeMap<String, &'l Item>,
     pub enums: &'a BTreeMap<String, &'l EnumDecl>,
@@ -40,6 +41,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
 ) -> R<()> {
     let ParametricTables {
         source_definition,
+        expression_origins,
         definition_equations,
         nominals,
         enums,
@@ -99,10 +101,14 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
-    let expression_ids = if traits.has_instances {
-        trait_instances::expression_ids(&function.body, budget)?
+    let expression_ids = if let Some(ids) = expression_origins {
+        Cow::Borrowed(ids)
     } else {
-        BTreeMap::new()
+        Cow::Owned(if traits.has_instances {
+            trait_instances::expression_ids(&function.body, budget)?
+        } else {
+            BTreeMap::new()
+        })
     };
     let higher_rank = callable
         .as_ref()
@@ -769,7 +775,7 @@ struct Check<'s, 'b, 'l> {
     dependencies: &'b mut helper_graph::Dependencies,
     bounds: trait_bounds::Bounds,
     trait_calls: &'b mut trait_instances::Calls,
-    expression_ids: BTreeMap<usize, usize>,
+    expression_ids: Cow<'s, BTreeMap<usize, usize>>,
     traits: &'s trait_bounds::Index<'l>,
     next_local: usize,
     enum_resource_flow: bool,
@@ -2387,6 +2393,7 @@ impl Check<'_, '_, '_> {
         state: &mut State,
     ) -> R<TypeRef> {
         let trait_methods::Arguments {
+            site,
             values: arguments,
             explicit,
             expected: expected_result,
@@ -2435,7 +2442,7 @@ impl Check<'_, '_, '_> {
                 .insert(
                     *self
                         .expression_ids
-                        .get(&(object as *const Expr as usize))
+                        .get(&(site as *const Expr as usize))
                         .ok_or_else(|| {
                             error(
                                 object.span,
@@ -3364,6 +3371,7 @@ impl Check<'_, '_, '_> {
                         &ty,
                         name,
                         trait_methods::Arguments {
+                            site: method_callee,
                             values: arguments,
                             explicit: method_explicit,
                             expected,
