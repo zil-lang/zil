@@ -2,7 +2,9 @@
 use super::*;
 mod drop_sync;
 mod owned;
-pub(super) use drop_sync::require as require_synchronous_drop;
+pub(super) use drop_sync::{
+    require as require_synchronous_drop, require_value as require_synchronous_value,
+};
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
