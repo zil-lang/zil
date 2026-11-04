@@ -102,6 +102,7 @@ fn closed(
             budget.spend(1, "registration stored environment shape")?;
             match t {
                 Type::Task { .. }
+                | Type::Dyn { .. }
                 | Type::Address { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }

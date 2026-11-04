@@ -378,7 +378,7 @@ pub(crate) fn walk_type<V: Visitor + ?Sized>(
 ) -> CompileResult<()> {
     v.node(&mut t.span, depth)?;
     match &mut t.kind {
-        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args } => {
+        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args, .. } => {
             path(v, names, t.span, depth + 1)?;
             for a in args {
                 argument(v, a, depth + 1)?;

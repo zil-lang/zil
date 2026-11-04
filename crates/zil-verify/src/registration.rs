@@ -97,6 +97,7 @@ fn closed(
             budget.spend(1)?;
             match t {
                 Type::Address { .. }
+                | Type::Dyn { .. }
                 | Type::Desc(_)
                 | Type::Slice { .. }
                 | Type::Named(_)

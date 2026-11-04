@@ -184,3 +184,13 @@ logical module paths while the current Expand entry lacks package/logical
 context; an explicit stable context bridge is required. Do not invent it from
 generated spellings, spans or raw numeric module IDs. Root is composing the
 atomic common39/CT4/dyn39 base before these consumers continue.
+
+The unified public base is now c3c597820. The first private39 adapter checkpoint
+adds complete binding payload budget visits and Dyn AST pattern adapters,
+131/132 operand registration in Analyze/Verify, explicit unsupported instruction
+and type gates, and module-table gates before fingerprinting. An unimplemented
+or dangling dyn table is not ignored merely because no function uses it.
+Bindings remain explicitly unsupported at module/trait semantic admission until
+their consumer exists. The existing three-package compile check reaches only
+the separately assigned Task/CT4/common constructor/lifetime adapters (and was
+not a successful build); actual dyn source/safety behavior is still unfinished.
