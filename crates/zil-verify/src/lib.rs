@@ -593,7 +593,7 @@ fn check_module(
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
         if function.storage_life.is_some() {
-            stored_flow::header(function, &mut budget)?;
+            stored_flow::header(module, function, &mut budget)?;
             budget.stored_borrows = true;
         }
         budget.current_function = Some(index);
@@ -868,7 +868,7 @@ fn check_module(
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     if budget.stored_borrows {
         for f in &module.functions {
-            stored_flow::header(f, &mut budget)?;
+            stored_flow::header(module, f, &mut budget)?;
         }
         stored_flow::check(module, &graphs, plan, &mut budget)?;
     } else {
