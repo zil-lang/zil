@@ -313,6 +313,9 @@ pub(super) fn layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
                 pending.extend([(error.as_ref(), count), (result.as_ref(), count)])
             }
             Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len())?;
                 pending.extend(parameters.iter().map(|ty| (ty, count)));

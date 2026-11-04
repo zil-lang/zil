@@ -123,6 +123,28 @@ impl Builder<'_> {
                 let element = self.ty(element)?;
                 self.push(CtTypeNode::OwnedStore(element))
             }
+            Type::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                self.left = self
+                    .left
+                    .checked_sub(
+                        (life.binder_count as usize).saturating_add(life.parameter_lives.len()),
+                    )
+                    .ok_or_else(|| reject("CT borrowed pointer metadata exceeds node budget"))?;
+                let parameters = parameters
+                    .iter()
+                    .map(|ty| self.ty(ty))
+                    .collect::<CompileResult<Vec<_>>>()?;
+                let result = self.ty(result)?;
+                self.push(CtTypeNode::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life: life.clone(),
+                })
+            }
             Type::FunctionPointer { parameters, result } => {
                 let parameters = parameters
                     .iter()

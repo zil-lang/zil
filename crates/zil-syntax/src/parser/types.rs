@@ -154,7 +154,7 @@ impl Parser<'_> {
                 p.close_angle()?;
                 Ok(lifetime)
             })?;
-            let inner = Box::new(self.type_primary()?);
+            let inner = Box::new(self.ty()?);
             TypeKind::ForLifetime { lifetime, inner }
         } else if self.eat(Symbol::Hash) {
             let kind = if self.splice_ahead() {
