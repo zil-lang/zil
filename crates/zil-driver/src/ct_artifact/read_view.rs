@@ -27,6 +27,10 @@ fn phase(message: &str) -> Vec<Diagnostic> {
 }
 
 pub(super) struct FrozenReadView<'a> {
+    pub invocation_context: Option<&'a super::invocation_context::FrozenInvocationContext>,
+    pub record_schemas: &'a [CtRecordSchema],
+    pub enum_schemas: &'a [CtEnumSchema],
+    pub ambient_life_scopes: &'a [CtAmbientLifeScope],
     pub index: &'a SourceIndex,
     pub sources: &'a [SourceUnit],
     pub syntax: &'a [&'a s::Module],
@@ -652,12 +656,12 @@ impl FrozenReadView<'_> {
     }
     fn wire_budget(&self, budget: &CtExecutionBudget) -> WireBudget {
         let remaining = budget.remaining();
+        let available = remaining
+            .max_temporary_bytes
+            .saturating_sub(budget.live_temporary_bytes());
         let cap = |value: u64| usize::try_from(value).unwrap_or(usize::MAX);
         WireBudget {
-            bytes: self
-                .limits
-                .max_source_bytes
-                .min(cap(remaining.max_temporary_bytes)),
+            bytes: self.limits.max_source_bytes.min(cap(available)),
             nodes: self
                 .limits
                 .max_nodes
@@ -666,10 +670,7 @@ impl FrozenReadView<'_> {
                 .limits
                 .max_analysis_steps
                 .min(cap(remaining.max_analysis_work)),
-            allocation: self
-                .limits
-                .max_source_bytes
-                .min(cap(remaining.max_temporary_bytes)),
+            allocation: self.limits.max_source_bytes.min(cap(available)),
             max_depth: self
                 .limits
                 .max_call_depth
@@ -709,6 +710,26 @@ impl FrozenReadView<'_> {
         value: &CtValue,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Fingerprint> {
+        if let Some(context) = self
+            .invocation_context
+            .filter(|context| context.has_scopes())
+        {
+            return super::contextual_key::contextual_value_key(
+                value,
+                self.record_schemas,
+                self.enum_schemas,
+                self.ambient_life_scopes,
+                context,
+                self.limits,
+                budget,
+            );
+        }
+        if !self.ambient_life_scopes.is_empty() {
+            return Err(error(
+                "E-CT-CONTEXT",
+                "contextual value has no authentic invocation witness",
+            ));
+        }
         let mut wire = self.wire_budget(budget);
         let before = wire;
         let result = ct_wire::value_fingerprint_with_usage(value, self.limits, &mut wire);
@@ -1489,8 +1510,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 }
             }
@@ -1534,8 +1554,7 @@ impl FrozenReadView<'_> {
                     CtTypeNode::BorrowedFunctionPointer {
                         parameters,
                         result,
-                        life: zil_ir::StorageLifeContract::from_flat(life)
-                            .expect("bounded source signature"),
+                        life: super::scope_metadata::embed_signature(life, budget)?,
                     }
                 } else {
                     CtTypeNode::FunctionPointer { parameters, result }

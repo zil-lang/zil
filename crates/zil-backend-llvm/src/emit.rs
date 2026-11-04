@@ -754,6 +754,24 @@ fn bind_lir(
                 ty.is_copy_value()
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
+        let qualified_signature = verified.uses_stored_borrows()
+            && closure.kind == CallableKind::Fn
+            && closure.captures.is_empty()
+            && closure.lending_captures.is_empty()
+            && closure.storage_life.is_none()
+            && matches!(
+                closure.result,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            );
         let invocation_signature = closure.lending_captures.is_empty()
             && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
             && closure
@@ -785,7 +803,8 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                        && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })

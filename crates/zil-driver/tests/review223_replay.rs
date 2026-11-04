@@ -1,6 +1,6 @@
-//! Exact archived223 bytes plus a structurally migrated schema39 fixture.
-#[path = "../../zil-ir/test-support/schema39_fixture.rs"]
-mod schema39_fixture;
+//! Exact archived223 bytes plus a structurally migrated schema40 fixture.
+#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
+mod schema40_fixture;
 use std::{fs, path::PathBuf};
 use zil_base::{Fingerprint, Limits, Phase, ResultCategory, TargetProfile};
 
@@ -9,7 +9,7 @@ const SCHEMA29: &[u8] = include_bytes!("review223_fixtures/mutable-product-schem
 const SCHEMA30: &[u8] = include_bytes!("review223_fixtures/schema30-mutable-product.wire");
 const SCHEMA32: &[u8] = include_bytes!("review223_fixtures/schema32-mutable-product.wire");
 const OLD_SCHEMA37: &[u8] = include_bytes!("review223_fixtures/v37/mutable-product.wire");
-const SCHEMA39: &[u8] = include_bytes!("review223_fixtures/v39/mutable-product.wire");
+const SCHEMA40: &[u8] = include_bytes!("review223_fixtures/v40/mutable-product.wire");
 
 #[test]
 fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
@@ -51,17 +51,17 @@ fn frozen_schema27_29_30_32_and37_wire_are_rejected_as_old_transports() {
     }
 }
 
-// The offline test writer adds empty inventories and absent storage relations to
-// structurally decoded v37 records. Production has no legacy codec.
+// The offline test writer decodes actual39 candidates and explicitly refuses
+// changed relation fields before current serialization. Production has no legacy codec.
 fn current_original_envelope(limits: &Limits) -> Vec<u8> {
     assert_eq!(&ORIGINAL[..8], b"ZILMODP\0");
     assert_eq!(&ORIGINAL[8..12], &27u32.to_le_bytes());
-    assert_eq!(zil_ir::wire::WIRE_VERSION, 39);
-    assert_eq!(zil_base::SCHEMA_VERSION, 39);
-    let migrated = schema39_fixture::migrate(SCHEMA39, limits);
+    assert_eq!(zil_ir::wire::WIRE_VERSION, 40);
+    assert_eq!(zil_base::SCHEMA_VERSION, 40);
+    let migrated = schema40_fixture::migrate(SCHEMA40, limits);
     let (module, plan) = zil_ir::wire::decode_module_candidate(&migrated, limits).unwrap();
-    assert_eq!(module.schema_version, 39);
-    assert_eq!(plan.schema_version, 39);
+    assert_eq!(module.schema_version, 40);
+    assert_eq!(plan.schema_version, 40);
     assert_eq!(plan.target_fingerprint, module.target.fingerprint());
     assert_eq!(plan.module_fingerprint, module.fingerprint());
     assert!(

@@ -11,6 +11,24 @@ impl Signature {
         {
             return None;
         }
+        if let Some(definition) = &self.storage_life {
+            // A static, environment-free definition is checked independently
+            // under rigid incoming variables. Its code value abstracts those
+            // variables; it never captures a declaration's Fixed namespace.
+            if self.receiver.is_some()
+                || self.state_parameter.is_some()
+                || !self.result.is_copy_value()
+            {
+                return None;
+            }
+            let life =
+                borrowed_fp::static_pointer_life(&self.parameters, &self.result, definition)?;
+            return Some(Type::BorrowedFunctionPointer {
+                parameters: self.parameters.clone(),
+                result: Box::new(self.result.clone()),
+                life,
+            });
+        }
         if self
             .parameters
             .iter()
@@ -72,6 +90,16 @@ impl Builder<'_, '_> {
             {
                 self.closures.snapshot_type(ty, 2, 0, expression.span)?;
             }
+        }
+        if signature.storage_life.is_some() {
+            for ty in &signature.parameters {
+                self.closures.snapshot_type(ty, 4, 0, expression.span)?;
+            }
+            self.closures
+                .snapshot_type(&signature.result, 5, 0, expression.span)?;
+            borrowed_fp::static_pointer_slots(signature, |work| {
+                self.closures.snapshot(work, expression.span)
+            })?;
         }
         if signature.cleanup {
             return Err(error(

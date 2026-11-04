@@ -151,6 +151,20 @@ pub(super) fn relation(
             Ok(())
         }
     }
+    let declared =
+        (life.fixed_binder_count as usize).checked_add(life.invocation_binder_count as usize);
+    let occurrences = life.bindings.len().checked_add(life.classes.len());
+    if life.fixed_binder_count as usize > life.classes.len()
+        || declared
+            .zip(occurrences)
+            .is_none_or(|(declared, occurrences)| declared > occurrences)
+    {
+        return Err(error(
+            "E-FUNCTION-LIFE",
+            span,
+            "callable binder domain exceeds actual relation occurrences",
+        ));
+    }
     // Every caller prepays metadata_work before this count-bounded storage.
     // No Type/row/path clone is made by this relation checker.
     let mut check = Check {
@@ -229,6 +243,47 @@ mod tests {
             binder: StorageBinder::Invocation(u32::from(second_class)),
         });
         life
+    }
+    #[test]
+    fn static_function_abstraction_keeps_distinct_domains_and_joint_occurrence_order() {
+        let parameters = vec![
+            Type::Address {
+                mutable: false,
+                inner: Box::new(phantom()),
+            },
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I64),
+            },
+        ];
+        let mut definition = contract(false);
+        definition.fixed_binder_count = 1;
+        definition.classes[0].binder = StorageBinder::Fixed(0);
+        assert!(
+            borrowed_fp::relation(&parameters, &Type::I32, &definition, Span::default()).is_err(),
+            "a code value cannot invent the definition's enclosing Fixed context"
+        );
+        let original = definition.clone();
+        let code = borrowed_fp::static_pointer_life(&parameters, &Type::I32, &definition).unwrap();
+        assert_eq!(definition, original);
+        assert_eq!(code.fixed_binder_count, 0);
+        assert_eq!(code.invocation_binder_count, 3);
+        assert_eq!(code.bindings[0].binder, StorageBinder::Invocation(0));
+        assert_eq!(code.classes[0].binder, StorageBinder::Invocation(1));
+        assert_eq!(code.bindings[1].binder, StorageBinder::Invocation(2));
+        let mut tied = definition.clone();
+        tied.bindings[0].binder = StorageBinder::Fixed(0);
+        tied.bindings[1].binder = StorageBinder::Invocation(0);
+        tied.invocation_binder_count = 1;
+        let code = borrowed_fp::static_pointer_life(&parameters, &Type::I32, &tied).unwrap();
+        assert_eq!(code.invocation_binder_count, 2);
+        assert_eq!(code.classes[0].binder, code.bindings[0].binder);
+        for counts in [(u32::MAX, 0), (0, u32::MAX)] {
+            let mut malformed = definition.clone();
+            malformed.fixed_binder_count = counts.0;
+            malformed.invocation_binder_count = counts.1;
+            assert!(relation(&parameters, &Type::I32, &malformed, Span::default()).is_err());
+        }
     }
     #[test]
     fn qualified_phantom_class_is_distinct_from_the_outer_address_relation() {

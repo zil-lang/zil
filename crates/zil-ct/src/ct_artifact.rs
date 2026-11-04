@@ -48,7 +48,19 @@ impl CtExecutionBudget {
     /// Call after the driver has materialized and discarded a returned value.
     /// Dependency receipts and other request-owned allocations remain charged.
     pub fn release_value(&mut self, value: &CtValue) {
-        self.release_temporary_bytes(value_bytes(value));
+        self.release_temporary_bytes(
+            value_bytes(value).saturating_add(std::mem::size_of::<CtValue>() as u64),
+        );
+    }
+    /// Drop the returned normalization buffer after its data consumer finishes.
+    pub fn release_type(&mut self, ty: &CtTypeRef) {
+        self.release_temporary_bytes(crate::anonymous_type::retained_bytes(ty));
+    }
+    /// Release the separately owned receipt returned by an invocation after use.
+    pub fn release_usage_receipt(&mut self, receipt: &CtUsageReceipt) {
+        self.release_temporary_bytes(
+            receipt.queries.capacity() as u64 * std::mem::size_of::<CtQueryDependency>() as u64,
+        );
     }
     fn constrain_to_program(&mut self, declared: CtDeclaredBudget) -> CompileResult<()> {
         self.remaining.max_steps = self.remaining.max_steps.min(declared.max_steps);
@@ -155,7 +167,17 @@ impl CtExecutionBudget {
     }
     fn record_query(&mut self, query: CtQueryDependency) -> CompileResult<()> {
         self.reserve_generated_nodes(1)?;
-        self.reserve_temporary_bytes(96)?;
+        if self.usage.queries.len() == self.usage.queries.capacity() {
+            let capacity = self.usage.queries.capacity().saturating_mul(2).max(1);
+            let growth = capacity.saturating_sub(self.usage.queries.capacity());
+            self.reserve_analysis_work(self.usage.queries.len() as u64)?;
+            self.reserve_temporary_bytes(
+                (growth as u64).saturating_mul(std::mem::size_of::<CtQueryDependency>() as u64),
+            )?;
+            self.usage
+                .queries
+                .reserve_exact(capacity.saturating_sub(self.usage.queries.len()));
+        }
         self.usage.queries.push(query);
         Ok(())
     }
@@ -234,6 +256,7 @@ struct Frame<'a> {
     block: usize,
     instruction: usize,
     destination: Option<CtValueId>,
+    backing_bytes: u64,
 }
 impl<'a> Frame<'a> {
     fn new(
@@ -241,7 +264,14 @@ impl<'a> Frame<'a> {
         arguments: Vec<CtValue>,
         argument_bytes: Vec<u64>,
         destination: Option<CtValueId>,
-    ) -> Self {
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Self> {
+        let cells = function.locals.len().saturating_add(function.values.len());
+        budget.reserve_analysis_work(cells as u64)?;
+        let backing_bytes = (cells as u64).saturating_mul(
+            (std::mem::size_of::<Option<CtValue>>() + std::mem::size_of::<u64>()) as u64,
+        );
+        budget.reserve_temporary_bytes(backing_bytes)?;
         let mut locals = vec![None; function.locals.len()];
         let mut local_bytes = vec![0; function.locals.len()];
         for ((id, value), bytes) in function
@@ -253,7 +283,7 @@ impl<'a> Frame<'a> {
             locals[id.0 as usize] = Some(value);
             local_bytes[id.0 as usize] = bytes;
         }
-        Self {
+        Ok(Self {
             function,
             locals,
             local_bytes,
@@ -262,7 +292,8 @@ impl<'a> Frame<'a> {
             block: function.entry.0 as usize,
             instruction: 0,
             destination,
-        }
+            backing_bytes,
+        })
     }
     fn value(&self, id: CtValueId) -> &CtValue {
         self.values[id.0 as usize]
@@ -270,120 +301,31 @@ impl<'a> Frame<'a> {
             .expect("verified CT value dominates use")
     }
     fn release(self, budget: &mut CtExecutionBudget) {
+        budget.release_temporary_bytes(self.backing_bytes);
         for bytes in self.local_bytes.into_iter().chain(self.value_bytes) {
             budget.release_temporary_bytes(bytes);
         }
     }
 }
 
-fn type_storage(ty: &CtTy, mut budget: Option<&mut CtExecutionBudget>) -> CompileResult<u64> {
-    if let Some(budget) = budget.as_deref_mut() {
-        budget.reserve_analysis_work(2)?;
-    }
-    let mut bytes = 64u64;
-    match ty {
-        CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
-            for field in fields {
-                bytes = bytes.saturating_add(type_storage(field, budget.as_deref_mut())?);
-            }
-        }
-        CtTy::Array { element, .. } | CtTy::List(element) => {
-            bytes = bytes.saturating_add(type_storage(element, budget)?)
-        }
-        _ => {}
-    }
-    Ok(bytes)
-}
-fn aggregate_storage(
-    values: &[CtValue],
-    mut budget: Option<&mut CtExecutionBudget>,
-) -> CompileResult<u64> {
-    let mut bytes = 16u64;
-    for value in values {
-        bytes = bytes.saturating_add(value_storage(value, budget.as_deref_mut())?);
-    }
-    Ok(bytes)
+#[path = "ct_value_storage.rs"]
+pub(crate) mod storage;
+fn type_storage(ty: &CtTy, budget: Option<&mut CtExecutionBudget>) -> CompileResult<u64> {
+    storage::ty(ty, budget)
 }
 fn value_bytes(value: &CtValue) -> u64 {
-    value_storage(value, None).expect("unmetered admitted-value byte arithmetic cannot fail")
+    storage::owned(value, None).expect("admitted value storage cannot fail")
 }
 fn copy_value_bytes(value: &CtValue, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
-    value_storage(value, Some(budget))
-}
-fn value_storage(
-    value: &CtValue,
-    mut budget: Option<&mut CtExecutionBudget>,
-) -> CompileResult<u64> {
-    Ok(match value {
-        CtValue::Scalar(_) => 16,
-        CtValue::Text(s) => 16u64.saturating_add(s.len() as u64),
-        CtValue::Type(t) => t.nodes.iter().fold(
-            16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
-            |bytes, node| {
-                bytes.saturating_add(match node {
-                    CtTypeNode::BorrowedFunctionPointer { life, .. } => {
-                        crate::anonymous_type::life_bytes(life)
-                    }
-                    _ => 0,
-                })
-            },
-        ),
-        CtValue::Syntax(t) => 16u64
-            .saturating_add((t.nodes.len() as u64).saturating_mul(80))
-            .saturating_add((t.origins.len() as u64).saturating_mul(32))
-            .saturating_add(t.nodes.iter().fold(0u64, |n, node| match node {
-                CtSyntaxNode::Token(token) => n.saturating_add(token.text.len() as u64),
-                _ => n,
-            })),
-        CtValue::Ident(i) => 80u64.saturating_add(i.text.len() as u64).saturating_add(
-            i.member_owner_type
-                .as_ref()
-                .map_or(0, |t| (t.nodes.len() as u64).saturating_mul(64)),
-        ),
-        CtValue::TokenTree(t) => 16u64
-            .saturating_add((t.nodes.len() as u64).saturating_mul(80))
-            .saturating_add((t.origins.len() as u64).saturating_mul(32))
-            .saturating_add(t.nodes.iter().fold(0u64, |n, node| match node {
-                CtTokenNode::Token(token) => n.saturating_add(token.text.len() as u64),
-                _ => n,
-            })),
-        CtValue::TokenCursor(_) => 48,
-        CtValue::ShapeInfo(s) => {
-            80u64.saturating_add((s.visible_fields.len() as u64).saturating_mul(128))
-        }
-        CtValue::FieldInfo(f) => 128u64
-            .saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
-            .saturating_add((f.owner_type.nodes.len() as u64).saturating_mul(64)),
-        CtValue::ImplInfo(i) => {
-            96u64.saturating_add((i.for_type.nodes.len() as u64).saturating_mul(64))
-        }
-        CtValue::LayoutInfo(l) => {
-            64u64.saturating_add((l.field_offsets.len() as u64).saturating_mul(8))
-        }
-        CtValue::Tuple(v) | CtValue::Array(v) | CtValue::List(v) => aggregate_storage(v, budget)?,
-        CtValue::Record { fields, .. } | CtValue::Variant { fields, .. } => {
-            aggregate_storage(fields, budget)?
-        }
-        CtValue::AnonymousSum {
-            members, payload, ..
-        } => {
-            if let Some(budget) = budget.as_deref_mut() {
-                budget.reserve_analysis_work(2)?;
-            }
-            let mut bytes = 64u64;
-            for member in members {
-                bytes = bytes.saturating_add(type_storage(member, budget.as_deref_mut())?);
-            }
-            bytes.saturating_add(value_storage(payload, budget)?)
-        }
-    })
+    storage::owned(value, Some(budget))
 }
 fn clone_operands(
     frame: &Frame<'_>,
     ids: &[CtValueId],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(Vec<CtValue>, u64)> {
-    let mut bytes = 0u64;
+    budget.reserve_analysis_work(ids.len() as u64)?;
+    let mut bytes = (ids.len() as u64).saturating_mul(std::mem::size_of::<CtValue>() as u64);
     for id in ids {
         bytes = bytes.saturating_add(copy_value_bytes(frame.value(*id), budget)?);
     }
@@ -444,6 +386,52 @@ pub fn evaluate_ct_artifact(
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
+    let before = budget.live_temporary_bytes;
+    let query_capacity = budget.usage.queries.capacity();
+    let result = evaluate_ct_artifact_inner(program, arguments, reader, budget);
+    let query_bytes = (budget
+        .usage
+        .queries
+        .capacity()
+        .saturating_sub(query_capacity) as u64)
+        .saturating_mul(std::mem::size_of::<CtQueryDependency>() as u64);
+    let keep = result
+        .as_ref()
+        .map_or(0, |(value, receipt)| {
+            value_bytes(value)
+                .saturating_add(std::mem::size_of::<CtValue>() as u64)
+                .saturating_add(
+                    receipt.queries.capacity() as u64
+                        * std::mem::size_of::<CtQueryDependency>() as u64,
+                )
+        })
+        .saturating_add(query_bytes);
+    let added = budget.live_temporary_bytes.saturating_sub(before);
+    budget.release_temporary_bytes(added.saturating_sub(keep));
+    result
+}
+fn reserve_frame<'a>(
+    frames: &mut Vec<Frame<'a>>,
+    charged: &mut u64,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<()> {
+    if frames.len() == frames.capacity() {
+        let capacity = frames.capacity().saturating_mul(2).max(1);
+        let bytes = (capacity.saturating_sub(frames.capacity()) as u64)
+            .saturating_mul(std::mem::size_of::<Frame<'a>>() as u64);
+        budget.reserve_analysis_work(frames.len() as u64)?;
+        budget.reserve_temporary_bytes(bytes)?;
+        frames.reserve_exact(capacity.saturating_sub(frames.len()));
+        *charged = charged.saturating_add(bytes);
+    }
+    Ok(())
+}
+fn evaluate_ct_artifact_inner(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
     budget.constrain_to_program(raw.budget)?;
     let entry = &raw.functions[raw.entry.0 as usize];
@@ -458,6 +446,9 @@ pub fn evaluate_ct_artifact(
     }
     budget.reserve_instance()?;
     budget.observe_depth(1)?;
+    let argument_vectors = (arguments.len() as u64)
+        .saturating_mul((std::mem::size_of::<CtValue>() + std::mem::size_of::<u64>()) as u64);
+    budget.reserve_temporary_bytes(argument_vectors)?;
     let argument_bytes: Vec<_> = arguments
         .iter()
         .map(|v| copy_value_bytes(v, budget))
@@ -467,7 +458,17 @@ pub fn evaluate_ct_artifact(
     }
     let mut live_cells = (entry.locals.len() + entry.values.len()) as u64;
     budget.observe_live_cells(live_cells)?;
-    let mut frames = vec![Frame::new(entry, arguments.to_vec(), argument_bytes, None)];
+    let mut frames = Vec::new();
+    let mut frame_vector_bytes = 0u64;
+    reserve_frame(&mut frames, &mut frame_vector_bytes, budget)?;
+    frames.push(Frame::new(
+        entry,
+        arguments.to_vec(),
+        argument_bytes,
+        None,
+        budget,
+    )?);
+    budget.release_temporary_bytes(argument_vectors);
     loop {
         budget.reserve_steps(1)?;
         let current_depth = frames.len();
@@ -484,6 +485,10 @@ pub fn evaluate_ct_artifact(
                 budget.observe_depth(current_depth + 1)?;
                 let incoming_cells = (target.locals.len() + target.values.len()) as u64;
                 budget.observe_live_cells(live_cells.saturating_add(incoming_cells))?;
+                let argument_vectors = (arguments.len() as u64).saturating_mul(
+                    (std::mem::size_of::<CtValue>() + std::mem::size_of::<u64>()) as u64,
+                );
+                budget.reserve_temporary_bytes(argument_vectors)?;
                 let argument_bytes: Vec<_> = arguments
                     .iter()
                     .map(|v| copy_value_bytes(frame.value(*v), budget))
@@ -492,11 +497,15 @@ pub fn evaluate_ct_artifact(
                     budget.reserve_temporary_bytes(*bytes)?;
                 }
                 let args = arguments.iter().map(|v| frame.value(*v).clone()).collect();
-                frames.push(Frame::new(target, args, argument_bytes, inst.result));
+                let incoming = Frame::new(target, args, argument_bytes, inst.result, budget)?;
+                budget.release_temporary_bytes(argument_vectors);
+                reserve_frame(&mut frames, &mut frame_vector_bytes, budget)?;
+                frames.push(incoming);
                 live_cells += incoming_cells;
                 continue;
             }
             let bytes_before = budget.live_temporary_bytes;
+            let query_capacity_before = budget.usage.queries.capacity();
             let produced = execute_instruction(raw, frame, inst, arguments, reader, budget)?;
             if let Some(id) = inst.result {
                 let value = produced.expect("verified CT value instruction has result");
@@ -509,7 +518,17 @@ pub fn evaluate_ct_artifact(
                 )? {
                     return Err(error("CT read view returned a value of the wrong type"));
                 }
-                let mut added = budget.live_temporary_bytes.saturating_sub(bytes_before);
+                let query_growth = (budget
+                    .usage
+                    .queries
+                    .capacity()
+                    .saturating_sub(query_capacity_before)
+                    as u64)
+                    .saturating_mul(std::mem::size_of::<CtQueryDependency>() as u64);
+                let mut added = budget
+                    .live_temporary_bytes
+                    .saturating_sub(bytes_before)
+                    .saturating_sub(query_growth);
                 let required = value_bytes(&value);
                 if added < required {
                     budget.reserve_temporary_bytes(required - added)?;
@@ -525,9 +544,14 @@ pub fn evaluate_ct_artifact(
                 CtTerminator::Return(result) => {
                     let bytes = match result {
                         Some(id) => copy_value_bytes(frame.value(id), budget)?,
-                        None => 16,
+                        None => 0,
                     };
-                    budget.reserve_temporary_bytes(bytes)?;
+                    let final_root = if current_depth == 1 {
+                        std::mem::size_of::<CtValue>() as u64
+                    } else {
+                        0
+                    };
+                    budget.reserve_temporary_bytes(bytes.saturating_add(final_root))?;
                     let output = result
                         .map(|id| frame.value(id).clone())
                         .unwrap_or(CtValue::Scalar(Constant::Unit));
@@ -544,6 +568,11 @@ pub fn evaluate_ct_artifact(
                             parent.values[id.0 as usize] = Some(output);
                         }
                     } else {
+                        budget.release_temporary_bytes(frame_vector_bytes);
+                        budget.reserve_temporary_bytes(
+                            budget.usage.queries.len() as u64
+                                * std::mem::size_of::<CtQueryDependency>() as u64,
+                        )?;
                         return Ok((output, budget.usage.clone()));
                     }
                 }
@@ -931,18 +960,27 @@ fn construct_type(
     args: &[CtValue],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
-    budget.reserve_generated_nodes(args.len() as u64 + 1)?;
-    let output_nodes = 1u64.saturating_add(
-        args.iter()
-            .filter_map(|v| match v {
-                CtValue::Type(t) => Some(t.nodes.len() as u64),
-                _ => None,
-            })
-            .sum::<u64>(),
+    budget.reserve_analysis_work(args.len() as u64)?;
+    let mut output_nodes = 1u64;
+    let mut output_bytes = std::mem::size_of::<CtTypeNode>() as u64;
+    let mut child_count = 0usize;
+    for arg in args {
+        if let CtValue::Type(graph) = arg {
+            output_nodes = output_nodes
+                .checked_add(graph.nodes.len() as u64)
+                .ok_or_else(|| limit("CT type output node overflow"))?;
+            output_bytes = output_bytes.saturating_add(storage::graph(graph, Some(budget))?);
+            child_count = child_count.saturating_add(1);
+        }
+    }
+    output_bytes = output_bytes
+        .saturating_add(child_count as u64 * std::mem::size_of::<CtTypeNodeId>() as u64);
+    budget.reserve_generated_nodes(output_nodes)?;
+    budget.reserve_temporary_bytes(output_bytes)?;
+    let mut nodes = Vec::with_capacity(
+        usize::try_from(output_nodes).map_err(|_| limit("CT type output node overflow"))?,
     );
-    budget.reserve_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)))?;
-    let mut nodes = Vec::new();
-    let mut children = Vec::new();
+    let mut children = Vec::with_capacity(child_count);
     for arg in args {
         if let CtValue::Type(value) = arg {
             children.push(append_type(&mut nodes, value)?);
@@ -980,17 +1018,23 @@ fn construct_type(
             };
             if children.iter().any(address) || address(&result) {
                 budget.reserve_analysis_work(children.len() as u64)?;
-                budget.reserve_temporary_bytes((children.len() as u64).saturating_mul(8))?;
+                let flat_bytes = (children.len() as u64)
+                    .saturating_mul(std::mem::size_of::<Option<u32>>() as u64);
+                let rich_bytes = (children.len() as u64 + 1)
+                    .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>() as u64);
+                budget.reserve_temporary_bytes(flat_bytes.saturating_add(rich_bytes))?;
                 let life = zil_ir::FunctionLifeContract {
                     binder_count: 1,
                     parameter_lives: children.iter().map(|id| address(id).then_some(0)).collect(),
                     result_life: address(&result).then_some(0),
                 };
+                let life =
+                    zil_ir::StorageLifeContract::from_flat(life).expect("bounded legacy signature");
+                budget.release_temporary_bytes(flat_bytes);
                 CtTypeNode::BorrowedFunctionPointer {
                     parameters: children,
                     result,
-                    life: zil_ir::StorageLifeContract::from_flat(life)
-                        .expect("bounded legacy signature"),
+                    life,
                 }
             } else {
                 CtTypeNode::FunctionPointer {
@@ -1020,7 +1064,7 @@ fn construct_type(
     };
     if *kind == CtTypeConstructor::AnonymousSum {
         let canonical = crate::canonicalize_anonymous_type(&value, budget)?;
-        budget.release_temporary_bytes(16u64.saturating_add(output_nodes.saturating_mul(64)));
+        budget.release_temporary_bytes(output_bytes);
         Ok(canonical)
     } else {
         Ok(value)
@@ -1035,24 +1079,23 @@ fn project_meta(
 ) -> CompileResult<CtValue> {
     use CtMetaProjection as P;
     let allocation = match (value, projection) {
-        (CtValue::ShapeInfo(s), P::ShapeFields) => s.visible_fields.iter().fold(16u64, |n, f| {
-            n.saturating_add(128)
-                .saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
-        }),
-        (CtValue::FieldInfo(f), P::FieldName) => 80u64
-            .saturating_add(f.name.text.len() as u64)
-            .saturating_add((f.owner_type.nodes.len() as u64).saturating_mul(64)),
-        (CtValue::FieldInfo(f), P::FieldType) => {
-            16u64.saturating_add((f.ty.nodes.len() as u64).saturating_mul(64))
+        (CtValue::ShapeInfo(s), P::ShapeFields) => {
+            budget.reserve_analysis_work(s.visible_fields.len() as u64)?;
+            let mut bytes = s.visible_fields.len() as u64 * std::mem::size_of::<CtValue>() as u64;
+            for field in &s.visible_fields {
+                bytes = bytes.saturating_add(storage::field(field, &mut Some(budget))?);
+            }
+            bytes
         }
-        (CtValue::ImplInfo(i), P::ImplType) => {
-            16u64.saturating_add((i.for_type.nodes.len() as u64).saturating_mul(64))
-        }
+        (CtValue::FieldInfo(f), P::FieldName) => storage::ident(&f.name, &mut Some(budget))?
+            .saturating_add(storage::graph(&f.owner_type, Some(budget))?),
+        (CtValue::FieldInfo(f), P::FieldType) => storage::graph(&f.ty, Some(budget))?,
+        (CtValue::ImplInfo(i), P::ImplType) => storage::graph(&i.for_type, Some(budget))?,
         (CtValue::LayoutInfo(l), P::LayoutFieldOffsets) => {
-            16u64.saturating_add((l.field_offsets.len() as u64).saturating_mul(16))
+            budget.reserve_analysis_work(l.field_offsets.len() as u64)?;
+            l.field_offsets.len() as u64 * std::mem::size_of::<CtValue>() as u64
         }
-        (_, P::ImplTrait) => 0, // the frozen reader prepays its resolved identifier
-        _ => 16,
+        _ => 0,
     };
     if allocation > 0 {
         budget.reserve_temporary_bytes(allocation)?;
@@ -1119,7 +1162,8 @@ fn execute_instruction(
         ids: &[CtValueId],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<u64> {
-        let mut bytes = 16u64;
+        budget.reserve_analysis_work(ids.len() as u64)?;
+        let mut bytes = (ids.len() as u64).saturating_mul(std::mem::size_of::<CtValue>() as u64);
         for id in ids {
             bytes = bytes.saturating_add(copy_value_bytes(frame.value(*id), budget)?);
         }
@@ -1127,8 +1171,11 @@ fn execute_instruction(
     }
     let planned = match &inst.kind {
         K::Constant(id) => match &raw.constants[id.0 as usize] {
-            CtConstant::Scalar(_) => 16,
-            CtConstant::Text(t) => 16u64.saturating_add(t.len() as u64),
+            CtConstant::Scalar(_) => 0,
+            CtConstant::Text(t) => {
+                budget.reserve_analysis_work(t.len() as u64)?;
+                t.len() as u64
+            }
         },
         K::InvocationInput { index } => copy_value_bytes(&invocation[*index as usize], budget)?,
         K::Load(id) => copy_value_bytes(
@@ -1142,16 +1189,19 @@ fn execute_instruction(
         | K::Unary { .. }
         | K::Binary { .. }
         | K::Length(_)
-        | K::VariantTag(_) => 16,
+        | K::VariantTag(_) => 0,
         K::MakeTuple(ids) | K::MakeArray(ids) | K::MakeList(ids) => copy_bytes(frame, ids, budget)?,
         K::MakeRecord { fields, .. } | K::MakeVariant { fields, .. } => {
             copy_bytes(frame, fields, budget)?
         }
-        K::TypePrimitive(_) | K::TypeBuiltin(_) => 80,
+        K::TypePrimitive(_) | K::TypeBuiltin(_) => std::mem::size_of::<CtTypeNode>() as u64,
         K::MakeAnonymousSum {
             members, payload, ..
         } => {
-            let mut bytes = 64u64;
+            budget.reserve_analysis_work(members.len() as u64)?;
+            let mut bytes = (members.len() as u64)
+                .saturating_mul(std::mem::size_of::<CtTy>() as u64)
+                .saturating_add(std::mem::size_of::<CtValue>() as u64);
             for member in members {
                 bytes = bytes.saturating_add(type_storage(member, Some(budget))?);
             }
@@ -1185,9 +1235,13 @@ fn execute_instruction(
             }
             _ => unreachable!("verified static container"),
         },
-        K::Replace { aggregate, .. } | K::ReplaceField { aggregate, .. } => {
-            copy_value_bytes(get(*aggregate), budget)?
+        K::Replace {
+            aggregate, value, ..
         }
+        | K::ReplaceField {
+            aggregate, value, ..
+        } => copy_value_bytes(get(*aggregate), budget)?
+            .saturating_add(copy_value_bytes(get(*value), budget)?),
         _ => 0,
     };
     if planned > 0 {
@@ -1591,6 +1645,22 @@ mod tests {
         snapshot: CtSnapshotRequest,
     }
     impl CtArtifactAuthority for Authority {
+        fn scope_parameter_count(&self, scope: &CtAmbientLifeScope) -> Option<usize> {
+            (scope.declaration == symbol()
+                && scope.binder_site.is_empty()
+                && matches!(scope.instance, CtScopeInstance::Definition))
+            .then_some(2)
+        }
+        fn scope_parameter_kind(
+            &self,
+            scope: &CtAmbientLifeScope,
+            ordinal: usize,
+        ) -> Option<zil_verify::CtScopeParameterKind> {
+            self.scope_parameter_count(scope)
+                .filter(|n| ordinal < *n)
+                .map(|_| zil_verify::CtScopeParameterKind::Lifetime)
+        }
+
         fn source_fingerprint(&self) -> Fingerprint {
             Fingerprint::ZERO
         }
@@ -1752,11 +1822,12 @@ mod tests {
                 max_steps: 100,
                 max_call_depth: 10,
                 max_live_cells: 100,
-                max_temporary_bytes: 1024,
+                max_temporary_bytes: 16_384,
                 max_generated_nodes: 100,
                 max_instances: 10,
                 max_analysis_work: 1000,
             },
+            ambient_life_scopes: Vec::new(),
         }
     }
     #[test]
@@ -2006,16 +2077,28 @@ mod tests {
             snapshot: raw.snapshot.clone(),
         };
         let verified = verify_ct_artifact(raw.clone(), &Limits::default(), &authority).unwrap();
+        let (_, probe) = evaluate_ct_artifact(
+            &verified,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(raw.budget),
+        )
+        .unwrap();
+        let peak = probe.peak_temporary_bytes;
+        assert!(
+            peak > 64,
+            "the historical logical-scalar limit cannot hold actual frame buffers"
+        );
         let exact = CtDeclaredBudget {
-            max_temporary_bytes: 64,
+            max_temporary_bytes: peak,
             ..raw.budget
         };
         let (_, receipt) =
             evaluate_ct_artifact(&verified, &[], &Reader, &mut CtExecutionBudget::new(exact))
                 .unwrap();
-        assert_eq!(receipt.peak_temporary_bytes, 64);
+        assert_eq!(receipt.peak_temporary_bytes, peak);
         let below = CtDeclaredBudget {
-            max_temporary_bytes: 63,
+            max_temporary_bytes: peak - 1,
             ..raw.budget
         };
         assert_eq!(
@@ -2030,6 +2113,123 @@ mod tests {
                 .0,
             CtValue::Scalar(Constant::I32(9))
         );
+    }
+    #[test]
+    fn actual_descriptor_buffers_have_checked_byte_neighbors_and_cleanup() {
+        let mut program = raw();
+        program.budget.max_temporary_bytes = 1_000_000;
+        program.budget.max_analysis_work = 100_000;
+        let function = &mut program.functions[0];
+        function.parameters = vec![CtLocalId(0)];
+        function.parameter_types = vec![CtTy::FieldInfo];
+        function.locals = vec![CtTy::FieldInfo];
+        function.values = vec![CtTy::FieldInfo];
+        function.result_type = CtTy::FieldInfo;
+        function.blocks = vec![CtBlock {
+            id: CtBlockId(0),
+            instructions: vec![CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::Load(CtLocalId(0)),
+                span: Span::default(),
+            }],
+            terminator: CtTerminator::Return(Some(CtValueId(0))),
+        }];
+        let authority = Authority {
+            snapshot: program.snapshot.clone(),
+        };
+        let verified = verify_ct_artifact(program.clone(), &Limits::default(), &authority).unwrap();
+        let mut nodes = vec![CtTypeNode::Primitive(CtScalarTy::I32); 64];
+        nodes.push(CtTypeNode::Tuple((0..64).map(CtTypeNodeId).collect()));
+        let graph = CtTypeRef {
+            nodes,
+            root: CtTypeNodeId(64),
+            ambient_classes: Vec::new(),
+        };
+        let owner = symbol();
+        let mut owner_type = graph.clone();
+        owner_type.nodes.push(CtTypeNode::Nominal {
+            symbol: owner.clone(),
+            arguments: vec![CtTypeArgument::Type(graph.root)],
+        });
+        owner_type.root = CtTypeNodeId(65);
+        let value = CtValue::FieldInfo(CtFieldInfo {
+            owner: owner.clone(),
+            owner_type: owner_type.clone(),
+            field: owner.clone(),
+            name: CtIdent {
+                text: "field".repeat(128),
+                namespace: CtNameNamespace::Member,
+                source: CtNameSource::Definition(owner.clone()),
+                member_owner: Some(owner),
+                member_owner_type: Some(owner_type),
+            },
+            ty: graph,
+            managed: false,
+        });
+        let mut probe = CtExecutionBudget::new(program.budget);
+        let (output, usage) =
+            evaluate_ct_artifact(&verified, std::slice::from_ref(&value), &Reader, &mut probe)
+                .unwrap();
+        assert_eq!(output, value);
+        let peak = usage.peak_temporary_bytes;
+        assert!(
+            peak > 32_000,
+            "complete descriptors need actual inline cells and all three graphs"
+        );
+        probe.release_value(&output);
+        probe.release_usage_receipt(&usage);
+        assert_eq!(probe.live_temporary_bytes(), 0);
+        for (bytes, good) in [(peak, true), (peak - 1, false), (peak, true)] {
+            let mut budget = CtExecutionBudget::new(CtDeclaredBudget {
+                max_temporary_bytes: bytes,
+                ..program.budget
+            });
+            let result = evaluate_ct_artifact(
+                &verified,
+                std::slice::from_ref(&value),
+                &Reader,
+                &mut budget,
+            );
+            if good {
+                let (output, usage) = result.unwrap();
+                assert_eq!(output, value);
+                budget.release_value(&output);
+                budget.release_usage_receipt(&usage);
+            } else {
+                assert_eq!(result.unwrap_err()[0].code, "E-RESOURCE-LIMIT");
+            }
+            assert_eq!(
+                budget.live_temporary_bytes(),
+                0,
+                "failed/successful invocation retains no frame or descriptor scratch"
+            );
+        }
+        eprintln!("CT5 descriptor temporary-byte boundary {peak}");
+    }
+    #[test]
+    fn actual_frame_buffers_are_released_after_step_failure() {
+        let program = raw();
+        let verified = verify_ct_artifact(
+            program.clone(),
+            &Limits::default(),
+            &Authority {
+                snapshot: program.snapshot.clone(),
+            },
+        )
+        .unwrap();
+        let mut budget = CtExecutionBudget::new(CtDeclaredBudget {
+            max_steps: 1,
+            ..program.budget
+        });
+        assert_eq!(
+            evaluate_ct_artifact(&verified, &[], &Reader, &mut budget).unwrap_err()[0].code,
+            "E-RESOURCE-LIMIT"
+        );
+        assert!(
+            budget.usage().peak_temporary_bytes
+                >= std::mem::size_of::<Option<CtValue>>() as u64 * 3
+        );
+        assert_eq!(budget.live_temporary_bytes(), 0);
     }
     #[test]
     fn executes_verified_loop_with_local_refill() {
@@ -2295,6 +2495,7 @@ mod tests {
                     CtTypeNode::AnonymousSum(vec![CtTypeNodeId(0), CtTypeNodeId(1)]),
                 ],
                 root: CtTypeNodeId(2),
+                ambient_classes: Vec::new(),
             },
             &mut CtExecutionBudget::new(program.budget),
         )
@@ -2514,11 +2715,12 @@ mod tests {
             nodes.push(CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(base + 1)],
                 result: CtTypeNodeId(base + 1),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 1,
                     parameter_lives: vec![Some(0)],
                     result_life: Some(0),
-                },
+                })
+                .unwrap(),
             });
         }
         nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
@@ -2526,6 +2728,7 @@ mod tests {
             &CtTypeRef {
                 nodes,
                 root: CtTypeNodeId(6),
+                ambient_classes: Vec::new(),
             },
             &mut CtExecutionBudget::new(p.budget),
         )
@@ -2618,7 +2821,7 @@ mod tests {
             argument,
             binder,
         };
-        let context = CtTypeRef {
+        let mut context = CtTypeRef {
             root: CtTypeNodeId(3),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I32),
@@ -2655,7 +2858,23 @@ mod tests {
                     },
                 },
             ],
+            ambient_classes: Vec::new(),
         };
+        p.ambient_life_scopes.push(CtAmbientLifeScope {
+            declaration: symbol(),
+            binder_site: Vec::new(),
+            instance: CtScopeInstance::Definition,
+        });
+        context.ambient_classes = (0..2)
+            .map(|class| CtAmbientClassBinding {
+                owner: context.root,
+                class,
+                source: CtAmbientLifeReference {
+                    scope: CtAmbientScopeId(0),
+                    parameter: class,
+                },
+            })
+            .collect();
         let normalized =
             crate::canonicalize_anonymous_type(&context, &mut CtExecutionBudget::new(p.budget))
                 .unwrap();
@@ -2704,6 +2923,7 @@ mod tests {
                     schema.arguments[0] = CtSchemaArgument::Type(CtTypeRef {
                         root: CtTypeNodeId(0),
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+                        ambient_classes: Vec::new(),
                     })
                 }
                 1 => schema.arguments[0] = CtSchemaArgument::TypeInContext(CtTypeNodeId(1)),
@@ -2811,10 +3031,12 @@ mod tests {
                     CtSchemaArgument::Type(CtTypeRef {
                         nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
                         root: CtTypeNodeId(0),
+                        ambient_classes: Vec::new(),
                     }),
                     CtSchemaArgument::Type(CtTypeRef {
                         nodes: vec![CtTypeNode::Primitive(phantom)],
                         root: CtTypeNodeId(0),
+                        ambient_classes: Vec::new(),
                     }),
                     CtSchemaArgument::Scalar(Constant::I32(n)),
                 ],
@@ -2864,6 +3086,7 @@ mod tests {
         cycle.record_schemas[0].arguments[0] = CtSchemaArgument::Type(CtTypeRef {
             nodes: vec![CtTypeNode::Tuple(vec![CtTypeNodeId(0)])],
             root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
         });
         assert!(
             verify_ct_artifact(cycle, &limits, &authority).unwrap_err()[0]
@@ -2923,15 +3146,17 @@ mod tests {
             nodes.push(CtTypeNode::BorrowedFunctionPointer {
                 parameters: vec![CtTypeNodeId(1), CtTypeNodeId(3)],
                 result: CtTypeNodeId(5),
-                life: zil_ir::FunctionLifeContract {
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
                     binder_count: 2,
                     parameter_lives: vec![Some(0), Some(1)],
                     result_life: Some(result_life),
-                },
+                })
+                .unwrap(),
             });
             CtTypeRef {
                 nodes,
                 root: CtTypeNodeId(6),
+                ambient_classes: Vec::new(),
             }
         }
         let mut p = anonymous_value_program();

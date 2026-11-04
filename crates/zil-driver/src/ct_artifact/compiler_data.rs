@@ -79,22 +79,22 @@ impl<'a> Compiler<'a> {
         symbol: &CtSymbolId,
         span: Span,
     ) -> R<(usize, &'a s::Item)> {
-        for (owner, module) in self.modules.iter().enumerate() {
+        self.budget.work(self.modules.len(), span)?;
+        if symbol.generation_path.is_some() {
+            return Err(error(
+                span,
+                "generated nominal metadata lacks authentic declaration lineage",
+            ));
+        }
+        if let Some((owner, module)) = self
+            .modules
+            .iter()
+            .enumerate()
+            .find(|(_, module)| module.source.module_id == symbol.module)
+        {
             self.budget.work(1, span)?;
-            if module.source.module_id != symbol.module {
-                continue;
-            }
-            for (actual_span, actual) in module.symbols {
-                self.budget.work(1, span)?;
-                if actual != symbol {
-                    continue;
-                }
-                for item in &module.syntax.items {
-                    self.budget.work(1, span)?;
-                    if item.span == *actual_span {
-                        return Ok((owner, item));
-                    }
-                }
+            if let Some(item) = module.syntax.items.get(symbol.declaration.0 as usize) {
+                return Ok((owner, item));
             }
         }
         Err(error(
@@ -263,7 +263,7 @@ impl<'a> Compiler<'a> {
                 _ => return Err(error(span, "closed nominal actual kind differs")),
             }
         }
-        let name = self.symbol(owner, item.span)?;
+        let name = self.item_symbol(owner, item)?;
         let record = matches!(item.kind, s::ItemKind::Aggregate(_));
         let len = if record {
             self.records.len()

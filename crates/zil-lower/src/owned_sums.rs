@@ -103,8 +103,32 @@ impl<'a> Budget<'a> {
             if let Some(contract) = &function.callable_contract {
                 self.metadata(contract.roles.len())?;
                 for role in &contract.roles {
+                    self.metadata(
+                        role.hold
+                            .len()
+                            .saturating_add(role.call.len())
+                            .saturating_add(role.writes.len())
+                            .saturating_add(8),
+                    )?;
                     if let Some(life) = &role.life {
                         self.stored_contract(life)?;
+                    }
+                }
+                match &contract.traces {
+                    zil_ir::CallableTraces::Finite(traces) => {
+                        self.metadata(traces.len().saturating_add(1))?;
+                        for trace in traces {
+                            self.metadata(trace.calls.len().saturating_mul(2).saturating_add(1))?;
+                        }
+                    }
+                    zil_ir::CallableTraces::Flow(flow) => {
+                        self.metadata(flow.nodes.len().saturating_add(1))?;
+                        for node in &flow.nodes {
+                            self.metadata(node.calls.len().saturating_mul(2).saturating_add(1))?;
+                            if let zil_ir::CallableFlowNext::Edges(edges) = &node.next {
+                                self.metadata(edges.len())?;
+                            }
+                        }
                     }
                 }
             }

@@ -290,6 +290,17 @@ pub(super) fn validate_template(
         if old {
             continue;
         }
+        if function.storage_life.is_some()
+            && matches!(&p.ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+        {
+            // The helper retains its own ordinary input relation separately
+            // from each callback role. Pay before recursive eligibility; the
+            // actual body and callers still enter both independent kernels.
+            prepay(&p.ty, p.span)?;
+            if stored::shared_address(&p.ty) {
+                continue;
+            }
+        }
         if !owned_state
             && matches!(p.mode, PassingMode::Infer | PassingMode::Move)
             && matches!(
@@ -1038,11 +1049,14 @@ impl Builder<'_, '_> {
         if registration::template(&template.function) {
             typed.callable_contract = None;
         }
+        if let Some(life) = &typed.storage_life {
+            borrowed_fp::charge_contract(life, |work| self.closures.snapshot(work, span), 1)?;
+        }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
-                storage_life: None,
+                storage_life: typed.storage_life.clone(),
                 reference_return_bound: None,
                 name: function.name,
                 function: id,

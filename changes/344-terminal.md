@@ -444,3 +444,62 @@ joint and generic CT4 controls remain included: four source positives now give
 pending its different producer/consumer obligation. Historical e65 rejection
 and629 three-source accounting receipts remain tied to their original sources.
 No full CT5 semantic or language-terminal conclusion follows from this fix.
+
+### CT5 authentic Definition scope transport WIP
+
+Build the immutable invocation source witness before compiler attribution from
+341's actual captured original declaration rows. Top-level materialization and
+lexical scope lookup select the actual original ordinal, with spans used only to
+reject a diagnostic mismatch. Complete full-kind generic ordinals are retained.
+The producer serializes genuine Definition scope rows and per-Fixed-class ambient
+maps. Occurrence normalization relocates those maps with the complete owner
+subtree; the independent kernel checks authenticated Lifetime ordinals, mapping
+order/uniqueness, free-class coverage and first actual scope use. Value contexts
+retain this same witness and ambient table through ordinary source reification.
+
+The existing three phantom/joint/generic originals reached actual12 native
+profiles in the first WIP replay. This remains an unfinished checkpoint: its
+construction occurred during development and is not an exact frozen acceptance
+receipt. Rich callable, specialization/member/generated-scope admission,
+contextual key normalization, repeated/shared-span adversarial controls and
+actual VM frame/vector/deep-descriptor byte accounting remain under construction.
+
+### CT5 VM backing-byte correction WIP
+
+Reserve actual Option<CtValue>/u64 frame arrays, argument/operand/value vectors
+and call-stack capacity before allocation. Inline cells are charged once by their
+backing vector; owned dynamic buffers are counted recursively, including all
+three reflected-field owner/type graphs, names, rich relation paths, ambient
+maps, Syntax/token children and anonymous payload/type storage. Replacement
+clones prepay the new payload while the old clone is still live. Metadata
+projection and Type construction use the same complete dynamic sizes. Returned
+query receipts have their own reservation/release; request query backing remains
+live independently of frame values. Error paths release invocation-owned scratch.
+
+The historical scalar64-byte fixture is retained as an insufficient physical
+budget rather than presented as the new bound. Its existing N/N-1/fresh test now
+measures the actual frame peak. The raw fixture's private test allowance is16384;
+production defaults are unchanged. A new complete FieldInfo input has exact
+byte boundary57680, N-1 ResourceLimit and fresh N, with no residual frame or
+descriptor bytes after success/failure. A step-failure control also frees the
+actual frame arrays. The CT library passes56/0 and the three unchanged phantom
+sources again run12 native profiles. Full contextual keys, authenticated rich/
+specialization scopes and exact final source bindings remain subsequent work.
+
+### Resumed Definition-context candidate
+
+The interrupted source changes now retain contextual data keys through genuine
+Definition scopes, full mixed-kind parameter ordinals and original declaration
+identity. Source relocation and repeated function spans do not collapse owners;
+contextual field descriptors retain the nested owner graph. Frozen-source,
+symbol-key and later invocation failures release their owned temporary bytes.
+Ambient Type export, rich/member/instantiated scopes and complete actual-vector
+identity remain explicitly unsupported pending their producers and consumers.
+
+After the worker stopped on its service usage limit, root resumed the actual
+working tree. Six CT5 controls pass on the resumed tree, including actual-source
+raw/Wire mutations, independent Verify N3906/N−1/fresh, contextual descriptor
+N12688/N−1/fresh, shared-span source reification and scratch rollback. The new
+actual phantom-context meta.field/field_type query passes ordinary kernels and
+four Clang/LLVM API O0/O2 runs with output42. This is resumed author evidence,
+not independent acceptance or completion of all CT5 contracts.

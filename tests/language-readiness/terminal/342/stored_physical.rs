@@ -262,8 +262,15 @@ fn terminal342_physical_stored_actual_roots_modes_and_complete_inventory_are_ind
         "duplicate stable declaration identity",
     );
     let mut changed = original.clone();
-    changed.functions[1].storage_life.as_mut().unwrap().bindings[2].binder =
-        zil_ir::StorageBinder::Invocation(0);
+    changed.functions[1]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .bindings
+        .iter_mut()
+        .find(|row| row.position.base == zil_ir::StorageBase::Result)
+        .expect("actual read result relation")
+        .binder = zil_ir::StorageBinder::Invocation(0);
     reject(
         &changed,
         plan.clone(),

@@ -24,9 +24,136 @@ pub(super) struct Catalog {
     /// are output lookup keys, never declaration identities or capabilities.
     pub(super) functions: BTreeMap<String, StorageLifeContract>,
     project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
+    pub(super) pointers: BTreeMap<String, Type>,
+    pub(super) borrowed_signatures: bool,
 }
 
 impl Catalog {
+    pub(super) fn pointer_lookup_fee(
+        &self,
+        key: &str,
+        budget: &mut generics::Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.identity_work(
+            key.len()
+                .saturating_add(1)
+                .saturating_mul(
+                    self.pointers
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2),
+                )
+                .saturating_mul(12),
+            span,
+        )
+    }
+    pub(super) fn pointer_type(
+        &self,
+        source: &s::TypeRef,
+        budget: &mut generics::Budget<'_>,
+    ) -> R<Option<Type>> {
+        let Some(key) = generics::rich_pointer::key(source, budget)? else {
+            generics::rich_pointer::reject_unhandled(source, budget, &self.instances)?;
+            return Ok(None);
+        };
+        self.pointer_lookup_fee(&key, budget, source.span)?;
+        let ty = self.pointers.get(&key).ok_or_else(|| {
+            Diagnostic::unsupported(
+                Phase::Expand,
+                "rich code has no actual prepared source signature",
+                Some(source.span),
+            )
+        })?;
+        pay_type(ty, budget, source.span, 0)?;
+        Ok(Some(ty.clone()))
+    }
+    pub(super) fn pointer_parameter_type(
+        &self,
+        source: &s::TypeRef,
+        nominals: &BTreeMap<String, &s::Item>,
+        budget: &mut generics::Budget<'_>,
+        depth: usize,
+    ) -> R<Type> {
+        budget.node(source.span, depth)?;
+        match &source.kind {
+            s::TypeKind::Reference { mutable, inner, .. } => Ok(Type::Address {
+                mutable: *mutable,
+                inner: Box::new(self.pointer_parameter_type(inner, nominals, budget, depth + 1)?),
+            }),
+            s::TypeKind::Group(inner) => {
+                self.pointer_parameter_type(inner, nominals, budget, depth + 1)
+            }
+            s::TypeKind::Tuple(fields) => {
+                let mut result = Vec::new();
+                for field in fields {
+                    result.push(self.pointer_parameter_type(field, nominals, budget, depth + 1)?);
+                }
+                Ok(Type::Tuple(result))
+            }
+            s::TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => {
+                for instance in &self.instances {
+                    budget.node(source.span, depth)?;
+                    if let Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                        && let Type::Record { name, .. } = storage.as_ref()
+                    {
+                        budget.text(name, source.span)?;
+                        budget.text(&path[0], source.span)?;
+                        if name == &path[0] {
+                            pay_type(&instance.instance.ty, budget, source.span, depth + 1)?;
+                            return Ok(instance.instance.ty.clone());
+                        }
+                    }
+                }
+                budget.ty_depth(source, depth)?;
+                let ty = type_ref(source);
+                if let Type::Named(name) = &ty {
+                    budget.identity_work(
+                        name.len()
+                            .saturating_add(1)
+                            .saturating_mul(
+                                nominals.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                            )
+                            .saturating_mul(12),
+                        source.span,
+                    )?;
+                    let declaration = nominals.get(name).ok_or_else(|| {
+                        invalid(source.span, "unknown nominal type in rich code signature")
+                    })?;
+                    let formals = match &declaration.kind {
+                        s::ItemKind::Aggregate(a) => a.generics.as_slice(),
+                        s::ItemKind::Enum(e) => e.generics.as_slice(),
+                        _ => {
+                            return Err(invalid(
+                                source.span,
+                                "rich code type needs an actual nominal declaration",
+                            ));
+                        }
+                    };
+                    budget.identity_work(formals.len(), source.span)?;
+                    if !formals.is_empty() {
+                        return Err(invalid(
+                            source.span,
+                            "rich code nominal type lacks its actual arguments",
+                        ));
+                    }
+                }
+                if contains_unresolved(&ty) {
+                    return Err(Diagnostic::unsupported(
+                        Phase::Expand,
+                        "rich code parameter needs its complete source type",
+                        Some(source.span),
+                    ));
+                }
+                Ok(ty)
+            }
+            _ => Err(Diagnostic::unsupported(
+                Phase::Expand,
+                "rich code parameter needs its complete source constructor",
+                Some(source.span),
+            )),
+        }
+    }
     pub(super) fn restore_functions(
         &mut self,
         functions: &BTreeMap<String, (zil_base::ModuleId, String, bool)>,
@@ -238,6 +365,23 @@ fn pay_type(ty: &Type, budget: &mut generics::Budget<'_>, span: Span, depth: usi
         }
         Type::ErrorUnion { error, result } => {
             pay_type(error, budget, span, depth + 1)?;
+            pay_type(result, budget, span, depth + 1)
+        }
+        Type::FunctionPointer { parameters, result }
+        | Type::BorrowedFunctionPointer {
+            parameters, result, ..
+        } => {
+            if let Type::BorrowedFunctionPointer { life, .. } = ty {
+                for row in &life.bindings {
+                    spend(budget, span, row.position.path.len().saturating_add(1))?;
+                }
+                for row in &life.classes {
+                    spend(budget, span, row.position.path.len().saturating_add(1))?;
+                }
+            }
+            for parameter in parameters {
+                pay_type(parameter, budget, span, depth + 1)?;
+            }
             pay_type(result, budget, span, depth + 1)
         }
         Type::Unit
@@ -976,21 +1120,317 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
     }
 
     #[test]
-    fn rich_bfp_source_classes_stay_closed_until_their_actual_producer() {
-        for signature in [
-            "for<life a> fn(&'a Tag<'a>)->i32",
-            "for<life a> for<life b> fn(&'a Tag<'b>,&'b i32)->i32",
-            "for<life a> for<life b> fn(&'a Tag<'a>,&'b i32)->i32",
+    fn rich_bfp_source_classes_keep_joint_invocation_labels() {
+        let mut types = Vec::new();
+        let mut inventories = Vec::new();
+        // Alpha tests across edited requests need an explicit stable naming
+        // context; ClosedSnapshot deliberately invalidates on byte changes.
+        let expand_signature = |text: &str| -> CompileResult<CoreModule> {
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "alpha-code.zil", text);
+            let syntax = zil_syntax::parse(&source).into_result()?;
+            let modules = BTreeMap::from([(ModuleId(0), Vec::new())]);
+            Ok(expand_with_map_limits_target_context(
+                &source,
+                &syntax,
+                &Limits::default(),
+                &zil_base::TargetProfile::default(),
+                source_context::SourceIdentityContext::Explicit {
+                    package: "terminal341-rich-code-alpha",
+                    modules: &modules,
+                    declarations: source_context::DeclarationPlacement::Original,
+                },
+            )?
+            .core)
+        };
+        for (signature, class, binders) in [
+            ("for<life a> fn(&'a Tag<'a>)->i32", 0, 1),
+            ("for<life a> for<life b> fn(&'a Tag<'b>,&'b i32)->i32", 1, 2),
+            ("for<life a> for<life b> fn(&'a Tag<'a>,&'b i32)->i32", 0, 2),
+            ("for<life x> for<life y> fn(&'x Tag<'y>,&'y i32)->i32", 1, 2),
         ] {
-            let errors = expand_text(&format!("struct Tag<life s>{{n:i32}}type Handler={signature};fn use_handler(f:Handler){{}}fn main(){{}}"))
-                .expect_err("an outer-only relation cannot erase a qualified signature class");
+            let core = expand_signature(&format!("struct Tag<life s>{{n:i32}}type Handler={signature};fn use_handler(f:Handler){{}}fn main(){{}}"))
+                .unwrap();
+            let ty = core
+                .functions
+                .iter()
+                .find(|f| f.name == "use_handler")
+                .unwrap()
+                .parameters[0]
+                .ty
+                .clone();
+            let Type::BorrowedFunctionPointer {
+                parameters, life, ..
+            } = &ty
+            else {
+                panic!("{ty:?}")
+            };
+            assert_eq!(
+                (life.fixed_binder_count, life.invocation_binder_count),
+                (0, binders)
+            );
+            assert_eq!(life.bindings[0].binder, StorageBinder::Invocation(0));
+            assert_eq!(
+                life.classes,
+                vec![SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Parameter(0),
+                        path: vec![LifeTypeProjection::Pointee],
+                        class: 0
+                    },
+                    binder: StorageBinder::Invocation(class)
+                }]
+            );
             assert!(
-                errors.iter().all(|error| matches!(
-                    error.category,
-                    zil_base::ResultCategory::Unsupported | zil_base::ResultCategory::SafeReject
-                )),
+                matches!(&parameters[0],Type::Address {inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage {..}))
+            );
+            types.push(ty);
+            inventories.push(core.life_declarations);
+        }
+        assert_ne!(types[1], types[2]);
+        assert_eq!(types[1], types[3]);
+        assert_eq!(inventories[1], inventories[3]);
+    }
+
+    #[test]
+    fn rich_bfp_phantom_actual_and_unused_aliases_are_checked() {
+        let core = expand_text("struct Tag<life a>{n:i32}type Code=for<life a>fn(&'a Tag<'a>)->i32;struct Holder<T:Copy>{n:i32}fn make()->Holder<Code>{return Holder::<Code>{n:42}}fn main()->i32{let h=make();return h.n}").unwrap();
+        assert_eq!(core.life_instances.len(), 1);
+        assert!(
+            core.aggregates
+                .iter()
+                .any(|a| a.name.starts_with("Holder$") || a.name.contains("Holder"))
+        );
+        for alias in [
+            "for<life a>fn(&'a Missing<'a>)->i32",
+            "for<life a>fn(&'a Tag<'missing>)->i32",
+            "for<life a>fn(&'a Tag<'a,'a>)->i32",
+            "for<life a>fn(&'a Tag<i32>)->i32",
+            "for<life a>fn(&'a Tag<'a>)->for<life b>fn(&'b Tag<'b>)->i32",
+        ] {
+            let rejected = expand_text(&format!(
+                "struct Tag<life a>{{n:i32}}type Unused={alias};fn main(){{}}"
+            ));
+            assert!(rejected.is_err(), "unused alias admitted: {alias}");
+        }
+        let unused = expand_text(
+            "struct Tag<life a>{n:i32}type Unused=for<life a>fn(&'a Tag<'a>)->i32;fn main(){}",
+        )
+        .unwrap();
+        assert_eq!(unused.life_instances.len(), 1);
+    }
+
+    #[test]
+    fn rich_bfp_grouped_aliases_and_record_fields_keep_complete_contracts() {
+        let core=expand_text("struct Tag<life a>{n:i32}type Code=(for<life a>fn(&'a Tag<'a>)->i32);struct Box{f:Code}fn pass(f:Code)->Code{return f}fn main(){}").unwrap();
+        let field = &core
+            .aggregates
+            .iter()
+            .find(|a| a.name == "Box")
+            .unwrap()
+            .fields[0]
+            .ty;
+        let function = core.functions.iter().find(|f| f.name == "pass").unwrap();
+        assert_eq!(field, &function.parameters[0].ty);
+        assert_eq!(field, &function.return_type);
+        let Type::BorrowedFunctionPointer {
+            parameters, life, ..
+        } = field
+        else {
+            panic!("{field:?}")
+        };
+        assert_eq!(life.classes.len(), 1);
+        assert_eq!(life.classes[0].binder, StorageBinder::Invocation(0));
+        assert!(
+            matches!(&parameters[0],Type::Address{inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage{..}))
+        );
+        for use_site in [
+            "fn bad(f:(Code,i32)){}",
+            "struct Bad{f:(Code,i32)}",
+            "type Bad=[Code;1];",
+        ] {
+            let errors=expand_text(&format!("struct Tag<life a>{{n:i32}}type Code=for<life a>fn(&'a Tag<'a>)->i32;{use_site}fn main(){{}}")).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.category == zil_base::ResultCategory::Unsupported
+                        && e.message.contains("contextual signature adapter")),
                 "{errors:?}"
             );
+        }
+    }
+
+    #[test]
+    fn rich_bfp_registered_qualified_names_cannot_use_the_legacy_flat_path() {
+        let core =
+            expand_text("struct Tag<life s>{n:i32}fn read<life s>(p:&'s Tag<'s>)->i32{return p.n}")
+                .unwrap();
+        let Type::BorrowedStorage { storage, .. } = &core.life_instances[0].ty else {
+            panic!()
+        };
+        let Type::Record { name, .. } = storage.as_ref() else {
+            panic!()
+        };
+        let mut catalog = Catalog::default();
+        catalog.instances.push(Instance {
+            declaration: core.life_declarations[0].clone(),
+            instance: core.life_instances[0].clone(),
+            classes: vec![LexicalLife(0)],
+        });
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "raw-legacy-code.zil",
+            "fn take(f:for<life a>fn(&'a i32)->i32){}",
+        );
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let s::ItemKind::Function(function) = &syntax.items[0].kind else {
+            panic!()
+        };
+        let mut ty = function.params[0].ty.clone();
+        let limits = Limits::default();
+        assert!(
+            catalog
+                .pointer_type(&ty, &mut generics::Budget::new(&limits))
+                .unwrap()
+                .is_none()
+        );
+        let s::TypeKind::ForLifetime { inner, .. } = &mut ty.kind else {
+            panic!()
+        };
+        let s::TypeKind::Function { params, .. } = &mut inner.kind else {
+            panic!()
+        };
+        let s::TypeKind::Reference { inner, .. } = &mut params[0].kind else {
+            panic!()
+        };
+        inner.kind = s::TypeKind::Named {
+            path: vec![name.clone()],
+            args: vec![],
+        };
+        let rejected = catalog
+            .pointer_type(&ty, &mut generics::Budget::new(&limits))
+            .unwrap_err();
+        assert_eq!(rejected.category, zil_base::ResultCategory::Unsupported);
+        assert!(rejected.message.contains("actual Fixed context"));
+    }
+
+    #[test]
+    fn rich_bfp_project_uses_actual_same_spelled_declarations() {
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "moved/main.zil",
+                "import a;import b;fn left(f:a.Code){}fn right(f:b.Code){}fn main(){}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(11),
+                "moved/a.zil",
+                "pub struct Tag<life a>{n:i32}pub type Code=for<life x>fn(&'x Tag<'x>)->i32;",
+            ),
+            SourceUnit::new(
+                FileId(2),
+                ModuleId(22),
+                "moved/b.zil",
+                "pub struct Tag<life a>{n:i32}pub type Code=for<life y>fn(&'y Tag<'y>)->i32;",
+            ),
+        ];
+        let syntax = sources
+            .iter()
+            .map(|s| zil_syntax::parse(s).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let imports = [
+            vec![
+                CoreImport {
+                    alias: "a".into(),
+                    module: ModuleId(11),
+                    span: syntax[0].items[0].span,
+                },
+                CoreImport {
+                    alias: "b".into(),
+                    module: ModuleId(22),
+                    span: syntax[0].items[1].span,
+                },
+            ],
+            vec![],
+            vec![],
+        ];
+        let aliases = BTreeMap::from([
+            (vec!["a".into()], ModuleId(11)),
+            (vec!["b".into()], ModuleId(22)),
+        ]);
+        let expanded = expand_program_with_limits_target_context(
+            &sources,
+            &syntax.iter().collect::<Vec<_>>(),
+            &imports,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap();
+        let root = &expanded
+            .iter()
+            .find(|(m, _)| m.core.module_id == ModuleId(0))
+            .unwrap()
+            .0
+            .core;
+        let left = &root
+            .functions
+            .iter()
+            .find(|f| f.name == "left")
+            .unwrap()
+            .parameters[0]
+            .ty;
+        let right = &root
+            .functions
+            .iter()
+            .find(|f| f.name == "right")
+            .unwrap()
+            .parameters[0]
+            .ty;
+        assert_ne!(left, right);
+        let mut declarations = expanded
+            .iter()
+            .flat_map(|(m, _)| &m.core.life_declarations)
+            .map(|d| &d.identity)
+            .collect::<Vec<_>>();
+        declarations.sort();
+        declarations.dedup();
+        assert_eq!(declarations.len(), 2);
+        assert_eq!(
+            declarations
+                .iter()
+                .map(|d| d.module_path.clone())
+                .collect::<Vec<_>>(),
+            [vec!["a".to_string()], vec!["b".to_string()]]
+        );
+    }
+
+    #[test]
+    fn rich_bfp_and_grouped_const_domains_prepay_exact_request_limits() {
+        for (name,text) in [
+            ("rich", "struct Tag<life s>{n:i32}type Code=for<life a>for<life b>fn(&'a Tag<'b>,&'b i32)->i32;fn first(f:Code){}fn second(f:Code){}fn main(){}".to_string()),
+            ("const-domain",format!("struct Phantom<life s,#N:{}i32{}>{{n:i32}}fn make<life s>(p:&'s i64)->Phantom<'s,7>{{return Phantom::<'s,7>{{n:42}}}}fn main(){{}}","(".repeat(20),")".repeat(20))),
+        ] {
+            let source=SourceUnit::new(FileId(0),ModuleId(0),"exact-context.zil",text);
+            let syntax=zil_syntax::parse(&source).into_result().unwrap();
+            let aliases=BTreeMap::new();
+            let run=|work| {
+                let limits=Limits{max_analysis_steps:work,..Limits::default()};
+                expand_with_map_limits_target_context(&source,&syntax,&limits,&zil_base::TargetProfile::default(),source_context::SourceIdentityContext::ClosedSnapshot{root:ModuleId(0),aliases:&aliases,declarations:source_context::DeclarationPlacement::Original})
+            };
+            let mut low=0;let mut high=Limits::default().max_analysis_steps;
+            assert!(run(high).is_ok());
+            while low+1<high {let mid=low+(high-low)/2;if run(mid).is_ok(){high=mid}else{low=mid}}
+            assert!(run(high).is_ok());assert!(run(high).is_ok());
+            let rejected=run(high-1).unwrap_err();
+            assert!(rejected.iter().all(|e|e.category==zil_base::ResultCategory::ResourceLimit),"{rejected:?}");
+            eprintln!("{name} exact source work N={high}, N-1 ResourceLimit, repeated exact succeeds");
         }
     }
 
@@ -1042,6 +1482,80 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
                 },
             ]
         );
+    }
+
+    const RICH_ROLE_HELPER: &str = "struct Tag<life s>{n:i32}fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)}fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};let f=(p,q)=>42;return invoke(&f,&v,x)}fn result()->i32{let n=21;return apply(&n)}fn main()->i32{return result()-42}";
+    #[test]
+    fn rich_callable_role_preserves_helper_and_invocation_domains() {
+        let core = expand_text(RICH_ROLE_HELPER).unwrap();
+        let helper = core.functions.iter().find(|f| f.name == "invoke").unwrap();
+        let contract = helper.storage_life.as_ref().unwrap();
+        assert_eq!(
+            (
+                contract.fixed_binder_count,
+                contract.invocation_binder_count
+            ),
+            (1, 2)
+        );
+        assert_eq!(
+            contract
+                .bindings
+                .iter()
+                .map(|r| r.binder)
+                .collect::<Vec<_>>(),
+            [
+                StorageBinder::Invocation(0),
+                StorageBinder::Invocation(1),
+                StorageBinder::Fixed(0)
+            ]
+        );
+        assert_eq!(contract.classes[0].binder, StorageBinder::Fixed(0));
+        assert_eq!(contract.classes[0].position.base, StorageBase::Parameter(1));
+        let role = &helper.callable_parameters[0];
+        let relation = role.life.as_ref().unwrap();
+        assert_eq!(
+            (
+                relation.fixed_binder_count,
+                relation.invocation_binder_count
+            ),
+            (0, 2)
+        );
+        assert_eq!(
+            relation
+                .bindings
+                .iter()
+                .map(|r| r.binder)
+                .collect::<Vec<_>>(),
+            [StorageBinder::Invocation(0), StorageBinder::Invocation(1)]
+        );
+        assert_eq!(relation.classes[0].binder, StorageBinder::Invocation(1));
+        assert_eq!(
+            relation.classes[0].position.path,
+            [LifeTypeProjection::Pointee]
+        );
+        assert!(
+            matches!(&role.parameters[0],Type::Address {inner,..} if matches!(inner.as_ref(),Type::BorrowedStorage {..}))
+        );
+    }
+    #[test]
+    fn unused_rich_role_definitions_check_rigid_classes_before_instances() {
+        for (tag, q, expected) in [("b", "b", true), ("a", "b", false), ("a", "a", true)] {
+            let text = format!(
+                "struct Tag<life s>{{n:i32}}fn unused<life a,life b,F:for<life x>for<life y>Fn(&'x Tag<'y>,&'y i32)->i32>(f:&F,p:&'a Tag<'{tag}>,q:&'{q} i32)->i32{{return f(p,q)}}fn main(){{}}"
+            );
+            let result = expand_text(&text);
+            if expected {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("distinct declared lifetime classes")),
+                    "{errors:?}"
+                );
+            }
+        }
     }
 
     #[test]

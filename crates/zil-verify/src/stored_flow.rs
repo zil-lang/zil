@@ -435,6 +435,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
             for i in &block.instructions {
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
+                    && !super::stored_callables::instruction(module, f, i)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -452,6 +453,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                             | InstructionKind::WriteAddress { .. }
                             | InstructionKind::SliceLength { .. }
                             | InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::ExtractField { .. }
                             | InstructionKind::Call { .. }
                             | InstructionKind::Unary { .. }
                             | InstructionKind::Binary { .. }
@@ -472,6 +474,28 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
+                }
+                if super::stored_callables::instruction(module, f, i) {
+                    super::stored_callables::types(module, f, i, b)?;
+                }
+                if let InstructionKind::ExtractField { aggregate, index } = &i.kind {
+                    let ty = vt(f, *aggregate)?;
+                    type_work(ty, limits, b)?;
+                    let field = match ty {
+                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                        Type::Tuple(fields) => fields.get(*index as usize),
+                        _ => None,
+                    }
+                    .ok_or_else(|| err("actual Copy extraction field is absent"))?;
+                    if !ty.is_copy_value() || !super::stored_callables::scalar(field) {
+                        return Err(unsupported(
+                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
+                            Some(i.span),
+                        ));
+                    }
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(field) {
+                        return Err(err("Copy extraction result differs from the actual field"));
+                    }
                 }
             }
         }
@@ -732,7 +756,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
             .chain(std::iter::once(&f.return_type))
         {
             b.spend(1)?;
-            if qualified(ty).is_some() || addressed(ty).is_some() {
+            if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
                 return Err(err("stored signature requires complete class relation"));
             }
         }
@@ -752,7 +776,13 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
-    super::signature_life::relation(&parameters, &f.return_type, c, Some(f.span))?;
+    super::signature_life::function_relation(
+        &parameters,
+        &f.return_type,
+        c,
+        Some(f.span),
+        f.callable_contract.is_some(),
+    )?;
     Ok(())
 }
 
@@ -1081,6 +1111,7 @@ fn step(
                 }
             }
         }
+        _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::WriteAddress { address, .. } => {
@@ -1095,6 +1126,7 @@ fn step(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
@@ -1578,8 +1610,35 @@ fn windows(
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, false, &active, &solution.loans, requirements, b)?;
                 }
-                InstructionKind::CallIndirect { arguments, .. } => {
+                InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosure { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. }
+                | InstructionKind::CallClosureShared { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
+                    match &i.kind {
+                        InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            let p = pointer(*callee)?;
+                            permission_work(p, b)?;
+                            b.spend(1)?;
+                            all.push((p.clone(), false));
+                        }
+                        InstructionKind::CallClosureShared { callee, .. } => {
+                            b.spend(2)?;
+                            all.push((
+                                Permission {
+                                    sources: vec![Source {
+                                        base: HoldRoot::Local(*callee),
+                                        leaf: vec![],
+                                        inline: vec![],
+                                    }],
+                                    loans: vec![],
+                                },
+                                false,
+                            ));
+                        }
+                        _ => {}
+                    }
+
                     for argument in arguments {
                         let actual = &solution.values[argument.0 as usize];
                         if let Type::Address { mutable, .. } = vt(f, *argument)? {
@@ -1730,17 +1789,16 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    if !module.resources.is_empty() || !module.closures.is_empty() {
+    if !module.resources.is_empty() {
         return Err(unsupported(
             "owned/closure storage needs its common retained integration",
             None,
         ));
     }
+    super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if f.foreign.is_some()
-            || f.environment.is_some()
-            || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -1748,6 +1806,15 @@ pub(super) fn check(
                 "stored profile requires ordinary direct function bodies",
                 Some(f.span),
             ));
+        }
+        if let Some(id) = f.environment {
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| err("callback function environment is absent"))?;
+            if !super::stored_callables::finite(module, id) || d.function != f.id {
+                return Err(err("callback function is not the actual finite entry"));
+            }
         }
         for ty in f
             .locals
@@ -1757,7 +1824,8 @@ pub(super) fn check(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
-            if !(qualified(ty).is_some()
+            if !(super::stored_callables::value(module, ty)
+                || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value())
@@ -1770,6 +1838,7 @@ pub(super) fn check(
         }
     }
     b.spend(module.functions.len().saturating_mul(2))?;
+    super::stored_callables::roles(module, graphs, b)?;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
     loop {
@@ -1882,6 +1951,141 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
+    }
+    #[test]
+    fn two_rich_roles_consume_one_verification_ledger() {
+        let m = fixture::qualified_two_fn_roles(false);
+        let c = fixture::class_candidate(&m);
+        let limit = |n| Limits {
+            max_analysis_steps: n,
+            ..Limits::default()
+        };
+        let check = |n| super::super::verify_module(m.clone(), c.clone(), &m.target, &limit(n));
+        let expected = check(Limits::default().max_analysis_steps)
+            .unwrap()
+            .fingerprint();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if check(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        let error = check(low - 1).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+            "{error:?}"
+        );
+        assert_eq!(check(low).unwrap().fingerprint(), expected);
+        assert_eq!(check(low).unwrap().fingerprint(), expected);
+        println!("342 qualified Fn role Verify N={low}; N-1 ResourceLimit/fresh N identical");
+    }
+    #[test]
+    fn qualified_callback_exclusive_alias_fails_even_with_valid_class_equations() {
+        let m = fixture::qualified_fn_exclusive_call(false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::qualified_fn_exclusive_call(true);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn two_parameter_roles_with_one_closure_keep_distinct_rich_relations() {
+        let m = fixture::qualified_two_fn_roles(false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::qualified_two_fn_roles(true);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.message.contains("class equality")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error.iter().any(|d| d.message.contains("class equality")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn qualified_fn_role_class_equations_are_checked_in_raw_and_wire() {
+        let m = fixture::qualified_fn_role(false, false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        for m in [
+            fixture::qualified_fn_role(true, false),
+            fixture::qualified_fn_role(false, true),
+        ] {
+            let c = fixture::class_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            let error = super::super::verify_module(m.clone(), c, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")),
+                "{error:?}"
+            );
+            let error = super::super::verify_module_bytes(&bytes, &m.target, &Limits::default())
+                .unwrap_err();
+            assert!(
+                error.iter().any(|d| d.message.contains("class equality")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
+    fn unbound_pointer_fixed_is_rejected_in_raw_and_decoded_wire() {
+        let m = fixture::phantom_class_calls(true, false);
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        let m = fixture::unbound_fixed_pointer();
+        let c = fixture::class_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let error =
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
+        let error =
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("genuine enclosing semantic context")),
+            "{error:?}"
+        );
     }
     #[test]
     fn rich_indirect_alias_is_rejected_in_raw_and_wire_even_with_matching_classes() {

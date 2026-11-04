@@ -2,10 +2,6 @@
 use super::*;
 impl Identity<'_, '_> {
     pub(super) fn graph(&mut self, ty: &CtTypeRef) -> Check<Vec<u8>> {
-        if !ty.ambient_classes.is_empty() {
-            return Err(pending_scoped_identity());
-        }
-
         let count = ty.nodes.len();
         if count == 0 || ty.root.0 as usize != count - 1 {
             return Err(reject(None, "nominal type graph has a noncanonical root"));
@@ -14,7 +10,7 @@ impl Identity<'_, '_> {
             return Err(limit(None, "nominal type graph exceeds node quota"));
         }
         self.reserve(count.saturating_mul(64))?;
-        if ty.nodes.iter().any(|n|matches!(n,CtTypeNode::BorrowedStorage {..})||matches!(n,CtTypeNode::Nominal {arguments,..}if arguments.iter().any(|a|matches!(a,CtTypeArgument::Lifetime(_))))) {
+        if !ty.ambient_classes.is_empty() || ty.nodes.iter().any(|n|matches!(n,CtTypeNode::BorrowedStorage {..})||matches!(n,CtTypeNode::Nominal {arguments,..}if arguments.iter().any(|a|matches!(a,CtTypeArgument::Lifetime(_))))) {
             return self.scoped_graph(ty,false);
         }
 

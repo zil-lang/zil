@@ -52,3 +52,22 @@ pub(super) fn closed_signature(
         )]
     })
 }
+
+pub(super) fn embed_signature(
+    life: FunctionLifeContract,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<StorageLifeContract> {
+    budget.reserve_analysis_work(life.parameter_lives.len() as u64 + 1)?;
+    budget.reserve_temporary_bytes(
+        (life.parameter_lives.len() as u64 + 1)
+            .saturating_mul(std::mem::size_of::<zil_ir::StorageLifeBinding>() as u64),
+    )?;
+    StorageLifeContract::from_flat(life).ok_or_else(|| {
+        vec![Diagnostic::error(
+            Phase::Ct,
+            "E-CT-ARTIFACT",
+            None,
+            "CT relation parameter identity overflow",
+        )]
+    })
+}

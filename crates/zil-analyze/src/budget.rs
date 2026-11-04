@@ -1059,6 +1059,17 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if budget.stored_borrows && super::stored_callables::finite(module, closure.id) {
+                let actual = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if matches!(actual, Type::BorrowedStorage { .. }) {
+                    super::stored_flow::qualification(module, actual, limits, budget)?;
+                    continue;
+                }
+            }
             if ty.is_shared_sync_cell_address() {
                 continue;
             }

@@ -6758,26 +6758,58 @@ fn ct4_phantom_source_default_worker_subprocess() {
 }
 
 #[test]
-fn ct4_invocation_scoped_nominal_metadata_retains_pending_source_boundary() {
+fn ct5_invocation_scoped_nominal_metadata_reaches_native() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil"
     );
     let outcome = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         outcome.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         outcome.to_json()
     );
-    assert!(
-        outcome
-            .diagnostics
-            .iter()
-            .any(|d| d.phase == zil_base::Phase::Expand
-                && d.message.contains("scoped nominal lifetime substitution")),
-        "{}",
-        outcome.to_json()
-    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+
+    // The same ordinary runtime projection, without CT evaluation, supplies
+    // raw candidates for independent index/result checks in both kernels.
+    let unit = source(&text.replace("#(make())", "make()"));
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    for wrong_result in [false, true] {
+        let mut raw = typed.clone();
+        let function = raw.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions).any(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))).unwrap();
+        let instruction = function.blocks.iter_mut().flat_map(|b| &mut b.instructions).find(|i| matches!(i.kind, InstructionKind::ExtractField { .. })).unwrap();
+        if wrong_result {
+            function.values[instruction.result.unwrap().0 as usize] = Type::I64;
+        } else if let InstructionKind::ExtractField { index, .. } = &mut instruction.kind {
+            *index = u32::MAX;
+        }
+        assert!(zil_analyze::analyze(&raw, &limits).is_err());
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        assert!(zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).is_err());
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+    }
 }
 
 #[test]
@@ -6951,4 +6983,12 @@ fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
         );
         review329_native(&[("main", text)], 42);
     }
+}
+
+#[test]
+fn ct5_phantom_context_query_reaches_native() {
+    let text=include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil");
+    let report=compile_source(&source(text),&CompileOptions::default());
+    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+    review329_native_entry_output(&[("main",text)],"main",b"42\n");
 }

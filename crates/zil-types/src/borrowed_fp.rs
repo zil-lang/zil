@@ -59,16 +59,16 @@ pub(super) fn relation(
             "borrowed function pointer requires a complete invocation-local address relation",
         )
     };
-    if !life.classes.is_empty() {
-        return borrowed_fp_qualified::relation(parameters, result, life, span);
-    }
-    // A free Fixed domain needs a real enclosing class context. It cannot be
-    // erased through a flat projection or invented by a bare address input.
+    // Callable values and roles have no retained enclosing Fixed-class context
+    // in this lane. Input-grounded direct definition rows are a separate case.
     if life.fixed_binder_count != 0 {
         return Err(unsupported(
             span,
             "rich borrowed callable class relation requires its complete signature consumer",
         ));
+    }
+    if !life.classes.is_empty() {
+        return borrowed_fp_qualified::relation(parameters, result, life, span);
     }
     if life.invocation_binder_count == 0 {
         return Err(invalid());
@@ -194,11 +194,103 @@ pub(super) fn pointer_work(signature: &Signature) -> usize {
         .len()
         .saturating_add(1)
         .saturating_mul(4)
+        .saturating_add(
+            signature
+                .storage_life
+                .as_ref()
+                .map_or(0, |life| metadata_work(life).saturating_mul(4)),
+        )
         .saturating_add(signature.life.as_ref().map_or(0, |life| {
             life.parameter_lives
                 .len()
                 .saturating_add(life.binder_count as usize)
         }))
+}
+
+/// Pay the qualified-slot planner and both subsequent relation inspections.
+/// Type formation separately reserves its own walk, two eligibility walks,
+/// the output clone, and the extra result Copy qualification.
+pub(super) fn static_pointer_slots(
+    signature: &Signature,
+    mut charge: impl FnMut(usize) -> R<()>,
+) -> R<()> {
+    if let Some(life) = &signature.storage_life {
+        qualified_inputs(life, &signature.parameters, &signature.result, |work| {
+            charge(work.saturating_mul(3))
+        })?;
+    }
+    Ok(())
+}
+
+/// Abstract a static definition's complete incoming equations into fresh
+/// invocation formals. The actual definition relation remains unchanged.
+/// Caller prepays metadata, type walks, mapping storage and returned snapshots.
+pub(super) fn static_pointer_life(
+    parameters: &[Type],
+    result: &Type,
+    definition: &StorageLifeContract,
+) -> Option<StorageLifeContract> {
+    if definition.classes.is_empty() {
+        relation(parameters, result, definition, Span::default()).ok()?;
+    } else {
+        // This is the unchanged, independently checked static definition,
+        // not a callable value with an unrepresented captured class context.
+        borrowed_fp_qualified::relation(parameters, result, definition, Span::default()).ok()?;
+    }
+    let mut fixed = vec![None; definition.fixed_binder_count as usize];
+    let mut invocation = vec![None; definition.invocation_binder_count as usize];
+    let mut next = 0u32;
+    fn map(
+        binder: StorageBinder,
+        fixed: &mut [Option<u32>],
+        invocation: &mut [Option<u32>],
+        next: &mut u32,
+    ) -> Option<StorageBinder> {
+        let slot = match binder {
+            StorageBinder::Fixed(n) => fixed.get_mut(n as usize)?,
+            StorageBinder::Invocation(n) => invocation.get_mut(n as usize)?,
+        };
+        let label = match *slot {
+            Some(label) => label,
+            None => {
+                let label = *next;
+                *next = next.checked_add(1)?;
+                *slot = Some(label);
+                label
+            }
+        };
+        Some(StorageBinder::Invocation(label))
+    }
+    let mut output = definition.clone();
+    let (mut borrowed, mut class) = (0, 0);
+    for base in (0..parameters.len())
+        .map(|index| StorageBase::Parameter(index as u32))
+        .chain(std::iter::once(StorageBase::Result))
+    {
+        while let Some(row) = output
+            .bindings
+            .get_mut(borrowed)
+            .filter(|row| row.position.base == base)
+        {
+            row.binder = map(row.binder, &mut fixed, &mut invocation, &mut next)?;
+            borrowed += 1;
+        }
+        while let Some(row) = output
+            .classes
+            .get_mut(class)
+            .filter(|row| row.position.base == base)
+        {
+            row.binder = map(row.binder, &mut fixed, &mut invocation, &mut next)?;
+            class += 1;
+        }
+    }
+    if borrowed != output.bindings.len() || class != output.classes.len() {
+        return None;
+    }
+    output.fixed_binder_count = 0;
+    output.invocation_binder_count = next;
+    relation(parameters, result, &output, Span::default()).ok()?;
+    Some(output)
 }
 
 pub(super) fn function_reference(

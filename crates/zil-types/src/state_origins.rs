@@ -1718,8 +1718,7 @@ impl Walk<'_, '_> {
             _ => None,
         };
         if let Some(signature) = found {
-            let work = inference::signature_snapshot_work("", signature, target.span, self.limits)?;
-            self.state.snapshot(work, target.span)?;
+            self.state.snapshot_signature("", signature, target.span)?;
             Ok(Some(signature.clone()))
         } else {
             Ok(None)

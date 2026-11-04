@@ -1,6 +1,6 @@
 //! Structurally migrated raw/Wire34 operands from the independent Analyze 253 review.
-#[path = "../../zil-ir/test-support/schema39_fixture.rs"]
-mod schema39_fixture;
+#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
+mod schema40_fixture;
 
 use zil_base::{Limits, TargetProfile};
 
@@ -11,17 +11,17 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
     for (name, bytes, expected) in [
         (
             "f_as_i32",
-            include_bytes!("../../../tests/impl254/v39/escape_callback_argument.wire").as_slice(),
+            include_bytes!("../../../tests/impl254/v40/escape_callback_argument.wire").as_slice(),
             "E-VERIFY-CLOSURE-CALL",
         ),
         (
             "symbolic_copy",
-            include_bytes!("../../../tests/impl254/v39/control_callback_i32_argument.wire")
+            include_bytes!("../../../tests/impl254/v40/control_callback_i32_argument.wire")
                 .as_slice(),
             "E-VERIFY-CALLABLE-CONTRACT",
         ),
     ] {
-        let migrated = schema39_fixture::migrate(bytes, &limits);
+        let migrated = schema40_fixture::migrate(bytes, &limits);
         let bytes = migrated.as_slice();
         let (typed, plan) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
         for result in [
@@ -35,8 +35,8 @@ fn forwarded_f_cannot_pass_as_its_own_i32_callback_argument() {
     // A genuine Fn call borrows its live local before the by-value transfer
     // to Return. The callback's i32 argument stays an actual i32.
     let (mut typed, mut plan) = zil_ir::wire::decode_module_candidate(
-        &schema39_fixture::migrate(
-            include_bytes!("../../../tests/impl254/v39/control_callback_i32_argument.wire"),
+        &schema40_fixture::migrate(
+            include_bytes!("../../../tests/impl254/v40/control_callback_i32_argument.wire"),
             &limits,
         ),
         &limits,

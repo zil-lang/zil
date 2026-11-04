@@ -972,8 +972,8 @@ fn symbolic_copy_capability_is_not_obtained_by_hiding_f_in_an_old_state_value() 
     rejected(&m);
 }
 
-#[path = "../../zil-ir/test-support/schema39_fixture.rs"]
-mod schema39_fixture;
+#[path = "../../zil-ir/test-support/schema40_fixture.rs"]
+mod schema40_fixture;
 
 // Frozen old bytes remain immutable; only tests migrate unchanged candidate records.
 macro_rules! reviewed_fixture_current {
@@ -988,8 +988,11 @@ macro_rules! reviewed_fixture_current {
         let v37 = include_bytes!(concat!("../tests/impl253_fixtures/v37/", $name));
         let errors = zil_ir::wire::decode_module_candidate(v37, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        schema39_fixture::migrate(
-            include_bytes!(concat!("../tests/impl253_fixtures/v39/", $name)),
+        let v39 = include_bytes!(concat!("../tests/impl253_fixtures/v39/", $name));
+        let errors = zil_ir::wire::decode_module_candidate(v39, &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].code, "E-WIRE-VERSION");
+        schema40_fixture::migrate(
+            include_bytes!(concat!("../tests/impl253_fixtures/v40/", $name)),
             &Limits::default(),
         )
     }};
@@ -997,7 +1000,7 @@ macro_rules! reviewed_fixture_current {
 
 #[test]
 fn reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges() {
-    // Structured Wire39 migrations of the frozen Wire32 counterexamples and controls;
+    // Structured Wire40 migrations of the frozen Wire32 counterexamples and controls;
     // the producer candidate in each file grants no authority.
     for (valid, bytes) in [
         (

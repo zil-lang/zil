@@ -986,5 +986,132 @@
     },
     "independent_review": "Pending exact raw checkpoint",
     "formal_full_workspace": "NotRunByImplementationAuthor"
+  },
+  "rich40_domain_hardening": {
+    "pre_hardening_full_libraries": {
+      "source_base": "4ada5186d after root0e/072 fixture migrations",
+      "analyze": 133,
+      "verify": 351,
+      "log_sha256": "16b984f34b0c3fa47b555d7689b682f6036d88d1e0cdb0491383ad168b50bb04"
+    },
+    "signature_tests": {
+      "analyze": 2,
+      "verify": 1,
+      "log_sha256": "a58046bff57b7567cfc105c383c09f6c8b2cd492c6cc7eaec0349e6f22c4ec6a"
+    },
+    "clippy": {
+      "scope": "both kernel libraries/tests -D warnings",
+      "status": "Pass",
+      "log_sha256": "c6e2e2fb6a066a200201fedafd4c818707d5229cd1140074b2c07269ea7e12b4"
+    },
+    "source": {
+      "crates/zil-analyze/src/signature_life.rs": "58dcbc5309f4334e4a2594b3de340e51a15ed4284635e18848f78d954be11d1d",
+      "crates/zil-verify/src/signature_life.rs": "610f5dd899921cdc7029429d3d7d06c4183d545f23527ed111f1dacda37c8bc3"
+    },
+    "authority": "necessary structural bounds only; no target, roots, permissions or domain freshening"
+  },
+  "unbound_fixed_pointer_correction": {
+    "base": "3438bdb24",
+    "scope": "Reject raw thin pointer/role Fixed domain without genuine enclosing semantic context; direct function Fixed formals preserved",
+    "independent_reproduction": "reviewer-retained/fixed-pointer-probe: only BFP Invocation0→Fixed0 mutation passed Analyze/Verify/Wire before correction",
+    "tests": {
+      "analyze_stored": 9,
+      "verify_stored": 8,
+      "both_kernel_lib_test_clippy": "Pass -D warnings"
+    },
+    "native": "NotRun; no unsafe native outcome claimed",
+    "budget": {
+      "analyze": 3377,
+      "verify": 4053,
+      "N-1_fresh": "Pass, unchanged",
+      "default_changed": false
+    },
+    "source_manifest": {
+      "files": 822,
+      "selector": "git ls-files order; crates/**/*.rs and crates/**/Cargo.toml including tests",
+      "encoding": "SHA256(bytes) + two spaces + path + newline",
+      "sha256": "795c24a07725c292f578478d4fb2f3ad8f0e881942bc2cccea292f4703862301"
+    },
+    "logs": {
+      "342-unbound-fixed-kernels.log": "152c871901558f254f1a34761ba0dfa797213b5db4508ead41017358a6f4c2b9",
+      "342-unbound-fixed-clippy.log": "c5897db79ddff0cbaa16f5fd99d9c6cfb1fe2dd7780176fcf50ca710377128e2"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_analyze-8dde3b1c204420d7": "3be6a857c0fae6d36d837845f219a409059cf9823d316c8f224a4a003fe0b4ba",
+      "/workspace/.zil-env/target342-fixed40/debug/deps/zil_verify-e5c00ec0866c83e5": "ae573ae019f321482aa2f9efb0a007bba5db773ccb0e374949dc1124e9fd54e5"
+    },
+    "source": {
+      "crates/zil-analyze/src/borrowed_fp.rs": "b5dc88a755f5d23871fb604a35aca1b1fb49a2db03170cb5de2e7fe1448b0c53",
+      "crates/zil-verify/src/borrowed_fp.rs": "79feec21209320da2d349bbc475c8745c8f821048713cde9c5955c7b22367d14",
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "3f1261f194433d4f9a5a0c57e5031e79f2a6dfb76bde398438de97d696230c80"
+    },
+    "independent_review": "Pending exact correction replay"
+  },
+  "qualified_capture_free_fn_raw_checkpoint": {
+    "scope": "Actual capture-free Fn scalar roles, independent definitions and per-parameter contracts; raw/decoded Wire only",
+    "base_before_final_controls": "a9e454444, includes root1cf3741f8 composition; staged76f/b26 private helpers",
+    "tests": {
+      "final_analyze_stored": 13,
+      "final_verify_stored": 12,
+      "full_libraries_before_two_budget_only_tests": {
+        "analyze": 138,
+        "verify": 356
+      },
+      "both_kernel_lib_test_clippy": "Pass -D warnings"
+    },
+    "budget": {
+      "qualified_two_roles_analyze": 5842,
+      "qualified_two_roles_verify": 6530,
+      "scalar_pointer_analyze": 3377,
+      "scalar_pointer_verify": 4053,
+      "neighbors": "N-1 ResourceLimit and repeat/fresh N identical; no default increase"
+    },
+    "semantics": [
+      "actual capture-free Fn entry/signature checked",
+      "definition None uses independent rigid inputs, no role installed globally",
+      "each full role rechecks actual body; no ClosureId dedup",
+      "same ClosureId under distinct valid contracts passes; wrong second parameter role rejects",
+      "helper receiver follows exact actual parameter ordinal",
+      "simultaneous actual environment and argument/stored-leaf windows retained",
+      "exclusive argument alias rejects even when class equations match",
+      "free Fixed pointer/role guard retained"
+    ],
+    "closed": [
+      "captured Fixed or other captures",
+      "FnMut/FnOnce in qualified module profile",
+      "lending or Address/carrier results",
+      "arbitrary receiver forwarding without exact parameter origin",
+      "owned/opaque/State storage and mutable slot transitions"
+    ],
+    "source_native": "NotRun in this checkpoint; root/341 producer and annotation-context guard required before actual source acceptance",
+    "new_operations": [
+      "actual zero-capture MakeClosure",
+      "CallClosureBorrowed kindFn",
+      "CallClosureShared on finite capture-free Fn"
+    ],
+    "source_manifest": {
+      "selector": "git ls-files order, crates/ prefix and .rs or Cargo.toml suffix, includes crate tests",
+      "encoding": "lowercase SHA256 + two spaces + relative path + newline",
+      "files": 827,
+      "sha256": "de84d2f18784a3250d1edddc9873e4437569bdff8d3583de9a03769fbb080aa7"
+    },
+    "logs": {
+      "342-qualified-role-raw-first.log": "87b0a3ca49a5dbf522dbfdfb0acdb5438513bb56a4f69acc1c1df0cc14c45533",
+      "342-qualified-two-roles-corrected.log": "cba35ea96fc177ca9f8f4fc5136fe262d3e00022f170446d4dba02ef529948b5",
+      "342-qualified-roles-exclusive.log": "32c642eb53c5d5ccf3355794860d060130b55a5df66e6a5f69c8a280fc76d661",
+      "342-qualified-roles-exclusive-clippy.log": "e63440e2d89ac16dba98c208c6c489922495691d2e1b35bb1e4e94e7636983a3",
+      "342-qualified-roles-libraries.log": "1dff06ba38e56b52ed917ded0aad161c32994a5a5aa3c724585c4c16712eed7f",
+      "342-qualified-roles-clippy-final.log": "1ea70f17d42bed26c7cd24bc847f586d7acfea91bcbbe613546c10c0a8a20169",
+      "342-qualified-roles-budget-final.log": "86deecd86b1b8938de13d8cd12a8c4c43770acd4213399a49e79e142e1b39f03",
+      "342-qualified-roles-clippy-checkpoint.log": "f265bdc53f863a2ff5cc353a0de7bc110ca8b269a2c56149819e07e2ffc7315c"
+    },
+    "test_binding": {
+      "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "c3936b05fbf693ce46e788d0ea7997241d4910254b471d79602dd5d377d90e35"
+    },
+    "harnesses": {
+      "/workspace/.zil-env/target342-40/debug/deps/zil_analyze-8dde3b1c204420d7": "ed28f6d6671fd8bba745074aee641b9797a29b6ccde4a00740dd9b01e856436d",
+      "/workspace/.zil-env/target342-40/debug/deps/zil_verify-e5c00ec0866c83e5": "8397f71ec65bdc5e8dcd688e1139985aebc74900e578611791d0a49e22b7b7bf"
+    },
+    "independent_review": "Pending exact raw callback checkpoint"
   }
 }

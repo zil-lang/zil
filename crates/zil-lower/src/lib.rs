@@ -106,6 +106,32 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         let owning_signature = (owning_result || owning_parameters)
             && complete_parameters
             && (closure.result.is_copy_value() || owning_result);
+        let qualified_signature = verified.uses_stored_borrows()
+            && closure.kind == CallableKind::Fn
+            && closure.captures.is_empty()
+            && closure.lending_captures.is_empty()
+            && closure.storage_life.is_none()
+            && matches!(
+                closure.result,
+                Type::Unit
+                    | Type::Bool
+                    | Type::I32
+                    | Type::I64
+                    | Type::U64
+                    | Type::Usize
+                    | Type::U8
+                    | Type::U16
+                    | Type::F32
+                    | Type::F64
+            );
+        if qualified_signature {
+            for ty in &closure.parameters {
+                if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
+                {
+                    sum_budget.borrowed(ty, 0)?;
+                }
+            }
+        }
         let invocation_signature = closure.lending_captures.is_empty()
             && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
             && closure
@@ -137,7 +163,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                        && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })

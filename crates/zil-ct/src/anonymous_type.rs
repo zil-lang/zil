@@ -7,18 +7,18 @@ use zil_ir::{Constant, ct_artifact::*};
 mod scoped;
 
 pub(crate) fn scoped_graph(reference: &CtTypeRef) -> bool {
-    reference.nodes.iter().any(|node| {
-        matches!(node, CtTypeNode::BorrowedStorage { .. })
-            || matches!(node, CtTypeNode::Nominal { arguments, .. }
+    !reference.ambient_classes.is_empty()
+        || reference.nodes.iter().any(|node| {
+            matches!(node, CtTypeNode::BorrowedStorage { .. })
+                || matches!(node, CtTypeNode::Nominal { arguments, .. }
                 if arguments.iter().any(|a| matches!(a, CtTypeArgument::Lifetime(_))))
-    })
+        })
 }
 pub(crate) fn retained_bytes(reference: &CtTypeRef) -> u64 {
-    if scoped_graph(reference) {
-        scoped::retained_bytes(reference)
-    } else {
-        16u64.saturating_add((reference.nodes.len() as u64).saturating_mul(64))
-    }
+    (std::mem::size_of::<CtTypeRef>() as u64).saturating_add(
+        crate::ct_artifact::storage::graph(reference, None)
+            .expect("admitted graph byte arithmetic"),
+    )
 }
 
 fn bad(message: &str) -> Vec<Diagnostic> {
@@ -223,7 +223,15 @@ struct Key<'a> {
 impl Key<'_> {
     fn bytes(&mut self, bytes: &[u8]) -> CompileResult<()> {
         self.budget.reserve_analysis_work(bytes.len() as u64)?;
-        self.budget.reserve_temporary_bytes(bytes.len() as u64)?;
+        let needed = self.out.len().checked_add(bytes.len()).ok_or_else(bound)?;
+        if needed > self.out.capacity() {
+            let capacity = needed.max(self.out.capacity().saturating_mul(2)).max(8);
+            self.budget.reserve_analysis_work(self.out.len() as u64)?;
+            self.budget
+                .reserve_temporary_bytes(capacity.saturating_sub(self.out.capacity()) as u64)?;
+            self.out
+                .reserve_exact(capacity.saturating_sub(self.out.len()));
+        }
         self.out.extend_from_slice(bytes);
         Ok(())
     }
@@ -296,13 +304,20 @@ fn canonical_type_key_mode(
     budget: &mut CtExecutionBudget,
     keep_key: bool,
 ) -> CompileResult<(CtTypeRef, Vec<u8>)> {
-    if !reference.ambient_classes.is_empty() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "authenticated CT5 ambient graph normalization is not yet implemented",
-            None,
-        )]);
-    }
+    let before = budget.live_temporary_bytes();
+    let result = canonical_type_key_mode_inner(reference, budget, keep_key);
+    let keep = result.as_ref().map_or(0, |(ty, key)| {
+        retained_bytes(ty).saturating_add(key.capacity() as u64)
+    });
+    let added = budget.live_temporary_bytes().saturating_sub(before);
+    budget.release_temporary_bytes(added.saturating_sub(keep));
+    result
+}
+fn canonical_type_key_mode_inner(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+    keep_key: bool,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
     budget.reserve_analysis_work(reference.nodes.len() as u64)?;
     if scoped_graph(reference) {
         return scoped::canonical(reference, budget, keep_key);
@@ -313,7 +328,7 @@ fn canonical_type_key_mode(
     let count = reference.nodes.len() as u64;
     let scratch = mul(count, 96)?;
     budget.reserve_temporary_bytes(scratch)?;
-    let mut canonical: Vec<Canonical> = Vec::new();
+    let mut canonical: Vec<Canonical> = Vec::with_capacity(reference.nodes.len());
     let mut charged = scratch;
     let result = (|| {
         for (index, node) in reference.nodes.iter().enumerate() {
@@ -416,8 +431,8 @@ fn canonical_type_key_mode(
             budget.reserve_generated_nodes(output_nodes)?;
             budget.reserve_temporary_bytes(bytes)?;
             charged = add(charged, bytes)?;
-            let mut nodes = Vec::new();
-            let mut mapped = Vec::new();
+            let mut nodes = Vec::with_capacity(usize::try_from(output_nodes).map_err(|_| bound())?);
+            let mut mapped = Vec::with_capacity(ids.len());
             for id in &ids {
                 let child = &canonical[id.0 as usize].ty;
                 let offset = u32::try_from(nodes.len()).map_err(|_| bound())?;
@@ -513,7 +528,7 @@ fn canonical_type_key_mode(
                 }
             }
             let key = key.out;
-            charged = add(charged, key.len() as u64)?;
+            charged = add(charged, key.capacity() as u64)?;
             let final_node = if matches!(node, CtTypeNode::AnonymousSum(_)) {
                 CtTypeNode::AnonymousSum(mapped)
             } else {
@@ -533,11 +548,15 @@ fn canonical_type_key_mode(
             });
         }
         let result = canonical.swap_remove(reference.root.0 as usize);
-        let output_bytes = add(16, mul(result.ty.nodes.len() as u64, 64)?)?;
+        let output_bytes = retained_bytes(&result.ty);
         // Keep precisely the VM's returned Type-value charge after scratch dies.
         budget.reserve_temporary_bytes(add(
             output_bytes,
-            if keep_key { result.key.len() as u64 } else { 0 },
+            if keep_key {
+                result.key.capacity() as u64
+            } else {
+                0
+            },
         )?)?;
         let key = if keep_key { result.key } else { Vec::new() };
         Ok((result.ty, key))
@@ -566,6 +585,7 @@ mod tests {
         CtTypeRef {
             root: CtTypeNodeId(nodes.len() as u32 - 1),
             nodes,
+            ambient_classes: Vec::new(),
         }
     }
     #[test]
@@ -650,16 +670,18 @@ mod tests {
     #[test]
     fn anonymous_type_borrowed_code_keeps_complete_life_and_signature_identity() {
         use zil_ir::FunctionLifeContract;
-        let one = FunctionLifeContract {
+        let one = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 1,
             parameter_lives: vec![Some(0), Some(0)],
             result_life: Some(0),
-        };
-        let two = FunctionLifeContract {
+        })
+        .unwrap();
+        let two = zil_ir::StorageLifeContract::from_flat(FunctionLifeContract {
             binder_count: 2,
             parameter_lives: vec![Some(0), Some(1)],
             result_life: Some(0),
-        };
+        })
+        .unwrap();
         let input = graph(vec![
             CtTypeNode::Primitive(CtScalarTy::I32),
             CtTypeNode::Address {
