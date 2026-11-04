@@ -1,5 +1,5 @@
 {
-  "status": "PassLimited",
+  "status": "ChangesRequested",
   "reviewer": "/root/terminal_architecture",
   "implementation_commit": "e7b0a4ef0c0a67ed21a2dfd0bcbd2f175adaa01e",
   "scope": "Combined UInt, hygienic Option enums, local reference patterns, actual borrowed Sum inputs and precise inline tuple-field addresses. General mixed move/ref and nonCopy Tuple ownership remain separate.",
@@ -52,5 +52,11 @@
     "General mixed move/ref ownership patterns, nonCopy Tuple construction/destruction and nested Tuple/conditional reference-pattern place lowering remain unfinished.",
     "Earlier broad Analyze sum filter encountered the frozen-v34 forward fixture E-WIRE-VERSION; root-owned schema compatibility migration remains separate. This narrow reviewer run does not claim that broad target passed.",
     "Reviewer ran no Cargo build, Clippy or full workspace gate. Native Windows and same-semantic Rust runtime/RSS/compile/maintenance comparisons remain unmeasured. Full-language acceptance is not claimed."
-  ]
+  ],
+  "subsequent_integration_finding": {
+    "finding": "Root integration of the original impl236 tests exposed an empty address_afters index panic in holds::infer store_window_transition gating.",
+    "evidence": "Reported by root after the exact19-test scoped replay;340 confirmed guard regression. Earlier19/0 remains unchanged and does not cover these original integration consumers.",
+    "required": "Restore the nonempty address_afters guard in conjunction with profile flags; replay original impl236 consumers and new pattern controls at the corrected exact source.",
+    "status": "Root and340 correcting; clean follow-up evidence pending"
+  }
 }
