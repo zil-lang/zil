@@ -3,6 +3,9 @@ use super::*;
 #[path = "ct_artifact_graph_identity.rs"]
 mod graph;
 
+fn pending_scoped_identity() -> Vec<Diagnostic> {
+    vec![Diagnostic::unsupported(Phase::Ct, "CT4 scoped metadata identity is not yet implemented", None)]
+}
 struct Identity<'a, 'b> {
     raw: &'a CtArtifactProgram,
     limits: &'a Limits,
@@ -96,6 +99,7 @@ impl Identity<'_, '_> {
                     self.number(out, key.len() as u64)?;
                     self.put(out, &key)?;
                 }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => return Err(pending_scoped_identity()),
                 CtSchemaArgument::Scalar(value) => {
                     self.put(out, &[1])?;
                     self.scalar(out, value)?;
@@ -180,6 +184,8 @@ impl Identity<'_, '_> {
                 let schema = records
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(None, "CT complete record schema is missing"))?;
+                if schema.life_context.is_some() { return Err(pending_scoped_identity()); }
+
                 self.nominal(
                     &mut out,
                     false,
@@ -194,6 +200,8 @@ impl Identity<'_, '_> {
                 let schema = enums
                     .get(id.0 as usize)
                     .ok_or_else(|| reject(None, "CT complete enum schema is missing"))?;
+                if schema.life_context.is_some() { return Err(pending_scoped_identity()); }
+
                 self.nominal(&mut out, true, id.0, &schema.name, &schema.arguments, depth)?;
             }
             CtTy::AnonymousSum(members) => self.members(members, depth, &mut out)?,
@@ -260,22 +268,24 @@ pub(super) fn check_argument_graphs(
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    for arguments in raw
-        .record_schemas
-        .iter()
-        .map(|s| s.arguments.as_slice())
-        .chain(raw.enum_schemas.iter().map(|s| s.arguments.as_slice()))
+    for (arguments, context) in raw.record_schemas.iter().map(|s| (s.arguments.as_slice(), &s.life_context))
+        .chain(raw.enum_schemas.iter().map(|s| (s.arguments.as_slice(), &s.life_context)))
     {
+        if let Some(context) = context {
+            meter.charge(1, None)?;
+            if context.nodes.len() > limits.max_nodes || context.nodes.len() as u64 > raw.budget.max_generated_nodes {
+                return Err(limit(None, "CT4 context exceeds node quota"));
+            }
+            return Err(pending_scoped_identity());
+        }
         for arg in arguments {
-            if let CtSchemaArgument::Type(graph) = arg {
-                let mut identity = Identity {
-                    raw,
-                    limits,
-                    meter,
-                    bytes: 0,
-                    visiting: Vec::new(),
-                };
-                identity.graph(graph)?;
+            match arg {
+                CtSchemaArgument::Type(graph) => {
+                    let mut identity = Identity { raw, limits, meter, bytes: 0, visiting: Vec::new() };
+                    identity.graph(graph)?;
+                }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => return Err(reject(None, "scoped schema argument has no joint context")),
+                CtSchemaArgument::Scalar(_) => {},
             }
         }
     }

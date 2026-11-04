@@ -23,6 +23,7 @@ fn mul(a: u64, b: u64) -> CompileResult<u64> {
 
 pub(crate) fn children(node: &CtTypeNode) -> Vec<CtTypeNodeId> {
     match node {
+        CtTypeNode::BorrowedStorage { storage, .. } => vec![*storage],
         CtTypeNode::Nominal { arguments, .. } => arguments
             .iter()
             .filter_map(|a| match a {
@@ -73,6 +74,7 @@ pub(crate) fn remap(
                 .map(|a| match a {
                     CtTypeArgument::Type(id) => map(*id).map(CtTypeArgument::Type),
                     CtTypeArgument::Scalar(c) => Ok(CtTypeArgument::Scalar(c.clone())),
+                    CtTypeArgument::Lifetime(_) => Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 lifetime owner relocation is not yet implemented", None)]),
                 })
                 .collect::<CompileResult<_>>()?,
         },
@@ -392,6 +394,7 @@ fn canonical_type_key_mode(
                                 key.number(c.len() as u64)?;
                                 key.bytes(c)?;
                             }
+                            CtTypeArgument::Lifetime(_) => return Err(vec![Diagnostic::unsupported(Phase::Ct, "CT4 lifetime identity is not yet implemented", None)]),
                             CtTypeArgument::Scalar(c) => {
                                 key.bytes(&[1])?;
                                 key.scalar(c)?;
