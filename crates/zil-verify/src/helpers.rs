@@ -969,6 +969,9 @@ pub(super) fn check_module(
             }
             let ty = &f.locals[local.0 as usize].ty;
             if !ty.is_copy_value()
+                && !(budget.stored_borrows
+                    && (matches!(ty, Type::BorrowedStorage { .. })
+                        || matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))))
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_copy_value()
                     || ((f.return_type.is_copy_value() || claim.roles.iter().any(|r|r.life.is_some())) && matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value())))
                 && !matches!(ty, Type::Managed(_) | Type::Package { .. })
