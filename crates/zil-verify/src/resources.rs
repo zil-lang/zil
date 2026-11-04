@@ -10,6 +10,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
+mod replacements;
 
 const EMPTY: u8 = 1;
 const LIVE: u8 = 2;
@@ -313,7 +314,7 @@ pub(super) fn check_definitions(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Root {
+pub(super) enum Root {
     Local(LocalId),
     // Field identity is exact even while its package shell is only partly
     // populated. A later instance at the same physical slot cannot revive an
@@ -844,6 +845,7 @@ struct Transfer<'a> {
     after: &'a [Vec<Vec<bool>>],
     effects: &'a [BTreeSet<Root>],
     sum_rows: Option<&'a [Vec<sums::Bridge>]>,
+    replacements: Option<&'a replacements::Plan>,
 }
 
 impl Transfer<'_> {
@@ -979,6 +981,9 @@ impl Transfer<'_> {
             if let Some((store, true)) = dynamic_store::access(&instruction.kind) {
                 let row = slots.desc_value[store.0 as usize].expect("checked Store description");
                 self.write_roots(&state.desc[row], written, span, validate, budget)?;
+            }
+            if let Some(plan) = self.replacements {
+                plan.step(self,state,instruction,i,b,validate,written,budget)?;
             }
             match &instruction.kind {
                 InstructionKind::MakeOwnedTuple { fields }
@@ -2139,6 +2144,7 @@ impl Transfer<'_> {
     }
 }
 
+#[cfg(test)]
 fn run_function(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2150,6 +2156,7 @@ fn run_function(
     run_function_with_sums(module, f, graph, effects, validate, None, budget)
 }
 
+#[cfg(test)]
 fn run_function_with_sums(
     module: &TypedModule,
     f: &TypedFunction,
@@ -2159,6 +2166,14 @@ fn run_function_with_sums(
     sum_rows: Option<&[Vec<sums::Bridge>]>,
     budget: &mut Budget,
 ) -> Check<BTreeSet<Root>> {
+    run_function_data(module,f,graph,effects,validate,sum_rows,budget,None)
+}
+#[allow(clippy::too_many_arguments)]
+fn run_function_data(
+    module:&TypedModule,f:&TypedFunction,graph:&FunctionGraph,effects:&[BTreeSet<Root>],
+    validate:bool,sum_rows:Option<&[Vec<sums::Bridge>]>,budget:&mut Budget,
+    replacements:Option<&replacements::Plan>,
+)->Check<BTreeSet<Root>>{
     if f.foreign.is_some() {
         return Ok(BTreeSet::new());
     }
@@ -2166,7 +2181,9 @@ fn run_function_with_sums(
     if slots.debt_count == 0 && slots.desc_count == 0 {
         return Ok(BTreeSet::new());
     }
-    let mut written = BTreeSet::new();
+    let mut written = if let Some(plan)=replacements {
+        plan.writes(f.id,budget)?
+    } else { BTreeSet::new() };
     let after = liveness(f, graph, &slots, budget)?;
     let mut initial = slots.empty(budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
@@ -2218,6 +2235,7 @@ fn run_function_with_sums(
         after: &after,
         effects,
         sum_rows,
+        replacements,
     };
     while let Some(b) = pending.pop_front() {
         queued[b] = false;
@@ -2330,7 +2348,7 @@ fn effect_dependents(
     Ok(dependents)
 }
 
-fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span) -> Check<usize> {
+pub(super) fn effect_closure_target(module: &TypedModule, ty: &Type, span: Span) -> Check<usize> {
     let id = match ty {
         Type::Closure(id) => *id,
         Type::Address { inner, .. } => match inner.as_ref() {
@@ -2352,6 +2370,9 @@ fn infer_effects(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
+    infer_effects_data(module,graphs,budget,None)
+}
+fn infer_effects_data(module:&TypedModule,graphs:&[FunctionGraph],budget:&mut Budget,replacements:Option<&replacements::Plan>)->Check<Vec<BTreeSet<Root>>>{
     budget.spend(module.functions.len())?;
     let mut effects = vec![BTreeSet::new(); module.functions.len()];
     let dependents = effect_dependents(module, graphs, budget)?;
@@ -2366,14 +2387,7 @@ fn infer_effects(
             scheduled[index] = false;
             #[cfg(test)]
             TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
-            let found = run_function(
-                module,
-                &module.functions[index],
-                &graphs[index],
-                &effects,
-                false,
-                budget,
-            )?;
+            let found = run_function_data(module,&module.functions[index],&graphs[index],&effects,false,None,budget,replacements)?;
             budget.spend(found.len().saturating_add(effects[index].len()))?;
             let before = effects[index].len();
             effects[index].extend(found);
@@ -2457,9 +2471,10 @@ pub(super) fn check_module(
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.
-    let effects = infer_effects(module, graphs, budget)?;
+    let replacements = if budget.replacements {Some(replacements::Plan::new(module,graphs,&sum_proofs.replacement_writes,budget)?)}else{None};
+    let effects = if let Some(plan)=&replacements {infer_effects_data(module,graphs,budget,Some(plan))?}else{infer_effects(module,graphs,budget)?};
     for (function, graph) in module.functions.iter().zip(graphs) {
-        run_function_with_sums(
+        run_function_data(
             module,
             function,
             graph,
@@ -2471,6 +2486,7 @@ pub(super) fn check_module(
                 .filter(|rows| !rows.is_empty())
                 .map(Vec::as_slice),
             budget,
+            replacements.as_ref(),
         )?;
     }
     Ok(())
