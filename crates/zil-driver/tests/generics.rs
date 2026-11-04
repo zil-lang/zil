@@ -1730,6 +1730,75 @@ fn g3_3_qualified_environment_raw_and_wire_neighbors() {
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    // Whole request thresholds include the real environment and role walks.
+    for phase in ["Analyze", "Verify", "Source-through-Lower"] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            match phase {
+                "Analyze" => zil_analyze::analyze(&typed, &limits)
+                    .map(|_| ())
+                    .map_err(|e| e[0].category),
+                "Verify" => {
+                    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                        .map(|_| ())
+                        .map_err(|e| e[0].category)
+                }
+                _ => {
+                    let report = compile_source(
+                        &source(text),
+                        &CompileOptions {
+                            stop_after: Stage::Lower,
+                            limits,
+                            ..Default::default()
+                        },
+                    );
+                    if report.status == ResultCategory::Success {
+                        Ok(())
+                    } else {
+                        Err(report.status)
+                    }
+                }
+            }
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(()) => high = mid,
+                Err(ResultCategory::ResourceLimit) => low = mid + 1,
+                Err(error) => panic!("{phase} unexpected boundary result {error:?}"),
+            }
+        }
+        assert_eq!(run(low), Ok(()));
+        assert_eq!(run(low - 1), Err(ResultCategory::ResourceLimit));
+        assert_eq!(run(low), Ok(()));
+        if phase == "Source-through-Lower" {
+            let mut session = zil_driver::CompilationSession::default();
+            for (steps, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                let report = session.compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Lower,
+                        limits: Limits {
+                            max_analysis_steps: steps,
+                            ..Limits::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                assert_eq!(session.active_query_count(), 0);
+            }
+        }
+        eprintln!("G3.3 qualified scalar FnMut {phase} whole request N={low}/N-1/fresh");
+    }
     assert_eq!(typed.closures.len(), 1);
     assert_eq!(typed.closures[0].captures, vec![Type::I32]);
     assert_eq!(typed.closures[0].kind, CallableKind::FnMut);
