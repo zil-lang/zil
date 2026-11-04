@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 40;
+pub const WIRE_VERSION: u32 = 41;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
@@ -1504,6 +1504,20 @@ impl<'a> Writer<'a> {
                     self.u32(value.0)?;
                 }
                 self.u8(*ordering as u8)?;
+            }
+            InstructionKind::SyncI32CompareExchange {
+                address,
+                expected,
+                desired,
+                success,
+                failure,
+            } => {
+                self.u8(133)?;
+                self.u32(address.0)?;
+                self.u32(expected.0)?;
+                self.u32(desired.0)?;
+                self.u8(*success as u8)?;
+                self.u8(*failure as u8)?;
             }
             InstructionKind::TaskStart { worker, argument } => {
                 self.u8(99)?;
@@ -3391,6 +3405,16 @@ impl<'a> Reader<'a> {
             span: self.span()?,
         })
     }
+    fn atomic_ordering(&mut self) -> WireResult<AtomicOrdering> {
+        match self.u8()? {
+            0 => Ok(AtomicOrdering::Relaxed),
+            1 => Ok(AtomicOrdering::Acquire),
+            2 => Ok(AtomicOrdering::Release),
+            3 => Ok(AtomicOrdering::AcqRel),
+            4 => Ok(AtomicOrdering::SeqCst),
+            _ => Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
+        }
+    }
     fn instruction(&mut self) -> WireResult<Instruction> {
         let result = self.optional_value()?;
         let kind = match self.u8()? {
@@ -4108,6 +4132,13 @@ impl<'a> Reader<'a> {
                     4 => AtomicOrdering::SeqCst,
                     _ => return Err(malformed("E-WIRE-OPCODE", "unknown atomic ordering")),
                 },
+            },
+            133 => InstructionKind::SyncI32CompareExchange {
+                address: ValueId(self.u32()?),
+                expected: ValueId(self.u32()?),
+                desired: ValueId(self.u32()?),
+                success: self.atomic_ordering()?,
+                failure: self.atomic_ordering()?,
             },
             99 => InstructionKind::TaskStart {
                 worker: FunctionId(self.u32()?),
