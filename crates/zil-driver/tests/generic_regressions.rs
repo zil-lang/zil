@@ -4513,3 +4513,247 @@ mod general_task343;
 
 #[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
 mod cas343;
+
+#[test]
+fn public42_unused_pollable_candidates_reject_in_both_kernels_raw_and_wire() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{InstructionKind as I, ScopedCallbackRole as R, Type};
+    let text = r#"
+extern "C" fn register_slot(cb:extern "C" fn(c_handle,i32)->i64,context:c_handle)->c_handle contract{provides(static_callbacks());effects(ffi);};
+extern "C" fn request_slot(token:c_handle) contract{provides(static_callbacks());effects(ffi);};
+extern "C" fn drain_slot(token:c_handle)->i32 contract{provides(static_callbacks());effects(ffi);};
+fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);}}
+"#;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    zil_analyze::analyze(&decoded, &limits).unwrap();
+    zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    // The current stored-nominal profile excludes foreign declaration bodies,
+    // so give its unused actual table an independently successful source root.
+    let nominal_text = "struct Note<T:Copy,life a>{n:i32} fn nominal<life a>(input:&'a i32)->i32{let item:Note<i32,'a>=Note::<i32,'a>{n:*input};return item.n;} fn main()->i32{let callback=(value:i32)->i32=>value+1;let input=1;return callback(nominal(&input));}";
+    for control in [text, nominal_text] {
+        let report = compile_source(&source(control), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+    let nominal_unit = source(nominal_text);
+    let nominal_syntax = zil_syntax::parse(&nominal_unit).into_result().unwrap();
+    let nominal_core = zil_expand::expand_with_map_limits_target_context(
+        &nominal_unit,
+        &nominal_syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: nominal_unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let nominal_typed = zil_types::check(&nominal_core, &target, &limits).unwrap();
+    let nominal_plan = zil_analyze::analyze(&nominal_typed, &limits).unwrap();
+    zil_verify::verify_module(
+        nominal_typed.clone(),
+        nominal_plan.clone(),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let function = |name: &str| typed.functions.iter().position(|f| f.name == name).unwrap();
+    let main = function("main");
+    let register = function("register_slot");
+    let request = function("request_slot");
+    let drain = function("drain_slot");
+    let closure = typed.closures[0].id;
+    let payload = Type::AsyncRegistration {
+        environment: Box::new(Type::Closure(closure)),
+    };
+    let callback = typed.functions[main]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            matches!(i.kind, I::MakeClosure { .. })
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let region = typed.functions[main]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| {
+            if let I::UnsafeEnter { region } = i.kind {
+                Some(region)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    for case in 0..8 {
+        let (mut raw, mut claim) = if case == 5 {
+            (nominal_typed.clone(), nominal_plan.clone())
+        } else {
+            (typed.clone(), plan.clone())
+        };
+        match case {
+            0..=2 => {
+                let (index, role) = [
+                    (register, R::AsyncRegister),
+                    (request, R::AsyncRequestClose),
+                    (drain, R::AsyncPollDrain),
+                ][case];
+                raw.functions[index]
+                    .foreign
+                    .as_mut()
+                    .unwrap()
+                    .scoped_callback = Some(role);
+            }
+            3 => {
+                let f = &mut raw.functions[main];
+                f.locals.push(zil_ir::LocalDecl {
+                    id: zil_ir::LocalId(f.locals.len() as u32),
+                    name: "unused_pollable_head".into(),
+                    ty: Type::Managed(Box::new(payload.clone())),
+                    mutable: false,
+                    span: f.span,
+                });
+            }
+            4 => raw.resources.push(zil_ir::ResourceDefinition {
+                name: "@fixture:unused-pollable-registration".into(),
+                payload: payload.clone(),
+                teardown: None,
+            }),
+            5 => {
+                let actual = raw
+                    .life_instances
+                    .iter_mut()
+                    .flat_map(|instance| &mut instance.arguments)
+                    .find_map(|a| {
+                        if let zil_ir::LifeNominalActual::Type(t) = a {
+                            Some(t)
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("real source retains its phantom type argument");
+                *actual = Type::AsyncRegistration {
+                    environment: Box::new(Type::Closure(raw.closures[0].id)),
+                };
+            }
+            6 | 7 => {
+                // Isolate the operation guard: retain the real callback/provider
+                // IDs but introduce no Async result type that would mask it.
+                // This raw candidate is never claimed as source admission.
+                let i = zil_ir::Instruction {
+                    result: None,
+                    span: raw.functions[main].span,
+                    kind: I::AsyncRegistrationStart {
+                        register: raw.functions[register].id,
+                        request_close: raw.functions[request].id,
+                        poll_drain: raw.functions[drain].id,
+                        callback,
+                        region,
+                    },
+                };
+                if case == 6 {
+                    let b = raw.functions[main]
+                        .blocks
+                        .iter_mut()
+                        .find(|b| {
+                            b.instructions
+                                .iter()
+                                .any(|i| matches!(i.kind, I::UnsafeExit { .. }))
+                        })
+                        .unwrap();
+                    let at = b
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, I::UnsafeExit { .. }))
+                        .unwrap();
+                    b.instructions.insert(at, i);
+                } else {
+                    let f = &mut raw.functions[main];
+                    let id = zil_ir::BlockId(f.blocks.len() as u32);
+                    f.blocks.push(zil_ir::BasicBlock {
+                        id,
+                        instructions: vec![],
+                        terminator: zil_ir::Terminator::Trap,
+                    });
+                    claim.functions[main].blocks.push(zil_ir::BlockPlan {
+                        block: id,
+                        initialized_in: vec![],
+                        initialized_out: vec![],
+                    });
+                    // The extra block itself and its truthful plan must pass
+                    // before adding the unimplemented opcode into that block.
+                    claim.module_fingerprint = raw.fingerprint();
+                    zil_analyze::analyze(&raw, &limits).unwrap();
+                    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
+                        .unwrap();
+                    raw.functions[main]
+                        .blocks
+                        .last_mut()
+                        .unwrap()
+                        .instructions
+                        .push(i);
+                }
+            }
+            _ => unreachable!(),
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let (decoded, wire_claim) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        for (wire, input, candidate) in [(false, raw, claim), (true, decoded, wire_claim)] {
+            for (kernel, errors) in [
+                (
+                    "Analyze",
+                    zil_analyze::analyze(&input, &limits).unwrap_err(),
+                ),
+                (
+                    "Verify",
+                    zil_verify::verify_module(input, candidate, &target, &limits).unwrap_err(),
+                ),
+            ] {
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category == ResultCategory::Unsupported
+                            && d.message.contains("pollable registration")
+                            && d.message.contains("consumer is not implemented")),
+                    "case={case} wire={wire} kernel={kernel}: {errors:?}"
+                );
+                eprintln!(
+                    "public42 refusal case={case} wire={wire} kernel={kernel}: {} {}",
+                    errors[0].code, errors[0].message
+                );
+            }
+        }
+    }
+}
