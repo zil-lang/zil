@@ -4,6 +4,7 @@ use zil_base::{Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 fn program() -> CtArtifactProgram {
     CtArtifactProgram {
+        ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
