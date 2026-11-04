@@ -58,6 +58,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(result: Type) -> Self {
         Self(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -121,6 +122,11 @@ impl Body {
 }
 fn module(function: TypedFunction) -> TypedModule {
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"independent synchronous error/scope fixtures"),

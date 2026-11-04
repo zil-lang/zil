@@ -45,6 +45,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(result: Type) -> Self {
         Self(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -129,6 +130,11 @@ impl Body {
 }
 fn module(function: TypedFunction) -> TypedModule {
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"independent package candidates"),
@@ -956,6 +962,7 @@ fn description_closure(move_before_call: bool) -> TypedModule {
     m.functions
         .push(entry.finish(Some(value_entry), CleanupExitKind::Return));
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),

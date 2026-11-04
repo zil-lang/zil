@@ -68,6 +68,11 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
     .map(|(result, kind)| Instruction { result, kind, span })
     .collect();
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"raw CT239 runtime enum op"),
@@ -76,6 +81,7 @@ fn raw(read: bool) -> (TypedModule, CandidatePlan) {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(0),

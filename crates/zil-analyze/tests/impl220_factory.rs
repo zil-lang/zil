@@ -19,6 +19,7 @@ fn instruction(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(id),
@@ -52,6 +53,7 @@ fn local(id: u32, ty: Type) -> LocalDecl {
 }
 fn definition(id: u32, kind: CallableKind, captures: Vec<Type>) -> ClosureDefinition {
     ClosureDefinition {
+        storage_life: None,
         id: ClosureId(id),
         function: FunctionId(id),
         captures,
@@ -116,6 +118,11 @@ fn fixture(kind: CallableKind, retained: bool) -> TypedModule {
         factory.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     }
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"synthetic independent owning factory 220"),

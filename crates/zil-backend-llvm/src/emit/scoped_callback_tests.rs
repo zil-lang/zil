@@ -24,6 +24,7 @@ fn local(id: u32, ty: Type) -> zil_ir::LocalDecl {
 
 fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -167,6 +168,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
     let close = function(4, Some("test_close"));
     let closures = [
         ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(1),
             captures: vec![],
@@ -176,6 +178,7 @@ fn scoped_helper_keeps_source_successors_and_verifies_as_llvm() {
             lending_captures: vec![],
         },
         ClosureDefinition {
+            storage_life: None,
             id: ClosureId(1),
             function: FunctionId(2),
             captures: vec![],

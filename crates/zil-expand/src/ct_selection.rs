@@ -301,7 +301,10 @@ pub fn walk_type<V: Visitor + ?Sized>(
 ) -> CompileResult<()> {
     v.node(t.span, depth)?;
     match &t.kind {
-        s::TypeKind::Named { path: names, args } | s::TypeKind::Dyn { path: names, args, .. } => {
+        s::TypeKind::Named { path: names, args }
+        | s::TypeKind::Dyn {
+            path: names, args, ..
+        } => {
             path(v, names, t.span, depth + 1)?;
             for a in args {
                 argument(v, a, depth + 1)?;

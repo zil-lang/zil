@@ -40,6 +40,11 @@ fn call(callee: CoreExpr, swap: bool) -> CoreStatement {
 }
 fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
     CoreModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,
@@ -64,6 +69,7 @@ fn graph(edges: &[Vec<usize>], writers: usize) -> CoreModule {
                     }));
                 }
                 CoreFunction {
+                    storage_life: None,
                     call_kind: None,
                     life: None,
                     id: NodeId(index as u32),

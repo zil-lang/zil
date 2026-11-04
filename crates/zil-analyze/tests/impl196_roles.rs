@@ -49,6 +49,7 @@ fn trace(parameters: &[u32]) -> CallableTrace {
 }
 fn function(id: u32) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -122,12 +123,18 @@ fn fixture(order: &[u32]) -> TypedModule {
     }
     f.callable_contract.as_mut().unwrap().traces = CallableTraces::Finite(vec![trace(order)]);
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"Analyze role raw fixture"),
         target: TargetProfile::host_llvm(),
         functions: vec![body, f],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],

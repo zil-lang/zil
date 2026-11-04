@@ -76,6 +76,7 @@ fn fixture(
         })
         .collect();
     let function = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(0),

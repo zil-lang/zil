@@ -25,6 +25,7 @@ fn callback(count: usize) -> Type {
 }
 fn function() -> CoreFunction {
     CoreFunction {
+        storage_life: None,
         call_kind: None,
         life: None,
         callable_return: None,
@@ -47,6 +48,11 @@ fn function() -> CoreFunction {
 }
 fn module() -> CoreModule {
     CoreModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         aggregate_templates: Vec::new(),
         aggregate_applications: Vec::new(),
         schema_version: SCHEMA_VERSION,

@@ -118,6 +118,7 @@ impl Body {
     fn new(id: u32, result: Type) -> Self {
         Self {
             f: TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
@@ -293,6 +294,11 @@ impl Body {
 fn case(parts: Vec<(TypedFunction, FunctionPlan)>) -> Case {
     let (functions, plans) = parts.into_iter().unzip();
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(
@@ -367,6 +373,7 @@ fn captured(body: Body, result: ValueId, kind: CallableKind, package_capture: bo
     let result_type = body.f.return_type.clone();
     let mut t = case(vec![body.finish(Some(result))]);
     t.module.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(0),

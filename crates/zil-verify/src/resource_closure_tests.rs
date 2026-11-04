@@ -28,6 +28,7 @@ struct Body(TypedFunction);
 impl Body {
     fn new(id: u32) -> Self {
         Self(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -169,12 +170,18 @@ pub(super) fn fixture(kind: CallableKind, borrowed: bool, count: usize) -> Typed
         entry.value(Type::I32, InstructionKind::ReadDesc { desc: d, index: 0 })
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
         functions: vec![main.finish(result), entry.finish(result_entry)],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: ClosureId(0),
             function: FunctionId(1),

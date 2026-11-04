@@ -16,6 +16,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 }
 fn baseline() -> (TypedModule, CandidatePlan) {
     let function = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -63,6 +64,11 @@ fn baseline() -> (TypedModule, CandidatePlan) {
         span: span(),
     };
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: Vec::new(),
         closures: vec![],
         schema_version: SCHEMA_VERSION,
@@ -472,6 +478,7 @@ fn accepts_loop_fixed_point_and_rejects_budget_exhaustion() {
 fn checks_direct_call_signature_and_parameter_initialization() {
     let (mut module, mut plan) = baseline();
     module.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,

@@ -875,6 +875,7 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
     let id = zil_ir::ClosureId(future.closures.len() as u32);
     future.functions[caller].environment = Some(id);
     future.closures.push(zil_ir::ClosureDefinition {
+        storage_life: None,
         id,
         function: future.functions[caller].id,
         captures: vec![],
@@ -3043,6 +3044,7 @@ fn task343_public_semantics_are_independently_bound() {
                 forged.task_interfaces.push(duplicate);
             }
             6 => forged.interfaces[0].exports.push(ScalarFunction {
+                storage_life: None,
                 name: "worker".into(),
                 function: zil_ir::FunctionId(0),
                 parameters: vec![(PassingMode::Infer, Type::I32)],

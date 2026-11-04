@@ -29,6 +29,7 @@ fn sum() -> Type {
 fn module(parameter: bool, swap: bool) -> TypedModule {
     let ty = sum();
     let mut f = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -179,6 +180,11 @@ fn module(parameter: bool, swap: bool) -> TypedModule {
         f.blocks[0].instructions.extend(cleanup);
     }
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: zil_base::SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
@@ -913,6 +919,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
         ],
     );
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(0),
         function: FunctionId(1),
         captures: vec![],
@@ -922,6 +929,7 @@ fn unpack_targets_interleave_with_mandatory_defer_by_actual_new_age() {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -1049,6 +1057,7 @@ fn loop_reexecuting_the_same_store_requires_a_new_current_tag_observation() {
     for fresh in [false, true] {
         let mut m = module(true, false);
         let identity = TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             callable_return_contract: None,
@@ -1421,6 +1430,7 @@ fn checked_direct_managed_create_call_keeps_its_existing_fresh_contract() {
     f.result_mode = PassingMode::Create;
     f.blocks[0].terminator = Terminator::Return(Some(out));
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -1505,6 +1515,7 @@ fn sum_copy_payload_does_not_turn_a_nonowning_package_into_product_permission() 
 fn unused_foreign_signature_cannot_acquire_ordinary_owning_sum_abi() {
     let mut m = module(true, false);
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -1662,6 +1673,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         _ => InstructionKind::DropErrorUnion { local: LocalId(1) },
     };
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -1731,6 +1743,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         span: Span::default(),
     });
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(0),
         function: FunctionId(2),
         captures: vec![],
@@ -1740,6 +1753,7 @@ fn state_with_extra(ty: Type) -> TypedModule {
         lending_captures: vec![],
     });
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,

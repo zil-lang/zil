@@ -16,6 +16,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
 fn candidate() -> (TypedModule, CandidatePlan) {
     let closure = ClosureId(0);
     let main = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -75,6 +76,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         span: span(),
     };
     let entry = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -114,6 +116,11 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         span: span(),
     };
     let module = TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
@@ -122,6 +129,7 @@ fn candidate() -> (TypedModule, CandidatePlan) {
         functions: vec![main, entry],
         unsupported: vec![],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             lending_captures: Vec::new(),
             id: closure,
             function: FunctionId(1),

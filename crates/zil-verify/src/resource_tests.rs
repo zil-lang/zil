@@ -36,6 +36,7 @@ fn local(id: u32, ty: Type) -> LocalDecl {
 }
 fn function() -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -89,6 +90,11 @@ fn function() -> TypedFunction {
 }
 fn module() -> TypedModule {
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(
@@ -314,6 +320,7 @@ fn with_teardown() -> TypedModule {
     let mut m = module();
     m.resources[0].teardown = Some(FunctionId(1));
     m.functions.push(TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -424,6 +431,7 @@ fn process_abort_is_not_a_normal_cleanup_exit() {
 
 fn consume_function(id: u32) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,

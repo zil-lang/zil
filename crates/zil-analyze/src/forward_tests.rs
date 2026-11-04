@@ -47,6 +47,7 @@ fn exit() -> Vec<Instruction> {
 fn base(kind: CallableKind) -> TypedModule {
     let closure = Type::Closure(ClosureId(0));
     let callback = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: None,
@@ -80,6 +81,7 @@ fn base(kind: CallableKind) -> TypedModule {
     ];
     instructions.extend(exit());
     let keep = TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         callable_return_contract: Some(CallableReturnContract {
@@ -122,12 +124,18 @@ fn base(kind: CallableKind) -> TypedModule {
         span: s(),
     };
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
         target: TargetProfile::host_llvm(),
         functions: vec![callback, keep],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             captures: vec![],
@@ -834,6 +842,7 @@ fn returning_a_child_does_not_keep_a_borrow_of_its_old_capture_position_alive() 
     )];
     m.functions.push(parent);
     m.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(2),
         captures: vec![Type::Closure(ClosureId(0))],

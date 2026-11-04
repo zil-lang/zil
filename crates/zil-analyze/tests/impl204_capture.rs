@@ -15,6 +15,7 @@ fn span() -> Span {
 }
 fn function(index: usize) -> TypedFunction {
     TypedFunction {
+        storage_life: None,
         call_kind: zil_ir::CallKind::Direct,
         reference_return_bound: None,
         id: FunctionId(index as u32),
@@ -65,12 +66,18 @@ fn resource(element: Type) -> ResourceDefinition {
 }
 fn fixture(element: Type) -> TypedModule {
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::of(b"204 raw unused Store capture"),
         target: TargetProfile::host_llvm(),
         functions: vec![function(0)],
         closures: vec![ClosureDefinition {
+            storage_life: None,
             id: ClosureId(0),
             function: FunctionId(0),
             kind: CallableKind::Fn,
@@ -131,6 +138,7 @@ fn add_parent(module: &mut TypedModule) {
     let index = module.closures.len();
     module.functions.push(function(index));
     module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(index as u32),
         function: FunctionId(index as u32),
         kind: CallableKind::Fn,

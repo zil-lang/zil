@@ -58,6 +58,7 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
             values.push(Type::I32);
         }
         functions.push(TypedFunction {
+            storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
             reference_return_bound: None,
             id: FunctionId(id as u32),
@@ -89,6 +90,11 @@ fn fixture(edges: &[Vec<(usize, bool)>], writes: &[u8]) -> TypedModule {
         });
     }
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
@@ -240,6 +246,7 @@ fn unreachable_call_does_not_create_a_summary_consumer() {
 fn every_concrete_closure_call_has_its_entry_dependency() {
     let mut module = fixture(&[vec![], vec![]], &[0, 1]);
     module.closures.push(ClosureDefinition {
+        storage_life: None,
         lending_captures: Vec::new(),
         id: ClosureId(0),
         function: FunctionId(1),
@@ -362,6 +369,7 @@ fn transitive_owned_write_is_rejected_after_convergence_and_borrowed_write_is_le
                 };
             }
             module.closures.push(ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: ClosureId(0),
                 function: FunctionId(0),

@@ -11,6 +11,11 @@ fn span() -> Span {
 
 fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
     TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
         resources: Vec::new(),
         closures: vec![],
         schema_version: SCHEMA_VERSION,
@@ -19,6 +24,7 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
         target: TargetProfile::host_llvm(),
         functions: (0..functions)
             .map(|index| TypedFunction {
+                storage_life: None,
                 call_kind: zil_ir::CallKind::Direct,
                 reference_return_bound: None,
                 callable_return_contract: None,
