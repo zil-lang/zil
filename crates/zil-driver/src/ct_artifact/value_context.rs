@@ -432,16 +432,15 @@ impl ValueContext {
                 )]
             })?;
             context.validate_reference(&self.ambient_life_scopes, row.source, budget)?;
-            let ambient = &self.ambient_life_scopes[row.source.scope.0 as usize];
+            let (definition, ordinal) =
+                context.resolve_reference(&self.ambient_life_scopes, row.source, budget)?;
             budget.reserve_analysis_work(scopes.len() as u64 * 32)?;
             if let Some(scope) = scopes.iter_mut().find(|scope| scope.owner == row.owner) {
-                if scope.definition != ambient.declaration
-                    || scope.parameters.len() != row.class as usize
-                {
+                if scope.definition != *definition || scope.parameters.len() != row.class as usize {
                     return Err(bad());
                 }
                 budget.reserve_temporary_bytes(4)?;
-                scope.parameters.push(row.source.parameter);
+                scope.parameters.push(ordinal);
             } else {
                 if row.class != 0 {
                     return Err(bad());
@@ -450,8 +449,8 @@ impl ValueContext {
                     .reserve_temporary_bytes(std::mem::size_of::<ValueSourceScope>() as u64 + 4)?;
                 scopes.push(ValueSourceScope {
                     owner: row.owner,
-                    definition: ambient.declaration.clone(),
-                    parameters: vec![row.source.parameter],
+                    definition: definition.clone(),
+                    parameters: vec![ordinal],
                 });
             }
         }

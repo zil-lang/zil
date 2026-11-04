@@ -495,6 +495,8 @@ impl<'a> Compiler<'a> {
         self.enum_sources.clear();
         self.templates.clear();
         self.symbolic.clear();
+        self.abstract_nominals.clear();
+        self.active_abstract_nominals.clear();
         Ok(definitions)
     }
     fn drain_symbolic(&mut self) -> R<()> {
@@ -506,7 +508,11 @@ impl<'a> Compiler<'a> {
                 ));
             };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
+            self.prepare_abstract_scope(declaration)?;
             cfg::function(self, id, declaration)?;
+            self.abstract_scalars.clear();
+            self.abstract_lives.clear();
+            self.source_life_scope = None;
             self.bindings.clear();
         }
         Ok(())

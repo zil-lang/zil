@@ -108,6 +108,9 @@ impl<'c, 'a> Builder<'c, 'a> {
         self.yields = yields;
         result
     }
+    pub(super) fn function_id(&self) -> CtFunctionId {
+        self.id
+    }
     pub fn new_block(&mut self, span: Span) -> R<CtBlockId> {
         self.compiler.budget.node(span)?;
         Budget::take(
