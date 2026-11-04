@@ -382,7 +382,8 @@ impl Context<'_> {
                     )
                 }
                 InstructionKind::WithForeignCallback { body, .. }
-                | InstructionKind::WithScopedThread { body, .. } => {
+                | InstructionKind::WithScopedThread { body, .. }
+                | InstructionKind::WithSyncCell { body, .. } => {
                     let (id, _) = helpers::parameter_type(&self.function.values[body.0 as usize])
                         .expect("independently checked scoped body type");
                     (
@@ -581,10 +582,13 @@ impl Context<'_> {
                     budget,
                 )?;
             }
-            InstructionKind::WithForeignCallback { body, .. } => {
+            InstructionKind::WithForeignCallback { body, .. }
+            | InstructionKind::WithScopedThread { body, .. }
+            | InstructionKind::WithSyncCell { body, .. } => {
                 let (id, _) = helpers::parameter_type(&f.values[body.0 as usize]).unwrap();
-                // The callback F is independently self-contained. Only the
-                // body can carry external descriptor/address effects here.
+                // Foreign callbacks/workers and sealed cell payloads have their
+                // own checked profiles. The actual body environment still
+                // carries ordinary descriptor/address effects.
                 row = self.callback(
                     id,
                     &captures.values[body.0 as usize],

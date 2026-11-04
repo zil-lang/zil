@@ -91,3 +91,5 @@ Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安�
 
 
 独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。
+
+组合343：真实WithSyncCell body环境须进入两个头权限求证器和Analyze头loan调用代换；密封cell入参无普通资源头来源，捕获描述仍保留实际写/分离义务。原始alias变异曾在Mutex scope被Analyze错误接受；补入实际环境后，Mutex/Atomic的不同buffer正例及同一buffer别名反例分别走Analyze、Verify和Wire，另核共享头模式不能经scope环境洗成可写。
