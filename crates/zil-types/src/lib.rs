@@ -120,7 +120,7 @@ fn signatures(
     let mut signatures = BTreeMap::new();
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
-    for f in &core.functions {
+    'function: for f in &core.functions {
         if let Some(life) = &f.life {
             foreign_work = foreign_work
                 .checked_sub(
@@ -151,6 +151,10 @@ fn signatures(
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
         }
+        for bound in &f.callable_parameters { if let Some(life)=&bound.life {
+            let cost=borrowed_fp::metadata_work(life);
+            foreign_work=match foreign_work.checked_sub(cost) {Some(left)=>left,None=>{errors.push(Diagnostic::limit(Phase::Types,"higher-rank callable header budget exceeded",Some(f.span))); continue 'function}};
+        }}
         if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
             let work = inference::type_snapshot_work(
                 ty,
@@ -2701,7 +2705,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
-                || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
+                || self.lending_closure(match self.function.locals[local.0 as usize].ty {Type::Closure(id)=>Some(id),_=>None})?
                 || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
@@ -2759,7 +2763,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             )
         });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
-        let lends = self.lending_closure(&Type::Closure(id))?;
+        let lends = self.lending_closure(Some(id))?;
         if lends
             && (kind == CallableKind::FnOnce
                 || (existing_place.is_none() && borrowed_callee.is_none()))

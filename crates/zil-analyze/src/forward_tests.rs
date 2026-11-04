@@ -92,6 +92,7 @@ fn base(kind: CallableKind) -> TypedModule {
         }),
         callable_contract: Some(CallableParameterContract {
             roles: vec![CallableRole {
+                life: None,
                 parameter: 1,
                 closure: ClosureId(0),
                 kind,

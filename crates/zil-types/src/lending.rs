@@ -47,19 +47,23 @@ fn tracked(ty: &Type) -> bool {
 }
 
 impl Builder<'_, '_> {
-    pub(super) fn lending_closure(&self, ty: &Type) -> R<bool> {
-        let Type::Closure(id) = ty else {
-            return Ok(false);
-        };
-        Ok(self.closures.pending[id.0 as usize]
-            .inference
-            .result()?
-            .as_ref()
-            .is_some_and(supported_result))
+    pub(super) fn lending_closure(&mut self, id: Option<ClosureId>) -> R<bool> {
+        let Some(id)=id else {return Ok(false);};
+        if !self.closures.thread_result(id)?.as_ref().is_some_and(supported_result) {return Ok(false);}
+        let arity=self.closures.pending[id.0 as usize].parameters.len();
+        for index in 0..arity {
+            if matches!(self.closures.thread_parameter(id,index)?,Some(Type::Address{..})) {return Ok(false);}
+        }
+        Ok(true)
     }
 }
 
-fn sources(f: &TypedFunction, summaries: &[Sources], work: &mut Work) -> R<Sources> {
+fn sources(
+    module: &TypedModule,
+    f: &TypedFunction,
+    summaries: &[Sources],
+    work: &mut Work,
+) -> R<Sources> {
     let span = f.span;
     work.spend(
         f.blocks
@@ -125,59 +129,85 @@ fn sources(f: &TypedFunction, summaries: &[Sources], work: &mut Work) -> R<Sourc
                 if let Some(result) = instruction.result
                     && tracked(&f.values[result.0 as usize])
                 {
-                    match &instruction.kind {
-                        InstructionKind::BorrowLocal { local }
-                        | InstructionKind::BorrowLocalMut { local }
-                        | InstructionKind::DescribeLocal { local }
-                        | InstructionKind::DescribePackageField { local, .. }
-                        | InstructionKind::BorrowPackageField { local, .. }
-                        | InstructionKind::BorrowOwnedArrayElement { local, .. } => {
-                            found.insert(Source::Local(*local));
-                        }
-                        InstructionKind::BorrowCapture { index, .. }
-                        | InstructionKind::DescribeCapture { index }
-                        | InstructionKind::ReadCapture { index } => {
-                            found.insert(Source::Capture(*index));
-                        }
-                        InstructionKind::ReborrowAddress { address, .. }
-                        | InstructionKind::AddressField { address, .. }
-                        | InstructionKind::AddressIndex { address, .. }
-                        | InstructionKind::AddressSlice { address, .. }
-                        | InstructionKind::ByteBufferBorrow {
-                            buffer: address, ..
-                        }
-                        | InstructionKind::OwnedStoreBorrow { store: address, .. }
-                        | InstructionKind::OwnedStoreBorrowMut { store: address, .. }
-                        | InstructionKind::CallClosureBorrowed {
-                            callee: address, ..
-                        } => {
-                            work.join(&mut found, &values[address.0 as usize], instruction.span)?;
-                        }
-                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            if let Some(row) = state.get(local) {
-                                work.join(&mut found, row, instruction.span)?;
+                    if let Some((definition, arguments)) =
+                        borrowed_fp::invocation_call(module, f, &instruction.kind)
+                    {
+                        for source in &summaries[definition.function.0 as usize] {
+                            work.spend(1, instruction.span)?;
+                            if let Source::Parameter(index) = source {
+                                let actual = arguments.get(*index as usize).ok_or_else(|| {
+                                    error(
+                                        "E-LENDING-ORIGIN",
+                                        instruction.span,
+                                        "callback actual argument absent",
+                                    )
+                                })?;
+                                work.join(
+                                    &mut found,
+                                    &values[actual.0 as usize],
+                                    instruction.span,
+                                )?;
                             }
                         }
-                        InstructionKind::CallClosureShared { callee, .. }
-                        | InstructionKind::CallClosureMut { callee, .. } => {
-                            found.insert(Source::Local(*callee));
-                        }
-                        InstructionKind::Call {
-                            function,
-                            arguments,
-                        } => {
-                            for source in &summaries[function.0 as usize] {
-                                work.spend(1, instruction.span)?;
-                                if let Source::Parameter(index) = source {
-                                    work.join(
-                                        &mut found,
-                                        &values[arguments[*index as usize].0 as usize],
-                                        instruction.span,
-                                    )?;
+                    } else {
+                        match &instruction.kind {
+                            InstructionKind::BorrowLocal { local }
+                            | InstructionKind::BorrowLocalMut { local }
+                            | InstructionKind::DescribeLocal { local }
+                            | InstructionKind::DescribePackageField { local, .. }
+                            | InstructionKind::BorrowPackageField { local, .. }
+                            | InstructionKind::BorrowOwnedArrayElement { local, .. } => {
+                                found.insert(Source::Local(*local));
+                            }
+                            InstructionKind::BorrowCapture { index, .. }
+                            | InstructionKind::DescribeCapture { index }
+                            | InstructionKind::ReadCapture { index } => {
+                                found.insert(Source::Capture(*index));
+                            }
+                            InstructionKind::ReborrowAddress { address, .. }
+                            | InstructionKind::AddressField { address, .. }
+                            | InstructionKind::AddressIndex { address, .. }
+                            | InstructionKind::AddressSlice { address, .. }
+                            | InstructionKind::ByteBufferBorrow {
+                                buffer: address, ..
+                            }
+                            | InstructionKind::OwnedStoreBorrow { store: address, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store: address, .. }
+                            | InstructionKind::CallClosureBorrowed {
+                                callee: address, ..
+                            } => {
+                                work.join(
+                                    &mut found,
+                                    &values[address.0 as usize],
+                                    instruction.span,
+                                )?;
+                            }
+                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                                if let Some(row) = state.get(local) {
+                                    work.join(&mut found, row, instruction.span)?;
                                 }
                             }
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. } => {
+                                found.insert(Source::Local(*callee));
+                            }
+                            InstructionKind::Call {
+                                function,
+                                arguments,
+                            } => {
+                                for source in &summaries[function.0 as usize] {
+                                    work.spend(1, instruction.span)?;
+                                    if let Source::Parameter(index) = source {
+                                        work.join(
+                                            &mut found,
+                                            &values[arguments[*index as usize].0 as usize],
+                                            instruction.span,
+                                        )?;
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                     changed |=
                         work.join(&mut values[result.0 as usize], &found, instruction.span)?;
@@ -242,7 +272,7 @@ pub(super) fn populate(module: &mut TypedModule, limits: &Limits) -> R<()> {
         for f in &module.functions {
             work.spend(1, f.span)?;
             if matches!(f.return_type, Type::Address { .. }) {
-                let found = sources(f, &summaries, &mut work)?;
+                let found = sources(module, f, &summaries, &mut work)?;
                 changed |= work.join(&mut summaries[f.id.0 as usize], &found, f.span)?;
             }
         }
@@ -254,6 +284,30 @@ pub(super) fn populate(module: &mut TypedModule, limits: &Limits) -> R<()> {
         let f = &module.functions[closure.function.0 as usize];
         work.spend(closure.captures.len().saturating_add(1), f.span)?;
         if !matches!(closure.result, Type::Address { .. }) {
+            continue;
+        }
+        if borrowed_fp::invocation(&closure.parameters, &closure.result) {
+            work.spend(closure.parameters.len(), f.span)?;
+            let mutable = matches!(closure.result, Type::Address { mutable: true, .. });
+            let roots = &summaries[closure.function.0 as usize];
+            work.spend(roots.len(), f.span)?;
+            if roots.is_empty()
+                || roots.iter().any(|root| {
+                    let Source::Parameter(index) = root else {
+                        return true;
+                    };
+                    !closure
+                        .parameters
+                        .get(*index as usize)
+                        .is_some_and(|p| matches!(p,Type::Address{mutable:m,..} if !mutable||*m))
+                })
+            {
+                return Err(error(
+                    "E-LENDING-ORIGIN",
+                    f.span,
+                    "invocation callback result must borrow current actual argument storage",
+                ));
+            }
             continue;
         }
         if !supported_result(&closure.result) || closure.kind == CallableKind::FnOnce {

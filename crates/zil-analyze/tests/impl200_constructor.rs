@@ -367,6 +367,7 @@ fn ordinary_noescape_helpers_still_require_their_actual_public_contract() {
     module.functions[1].callable_contract = Some(CallableParameterContract {
         roles: (0..2)
             .map(|parameter| CallableRole {
+                life: None,
                 parameter,
                 closure: ClosureId(0),
                 kind: CallableKind::FnOnce,

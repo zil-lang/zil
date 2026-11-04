@@ -770,7 +770,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     }
                 }
             }
+            if let Some(life)=&role.life { budget.spend(super::borrowed_fp::work(life),"higher-rank actual callback signature")?; super::borrowed_fp::relation(&definition.parameters,&definition.result,life)?; }
             if !(returned
+                || (role.life.is_some() && matches!(&function.return_type,Type::Address{inner,..} if inner.is_address_pointee()))
                 || owned_data
                 || function.return_type.is_copy_value()
                 || (candidates.len() == 1
