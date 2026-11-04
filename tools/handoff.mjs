@@ -368,7 +368,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
         if (task.evidence?.length || task.status === 'Done') record.evidence = evidence(id, task.evidence, null, task.status === 'Done');
         if (task.status === 'Done' && !task.acceptance_record) complain(id, 'Done task lacks an integrator acceptance record.');
       }
-      if (!record.committed) warnings.push({id, reason: 'Current task record differs from committed main; it is a working instruction, not a completed handoff.'});
+      if (!record.committed) warnings.push({id, reason: 'Engineering record differs from committed main; it is not a completed handoff or a live assignment.'});
       output.push(record);
       if (archived) {
         record.validation = {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false};
@@ -403,20 +403,23 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
   const currentGate = {status: errors.length ? 'CurrentFail' : 'CurrentPass', error_count: errors.length};
   const unavailable = [...historicalRecords.values()].filter(record => record.availability === 'Unavailable').length;
   const legacyFailed = errors.length + legacyErrors.length > 0;
+  const livePlan = {branch: 'goal', path: 'goal.md', refresh_command: 'git fetch origin refs/heads/goal:refs/remotes/origin/goal', read_command: 'git show refs/remotes/origin/goal:goal.md'};
   return {
-    schema_version: migration ? 2 : 1, scope: 'Current handoff record integrity; historical availability is separate. Not language correctness, review quality or full task acceptance.',
+    schema_version: migration ? 2 : 1, scope: 'Main-tree engineering and delivery record integrity; historical availability is separate. Does not read the live goal board or check all development branches; not language correctness, review quality or full task acceptance.',
     status: migration ? legacyAudit ? legacyFailed ? 'LegacyAuditFail' : 'LegacyAuditPass' : currentGate.status : errors.length ? 'Fail' : 'Pass', snapshot_only: true,
+    live_plan: livePlan, live_plan_checked: false, development_branches_checked: false,
     current_gate: currentGate,
     historical_status: {status: unavailable ? 'Unavailable' : historicalRecords.size ? 'Unreviewed' : 'NotClassified', archived: historicalRecords.size, unavailable, unreviewed: historicalRecords.size - unavailable, object_availability_changes: [...historicalRecords.values()].reduce((total, record) => total + record.object_availability_changes.length, 0), claims_revalidated: false, source_commit: migration?.source_commit ?? null},
     legacy_audit: {status: legacyAudit ? legacyFailed ? 'Fail' : 'Pass' : 'NotRun', errors: legacyAudit ? [...errors, ...legacyErrors] : []},
-    authority: {method: mainTree ? 'explicit-main-worktree' : top.ok ? authorityBranch === 'work' ? 'git-primary-worktree' : 'git-main-worktree' : 'archive-without-git', task_root: '.task', verified: authorityVerified, branch: authorityBranch, current_is_main: authorityVerified && current === root, origin_main_tracking_head: top.ok ? cachedGit('rev-parse', '--verify', 'refs/remotes/origin/main').text || null : null, remote_observation: 'Local tracking ref only; no network or remote merge claim.'},
+    authority: {method: mainTree ? 'explicit-main-worktree' : top.ok ? authorityBranch === 'work' ? 'git-primary-worktree' : 'git-main-worktree' : 'archive-without-git', task_root: '.task', task_scope: 'Main-tree engineering and delivery records only; live planning authority is goal:goal.md.', verified: authorityVerified, branch: authorityBranch, current_is_main: authorityVerified && current === root, origin_main_tracking_head: top.ok ? cachedGit('rev-parse', '--verify', 'refs/remotes/origin/main').text || null : null, remote_observation: 'Local tracking ref only; no network or remote merge claim.'},
     current_head: git(current, 'rev-parse', '--verify', 'HEAD').text || null, main_head: mainHead,
     spec_hash: specHash, normative_hash: frozen?.normative_hash ?? null,
     worktrees: trees.map(t => ({branch: t.branch ?? null, head: t.head ?? null, is_main: path.resolve(t.path) === root})),
     measured: measured ? {source_commit: measured.source_commit, draft_gate: measured.draft_gate, full_language_gate: measured.full_language_gate, product_gate: measured.product_gate, result_path: measured.result_path, receipt_status: measured.receipt_status, gates: measured.gates, known_incomplete: measured.known_incomplete} : null,
     tasks, slices,
-    next: slices.filter(t => t.validation?.classification !== 'HistoricalRecord' && t.status !== '已合入').map(t => ({id: t.id, status: t.status, authoritative_task: t.path})),
-    commands: {cold_start: 'node tools/handoff.mjs --check', legacy_audit: 'node tools/handoff.mjs --check --legacy-audit', restore: 'git clone --branch main HISTORY_BUNDLE_PATH zil-checkout', restore_hint: 'Use the actual PACKAGE.json companion path. Cleanup-deleted objects/evidence remain unavailable.', plan: 'python3 tools/check-plan.py --self-test', draft: 'python3 tools/validate-draft.py'},
+    next: [],
+    recorded_open_slices: {scope: 'Open states recorded in main-tree engineering history; not live assignments.', records: slices.filter(t => t.validation?.classification !== 'HistoricalRecord' && t.status !== '已合入').map(t => ({id: t.id, status: t.status, record_path: t.path}))},
+    commands: {cold_start: 'node tools/handoff.mjs --check', legacy_audit: 'node tools/handoff.mjs --check --legacy-audit', restore: 'git clone --branch main HISTORY_BUNDLE_PATH zil-checkout', restore_hint: 'Use the actual PACKAGE.json companion path. Cleanup-deleted objects/evidence remain unavailable.', plan: livePlan.read_command, engineering_contract: 'python3 tools/check-plan.py --self-test', draft: 'python3 tools/validate-draft.py'},
     warnings, errors,
     runtime: {main_tree: root, current_tree: current},
   };
