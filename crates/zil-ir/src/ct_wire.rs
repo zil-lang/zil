@@ -1411,6 +1411,10 @@ impl Wire for CtTypeNode {
                     error.encode(e)?;
                     result.encode(e)?;
                 }
+                Self::AnonymousSum(members) => {
+                    15u8.encode(e)?;
+                    members.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -1451,6 +1455,7 @@ impl Wire for CtTypeNode {
                 error: <CtTypeNodeId as Wire>::decode(d)?,
                 result: <CtTypeNodeId as Wire>::decode(d)?,
             }),
+            15 => Ok(Self::AnonymousSum(<Vec<CtTypeNodeId> as Wire>::decode(d)?)),
             _ => Err(WireError::UnknownTag),
         })
     }
@@ -2217,6 +2222,9 @@ impl Wire for CtTypeConstructor {
                 Self::ErrorUnion => {
                     8u8.encode(e)?;
                 }
+                Self::AnonymousSum => {
+                    11u8.encode(e)?;
+                }
             }
             Ok(())
         })
@@ -2234,6 +2242,7 @@ impl Wire for CtTypeConstructor {
             6 => Ok(Self::Desc),
             7 => Ok(Self::OwnedStore),
             8 => Ok(Self::ErrorUnion),
+            11 => Ok(Self::AnonymousSum),
             _ => Err(WireError::UnknownTag),
         })
     }
