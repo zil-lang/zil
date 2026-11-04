@@ -120,6 +120,16 @@ impl Compiler<'_> {
         };
         self.budget
             .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;
+        if matches!(raw.instance, CtScopeInstance::Instantiated(_)) {
+            for candidate in &self.ambient_life_scopes {
+                if candidate.declaration == raw.declaration
+                    && matches!(candidate.instance, CtScopeInstance::Instantiated(_))
+                {
+                    self.budget.scope_comparison(candidate, span)?;
+                    self.budget.scope_comparison(&raw, span)?;
+                }
+            }
+        }
         let scope = if let Some(id) = self.ambient_life_scopes.iter().position(|s| s == &raw) {
             id
         } else {

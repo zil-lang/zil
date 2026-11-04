@@ -32,6 +32,14 @@ pub enum CtScopeParameterKind {
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    /// Request-local inventory bound for the source authority's scope lookup.
+    /// This only prices comparisons; it cannot admit a scope or an actual.
+    /// Authorities without a count use the verifier's conservative artifact
+    /// function/scope inventory bound. The count must include private instances
+    /// that have no row in the emitted ambient scope table.
+    fn active_scope_count(&self) -> Option<usize> {
+        None
+    }
     fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
         None
     }
@@ -201,7 +209,7 @@ pub fn verify_ct_artifact_metered(
     }
 
     preflight(&raw, limits)?;
-    check_ambient_metadata(&raw, limits, authority, meter)?;
+    let scope_authentication_work = check_ambient_metadata(&raw, limits, authority, meter)?;
     check_type_metadata(&raw, limits, meter)?;
     for instruction in raw
         .functions
@@ -223,6 +231,7 @@ pub fn verify_ct_artifact_metered(
             )]);
         }
     }
+    meter.charge(scope_authentication_work, None)?;
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
@@ -661,7 +670,7 @@ fn check_ambient_metadata(
     limits: &Limits,
     authority: &impl CtArtifactAuthority,
     meter: &mut CtVerificationMeter,
-) -> Check<()> {
+) -> Check<usize> {
     scopes::check(raw, limits, authority, meter)
 }
 

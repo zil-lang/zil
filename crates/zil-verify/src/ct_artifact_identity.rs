@@ -351,3 +351,59 @@ pub(super) fn check_argument_graphs(
     }
     Ok(())
 }
+
+/// Complete comparison bound for an untrusted scope query. Validate every
+/// variable Type payload before any structural equality or authority lookup.
+pub(super) fn scope_comparison_weight(
+    scope: &CtAmbientLifeScope,
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+    occupied: usize,
+) -> Check<usize> {
+    let mut weight = 32usize.saturating_add(scope.binder_site.len().saturating_mul(4));
+    if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+        if actuals.len() > limits.max_nodes {
+            return Err(limit(None, "CT scope actual vector exceeds node quota"));
+        }
+        meter.charge(actuals.len(), None)?;
+        weight = weight.saturating_add(
+            actuals
+                .len()
+                .saturating_mul(std::mem::size_of::<CtScopeActual>()),
+        );
+        for actual in actuals {
+            match actual {
+                CtScopeActual::Type(graph) => {
+                    let key = Identity {
+                        raw,
+                        limits,
+                        meter,
+                        bytes: occupied,
+                        visiting: Vec::new(),
+                    }
+                    .graph(graph)?;
+                    weight = weight
+                        .saturating_add(key.len().saturating_mul(4))
+                        .saturating_add(
+                            graph
+                                .nodes
+                                .len()
+                                .saturating_mul(std::mem::size_of::<CtTypeNode>()),
+                        )
+                        .saturating_add(
+                            graph
+                                .ambient_classes
+                                .len()
+                                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                        );
+                }
+                CtScopeActual::Scalar(value) if constant_type(value).is_none() => {
+                    return Err(reject(None, "CT scope actual is not a pure scalar"));
+                }
+                CtScopeActual::Scalar(_) | CtScopeActual::Lifetime(_) => {}
+            }
+        }
+    }
+    Ok(weight)
+}
