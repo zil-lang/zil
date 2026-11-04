@@ -1613,7 +1613,9 @@ fn windows(
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
-                | InstructionKind::CallClosureShared { arguments, .. } => {
+                | InstructionKind::CallClosureShared { arguments, .. }
+                | InstructionKind::CallClosureMut { arguments, .. }
+                | InstructionKind::CallClosureOnce { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
                     match &i.kind {
                         InstructionKind::CallClosureBorrowed { callee, .. } => {
@@ -1622,7 +1624,8 @@ fn windows(
                             b.spend(1)?;
                             all.push((p.clone(), false));
                         }
-                        InstructionKind::CallClosureShared { callee, .. } => {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
                             b.spend(2)?;
                             all.push((
                                 Permission {
@@ -1633,7 +1636,7 @@ fn windows(
                                     }],
                                     loans: vec![],
                                 },
-                                false,
+                                matches!(i.kind, InstructionKind::CallClosureMut { .. }),
                             ));
                         }
                         _ => {}

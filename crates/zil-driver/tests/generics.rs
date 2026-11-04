@@ -1647,3 +1647,17 @@ fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {
         }
     }
 }
+
+#[test]
+fn g3_3_qualified_inline_environment_modes() {
+    for (kind, passing, argument, closure, body) in [
+        ("Fn", "&F", "&f", "let marker=1;let f=move (p,q)=>p.n+*q+marker", "invoke(&f,&v,x)-1"),
+        ("FnMut", "&mut F", "&mut f", "var marker=0;var f=move (p,q)=>{marker=marker+1;return p.n+*q+marker}", "invoke(&mut f,&v,x)+invoke(&mut f,&v,x)-45"),
+        ("FnOnce", "F", "f", "let marker=1;let f=move (p,q)=>p.n+*q+marker", "invoke(f,&v,x)-1"),
+    ] {
+        let text=format!("struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>{kind}(&'a Tag<'b>,&'b i32)->i32>(f:{passing},p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};{closure};return {body}}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}");
+        let report=compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success,"{kind} {argument}: {}",report.to_json());
+        terminal_native_profiles(&text,"result",42);
+    }
+}

@@ -1027,7 +1027,9 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             state.locals.insert(*local, snapshot(get(*value)?, b)?);
         }
-        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
+        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
+                | InstructionKind::TakeLocal { local }
+                | InstructionKind::DropClosure { local } => {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
         }
@@ -1571,7 +1573,9 @@ fn windows(
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
                 | InstructionKind::Store { local, .. }
-                | InstructionKind::StorageDead(local) => {
+                | InstructionKind::StorageDead(local)
+                | InstructionKind::TakeLocal { local }
+                | InstructionKind::DropClosure { local } => {
                     let mut actual = Permission::default();
                     actual.targets.insert(Target {
                         base: HoldRoot::Local(*local),
@@ -1608,16 +1612,19 @@ fn windows(
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
-                | InstructionKind::CallClosureShared { arguments, .. } => {
+                | InstructionKind::CallClosureShared { arguments, .. }
+                | InstructionKind::CallClosureMut { arguments, .. }
+                | InstructionKind::CallClosureOnce { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
                     match &i.kind {
                         InstructionKind::CallClosureBorrowed { callee, .. } => {
                             let mut p = Permission::default();
                             union(&mut p, pointer(*callee)?, b)?;
                             fee(b, 1)?;
-                            all.push((p, false));
+                            all.push((p, matches!(value_type(f, *callee)?, Type::Address { mutable: true, .. })));
                         }
-                        InstructionKind::CallClosureShared { callee, .. } => {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
                             fee(b, 2)?;
                             all.push((
                                 Permission {
@@ -1628,7 +1635,7 @@ fn windows(
                                     }]),
                                     loans: Loans::new(),
                                 },
-                                false,
+                                matches!(i.kind, InstructionKind::CallClosureMut { .. }),
                             ));
                         }
                         _ => {}
