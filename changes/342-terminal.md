@@ -58,3 +58,36 @@ CT Type/Syntax、read view、构造和 Wire 均保留实际 DAG 子 ID 与完整
 Rust四目标：两个独立核的真实 root/window 与 canonical raw/Wire 反例增加有限安全实证，完整语言/异步安全仍未建立；仍为薄 ptr，没有隐式 Box/RC/锁，未测同语义 Rust 运行/RSS；原借用代码指针与 CT 类型组合可直接表达，完整框架维护收益未测；真实新增工作累计收费、默认限额不升，没有 Rust 编译成本优势结论。至少一项有限增量为 borrowed thin pointer 经 Type/Syntax、普通函数/闭包和 native 双后端直接组合；产品四目标合取、B0及现有 product-gates 不因此晋升。
 
 仍待后续：泛型 `F:for<life a> Fn...` 的普遍定义义务、借用存储/一般 lending、显式 dyn、一般 §5.2 状态。本分树未合 TaskYield 实现，集成需重放普通与借用 FunctionRef 到 Suspend 闭包的 source/raw/Wire 反例；不能以当前薄指针合同宣称 Suspend 安全闭合。独立审核等待精确干净候选。
+
+## 下一阶段提案：实际 borrowed owned/resource head
+
+真实345原源 `pub fn byte_len(value:&String)->i64{return bytes_len(value.data)}` 目前在Types拒绝：Package window只允许共享user Record头，Managed(ByteBuffer)未贯通。保留原源，先支持实际ByteBuffer/OwnedStore/有限user资源头的AddressField→DescribeAddress，不复制Managed责任；Task、foreign registration与SABI头不因形状相近获得权限。公开opcode109由root `aa790ccba` 发布，root规范已明确实际读/独占来源及转发/返回/捕获/动态调用义务。
+
+私有权限求证拟从实际Address.mutable和实际descriptor/closure输入建立符号访问限制，分别在Analyze及Verify的完整可达CFG/调用固定点传播；返回与捕获保留实际位置映射，callee实际写效果在当前调用代换，shared restriction不能被类型名、life标签、Desc复制或返回洗掉。描述权限与owner责任/loan/liveness分开：DescribeAddress结果保留父地址来源，实际view借用仍保留父贷款；只读API可访问shared来源，任何真实写/长度变更/独占view必须有实际授权。预算覆盖新CFG状态、符号集、捕获路径、summary复制与固定点；旧无新opcode源保留既有通路。以真实String、最近shared写/helper/returned/captured反例、raw+Wire、机器O0/O2、failure cleanup与适用N/N−1/cache核验，不以有限入口完成一般storage/lending声明。
+
+
+## 第四里程碑：实际 borrowed resource head 与真实 std.string 消费者
+
+公共 opcode109 `DescribeAddress` 由 root `aa790ccba` 发布；真实 loader/四个普通 std 源库及原345/string源由 root `c4134cd31` 接入。Types 的 Package AddressField 根据实际可用模式投影 Managed(ByteBuffer/既有有限 OwnedStore/Copy 用户资源头)，随后 DescribeAddress 只形成 Desc，不复制 Managed 责任。Task、SABI及外部registration不在本准入内。Lower/LLVM沿真实header地址零偏移指针解释，无新分配。
+
+Analyze 和 Verify 各自执行新的完整可达 CFG/调用固定点权限检查。实际共享Address产生只读限制，实际参数与捕获路径保留位置关系；Desc复制、普通helper返回、闭包捕获/嵌套调用不能清掉限制，也不把独立共享捕获污染到另一个独占捕获。ByteBuffer/Store view保留真实父贷款；Analyze新增实际来源/贷款/父链/同时参数证明，并从callee活跃view与写交互重建外部存储需分离关系，再逐层代换实际caller根。不同外部参数名不证明存储分离。Verify使用自己已有的更细来源/effects/loans并补109父链与实参委托核验，不调用Analyze求证。
+
+原 `tests/language-readiness/terminal/345/string.zil` 字节保持，SHA256 `b665f762f0222a52f0f1e30e46e8bdb9c0294f3f3cb621683a46c716485aa57e`；真实compile_path加载原std.string/utf8/text_edit/store，Clang/API × O0/O2四次原生执行均exit0/stderr空。另五份源涵盖共享/独占投影、Desc捕获、实际共享head参数捕获、独立混合捕获，20次运行均42。实际allocator故障源沿Text的&mut header借入：第一次分配成功、第二次realloc注入失败，错误路径恢复原责任并清理；双后端双优化四次打印10200，即2次尝试/1次release/0存活。总计本里程碑28次实际构建执行。
+
+最近反例含共享原语写/helper写/Desc捕获写/实际head捕获写、父写撞活child/view、移动owner后使用head。raw与decoded runtime Wire在真实Address模式被伪造为shared时独立拒绝（Verify E-VERIFY-HEAD-PERMISSION），真实109合法Wire通过；transitive entry→relay→act中第二输入view活跃而第一输入写，raw caller把两输入改成同一实际存储时两个核/Wire均拒绝。跨模块live/restored cache重新检查当前API写入和caller活跃view。
+
+实际十目标限定命令见 `docs/validation/terminal-342.json`，完整回放分别cross57/generic35/impl19714/review1844/impl20010/impl03310/impl26037/ownedbytes9/ownedbytes-native7/ownedstore18，零失败；最后直接head捕获、state复制去掉重复临时克隆和prepared实参数组收费后完整cross57重放通过。Clippy同十目标、llvm-api、-D warnings通过，首次lint指出新条件可折叠及新增helper位置误挂旧allow，均在生产源码修正。日志342-head-complete-tests.log、342-head-final-tests.log、342-head-clippy.log；不是正式全量。
+
+新READ源Expand/Types/Analyze/Verify N=296/391/15016/19227，每个N−1 ResourceLimit且fresh N相同。Analyze首次15009后实际caller分离固定点增至15013，再预费prepared数组为15016；这是新增实际工作收费，默认限额不升。旧无109模块通过已付instruction扫描得到的私有feature激活条件保留原核费用，该条件只启用证明，不携安全许可。
+
+首次真实失败记录：原345源先被旧全Package-address返回守卫误当Store元素逃逸，缩窄为实际has_store_fields输入，真实String返回view贯通；后续旧Store窗口profile误把当前bytes_view_mut新result本身当作先存竞争贷款，现按真实父链和新result身份区分，现有竞争child由独立贷款检查保留。原源、import和库API不改写成按值所有权调用。
+
+Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安全实证；没有完整语言安全结论。地址ABI零额外分配/RC/锁，真实失败计数如上，未测同语义Rust性能/RSS。普通真实std.string可直接使用&String和&mut String提供API，是可组合表达的有限增量，未测框架维护成本。新增工作预费且旧路径边界保留，没有编译成本优势结论。产品四目标合取、B0及现有product-gates不晋升；一般借用字段/存储/lending、HRTB Fn、显式dyn和一般§5.2仍继续施工。
+
+
+### 独审近邻修正提案：同步scope body的真实调用代换
+
+独审在976c7e7db指出新的Analyze head_loans::invocation尚未包含WithScopedThread/WithForeignCallback，而权限summary已包含两者。body内部重建的Capture0/Capture1需分离关系必须在实际scope调用处代换，不能依赖Verify已覆盖来冒充Analyze证明；MakeClosure弱Desc不能提供实际apart。扩展同一实际调用入口并以原transitive descriptor probe的thread_scope body变体验证distinct输入合法与raw/Wire同源参数拒绝。两种scope的body按实际签名均为零参数，环境是实际body捕获，同样进入该通路；不修改343线程模块。
+
+
+独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。

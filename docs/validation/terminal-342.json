@@ -2,10 +2,10 @@
   "task": "342",
   "status": "MilestoneInProgress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
-  "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT; full terminal obligations remain in progress",
+  "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress",
   "tests": {
     "cross_function_borrows": {
-      "passed": 49,
+      "passed": 57,
       "failed": 0
     },
     "generic_regressions": {
@@ -30,6 +30,18 @@
     },
     "impl260_compiler": {
       "passed": 37,
+      "failed": 0
+    },
+    "impl099_owned_bytes": {
+      "passed": 9,
+      "failed": 0
+    },
+    "impl099_owned_bytes_native": {
+      "passed": 7,
+      "failed": 0
+    },
+    "impl172_owned_store": {
+      "passed": 18,
       "failed": 0
     }
   },
@@ -88,7 +100,13 @@
         258
       ],
       "reason": "actual numeric signature relation clone and first-use canonical remap work"
-    }
+    },
+    "342_resource_head_phase_n": [
+      296,
+      391,
+      15016,
+      19227
+    ]
   },
   "native_342_mixed_mutable": {
     "sources": 9,
@@ -119,7 +137,8 @@
   "formal_full_suite": "NotRunByImplementationAuthor",
   "independent_review": {
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
-    "borrowed_pointer": "Pending clean candidate"
+    "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
+    "resource_heads": "976c7e7db first replay passed8; independent scoped-body finding reproduced and corrected, new clean review pending"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -150,12 +169,58 @@
   "logs": [
     "342-fp-complete-tests.log",
     "342-fp-ct-final-tests.log",
-    "342-fp-clippy.log"
+    "342-fp-clippy.log",
+    "342-head-complete-tests.log",
+    "342-head-final-tests.log",
+    "342-head-clippy.log",
+    "342-head-scope-first.log",
+    "342-head-scope-fixed.log",
+    "342-head-scope-final.log",
+    "342-head-scope-clippy.log"
   ],
   "retained_harnesses": {
-    "cross_function_borrows-492a6902b3023121": "e1db6a8c1c3f65e0cdeb4fe56978e7f10854bd306c78b50976e98a77ebb71caf",
+    "cross_function_borrows-492a6902b3023121": "f9122ec1d28d69a303839404bf7bcff6ebfe2107af2f0ba0f210f4040369fe8a",
     "generic_regressions-500f6ba56884c876": "e1f0ecd2df583ee6a2a560e00a20cb2664176480417559d8f407ef2b53cd844f",
     "impl260_compiler-d260f466ad29d903": "4d459a9af06db3ed575d530c0a2f8865979ccb99aec986e7d31c086d5b8dbce2"
   },
-  "test_command": "cargo test -p zil-driver --test cross_function_borrows --test generic_regressions --test impl197_mixed_state --test review184_storage --test impl200_independent --test impl033 --test impl260_compiler --features llvm-api --offline -- --nocapture"
+  "test_command": "cargo test -p zil-driver --test cross_function_borrows --test generic_regressions --test impl197_mixed_state --test review184_storage --test impl200_independent --test impl033 --test impl260_compiler --test impl099_owned_bytes --test impl099_owned_bytes_native --test impl172_owned_store --features llvm-api --offline -- --nocapture",
+  "borrowed_resource_heads": {
+    "public_opcode": 109,
+    "actual_payloads": [
+      "ByteBuffer",
+      "OwnedStore with existing element eligibility",
+      "Copy user resource head"
+    ],
+    "excluded": [
+      "Task",
+      "SABI",
+      "foreign registration"
+    ],
+    "permissions": "independent whole-CFG Analyze and Verify actual input/capture path summaries",
+    "loans": "independent Analyze actual head ancestry and caller-substituted external storage separation; Verify actual roots, ancestry, effects and windows",
+    "native_builds_and_runs": 32,
+    "simple_sources": 6,
+    "original_std_string_source": "tests/language-readiness/terminal/345/string.zil",
+    "original_std_string_sha256": "b665f762f0222a52f0f1e30e46e8bdb9c0294f3f3cb621683a46c716485aa57e",
+    "original_std_string_unchanged": true,
+    "original_std_string_native_runs": 4,
+    "fault_cleanup_runs": 4,
+    "fault_stdout": "10200\n",
+    "fault_counters": {
+      "allocation_attempts": 2,
+      "releases": 1,
+      "live_allocations": 0
+    },
+    "raw_and_decoded_runtime_wire": true,
+    "live_and_restored_cache": true,
+    "default_limits_unchanged": true,
+    "general_lending_complete": false,
+    "scoped_body_substitution": {
+      "thread_scope": true,
+      "c_with_callback": true,
+      "distinct_actual_heads_accept": true,
+      "raw_and_decoded_wire_aliases_reject_both_kernels": true,
+      "first_independent_failure_reproduced": true
+    }
+  }
 }

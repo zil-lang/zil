@@ -1312,6 +1312,11 @@ pub enum InstructionKind {
     DescribeLocal {
         local: LocalId,
     },
+    /// A weak access description of a live, actually borrowed resource header.
+    /// Address provenance and permissions remain independent proof obligations.
+    DescribeAddress {
+        address: ValueId,
+    },
     ReadDesc {
         desc: ValueId,
         index: u32,
@@ -2447,6 +2452,10 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for field in fields {
                 encode_u32(b, field.0);
             }
+        }
+        InstructionKind::DescribeAddress { address } => {
+            b.push(109);
+            encode_u32(b, address.0);
         }
         InstructionKind::DescribeLocal { local } => {
             b.push(35);

@@ -37,6 +37,7 @@ pub(super) struct Budget {
     pub(super) scoped_threads: bool,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
+    pub(super) head_descriptions: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -67,6 +68,7 @@ impl Budget {
             scoped_threads: false,
             borrowed_function_pointers: false,
             tasks: false,
+            head_descriptions: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -316,7 +318,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || ty.is_shared_sync_cell_address()
         || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
-        || ty.is_shared_resource_head_address()
+        || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
             if **inner == Type::ByteBuffer || **inner == Type::TaskI32
@@ -1036,6 +1038,9 @@ pub(super) fn preflight(
                             return Err(bad("sealed cell operation operand outside actual tables"));
                         }
                         budget.scoped_threads = true;
+                    }
+                    InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
                     }
                     InstructionKind::WithScopedThread {
                         worker,

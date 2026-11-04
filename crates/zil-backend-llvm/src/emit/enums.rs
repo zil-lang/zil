@@ -80,7 +80,7 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
         Type::Address { inner, .. }
             if inner.is_copy_value()
                 || matches!(inner.as_ref(), Type::Closure(_))
-                || ty.is_shared_resource_head_address()
+                || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
                 || ty.is_package_address() =>
         {

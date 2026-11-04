@@ -201,7 +201,7 @@ impl Builder<'_, '_> {
     }
     /// Locate a write target before evaluating its RHS. Projections retain the
     /// same authority; only an explicit ReborrowAddress creates a child window.
-    fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
+    pub(super) fn address_place(&mut self, e: &CoreExpr, mutable: bool) -> R<(ValueId, Type)> {
         match &e.kind {
             CoreExprKind::Name(name) => {
                 let local = self.lookup(name).ok_or_else(|| {
@@ -368,7 +368,7 @@ impl Builder<'_, '_> {
                     self.closures.snapshot(work.saturating_mul(2), e.span)?;
                 }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                let shared_owned = !mutable
+                let shared_owned = (matches!(&field, Type::Managed(_)) && resources::supported(&field)) || !mutable
                     && (packages::product::supported(&field)
                         || matches!(&field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));

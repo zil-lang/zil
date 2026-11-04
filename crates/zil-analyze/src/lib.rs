@@ -18,6 +18,8 @@ mod defers;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
+mod head_access;
+mod head_loans;
 mod helpers;
 mod holds;
 mod incremental;
@@ -110,13 +112,11 @@ fn analyze_budgeted(
     callable_fields::check(module, budget)?;
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
+    let head_effects = head_access::check(module, &hold_graphs, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
-    for (function, holds) in plan.functions.iter_mut().zip(holds::infer_module(
-        module,
-        &hold_graphs,
-        &store_profiles,
-        budget,
-    )?) {
+    let actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    head_loans::check(module, &hold_graphs, &actual_holds, &head_effects, budget)?;
+    for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;
     }
     tasks::loans(module, &plan, &hold_graphs, budget)?;

@@ -667,7 +667,8 @@ fn reconstruct(
                                 roots_join(&mut row, captures, budget)?;
                             }
                         }
-                        InstructionKind::ReborrowAddress { address, .. }
+                        InstructionKind::DescribeAddress { address }
+                        | InstructionKind::ReborrowAddress { address, .. }
                         | InstructionKind::AddressField { address, .. }
                         | InstructionKind::AddressSlice { address, .. }
                         | InstructionKind::AddressIndex { address, .. } => {
