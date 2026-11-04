@@ -2556,6 +2556,7 @@ fn task343_native_yields_resume_once() {
         include_str!("../../../tests/language-readiness/terminal/343/task-unused.zil"),
         include_str!("../../../tests/language-readiness/terminal/343/task-move.zil"),
         include_str!("../../../tests/language-readiness/terminal/343/task-static-callback.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/task-nonyield.zil"),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -2922,6 +2923,417 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
                 );
                 fs::remove_dir_all(dir).unwrap();
             }
+        }
+    }
+}
+
+fn task343_export_program() -> zil_ir::TypedProgram {
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/task-export.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let worker = core
+        .functions
+        .iter()
+        .find(|f| f.name == "worker")
+        .unwrap()
+        .id;
+    zil_types::check_program(
+        &zil_ir::CoreProgram {
+            root: src.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![zil_ir::ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![worker],
+            }],
+        },
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn task343_public_semantics_are_independently_bound() {
+    use std::sync::Arc;
+    use zil_ir::{PassingMode, ScalarFunction, Type};
+    let typed = task343_export_program();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    assert_eq!(typed.task_interfaces.len(), 1);
+    assert_eq!(
+        typed.task_interfaces[0].exports[0].worker,
+        zil_ir::FunctionId(0)
+    );
+    assert!(typed.interfaces.iter().all(|i| i.exports.is_empty()));
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![source(include_str!(
+            "../../../tests/language-readiness/terminal/343/task-export.zil"
+        ))],
+        paths: Default::default(),
+    };
+    let output = std::env::temp_dir().join(format!(
+        "zil343-reject-suspend-entry-{}",
+        std::process::id()
+    ));
+    let direct = zil_driver::compile_project(
+        &project,
+        &CompileOptions {
+            entry: Some("worker".into()),
+            stop_after: zil_driver::Stage::Build,
+            output: Some(output.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        direct.status,
+        ResultCategory::SafeReject,
+        "{}",
+        direct.to_json()
+    );
+    assert!(
+        direct
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TASK-DIRECT-EXPORT"),
+        "{}",
+        direct.to_json()
+    );
+    assert!(!output.exists());
+    let plan = zil_analyze::analyze_program(&typed, &limits).unwrap();
+    let checked = zil_verify::verify_shared_program_module(
+        Arc::new(typed.clone()),
+        Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert!(checked.is_task_export(zil_ir::FunctionId(0)));
+    assert_eq!(checked.task_interfaces(), typed.task_interfaces);
+    let mut renamed = typed.clone();
+    renamed.task_interfaces[0].exports[0].name = "alias".into();
+    let alias = zil_verify::verify_shared_program_module(
+        Arc::new(renamed),
+        Arc::new(plan.clone()),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    assert_ne!(
+        checked.task_abi_input_fingerprint(),
+        alias.task_abi_input_fingerprint()
+    );
+    for variant in 0..7 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => forged.task_interfaces[0].exports[0].abi_version = 0,
+            1 => forged.task_interfaces[0].exports[0].worker = zil_ir::FunctionId(2),
+            2 => forged.task_interfaces[0].exports[0].parameter.1 = Type::Bool,
+            3 => forged.task_interfaces[0].exports[0].result.0 = PassingMode::Copy,
+            4 => {
+                let mut e = forged.task_interfaces[0].exports[0].clone();
+                e.name = "again".into();
+                forged.task_interfaces[0].exports.push(e);
+            }
+            5 => {
+                let duplicate = forged.task_interfaces[0].clone();
+                forged.task_interfaces.push(duplicate);
+            }
+            6 => forged.interfaces[0].exports.push(ScalarFunction {
+                name: "worker".into(),
+                function: zil_ir::FunctionId(0),
+                parameters: vec![(PassingMode::Infer, Type::I32)],
+                result: Type::I32,
+                result_mode: PassingMode::Infer,
+                reference_return_bound: None,
+            }),
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze_program(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze {variant}: {errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&forged.module, &plan, &limits).unwrap();
+        for decode in [false, true] {
+            let mut input = forged.clone();
+            let mut claim = plan.clone();
+            if decode {
+                (input.module, claim) =
+                    zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+            }
+            let errors = zil_verify::verify_shared_program_module(
+                Arc::new(input),
+                Arc::new(claim),
+                &target,
+                &limits,
+            )
+            .unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify {variant} wire={decode}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_shared_program_module(
+                    Arc::new(typed.clone()),
+                    Arc::new(plan.clone()),
+                    &target,
+                    &budget,
+                )
+                .map(|_| ())
+            } else {
+                zil_analyze::analyze_program(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        let errors = accepts(low - 1).unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
+        accepts(low).unwrap();
+        eprintln!("task343 public exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn task343_external_five_entry_sabi_and_physical_layout() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    fn c_type(ty: &str) -> String {
+        match ty {
+            "ptr" => "void *".into(),
+            "i1" => "_Bool".into(),
+            "i8" => "uint8_t".into(),
+            "i16" => "uint16_t".into(),
+            "i32" => "int32_t".into(),
+            "i64" => "int64_t".into(),
+            "{ i32, i1 }" => "struct {int32_t value;_Bool overflow;}".into(),
+            "{ i64, i1 }" => "struct {int64_t value;_Bool overflow;}".into(),
+            other => panic!("uncovered actual scalar frame type {other}"),
+        }
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/343/task-export-caller.c");
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-task-export-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("caller.o");
+            let built = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(&fixture)
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(built.status.success(), "{built:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let project = zil_driver::ProjectSources {
+                root: ModuleId(0),
+                modules: vec![source(include_str!(
+                    "../../../tests/language-readiness/terminal/343/task-export.zil"
+                ))],
+                paths: Default::default(),
+            };
+            let options = CompileOptions {
+                backend,
+                optimization,
+                clang: Some(wrapper),
+                stop_after: Stage::Build,
+                output: Some(dir.join("program")),
+                emit_dir: Some(dir.join("artifacts")),
+                object_cache: (backend == NativeBackend::LlvmApi).then(|| dir.join("objects")),
+                ..CompileOptions::default()
+            };
+            let report = zil_driver::compile_project(&project, &options);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let cg = report.native_codegen.as_ref().unwrap();
+            assert_eq!(cg.backend, backend);
+            assert!(cg.fallback.is_none());
+            assert_eq!(cg.task_abis.len(), 1);
+            let abi = &cg.task_abis[0];
+            assert!(
+                fs::read_to_string(&report.artifacts["task-abi"])
+                    .unwrap()
+                    .contains(&abi.codegen_key.to_hex())
+            );
+            assert_eq!(abi.worker, zil_ir::FunctionId(0));
+            assert_eq!(abi.entrypoints.len(), 5);
+            assert_eq!(abi.name, "worker");
+            assert_eq!(abi.data_layout, zil_backend_llvm::TASK_DATA_LAYOUT);
+            if backend == NativeBackend::LlvmApi
+                && optimization == Optimization::O2
+                && let Some(path) = std::env::var_os("ZIL343_TASK_ABI_RECEIPT")
+            {
+                fs::write(path, format!("{}\n", abi.to_json())).unwrap();
+            }
+            assert_ne!(abi.codegen_key, zil_base::Fingerprint::ZERO);
+            assert_ne!(abi.frame_layout_fingerprint, zil_base::Fingerprint::ZERO);
+            let run = Command::new(&report.artifacts["executable"])
+                .env("ZIL343_EXPECT_FRAME_SIZE", abi.frame_size.to_string())
+                .output()
+                .unwrap();
+            assert_eq!(
+                run.status.code(),
+                Some(0),
+                "{backend:?} {optimization:?}: {run:?}"
+            );
+            assert_eq!(
+                Command::new(&report.artifacts["executable"])
+                    .env("ZIL343_TASK_EXPORT_ALLOC_FAIL", "1")
+                    .status()
+                    .unwrap()
+                    .code(),
+                Some(3)
+            );
+            if backend == NativeBackend::LlvmApi {
+                assert!(cg.object_cache.enabled);
+                let warm = zil_driver::compile_project(&project, &options);
+                assert_eq!(warm.status, ResultCategory::Success, "{}", warm.to_json());
+                let hit = warm.native_codegen.as_ref().unwrap();
+                assert!(hit.object_cache.hits > 0, "{}", warm.to_json());
+                assert_eq!(hit.task_abis[0], *abi);
+                assert_eq!(
+                    Command::new(&warm.artifacts["executable"])
+                        .status()
+                        .unwrap()
+                        .code(),
+                    Some(0)
+                );
+                let mut changed = project.clone();
+                changed.modules[0] = source(
+                    &changed.modules[0]
+                        .text
+                        .replace("i32(wide)+i32(small)", "i32(wide)+%i32(small)"),
+                );
+                let updated = zil_driver::compile_project(&changed, &options);
+                assert_eq!(
+                    updated.status,
+                    ResultCategory::Success,
+                    "{}",
+                    updated.to_json()
+                );
+                let actual = updated.native_codegen.as_ref().unwrap();
+                assert!(actual.object_cache.misses > 0);
+                assert_ne!(
+                    actual.task_abis[0].frame_layout_fingerprint,
+                    abi.frame_layout_fingerprint
+                );
+                assert_ne!(actual.task_abis[0].codegen_key, abi.codegen_key);
+                assert_eq!(
+                    Command::new(&updated.artifacts["executable"])
+                        .status()
+                        .unwrap()
+                        .code(),
+                    Some(0)
+                );
+            }
+            let ir = fs::read_to_string(&report.artifacts["llvm"])
+                .unwrap_or_else(|_| fs::read_to_string(dir.join("program.ll")).unwrap());
+            assert!(!ir.contains("define i32 @zil.fn.0("));
+            if backend == NativeBackend::LlvmApi {
+                assert!(
+                    cg.object_reports
+                        .iter()
+                        .all(|r| r.contains(zil_backend_llvm::TASK_DATA_LAYOUT))
+                );
+            }
+            let actual_layout = Command::new(&clang)
+                .args([
+                    "--target=x86_64-unknown-linux-gnu",
+                    "-x",
+                    "c",
+                    "-S",
+                    "-emit-llvm",
+                    "/dev/null",
+                    "-o",
+                    "-",
+                ])
+                .output()
+                .unwrap();
+            assert!(actual_layout.status.success());
+            assert!(
+                String::from_utf8(actual_layout.stdout)
+                    .unwrap()
+                    .contains(&format!("target datalayout = \"{}\"", abi.data_layout))
+            );
+            let mut c="#include <stddef.h>\n#include <stdint.h>\n#include <stdbool.h>\ntypedef struct {\n".to_owned();
+            for field in &abi.frame_fields {
+                c.push_str(&format!(
+                    "{} f{};\n",
+                    c_type(&field.machine_type),
+                    field.index
+                ));
+            }
+            c.push_str("} Frame;\nint main(void){\n");
+            c.push_str(&format!(
+                "if(sizeof(Frame)!={} || _Alignof(Frame)!={}) return 1;\n",
+                abi.frame_size, abi.frame_alignment
+            ));
+            for field in &abi.frame_fields {
+                c.push_str(&format!(
+                    "if(offsetof(Frame,f{})!={} || sizeof(((Frame*)0)->f{})!={}) return 2;\n",
+                    field.index, field.offset, field.index, field.size
+                ));
+            }
+            c.push_str("return 0;}\n");
+            let probe = dir.join("layout.c");
+            fs::write(&probe, c).unwrap();
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror"])
+                .arg(&probe)
+                .arg("-o")
+                .arg(dir.join("layout"))
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            assert!(Command::new(dir.join("layout")).status().unwrap().success());
+            fs::remove_dir_all(dir).unwrap();
         }
     }
 }

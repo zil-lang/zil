@@ -58,9 +58,27 @@ pub struct FunctionResultOrigins {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedProgram {
+    /// Raw semantic Suspend exports; never a physical frame-layout assertion.
+    pub task_interfaces: Vec<TaskInterface>,
     pub module: TypedModule,
     pub interfaces: Vec<ScalarInterface>,
     pub root_functions: Vec<ScalarFunction>,
+}
+
+/// Untrusted semantic interface candidate. Verify rebuilds each worker profile;
+/// Lower/backend publish physical frame descriptors separately after layout.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskInterface {
+    pub module: ModuleId,
+    pub exports: Vec<TaskExport>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskExport {
+    pub name: String,
+    pub worker: FunctionId,
+    pub parameter: (PassingMode, Type),
+    pub result: (PassingMode, Type),
+    pub abi_version: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

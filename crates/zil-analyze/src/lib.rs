@@ -56,6 +56,13 @@ pub fn analyze(module: &TypedModule, limits: &Limits) -> CompileResult<Candidate
     analyze_budgeted(module, limits, &mut budget, None)
 }
 
+pub fn analyze_program(program: &TypedProgram, limits: &Limits) -> CompileResult<CandidatePlan> {
+    let mut budget = Budget::new(limits);
+    let plan = analyze_budgeted(&program.module, limits, &mut budget, None)?;
+    tasks::interfaces(program, &mut budget)?;
+    Ok(plan)
+}
+
 fn analyze_budgeted(
     module: &TypedModule,
     limits: &Limits,
