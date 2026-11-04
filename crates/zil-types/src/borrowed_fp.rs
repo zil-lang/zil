@@ -59,9 +59,12 @@ pub(super) fn relation(
             "borrowed function pointer requires a complete invocation-local address relation",
         )
     };
-    // This producer profile proves ordinary outer addresses. Do not erase a
-    // richer relation through a flat projection before checking its signature.
-    if life.fixed_binder_count != 0 || !life.classes.is_empty() {
+    if !life.classes.is_empty() {
+        return borrowed_fp_qualified::relation(parameters, result, life, span);
+    }
+    // A free Fixed domain needs a real enclosing class context. It cannot be
+    // erased through a flat projection or invented by a bare address input.
+    if life.fixed_binder_count != 0 {
         return Err(unsupported(
             span,
             "rich borrowed callable class relation requires its complete signature consumer",
@@ -124,13 +127,13 @@ pub(super) fn relation(
     Ok(())
 }
 
-/// O(1) reservation for the flat-only profile above. It inspects no path
-/// elements and rejects classes/Fixed/nonempty paths before cloning the input.
+/// O(1) reservation for ordinary flat and direct qualified-boundary profiles.
+/// Their selectors are empty or exactly Pointee; longer paths reject by length.
 pub(super) fn metadata_work(life: &StorageLifeContract) -> usize {
     (life.invocation_binder_count as usize)
         .saturating_add(life.fixed_binder_count as usize)
         .saturating_add(life.bindings.len().saturating_mul(8))
-        .saturating_add(life.classes.len())
+        .saturating_add(life.classes.len().saturating_mul(8))
         .saturating_add(2)
 }
 
@@ -144,7 +147,7 @@ pub(super) fn charge_contract(
     charge(
         life.bindings
             .len()
-            .saturating_add(life.classes.len())
+            .saturating_add(life.classes.len().saturating_mul(8))
             .saturating_add(2)
             .saturating_mul(multiplier),
     )?;
