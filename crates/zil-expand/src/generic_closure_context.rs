@@ -142,6 +142,88 @@ fn unavailable(message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Expand, message, None)
 }
 
+fn scalar_result(ty: &TypeRef) -> bool {
+    match &ty.kind {
+        TypeKind::Group(inner) => scalar_result(inner),
+        TypeKind::Named { path, args } if path.len() == 1 && args.is_empty() => matches!(
+            path[0].as_str(),
+            "unit"
+                | "void"
+                | "bool"
+                | "i32"
+                | "i64"
+                | "u8"
+                | "u16"
+                | "u64"
+                | "usize"
+                | "f32"
+                | "f64"
+        ),
+        _ => false,
+    }
+}
+
+/// This scan limits the first profile. It discovers rewrite *capability* in
+/// the actual aligned creator; it neither numbers closures nor matches two
+/// traversals. It runs only after a contextual closure actually requests an
+/// owner, never as an unrelated whole-module discovery fee.
+fn original_creator_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
+    use crate::ct_selection::Visitor;
+    struct Original<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+    }
+    impl Visitor for Original<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|error| vec![error])
+        }
+        fn text(&mut self, value: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(value, span).map_err(|error| vec![error])
+        }
+        fn statement(&mut self, statement: &Stmt, depth: usize) -> CompileResult<()> {
+            if matches!(statement.kind, StmtKind::Meta(_)) {
+                return Err(vec![unavailable(
+                    "closure creator contains CT rewrite capability",
+                )]);
+            }
+            crate::ct_selection::walk_statement(self, statement, depth)
+        }
+        fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+            if matches!(
+                expression.kind,
+                ExprKind::MetaEval(_)
+                    | ExprKind::MetaSplice(_)
+                    | ExprKind::MetaBlock(_)
+                    | ExprKind::SyntaxIsland { .. }
+                    | ExprKind::Quote { .. }
+            ) {
+                return Err(vec![unavailable(
+                    "closure creator contains CT rewrite capability",
+                )]);
+            }
+            crate::ct_selection::walk_expression(self, expression, depth)
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(
+                ty.kind,
+                TypeKind::MetaEval(_) | TypeKind::MetaSplice(_) | TypeKind::MetaBlock(_)
+            ) {
+                return Err(vec![unavailable(
+                    "closure creator contains CT rewrite capability",
+                )]);
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    if !item.attributes.is_empty() {
+        return Err(unavailable(
+            "closure creator attributes need a complete producer",
+        ));
+    }
+    Original { budget }
+        .item(item, 0)
+        .map_err(|mut errors| errors.remove(0))
+}
+
 pub(super) struct Recording {
     owner: u32,
     occurrences: Vec<crate::stored_types::Occurrence>,
@@ -207,6 +289,10 @@ impl Engine<'_> {
                 .all(|parameter| matches!(parameter.kind, GenericParamKind::Lifetime))
             || !function.where_clause.is_empty()
             || matches!(function.body, FunctionBody::Declaration)
+            || function
+                .return_type
+                .as_ref()
+                .is_some_and(|result| !scalar_result(result))
         {
             return Err(unavailable(
                 "closure creator requires the complete life-only Definition profile",
@@ -225,6 +311,11 @@ impl Engine<'_> {
             }
         }
         let source = origins.identity(origin.declaration, &mut self.budget, span)?;
+        if source.closure_sites != crate::source_context::ClosureSiteLineage::Original {
+            return Err(unavailable(
+                "closure creator has no original expression-site lineage",
+            ));
+        }
         origins::pay_identity(&source.identity, &mut self.budget, span)?;
         if !source.identity.generation_path.is_empty() {
             return Err(unavailable(
@@ -232,6 +323,7 @@ impl Engine<'_> {
             ));
         }
         let source = source.clone();
+        original_creator_capability(item, &mut self.budget)?;
         for parameter in &function.generics {
             self.budget.node(parameter.span, 0)?;
             self.budget.text(&parameter.name, parameter.span)?;
@@ -385,9 +477,7 @@ impl Engine<'_> {
         let result = result
             .as_mut()
             .ok_or_else(|| unavailable("contextual closure needs its scalar result annotation"))?;
-        if !matches!(&result.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty()
-            && matches!(path[0].as_str(), "unit" | "void" | "bool" | "i32" | "i64" | "u8" | "u16" | "u64" | "usize" | "f32" | "f64"))
-        {
+        if !scalar_result(result) {
             return Err(unavailable(
                 "contextual closure scalar result profile is not complete",
             ));
@@ -540,6 +630,13 @@ impl Engine<'_> {
         }
         let raw = u32::try_from(self.products.closure_contexts.entries.len())
             .map_err(|_| unavailable("source closure occurrence ordinal exhausted"))?;
+        if raw == u32::MAX {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "source closure occurrence collides with the absent-marker sentinel",
+                Some(span),
+            ));
+        }
         self.budget.identity_work(1, span)?;
         self.products
             .closure_contexts
@@ -876,5 +973,95 @@ mod tests {
         assert_eq!(markers(&module), [None]);
         assert!(products.closure_contexts.entries.is_empty());
         assert!(products.closure_contexts.owners.is_empty());
+    }
+
+    #[test]
+    fn source_closure_context_direct_original_creator_rejects_ct_rewrite_capability() {
+        for (prefix, actual_stage_message) in [
+            ("let ignored=#{yield 1};", "CT rewrite capability"),
+            (
+                "#if(true){let ignored=1}",
+                "generic expansion of meta statement",
+            ),
+            (
+                "#for(n in [0]){let ignored=n}",
+                "generic expansion of meta statement",
+            ),
+        ] {
+            let text = format!(
+                "{DECL}fn apply<life s>(left:&Tag<'s>)->i32{{{prefix}let f=(p:&Tag<'s>)->i32=>i32(*p.p+*left.p);return f(left)}}"
+            );
+            let Err(errors) = produce(&text, false, Limits::default().max_analysis_steps) else {
+                panic!("direct Original metadata hid a CT-capable creator")
+            };
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains(actual_stage_message)),
+                "{errors:?}"
+            );
+            // MetaIf/For currently stop in the earlier generic preflight.
+            // The independently exercised capability component still closes
+            // them if that producer later learns to materialize statements.
+            let input = SourceUnit::new(FileId(0), ModuleId(0), "capability-component.zil", &text);
+            let syntax = zil_syntax::parse(&input).into_result().unwrap();
+            let error =
+                original_creator_capability(&syntax.items[1], &mut Budget::new(&Limits::default()))
+                    .unwrap_err();
+            assert!(error.message.contains("CT rewrite capability"));
+        }
+        // Lexical text is not a capability or an expression identity.
+        let text = format!(
+            "{DECL}fn apply<life s>(left:&Tag<'s>)->i32{{let text=\"#{{yield 1}}\";let f=(p:&Tag<'s>)->i32=>i32(*p.p+*left.p);return f(left)}}"
+        );
+        produce(&text, false, Limits::default().max_analysis_steps).unwrap();
+    }
+
+    #[test]
+    fn source_closure_context_aligned_declaration_without_original_sites_is_closed() {
+        let text = format!("{DECL}{BODY}");
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "unavailable-sites.zil", &text);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let sources = [input];
+        let modules = [&syntax];
+        let aliases = BTreeMap::new();
+        let (captured, remaining) = crate::source_context::capture_original(
+            &sources,
+            &modules,
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: DeclarationPlacement::Original,
+            },
+            &Limits::default(),
+        )
+        .unwrap();
+        let mut captured = captured.expect("real source declaration inventory");
+        let original_nominal_identity = captured[0].items[0].clone();
+        captured[0].items[1].closure_sites = crate::source_context::ClosureSiteLineage::Unavailable;
+        let mut products = products::Products::default();
+        let result = specialize_products_with_context(
+            &syntax,
+            &remaining,
+            &mut products,
+            Some((
+                &sources,
+                SourceIdentityContext::ClosedSnapshot {
+                    root: ModuleId(0),
+                    aliases: &aliases,
+                    declarations: DeclarationPlacement::Aligned(&captured),
+                },
+            )),
+        );
+        let Err(errors) = result else {
+            panic!("unavailable closure site was treated as original")
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("original expression-site lineage")),
+            "{errors:?}"
+        );
+        assert_eq!(captured[0].items[0], original_nominal_identity);
     }
 }
