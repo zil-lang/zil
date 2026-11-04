@@ -73,6 +73,7 @@ fn accessed_local(instruction: &InstructionKind) -> Option<LocalId> {
         | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::ReadVariantLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::UnpackVariant { local, .. }
         | InstructionKind::DropEnum { local }
         | InstructionKind::RegisterDefer { local, .. }
@@ -164,6 +165,7 @@ pub(super) fn check_function(
                 InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
                     | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
                     | InstructionKind::DropEnum { .. }
             ) {

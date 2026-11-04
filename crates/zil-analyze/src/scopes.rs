@@ -68,6 +68,7 @@ pub(super) fn check(
                 InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
                     | InstructionKind::BorrowVariantLocal { .. }
+                    | InstructionKind::BorrowFieldLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
                     | InstructionKind::DropEnum { .. }
                     | InstructionKind::MakePackage { .. }
@@ -264,6 +265,7 @@ pub(super) fn check(
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
                 | InstructionKind::BorrowVariantLocal { local, .. }
+                | InstructionKind::BorrowFieldLocal { local, .. }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::Load(local)
                 | InstructionKind::RegisterDefer { local, .. }

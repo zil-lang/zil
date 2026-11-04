@@ -155,6 +155,7 @@ fn private_slot_access(kind: &InstructionKind, slot: LocalId) -> Option<bool> {
         | InstructionKind::VariantTagLocal { local, .. }
         | InstructionKind::ReadVariantLocal { local, .. }
         | InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowFieldLocal { local, .. }
         | InstructionKind::UnpackVariant { local, .. }
         | InstructionKind::DropEnum { local }
         | InstructionKind::CallClosureShared { callee: local, .. }

@@ -97,6 +97,9 @@ impl<'a> Budget<'a> {
     ) -> CompileResult<bool> {
         self.pay(ty, depth)?;
         match ty {
+            Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Enum { .. }) => {
+                self.admits(inner, resources, depth + 1)
+            }
             Type::Managed(payload) => {
                 for _ in resources {
                     self.pay(ty, depth)?;

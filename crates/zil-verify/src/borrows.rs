@@ -405,6 +405,7 @@ fn check(
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::BorrowPackageField { local, .. }
             | InstructionKind::BorrowVariantLocal { local, .. }
+            | InstructionKind::BorrowFieldLocal { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -638,6 +639,18 @@ fn reconstruct(
                         InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             row.push(Root::Local(*local));
                         }
+                        InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                            row.push(roots::inline_field_root(f, *local, path, budget)?);
+                        }
+                        InstructionKind::BorrowVariantAddress { address, path, .. } => {
+                            row = roots::address_roots(
+                                f,
+                                *address,
+                                path,
+                                &values[address.0 as usize],
+                                budget,
+                            )?;
+                        }
                         InstructionKind::BorrowVariantLocal { local, path, .. } => {
                             budget.spend(path.len().saturating_add(1))?;
                             row.push(roots::variant_root(f, *local, path, budget)?);
@@ -838,8 +851,10 @@ fn reconstruct_module(
                         budget.spend(roots.len())?;
                         let incoming: Vec<_> = roots
                             .iter()
-                            .copied()
-                            .filter(|root| matches!(root, Root::Parameter(_)))
+                            .filter_map(|root| match root.coarse() {
+                                HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                _ => None,
+                            })
                             .collect();
                         changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                     }
@@ -1017,7 +1032,7 @@ pub(super) fn check_module(
                 }
                 if let Some(bound) = &function.reference_return_bound {
                     budget.spend(roots.len().saturating_mul(bound.len().saturating_add(1)))?;
-                    if roots.iter().any(|root|!matches!(root,Root::Parameter(index) if bound.binary_search(index).is_ok())) {
+                    if roots.iter().any(|root|!matches!(root.coarse(),HoldRoot::Parameter(index) if bound.binary_search(&index).is_ok())) {
                         return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
                     }
                 }
@@ -1033,7 +1048,10 @@ pub(super) fn check_module(
                         };
                         lending_sources.insert(*index);
                     }
-                } else if roots.iter().any(|root| !matches!(root, Root::Parameter(_))) {
+                } else if roots
+                    .iter()
+                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(_)))
+                {
                     return Err(reject(
                         "E-BORROW-ESCAPE",
                         Some(function.span),
@@ -1293,8 +1311,10 @@ mod frontier_tests {
                             budget.spend(roots.len())?;
                             let incoming: Vec<_> = roots
                                 .iter()
-                                .copied()
-                                .filter(|root| matches!(root, Root::Parameter(_)))
+                                .filter_map(|root| match root.coarse() {
+                                    HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
+                                    _ => None,
+                                })
                                 .collect();
                             changed |= roots_join(&mut summaries[index], &incoming, budget)?;
                         }

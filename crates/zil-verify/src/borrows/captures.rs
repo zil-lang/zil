@@ -70,6 +70,15 @@ impl Invocation<'_> {
                 "window separation has no independently grounded call source",
             )
         };
+        let root = if let Root::Window(origin, ..) = root {
+            match origin {
+                HoldRoot::Local(l) => Root::Local(l),
+                HoldRoot::Parameter(p) => Root::Parameter(p),
+                HoldRoot::Capture(c) => Root::Capture(c),
+            }
+        } else {
+            root
+        };
         let slot = match root {
             Root::Parameter(parameter) => {
                 let value = self
@@ -94,7 +103,9 @@ impl Invocation<'_> {
                 lookup(budget, slots.len())?;
                 slots.get(&capture)
             }
-            Root::Local(_) | Root::Field(..) | Root::Projection(..) => return Err(ungrounded()),
+            Root::Local(_) | Root::Field(..) | Root::Projection(..) | Root::Window(..) => {
+                return Err(ungrounded());
+            }
         }
         .filter(|roots| !roots.is_empty())
         .ok_or_else(ungrounded)?;
