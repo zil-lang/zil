@@ -1038,11 +1038,14 @@ impl Builder<'_, '_> {
         if registration::template(&template.function) {
             typed.callable_contract = None;
         }
+        if let Some(life) = &typed.storage_life {
+            borrowed_fp::charge_contract(life, |work| self.closures.snapshot(work, span), 1)?;
+        }
         self.closures.helper_exports.push(Export {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
-                storage_life: None,
+                storage_life: typed.storage_life.clone(),
                 reference_return_bound: None,
                 name: function.name,
                 function: id,
