@@ -19,14 +19,24 @@ impl Origins {
         Ok(*self != old)
     }
 }
-fn contains_task(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<bool> {
+fn contains_kind(
+    module: &TypedModule,
+    t: &Type,
+    budget: &mut Budget,
+    pollable: bool,
+) -> Check<bool> {
     resources::charge_payload(t, budget)?;
     let mut pending = vec![t];
     let mut closures = BTreeSet::new();
     while let Some(t) = pending.pop() {
         budget.spend(1)?;
         match t {
-            Type::TaskI32 | Type::Task { .. } => return Ok(true),
+            Type::TaskI32 | Type::Task { .. } if !pollable => return Ok(true),
+            Type::AsyncRegistration { .. } if pollable => return Ok(true),
+            Type::Task { result, .. } => pending.push(result),
+            Type::AsyncRegistration { environment } | Type::Registration { environment } => {
+                pending.push(environment)
+            }
             Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } => pending.push(p),
             Type::Closure(id) => {
                 budget.spend(closures.len().saturating_add(1))?;
@@ -40,7 +50,8 @@ fn contains_task(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<b
                     }
                 }
             }
-            Type::Array { element, .. } => pending.push(element),
+            Type::Array { element, .. } | Type::OwnedStore { element } => pending.push(element),
+            Type::Opaque { hidden, .. } => pending.push(hidden),
             Type::Tuple(ts) => pending.extend(ts),
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, t)| t))
@@ -59,6 +70,66 @@ fn contains_task(module: &TypedModule, t: &Type, budget: &mut Budget) -> Check<b
     }
     Ok(false)
 }
+fn dependencies(
+    module: &TypedModule,
+    t: &Type,
+    budget: &mut Budget,
+    functions: &mut Vec<FunctionId>,
+) -> Check<()> {
+    resources::charge_payload(t, budget)?;
+    let mut pending = vec![t];
+    let mut closures = BTreeSet::new();
+    while let Some(t) = pending.pop() {
+        budget.spend(1)?;
+        match t {
+            Type::Managed(payload) => {
+                for _ in &module.resources {
+                    resources::charge_payload(payload, budget)?;
+                }
+                if let Some(r) = module.resources.iter().find(|r| r.payload == **payload) {
+                    if let Some(drop) = r.teardown {
+                        functions.push(drop);
+                    }
+                }
+                pending.push(payload);
+            }
+            Type::Closure(id) => {
+                budget.spend(closures.len().saturating_add(1))?;
+                if closures.insert(*id) {
+                    if let Some(c) = module.closures.get(id.0 as usize) {
+                        functions.push(c.function);
+                        for t in &c.captures {
+                            resources::charge_payload(t, budget)?;
+                            pending.push(t);
+                        }
+                    }
+                }
+            }
+            Type::Desc(p)
+            | Type::Address { inner: p, .. }
+            | Type::Registration { environment: p }
+            | Type::AsyncRegistration { environment: p }
+            | Type::Opaque { hidden: p, .. }
+            | Type::OwnedStore { element: p }
+            | Type::Array { element: p, .. } => pending.push(p),
+            Type::Tuple(ts) => pending.extend(ts),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, t)| t))
+            }
+            Type::Enum { variants, .. } => {
+                for (_, ts) in variants {
+                    pending.extend(ts);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
 pub(crate) fn require(
     module: &TypedModule,
     f: &TypedFunction,
@@ -66,8 +137,36 @@ pub(crate) fn require(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> Check<()> {
-    let ty = local_type(f, local, span)?;
-    if !contains_task(module, ty, budget)? {
+    require_origin(module, f, Some(local), None, budget, span)
+}
+pub(crate) fn require_value(
+    module: &TypedModule,
+    f: &TypedFunction,
+    value: ValueId,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> Check<()> {
+    require_origin(module, f, None, Some(value), budget, span)
+}
+fn require_origin(
+    module: &TypedModule,
+    f: &TypedFunction,
+    local: Option<LocalId>,
+    value: Option<ValueId>,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> Check<()> {
+    let ty = if let Some(local) = local {
+        &f.locals
+            .get(local.0 as usize)
+            .ok_or_else(|| reject("E-VERIFY-TASK", span, "Task Drop local absent"))?
+            .ty
+    } else {
+        f.values
+            .get(value.expect("value endpoint").0 as usize)
+            .ok_or_else(|| reject("E-VERIFY-TASK", span, "Task callback value absent"))?
+    };
+    if !contains_kind(module, ty, budget, false)? {
         return Ok(());
     }
     budget.spend(
@@ -80,10 +179,10 @@ pub(crate) fn require(
     let mut locals = vec![Origins::default(); f.locals.len()];
     let mut relevant = Vec::with_capacity(f.values.len());
     for t in &f.values {
-        relevant.push(contains_task(module, t, budget)?);
+        relevant.push(contains_kind(module, t, budget, false)?);
     }
     for p in &f.parameters {
-        if contains_task(module, &f.locals[p.0 as usize].ty, budget)? {
+        if contains_kind(module, &f.locals[p.0 as usize].ty, budget, false)? {
             locals[p.0 as usize].unknown = true;
         }
     }
@@ -124,7 +223,13 @@ pub(crate) fn require(
                         budget.spend(locals[local.0 as usize].workers.len().saturating_add(1))?;
                         locals[local.0 as usize].clone()
                     }
-                    InstructionKind::ReadErrorUnion { value, .. }
+                    InstructionKind::RegistrationStart {
+                        callback: value, ..
+                    }
+                    | InstructionKind::AsyncRegistrationStart {
+                        callback: value, ..
+                    }
+                    | InstructionKind::ReadErrorUnion { value, .. }
                     | InstructionKind::MakeErrorUnion { value, .. }
                     | InstructionKind::ReadVariant { value, .. } => {
                         budget.spend(values[value.0 as usize].workers.len().saturating_add(1))?;
@@ -161,8 +266,12 @@ pub(crate) fn require(
             break;
         }
     }
-    budget.spend(locals[local.0 as usize].workers.len().saturating_add(1))?;
-    let origins = &locals[local.0 as usize];
+    let origins = if let Some(local) = local {
+        &locals[local.0 as usize]
+    } else {
+        &values[value.expect("value endpoint").0 as usize]
+    };
+    budget.spend(origins.workers.len().saturating_add(1))?;
     if origins.unknown || origins.workers.is_empty() {
         return Err(reject(
             "E-VERIFY-TASK",
@@ -184,6 +293,21 @@ pub(crate) fn require(
                 "Task automatic Drop worker absent",
             ));
         };
+        for ty in target
+            .values
+            .iter()
+            .chain(target.locals.iter().map(|l| &l.ty))
+            .chain(std::iter::once(&target.return_type))
+        {
+            dependencies(module, ty, budget, &mut pending)?;
+            if contains_kind(module, ty, budget, true)? {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    span,
+                    "pollable Task automatic Drop requires asynchronous continuation",
+                ));
+            }
+        }
         budget.spend(target.blocks.len())?;
         for block in &target.blocks {
             for i in &block.instructions {
@@ -196,7 +320,14 @@ pub(crate) fn require(
                             "pollable Task automatic Drop requires asynchronous continuation",
                         ));
                     }
-                    InstructionKind::SuspendCall { function, .. } => pending.push(function),
+                    InstructionKind::SuspendCall { function, .. }
+                    | InstructionKind::Call { function, .. }
+                    | InstructionKind::TaskCreate {
+                        worker: function, ..
+                    }
+                    | InstructionKind::TaskStart {
+                        worker: function, ..
+                    } => pending.push(function),
                     _ => {}
                 }
             }
