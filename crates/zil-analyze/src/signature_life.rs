@@ -37,6 +37,25 @@ pub(super) fn relation(
             "vacuous borrowed signature must use the ordinary callable type",
         ));
     }
+    let rows = c
+        .bindings
+        .len()
+        .checked_add(c.classes.len())
+        .ok_or_else(|| bad("signature row count overflow"))?;
+    let domains = (c.fixed_binder_count as usize)
+        .checked_add(c.invocation_binder_count as usize)
+        .ok_or_else(|| bad("signature domain count overflow"))?;
+    if domains > rows || c.fixed_binder_count as usize > c.classes.len() {
+        return Err(bad("signature domain exceeds actual relation occurrences"));
+    }
+    let input_classes = c
+        .classes
+        .iter()
+        .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
+        .count();
+    if c.fixed_binder_count as usize > input_classes {
+        return Err(bad("Fixed domain exceeds actual input class occurrences"));
+    }
     struct Cursor<'a> {
         c: &'a StorageLifeContract,
         borrow: usize,
@@ -273,6 +292,16 @@ mod tests {
                 binder: StorageBinder::Invocation(class),
             }],
         }
+    }
+    #[test]
+    fn impossible_domain_is_rejected_before_allocating_claimed_class_storage() {
+        let impossible = StorageLifeContract {
+            fixed_binder_count: u32::MAX,
+            invocation_binder_count: 0,
+            bindings: vec![],
+            classes: vec![],
+        };
+        assert!(relation(&[], &Type::I32, &impossible).is_err());
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {
