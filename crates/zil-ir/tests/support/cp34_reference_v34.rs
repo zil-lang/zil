@@ -495,6 +495,52 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             b.push(109);
             encode_u32(b, address.0);
         }
+        InstructionKind::MakeOwnedTuple { fields } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(114);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::UnpackTuple { local, fields } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(115);
+            encode_u32(b, local.0);
+            encode_len(b, fields.len());
+            for field in fields {
+                encode_u32(b, field.0);
+            }
+        }
+        InstructionKind::DropTuple { local } => {
+            assert!(v32, "schema31 cannot represent owning tuple transfer");
+            b.push(116);
+            encode_u32(b, local.0);
+        }
+        InstructionKind::TakeTupleField { local, path }
+        | InstructionKind::TakeVariantField { local, path } => {
+            assert!(v32, "schema31 cannot represent partial owning paths");
+            b.push(if matches!(i, InstructionKind::TakeTupleField { .. }) {
+                117
+            } else {
+                118
+            });
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                match step {
+                    PlaceProjection::Field(index) => {
+                        b.push(0);
+                        encode_u32(b, *index);
+                    }
+                    PlaceProjection::Variant(part) => {
+                        b.push(1);
+                        encode_u32(b, part.variant);
+                        encode_u32(b, part.index);
+                    }
+                }
+            }
+        }
         InstructionKind::BorrowFieldLocal {
             local,
             path,

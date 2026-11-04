@@ -178,3 +178,19 @@ borrowed-code key preserves the full parameter/result graph and joint lifetime
 contract, including its remap and temporary accounting. Combined actual source
 controls cover const specialization, associated projections and a borrowed code
 member round-tripped through a computed Type, with native O0/O2 on both backends.
+
+## Combined deep-expression host-frame repair
+
+After the associated-constant composition bfe682bfb, the original default2MiB
+worker and a large value-order source crashed again. A separate alternate signal
+stack for diagnostics (no change to the ordinary worker stack) localized Expand
+expr_expected at88,296 bytes, with Budget::ty_context12,872 bytes. Splitting
+expression variants and associated lookup temporaries reduced the dispatcher
+frame; the next trace exposed Types::expr_raw26,792-byte frames during nested
+owned-array construction. Its remaining scalar/name variants are now private
+helpers with the original final-check and early-return ordering intact.
+The original106 aggregate tests pass including the exact2MiB source and four
+native backend/optimization runs; original budget checks remain unchanged.
+A wider ordinary/generic nested-call probe still finds an additional32-call
+stack failure in the call-planning helper. It is preserved and under repair;
+this checkpoint does not claim all bounded source shapes are stack-safe.

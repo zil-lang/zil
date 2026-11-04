@@ -2296,7 +2296,8 @@ fn common313_discard_still_checks_copy_and_evaluates_record_rhs_once() {
         )],
         21,
     );
-    for text in ["fn result()->i32{let value=7;let(_,_)=(&value,0);return value}"] {
+    {
+        let text = "fn result()->i32{let value=7;let(_,_)=(&value,0);return value}";
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,

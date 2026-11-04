@@ -334,7 +334,8 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
         Phase::Analyze,
         "responsibility unpaid",
     );
-    for body in ["let v=store_at_mut(s,0);let callback=()=>v.tag;return callback()"] {
+    {
+        let body = "let v=store_at_mut(s,0);let callback=()=>v.tag;return callback()";
         let report = check(&format!("{MODEL}fn main()->i32{{{SETUP}{body}}}"));
         assert_eq!(
             report.status,
@@ -353,7 +354,8 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
             report.to_json()
         );
     }
-    for helper in ["fn escape(s:Store<Cell>)->&mut Cell{return store_at_mut(s,0)}"] {
+    {
+        let helper = "fn escape(s:Store<Cell>)->&mut Cell{return store_at_mut(s,0)}";
         rejected(
             &format!("{MODEL}{helper}fn main(){{}}"),
             ResultCategory::Unsupported,

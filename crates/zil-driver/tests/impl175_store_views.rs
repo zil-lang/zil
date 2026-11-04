@@ -377,7 +377,8 @@ fn view_and_descriptor_input_aliasing_cannot_hide_a_write_inside_helper() {
 #[test]
 fn element_shape_mutable_owned_field_return_and_capture_guards_are_explicit() {
     use zil_base::Phase::Types;
-    for tail in ["fn bad(x:&P)->&P{return x}fn main(){}"] {
+    {
+        let tail = "fn bad(x:&P)->&P{return x}fn main(){}";
         reject_source(
             &format!("{PACKAGE}{tail}"),
             ResultCategory::Unsupported,

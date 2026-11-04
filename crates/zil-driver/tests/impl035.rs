@@ -141,7 +141,8 @@ fn generic035_07_uninstantiated_bad_definitions_and_layout_reject() {
     ] {
         reject(text, "E-INFINITE-LAYOUT");
     }
-    for text in ["enum Bad<T>{A(&T)} fn result()->i32=>0"] {
+    {
+        let text = "enum Bad<T>{A(&T)} fn result()->i32=>0";
         let r = expand(text, &Limits::default()).unwrap_err();
         assert_eq!(r[0].category, ResultCategory::Unsupported, "{text}: {r:?}");
     }

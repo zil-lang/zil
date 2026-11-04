@@ -150,10 +150,11 @@ fn direct_and_mixed_store_capture_remain_explicitly_unsupported() {
 
 #[test]
 fn escaping_mutable_window_or_child_address_remains_closed() {
-    for (label, helper) in [(
-        "return-element",
-        "fn escape(s:Store<Entry>)->&mut Entry{return store_at_mut(s,0)}",
-    )] {
+    {
+        let (label, helper) = (
+            "return-element",
+            "fn escape(s:Store<Entry>)->&mut Entry{return store_at_mut(s,0)}",
+        );
         rejected_source(
             label,
             &format!("{MODEL}{helper}fn main()->i32=>0;"),

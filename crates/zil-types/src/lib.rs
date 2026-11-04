@@ -46,6 +46,7 @@ mod reference_patterns;
 mod resource_effects;
 mod resources;
 mod retained;
+mod scalar_expr_variants;
 mod scalar_shapes;
 mod scoped_thread;
 mod state_origins;
@@ -1532,33 +1533,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 self.constant(value.clone(), e.span)?
             }
             CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty))?,
-            CoreExprKind::IntegerConvert { value, target } => {
-                if !target.is_integer() {
-                    return Err(error(
-                        "E-INTEGER-CONVERSION",
-                        e.span,
-                        "conversion target must be u8, u16, i32 or i64",
-                    ));
-                }
-                // The conversion target never changes the operand's type.
-                let (value, source) = self.expr(value, None)?;
-                if !source.is_integer() {
-                    return Err(error(
-                        "E-INTEGER-CONVERSION",
-                        e.span,
-                        "conversion operand must be an integer",
-                    ));
-                }
-                let result = self.value(
-                    InstructionKind::ConvertInteger {
-                        value,
-                        target: target.clone(),
-                    },
-                    target.clone(),
-                    e.span,
-                )?;
-                (result, target.clone())
-            }
+            CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected)?,
             CoreExprKind::Try(operand) => {
                 if self.defer_body {
                     return Err(error(
@@ -1582,54 +1557,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             CoreExprKind::Bool(v) => self.constant(Constant::Bool(*v), e.span)?,
             CoreExprKind::Unit => self.constant(Constant::Unit, e.span)?,
-            CoreExprKind::Name(name) => {
-                if let Some(local) = self.lookup(name) {
-                    if self.closure_slots.contains_key(&local) {
-                        return self.take_closure_slot(local, e.span);
-                    }
-                    if let Some(value) = self.take_sum_slot(local, expected, e.span, false)? {
-                        return Ok(value);
-                    }
-                    let ty = self.function.locals[local.0 as usize].ty.clone();
-                    if let Type::Managed(payload) = ty {
-                        let desc = Type::Desc(payload);
-                        return Ok((
-                            self.value(
-                                InstructionKind::DescribeLocal { local },
-                                desc.clone(),
-                                e.span,
-                            )?,
-                            desc,
-                        ));
-                    }
-                    let kind = if let Some(index) = self.stored_copy_captures.get(&local) {
-                        InstructionKind::ReadCapture { index: *index }
-                    } else if matches!(ty, Type::Package { .. })
-                        || packages::owned_array_supported(&ty)
-                        || errors::owned(&ty)
-                        || owned_shapes::sum(&ty)
-                    {
-                        InstructionKind::TakeLocal { local }
-                    } else {
-                        InstructionKind::Load(local)
-                    };
-                    let value = self.value(kind, ty.clone(), e.span)?;
-                    if let Some(inner) = self.borrowed_captures.get(&local).cloned() {
-                        (
-                            self.value(
-                                InstructionKind::ReadAddress { address: value },
-                                inner.clone(),
-                                e.span,
-                            )?,
-                            inner,
-                        )
-                    } else {
-                        (value, ty)
-                    }
-                } else {
-                    self.function_reference(e, expected)?
-                }
-            }
+            CoreExprKind::Name(..) => return self.scalar_expr_name(e, expected),
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
                 operand,
@@ -1644,32 +1572,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             } => self.borrow_place_mode(operand, true)?,
             CoreExprKind::Unary {
                 op: UnaryOp::Dereference,
-                operand,
-            } => {
-                let (address, ty) = self.expr(operand, None)?;
-                let Type::Address { inner, .. } = ty else {
-                    return Err(error(
-                        "E-OPERATOR-TYPE",
-                        e.span,
-                        "dereference requires an address",
-                    ));
-                };
-                if !inner.is_copy_value() {
-                    return Err(unsupported(
-                        e.span,
-                        "dereference requires a finite Copy pointee",
-                    ));
-                }
-                let inner = *inner;
-                (
-                    self.value(
-                        InstructionKind::ReadAddress { address },
-                        inner.clone(),
-                        e.span,
-                    )?,
-                    inner,
-                )
-            }
+                ..
+            } => self.scalar_expr_dereference(e, expected)?,
             CoreExprKind::Unary {
                 op: UnaryOp::Negate,
                 operand,
@@ -1679,39 +1583,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 self.constant(integer(text, expected, true, e.span)?, e.span)?
             }
-            CoreExprKind::Unary { op, operand } => {
-                if !matches!(op, UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot) {
-                    return Err(unsupported(e.span, "address/resource unary operation"));
-                }
-                let want = if *op == UnaryOp::Not {
-                    Some(&Type::Bool)
-                } else {
-                    expected
-                };
-                let (v, t) = self.expr(operand, want)?;
-                if (*op == UnaryOp::Not && t != Type::Bool)
-                    || (*op != UnaryOp::Not
-                        && !t.is_integer()
-                        && !(*op == UnaryOp::Negate && t.is_float()))
-                {
-                    return Err(error(
-                        "E-OPERATOR-TYPE",
-                        e.span,
-                        "unary operator operand type",
-                    ));
-                }
-                (
-                    self.value(
-                        InstructionKind::Unary {
-                            op: *op,
-                            operand: v,
-                        },
-                        t.clone(),
-                        e.span,
-                    )?,
-                    t,
-                )
-            }
+            CoreExprKind::Unary { .. } => self.scalar_expr_unary(e, expected)?,
             CoreExprKind::Binary {
                 op: BinaryOp::And,
                 left,
@@ -1722,69 +1594,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                 left,
                 right,
             } => return self.short_circuit(left, right, true, e.span),
-            CoreExprKind::Binary { op, left, right } => {
-                let comparison = matches!(
-                    op,
-                    BinaryOp::Equal
-                        | BinaryOp::NotEqual
-                        | BinaryOp::Less
-                        | BinaryOp::LessEqual
-                        | BinaryOp::Greater
-                        | BinaryOp::GreaterEqual
-                );
-                let operand_hint = self.known_type(left).or_else(|| self.known_type(right));
-                let numeric_expected = if comparison {
-                    operand_hint.as_ref()
-                } else {
-                    expected.or(operand_hint.as_ref())
-                };
-                let (l, lt) = self.expr(left, numeric_expected)?;
-                let (r, rt) = self.expr(right, Some(&lt))?;
-                self.same(&rt, &lt, e.span)?;
-                let equality = matches!(op, BinaryOp::Equal | BinaryOp::NotEqual);
-                if !lt.is_integer()
-                    && !(lt.is_float() && floats::binary(*op))
-                    && !(equality && matches!(lt, Type::Bool | Type::ForeignHandle))
-                {
-                    return Err(error(
-                        "E-OPERATOR-TYPE",
-                        e.span,
-                        "binary operator operand type",
-                    ));
-                }
-                let t = if comparison { Type::Bool } else { lt };
-                (
-                    self.value(
-                        InstructionKind::Binary {
-                            op: *op,
-                            left: l,
-                            right: r,
-                        },
-                        t.clone(),
-                        e.span,
-                    )?,
-                    t,
-                )
-            }
+            CoreExprKind::Binary { .. } => self.scalar_expr_binary(e, expected)?,
             CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
             CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
             CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
-            CoreExprKind::Closure {
-                move_capture,
-                parameters,
-                return_type,
-                body,
-            } => {
-                let input = closures::Input {
-                    defer_action: false,
-                    move_capture: *move_capture,
-                    parameters,
-                    result: return_type.as_ref(),
-                    body,
-                    span: e.span,
-                };
-                self.closure_expression(input, expected)?
-            }
+            CoreExprKind::Closure { .. } => self.scalar_expr_closure(e, expected)?,
             CoreExprKind::Member { .. } if self.enum_constructor(e)?.is_some() => {
                 let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
                 return self.make_variant(&ty, variant, &[], expected, e.span);

@@ -170,6 +170,27 @@ impl<'a> Budget<'a> {
     ) -> R<()> {
         self.ty_context(ty, depth, substitutions, false)
     }
+    fn associated_type_substitution(
+        &mut self,
+        ty: &TypeRef,
+        substitutions: &BTreeMap<String, TypeRef>,
+        depth: usize,
+        slice_element: bool,
+    ) -> R<bool> {
+        self.ty(ty)?;
+        let key = super::trait_bounds::associated::equation_key(ty, self)?;
+        // A later Substitution walk repeats the lookup without a budget.
+        if self.has_anonymous_sums() {
+            super::type_keys::prepay(ty, self)?;
+            self.identity_work(11, ty.span)?;
+        }
+        self.text(&key, ty.span)?;
+        if let Some(value) = substitutions.get(&key) {
+            self.ty_context(value, depth, None, slice_element)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
     fn ty_context(
         &mut self,
         ty: &TypeRef,
@@ -180,18 +201,9 @@ impl<'a> Budget<'a> {
         self.node(ty.span, depth)?;
         if let Some(substitutions) = substitutions
             && super::trait_bounds::associated::parts(ty).is_some()
+            && self.associated_type_substitution(ty, substitutions, depth, slice_element)?
         {
-            self.ty(ty)?;
-            let key = super::trait_bounds::associated::equation_key(ty, self)?;
-            // A later Substitution walk repeats the lookup without a budget.
-            if self.has_anonymous_sums() {
-                super::type_keys::prepay(ty, self)?;
-                self.identity_work(11, ty.span)?;
-            }
-            self.text(&key, ty.span)?;
-            if let Some(value) = substitutions.get(&key) {
-                return self.ty_context(value, depth, None, slice_element);
-            }
+            return Ok(());
         }
         if let TypeKind::Named { path, args } = &ty.kind
             && args.is_empty()

@@ -345,6 +345,40 @@ pub fn instructions(flag: bool) -> Vec<InstructionKind> {
         InstructionKind::DropEnum {
             local: LocalId(5707),
         },
+        InstructionKind::MakeOwnedTuple {
+            fields: if flag {
+                vec![ValueId(5801), ValueId(5802)]
+            } else {
+                vec![]
+            },
+        },
+        InstructionKind::UnpackTuple {
+            local: LocalId(5803),
+            fields: vec![LocalId(5804), LocalId(5805)],
+        },
+        InstructionKind::DropTuple {
+            local: LocalId(5806),
+        },
+        InstructionKind::TakeTupleField {
+            local: LocalId(5807),
+            path: vec![
+                PlaceProjection::Field(2),
+                PlaceProjection::Variant(VariantProjection {
+                    variant: 3,
+                    index: 7,
+                }),
+            ],
+        },
+        InstructionKind::TakeVariantField {
+            local: LocalId(5808),
+            path: vec![
+                PlaceProjection::Variant(VariantProjection {
+                    variant: 11,
+                    index: 13,
+                }),
+                PlaceProjection::Field(17),
+            ],
+        },
         InstructionKind::Unsupported("unsupported-值".into()),
     ]
 }
