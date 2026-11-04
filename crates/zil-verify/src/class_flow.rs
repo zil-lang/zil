@@ -376,6 +376,7 @@ fn check_with(
                     }
                 }
                 InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosure { .. }
                 | InstructionKind::CallClosureShared { .. } => {
                     if let Some(life) = super::stored_callables::role(f, &i.kind, b)? {
                         let (_, arguments) = super::stored_callables::called(module, f, &i.kind)

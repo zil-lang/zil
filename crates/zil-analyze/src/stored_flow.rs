@@ -1605,6 +1605,7 @@ fn windows(
                     mutable: true,
                 } => use_permission(pointer(*address)?, true, &current, loans, apart, b)?,
                 InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosure { arguments, .. }
                 | InstructionKind::CallClosureBorrowed { arguments, .. }
                 | InstructionKind::CallClosureShared { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
