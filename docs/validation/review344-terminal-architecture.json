@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/terminal_architecture",
+  "implementation_author": "/root/reliability344",
+  "reviewed_delivery_commit": "3ff1dc270a93877208d03251c7e09fa8f2aa70bd",
+  "reviewed_production_commit": "c5696a1c10d9b25549499fd991d73c4d2d681871",
+  "status": "PassLimited",
+  "scope": "344 first milestone: structural default-stack source/API reliability; not full language or parent product acceptance",
+  "review": [
+    "Inspected the exact baseline-to-delivery production diff and extracted helper bodies; dispatch preserves expression depth, expected type, index/write modes, charge sites and original early-return behavior.",
+    "No semantic discrepancy found in Solver, InferBuilder, aggregate and Builder helper extraction.",
+    "Read the exact subprocess harness; it uses std::thread::spawn without stack_size and removes RUST_MIN_STACK, retaining the Linux Rust default 2 MiB worker stack."
+  ],
+  "binding": {
+    "author_receipt": "docs/validation/terminal-344.json at reviewed_delivery_commit",
+    "all_seven_input_sha256_verified": true,
+    "executable_sha256": "d9c4ed6e0a370b401baf67a78e786721b3adfd1a461a4c75ddfa1341618ec650",
+    "method": "Copied the retained author executable to a reviewer-owned immutable path, verified its SHA-256 against the exact delivery receipt, and replayed in the exact delivery worktree. No independent Cargo rebuild."
+  },
+  "command": "source /workspace/.zil-env/env.sh; TMPDIR=/tmp/zil-terminal-review env -u RUST_MIN_STACK -u ZIL_344_STACK_CHILD /tmp/zil-terminal-review/aggregates-344 --exact large_copy_enum_error_default_stack_api_reliability --nocapture --test-threads=1",
+  "observed": {
+    "exit_code": 0,
+    "tests_passed": 1,
+    "tests_failed": 0,
+    "elapsed_seconds": 3.52,
+    "profiles": [
+      "frontend",
+      "clang-O0",
+      "clang-O2",
+      "llvm-api-O0",
+      "llvm-api-O2"
+    ],
+    "frontend": "Legal source Parse/Core/Types/Analyze/Verify and five retained deep controls accept; unchanged let-FnMut negative rejects at Types; actual Analyze/Wire/Verify roundtrip accepts; malformed capture layout raw Verify rejects.",
+    "source_constraint_work": {
+      "N": 2520,
+      "N_minus_1": "ResourceLimit/Types",
+      "fresh_N": "Pass"
+    },
+    "native": "All four native profiles: Verify count1, fallback null, exit0, stdout30 followed by newline, empty stderr; LLVM API checks actual builder object reports."
+  },
+  "Rust_goals": {
+    "safety": "Nearest invalid source and independent raw Verify negative reproduced; no broader proof claim.",
+    "runtime_memory": "Same native result for Clang/API O0/O2. Rust runtime/RSS comparison NotRun.",
+    "expression_maintenance": "Retained legal source and deeper legal sources complete on the default worker stack. Whole-library comparison NotRun.",
+    "compile_cost": "Exact source constraint work remains N2520. Rust compile cost comparison NotRun.",
+    "breakthrough": "Independently reproduced the finite default-stack reliability improvement."
+  },
+  "limits": [
+    "No full workspace gate run by reviewer.",
+    "Broader ABI, floating, anonymous union, native Windows and product/Rust gates remain outside this milestone."
+  ]
+}
