@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 39;
+pub const WIRE_VERSION: u32 = 40;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
@@ -578,6 +578,23 @@ impl<'a> Writer<'a> {
             self.storage_position(&binding.position)?;
             self.storage_binder(&binding.binder)?;
         }
+        self.count(contract.classes.len(), self.limits.max_nodes)?;
+        for binding in &contract.classes {
+            match binding.position.base {
+                StorageBase::Parameter(i) => {
+                    self.u8(0)?;
+                    self.u32(i)?;
+                }
+                StorageBase::Capture(i) => {
+                    self.u8(1)?;
+                    self.u32(i)?;
+                }
+                StorageBase::Result => self.u8(2)?,
+            }
+            self.life_type_path(&binding.position.path)?;
+            self.u32(binding.position.class)?;
+            self.storage_binder(&binding.binder)?;
+        }
         Ok(())
     }
     fn storage_contract(&mut self, contract: &Option<StorageLifeContract>) -> WireResult<()> {
@@ -587,21 +604,7 @@ impl<'a> Writer<'a> {
         }
         Ok(())
     }
-    pub(super) fn function_life(&mut self, life: &FunctionLifeContract) -> WireResult<()> {
-        self.count(life.binder_count as usize, self.limits.max_locals)?;
-        self.count(life.parameter_lives.len(), self.limits.max_locals)?;
-        for tag in &life.parameter_lives {
-            self.boolean(tag.is_some())?;
-            if let Some(tag) = tag {
-                self.u32(*tag)?;
-            }
-        }
-        self.boolean(life.result_life.is_some())?;
-        if let Some(tag) = life.result_life {
-            self.u32(tag)?;
-        }
-        Ok(())
-    }
+
     pub(super) fn retained_port_binding(
         &mut self,
         binding: &RetainedPortBinding,
@@ -810,7 +813,7 @@ impl<'a> Writer<'a> {
                     life,
                 } => {
                     self.u8(31)?;
-                    self.function_life(life)?;
+                    self.required_storage_contract(life)?;
                     self.count(parameters.len(), self.limits.max_locals)?;
                     pending.push(Task::Type(result, depth + 1));
                     pending.push(Task::Types(parameters, depth + 1));
@@ -991,28 +994,7 @@ impl<'a> Writer<'a> {
             self.u8(callable_kind_tag(role.kind))?;
             self.boolean(role.life.is_some())?;
             if let Some(life) = &role.life {
-                metadata = flow_count(
-                    metadata,
-                    life.binder_count as usize,
-                    self.limits.max_analysis_steps,
-                )?;
-                metadata = flow_count(
-                    metadata,
-                    life.parameter_lives.len(),
-                    self.limits.max_analysis_steps,
-                )?;
-                self.count(life.binder_count as usize, self.limits.max_locals)?;
-                self.count(life.parameter_lives.len(), self.limits.max_locals)?;
-                for tag in &life.parameter_lives {
-                    self.boolean(tag.is_some())?;
-                    if let Some(tag) = tag {
-                        self.u32(*tag)?;
-                    }
-                }
-                self.boolean(life.result_life.is_some())?;
-                if let Some(tag) = life.result_life {
-                    self.u32(tag)?;
-                }
+                self.required_storage_contract(life)?;
             }
             for indices in [&role.hold, &role.call, &role.writes] {
                 metadata = flow_count(metadata, indices.len(), self.limits.max_analysis_steps)?;
@@ -2536,10 +2518,29 @@ impl<'a> Reader<'a> {
                 binder: self.storage_binder()?,
             });
         }
+        let n = self.count(self.limits.max_nodes, 14)?;
+        let mut classes = Vec::with_capacity(n);
+        for _ in 0..n {
+            let base = match self.u8()? {
+                0 => StorageBase::Parameter(self.u32()?),
+                1 => StorageBase::Capture(self.u32()?),
+                2 => StorageBase::Result,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown semantic class base")),
+            };
+            classes.push(SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base,
+                    path: self.life_type_path()?,
+                    class: self.u32()?,
+                },
+                binder: self.storage_binder()?,
+            });
+        }
         Ok(StorageLifeContract {
             fixed_binder_count,
             invocation_binder_count,
             bindings,
+            classes,
         })
     }
     fn storage_contract(&mut self) -> WireResult<Option<StorageLifeContract>> {
@@ -2549,28 +2550,7 @@ impl<'a> Reader<'a> {
             Ok(None)
         }
     }
-    pub(super) fn function_life(&mut self) -> WireResult<FunctionLifeContract> {
-        let binder_count = self.count(self.limits.max_locals, 0)? as u32;
-        let n = self.count(self.limits.max_locals, 1)?;
-        let mut parameter_lives = Vec::with_capacity(n);
-        for _ in 0..n {
-            parameter_lives.push(if self.boolean()? {
-                Some(self.u32()?)
-            } else {
-                None
-            });
-        }
-        let result_life = if self.boolean()? {
-            Some(self.u32()?)
-        } else {
-            None
-        };
-        Ok(FunctionLifeContract {
-            binder_count,
-            parameter_lives,
-            result_life,
-        })
-    }
+
     pub(super) fn retained_port_binding(&mut self) -> WireResult<RetainedPortBinding> {
         Ok(RetainedPortBinding {
             port: self.u32()?,
@@ -2657,7 +2637,7 @@ impl<'a> Reader<'a> {
             },
             BorrowedFunction {
                 start: usize,
-                life: FunctionLifeContract,
+                life: StorageLifeContract,
             },
             Record {
                 start: usize,
@@ -2881,29 +2861,11 @@ impl<'a> Reader<'a> {
                     continue;
                 }
                 31 => {
-                    let binder_count = self.count(self.limits.max_locals, 0)? as u32;
-                    let count = self.count(self.limits.max_locals, 1)?;
-                    let mut parameter_lives = Vec::with_capacity(count);
-                    for _ in 0..count {
-                        parameter_lives.push(if self.boolean()? {
-                            Some(self.u32()?)
-                        } else {
-                            None
-                        });
-                    }
-                    let result_life = if self.boolean()? {
-                        Some(self.u32()?)
-                    } else {
-                        None
-                    };
+                    let life = self.required_storage_contract()?;
                     let count = self.count(self.limits.max_locals, 1)?;
                     pending.push(Task::BorrowedFunction {
                         start: values.len(),
-                        life: FunctionLifeContract {
-                            binder_count,
-                            parameter_lives,
-                            result_life,
-                        },
+                        life,
                     });
                     pending.push(Task::Type(depth + 1));
                     pending.push(Task::Types {
@@ -3209,32 +3171,7 @@ impl<'a> Reader<'a> {
             let closure = ClosureId(self.u32()?);
             let kind = self.callable_kind()?;
             let life = if self.boolean()? {
-                let binder_count = self.count(self.limits.max_locals, 0)? as u32;
-                metadata = flow_count(
-                    metadata,
-                    binder_count as usize,
-                    self.limits.max_analysis_steps,
-                )?;
-                let count = self.count(self.limits.max_locals, 1)?;
-                metadata = flow_count(metadata, count, self.limits.max_analysis_steps)?;
-                let mut parameter_lives = Vec::with_capacity(count);
-                for _ in 0..count {
-                    parameter_lives.push(if self.boolean()? {
-                        Some(self.u32()?)
-                    } else {
-                        None
-                    });
-                }
-                let result_life = if self.boolean()? {
-                    Some(self.u32()?)
-                } else {
-                    None
-                };
-                Some(FunctionLifeContract {
-                    binder_count,
-                    parameter_lives,
-                    result_life,
-                })
+                Some(self.required_storage_contract()?)
             } else {
                 None
             };

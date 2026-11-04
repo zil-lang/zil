@@ -4,6 +4,7 @@ use zil_base::{Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 fn program() -> CtArtifactProgram {
     CtArtifactProgram {
+        ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
@@ -33,6 +34,167 @@ fn program() -> CtArtifactProgram {
             max_analysis_work: 1,
         },
     }
+}
+
+#[test]
+fn rich_callable_and_ambient_scope_claims_are_lossless_bounded_raw_data() {
+    use crate::{
+        FunctionLifeContract, LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding,
+        StorageBase, StorageBinder, StorageLifeContract,
+    };
+    let limits = Limits::default();
+    let flat = FunctionLifeContract {
+        binder_count: 2,
+        parameter_lives: vec![Some(0), Some(1)],
+        result_life: Some(0),
+    };
+    let mut rich = StorageLifeContract::from_flat(flat.clone()).unwrap();
+    assert_eq!(rich.to_flat(2), Some(flat));
+    let mut reordered = rich.clone();
+    reordered.bindings.swap(0, 1);
+    assert!(reordered.to_flat(2).is_none());
+    let mut reordered = rich.clone();
+    reordered.bindings.swap(1, 2);
+    assert!(reordered.to_flat(2).is_none());
+    rich.classes.push(SignatureLifeClassBinding {
+        position: SignatureLifeClass {
+            base: StorageBase::Parameter(0),
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+        },
+        binder: StorageBinder::Invocation(1),
+    });
+    assert!(rich.to_flat(2).is_none());
+    let source = CtAmbientLifeReference {
+        scope: CtAmbientScopeId(0),
+        parameter: 2,
+    };
+    let graph = CtTypeRef {
+        nodes: vec![
+            CtTypeNode::Primitive(CtScalarTy::I32),
+            CtTypeNode::Address {
+                mutable: false,
+                inner: CtTypeNodeId(0),
+            },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(1), CtTypeNodeId(1)],
+                result: CtTypeNodeId(1),
+                life: rich,
+            },
+        ],
+        root: CtTypeNodeId(2),
+        // This deliberately unverified owner mapping must survive transport;
+        // only the independent contextual verifier may reject or admit it.
+        ambient_classes: vec![CtAmbientClassBinding {
+            owner: CtTypeNodeId(2),
+            class: 0,
+            source,
+        }],
+    };
+    let value = CtValue::Type(graph.clone());
+    let bytes = encode_value(&value, &limits).unwrap();
+    assert_eq!(decode_value(&bytes, &limits), Ok(value.clone()));
+    let mut p = program();
+    p.ambient_life_scopes.push(CtAmbientLifeScope {
+        declaration: CtSymbolId {
+            module: ModuleId(4),
+            declaration: NodeId(7),
+            generation_path: None,
+        },
+        binder_site: vec![3, 0],
+        instance: CtScopeInstance::Instantiated(vec![
+            CtScopeActual::Type(graph.clone()),
+            CtScopeActual::Scalar(Constant::I64(5)),
+            CtScopeActual::Lifetime(source),
+        ]),
+    });
+    let bytes = encode_program(&p, &limits).unwrap();
+    assert_eq!(decode_program(&bytes, &limits), Ok(p.clone()));
+    for n in 0..5 {
+        let mut changed = p.clone();
+        let scope = &mut changed.ambient_life_scopes[0];
+        match n {
+            0 => scope.declaration.declaration = NodeId(8),
+            1 => scope.binder_site[0] = 4,
+            2 => scope.instance = CtScopeInstance::Definition,
+            3 => {
+                let CtScopeInstance::Instantiated(actuals) = &mut scope.instance else {
+                    unreachable!()
+                };
+                actuals.swap(0, 1);
+            }
+            _ => {
+                let CtScopeInstance::Instantiated(actuals) = &mut scope.instance else {
+                    unreachable!()
+                };
+                actuals[2] = CtScopeActual::Lifetime(CtAmbientLifeReference {
+                    parameter: 1,
+                    ..source
+                });
+            }
+        }
+        assert_ne!(
+            program_fingerprint(&changed, &limits),
+            program_fingerprint(&p, &limits)
+        );
+    }
+    for n in 0..6 {
+        let mut changed = graph.clone();
+        match n {
+            0 => changed.ambient_classes[0].owner = CtTypeNodeId(1),
+            1 => changed.ambient_classes[0].class = 1,
+            2 => changed.ambient_classes[0].source.scope = CtAmbientScopeId(1),
+            3 => changed.ambient_classes[0].source.parameter = 1,
+            4 => changed.ambient_classes.clear(),
+            _ => {
+                let CtTypeNode::BorrowedFunctionPointer { life, .. } = &mut changed.nodes[2] else {
+                    unreachable!()
+                };
+                life.classes[0].binder = StorageBinder::Invocation(0);
+            }
+        }
+        assert_ne!(
+            encode_value(&CtValue::Type(changed), &limits),
+            encode_value(&value, &limits)
+        );
+    }
+    // Same raw index is not a contextual semantic key. These intentionally
+    // different scopes leave the standalone value bytes unchanged.
+    let mut other_scope = p.clone();
+    other_scope.ambient_life_scopes[0].declaration.module = ModuleId(5);
+    assert_ne!(
+        program_fingerprint(&other_scope, &limits),
+        program_fingerprint(&p, &limits)
+    );
+    assert_eq!(
+        encode_value(&value, &limits),
+        encode_value(&CtValue::Type(graph), &limits)
+    );
+    let minimum = (0..limits.max_nodes)
+        .find(|&n| {
+            encode_program(
+                &p,
+                &Limits {
+                    max_nodes: n,
+                    ..limits.clone()
+                },
+            )
+            .is_ok()
+        })
+        .unwrap();
+    assert!(minimum > 0);
+    let exact = Limits {
+        max_nodes: minimum,
+        ..limits.clone()
+    };
+    let low = Limits {
+        max_nodes: minimum - 1,
+        ..limits
+    };
+    assert_eq!(encode_program(&p, &exact), Ok(bytes.clone()));
+    assert!(encode_program(&p, &low).is_err());
+    assert_eq!(encode_program(&p, &exact), Ok(bytes.clone()));
+    assert!(decode_program(&bytes, &low).is_err());
 }
 fn resign(bytes: &mut [u8], domain: &[u8]) {
     let end = bytes.len() - 32;
@@ -539,7 +701,7 @@ fn over_depth_type_rejects_before_worker_stack_growth() {
 }
 
 #[test]
-fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_three() {
+fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_migration() {
     // Preserve original schema1 bytes as old-domain rejection controls.
     // Re-signed bytes below test unchanged payload layout only; they grant no
     // artifact/source authentication or migration permission.
@@ -608,6 +770,8 @@ fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_three() 
     current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current[12..16].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current.splice(16..16, 64u16.to_le_bytes());
+    // CT5 adds an empty artifact-wide ambient scope table after source identity.
+    current.splice(50..50, 0u32.to_le_bytes());
     resign(&mut current, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     assert_eq!(fresh, current);
     assert_eq!(decode_program(&current, &limits), Ok(p));
