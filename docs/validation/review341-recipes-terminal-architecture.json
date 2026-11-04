@@ -1,5 +1,5 @@
 {
-  "status": "PassLimited",
+  "status": "ChangesRequested",
   "reviewer": "/root/terminal_architecture",
   "implementation_commit": "8ecd5eb6b73f9c2be61a16912343e6e82c3a14d0",
   "scope": "Scalar const functions, concrete supertraits and first-order nominal conditional impl recipes. Prior checkpoint findings and executions remain recorded in review341-terminal-architecture.json; this acceptance does not relabel those earlier snapshots.",
@@ -66,6 +66,21 @@
   ],
   "limitations": [
     "u64/usize const integration, general CT const expressions/inference, aggregate/trait const consumers, associated projections, generic methods and broader generic trait obligations remain active work.",
-    "No reviewer full workspace run, Clippy, native Windows or Rust product-cost comparison is claimed; this is not full-language acceptance."
+    "No reviewer full workspace run, Clippy, native Windows or Rust product-cost comparison is claimed; this is not full-language acceptance.",
+    "The successful exact9-test replay is preserved, but these subsequently identified admission/identity defects block acceptance of8ecd. No earlier result is relabeled as a run of future corrected source."
+  ],
+  "new_findings_after_replay": [
+    {
+      "finding": "Author subsequently identified that mixed-candidate filtering discards unknown/builtin generic trait recipes before definition admission, allowing an unused invalid impl to be erased.",
+      "required": "Validate actual trait declaration/domain before filtering or Engine recipe skipping; retain unused unknown-trait and generic Drop negative controls.",
+      "evidence": "Acknowledged by implementation author during continuation after this exact candidate; the earlier nine reviewer tests do not cover these new probes.",
+      "status": "Correction pending clean candidate and independent replay"
+    },
+    {
+      "finding": "Downstream lib.rs trait_method_names/static_trait_impls maps still use Span identity after the generic rewrite map was corrected.",
+      "required": "Use module-local declaration/member identities and retain repeated-Span raw AST dispatch checks through final static publication.",
+      "evidence": "Acknowledged by implementation author following a symbolic same-Self ABI probe; not part of the earlier shared-receiver-Span replay.",
+      "status": "Correction pending clean candidate and independent replay"
+    }
   ]
 }
