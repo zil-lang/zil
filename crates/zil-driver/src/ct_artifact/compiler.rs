@@ -16,6 +16,8 @@ mod quote;
 mod selection;
 #[path = "compiler_types.rs"]
 mod types;
+#[path = "compiler_source_scope.rs"]
+pub(super) mod source_scope;
 use std::collections::{BTreeMap, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span};
 use zil_ir::ct_artifact::*;

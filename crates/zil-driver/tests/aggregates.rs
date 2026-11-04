@@ -6992,3 +6992,14 @@ fn ct5_phantom_context_query_reaches_native() {
     assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
     review329_native_entry_output(&[("main",text)],"main",b"42\n");
 }
+
+#[test]
+fn ct5_member_own_life_context_reaches_native() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    let wrong = text.replace("Phantom::<'s>", "Phantom::<'other>");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+}
