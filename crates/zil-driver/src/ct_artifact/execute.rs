@@ -1715,6 +1715,7 @@ mod tests {
             Entry::Expression {
                 module: ModuleId(0),
                 expression,
+                lexical_owner: Some(symbol.clone()),
                 definition: symbol,
                 expected: None,
                 parameters: &[],
@@ -1818,6 +1819,43 @@ mod tests {
         .unwrap();
         let input = environment.empty_input(expression.span).unwrap();
         let modules = environment.index.modules(&sources, &syntax);
+        let unavailable_entry = || Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: None,
+            expected: None,
+            parameters: &[],
+        };
+        assert!(
+            super::super::invocation_context::FrozenInvocationContext::freeze(
+                &unavailable_entry(),
+                &parsed,
+                &environment.index,
+                Some(&origins),
+                &mut environment.budget,
+            )
+            .unwrap()
+            .is_none(),
+            "a naming owner is not an authentic lexical binder"
+        );
+        let errors = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: target.pointer_width,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: unavailable_entry(),
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .err()
+        .expect("missing original scope must not bind a source lifetime");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("actual lexical source owner")),
+            "{errors:?}"
+        );
         let (expected, _) = compiler::compile_scoped(CompileRequest {
             target_pointer_width: target.pointer_width,
             modules: &modules,
@@ -1825,6 +1863,7 @@ mod tests {
             entry: Entry::Expression {
                 module: ModuleId(0),
                 expression,
+                lexical_owner: Some(definition.clone()),
                 definition,
                 expected: None,
                 parameters: &[],

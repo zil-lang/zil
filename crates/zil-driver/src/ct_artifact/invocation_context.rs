@@ -97,7 +97,15 @@ impl FrozenInvocationContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Option<Arc<Self>>> {
         let definition = match entry {
-            Entry::Expression { definition, .. } | Entry::Function(definition) => definition,
+            Entry::Expression {
+                lexical_owner: Some(owner),
+                ..
+            }
+            | Entry::Function(owner) => owner,
+            Entry::Expression {
+                lexical_owner: None,
+                ..
+            } => return Ok(None),
         };
         budget.reserve_analysis_work(parsed.len() as u64 + index.symbol_lookup_work())?;
         let module = parsed

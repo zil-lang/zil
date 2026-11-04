@@ -7044,6 +7044,48 @@ fn ct5_member_own_life_context_reaches_native() {
         assert_eq!(warm.active_query_count(), 0);
     }
     eprintln!("G4.4 member source whole analysis N={low}/N-1/warm/fresh");
+    let generated = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+    );
+    let report = compile_source(&source(generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.diagnostics.iter().any(|d| {
+        d.message
+            .contains("transformed declarations require explicit source lineage")
+    }));
+    let scalar_generated = generated
+        .replace("struct Phantom<life s>{n:i32}\n", "")
+        .replace("<life s>", "")
+        .replace("&'s i32", "&i32");
+    let report = compile_source(&source(&scalar_generated), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", &scalar_generated)], "main", b"42\n");
+    let host = text
+        .replace("struct Reader {", "struct Reader<X:Copy> {")
+        .replace("Reader{}", "Reader::<i32>{}");
+    let report = compile_source(&source(&host), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual enclosing generic context"))
+    );
     let mixed = text
         .replace(
             "result<life s>(self:Self,p:",
