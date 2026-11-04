@@ -1,7 +1,7 @@
 {
   "task": "G3.3.1",
   "baseline": "8477e08c1d8e124f6b9b920295cc461332213c49",
-  "ct_subvalue_composed": "8ce77e979",
+  "ct_subvalue_composed": "8ce77e9796de189334d0cd42cc3fe985924ea220",
   "normal_common_merge": "d8b3e3e397b5f09b22bfced3fede019c5531aa81",
   "normative": {
     "version": "ZIL-LANG-1.4",
@@ -101,5 +101,32 @@
     "expression_maintenance": "Same-class alias, relay, CT block/projection, borrow-return/reborrow and full nominal ordinals remain usable; generic host methods retain prior boundary",
     "compile_cost": "Actual Fact depth, node/work, text, maps, clone and substitution charged before growth; N/N−1/fresh/warm; no defaults raised; no Rust timing claim",
     "breakthrough": "Reproducible safety and default-worker reliability correction, not product-wide Rust net advantage or B0 completion"
-  }
+  },
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang_and_llvm_api": "23.1.4 (7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "jobs": 2,
+    "debug": 0,
+    "incremental": 0,
+    "target_dir": "exclusive target342-40",
+    "TMPDIR": "workspace G3.3.1-tmp"
+  },
+  "ct_fix_before_life_repair": {
+    "ordinary-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    },
+    "ct-projected-phantom": {
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1
+    }
+  },
+  "historical_comparison": "8477 ordinary/direct CT wrongly accepted; projection originally stopped at CT schema fence. d1 composed removes that independent fence and exposes projection wrong-class acceptance too. M37 rejected the lifetime generic syntax at Parse, so is not an older acceptance witness."
 }
