@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED = {'B0', *(f'T{i:02}' for i in range(1, 10)), *(f'W{i}' for i in range(1, 5))}
-GOAL_ID = re.compile(r'G[1-9][0-9]*(?:\.[1-9][0-9]*)+')
+GOAL_ID = re.compile(r'G[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))+')
 STATES = {'Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled'}
 
 

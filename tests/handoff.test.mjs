@@ -545,13 +545,15 @@ scenario('handoff-030', 'Goal实施说明和子号只分类；非规范ID与未�
   const f = fixture(t);
   put(f.root, '.task/G8.3.md', fs.readFileSync(path.join(project, '.task/G8.3.md'), 'utf8'));
   put(f.root, '.task/G8.3.1.md', '# G8.3.1 implementation note\nNo formal status or acceptance record.\n');
+  put(f.root, '.task/G10.0.md', '# G10.0 已有合法Goal ID\nImplementation note only.\n');
+  put(f.root, '.task/G10.0.0.md', '# G10.0.0 zero subsegments are canonical.\n');
   const result = inspectHandoff(f.root);
   check(result.status, 'Pass');
   check(result.tasks.map(row => row.id), formalIds);
-  check(result.goal_implementation_notes, {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: ['.task/G8.3.1.md', '.task/G8.3.md']});
+  check(result.goal_implementation_notes, {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: ['.task/G10.0.0.md', '.task/G10.0.md', '.task/G8.3.1.md', '.task/G8.3.md']});
   const python = readFormalContracts(f.root);
   check(python.status, 0); check(JSON.parse(python.stdout), formalIds);
-  for (const stem of ['G08.3', 'G8.03', 'G8.0', 'G0.3', 'G8.3.01', 'G8', 'G8.3extra', 'unknown', 'G8.3\n']) {
+  for (const stem of ['G08.3', 'G8.03', 'G8.00', 'G0.3', 'G8.3.01', 'G8', 'G8.3extra', 'unknown', 'G8.3\n']) {
     const name = `.task/${stem}.md`;
     put(f.root, name, '# Unknown record\n');
     check(hasError(inspectHandoff(f.root), 'Unknown formal contract or noncanonical Goal ID'));

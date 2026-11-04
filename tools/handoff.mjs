@@ -12,7 +12,7 @@ const sliceStates = new Set(['施工', '待验', '退回', '已合入', '卡住'
 const formalStates = new Set(['Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled']);
 const activeStates = new Set(['Ready', 'Doing', 'Review', 'Done']);
 const formalIds = new Set(['B0', ...Array.from({length: 9}, (_, i) => `T${String(i + 1).padStart(2, '0')}`), ...Array.from({length: 4}, (_, i) => `W${i + 1}`)]);
-const goalId = /^G[1-9][0-9]*(?:\.[1-9][0-9]*)+$/;
+const goalId = /^G[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))+$/;
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const migrationPath = 'docs/validation/handoff-migration-326.json';
 const pointer = (value, selector = '') => {
