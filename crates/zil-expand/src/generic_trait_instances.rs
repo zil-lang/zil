@@ -32,7 +32,12 @@ impl PartialEq<&str> for Bound {
         self == *other
     }
 }
-pub(crate) type Calls = BTreeMap<String, BTreeMap<usize, String>>;
+pub(crate) struct CallTarget {
+    pub reference: Reference,
+    pub member: String,
+}
+pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
+pub(crate) type Calls = BTreeMap<String, CallTargets>;
 pub(crate) fn remaining(budget: &Budget<'_>) -> Limits {
     budget.remaining_limits()
 }
@@ -368,6 +373,32 @@ pub(crate) fn expression_ids(
 }
 
 pub(crate) fn rewrite_calls(
+    item: &mut Item,
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let mut resolved = BTreeMap::new();
+    for (ordinal, target) in symbolic {
+        budget.node(item.span, 0)?;
+        let mut reference = Reference {
+            key: copy_key(&target.reference.key, budget, item.span)?,
+            arguments: Vec::new(),
+        };
+        reference.key.arguments.clear();
+        for argument in &target.reference.arguments {
+            budget.substituted_type(argument, substitutions)?;
+            let mut argument = argument.clone();
+            Substitution { substitutions }.ty(&mut argument);
+            reference.key.arguments.push(type_key(&argument, budget)?);
+            reference.arguments.push(argument);
+        }
+        let name = method_name(&reference, &target.member, budget, item.span)?;
+        resolved.insert(*ordinal, name);
+    }
+    rewrite_resolved_calls(item, &resolved, budget)
+}
+fn rewrite_resolved_calls(
     item: &mut Item,
     calls: &BTreeMap<usize, String>,
     budget: &mut Budget<'_>,

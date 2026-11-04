@@ -221,7 +221,7 @@ impl<'a> Expander<'a> {
                 }
             }
         }
-        for item in &module.items {
+        for (item_ordinal, item) in module.items.iter().enumerate() {
             let s::ItemKind::Impl(i) = &item.kind else {
                 continue;
             };
@@ -619,7 +619,7 @@ impl<'a> Expander<'a> {
             }
             if valid {
                 if let Some(reference) = &instance_reference {
-                    for member in &i.members {
+                    for (member_ordinal, member) in i.members.iter().enumerate() {
                         if let s::ItemKind::Function(method) = &member.kind {
                             let selected = Limits {
                                 max_analysis_steps: work,
@@ -639,7 +639,7 @@ impl<'a> Expander<'a> {
                             match result {
                                 Ok(target) => {
                                     self.trait_method_names
-                                        .insert((item.span, method.span), target);
+                                        .insert((item_ordinal, member_ordinal), target);
                                 }
                                 Err(error) => {
                                     self.diagnostics.push(error);
@@ -649,7 +649,7 @@ impl<'a> Expander<'a> {
                         }
                     }
                 }
-                self.static_trait_impls.insert(item.span);
+                self.static_trait_impls.insert(item_ordinal);
                 if project_impl || instance_reference.is_some() {
                     self.project_trait_work = self
                         .project_trait_work

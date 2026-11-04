@@ -31,6 +31,73 @@ pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
     }
 }
 
+fn mentions_any(ty: &TypeRef, variables: &BTreeSet<&str>, budget: &mut Budget<'_>) -> R<bool> {
+    use super::super::ct_selection::Visitor;
+    struct Mentions<'a, 'b, 'l> {
+        names: &'a BTreeSet<&'a str>,
+        budget: &'b mut Budget<'l>,
+        found: bool,
+    }
+    impl Visitor for Mentions<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if let TypeKind::Named { path, .. } = &ty.kind
+                && path.len() == 1
+            {
+                for _ in 0..self
+                    .names
+                    .len()
+                    .checked_ilog2()
+                    .map_or(1, |n| n as usize + 2)
+                {
+                    self.node(ty.span, depth)?;
+                    self.text(&path[0], ty.span)?;
+                }
+                self.found |= self.names.contains(path[0].as_str());
+            }
+            super::super::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    let mut visitor = Mentions {
+        names: variables,
+        budget,
+        found: false,
+    };
+    visitor.ty(ty, 0).map_err(|mut e| e.remove(0))?;
+    Ok(visitor.found)
+}
+fn binder_names<'a>(
+    names: impl Iterator<Item = &'a str>,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<BTreeSet<&'a str>> {
+    let mut result = BTreeSet::new();
+    for name in names {
+        budget.node(span, 0)?;
+        budget.text(name, span)?;
+        result.insert(name);
+    }
+    Ok(result)
+}
+fn prepay_shadow(
+    parameters: &[GenericParam],
+    name: &str,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    for parameter in parameters {
+        budget.node(parameter.span, 0)?;
+        budget.text(&parameter.name, parameter.span)?;
+        budget.text(name, span)?;
+    }
+    Ok(())
+}
+
 impl<'a> Index<'a> {
     pub(super) fn new(module: &'a Module, budget: &mut Budget<'_>) -> R<Self> {
         Self::build(module, budget, true)
@@ -168,6 +235,7 @@ impl<'a> Index<'a> {
                     || plain(&i.target).is_none())
             {
                 budget.item(item)?;
+                index.declaration(i.trait_type.as_ref().expect("nominal recipe"), budget)?;
                 index.has_instances = true;
                 index.recipes.push(item);
             }
@@ -383,6 +451,7 @@ impl<'a> Index<'a> {
             for bound in bounds {
                 if copy::is_bound(bound) {
                     budget.ty(bound)?;
+                    prepay_shadow(parameters, copy::BOUND, bound.span, budget)?;
                     if parameters.iter().any(|p| {
                         matches!(p.kind, GenericParamKind::Type(_)) && p.name == copy::BOUND
                     }) {
@@ -406,21 +475,45 @@ impl<'a> Index<'a> {
                     continue;
                 }
                 let declaration = self.declaration(bound, budget)?;
+                prepay_shadow(parameters, &declaration.name, bound.span, budget)?;
                 if parameters.iter().any(|p| p.name == declaration.name) {
                     return Err(error(
                         bound.span,
                         "trait bound resolves to a shadowing type parameter",
                     ));
                 }
-                for parameter in parameters {
-                    if callable::refers(bound, &parameter.name) {
-                        return Err(unsupported(
-                            bound.span,
-                            "trait arguments require concrete types, not lexical type binders",
-                        ));
+                let names_in_scope = binder_names(
+                    parameters.iter().map(|p| p.name.as_str()),
+                    bound.span,
+                    budget,
+                )?;
+                let reference = if mentions_any(bound, &names_in_scope, budget)? {
+                    let mut structural = Bounds::new();
+                    let mut variables = BTreeSet::new();
+                    for parameter in parameters {
+                        budget.node(parameter.span, 0)?;
+                        budget.text(&parameter.name, parameter.span)?;
+                        if let GenericParamKind::Type(bounds) = &parameter.kind {
+                            variables.insert(parameter.name.clone());
+                            let mut supplied = Vec::new();
+                            for bound in bounds {
+                                budget.ty(bound)?;
+                                if copy::is_bound(bound) {
+                                    supplied.push(Bound::Copy);
+                                }
+                                if stores::is_bound(bound) {
+                                    supplied.push(Bound::StoreElement);
+                                }
+                            }
+                            structural.insert(parameter.name.clone(), supplied);
+                        }
                     }
-                }
-                let reference = self.reference(bound, budget)?;
+                    let reference = self.pattern_reference(bound, budget)?;
+                    self.reference_arguments(&reference, &structural, &variables, budget)?;
+                    reference
+                } else {
+                    self.reference(bound, budget)?
+                };
                 if names
                     .iter()
                     .any(|b| matches!(b,Bound::Nominal(r) if r.key==reference.key))
@@ -477,8 +570,23 @@ impl<'a> Index<'a> {
                     self.store_element(actual, available, variables, budget, callback)?;
                     continue;
                 }
+                let mut instantiated;
+                let names_in_scope =
+                    binder_names(found.keys().map(String::as_str), bound.span, budget)?;
+                let bound = if mentions_any(bound, &names_in_scope, budget)? {
+                    budget.substituted_type(bound, found)?;
+                    instantiated = bound.clone();
+                    Substitution {
+                        substitutions: found,
+                    }
+                    .ty(&mut instantiated);
+                    &instantiated
+                } else {
+                    bound
+                };
                 let declaration = self.declaration(bound, budget)?;
-                let reference = self.reference(bound, budget)?;
+                let reference = self.pattern_reference(bound, budget)?;
+                self.reference_arguments(&reference, available, variables, budget)?;
                 let actual = found.get(&parameter.name).ok_or_else(|| {
                     error(span, "trait-bound argument has no unique symbolic type")
                 })?;
@@ -569,6 +677,47 @@ impl<'a> Index<'a> {
                 format!("method {name} is not provided by the declared trait bounds of {variable}"),
             )
         })
+    }
+
+    pub(super) fn method_reference(
+        &self,
+        bounds: &Bounds,
+        variable: &str,
+        member: &str,
+        target: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<trait_instances::Reference> {
+        let mut selected = None;
+        let expanded;
+        let supplied = bounds.get(variable).map(Vec::as_slice).unwrap_or_default();
+        let supplied = if self.has_supertraits && !variable.starts_with("\0subject:") {
+            expanded = self.super_bounds(supplied, budget, span, Some(variable))?;
+            expanded.as_slice()
+        } else {
+            supplied
+        };
+        for bound in supplied {
+            budget.node(span, 0)?;
+            let Bound::Nominal(reference) = bound else {
+                continue;
+            };
+            if trait_instances::method_name(reference, member, budget, span)? != target {
+                continue;
+            }
+            trait_instances::copy_key(&reference.key, budget, span)?;
+            for argument in &reference.arguments {
+                budget.ty(argument)?;
+            }
+            if selected.is_some() {
+                return Err(error(
+                    span,
+                    "method target has ambiguous declared trait identity",
+                ));
+            }
+            selected = Some(reference.clone());
+        }
+        selected.ok_or_else(|| error(span, "method target lost its declared trait identity"))
     }
 
     pub(super) fn declaration_item(

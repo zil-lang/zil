@@ -86,9 +86,40 @@ name, allowing multiple concrete instances of one generic impl without span
 collisions. Independent review also prompted charged binder/member scans,
 inherited argument formation checks and structural Self-premise admission.
 
-This milestone does not complete associated types/constants, symbolic trait
-argument composition, generic methods, general const expressions or unsigned
-const domains. The limited existing targets pass 19 + 52 tests with LLVM API;
+This milestone does not complete associated types/constants, generic methods,
+general const expressions or unsigned const domains. The limited existing
+targets pass 19 + 53 tests with LLVM API;
 exact Expand/request and cold/warm/fresh/persisted-cache boundaries are recorded
 in the receipt. Rust runtime/RSS, maintenance comparison, compile-cost comparison
 and the product-gates conjunction remain unmeasured.
+
+
+The next milestone carries full trait references through generic call recording,
+then substitutes their ordered arguments when producing each actual target.
+Symbolic arguments can forward through generic functions and one generic impl
+can supply distinct trait applications on the same Self, with different ordinary
+machine signatures. An earlier finite-profile rejection of an otherwise valid
+unused symbolic trait application is now a retained positive; its nearest
+negative still rejects a body that exceeds the declared bounds.
+
+Independent review marked `8ecd5eb6b` ChangesRequested after replaying its nine
+focused tests. Its inherited downstream static dispatch tables still selected
+impls and members by source Span, and unused unknown/builtin generic impl heads
+could be silently filtered. The corrected code uses module-local top-level item
+and member ordinals all the way through publication and validates the trait
+before admitting a recipe. Retained unknown-trait and builtin-Drop negatives
+accompany the nearest local-trait positive. The generated-AST control now also
+shares impl, member and function spans and verifies distinct results through
+Wire and both native backends, beyond the generic expression rewrite alone.
+Ten focused tests and all 72 tests in the two existing targets pass. The exact
+source/harness hashes and new symbolic-argument budget ledger are in the receipt;
+independent review of this corrected source remains pending.
+
+
+Review of `088cfc64d` independently replayed all ten controls and confirmed the
+source/harness binding. It identified unpaid binder-by-bound scans in symbolic
+argument detection and spelling-shadow checks. The correction uses one charged
+type traversal against a prepaid binder set and prepays each shadow scan. Exact
+boundary increases are reported in the receipt; request limits are unchanged.
+Associated projection construction remains a separate work stream and is not
+part of this accounting checkpoint.

@@ -287,6 +287,7 @@ struct Engine<'a> {
     foreign_signatures: BTreeMap<&'a str, (&'a str, &'a Function)>,
     instances: BTreeMap<(String, Vec<String>), String>,
     realized_impls: BTreeSet<(trait_instances::Key, String)>,
+    realized_references: Vec<(trait_instances::Reference, TypeRef)>,
     impl_definitions: BTreeMap<(usize, usize), String>,
     instance_types: BTreeMap<String, TypeRef>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
@@ -365,6 +366,7 @@ impl<'a> Engine<'a> {
             foreign_signatures: BTreeMap::new(),
             instances: BTreeMap::new(),
             realized_impls: BTreeSet::new(),
+            realized_references: Vec::new(),
             impl_definitions: BTreeMap::new(),
             instance_types: BTreeMap::new(),
             state_families: BTreeMap::new(),
@@ -814,7 +816,7 @@ impl<'a> Engine<'a> {
         if let ItemKind::Function(f) = &item.kind
             && let Some(calls) = self.trait_calls.get(&f.name)
         {
-            trait_instances::rewrite_calls(&mut instance, calls, &mut self.budget)?;
+            trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
         self.budget.item(&instance)?;
@@ -1740,6 +1742,15 @@ impl<'a> Engine<'a> {
                             self.budget.text(&target, callee.span)?;
                             member.clone_from(&target);
                             trait_signature = Some(signature);
+                        }
+                        if trait_signature.is_none() && member.starts_with("$trait_") {
+                            if let Some(signature) = self.realized_method(
+                                projection_shape(&actual),
+                                member,
+                                callee.span,
+                            )? {
+                                trait_signature = Some(signature);
+                            }
                         }
                         if trait_signature.is_none()
                             && !self.traits.recipes.is_empty()
