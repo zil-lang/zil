@@ -1169,6 +1169,26 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
+                InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                } => {
+                    budget.spend(arguments.len())?;
+                    for &value in arguments {
+                        self.consume(state, value, span, validate)?;
+                    }
+                    if result.is_some() {
+                        fresh_result = Some(
+                            if self.module.functions[function.0 as usize].result_mode
+                                == PassingMode::Create
+                            {
+                                FRESH
+                            } else {
+                                INPUT
+                            },
+                        );
+                    }
+                }
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len())?;
                     for &v in arguments {

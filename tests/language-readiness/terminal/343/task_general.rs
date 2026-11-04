@@ -893,7 +893,7 @@ fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
             };
             let errors =
                 zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
-            let expected = if case == 0 {
+            let expected = if case == 0 || case == 3 {
                 "E-VERIFY-RESOURCE"
             } else {
                 "E-VERIFY-TASK"
@@ -1066,4 +1066,92 @@ fn owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
         growth[1] > growth[0] + 4096,
         "actual marker growth must be paid: {growth:?}"
     );
+}
+
+#[test]
+fn owned_child343_native_same_instance_result_and_cancel_stages() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case, fixture, expected) in [
+                ("result", include_str!("task-owned-child.zil"), [b"A".as_slice();6]),
+                ("sequential", include_str!("task-owned-child-sequential.zil"), [b"BA".as_slice(),b"AB",b"AB",b"BA",b"BA",b"BA"]),
+                ("inputs", include_str!("task-owned-child-inputs.zil"), [b"BA".as_slice(),b"IJBA",b"IJBA",b"IJBA",b"IJBA",b"IJBA"]),
+                ("loop", include_str!("task-owned-child-loop.zil"), [b"".as_slice(),b"A",b"A",b"A",b"A",b"A"]),
+            ] {
+                for (polls, expected) in expected.iter().enumerate() {
+                    let text=fixture.replace("// POLLS", &"task_poll(&mut task);".repeat(polls));
+                    let dir=std::env::temp_dir().join(format!("zil343-owned-child-{}-{case}-{polls}-{backend:?}-{optimization:?}", std::process::id()));
+                    std::fs::create_dir_all(&dir).unwrap();
+                    let report=compile_source(&source(&text),&CompileOptions{backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+                    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                    let native=report.native_codegen.as_ref().unwrap();
+                    assert_eq!(native.backend,backend);assert!(native.fallback.is_none());
+                    let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                    assert_eq!(actual.status.code(),Some(0),"{actual:?}");
+                    assert_eq!(actual.stdout,*expected,"{case}/{polls}: {actual:?}");
+                    std::fs::remove_dir_all(dir).unwrap();
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_child343_created_ready_once_and_constructor_preparation_failure() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang,NativeBackend::LlvmApi] {
+        if backend==NativeBackend::LlvmApi && !cfg!(feature="llvm-api"){continue;}
+        for optimization in [Optimization::O0,Optimization::O2] {
+            for (case,fixture,expected) in [
+                ("created",include_str!("task-owned-child-created.zil"),b"PPPRA".as_slice()),
+                ("create-args",include_str!("task-owned-create-argument-failure.zil"),b"AB".as_slice()),
+            ] {
+                let dir=std::env::temp_dir().join(format!("zil343-owned-child-created-{}-{case}-{backend:?}-{optimization:?}",std::process::id()));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report=compile_source(&source(fixture),&CompileOptions{backend,optimization,stop_after:Stage::Build,output:Some(dir.join("program")),..CompileOptions::default()});
+                assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
+                let native=report.native_codegen.as_ref().unwrap();assert_eq!(native.backend,backend);assert!(native.fallback.is_none());
+                let actual=std::process::Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(),Some(0),"{actual:?}");assert_eq!(actual.stdout,expected,"{case}: {actual:?}");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn owned_child343_raw_actual_target_transfer_and_result_mode() {
+    use zil_ir::{CallKind,InstructionKind as I,PassingMode};
+    let limits=Limits::default();let target=zil_base::TargetProfile::default();
+    for case in 0..5 {
+        let fixture=if case==4 {include_str!("task-owned-child.zil")} else {include_str!("task-owned-child-inputs.zil")};
+        let typed=zil_types::check(&expand(fixture,&limits).unwrap().core,&target,&limits).unwrap();
+        let plan=zil_analyze::analyze(&typed,&limits).unwrap();
+        zil_verify::verify_module(typed.clone(),plan.clone(),&target,&limits).unwrap();
+        let child=typed.functions.iter().find(|f|f.name=="child").unwrap().id;
+        let mut raw=typed.clone();
+        match case {
+            0|1|3=>{
+                let i=raw.functions.iter_mut().flat_map(|f|&mut f.blocks).flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,I::SuspendCall{..})).unwrap();
+                let I::SuspendCall{function,arguments}=&mut i.kind else{unreachable!()};
+                if case==0 {arguments[1]=arguments[0];}
+                if case==1 {arguments[0]=arguments[2];}
+                if case==3 {i.kind=I::Call{function:*function,arguments:arguments.clone()};}
+            }
+            2=>raw.functions[child.0 as usize].call_kind=CallKind::Direct,
+            4=>raw.functions[child.0 as usize].result_mode=PassingMode::Create,
+            _=>unreachable!(),
+        }
+        let errors=zil_analyze::analyze(&raw,&limits).unwrap_err();
+        assert!(errors.iter().any(|e|e.code=="E-TASK-ABI"||e.code=="E-ANALYZE-IR"),"case={case}: {errors:?}");
+        let mut claim=plan;claim.module_fingerprint=raw.fingerprint();
+        for wire in [false,true] {
+            let candidate=if wire {zil_ir::wire::decode_module_candidate(&zil_ir::wire::encode_module_candidate(&raw,&claim,&limits).unwrap(),&limits).unwrap().0} else {raw.clone()};
+            let errors=zil_verify::verify_module(candidate,claim.clone(),&target,&limits).unwrap_err();
+            let expected=if case==0||case==4 {"E-VERIFY-RESOURCE"} else {"E-VERIFY-TASK"};
+            assert_eq!(errors[0].code,expected,"case={case} wire={wire}: {errors:?}");
+        }
+    }
 }
