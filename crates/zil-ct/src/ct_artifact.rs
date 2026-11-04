@@ -2671,7 +2671,7 @@ mod tests {
             match attack {
                 0 => members.reverse(),
                 1 => *active = 9,
-                2 => *payload = Box::new(CtValue::Scalar(Constant::Bool(false))),
+                2 => **payload = CtValue::Scalar(Constant::Bool(false)),
                 3 => members[0] = CtTy::Record(CtRecordSchemaId(9)),
                 _ => members[0] = CtTy::Scalar(CtScalarTy::U8),
             };

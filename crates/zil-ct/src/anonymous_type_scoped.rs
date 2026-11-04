@@ -590,127 +590,6 @@ pub(super) fn retained_bytes(ty: &CtTypeRef) -> u64 {
     super::retained_bytes(ty)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use zil_base::{ModuleId, NodeId, ResultCategory};
-    fn budget() -> CtExecutionBudget {
-        CtExecutionBudget::new(CtDeclaredBudget {
-            max_steps: 10000,
-            max_call_depth: 256,
-            max_live_cells: 10000,
-            max_temporary_bytes: 10_000_000,
-            max_generated_nodes: 100000,
-            max_instances: 1000,
-            max_analysis_work: 10_000_000,
-        })
-    }
-    fn graph() -> CtTypeRef {
-        let mut nodes = Vec::new();
-        for base in [0, 3] {
-            nodes.push(CtTypeNode::Nominal {
-                symbol: CtSymbolId {
-                    module: ModuleId(1),
-                    declaration: NodeId(7),
-                    generation_path: None,
-                },
-                arguments: vec![CtTypeArgument::Lifetime(CtLifetimeArgument {
-                    owner: CtTypeNodeId(base + 2),
-                    binder: StorageBinder::Invocation(0),
-                })],
-            });
-            nodes.push(CtTypeNode::Address {
-                mutable: false,
-                inner: CtTypeNodeId(base),
-            });
-            nodes.push(CtTypeNode::BorrowedFunctionPointer {
-                parameters: vec![CtTypeNodeId(base + 1)],
-                result: CtTypeNodeId(base + 1),
-                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
-                    binder_count: 1,
-                    parameter_lives: vec![Some(0)],
-                    result_life: Some(0),
-                })
-                .unwrap(),
-            });
-        }
-        nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
-        CtTypeRef {
-            root: CtTypeNodeId(6),
-            nodes,
-            ambient_classes: Vec::new(),
-        }
-    }
-    #[test]
-    fn scoped_occurrences_relocate_equal_sibling_scopes_without_interning_children() {
-        let input = graph();
-        let mut first = budget();
-        let (output, key) = canonical(&input, &mut first, true).unwrap();
-        let exact = first.usage().analysis_work;
-        assert_eq!(
-            canonical(&output, &mut budget(), true).unwrap(),
-            (output.clone(), key)
-        );
-        let CtTypeNode::Tuple(members) = &output.nodes[output.root.0 as usize] else {
-            unreachable!()
-        };
-        assert_ne!(members[0], members[1]);
-        for root in members {
-            let CtTypeNode::BorrowedFunctionPointer {
-                parameters, result, ..
-            } = &output.nodes[root.0 as usize]
-            else {
-                unreachable!()
-            };
-            for address in parameters.iter().chain([result]) {
-                let CtTypeNode::Address { inner, .. } = &output.nodes[address.0 as usize] else {
-                    unreachable!()
-                };
-                let CtTypeNode::Nominal { arguments, .. } = &output.nodes[inner.0 as usize] else {
-                    unreachable!()
-                };
-                let CtTypeArgument::Lifetime(value) = arguments[0] else {
-                    unreachable!()
-                };
-                assert_eq!(value.owner, *root);
-            }
-        }
-        for (work, pass) in [(exact, true), (exact - 1, false), (exact, true)] {
-            let mut declared = budget().remaining();
-            declared.max_analysis_work = work;
-            let result = canonical(&input, &mut CtExecutionBudget::new(declared), true);
-            assert_eq!(result.is_ok(), pass);
-            if !pass {
-                assert_eq!(
-                    result.unwrap_err()[0].category,
-                    ResultCategory::ResourceLimit
-                );
-            }
-        }
-    }
-    #[test]
-    fn scoped_shared_child_cannot_refer_to_equal_sibling_owner() {
-        let mut input = graph();
-        input.nodes[4] = CtTypeNode::Address {
-            mutable: false,
-            inner: CtTypeNodeId(0),
-        };
-        let errors = canonical(&input, &mut budget(), true).unwrap_err();
-        assert!(errors[0].message.contains("enclosing scope"));
-        for binder in [StorageBinder::Fixed(0), StorageBinder::Invocation(1)] {
-            let mut wrong = graph();
-            let CtTypeNode::Nominal { arguments, .. } = &mut wrong.nodes[0] else {
-                unreachable!()
-            };
-            let CtTypeArgument::Lifetime(value) = &mut arguments[0] else {
-                unreachable!()
-            };
-            value.binder = binder;
-            assert!(canonical(&wrong, &mut budget(), true).is_err());
-        }
-    }
-}
-
 fn phantom_shape(
     reference: &CtTypeRef,
     owner: CtTypeNodeId,
@@ -857,4 +736,125 @@ fn phantom_shape(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{ModuleId, NodeId, ResultCategory};
+    fn budget() -> CtExecutionBudget {
+        CtExecutionBudget::new(CtDeclaredBudget {
+            max_steps: 10000,
+            max_call_depth: 256,
+            max_live_cells: 10000,
+            max_temporary_bytes: 10_000_000,
+            max_generated_nodes: 100000,
+            max_instances: 1000,
+            max_analysis_work: 10_000_000,
+        })
+    }
+    fn graph() -> CtTypeRef {
+        let mut nodes = Vec::new();
+        for base in [0, 3] {
+            nodes.push(CtTypeNode::Nominal {
+                symbol: CtSymbolId {
+                    module: ModuleId(1),
+                    declaration: NodeId(7),
+                    generation_path: None,
+                },
+                arguments: vec![CtTypeArgument::Lifetime(CtLifetimeArgument {
+                    owner: CtTypeNodeId(base + 2),
+                    binder: StorageBinder::Invocation(0),
+                })],
+            });
+            nodes.push(CtTypeNode::Address {
+                mutable: false,
+                inner: CtTypeNodeId(base),
+            });
+            nodes.push(CtTypeNode::BorrowedFunctionPointer {
+                parameters: vec![CtTypeNodeId(base + 1)],
+                result: CtTypeNodeId(base + 1),
+                life: zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+                    binder_count: 1,
+                    parameter_lives: vec![Some(0)],
+                    result_life: Some(0),
+                })
+                .unwrap(),
+            });
+        }
+        nodes.push(CtTypeNode::Tuple(vec![CtTypeNodeId(2), CtTypeNodeId(5)]));
+        CtTypeRef {
+            root: CtTypeNodeId(6),
+            nodes,
+            ambient_classes: Vec::new(),
+        }
+    }
+    #[test]
+    fn scoped_occurrences_relocate_equal_sibling_scopes_without_interning_children() {
+        let input = graph();
+        let mut first = budget();
+        let (output, key) = canonical(&input, &mut first, true).unwrap();
+        let exact = first.usage().analysis_work;
+        assert_eq!(
+            canonical(&output, &mut budget(), true).unwrap(),
+            (output.clone(), key)
+        );
+        let CtTypeNode::Tuple(members) = &output.nodes[output.root.0 as usize] else {
+            unreachable!()
+        };
+        assert_ne!(members[0], members[1]);
+        for root in members {
+            let CtTypeNode::BorrowedFunctionPointer {
+                parameters, result, ..
+            } = &output.nodes[root.0 as usize]
+            else {
+                unreachable!()
+            };
+            for address in parameters.iter().chain([result]) {
+                let CtTypeNode::Address { inner, .. } = &output.nodes[address.0 as usize] else {
+                    unreachable!()
+                };
+                let CtTypeNode::Nominal { arguments, .. } = &output.nodes[inner.0 as usize] else {
+                    unreachable!()
+                };
+                let CtTypeArgument::Lifetime(value) = arguments[0] else {
+                    unreachable!()
+                };
+                assert_eq!(value.owner, *root);
+            }
+        }
+        for (work, pass) in [(exact, true), (exact - 1, false), (exact, true)] {
+            let mut declared = budget().remaining();
+            declared.max_analysis_work = work;
+            let result = canonical(&input, &mut CtExecutionBudget::new(declared), true);
+            assert_eq!(result.is_ok(), pass);
+            if !pass {
+                assert_eq!(
+                    result.unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+    }
+    #[test]
+    fn scoped_shared_child_cannot_refer_to_equal_sibling_owner() {
+        let mut input = graph();
+        input.nodes[4] = CtTypeNode::Address {
+            mutable: false,
+            inner: CtTypeNodeId(0),
+        };
+        let errors = canonical(&input, &mut budget(), true).unwrap_err();
+        assert!(errors[0].message.contains("enclosing scope"));
+        for binder in [StorageBinder::Fixed(0), StorageBinder::Invocation(1)] {
+            let mut wrong = graph();
+            let CtTypeNode::Nominal { arguments, .. } = &mut wrong.nodes[0] else {
+                unreachable!()
+            };
+            let CtTypeArgument::Lifetime(value) = &mut arguments[0] else {
+                unreachable!()
+            };
+            value.binder = binder;
+            assert!(canonical(&wrong, &mut budget(), true).is_err());
+        }
+    }
 }

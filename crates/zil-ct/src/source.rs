@@ -3092,6 +3092,22 @@ fn integer(
     }
 }
 
+// Closed39 bootstrap boundary before metadata snapshots. CT4 source consumers
+// replace this with a bounded traversal; ignored tables must not be cloned.
+fn unconsumed_life_inventory(core: &CoreModule) -> CompileResult<()> {
+    if !core.dyn_declarations.is_empty()
+        || !core.dyn_interfaces.is_empty()
+        || !core.dyn_vtables.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "retained nominal/dynamic inventory consumer is not yet implemented",
+            None,
+        )]);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3878,20 +3894,4 @@ mod tests {
             );
         }
     }
-}
-
-// Closed39 bootstrap boundary before metadata snapshots. CT4 source consumers
-// replace this with a bounded traversal; ignored tables must not be cloned.
-fn unconsumed_life_inventory(core: &CoreModule) -> CompileResult<()> {
-    if !core.dyn_declarations.is_empty()
-        || !core.dyn_interfaces.is_empty()
-        || !core.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "retained nominal/dynamic inventory consumer is not yet implemented",
-            None,
-        )]);
-    }
-    Ok(())
 }
