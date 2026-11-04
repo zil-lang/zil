@@ -26,6 +26,7 @@ impl Identity<'_, '_> {
             };
             self.reserve(edges.saturating_mul(16))?;
             let children: Vec<CtTypeNodeId> = match node {
+                CtTypeNode::BorrowedStorage { storage, .. } => vec![*storage],
                 CtTypeNode::Nominal { arguments, .. } => arguments
                     .iter()
                     .filter_map(|arg| match arg {
@@ -79,6 +80,7 @@ impl Identity<'_, '_> {
             }
             let mut key = Vec::new();
             let tag = match node {
+                CtTypeNode::BorrowedStorage { .. } => return Err(pending_scoped_identity()),
                 CtTypeNode::Primitive(_) => 0,
                 CtTypeNode::Builtin(_) => 1,
                 CtTypeNode::Nominal { .. } => 2,
@@ -111,6 +113,7 @@ impl Identity<'_, '_> {
                                 self.number(&mut key, child.len() as u64)?;
                                 self.put(&mut key, child)?;
                             }
+                            CtTypeArgument::Lifetime(_) => return Err(pending_scoped_identity()),
                             CtTypeArgument::Scalar(value) => {
                                 self.put(&mut key, &[1])?;
                                 self.scalar(&mut key, value)?;

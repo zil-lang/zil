@@ -2487,6 +2487,7 @@ mod tests {
             (CtScalarTy::Bool, 8),
         ] {
             p.record_schemas.push(CtRecordSchema {
+                life_context: None,
                 name: owner.clone(),
                 arguments: vec![
                     CtSchemaArgument::Type(CtTypeRef {
@@ -2618,6 +2619,7 @@ mod tests {
         let mut p = anonymous_value_program();
         for result in [0, 1] {
             p.record_schemas.push(CtRecordSchema {
+                life_context: None,
                 name: CtSymbolId {
                     declaration: NodeId(41),
                     ..symbol()
@@ -2757,6 +2759,7 @@ mod tests {
             CtValue::Scalar(Constant::I32(1))
         );
         p.enum_schemas.push(CtEnumSchema {
+            life_context: None,
             name: CtSymbolId {
                 declaration: NodeId(50),
                 ..symbol()

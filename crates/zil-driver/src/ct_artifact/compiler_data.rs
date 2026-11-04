@@ -265,6 +265,7 @@ impl<'a> Compiler<'a> {
             // Only symbolic definitions use the legacy CtTy actual vector.
             self.record_arguments.push(Vec::new());
             self.records.push(CtRecordSchema {
+                life_context: None,
                 name,
                 arguments,
                 fields: Vec::new(),
@@ -277,6 +278,7 @@ impl<'a> Compiler<'a> {
             };
             self.enum_sources.push((owner, e));
             self.enums.push(CtEnumSchema {
+                life_context: None,
                 name,
                 arguments,
                 variants: Vec::new(),

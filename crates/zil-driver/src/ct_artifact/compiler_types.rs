@@ -462,6 +462,7 @@ impl<'a> Compiler<'a> {
                         self.record_sources.push((owner, a));
                         self.record_arguments.push(arguments);
                         self.records.push(CtRecordSchema {
+                            life_context: None,
                             name,
                             arguments: schema_arguments,
                             fields: Vec::new(),
@@ -508,6 +509,7 @@ impl<'a> Compiler<'a> {
                         let name = self.symbol(owner, item.span)?;
                         self.enum_sources.push((owner, e));
                         self.enums.push(CtEnumSchema {
+                            life_context: None,
                             name,
                             arguments: Vec::new(),
                             variants: Vec::new(),

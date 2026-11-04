@@ -120,6 +120,14 @@ impl Keys<'_> {
                     .records
                     .get(id.0 as usize)
                     .ok_or_else(|| bad("CT record identity schema is missing"))?;
+                if schema.life_context.is_some() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 joint schema identity is not yet implemented",
+                        None,
+                    )]);
+                }
+
                 self.nominal(
                     &mut out,
                     false,
@@ -134,6 +142,14 @@ impl Keys<'_> {
                     .enums
                     .get(id.0 as usize)
                     .ok_or_else(|| bad("CT enum identity schema is missing"))?;
+                if schema.life_context.is_some() {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 joint schema identity is not yet implemented",
+                        None,
+                    )]);
+                }
+
                 self.nominal(&mut out, true, id.0, &schema.name, &schema.arguments, depth)?;
             }
             CtTy::AnonymousSum(members) => self.members(&mut out, members, depth)?,
@@ -226,6 +242,13 @@ impl Keys<'_> {
                             .saturating_add(key.len() as u64),
                     );
                     copied?;
+                }
+                CtSchemaArgument::TypeInContext(_) | CtSchemaArgument::Lifetime(_) => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT4 scoped schema identity is not yet implemented",
+                        None,
+                    )]);
                 }
                 CtSchemaArgument::Scalar(c) => {
                     self.bytes(out, &[1])?;
