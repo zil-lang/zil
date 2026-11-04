@@ -6789,15 +6789,31 @@ fn ct5_invocation_scoped_nominal_metadata_reaches_native() {
             aliases: &aliases,
             declarations: DeclarationPlacement::Original,
         },
-    ).unwrap().core;
+    )
+    .unwrap()
+    .core;
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     for wrong_result in [false, true] {
         let mut raw = typed.clone();
-        let function = raw.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions).any(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))).unwrap();
-        let instruction = function.blocks.iter_mut().flat_map(|b| &mut b.instructions).find(|i| matches!(i.kind, InstructionKind::ExtractField { .. })).unwrap();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| {
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))
+            })
+            .unwrap();
+        let instruction = function
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::ExtractField { .. }))
+            .unwrap();
         if wrong_result {
             function.values[instruction.result.unwrap().0 as usize] = Type::I64;
         } else if let InstructionKind::ExtractField { index, .. } = &mut instruction.kind {
@@ -6987,8 +7003,15 @@ fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
 
 #[test]
 fn ct5_phantom_context_query_reaches_native() {
-    let text=include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil");
-    let report=compile_source(&source(text),&CompileOptions::default());
-    assert_eq!(report.status,ResultCategory::Success,"{}",report.to_json());
-    review329_native_entry_output(&[("main",text)],"main",b"42\n");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
 }

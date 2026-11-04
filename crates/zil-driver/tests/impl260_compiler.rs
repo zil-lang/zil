@@ -288,6 +288,7 @@ fn source_type_loop_and_scalar_bridge_execute_only_in_verified_vm() {
             &[CtValue::Scalar(zil_ir::Constant::I32(4))]
         ),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0)
         })
@@ -304,6 +305,7 @@ fn both_returning_branches_are_closed_without_unreachable_ir() {
                 &[CtValue::Scalar(zil_ir::Constant::Bool(flag))]
             ),
             CtValue::Type(CtTypeRef {
+                ambient_classes: Vec::new(),
                 nodes: vec![CtTypeNode::Primitive(expected)],
                 root: CtTypeNodeId(0)
             })
@@ -394,6 +396,7 @@ fn actual_value_binding_shadows_primitive_type_name() {
             &[]
         ),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0)
         })
@@ -408,6 +411,7 @@ fn ct_record_alias_and_enum_fields_preserve_real_type_values() {
         assert_eq!(
             run(source, "main", &[]),
             CtValue::Type(CtTypeRef {
+                ambient_classes: Vec::new(),
                 nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
                 root: CtTypeNodeId(0)
             })
@@ -428,6 +432,7 @@ fn empty_explicit_ct_array_retains_its_element_type() {
             &[]
         ),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0)
         })
@@ -620,6 +625,7 @@ fn source_alias_owns_its_ct_block_locals_and_restores_caller_scopes() {
     assert_eq!(
         value,
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0)
         })
@@ -632,6 +638,7 @@ fn source_alias_owns_its_ct_block_locals_and_restores_caller_scopes() {
     assert_eq!(
         value,
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0)
         })
@@ -654,6 +661,7 @@ fn copy_generic_type_function_infers_and_keeps_all_instances() {
     assert_eq!(
         run(source, "entry", &[]),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
         })
@@ -686,6 +694,7 @@ fn copy_generic_record_and_nested_calls_execute_in_verified_vm() {
     assert_eq!(
         run(source, "entry", &[]),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0),
         })
@@ -694,6 +703,7 @@ fn copy_generic_record_and_nested_calls_execute_in_verified_vm() {
     assert_eq!(
         run(source, "entry", &[]),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0)
         })
@@ -810,6 +820,7 @@ fn generic_record_array_argument_keeps_ordinary_copy_shape() {
     assert_eq!(
         run(source, "entry", &[]),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0)
         })
@@ -855,6 +866,7 @@ fn function_phantom_copy_arguments_and_recursive_cache_hits_keep_identity() {
     assert_eq!(
         run(source, "entry", &[]),
         CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
             root: CtTypeNodeId(0)
         })

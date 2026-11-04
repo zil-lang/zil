@@ -364,7 +364,9 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         } => std::iter::once(*callee)
             .chain(arguments.iter().copied())
             .collect(),
-        InstructionKind::ExtractField { aggregate: value, .. }
+        InstructionKind::ExtractField {
+            aggregate: value, ..
+        }
         | InstructionKind::Store { value, .. }
         | InstructionKind::Unary { operand: value, .. }
         | InstructionKind::ConvertInteger { value, .. }

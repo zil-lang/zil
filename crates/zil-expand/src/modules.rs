@@ -253,6 +253,7 @@ fn declaration(item: &Item) -> Option<(&str, bool, bool)> {
     }
 }
 
+#[cfg(test)]
 pub(super) fn specialize(
     sources: &[SourceUnit],
     modules: &[&Module],

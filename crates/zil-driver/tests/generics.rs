@@ -1558,7 +1558,9 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
 #[test]
 fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
     for body in ["42", "p.n+*q"] {
-        let text = format!("struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}");
+        let text = format!(
+            "struct Tag<life s>{{n:i32}} fn invoke<life s,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'s i32)->i32{{return f(p,q)}} fn apply<life s>(x:&'s i32)->i32{{let v:Tag<'s>=Tag::<'s>{{n:*x}};let f=(p,q)=>{body};return invoke(&f,&v,x)}} fn result()->i32{{let n=21;return apply(&n)}} fn main()->i32{{return result()}}"
+        );
         let report = compile_source(&source(&text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -1600,13 +1602,26 @@ fn terminal_qualified_callable_helper_retains_its_own_input_relation() {
                 }
                 assert_eq!(warm.active_query_count(), 0);
             }
-            eprintln!("qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh");
+            eprintln!(
+                "qualified life/F helper actual read Source-through-Lower whole request N={low}/N-1/warm/fresh"
+            );
         }
     }
     let unused = "struct Tag<life s>{n:i32} fn invoke<life s,life t,F:for<life a>for<life b>Fn(&'a Tag<'b>,&'b i32)->i32>(f:&F,p:&Tag<'s>,q:&'t i32)->i32{return f(p,q)} fn main()->i32{return 0}";
     let report = compile_source(&source(unused), &CompileOptions::default());
-    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-    assert!(report.diagnostics.iter().any(|d| d.message.contains("cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("cannot equate distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
 }
 
 fn terminal_native_profiles(text: &str, entry: &str, expected: i64) {

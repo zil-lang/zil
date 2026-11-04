@@ -19,8 +19,29 @@ pub(crate) struct Interface {
 }
 pub(crate) struct Provider {
     pub(crate) implementation: origins::DeclId,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Retained dyn provider recipe; runtime dispatch consumer is not implemented yet"
+        )
+    )]
     pub(crate) declaration: origins::MemberId,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Retained dyn provider recipe; runtime dispatch consumer is not implemented yet"
+        )
+    )]
     pub(crate) substitutions: BTreeMap<String, TypeRef>,
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Retained dyn provider recipe; runtime dispatch consumer is not implemented yet"
+        )
+    )]
     pub(crate) signature: Function,
 }
 pub(crate) struct Vtable {
