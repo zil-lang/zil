@@ -33,18 +33,24 @@ fn graph_cost(graph: &CtTypeRef, budget: &mut CtExecutionBudget) -> CompileResul
     let mut bytes = 0u64;
     for node in &graph.nodes {
         budget.reserve_analysis_work(1)?;
-        let edges = match node {
-            CtTypeNode::Nominal { arguments, .. } => arguments.len(),
-            CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.len(),
+        let (edges, bytes_per_edge) = match node {
+            CtTypeNode::Nominal { arguments, .. } => {
+                (arguments.len(), std::mem::size_of::<CtTypeArgument>())
+            }
+            CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => {
+                (v.len(), std::mem::size_of::<CtTypeNodeId>())
+            }
             CtTypeNode::FunctionPointer { parameters, .. }
             | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
-            | CtTypeNode::ForeignCallback { parameters, .. } => parameters.len().saturating_add(1),
-            _ => 2,
+            | CtTypeNode::ForeignCallback { parameters, .. } => {
+                (parameters.len(), std::mem::size_of::<CtTypeNodeId>())
+            }
+            _ => (0, 0),
         };
         budget.reserve_analysis_work(edges as u64)?;
         bytes = bytes
             .saturating_add(std::mem::size_of::<CtTypeNode>() as u64)
-            .saturating_add((edges as u64).saturating_mul(16));
+            .saturating_add((edges as u64).saturating_mul(bytes_per_edge as u64));
         if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
             budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
             bytes = bytes.saturating_add((life.parameter_lives.len() as u64).saturating_mul(8));
@@ -66,7 +72,7 @@ pub(super) fn schema_copy_cost(
         }
         for arg in &record.arguments {
             budget.reserve_analysis_work(1)?;
-            bytes = bytes.saturating_add(32);
+            bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
             if let CtSchemaArgument::Type(graph) = arg {
                 bytes = bytes.saturating_add(graph_cost(graph, budget)?);
             }
@@ -83,13 +89,139 @@ pub(super) fn schema_copy_cost(
         }
         for arg in &en.arguments {
             budget.reserve_analysis_work(1)?;
-            bytes = bytes.saturating_add(32);
+            bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
             if let CtSchemaArgument::Type(graph) = arg {
                 bytes = bytes.saturating_add(graph_cost(graph, budget)?);
             }
         }
     }
     Ok(bytes)
+}
+pub(super) fn program_copy_cost(
+    program: &CtArtifactProgram,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<u64> {
+    fn ids(count: usize, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
+        budget.reserve_analysis_work(count as u64)?;
+        Ok((count as u64).saturating_mul(4))
+    }
+    fn text(value: &str, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
+        budget.reserve_analysis_work(value.len() as u64)?;
+        Ok(value.len() as u64)
+    }
+    let mut bytes = std::mem::size_of::<CtArtifactProgram>() as u64;
+    bytes = bytes.saturating_add(schema_copy_cost(
+        &program.record_schemas,
+        &program.enum_schemas,
+        budget,
+    )?);
+    for function in &program.functions {
+        budget.reserve_analysis_work(1)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<CtFunction>() as u64)
+            .saturating_add(ids(function.parameters.len(), budget)?);
+        for ty in function
+            .parameter_types
+            .iter()
+            .chain(&function.locals)
+            .chain(&function.values)
+            .chain(std::iter::once(&function.result_type))
+        {
+            bytes = bytes.saturating_add(ty_cost(ty, budget)?);
+        }
+        for block in &function.blocks {
+            budget.reserve_analysis_work(1)?;
+            bytes = bytes.saturating_add(std::mem::size_of::<CtBlock>() as u64);
+            for instruction in &block.instructions {
+                budget.reserve_analysis_work(1)?;
+                bytes = bytes.saturating_add(std::mem::size_of::<CtInstruction>() as u64);
+                let operands = match &instruction.kind {
+                    CtInstructionKind::MakeTuple(v)
+                    | CtInstructionKind::MakeArray(v)
+                    | CtInstructionKind::MakeList(v)
+                    | CtInstructionKind::MakeRecord { fields: v, .. }
+                    | CtInstructionKind::MakeVariant { fields: v, .. }
+                    | CtInstructionKind::Call { arguments: v, .. }
+                    | CtInstructionKind::TypeApply { arguments: v, .. }
+                    | CtInstructionKind::Quote { holes: v, .. }
+                    | CtInstructionKind::Text { arguments: v, .. }
+                    | CtInstructionKind::SyntaxBuild { arguments: v, .. }
+                    | CtInstructionKind::Query { arguments: v, .. } => v.len(),
+                    CtInstructionKind::TypeConstruct {
+                        constructor,
+                        arguments,
+                    } => {
+                        if let CtTypeConstructor::BorrowedFunctionPointer { life } = constructor {
+                            budget.reserve_analysis_work(life.parameter_lives.len() as u64)?;
+                            bytes = bytes.saturating_add(
+                                (life.parameter_lives.len() as u64).saturating_mul(8),
+                            );
+                        }
+                        arguments.len()
+                    }
+                    CtInstructionKind::MakeAnonymousSum { members, .. } => {
+                        for ty in members {
+                            bytes = bytes.saturating_add(ty_cost(ty, budget)?);
+                        }
+                        0
+                    }
+                    _ => 0,
+                };
+                bytes = bytes.saturating_add(ids(operands, budget)?);
+            }
+        }
+    }
+    for constant in &program.constants {
+        budget.reserve_analysis_work(1)?;
+        bytes = bytes.saturating_add(std::mem::size_of::<CtConstant>() as u64);
+        if let CtConstant::Text(value) = constant {
+            bytes = bytes.saturating_add(text(value, budget)?);
+        }
+    }
+    for template in &program.templates {
+        budget.reserve_analysis_work(1)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<CtTemplate>() as u64)
+            .saturating_add(ids(template.syntax.roots.len(), budget)?)
+            .saturating_add(
+                (template.syntax.origins.len() as u64)
+                    .saturating_mul(std::mem::size_of::<CtOrigin>() as u64),
+            )
+            .saturating_add(
+                (template.holes.len() as u64)
+                    .saturating_mul(std::mem::size_of::<CtHoleKind>() as u64),
+            );
+        budget.reserve_analysis_work(
+            (template.syntax.origins.len() as u64).saturating_add(template.holes.len() as u64),
+        )?;
+        for node in &template.syntax.nodes {
+            budget.reserve_analysis_work(1)?;
+            bytes = bytes.saturating_add(std::mem::size_of::<CtSyntaxNode>() as u64);
+            match node {
+                CtSyntaxNode::Group { children, .. } => {
+                    bytes = bytes.saturating_add(ids(children.len(), budget)?)
+                }
+                CtSyntaxNode::Token(token) => {
+                    bytes = bytes.saturating_add(text(&token.text, budget)?);
+                    if let Some(name) = &token.name {
+                        bytes = bytes.saturating_add(text(&name.text, budget)?);
+                        if let Some(graph) = &name.member_owner_type {
+                            bytes = bytes.saturating_add(graph_cost(graph, budget)?);
+                        }
+                    }
+                }
+                CtSyntaxNode::Hole { .. } => {}
+            }
+        }
+    }
+    for token in &program.input_tokens.tokens {
+        budget.reserve_analysis_work(1)?;
+        bytes = bytes
+            .saturating_add(std::mem::size_of::<CtInputToken>() as u64)
+            .saturating_add(text(&token.text, budget)?);
+    }
+    budget.reserve_analysis_work(program.snapshot.requested_queries.len() as u64)?;
+    Ok(bytes.saturating_add(program.snapshot.requested_queries.len() as u64))
 }
 pub(in crate::ct_artifact) struct ValueContext {
     pub records: Vec<CtRecordSchema>,

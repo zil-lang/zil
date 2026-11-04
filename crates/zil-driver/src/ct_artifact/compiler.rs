@@ -260,14 +260,21 @@ struct Declaration<'a> {
     item: &'a s::Item,
     function: &'a s::Function,
 }
+enum PendingTypes {
+    Data(Vec<CtTy>),
+    Metadata(Vec<CtTypeRef>),
+}
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
-    pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
+    generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
+    pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
+    scalar_bindings: Vec<(String, Constant)>,
+    active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
@@ -309,9 +316,12 @@ impl<'a> Compiler<'a> {
             declarations: Vec::new(),
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
+            generic_metadata_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
             metadata_bindings: Vec::new(),
+            scalar_bindings: Vec::new(),
+            active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
             checking_generics: false,
             checked_generics: Vec::new(),
@@ -524,7 +534,8 @@ impl<'a> Compiler<'a> {
         )?;
         self.selected.insert(declaration, id);
         self.budget.node(span)?;
-        self.pending.push_back((declaration, Vec::new(), id));
+        self.pending
+            .push_back((declaration, PendingTypes::Data(Vec::new()), id));
         Ok(id)
     }
     fn header(&mut self, declaration: usize) -> R<(Vec<CtTy>, CtTy)> {
@@ -624,9 +635,19 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
                 .map_or(1, |n| n as usize + 2),
             compiler.declarations[declaration].item.span,
         )?;
-        compiler.bindings = compiler.instance_bindings(declaration, &arguments)?;
+        match arguments {
+            PendingTypes::Data(arguments) => {
+                compiler.bindings = compiler.instance_bindings(declaration, &arguments)?
+            }
+            PendingTypes::Metadata(arguments) => {
+                compiler.metadata_bindings =
+                    compiler.metadata_instance_bindings(declaration, &arguments)?
+            }
+        }
         let body = cfg::function(&mut compiler, id, declaration)?;
         compiler.bindings.clear();
+        compiler.metadata_bindings.clear();
+        compiler.scalar_bindings.clear();
         compiler.functions[id.0 as usize] = Some(body);
     }
     // Account for the actual bounded source-view copies before allocating them.
@@ -731,3 +752,12 @@ mod data;
 
 #[path = "compiler_type_value.rs"]
 mod type_value;
+
+#[path = "compiler_generic_metadata.rs"]
+mod generic_metadata;
+
+#[path = "compiler_scalar_arguments.rs"]
+mod scalar_arguments;
+
+#[path = "compiler_metadata_copy.rs"]
+mod metadata_copy;

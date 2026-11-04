@@ -198,6 +198,7 @@ impl Compiler<'_> {
                     self.enter_alias(owner, item.span, span)?;
                     let old_metadata = std::mem::take(&mut self.metadata_bindings);
                     let old_data = std::mem::take(&mut self.bindings);
+                    let old_scalars = std::mem::take(&mut self.scalar_bindings);
                     let result = self.meta_source(
                         owner,
                         alias
@@ -210,6 +211,7 @@ impl Compiler<'_> {
                     self.active_aliases.pop();
                     self.metadata_bindings = old_metadata;
                     self.bindings = old_data;
+                    self.scalar_bindings = old_scalars;
                     return result;
                 }
                 let parameters = match &item.kind {
@@ -231,6 +233,11 @@ impl Compiler<'_> {
                                 depth + 1,
                                 nodes,
                             )?)),
+                        (s::GenericParamKind::Const(_), arg) => {
+                            arguments.push(CtTypeArgument::Scalar(
+                                self.source_scalar_argument(parameter, arg, span)?,
+                            ))
+                        }
                         _ => {
                             return Err(error(
                                 span,
@@ -302,10 +309,15 @@ impl Compiler<'_> {
                 for p in params {
                     parameters.push(self.meta_source(module, p, depth + 1, nodes)?);
                 }
-                CtTypeNode::BorrowedFunctionPointer {
-                    parameters,
-                    result: self.meta_source(module, result, depth + 1, nodes)?,
-                    life,
+                let result = self.meta_source(module, result, depth + 1, nodes)?;
+                if life.binder_count == 0 {
+                    CtTypeNode::FunctionPointer { parameters, result }
+                } else {
+                    CtTypeNode::BorrowedFunctionPointer {
+                        parameters,
+                        result,
+                        life,
+                    }
                 }
             }
             s::TypeKind::Reference { mutable, inner, .. } => CtTypeNode::Address {

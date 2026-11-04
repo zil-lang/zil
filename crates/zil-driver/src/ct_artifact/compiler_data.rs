@@ -66,7 +66,11 @@ impl<'a> Compiler<'a> {
             }
         })
     }
-    fn metadata_declaration(&mut self, symbol: &CtSymbolId, span: Span) -> R<(usize, &'a s::Item)> {
+    pub(super) fn metadata_declaration(
+        &mut self,
+        symbol: &CtSymbolId,
+        span: Span,
+    ) -> R<(usize, &'a s::Item)> {
         for (owner, module) in self.modules.iter().enumerate() {
             self.budget.work(1, span)?;
             if module.source.module_id != symbol.module {
@@ -108,38 +112,64 @@ impl<'a> Compiler<'a> {
         span: Span,
         depth: usize,
     ) -> R<Vec<CtSchemaArgument>> {
-        let names = self.generic_names(parameters, &[], span)?;
-        if names.len() != args.len() {
+        self.nominal_parameters(parameters, span)?;
+        if parameters.len() != args.len() {
             return Err(error(span, "CT nominal argument count differs"));
         }
         let mut out = Vec::new();
-        for arg in args {
-            let s::GenericArg::Type(ty) = arg else {
-                return Err(error(
-                    span,
-                    "CT nominal scalar argument needs a declared scalar binding",
-                ));
-            };
-            let graph = self.metadata_type(module, ty, depth + 1)?;
-            self.metadata_copy(&graph, depth + 1, span)?;
-            out.push(CtSchemaArgument::Type(graph));
+        for (parameter, arg) in parameters.iter().zip(args) {
+            self.budget.node(span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtSchemaArgument>(),
+                span,
+                "CT schema argument bytes exhausted",
+            )?;
+            match (&parameter.kind, arg) {
+                (s::GenericParamKind::Type(_), s::GenericArg::Type(ty)) => {
+                    let graph = self.metadata_type(module, ty, depth + 1)?;
+                    self.metadata_copy(&graph, depth + 1, span)?;
+                    out.push(CtSchemaArgument::Type(graph));
+                }
+                (s::GenericParamKind::Const(_), arg) => out.push(CtSchemaArgument::Scalar(
+                    self.source_scalar_argument(parameter, arg, span)?,
+                )),
+                _ => {
+                    return Err(error(
+                        span,
+                        "nominal actual differs from its declared parameter kind",
+                    ));
+                }
+            }
         }
         Ok(out)
     }
-    fn metadata_copy(&mut self, graph: &CtTypeRef, depth: usize, span: Span) -> R<()> {
+    pub(super) fn metadata_copy(&mut self, graph: &CtTypeRef, depth: usize, span: Span) -> R<()> {
         self.budget.depth(depth, span)?;
-        match graph
+        let node = graph
             .nodes
             .get(graph.root.0 as usize)
-            .ok_or_else(|| error(span, "Copy metadata root is absent"))?
-        {
-            CtTypeNode::FunctionPointer { .. } | CtTypeNode::BorrowedFunctionPointer { .. } => {
+            .ok_or_else(|| error(span, "Copy metadata root is absent"))?;
+        match node {
+            CtTypeNode::Primitive(_)
+            | CtTypeNode::FunctionPointer { .. }
+            | CtTypeNode::BorrowedFunctionPointer { .. } => Ok(()),
+            CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => {
+                for id in parts {
+                    let child = self.metadata_subgraph(graph, *id, span)?;
+                    self.metadata_copy(&child, depth + 1, span)?;
+                }
                 Ok(())
             }
-            _ => {
-                let data = self.metadata_data_type(graph, depth + 1, span)?;
-                self.ordinary_copy(&data, depth + 1, span)
+            CtTypeNode::Array { element, .. } => {
+                let child = self.metadata_subgraph(graph, *element, span)?;
+                self.metadata_copy(&child, depth + 1, span)
             }
+            CtTypeNode::Nominal { .. } => self.copy_metadata_nominal(graph, depth + 1, span),
+            _ => Err(error(
+                span,
+                "metadata does not satisfy the ordinary Copy Value profile",
+            )),
         }
     }
     pub(super) fn closed_nominal(
@@ -161,18 +191,33 @@ impl<'a> Compiler<'a> {
                 ));
             }
         };
-        let names = self.generic_names(parameters, &[], span)?;
-        if names.len() != arguments.len() {
+        self.nominal_parameters(parameters, span)?;
+        if parameters.len() != arguments.len() {
             return Err(error(span, "closed nominal argument count differs"));
         }
         let mut metadata_bindings = Vec::new();
-        for (name, argument) in names.into_iter().zip(&arguments) {
-            let CtSchemaArgument::Type(graph) = argument else {
-                return Err(error(span, "closed nominal scalar binding is not complete"));
-            };
-            self.metadata_copy(graph, depth + 1, span)?;
-            self.budget.metadata(graph, span)?;
-            metadata_bindings.push((name, graph.clone()));
+        let mut scalar_bindings = Vec::new();
+        for (parameter, argument) in parameters.iter().zip(&arguments) {
+            self.budget.text(&parameter.name, span)?;
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), CtSchemaArgument::Type(graph)) => {
+                    self.metadata_copy(graph, depth + 1, span)?;
+                    self.budget.metadata(graph, span)?;
+                    metadata_bindings.push((parameter.name.clone(), graph.clone()));
+                }
+                (s::GenericParamKind::Const(ty), CtSchemaArgument::Scalar(value)) => {
+                    let scalar = self.scalar_argument_type(ty, span)?;
+                    self.budget.work(32, span)?;
+                    if expr::scalar_constant(value) != CtTy::Scalar(scalar) {
+                        return Err(error(
+                            span,
+                            "closed scalar metadata differs from its declaration",
+                        ));
+                    }
+                    scalar_bindings.push((parameter.name.clone(), value.clone()));
+                }
+                _ => return Err(error(span, "closed nominal actual kind differs")),
+            }
         }
         let name = self.symbol(owner, item.span)?;
         let record = matches!(item.kind, s::ItemKind::Aggregate(_));
@@ -241,6 +286,7 @@ impl<'a> Compiler<'a> {
         };
         let old_meta = std::mem::replace(&mut self.metadata_bindings, metadata_bindings);
         let old_data = std::mem::take(&mut self.bindings);
+        let old_scalars = std::mem::replace(&mut self.scalar_bindings, scalar_bindings);
         let result = (|| {
             match (&item.kind, &id) {
                 (s::ItemKind::Aggregate(a), CtTy::Record(id)) => {
@@ -299,6 +345,7 @@ impl<'a> Compiler<'a> {
         })();
         self.bindings = old_data;
         self.metadata_bindings = old_meta;
+        self.scalar_bindings = old_scalars;
         result
     }
     pub(super) fn canonical_data_sum(&mut self, members: Vec<CtTy>, span: Span) -> R<CtTy> {

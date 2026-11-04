@@ -5930,3 +5930,130 @@ fn ct3_generic_enum_values_retain_complete_owner_and_active_payload() {
     );
     review329_native(&[("main", text)], 42);
 }
+
+#[test]
+fn ct3_generic_callable_arguments_infer_and_reify_full_type_metadata() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-callable-arguments.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    let wrong = text.replace("=first;", "=second;");
+    let report = compile_source(&source(&wrong), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_nominal_arguments_keep_ordered_type_and_scalar_identity() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-scalar-nominal-arguments.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    for bad in [
+        text.replace("fn(i32)->i32,7,true", "fn(i32)->i32,7u64,true"),
+        text.replace(
+            "Stamp::<fn(i32)->i32,7,true>",
+            "Stamp::<fn(i32)->i32,9,true>",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn ct3_composite_callable_metadata_does_not_construct_pointer_data() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-composite-callable-metadata.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    let physical = "struct Code{call:fn(i32)->i32}fn identity(n:i32)->i32{return n}fn make(t:Type)->Code{return Code{call:identity}}fn result()->i32{let value=#(make(i32));return value.call(42)}";
+    let report = compile_source(&source(physical), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ct3_callable_metadata_alpha_order_and_free_life_boundaries() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-alpha.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    review329_native(&[("main", text)], 42);
+    for bad in [
+        text.replace("value:Phantom<Alpha>", "value:Phantom<Second>"),
+        text.replace(
+            "fn(&'x i32,&'y i32)->&'x i32",
+            "fn(&'free i32,&'y i32)->&'x i32",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct-member-order-permutation.zil"
+    );
+    let reordered = text.replace(
+        "struct Z{value:i32}\nstruct A{value:i32}",
+        "struct A{value:i32}\nstruct Z{value:i32}",
+    );
+    for text in [text, reordered.as_str()] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        review329_native(&[("main", text)], 42);
+    }
+}
