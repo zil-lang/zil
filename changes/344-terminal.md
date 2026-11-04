@@ -224,3 +224,8 @@ All-target llvm-api Clippy passes, with the final added test separately linted.
 The author independently relinked30 child probes and replayed the copied original
 2MiB/raw/Wire/N2520/native4 control; compact source-bound receipt is retained.
 These bounded shapes establish this regression fix, not a theorem for all input.
+
+
+### CT3完整名义实参的公共元数据修正
+
+普通phantom函数指针参数可形成合法类型，但CtSchemaArgument::Type(CtTy)不能表达其完整身份。根集成方将尚未验收的CT3合同修正为Type(CtTypeRef)，复用同一规范有界TypeDAG；Scalar编码不变。实际CT字段和值继续只接受CtTy纯值，不生成运行时指针。两种元数据表示不并存，声明实例的全部有序参数、关系、图规范及来源须由独立核验证；当前生产CT2与历史v2字节不改写为新v3。344随后实现元数据绑定和可序列化值绑定的区分并保留phantom FP正反例。

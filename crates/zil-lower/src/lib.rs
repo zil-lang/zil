@@ -82,10 +82,16 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         let owning_signature = (owning_result || owning_parameters)
             && complete_parameters
             && (closure.result.is_copy_value() || owning_result);
+        let invocation_signature = closure.lending_captures.is_empty()
+            && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
+            && closure
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Type::Address { .. }));
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -108,7 +114,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             })
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
-                    || (closure.result.is_copy_value()
+                    || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {

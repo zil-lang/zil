@@ -369,7 +369,8 @@ fn scan(
                     _ => {}
                 }
                 let access = match &instruction.kind {
-                    InstructionKind::WriteDesc { desc, .. } => Some(*desc),
+                    InstructionKind::WriteDesc { desc, .. }
+                    | InstructionKind::WriteAddress { address: desc, .. } => Some(*desc),
                     InstructionKind::ByteBufferReserve { buffer, .. }
                     | InstructionKind::ByteBufferPush { buffer, .. }
                     | InstructionKind::ByteBufferTruncate { buffer, .. }
@@ -418,7 +419,7 @@ pub(super) fn check(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Summary>> {
-    if !b.head_descriptions {
+    if !b.head_descriptions && !b.invocation_callbacks {
         return Ok(Vec::new());
     }
     pay(b, module.functions.len())?;

@@ -726,10 +726,16 @@ fn bind_lir(
                 ty.is_copy_value()
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
+        let invocation_signature = closure.lending_captures.is_empty()
+            && matches!(&closure.result,Type::Address{inner,..} if inner.is_address_pointee())
+            && closure
+                .parameters
+                .iter()
+                .any(|p| matches!(p, Type::Address { .. }));
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || closure.result.is_copy_value()
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
             || (!closure.lending_captures.is_empty()
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
@@ -737,7 +743,6 @@ fn bind_lir(
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
-                    || ty.is_shared_sync_cell_address()
                     || ty.is_shared_sync_cell_address()
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     // The exact capability/LIR comparison above already binds
@@ -752,7 +757,7 @@ fn bind_lir(
             })
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
-                    || (closure.result.is_copy_value()
+                    || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
         {

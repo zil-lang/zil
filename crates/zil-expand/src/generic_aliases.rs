@@ -793,6 +793,43 @@ impl Check<'_, '_, '_> {
                 }
                 sources = Some(allowed);
             }
+            let mut invocation_only = false;
+            if self.higher_rank
+                && let ExprKind::Call { callee, .. } = &expression.kind
+                && let Some(name) = stores::call_name(callee)
+                && let Some(local) = state.locals.get(name)
+                && let Some(scope) = &self.callable
+            {
+                for bound in scope.bindings() {
+                    self.budget.text(&bound.generic_name, span)?;
+                    self.budget.ty(&local.ty)?;
+                }
+            }
+            if self.higher_rank
+                && let ExprKind::Call { callee, arguments } = &expression.kind
+                && let Some(name) = stores::call_name(callee)
+                && let Some(local) = state.locals.get(name)
+                && let Some(bound) = self.callable.as_ref().and_then(|scope| {
+                    scope.bindings().find(|bound| {
+                        callable::parameter_mode(&local.ty, &bound.generic_name).is_some()
+                    })
+                })
+                && let Some(life) = &bound.life
+            {
+                self.budget.node(span, 0)?;
+                let mut allowed = BTreeSet::new();
+                for (index, parameter) in bound.parameters.iter().enumerate() {
+                    self.budget.node(arguments[index].span, 0)?;
+                    if life.result_life.is_some()
+                        && life.parameter_lives[index] == life.result_life
+                        && matches!(group(parameter).kind, TypeKind::Reference{mutable: input_mutable,..} if !mutable || input_mutable)
+                    {
+                        allowed.insert(index);
+                    }
+                }
+                sources = Some(allowed);
+                invocation_only = true;
+            }
             self.alias_fee(
                 self.aliases
                     .active
@@ -808,7 +845,7 @@ impl Check<'_, '_, '_> {
                 if sources.as_ref().is_some_and(|allowed| {
                     parent
                         .argument
-                        .is_some_and(|index| !allowed.contains(&index))
+                        .map_or(invocation_only, |index| !allowed.contains(&index))
                 }) {
                     continue;
                 }

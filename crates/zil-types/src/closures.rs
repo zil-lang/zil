@@ -207,10 +207,16 @@ impl Capture {
         }
     }
     pub fn mutable_call(&self) -> bool {
-        if matches!(self.stored_type(), Type::Desc(_)) {
+        // The stored type's outer mode is determined by these flags; querying
+        // it does not need to clone the captured payload tree.
+        if matches!(self.ty, Type::Desc(_)) || (!self.moved && matches!(self.ty, Type::Managed(_)))
+        {
             return false;
         }
-        self.written || matches!(self.stored_type(), Type::Address { mutable: true, .. })
+        self.written
+            || (self.moved
+                && !self.borrowed
+                && matches!(self.ty, Type::Address { mutable: true, .. }))
     }
 }
 
@@ -240,10 +246,11 @@ impl Pending {
     }
     pub fn owns_resources(&self) -> bool {
         self.captures.iter().any(|capture| {
-            matches!(
-                capture.stored_type(),
-                Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            )
+            if matches!(capture.ty, Type::Managed(_)) {
+                capture.moved
+            } else {
+                !capture.borrowed && matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+            }
         })
     }
 }
@@ -647,11 +654,26 @@ impl State {
         self.work_left
     }
 
-    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>)> {
+    pub fn finish(self) -> R<(Vec<ClosureDefinition>, Vec<TypedFunction>, usize)> {
+        let mut remaining = self.work_left;
         let mut definitions = Vec::new();
         let mut functions = Vec::new();
         for mut pending in self.pending {
-            let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+            let (parameters, result) =
+                pending
+                    .inference
+                    .resolve_shared(true, pending.span, &mut remaining)?;
+            remaining = remaining
+                .checked_sub(pending.captures.len().saturating_add(1))
+                .ok_or_else(|| limit("completed closure metadata budget exceeded", pending.span))?;
+            for capture in &pending.captures {
+                pending
+                    .inference
+                    .graph
+                    .thread_query(&mut remaining, |graph| {
+                        graph.reserve_type(&capture.ty, 0, capture.span)
+                    })?;
+            }
             let kind = pending.callable_kind();
             let typed = pending.typed.ok_or_else(|| {
                 error(
@@ -682,7 +704,7 @@ impl State {
         }
         functions.extend(self.helper_functions);
         functions.sort_by_key(|function| function.id);
-        Ok((definitions, functions))
+        Ok((definitions, functions, remaining))
     }
 }
 
@@ -708,6 +730,8 @@ pub(super) fn signature_parameter(ty: &Type) -> bool {
 pub(super) fn supported_signature(parameters: &[Type], result: &Type) -> bool {
     parameters.iter().all(signature_parameter)
         && (result.is_copy_value()
+            || (borrowed_fp::invocation(parameters, result)
+                && matches!(result,Type::Address{inner,..} if inner.is_address_pointee()))
             || (parameters.iter().all(Type::is_copy_value) && lending::supported_result(result)))
 }
 /// Ordinary owned data signatures are deliberately separate from the retained
@@ -1679,6 +1703,19 @@ impl Inference {
             }
         }
         Ok(true)
+    }
+    fn resolve_shared(
+        &mut self,
+        defaults: bool,
+        span: Span,
+        remaining: &mut usize,
+    ) -> R<(Vec<Type>, Type)> {
+        let original = self.graph.work_left.get();
+        let allowance = original.min(*remaining);
+        self.graph.work_left.set(allowance);
+        let result = self.resolve(defaults, span);
+        self.graph
+            .thread_finish(original, allowance, remaining, result)
     }
     pub fn resolve(&mut self, defaults: bool, span: Span) -> R<(Vec<Type>, Type)> {
         self.resolve_inner(defaults, None, span)

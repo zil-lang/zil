@@ -125,7 +125,7 @@ fn signatures(
     let mut signatures = BTreeMap::new();
     let mut foreign_work = limits.max_analysis_steps;
     let mut concrete_index = 0usize;
-    for f in &core.functions {
+    'function: for f in &core.functions {
         if let Some(life) = &f.life {
             foreign_work = foreign_work
                 .checked_sub(
@@ -152,16 +152,6 @@ fn signatures(
                     Some(f.span),
                 )]
             })?;
-        if f.callable_parameters
-            .iter()
-            .any(|bound| bound.life.is_some())
-        {
-            errors.push(unsupported(
-                f.span,
-                "higher-rank callable life contracts require the complete life consumer",
-            ));
-            continue;
-        }
         if f.callable_parameters.is_empty()
             && f.type_parameters.is_empty()
             && f.state_parameters.is_empty()
@@ -174,6 +164,22 @@ fn signatures(
         }
         if let Err(diagnostic) = retained::validate_factory(f) {
             errors.push(diagnostic);
+        }
+        for bound in &f.callable_parameters {
+            if let Some(life) = &bound.life {
+                let cost = borrowed_fp::metadata_work(life);
+                foreign_work = match foreign_work.checked_sub(cost) {
+                    Some(left) => left,
+                    None => {
+                        errors.push(Diagnostic::limit(
+                            Phase::Types,
+                            "higher-rank callable header budget exceeded",
+                            Some(f.span),
+                        ));
+                        continue 'function;
+                    }
+                };
+            }
         }
         if let Err(diagnostic) = helpers::validate_template(f, &mut |ty, span| {
             let work = inference::type_snapshot_work(
@@ -466,13 +472,12 @@ pub fn check(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
-    let mut task_work = closure_state.remaining_work();
-    let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
+    let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resource_definitions, &mut task_work)
+    tasks::add_definition(&functions, &mut resource_definitions, &mut remaining)
         .map_err(|e| vec![e])?;
-    registration::add_definitions(&functions, &mut resource_definitions, &mut task_work)
+    registration::add_definitions(&functions, &mut resource_definitions, &mut remaining)
         .map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resource_definitions, limits)
         .map_err(|e| vec![e])?;
@@ -494,7 +499,7 @@ pub fn check(
         closures,
         unsupported: vec![],
     };
-    lending::populate(&mut module, limits).map_err(|e| vec![e])?;
+    lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
     Ok(module)
 }
 struct Builder<'a, 'c> {
@@ -2737,7 +2742,10 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
         } else if let Some(local) = existing_place
             && (self.owned_closure(&self.function.locals[local.0 as usize].ty)
-                || self.lending_closure(&self.function.locals[local.0 as usize].ty)?
+                || self.lending_closure(match self.function.locals[local.0 as usize].ty {
+                    Type::Closure(id) => Some(id),
+                    _ => None,
+                })?
                 || (self.forwarding_modes && declared_capture.is_some())
                 || matches!(&self.function.locals[local.0 as usize].ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
         {
@@ -2795,7 +2803,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             )
         });
         let owns_resources = self.closures.pending[id.0 as usize].owns_resources();
-        let lends = self.lending_closure(&Type::Closure(id))?;
+        let lends = self.lending_closure(Some(id))?;
         if lends
             && (kind == CallableKind::FnOnce
                 || (existing_place.is_none() && borrowed_callee.is_none()))

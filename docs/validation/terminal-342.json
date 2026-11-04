@@ -2,48 +2,18 @@
   "task": "342",
   "status": "MilestoneInProgress",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
-  "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress",
+  "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress; finite HRTB callback invocation relations",
   "tests": {
-    "cross_function_borrows": {
-      "passed": 57,
-      "failed": 0
-    },
-    "generic_regressions": {
-      "passed": 35,
-      "failed": 0
-    },
-    "impl197_mixed_state": {
-      "passed": 14,
-      "failed": 0
-    },
-    "review184_storage": {
-      "passed": 4,
-      "failed": 0
-    },
-    "impl200_independent": {
-      "passed": 10,
-      "failed": 0
-    },
-    "impl033": {
-      "passed": 10,
-      "failed": 0
-    },
-    "impl260_compiler": {
-      "passed": 37,
-      "failed": 0
-    },
-    "impl099_owned_bytes": {
-      "passed": 9,
-      "failed": 0
-    },
-    "impl099_owned_bytes_native": {
-      "passed": 7,
-      "failed": 0
-    },
-    "impl172_owned_store": {
-      "passed": 18,
-      "failed": 0
-    }
+    "cross_function_borrows": 70,
+    "generic_regressions": 35,
+    "impl033": 10,
+    "impl099_owned_bytes": 9,
+    "impl099_owned_bytes_native": 7,
+    "impl172_owned_store": 18,
+    "impl197_mixed_state": 14,
+    "impl200_independent": 10,
+    "impl260_compiler": 37,
+    "review184_storage": 4
   },
   "expected_migration": {
     "source": "tests/language-readiness/mutable337/known-incomplete-unused-generic.zil",
@@ -104,8 +74,14 @@
     "342_resource_head_phase_n": [
       296,
       391,
-      15016,
+      15018,
       19227
+    ],
+    "342_hrtb_storage_phase_n": [
+      1514,
+      530,
+      11724,
+      12330
     ]
   },
   "native_342_mixed_mutable": {
@@ -129,7 +105,7 @@
   },
   "clippy_affected_targets_llvm_api": "Pass",
   "known_incomplete": [
-    "Generic higher-rank Fn definition obligations",
+    "canonical generic ForLifetime type keys",
     "borrow storage and general lending",
     "explicit dyn",
     "general section 5.2 state"
@@ -138,7 +114,8 @@
   "independent_review": {
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
     "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
-    "resource_heads": "976c7e7db first replay passed8; independent scoped-body finding reproduced and corrected, new clean review pending"
+    "resource_heads": "PassLimited 4365536a4 exact ec1d9e904; root SyncCell followup separately reviewed58ab47a4d",
+    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -229,11 +206,7 @@
     "scope": "Actual mutable nested finite Product AddressField; stored borrowed leaves remain in progress",
     "production_files": 351,
     "production_sha256": "262fad55300f48b1d9c034bcc4148ef390afdba33a0d70435204577b854486f5",
-    "production_recipe": {
-      "algorithm": "SHA256 of sorted relative UTF-8 path + NUL + exact bytes + NUL, for tracked/untracked crates/*/src/*.rs recursively, all Cargo.toml, Cargo.lock, lib/**/*.zil and crates/zil-llvm-api/build.rs",
-      "file_count": 351,
-      "sha256": "23f77117c7d181841e4e280286f8a0fd11bedce42a5e12b83389ad5f0ecbe022"
-    },
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
     "fixture": "tests/language-readiness/terminal/342/nested_product.zil",
     "fixture_sha256": "2164f8bd6ad4266c8f3588eb0f0473dd14de967bbba404fde4faacef7fb8d9e8",
     "test_file": "tests/language-readiness/terminal/342/resource_head.rs",
@@ -280,5 +253,279 @@
       "342-nested-product-clippy.log": "428f12c918c35fc0a58a04249565e15da60186d58bef501d3aca78487ed21937"
     },
     "independent_review": "PassLimitedDelta 8808a1fa6; HRTB accounting remains separately open"
+  },
+  "higher_rank_callbacks": {
+    "status": "AuthorScopedPassWithTwoLegacyWireFixtureMismatches",
+    "scope": "Finite explicit invocation-local HRTB Fn/FnMut/FnOnce; fixed environment Hold separate; general stored-borrow/State/lending/dyn remain in progress",
+    "base_commit": "92b8fc2e82019b5841ae6dd63cff3f375ad21e56",
+    "authority_main_commit_at_receipt": "5632c4b7daf7586547c321cf9c8a80f3e33ba939",
+    "production_binding": {
+      "algorithm": "SHA256 of sorted relative UTF-8 path + NUL + exact bytes + NUL, for tracked/untracked crates/*/src/*.rs recursively, all Cargo.toml, Cargo.lock, lib/**/*.zil and crates/zil-llvm-api/build.rs",
+      "file_count": 351,
+      "sha256": "23f77117c7d181841e4e280286f8a0fd11bedce42a5e12b83389ad5f0ecbe022"
+    },
+    "focused_test_source": {
+      "path": "tests/language-readiness/terminal/342/higher_rank.rs",
+      "sha256": "d70fc91c684370c61e6fd716297ff79f4f26a8ca2853f3d82ccc501329210288"
+    },
+    "original_fixture": {
+      "path": "tests/language-readiness/recovery/pending/life-higher-rank.zil",
+      "sha256": "5dd950ccf7145c6362ace96ae3b5297784a1f602df1928dc5a786bbf327f611f",
+      "source_unchanged": true,
+      "old": "Expand/Unsupported/E-UNSUPPORTED",
+      "new": "Success/Verify and native exit0"
+    },
+    "harness": {
+      "path": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+      "sha256": "59225b1025574c67449b13762b997b33427088e03302009f7202df8f65f3538b",
+      "final_replay": "67 pass, 0 fail, no ignored/filtered"
+    },
+    "ten_existing_driver_targets": {
+      "cross_function_borrows": 67,
+      "generic_regressions": 35,
+      "impl033": 10,
+      "impl099_owned_bytes": 9,
+      "impl099_owned_bytes_native": 7,
+      "impl172_owned_store": 18,
+      "impl197_mixed_state": 14,
+      "impl200_independent": 10,
+      "impl260_compiler": 37,
+      "review184_storage": 4
+    },
+    "unit_consumers": {
+      "zil_types": {
+        "passed": 32,
+        "failed": 0
+      },
+      "zil_verify": {
+        "passed": 344,
+        "failed": 0
+      },
+      "zil_analyze": {
+        "passed": 122,
+        "failed": 2,
+        "failure": "Unchanged impl253_fixtures/v34 frozen bytes rejected E-WIRE-VERSION by current Wire36; parent owns unified historical codec migration",
+        "names": [
+          "forward::tests::reviewed_capture_bodies_are_window_roots_with_and_without_consumer_edges",
+          "forward::tests::reviewed_ordinary_arguments_and_symbolic_copy_authority_raw_wire"
+        ]
+      }
+    },
+    "native": {
+      "ordinary_sources": 13,
+      "ordinary_profiles": 52,
+      "unchanged_original_profiles": 4,
+      "owned_failure_and_success_profiles": 8,
+      "total": 64,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "owned_failure_observation": {
+        "attempts": 2,
+        "releases": 1,
+        "live": 0,
+        "calls": 0,
+        "stdout": "10200\n"
+      },
+      "owned_success_observation": {
+        "attempts": 2,
+        "releases": 2,
+        "live": 0,
+        "calls": 1,
+        "stdout": "1020200\n"
+      },
+      "fault_observer_sha256": "658bad6fad8c799aabb976778781c0ec73e7048ad5a2131e602e388b3bfb2b7b"
+    },
+    "budget": {
+      "hrtb_storage_phase_n": [
+        1514,
+        526,
+        11700,
+        12306
+      ],
+      "n_minus_one_resource_limit": true,
+      "fresh_n_identical": true,
+      "default_limits_changed": false,
+      "legacy_resource_head_analyze": [
+        15016,
+        15018
+      ],
+      "legacy_verify_shared_product_store_direct": [
+        15662,
+        15663
+      ],
+      "legacy_verify_shared_product_store_indirect": [
+        18453,
+        18455
+      ],
+      "reason": "actual path-map comparisons and closure capture-root preservation prepaid on existing shared ledger"
+    },
+    "raw_and_decoded_wire": [
+      "each role independently, including same ClosureId",
+      "canonical dense/gap/oversized relation",
+      "fixed capture cannot supply invocation result",
+      "simultaneous mutable actual target alias",
+      "stale parent write while returned child remains live",
+      "nested borrowed Desc/capture path substitution"
+    ],
+    "cache_and_interface": [
+      "live and restored current body/relation recheck",
+      "numeric/null JSON relation",
+      "alpha renaming/reordered/vacuous binders retain semantic signature and contract identity",
+      "changed actual relation changes signature and contract identity"
+    ],
+    "clippy": "ten existing driver targets, llvm-api, -D warnings: Pass",
+    "schema": {
+      "typed": 36,
+      "wire": 36,
+      "callable_contract": 5,
+      "fresh_full_producer_consumer_rebuild": "342-hrtb-schema36-paths.log; same-content mtime refresh before build"
+    },
+    "logs": [
+      {
+        "name": "342-hrtb-schema36-paths.log",
+        "sha256": "b7bcf0924f9b5e9f8d3a9b6d0da15c2ad666cf3b5bf169c9fe0080bdf568fc57"
+      },
+      {
+        "name": "342-hrtb-mtime-refresh.json",
+        "sha256": "7ae21bdcd9965d4a4317a4bc2e582d41e797b54b90a2ab15300ea2d314c518c7"
+      },
+      {
+        "name": "342-hrtb-complete-tests.log",
+        "sha256": "d979b64655e2427b5ef20a82ebded692989b7852792e5b48e93d0b07f0778e38"
+      },
+      {
+        "name": "342-hrtb-cross-final.log",
+        "sha256": "717f0a976c648d54ca001eb6e476438404c24faf2ca33f086da8c0477433cbdb"
+      },
+      {
+        "name": "342-hrtb-clippy.log",
+        "sha256": "c5abee9e2308cc3bedeb69d4e85beec1a2390f4bb40f97e63960d98b0c313893"
+      },
+      {
+        "name": "342-hrtb-clippy-final.log",
+        "sha256": "9c93e3fb272ada39386645107615eee48773c484d2e6ebe45efb0643526d16df"
+      },
+      {
+        "name": "342-hrtb-kernel-units.log",
+        "sha256": "a930841a94ab46995482980cf71eb6e3518df466afccd0412a61f085e8a19363"
+      },
+      {
+        "name": "342-hrtb-types-verify-units.log",
+        "sha256": "8902f10801f3e9cd295d136d021ef299b856008b183b2328d214412f53d7e6e2"
+      },
+      {
+        "name": "342-hrtb-types-verify-units-final.log",
+        "sha256": "c4261af2806b6409471a09cb7040af0848074b22006f709925045475d465be54"
+      },
+      {
+        "name": "342-hrtb-owned-failure.log",
+        "sha256": "c60e7041404e41ae0c67b1a46b4280c2544e8454f7f1564fb1371a3acd036d05"
+      },
+      {
+        "name": "342-hrtb-shared-product-budget.log",
+        "sha256": "9de5d44d0e55ba734ee09eb4d1cff57a68d2ff801b7505e7d422d4b2b7bdc7d3"
+      }
+    ],
+    "independent_review": "PassLimited d5b3b25e6 exact13677, fee finding retained for corrected candidate",
+    "integration_obligations": [
+      "root WithSyncCell actual body/head/capture/effects repair",
+      "343 actual Suspend exclusion for ordinary and borrowed FunctionRef",
+      "root unified Wire36/37 and old frozen fixture migrations"
+    ],
+    "next_obligations": [
+      "canonical generic ForLifetime keys remain explicitly Unsupported",
+      "uniform storage place/life contract",
+      "general stored borrows/State/lending",
+      "explicit dyn"
+    ],
+    "formal_full_suite": "NotRunByImplementationAuthor"
+  },
+  "higher_rank_signature_fee_correction": {
+    "status": "AuthorScopedPass",
+    "base_commit": "00c7dcafb",
+    "scope": "Independent per-role actual signature prepayment; shallow fixed-point invocation trigger plus paid original finite header admission; raw mixed Core depth/work ordering",
+    "production_files": 351,
+    "production_sha256": "eb7453da08420c8e4451bb479455be7f24c27baab9359ad11cee4f0c738e2e1d",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "test_file": "tests/language-readiness/terminal/342/higher_rank.rs",
+    "test_sha256": "899770f3284a437509b07c14b87a7061b767547f855939f1b2d08c25ffa38681",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "4930f2be53be4fd89107c5145fc7c3c1c0a8fac5ade89110549b526a71103ac7",
+    "final_exact_ten_driver_targets": [
+      70,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "focused_hrtb": {
+      "passed": 12,
+      "failed": 0,
+      "native_profiles": 64
+    },
+    "phase_n": {
+      "hrtb_storage": [
+        1514,
+        530,
+        11724,
+        12330
+      ],
+      "deep_wide_pointee_types_analyze_verify": [
+        15796,
+        31925,
+        72533
+      ]
+    },
+    "n_minus_one_resource_limit": true,
+    "fresh_n_equal": true,
+    "decoded_wire_exact_n_equal": true,
+    "default_limits_changed": false,
+    "old_known_controls_unchanged": true,
+    "new_raw_controls": [
+      "no-role ordinary invocation result Package fails finite pointee header boundary in Analyze/Verify/decodedWire",
+      "raw mixed State/callable deep32 against max_call_depth16 ResourceLimit before eligibility",
+      "raw mixed State/callable wide256 against max_analysis_steps128 ResourceLimit before eligibility"
+    ],
+    "unit_consumers": {
+      "zil_types": {
+        "passed": 32,
+        "failed": 0
+      },
+      "zil_verify": {
+        "passed": 344,
+        "failed": 0
+      },
+      "zil_analyze": {
+        "passed": 122,
+        "failed": 0,
+        "filtered": 2,
+        "reason": "Previously recorded frozenWire34 fixtures mismatch current36; parent-owned unified fixture migration, explicit scoped exclusion, not counted passed"
+      }
+    },
+    "clippy": "exact ten existing driver targets llvm-api -D warnings Pass",
+    "logs": {
+      "342-hrtb-signature-fees-first.log": "63d3c7b62f4bbd405bf6d499db8762bf6b84394bcf6c1ef2a3c955d6912c201e",
+      "342-hrtb-signature-deep.log": "944a67e764018044de2c109c05734203ee759c339bd0ec97f31d8d734d179720",
+      "342-hrtb-signature-final.log": "4633b55ee56f00c0d85f0f4d3284f48c5d2a8c294ac03a0e9d640e6f7251142b",
+      "342-hrtb-signature-raw-final.log": "fc0f9650436341eea947f950bb16f9f106f831f4196946262dc9a45f9d6dfeda",
+      "342-hrtb-signature-clippy.log": "447266249386c19f7ee4d1fda884f6543426faf1ab017bfff7d91d222f940116",
+      "342-hrtb-signature-cross-final.log": "e852c6473fac478b89793ad6610494046fa4cfebc76471779fd4b945309d92c5",
+      "342-hrtb-signature-types-verify.log": "c21c535a5f1c3ad5da1daea71a3bce4a8b390ac53e82bd51baebefef6d6480c0",
+      "342-hrtb-signature-analyze-scoped.log": "cf9afc6c0d1787266a4bafb6b41908c466b284278b5dd04a31a2502b526e4c5e",
+      "342-hrtb-signature-exact.log": "682428150348c4092c876da4cf3b3ca3373d5f9fd231def3097caffd085d37ee"
+    },
+    "independent_review": "Pending exact corrected candidate; original13677 PassLimited d5b3b25e6 retained open signature-fee finding",
+    "formal_full_suite": "NotRunByImplementationAuthor"
   }
 }

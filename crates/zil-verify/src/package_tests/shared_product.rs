@@ -577,8 +577,9 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             minima.push(hi);
         }
         assert_eq!(minima[0], minima[1]);
-        // The two owning/local controls were independently measured against
-        // d3b7b29b's unchanged Verify using these exact public candidates.
+        // Original controls were measured against d3b7b29b. HRTB's actual
+        // closure capture-root preservation charges Store false/true +1/+2;
+        // these exact public candidates and N-1/fresh checks remain unchanged.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));
             recorded.push((label, expected));

@@ -149,6 +149,9 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if let Some(life) = &bound.life {
+        budget.work(borrowed_fp::metadata_work(life), span)?;
+    }
     budget.work(
         bound
             .generic_name
@@ -156,10 +159,19 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
             .saturating_add(bound.parameters.len()),
         span,
     )?;
+    let before = budget.work;
     for ty in &bound.parameters {
         validate_type(ty, 0, span, budget)?;
     }
-    validate_type(&bound.result, 0, span, budget)
+    validate_type(&bound.result, 0, span, budget)?;
+    if let Some(life) = &bound.life {
+        // The local depth/work walk must precede recursive eligibility even on
+        // raw mixed State/callable headers. Its complete cost also bounds the
+        // ensuing eligibility traversal; reserve that second use explicitly.
+        budget.work(before - budget.work, span)?;
+        borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+    }
+    Ok(())
 }
 
 fn state_snapshot(states: &[CoreStateParameter], span: Span, budget: &mut Budget<'_>) -> R<()> {
@@ -577,12 +589,6 @@ fn headers(
                     .saturating_add(1),
                 function.span,
             )?;
-            if bound.life.is_some() {
-                return Err(unsupported(
-                    function.span,
-                    "higher-rank callable life contracts require the complete life consumer",
-                ));
-            }
             for ty in &bound.parameters {
                 validate_type(ty, 0, function.span, budget)?;
             }
@@ -4759,8 +4765,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         if return_type.as_ref().is_some_and(|t| {
             !(t.is_copy_value()
                 || lending::supported_result(t)
-                || (matches!(expected, Some(Type::BorrowedFunctionPointer { .. }))
-                    && matches!(t, Type::Address { inner, .. } if inner.is_address_pointee()))
+                || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                 || closures::owned_signature_head(t))
         }) || parameters.iter().any(|p| {
             p.ty.as_ref().is_some_and(|t| {

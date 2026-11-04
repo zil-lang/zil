@@ -132,3 +132,46 @@ pub(super) fn function_reference(
     }
     Ok(Some(expected.expect("borrowed pointer context").clone()))
 }
+
+/// A concrete call returns only invocation input storage in this profile.
+/// This classifier triggers a full actual-return proof; it grants no origins.
+pub(super) fn invocation(parameters: &[Type], result: &Type) -> bool {
+    matches!(result, Type::Address { .. })
+        && parameters.iter().any(|p| matches!(p, Type::Address { .. }))
+}
+
+pub(super) fn invocation_call<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    kind: &'a InstructionKind,
+    mut charge: impl FnMut(usize) -> R<()>,
+) -> R<Option<(&'a ClosureDefinition, &'a [ValueId])>> {
+    let selected = (|| {
+        let (ty, args) = match kind {
+            InstructionKind::CallClosure { callee, arguments }
+            | InstructionKind::CallClosureOnce { callee, arguments }
+            | InstructionKind::CallClosureBorrowed {
+                callee, arguments, ..
+            } => (f.values.get(callee.0 as usize)?, arguments),
+            InstructionKind::CallClosureShared { callee, arguments }
+            | InstructionKind::CallClosureMut { callee, arguments } => {
+                (&f.locals.get(callee.0 as usize)?.ty, arguments)
+            }
+            _ => return None,
+        };
+        let ty = if let Type::Address { inner, .. } = ty {
+            inner.as_ref()
+        } else {
+            ty
+        };
+        let Type::Closure(id) = ty else { return None };
+        let d = module.closures.get(id.0 as usize)?;
+        (d.lending_captures.is_empty() && matches!(d.result, Type::Address { .. }))
+            .then_some((d, args.as_slice()))
+    })();
+    let Some((d, args)) = selected else {
+        return Ok(None);
+    };
+    charge(d.parameters.len())?;
+    Ok(invocation(&d.parameters, &d.result).then_some((d, args)))
+}

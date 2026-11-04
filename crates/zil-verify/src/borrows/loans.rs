@@ -180,128 +180,147 @@ fn reconstruct(
                     let id = result.0 as usize;
                     let mut row = Loans::new();
                     let mut parents = Loans::new();
-                    match &instruction.kind {
-                        InstructionKind::BorrowLocal { local }
-                        | InstructionKind::BorrowLocalMut { local } => {
-                            row.insert(id);
-                            if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
-                                // The new loan qualifies the environment position.
-                                // Its captured loans retain their own permissions.
-                                flow.roots[id] = vec![Root::Local(*local)];
-                                if let Some(held) = state.get(local) {
-                                    join(&mut row, held, budget)?;
-                                }
+                    if let Some((_, arguments)) =
+                        borrowed_fp::invocation_call(module, f, &instruction.kind)
+                    {
+                        row.insert(id);
+                        for argument in arguments {
+                            if overlaps(
+                                &facts.values[id],
+                                &facts.values[argument.0 as usize],
+                                budget,
+                            )? {
+                                join(&mut parents, &flow.values[argument.0 as usize], budget)?;
                             }
                         }
-                        InstructionKind::ByteBufferBorrow { buffer, .. }
-                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
-                            if budget.head_descriptions =>
-                        {
-                            row.insert(id);
-                            join(&mut parents, &flow.values[buffer.0 as usize], budget)?;
-                        }
-                        InstructionKind::ByteBufferBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrow { .. }
-                        | InstructionKind::OwnedStoreBorrowMut { .. }
-                        | InstructionKind::BorrowOwnedArrayElement { .. }
-                        | InstructionKind::BorrowPackageField { .. }
-                        | InstructionKind::BorrowVariantLocal { .. }
-                        | InstructionKind::BorrowFieldLocal { .. } => {
-                            row.insert(id);
-                        }
-                        InstructionKind::BorrowCapture { .. }
-                        | InstructionKind::ReadCapture { .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                        }
-                        InstructionKind::BorrowVariantAddress { address, .. } => {
-                            row.insert(id);
-                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::ReborrowAddress { address, .. } => {
-                            row.insert(id);
-                            let source = &flow.values[address.0 as usize];
-                            if flow.environment[id] {
-                                // Reborrow the environment position only. Its
-                                // external captures retain their own loans and
-                                // cannot become delegated position authority.
-                                let positions = environment_loans(&flow, source, budget)?;
-                                flow.roots[id].clear();
-                                for loan in &positions {
-                                    budget.spend(flow.roots[*loan].len())?;
-                                    let roots = flow.roots[*loan].clone();
-                                    roots_join(&mut flow.roots[id], &roots, budget)?;
-                                }
-                                join(&mut parents, &positions, budget)?;
-                                for loan in source {
-                                    budget.spend(1)?;
-                                    if !flow.environment[*loan] {
-                                        row.insert(*loan);
+                    } else {
+                        match &instruction.kind {
+                            InstructionKind::BorrowLocal { local }
+                            | InstructionKind::BorrowLocalMut { local } => {
+                                row.insert(id);
+                                if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
+                                    // The new loan qualifies the environment position.
+                                    // Its captured loans retain their own permissions.
+                                    flow.roots[id] = vec![Root::Local(*local)];
+                                    if let Some(held) = state.get(local) {
+                                        join(&mut row, held, budget)?;
                                     }
                                 }
-                            } else {
-                                join(&mut parents, source, budget)?;
                             }
-                        }
-                        InstructionKind::AddressField { address, .. }
-                            if flow.environment[id]
-                                && matches!(&f.values[address.0 as usize],
-                                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. })) =>
-                        {
-                            // A concrete callback field is a new environment
-                            // position derived from its actual element window.
-                            // Keep the conservative Store roots and its parent
-                            // loan: the later environment-only reborrow must
-                            // not discard this Package-to-Closure dependency.
-                            row.insert(id);
-                            join(&mut parents, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::DescribeAddress { address }
-                        | InstructionKind::AddressField { address, .. }
-                        | InstructionKind::AddressSlice { address, .. }
-                        | InstructionKind::AddressIndex { address, .. } => {
-                            join(&mut row, &flow.values[address.0 as usize], budget)?;
-                        }
-                        InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
-                            if let Some(source) = state.get(local) {
-                                join(&mut row, source, budget)?;
+                            InstructionKind::ByteBufferBorrow { buffer, .. }
+                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                                if budget.head_descriptions =>
+                            {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[buffer.0 as usize], budget)?;
                             }
-                        }
-                        InstructionKind::Call { arguments, .. }
-                        | InstructionKind::CallIndirect { arguments, .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                            for argument in arguments {
-                                if overlaps(
-                                    &facts.values[id],
-                                    &facts.values[argument.0 as usize],
-                                    budget,
-                                )? {
-                                    join(&mut parents, &flow.values[argument.0 as usize], budget)?;
+                            InstructionKind::ByteBufferBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrow { .. }
+                            | InstructionKind::OwnedStoreBorrowMut { .. }
+                            | InstructionKind::BorrowOwnedArrayElement { .. }
+                            | InstructionKind::BorrowPackageField { .. }
+                            | InstructionKind::BorrowVariantLocal { .. }
+                            | InstructionKind::BorrowFieldLocal { .. } => {
+                                row.insert(id);
+                            }
+                            InstructionKind::BorrowCapture { .. }
+                            | InstructionKind::ReadCapture { .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                            }
+                            InstructionKind::BorrowVariantAddress { address, .. } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::ReborrowAddress { address, .. } => {
+                                row.insert(id);
+                                let source = &flow.values[address.0 as usize];
+                                if flow.environment[id] {
+                                    // Reborrow the environment position only. Its
+                                    // external captures retain their own loans and
+                                    // cannot become delegated position authority.
+                                    let positions = environment_loans(&flow, source, budget)?;
+                                    flow.roots[id].clear();
+                                    for loan in &positions {
+                                        budget.spend(flow.roots[*loan].len())?;
+                                        let roots = flow.roots[*loan].clone();
+                                        roots_join(&mut flow.roots[id], &roots, budget)?;
+                                    }
+                                    join(&mut parents, &positions, budget)?;
+                                    for loan in source {
+                                        budget.spend(1)?;
+                                        if !flow.environment[*loan] {
+                                            row.insert(*loan);
+                                        }
+                                    }
+                                } else {
+                                    join(&mut parents, source, budget)?;
                                 }
                             }
-                        }
-                        InstructionKind::CallClosureShared { .. }
-                        | InstructionKind::CallClosureMut { .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                        }
-                        InstructionKind::CallClosureBorrowed { callee, .. }
-                            if matches!(f.values[id], Type::Address { .. }) =>
-                        {
-                            row.insert(id);
-                            join(&mut parents, &flow.values[callee.0 as usize], budget)?;
-                        }
-                        InstructionKind::MakeClosure { captures, .. } => {
-                            for capture in captures {
-                                join(&mut row, &flow.values[capture.0 as usize], budget)?;
+                            InstructionKind::AddressField { address, .. }
+                                if flow.environment[id]
+                                    && matches!(&f.values[address.0 as usize],
+                                    Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. })) =>
+                            {
+                                // A concrete callback field is a new environment
+                                // position derived from its actual element window.
+                                // Keep the conservative Store roots and its parent
+                                // loan: the later environment-only reborrow must
+                                // not discard this Package-to-Closure dependency.
+                                row.insert(id);
+                                join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
+                            InstructionKind::DescribeAddress { address }
+                            | InstructionKind::AddressField { address, .. }
+                            | InstructionKind::AddressSlice { address, .. }
+                            | InstructionKind::AddressIndex { address, .. } => {
+                                join(&mut row, &flow.values[address.0 as usize], budget)?;
+                            }
+                            InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                                if let Some(source) = state.get(local) {
+                                    join(&mut row, source, budget)?;
+                                }
+                            }
+                            InstructionKind::Call { arguments, .. }
+                            | InstructionKind::CallIndirect { arguments, .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                                for argument in arguments {
+                                    if overlaps(
+                                        &facts.values[id],
+                                        &facts.values[argument.0 as usize],
+                                        budget,
+                                    )? {
+                                        join(
+                                            &mut parents,
+                                            &flow.values[argument.0 as usize],
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
+                            InstructionKind::CallClosureShared { .. }
+                            | InstructionKind::CallClosureMut { .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                            }
+                            InstructionKind::CallClosureBorrowed { callee, .. }
+                                if matches!(f.values[id], Type::Address { .. }) =>
+                            {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[callee.0 as usize], budget)?;
+                            }
+                            InstructionKind::MakeClosure { captures, .. } => {
+                                for capture in captures {
+                                    join(&mut row, &flow.values[capture.0 as usize], budget)?;
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                     changed |= join(&mut flow.values[id], &row, budget)?;
                     changed |= join(&mut flow.parents[id], &parents, budget)?;
