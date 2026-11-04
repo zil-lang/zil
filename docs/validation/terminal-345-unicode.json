@@ -1,0 +1,60 @@
+{
+  "status": "PassLimitedAuthor_PendingIndependentReview",
+  "source_commit": "e792969c1e2dd99699e39df3d86eeb1b5bd9b2aa",
+  "production_commit": "e30e1a182",
+  "scope": "Ordinary UTF8 encode and String scalar edits; complete standard library/ZUI not claimed",
+  "commands": [
+    {
+      "command": "cargo test --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0,
+      "log_sha256": "376c2dd7c2697a28d29c8f1916ba4e1a05a643dbdb2c0ca0387e5cc3f1e387b7"
+    },
+    {
+      "command": "cargo clippy --locked --offline -p zil-driver --features llvm-api --test impl236_zui_core -- -D warnings",
+      "status": "Pass",
+      "log_sha256": "741b0c2928dfdf64aff9e45dc12eb84b975094e9007eca3eb0d89f22eef0f73c"
+    }
+  ],
+  "binding": {
+    "algorithm": "SHA256 of sorted path + NUL + file SHA256 + LF",
+    "paths": "Cargo.lock, Cargo.toml, tracked lib/**, crates/**/src/**, crate Cargo.toml/build.rs",
+    "production_file_count": 354,
+    "production_manifest_sha256": "17d254b0718bd7dc53c0d2cedfbca22e6f41414a0b1c656e95da6984622dd340",
+    "harness_path": "/workspace/.zil-env/target345/debug/deps/impl236_zui_core-2d3f00c5fb3281d6",
+    "harness_sha256": "c5bd82725881a50b781d8932d4130fb81f09be9283b7eafe4f272b98e3cf76a0"
+  },
+  "source_sha256": {
+    "lib/std/utf8.zil": "124dcaa153476dffb294f90b09e19734ee1ab61e662054d8665ab35d7e1cd813",
+    "lib/std/string.zil": "8f40863f822038a8736db940596e67d9e0e466dade2b2c862dacd3ec927a2693",
+    "tests/language-readiness/terminal/345/string_unicode.zil": "c2ae92ea5beb321c8600f4364367e5140e073871919ae541861fba83e77dff99",
+    "tests/language-readiness/terminal/345/library.rs": "fe935282350348fb49780d05504cb8ef086832d10d0a90215e21191558d0b787",
+    "crates/zil-driver/tests/impl236_zui_core.rs": "b0e73d2685b3d1dea5d8ec6960f8661abe72bce5ad1a272f78c7bc2b33963c59"
+  },
+  "native": {
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "unicode_profiles": 4,
+    "unicode_scalar_domain": "0..0x10FFFF excluding 0xD800..0xDFFF, actual encode/decode loop in each native executable",
+    "fallback": false
+  },
+  "controls": [
+    "Invalid scalar/out-of-range/surrogate and short output preserve sentinel bytes",
+    "Exact emoji bytes; owned substring remains independent after original truncation and clear",
+    "Error propagation checked through actual success marker; invalid requests preserve original length and capacity",
+    "Existing String, Store fault-injection cleanup and iterator consumers remain unchanged"
+  ],
+  "limitations": [
+    "No arbitrary borrowed substring/lending claim",
+    "No full Unicode normalization/grapheme/locale or complete collection claim",
+    "No native Windows or cost benchmark claim"
+  ]
+}
