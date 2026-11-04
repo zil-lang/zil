@@ -8,12 +8,14 @@ use std::collections::BTreeMap;
 enum Root {
     Local(LocalId),
     Field(LocalId, u32),
+    Projection(LocalId, u32, u32),
     Capture(u32),
     Parameter(u32),
     // A borrowed environment keeps these positions alive, but its pointer
     // addresses the environment itself. They are not additional pointees.
     RetainedLocal(LocalId),
     RetainedField(LocalId, u32),
+    RetainedProjection(LocalId, u32, u32),
     RetainedCapture(u32),
     RetainedParameter(u32),
 }
@@ -23,6 +25,7 @@ impl Root {
         match self {
             Self::RetainedLocal(local) => Self::Local(local),
             Self::RetainedField(local, index) => Self::Field(local, index),
+            Self::RetainedProjection(local, start, end) => Self::Projection(local, start, end),
             Self::RetainedCapture(index) => Self::Capture(index),
             Self::RetainedParameter(index) => Self::Parameter(index),
             root => root,
@@ -32,6 +35,7 @@ impl Root {
         match self.position() {
             Self::Local(local) => Self::RetainedLocal(local),
             Self::Field(local, index) => Self::RetainedField(local, index),
+            Self::Projection(local, start, end) => Self::RetainedProjection(local, start, end),
             Self::Capture(index) => Self::RetainedCapture(index),
             Self::Parameter(index) => Self::RetainedParameter(index),
             _ => unreachable!(),
@@ -181,6 +185,7 @@ fn shared_thread_window(
         return Ok(());
     };
     if !matches!(&f.values[argument.0 as usize], Type::Address { mutable: false, inner } if **inner == Type::I32)
+        && !f.values[argument.0 as usize].is_shared_sync_cell_address()
     {
         return Ok(());
     }
@@ -206,11 +211,13 @@ fn shared_thread_window(
         let supported = match root {
             Root::Local(_) => ty == Some(&Type::I32),
             Root::Parameter(_) => {
-                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                    || ty.is_some_and(Type::is_shared_sync_cell_address))
             }
             Root::Capture(_) => {
                 ty == Some(&Type::I32)
-                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                    || (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                        || ty.is_some_and(Type::is_shared_sync_cell_address))
             }
             _ => false,
         };
@@ -286,15 +293,115 @@ fn delegated(
     Ok(false)
 }
 
+fn root_overlap(a: Root, b: Root) -> bool {
+    match (a.position(), b.position()) {
+        (Root::Projection(x, a, b), Root::Projection(y, c, d)) => x == y && a < d && c < b,
+        (Root::Projection(x, ..), Root::Local(y) | Root::Field(y, _))
+        | (Root::Local(x) | Root::Field(x, _), Root::Projection(y, ..)) => x == y,
+        (a, b) => {
+            a == b
+                || matches!((a,b),(Root::Local(x),Root::Field(y,_))|(Root::Field(x,_),Root::Local(y)) if x==y)
+        }
+    }
+}
 fn overlaps(a: &Roots, b: &Roots, budget: &mut Budget) -> CompileResult<bool> {
-    budget.product(a.len(), b.len(), 1, "scoped actual storage overlap")?;
-    Ok(a.iter().any(|a| {
-        b.iter().any(|b| {
-            a.position() == b.position()
-                || matches!((a.position(), b.position()),
-        (Root::Local(x), Root::Field(y, _)) | (Root::Field(x, _), Root::Local(y)) if x == y)
-        })
-    }))
+    budget.product(a.len(), b.len(), 1, "actual storage interval overlap")?;
+    Ok(a.iter().any(|a| b.iter().any(|b| root_overlap(*a, *b))))
+}
+fn variant_root(
+    f: &TypedFunction,
+    local: LocalId,
+    path: &[VariantProjection],
+    budget: &mut Budget,
+) -> CompileResult<Root> {
+    fn size(t: &Type, b: &mut Budget) -> CompileResult<u32> {
+        b.spend(1, "payload interval node")?;
+        let mut total = 1u32;
+        let mut add = |child: &Type| -> CompileResult<()> {
+            total = total.checked_add(size(child, b)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "payload interval overflow",
+                    None,
+                )]
+            })?;
+            Ok(())
+        };
+        match t {
+            Type::Tuple(fs) => {
+                for t in fs {
+                    add(t)?
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, t) in fields {
+                    add(t)?
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fs) in variants {
+                    for t in fs {
+                        add(t)?
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(total)
+    }
+    let mut ty = &f.locals[local.0 as usize].ty;
+    let mut offset = 0u32;
+    for part in path {
+        let Type::Enum { variants, .. } = ty else {
+            return Err(bad("payload interval crosses non-Enum"));
+        };
+        offset = offset.checked_add(1).ok_or_else(|| {
+            vec![Diagnostic::limit(
+                Phase::Analyze,
+                "payload interval overflow",
+                None,
+            )]
+        })?;
+        for (_, fs) in variants.iter().take(part.variant as usize) {
+            for t in fs {
+                offset = offset.checked_add(size(t, budget)?).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Analyze,
+                        "payload interval overflow",
+                        None,
+                    )]
+                })?;
+            }
+        }
+        let fs = &variants
+            .get(part.variant as usize)
+            .ok_or_else(|| bad("payload interval tag outside declaration"))?
+            .1;
+        for t in fs.iter().take(part.index as usize) {
+            offset = offset.checked_add(size(t, budget)?).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Analyze,
+                    "payload interval overflow",
+                    None,
+                )]
+            })?;
+        }
+        ty = fs
+            .get(part.index as usize)
+            .ok_or_else(|| bad("payload interval field outside declaration"))?;
+    }
+    let end = offset.checked_add(size(ty, budget)?).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Analyze,
+            "payload interval overflow",
+            None,
+        )]
+    })?;
+    Ok(if path.is_empty() {
+        Root::Local(local)
+    } else {
+        Root::Projection(local, offset, end)
+    })
 }
 
 fn scoped_captures_address(
@@ -598,7 +705,8 @@ fn scoped_transition(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. } => Some(local),
-        InstructionKind::BorrowPackageField { local, .. }
+        InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
@@ -1007,12 +1115,10 @@ fn store_window_transition(
             1,
             "captured Store window overlap",
         )?;
-        if changed.iter().any(|changed| {
-            held.iter().any(|root| {
-                changed.position() == root.position()
-                    || matches!((changed.position(), root.position()), (Root::Local(a), Root::Field(b, _)) if a == b)
-            })
-        }) {
+        if changed
+            .iter()
+            .any(|changed| held.iter().any(|root| root_overlap(*changed, *root)))
+        {
             if parameter_windows {
                 return Err(window_conflict(
                     instruction,
@@ -1298,6 +1404,10 @@ fn infer_with_private(
                     InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                         found.insert(Root::Local(*local));
                     }
+                    InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        budget.spend(path.len().saturating_add(1), "payload borrow root")?;
+                        found.insert(variant_root(f, *local, path, budget)?);
+                    }
                     InstructionKind::BorrowPackageField { local, index, .. } => {
                         // The checked instruction borrows this actual inline
                         // field. Keep sibling fields separate for private
@@ -1535,8 +1645,10 @@ fn infer_with_private(
             coarse.insert(match root {
                 Root::Local(local)
                 | Root::Field(local, _)
+                | Root::Projection(local, ..)
                 | Root::RetainedLocal(local)
-                | Root::RetainedField(local, _) => HoldRoot::Local(local),
+                | Root::RetainedField(local, _)
+                | Root::RetainedProjection(local, ..) => HoldRoot::Local(local),
                 Root::Capture(index) | Root::RetainedCapture(index) => HoldRoot::Capture(index),
                 Root::Parameter(index) | Root::RetainedParameter(index) => {
                     HoldRoot::Parameter(index)
@@ -1750,6 +1862,7 @@ fn product_may_store_write(
                         InstructionKind::CallClosure { callee, .. }
                         | InstructionKind::CallClosureOnce { callee, .. }
                         | InstructionKind::WithScopedThread { body: callee, .. }
+                        | InstructionKind::WithSyncCell { body: callee, .. }
                         | InstructionKind::CallClosureBorrowed { callee, .. } => {
                             Some(&function.values[callee.0 as usize])
                         }
@@ -1802,7 +1915,7 @@ fn product_parameter_of(
 ) -> CompileResult<Option<u32>> {
     match root.position() {
         Root::Parameter(index) => Ok(Some(index)),
-        Root::Local(local) | Root::Field(local, _) => {
+        Root::Local(local) | Root::Field(local, _) | Root::Projection(local, ..) => {
             budget.spend(function.parameters.len(), "Product actual parameter lookup")?;
             Ok(function
                 .parameters
@@ -2266,6 +2379,7 @@ fn parameter_product_windows(
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. } => {
                         Some(&f.values[callee.0 as usize])
                     }

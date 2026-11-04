@@ -480,9 +480,12 @@ fn charge_type(
         | Type::Bool
         | Type::I32
         | Type::I64
+        | Type::U64
+        | Type::Usize
         | Type::U8
         | Type::U16
         | Type::ByteBuffer
+        | Type::SyncCell(_)
         | Type::ForeignHandle
         | Type::CWideString
         | Type::Closure(_) => {}

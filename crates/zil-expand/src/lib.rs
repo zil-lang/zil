@@ -28,7 +28,7 @@ use zil_syntax::ast as s;
 
 /// These names are source primitives, never ordinary function values.
 fn integer_name(name: &str) -> bool {
-    matches!(name, "u8" | "u16" | "i32" | "i64")
+    matches!(name, "u8" | "u16" | "u64" | "usize" | "i32" | "i64")
 }
 fn foreign_constructor_name(name: &str) -> bool {
     matches!(
@@ -65,15 +65,46 @@ fn owned_store_name(name: &str) -> bool {
             | "store_at_mut"
     )
 }
+fn sync_name(name: &str) -> bool {
+    matches!(
+        name,
+        "MutexI32"
+            | "AtomicI32"
+            | "mutex_scope"
+            | "atomic_scope"
+            | "mutex_load"
+            | "mutex_store"
+            | "mutex_fetch_add"
+            | "atomic_load"
+            | "atomic_store"
+            | "atomic_fetch_add"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    name == "thread_scope"
+    sync_name(name)
+        || name == "Option"
+        || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
         || owned_store_name(name)
 }
 fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
-    if name == "thread_scope" {
+    if sync_name(name) {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-SYNC-NAME",
+            Some(span),
+            "sealed synchronization names cannot be rebound",
+        )
+    } else if name == "Option" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OPTION-NAME",
+            Some(span),
+            "Option is a reserved built-in type and constructor namespace",
+        )
+    } else if name == "thread_scope" {
         Diagnostic::error(
             Phase::Expand,
             "E-THREAD-NAME",
@@ -127,7 +158,7 @@ fn conversion_name_error(span: Span) -> Diagnostic {
         Phase::Expand,
         "E-INTEGER-CONVERSION-NAME",
         Some(span),
-        "u8, u16, i32 and i64 are reserved bare integer conversion names",
+        "u8, u16, u64, usize, i32 and i64 are reserved bare integer conversion names",
     )
 }
 
@@ -936,7 +967,11 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if name == "c_with_callback" || name == "thread_scope" {
+        if sync_name(name)
+            || name == "Option"
+            || name == "c_with_callback"
+            || name == "thread_scope"
+        {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1050,6 +1085,7 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
+            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1061,7 +1097,10 @@ impl Expander<'_> {
                 ty,
                 value,
             } => {
-                if matches!(pattern.kind, s::PatternKind::Tuple(_)) {
+                if matches!(
+                    pattern.kind,
+                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(
                             CoreStatementKind::Unsupported(
@@ -1324,6 +1363,8 @@ impl Expander<'_> {
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
+                                "u64" => Type::U64,
+                                "usize" => Type::Usize,
                                 _ => unreachable!(),
                             },
                         }
@@ -1493,9 +1534,13 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "u8" => Type::U8,
             "u16" => Type::U16,
             "c_handle" => Type::ForeignHandle,
+            "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
+            "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,
+            "u64" => Type::U64,
+            "usize" => Type::Usize,
             "bool" => Type::Bool,
             "void" => Type::Unit,
             n => Type::Named(n.into()),

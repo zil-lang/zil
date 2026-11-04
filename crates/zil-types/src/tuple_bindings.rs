@@ -19,6 +19,9 @@ fn validate(pattern: &CorePattern, remaining: &mut usize, depth_limit: usize) ->
         })?;
         match &pattern.kind {
             CorePatternKind::Name(_) | CorePatternKind::Wildcard => Ok(()),
+            CorePatternKind::Reference { pattern, .. } => {
+                visit(pattern, remaining, depth + 1, limit)
+            }
             CorePatternKind::Tuple(fields) => {
                 for field in fields {
                     visit(field, remaining, depth + 1, limit)?;
@@ -47,6 +50,9 @@ impl Builder<'_, '_> {
             &mut self.match_work_left,
             self.limits.max_call_depth,
         )?;
+        if reference_patterns::has_reference(pattern) {
+            return self.reference_binding(pattern, mutable, expected, initializer);
+        }
         let (value, ty) = self.expr(initializer, expected)?;
         if let Some(expected) = expected {
             self.same(&ty, expected, initializer.span)?;

@@ -34,11 +34,11 @@ pub fn evaluate(program: &VerifiedCTIR) -> CompileResult<Constant> {
         let value = match &instruction.kind {
             CtInstructionKind::Constant(v) => v.clone(),
             CtInstructionKind::ConvertInteger { value, target } => {
-                convert_integer(&values[value.0 as usize], target)?
+                convert_integer_target(&values[value.0 as usize], target, m.target.pointer_width)?
             }
-            CtInstructionKind::Unary { op, operand } => unary(*op, &values[operand.0 as usize])?,
+            CtInstructionKind::Unary { op, operand } => unary_target(*op, &values[operand.0 as usize], m.target.pointer_width)?,
             CtInstructionKind::Binary { op, left, right } => {
-                binary(*op, &values[left.0 as usize], &values[right.0 as usize])?
+                binary_target(*op, &values[left.0 as usize], &values[right.0 as usize], m.target.pointer_width)?
             }
             CtInstructionKind::Forbidden(name) => {
                 return Err(vec![Diagnostic::error(
@@ -61,12 +61,13 @@ fn fail() -> Vec<Diagnostic> {
         "checked compile-time arithmetic failed",
     )]
 }
-pub(crate) fn convert_integer(value: &Constant, target: &Type) -> CompileResult<Constant> {
+pub(crate) fn convert_integer_target(value: &Constant, target: &Type, width: u16) -> CompileResult<Constant> {
     let value = match value {
         Constant::U8(v) => i128::from(*v),
         Constant::U16(v) => i128::from(*v),
         Constant::I32(v) => i128::from(*v),
         Constant::I64(v) => i128::from(*v),
+        Constant::U64(v) | Constant::Usize(v) => i128::from(*v),
         _ => return Err(fail()),
     };
     match target {
@@ -74,11 +75,14 @@ pub(crate) fn convert_integer(value: &Constant, target: &Type) -> CompileResult<
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| fail()),
         Type::I32 => i32::try_from(value).map(Constant::I32).map_err(|_| fail()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| fail()),
+        Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| fail()),
+        Type::Usize if width == 32 => u32::try_from(value).map(|v| Constant::Usize(u64::from(v))).map_err(|_| fail()),
+        Type::Usize if width == 64 => u64::try_from(value).map(Constant::Usize).map_err(|_| fail()),
         _ => Err(fail()),
     }
 }
 
-pub(crate) fn unary(op: UnaryOp, value: &Constant) -> CompileResult<Constant> {
+pub(crate) fn unary_target(op: UnaryOp, value: &Constant, width: u16) -> CompileResult<Constant> {
     match (op, value) {
         (UnaryOp::Not, Constant::Bool(v)) => Ok(Constant::Bool(!v)),
         (UnaryOp::Negate, Constant::U8(v)) => {
@@ -93,11 +97,16 @@ pub(crate) fn unary(op: UnaryOp, value: &Constant) -> CompileResult<Constant> {
         (UnaryOp::Negate, Constant::I64(v)) => v.checked_neg().map(Constant::I64).ok_or_else(fail),
         (UnaryOp::BitNot, Constant::I32(v)) => Ok(Constant::I32(!v)),
         (UnaryOp::BitNot, Constant::I64(v)) => Ok(Constant::I64(!v)),
+        (UnaryOp::Negate, Constant::U64(v)) => 0u64.checked_sub(*v).map(Constant::U64).ok_or_else(fail),
+        (UnaryOp::BitNot, Constant::U64(v)) => Ok(Constant::U64(!v)),
+        (UnaryOp::Negate, Constant::Usize(v)) => 0u64.checked_sub(*v).map(Constant::Usize).ok_or_else(fail),
+        (UnaryOp::BitNot, Constant::Usize(v)) if width == 32 => u32::try_from(*v).map(|v| Constant::Usize(u64::from(!v))).map_err(|_| fail()),
+        (UnaryOp::BitNot, Constant::Usize(v)) if width == 64 => Ok(Constant::Usize(!v)),
         _ => Err(fail()),
     }
 }
 macro_rules! integer_binary {
-    ($op:expr,$a:expr,$b:expr,$variant:ident,$bits:expr) => {{
+    ($op:expr,$a:expr,$b:expr,$variant:expr,$bits:expr) => {{
         let (a, b) = (*$a, *$b);
         let value = match $op {
             BinaryOp::Add => a.checked_add(b),
@@ -135,20 +144,27 @@ macro_rules! integer_binary {
             BinaryOp::GreaterEqual => return Ok(Constant::Bool(a >= b)),
             _ => None,
         };
-        value.map(Constant::$variant).ok_or_else(fail)
+        value.map($variant).ok_or_else(fail)
     }};
 }
-pub(crate) fn binary(op: BinaryOp, left: &Constant, right: &Constant) -> CompileResult<Constant> {
+pub(crate) fn binary_target(op: BinaryOp, left: &Constant, right: &Constant, width: u16) -> CompileResult<Constant> {
     match (left, right) {
         (Constant::Unit, Constant::Unit) => match op {
             BinaryOp::Equal => Ok(Constant::Bool(true)),
             BinaryOp::NotEqual => Ok(Constant::Bool(false)),
             _ => Err(fail()),
         },
-        (Constant::U8(a), Constant::U8(b)) => integer_binary!(op, a, b, U8, 8),
-        (Constant::U16(a), Constant::U16(b)) => integer_binary!(op, a, b, U16, 16),
-        (Constant::I32(a), Constant::I32(b)) => integer_binary!(op, a, b, I32, 32),
-        (Constant::I64(a), Constant::I64(b)) => integer_binary!(op, a, b, I64, 64),
+        (Constant::U8(a), Constant::U8(b)) => integer_binary!(op, a, b, Constant::U8, 8),
+        (Constant::U16(a), Constant::U16(b)) => integer_binary!(op, a, b, Constant::U16, 16),
+        (Constant::I32(a), Constant::I32(b)) => integer_binary!(op, a, b, Constant::I32, 32),
+        (Constant::I64(a), Constant::I64(b)) => integer_binary!(op, a, b, Constant::I64, 64),
+        (Constant::U64(a), Constant::U64(b)) => integer_binary!(op, a, b, Constant::U64, 64),
+        (Constant::Usize(a), Constant::Usize(b)) if width == 64 => integer_binary!(op, a, b, Constant::Usize, 64),
+        (Constant::Usize(a), Constant::Usize(b)) if width == 32 => {
+            let a = u32::try_from(*a).map_err(|_| fail())?;
+            let b = u32::try_from(*b).map_err(|_| fail())?;
+            integer_binary!(op, &a, &b, |v| Constant::Usize(u64::from(v)), 32)
+        }
         (Constant::Bool(a), Constant::Bool(b)) => match op {
             BinaryOp::Equal => Ok(Constant::Bool(a == b)),
             BinaryOp::NotEqual => Ok(Constant::Bool(a != b)),

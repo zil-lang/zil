@@ -5,6 +5,7 @@ use zil_base::{Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 fn program() -> CtArtifactProgram {
     CtArtifactProgram {
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+        target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
         functions: vec![],
         entry: CtFunctionId(0),
@@ -98,7 +99,7 @@ fn rejects_bad_version_truncation_trailing_and_digest() {
     let limits = Limits::default();
     let good = encode_program(&program(), &limits).unwrap();
     let mut bad = good.clone();
-    bad[8] = 2;
+    bad[8] = 3;
     resign(&mut bad, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     assert_eq!(decode_program(&bad, &limits), Err(WireError::BadVersion));
     let mut bad = good.clone();
@@ -276,7 +277,7 @@ fn repeated_bad_digest_and_schema_consume_request_budget() {
 
     let mut bad = encode_program(&p, &limits).unwrap();
     // Envelope schema is valid; inner raw program schema is stale.
-    bad[12] = 2;
+    bad[12] = 1;
     resign(&mut bad, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     let prior = remaining;
     assert_eq!(
@@ -536,7 +537,7 @@ fn over_depth_type_rejects_before_worker_stack_growth() {
 }
 
 #[test]
-fn iterative_recursive_variants_preserve_schema_one_bytes() {
+fn iterative_recursive_variants_preserve_schema_one_payload_bytes() {
     // Frozen bytes captured from the pre-iterative schema1 codec; no duplicate encoder is compiled.
     let limits = Limits::default();
     let scalar = CtValue::Scalar(Constant::I32(3));
@@ -561,8 +562,9 @@ fn iterative_recursive_variants_preserve_schema_one_bytes() {
             include_bytes!("fixtures/record.wire").as_slice(),
             include_bytes!("fixtures/variant-array.wire").as_slice(),
         ][index];
-        assert_eq!(fresh, prior);
-        assert_eq!(decode_value(prior, &limits), Ok(value));
+        assert_eq!(&fresh[12..fresh.len() - 32], &prior[12..prior.len() - 32]);
+        assert_eq!(decode_value(prior, &limits), Err(WireError::BadVersion));
+        assert_eq!(decode_value(&fresh, &limits), Ok(value));
     }
     let mut p = program();
     let ty = CtTy::Tuple(vec![
@@ -590,8 +592,13 @@ fn iterative_recursive_variants_preserve_schema_one_bytes() {
     });
     let fresh = encode_program(&p, &limits).unwrap();
     let prior = include_bytes!("fixtures/typed-program.wire").as_slice();
-    assert_eq!(fresh, prior);
-    assert_eq!(decode_program(prior, &limits), Ok(p));
+    assert_eq!(&fresh[12..16], &CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
+    assert_eq!(&fresh[16..18], &64u16.to_le_bytes());
+    assert_eq!(&fresh[18..fresh.len() - 32], &prior[16..prior.len() - 32]);
+    // The old artifact domain also changes, so the frozen schema1
+    // artifact may fail its digest before the stale header is read.
+    assert!(decode_program(prior, &limits).is_err());
+    assert_eq!(decode_program(&fresh, &limits), Ok(p));
 }
 
 #[test]

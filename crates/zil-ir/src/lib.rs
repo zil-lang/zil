@@ -26,6 +26,27 @@ identity!(
     FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
 );
 
+/// Sealed native cell kind; this raw tag grants no permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncCellKind {
+    MutexI32 = 0,
+    AtomicI32 = 1,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncI32Op {
+    Load = 0,
+    Store = 1,
+    FetchAdd = 2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicOrdering {
+    Relaxed = 0,
+    Acquire = 1,
+    Release = 2,
+    AcqRel = 3,
+    SeqCst = 4,
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -34,6 +55,9 @@ pub enum Type {
     Bool,
     I32,
     I64,
+    U64,
+    /// Target pointer-width unsigned integer; constants retain mathematical bits.
+    Usize,
     U8,
     U16,
     /// Sealed dynamic byte-storage payload, legal only in Managed/Desc and its
@@ -46,6 +70,8 @@ pub enum Type {
     },
     /// An opaque external token, never a ZIL address or an ownership proof.
     ForeignHandle,
+    /// Opaque native payload, only available behind a checked shared address.
+    SyncCell(SyncCellKind),
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -105,26 +131,46 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Stable complete type identity, never a proof of type or access validity.
+    /// Untrusted callers must validate and prepay the type traversal first.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V35\0");
+        encode_type(&mut bytes, self);
+        bytes.finish()
+    }
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
-            Self::Unit | Self::Bool | Self::I32 | Self::I64 | Self::U8 | Self::U16
+            Self::Unit
+                | Self::Bool
+                | Self::I32
+                | Self::I64
+                | Self::U64
+                | Self::Usize
+                | Self::U8
+                | Self::U16
         )
     }
     /// Scalars or one shared address layer to a finite Copy value or the exact
     /// shared user-resource head shape. This does not establish loan authority.
     pub fn is_scalar_or_shared_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_shared_package_address()
             || matches!(self, Self::Address { mutable: false, inner } if inner.is_address_pointee())
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
+    }
+    pub fn is_shared_sync_cell_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
     }
     /// Structural eligibility only; each checker separately proves sources,
     /// bounds, liveness, permissions and the supported target profile.
@@ -162,6 +208,8 @@ impl Type {
             | Self::Bool
             | Self::I32
             | Self::I64
+            | Self::U64
+            | Self::Usize
             | Self::U8
             | Self::U16
             | Self::ForeignHandle
@@ -189,7 +237,10 @@ impl Type {
         }
     }
     pub fn is_integer(&self) -> bool {
-        matches!(self, Self::I32 | Self::I64 | Self::U8 | Self::U16)
+        matches!(
+            self,
+            Self::I32 | Self::I64 | Self::U64 | Self::Usize | Self::U8 | Self::U16
+        )
     }
     pub fn name(&self) -> String {
         match self {
@@ -197,11 +248,18 @@ impl Type {
             Self::Bool => "bool".into(),
             Self::I32 => "i32".into(),
             Self::I64 => "i64".into(),
+            Self::U64 => "u64".into(),
+            Self::Usize => "usize".into(),
             Self::U8 => "u8".into(),
             Self::U16 => "u16".into(),
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
+            Self::SyncCell(kind) => match kind {
+                SyncCellKind::MutexI32 => "MutexI32",
+                SyncCellKind::AtomicI32 => "AtomicI32",
+            }
+            .into(),
             Self::CWideString => "c_wstr".into(),
             other => format!("{other:?}"),
         }
@@ -248,6 +306,8 @@ pub enum Constant {
     Bool(bool),
     I32(i32),
     I64(i64),
+    U64(u64),
+    Usize(u64),
     U8(u8),
     U16(u16),
     NullHandle,
@@ -262,6 +322,8 @@ impl Constant {
             Self::Bool(_) => Type::Bool,
             Self::I32(_) => Type::I32,
             Self::I64(_) => Type::I64,
+            Self::U64(_) => Type::U64,
+            Self::Usize(_) => Type::Usize,
             Self::U8(_) => Type::U8,
             Self::U16(_) => Type::U16,
             Self::NullHandle => Type::ForeignHandle,
@@ -498,6 +560,10 @@ pub enum CorePatternKind {
     Name(String),
     Wildcard,
     Tuple(Vec<CorePattern>),
+    Reference {
+        mutable: bool,
+        pattern: Box<CorePattern>,
+    },
     Variant {
         ty: Type,
         variant: String,
@@ -1307,6 +1373,19 @@ pub enum InstructionKind {
         argument: ValueId,
         body: ValueId,
     },
+    /// Stable scoped native cell. Body is consumed once, or dropped on init failure.
+    WithSyncCell {
+        kind: SyncCellKind,
+        initial: ValueId,
+        body: ValueId,
+    },
+    /// Dedicated cell operation; ordinary payload access is never authorized.
+    SyncI32 {
+        op: SyncI32Op,
+        address: ValueId,
+        value: Option<ValueId>,
+        ordering: AtomicOrdering,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1347,6 +1426,14 @@ pub enum InstructionKind {
     ReadVariantLocal {
         local: LocalId,
         path: Vec<VariantProjection>,
+    },
+    /// Borrow a real active payload place through an Enum-only path.
+    /// The nonempty path, all active tags and exact local mutability are raw
+    /// claims checked independently. The address retains its parent local loan.
+    BorrowVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
     },
     /// Atomically consume one complete Enum and initialize all variant fields.
     /// Fields are exact distinct vacant locals, registered in reverse order;
@@ -1733,7 +1820,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1808,6 +1895,8 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
         Type::I64 => b.push(3),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
@@ -1816,6 +1905,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_type(b, element);
         }
         Type::ForeignHandle => b.push(20),
+        Type::SyncCell(kind) => {
+            b.push(30);
+            b.push(*kind as u8);
+        }
         Type::CWideString => b.push(21),
         Type::ForeignCallback { parameters, result } => {
             b.push(22);
@@ -2031,6 +2124,14 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
         }
         Constant::I64(v) => {
             b.push(3);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::U64(v) => {
+            b.push(9);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::Usize(v) => {
+            b.push(10);
             b.extend_from_slice(&v.to_le_bytes());
         }
     }
@@ -2343,6 +2444,31 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, argument.0);
             encode_u32(b, body.0);
         }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            b.push(96);
+            b.push(*kind as u8);
+            encode_u32(b, initial.0);
+            encode_u32(b, body.0);
+        }
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            b.push(97);
+            b.push(*op as u8);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
+        }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
             encode_u32(b, function.0);
@@ -2416,6 +2542,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, step.variant);
                 encode_u32(b, step.index);
             }
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
         }
         InstructionKind::UnpackVariant {
             local,

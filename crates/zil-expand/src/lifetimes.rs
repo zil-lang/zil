@@ -49,7 +49,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
-                self.mutable_life = only_life(f);
+                self.mutable_life = only_life(f) || !self.impl_scope && copy_life(f);
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -211,7 +211,7 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
-    let mutable_life = only_life(function);
+    let mutable_life = only_life(function) || copy_life(function);
     if !(mutable_life || copy_life(function)) || !function.where_clause.is_empty() {
         return Err(Diagnostic::unsupported(
             Phase::Expand,

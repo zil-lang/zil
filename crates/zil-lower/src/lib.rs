@@ -93,6 +93,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             || !closure.captures.iter().all(|ty| {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
+                    || ty.is_shared_sync_cell_address()
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value())
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
@@ -106,7 +107,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value()
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || (closure.result.is_copy_value()
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
             })
@@ -181,6 +182,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             let concrete_closure = callable_parameter_type(ty, &module.closures);
             if !ty.is_copy_value()
                 && !concrete_closure
+                && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_package_address()

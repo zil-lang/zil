@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 1;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v1";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v1";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v1";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 2;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v2";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v2";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v2";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -47,6 +47,8 @@ pub enum CtScalarTy {
     U16,
     I32,
     I64,
+    U64,
+    Usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -623,6 +625,8 @@ pub struct CtUsageReceipt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtArtifactProgram {
     pub schema_version: u32,
+    /// Selected target width, never the host VM pointer width.
+    pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,

@@ -94,7 +94,7 @@ impl Invocation<'_> {
                 lookup(budget, slots.len())?;
                 slots.get(&capture)
             }
-            Root::Local(_) | Root::Field(..) => return Err(ungrounded()),
+            Root::Local(_) | Root::Field(..) | Root::Projection(..) => return Err(ungrounded()),
         }
         .filter(|roots| !roots.is_empty())
         .ok_or_else(ungrounded)?;

@@ -55,7 +55,9 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Index { object, index } => {
                 let (base, mutable) = self.projected_place(object, state)?;
+                let aliases = self.alias_result_copy(object.span)?;
                 let index_ty = self.expr(index, state, None, false)?;
+                self.alias_result_restore(aliases);
                 if !integer(&index_ty) {
                     return Err(error(
                         index.span,
@@ -73,6 +75,7 @@ impl Check<'_, '_, '_> {
             }
             ExprKind::Slice { object, start, end } => {
                 let (base, mutable) = self.projected_place(object, state)?;
+                let aliases = self.alias_result_copy(object.span)?;
                 let TypeKind::Array { element, .. } = &group(&base).kind else {
                     return Err(unsupported(
                         span,
@@ -88,6 +91,7 @@ impl Check<'_, '_, '_> {
                         ));
                     }
                 }
+                self.alias_result_restore(aliases);
                 self.budget.ty(element)?;
                 Ok((
                     TypeRef {

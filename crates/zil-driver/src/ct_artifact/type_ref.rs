@@ -76,6 +76,8 @@ impl Builder<'_> {
             Type::U16 => self.push(CtTypeNode::Primitive(S::U16)),
             Type::I32 => self.push(CtTypeNode::Primitive(S::I32)),
             Type::I64 => self.push(CtTypeNode::Primitive(S::I64)),
+            Type::U64 => self.push(CtTypeNode::Primitive(S::U64)),
+            Type::Usize => self.push(CtTypeNode::Primitive(S::Usize)),
             Type::ByteBuffer => self.push(CtTypeNode::Builtin(CtBuiltinType::ByteBuffer)),
             Type::ForeignHandle => self.push(CtTypeNode::Builtin(CtBuiltinType::ForeignHandle)),
             Type::CWideString => self.push(CtTypeNode::Builtin(CtBuiltinType::CWideString)),
@@ -144,9 +146,11 @@ impl Builder<'_> {
                 let result = self.ty(result)?;
                 self.push(CtTypeNode::ErrorUnion { error, result })
             }
-            Type::Named(_) | Type::Opaque { .. } | Type::Closure(_) | Type::Unsupported(_) => {
-                Err(reject("type has no completed CT shape"))
-            }
+            Type::Named(_)
+            | Type::Opaque { .. }
+            | Type::Closure(_)
+            | Type::Unsupported(_)
+            | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
         }
     }
 }
