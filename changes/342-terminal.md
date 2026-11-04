@@ -83,3 +83,11 @@ Analyze 和 Verify 各自执行新的完整可达 CFG/调用固定点权限检�
 首次真实失败记录：原345源先被旧全Package-address返回守卫误当Store元素逃逸，缩窄为实际has_store_fields输入，真实String返回view贯通；后续旧Store窗口profile误把当前bytes_view_mut新result本身当作先存竞争贷款，现按真实父链和新result身份区分，现有竞争child由独立贷款检查保留。原源、import和库API不改写成按值所有权调用。
 
 Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安全实证；没有完整语言安全结论。地址ABI零额外分配/RC/锁，真实失败计数如上，未测同语义Rust性能/RSS。普通真实std.string可直接使用&String和&mut String提供API，是可组合表达的有限增量，未测框架维护成本。新增工作预费且旧路径边界保留，没有编译成本优势结论。产品四目标合取、B0及现有product-gates不晋升；一般借用字段/存储/lending、HRTB Fn、显式dyn和一般§5.2仍继续施工。
+
+
+### 独审近邻修正提案：同步scope body的真实调用代换
+
+独审在976c7e7db指出新的Analyze head_loans::invocation尚未包含WithScopedThread/WithForeignCallback，而权限summary已包含两者。body内部重建的Capture0/Capture1需分离关系必须在实际scope调用处代换，不能依赖Verify已覆盖来冒充Analyze证明；MakeClosure弱Desc不能提供实际apart。扩展同一实际调用入口并以原transitive descriptor probe的thread_scope body变体验证distinct输入合法与raw/Wire同源参数拒绝。两种scope的body按实际签名均为零参数，环境是实际body捕获，同样进入该通路；不修改343线程模块。
+
+
+独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。

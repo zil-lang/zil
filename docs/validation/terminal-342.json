@@ -137,8 +137,8 @@
   "formal_full_suite": "NotRunByImplementationAuthor",
   "independent_review": {
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
-    "borrowed_pointer": "Pending clean candidate",
-    "resource_heads": "Pending clean candidate"
+    "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
+    "resource_heads": "976c7e7db first replay passed8; independent scoped-body finding reproduced and corrected, new clean review pending"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -172,10 +172,14 @@
     "342-fp-clippy.log",
     "342-head-complete-tests.log",
     "342-head-final-tests.log",
-    "342-head-clippy.log"
+    "342-head-clippy.log",
+    "342-head-scope-first.log",
+    "342-head-scope-fixed.log",
+    "342-head-scope-final.log",
+    "342-head-scope-clippy.log"
   ],
   "retained_harnesses": {
-    "cross_function_borrows-492a6902b3023121": "32f7e8d0feb7347d412661c55d9a465a8142e93a5942795038c20a5159a8e44d",
+    "cross_function_borrows-492a6902b3023121": "f9122ec1d28d69a303839404bf7bcff6ebfe2107af2f0ba0f210f4040369fe8a",
     "generic_regressions-500f6ba56884c876": "e1f0ecd2df583ee6a2a560e00a20cb2664176480417559d8f407ef2b53cd844f",
     "impl260_compiler-d260f466ad29d903": "4d459a9af06db3ed575d530c0a2f8865979ccb99aec986e7d31c086d5b8dbce2"
   },
@@ -194,8 +198,8 @@
     ],
     "permissions": "independent whole-CFG Analyze and Verify actual input/capture path summaries",
     "loans": "independent Analyze actual head ancestry and caller-substituted external storage separation; Verify actual roots, ancestry, effects and windows",
-    "native_builds_and_runs": 28,
-    "simple_sources": 5,
+    "native_builds_and_runs": 32,
+    "simple_sources": 6,
     "original_std_string_source": "tests/language-readiness/terminal/345/string.zil",
     "original_std_string_sha256": "b665f762f0222a52f0f1e30e46e8bdb9c0294f3f3cb621683a46c716485aa57e",
     "original_std_string_unchanged": true,
@@ -210,6 +214,13 @@
     "raw_and_decoded_runtime_wire": true,
     "live_and_restored_cache": true,
     "default_limits_unchanged": true,
-    "general_lending_complete": false
+    "general_lending_complete": false,
+    "scoped_body_substitution": {
+      "thread_scope": true,
+      "c_with_callback": true,
+      "distinct_actual_heads_accept": true,
+      "raw_and_decoded_wire_aliases_reject_both_kernels": true,
+      "first_independent_failure_reproduced": true
+    }
   }
 }
