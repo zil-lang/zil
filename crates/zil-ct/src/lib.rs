@@ -5,7 +5,9 @@ use zil_ir::{BinaryOp, Constant, CtInstructionKind, Type, UnaryOp};
 use zil_verify::VerifiedCTIR;
 
 mod aggregate_metadata;
+mod anonymous_type;
 mod ct_artifact;
+pub use anonymous_type::canonicalize_anonymous_type;
 mod materialize;
 pub use aggregate_metadata::preflight_aggregate_metadata;
 pub use ct_artifact::{CtExecutionBudget, CtReadView, evaluate_ct_artifact};

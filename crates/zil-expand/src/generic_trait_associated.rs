@@ -335,8 +335,16 @@ pub(crate) fn prepare(
     Ok(Some(result))
 }
 
-pub(crate) fn equation_key(ty: &TypeRef) -> R<String> {
-    Ok(format!("\0equation:{}", type_key_bounded(ty)?))
+pub(crate) fn equation_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    if budget.has_anonymous_sums() {
+        budget.identity_work(11, ty.span)?;
+    }
+    Ok(format!("\0equation:{}", type_key_bounded(ty, budget)?))
+}
+// Substitution renders only after Budget::substituted_type/item paid its
+// lookup and the subsequent replacement walk.
+pub(crate) fn equation_key_prepaid(ty: &TypeRef) -> R<String> {
+    Ok(format!("\0equation:{}", render_type_key(ty)?))
 }
 impl Index<'_> {
     pub(crate) fn definition_equations(
@@ -444,7 +452,7 @@ impl Index<'_> {
                 member.span,
             )?;
             budget.ty(&projected)?;
-            let key = equation_key(&projected)?;
+            let key = equation_key(&projected, budget)?;
             budget.text(&key, member.span)?;
             result.insert(key, value);
         }
@@ -487,7 +495,7 @@ fn check_equation_cycles(
     budget.node(ty.span, depth)?;
     if parts(ty).is_some() {
         budget.ty(ty)?;
-        let key = equation_key(ty)?;
+        let key = equation_key(ty, budget)?;
         budget.text(&key, ty.span)?;
         if let Some(value) = equations.get(&key) {
             if !active.insert(key.clone()) {
@@ -585,7 +593,7 @@ impl Index<'_> {
                     budget,
                     member.span,
                 )?;
-                let key = equation_key(&projection)?;
+                let key = equation_key(&projection, budget)?;
                 budget.text(&key, member.span)?;
                 equations.insert(key, value.clone());
             }

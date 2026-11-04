@@ -360,6 +360,96 @@ fn local_value(
     }
 }
 
+fn check_anonymous_sum(ty: &Type, limits: &Limits, budget: &mut Budget) -> CompileResult<()> {
+    let Type::Enum { name, variants } = ty else {
+        unreachable!()
+    };
+    if name != "@anonymous-sum:v1" || variants.len() < 2 {
+        return Err(bad("invalid anonymous sum family or arity"));
+    }
+    let mut identity_work = 0usize;
+    let mut pending = Vec::new();
+    for (index, (label, fields)) in variants.iter().enumerate() {
+        budget.spend(32, "anonymous canonical label")?;
+        if label != &format!("Member{index}") || fields.len() != 1 {
+            return Err(bad(
+                "anonymous sum requires canonical ordinal labels and one payload per member",
+            ));
+        }
+        if matches!(&fields[0], Type::Enum { name, .. } if name == "@anonymous-sum:v1") {
+            return Err(bad("anonymous sum directly nests another anonymous sum"));
+        }
+        pending.push((&fields[0], 0usize));
+    }
+    while let Some((ty, depth)) = pending.pop() {
+        budget.spend(1, "anonymous identity node")?;
+        identity_work = identity_work.saturating_add(1);
+        if depth > limits.max_call_depth {
+            return Err(exhausted("anonymous identity nesting"));
+        }
+        let text = match ty {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
+                for (label, field) in fields {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.push((field, depth + 1));
+                }
+                name.len()
+            }
+            Type::Enum { name, variants } => {
+                for (label, fields) in variants {
+                    budget.spend(label.len(), "anonymous identity label")?;
+                    identity_work = identity_work.saturating_add(label.len());
+                    pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                }
+                name.len()
+            }
+            Type::Tuple(fields) => {
+                pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                0
+            }
+            Type::Array { element, .. }
+            | Type::Slice { element }
+            | Type::OwnedStore { element }
+            | Type::Address { inner: element, .. }
+            | Type::Managed(element)
+            | Type::Desc(element) => {
+                pending.push((element, depth + 1));
+                0
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push((error, depth + 1));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::ForeignCallback { parameters, result } => {
+                pending.extend(parameters.iter().map(|field| (field, depth + 1)));
+                pending.push((result, depth + 1));
+                0
+            }
+            Type::Named(_) | Type::Unsupported(_) | Type::Opaque { .. } | Type::Closure(_) => {
+                return Err(bad(
+                    "anonymous sum identity contains an unresolved or nonordinary member type",
+                ));
+            }
+            _ => 0,
+        };
+        budget.spend(text, "anonymous identity text")?;
+        identity_work = identity_work.saturating_add(text);
+    }
+    budget.spend(
+        identity_work.saturating_mul(2),
+        "anonymous canonical comparison",
+    )?;
+    if variants.windows(2).any(|pair| pair[0].1[0] >= pair[1].1[0]) {
+        return Err(bad(
+            "anonymous sum members are repeated or not in complete-type canonical order",
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn preflight(
     module: &TypedModule,
     limits: &Limits,
@@ -457,6 +547,7 @@ pub(super) fn preflight(
             && !resource_head;
         let legacy_product_union = matches!(ty,Type::ErrorUnion { error, result }
             if **error == Type::Unit || **result == Type::Unit);
+        let mut anonymous = Vec::new();
         let mut new_sum = false;
         let mut first = Some((
             ty,
@@ -622,6 +713,10 @@ pub(super) fn preflight(
                     }
                 }
                 Type::Enum { name, variants } => {
+                    if name.starts_with("@anonymous-sum") {
+                        budget.spend(1, "anonymous shape inventory")?;
+                        anonymous.push(ty);
+                    }
                     budget.input(
                         name.len().saturating_add(variants.len()),
                         "enum identity and variants",
@@ -701,6 +796,9 @@ pub(super) fn preflight(
                 }
                 _ => {}
             }
+        }
+        for ty in anonymous {
+            check_anonymous_sum(ty, limits, budget)?;
         }
         if new_sum {
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;

@@ -208,6 +208,16 @@ impl FrozenReadView<'_> {
                 out.push((length.to_string(), CtTokenClass::Integer, None));
                 punctuation(out, "]");
             }
+            CtTypeNode::AnonymousSum(items) => {
+                punctuation(out, "(");
+                for (index, item) in items.iter().enumerate() {
+                    if index != 0 {
+                        punctuation(out, "|");
+                    }
+                    self.type_spelling(ty, *item, out, depth + 1, budget)?;
+                }
+                punctuation(out, ")");
+            }
             CtTypeNode::Tuple(items) => {
                 punctuation(out, "(");
                 for (index, item) in items.iter().enumerate() {
@@ -1081,6 +1091,7 @@ impl FrozenReadView<'_> {
                         .ok_or_else(|| self.unready("ShapeReady has not completed"))?,
                     self.index,
                     usize::try_from(count).unwrap_or(usize::MAX),
+                    budget,
                 )
             }
             CoreAggregateTypeRecipe::Store { element } => {
@@ -1204,6 +1215,7 @@ impl FrozenReadView<'_> {
                     ready,
                     self.index,
                     budget.remaining().max_generated_nodes as usize,
+                    budget,
                 )?
             }
         } else {
@@ -1212,6 +1224,7 @@ impl FrozenReadView<'_> {
                 ready,
                 self.index,
                 budget.remaining().max_generated_nodes as usize,
+                budget,
             )?
         };
         Ok(CtFieldInfo {
@@ -1337,6 +1350,25 @@ impl FrozenReadView<'_> {
             }
             s::TypeKind::Tuple(parts) if parts.is_empty() => {
                 CtTypeNode::Primitive(CtScalarTy::Unit)
+            }
+            s::TypeKind::Union(parts) => {
+                budget.reserve_temporary_bytes((parts.len() as u64).saturating_mul(8))?;
+                CtTypeNode::AnonymousSum(
+                    parts
+                        .iter()
+                        .map(|inner| {
+                            self.append_source_type(
+                                requester,
+                                module,
+                                inner,
+                                substitutions,
+                                nodes,
+                                budget,
+                                depth + 1,
+                            )
+                        })
+                        .collect::<CompileResult<Vec<_>>>()?,
+                )
             }
             s::TypeKind::Tuple(parts) => {
                 budget.reserve_temporary_bytes((parts.len() as u64).saturating_mul(8))?;
@@ -1707,6 +1739,8 @@ impl FrozenReadView<'_> {
             | (Type::U16, CtTypeNode::Primitive(CtScalarTy::U16))
             | (Type::I32, CtTypeNode::Primitive(CtScalarTy::I32))
             | (Type::I64, CtTypeNode::Primitive(CtScalarTy::I64))
+            | (Type::F32, CtTypeNode::Primitive(CtScalarTy::F32))
+            | (Type::F64, CtTypeNode::Primitive(CtScalarTy::F64))
             | (Type::U64, CtTypeNode::Primitive(CtScalarTy::U64))
             | (Type::Usize, CtTypeNode::Primitive(CtScalarTy::Usize))
             | (Type::ByteBuffer, CtTypeNode::Builtin(CtBuiltinType::ByteBuffer))
@@ -1736,6 +1770,42 @@ impl FrozenReadView<'_> {
                             == Some(symbol)
                 })
             }),
+            (Type::Enum { name, variants }, CtTypeNode::AnonymousSum(ids))
+                if name == "@anonymous-sum:v1" && variants.len() == ids.len() =>
+            {
+                budget.reserve_temporary_bytes(ids.len() as u64)?;
+                let mut seen = vec![false; ids.len()];
+                let mut all = true;
+                for (_, fields) in variants {
+                    let [member] = fields.as_slice() else {
+                        return Ok(false);
+                    };
+                    let mut matched = None;
+                    for (index, id) in ids.iter().enumerate() {
+                        if self.matches_checked_type(
+                            member,
+                            value,
+                            *id,
+                            derived,
+                            budget,
+                            depth + 1,
+                        )? && matched.replace(index).is_some()
+                        {
+                            return Ok(false);
+                        }
+                    }
+                    if let Some(index) = matched {
+                        if seen[index] {
+                            all = false;
+                        }
+                        seen[index] = true;
+                    } else {
+                        all = false;
+                    }
+                }
+                budget.release_temporary_bytes(ids.len() as u64);
+                all
+            }
             (Type::Tuple(types), CtTypeNode::Tuple(ids)) if types.len() == ids.len() => {
                 let mut valid = true;
                 for (ty, id) in types.iter().zip(ids) {
@@ -1964,7 +2034,9 @@ impl FrozenReadView<'_> {
                         })
                     }))
                 }
-                CtTypeNode::Tuple(parts) => 1u64.saturating_add(parts.len() as u64),
+                CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => {
+                    1u64.saturating_add(parts.len() as u64)
+                }
                 CtTypeNode::FunctionPointer { parameters, .. }
                 | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
@@ -1978,7 +2050,7 @@ impl FrozenReadView<'_> {
         let edges = ty.nodes.iter().fold(0u64, |sum, node| {
             sum.saturating_add(match node {
                 CtTypeNode::Nominal { arguments, .. } => arguments.len() as u64,
-                CtTypeNode::Tuple(parts) => parts.len() as u64,
+                CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => parts.len() as u64,
                 CtTypeNode::FunctionPointer { parameters, .. }
                 | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
@@ -2031,7 +2103,7 @@ impl FrozenReadView<'_> {
                         CtTypeArgument::Scalar(_) => None,
                     })
                     .collect::<Vec<_>>(),
-                CtTypeNode::Tuple(parts) => parts.clone(),
+                CtTypeNode::Tuple(parts) | CtTypeNode::AnonymousSum(parts) => parts.clone(),
                 CtTypeNode::Array { element, .. }
                 | CtTypeNode::Slice(element)
                 | CtTypeNode::Managed(element)
@@ -2082,6 +2154,9 @@ impl FrozenReadView<'_> {
                 },
                 CtTypeNode::Tuple(parts) => {
                     CtTypeNode::Tuple(parts.into_iter().map(mapped).collect())
+                }
+                CtTypeNode::AnonymousSum(parts) => {
+                    CtTypeNode::AnonymousSum(parts.into_iter().map(mapped).collect())
                 }
                 CtTypeNode::Array { element, length } => CtTypeNode::Array {
                     element: mapped(element),
@@ -2142,10 +2217,19 @@ impl FrozenReadView<'_> {
             }
         }
         budget.release_temporary_bytes(scratch);
-        Ok(CtTypeRef {
+        let value = CtTypeRef {
             root: remap[ty.root.0 as usize],
             nodes,
-        })
+        };
+        if value
+            .nodes
+            .iter()
+            .any(|n| matches!(n, CtTypeNode::AnonymousSum(_)))
+        {
+            zil_ct::canonicalize_anonymous_type(&value, budget)
+        } else {
+            Ok(value)
+        }
     }
     fn shape_info(
         &self,
@@ -2392,6 +2476,9 @@ impl CtReadView for FrozenReadView<'_> {
                                     })
                                     .collect(),
                             },
+                            CtTypeNode::AnonymousSum(parts) => {
+                                CtTypeNode::AnonymousSum(parts.iter().copied().map(shift).collect())
+                            }
                             CtTypeNode::Tuple(parts) => {
                                 CtTypeNode::Tuple(parts.iter().copied().map(shift).collect())
                             }

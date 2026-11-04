@@ -8,6 +8,7 @@ enum Ctor {
     Bool(bool),
     Integer(i128),
     Variant(String),
+    Sum(String),
     Opaque,
 }
 #[derive(Clone)]
@@ -273,12 +274,7 @@ impl Check<'_, '_, '_> {
                 if integer(ty) && !dependent(ty, &self.variables) =>
             {
                 Pat::Ctor(
-                    Ctor::Integer(integer_value(
-                        v,
-                        ty,
-                        p.span,
-                        self.budget.target_pointer_width,
-                    )?),
+                    Ctor::Integer(integer_value(v, ty, p.span, self.budget)?),
                     vec![],
                 )
             }
@@ -357,6 +353,39 @@ impl Check<'_, '_, '_> {
                 Pat::Ctor(Ctor::Variant(variant.clone()), patterns)
             }
             PatternKind::Constructor { path, arguments } => {
+                if matches!(&group(ty).kind, TypeKind::Union(_)) {
+                    if path.len() != 1 || arguments.len() != 1 {
+                        return Err(error(
+                            p.span,
+                            "anonymous member pattern requires one type and one payload",
+                        ));
+                    }
+                    let member = if let Some(alias) = self.pattern_types.get(&path[0]) {
+                        self.budget.ty(alias)?;
+                        alias.clone()
+                    } else {
+                        named(&path[0], p.span)
+                    };
+                    let key = type_key(&member, self.budget)?;
+                    let members = self.sum_members(ty)?;
+                    let mut found = None;
+                    for member in &members {
+                        if type_key(member, self.budget)? == key {
+                            if found.is_some() {
+                                return Err(error(p.span, "anonymous member pattern is ambiguous"));
+                            }
+                            self.budget.ty(member)?;
+                            found = Some(member.clone());
+                        }
+                    }
+                    let member = found.ok_or_else(|| {
+                        error(p.span, "pattern type is not an exact anonymous member")
+                    })?;
+                    return Ok(Pat::Ctor(
+                        Ctor::Sum(key),
+                        vec![self.pattern(&arguments[0], &member, state, seen)?],
+                    ));
+                }
                 let alias = path.first().and_then(|name| self.pattern_types.get(name));
                 if let Some(alias) = alias {
                     same(ty, alias, p.span, self.budget)?;
@@ -511,7 +540,7 @@ impl Check<'_, '_, '_> {
     fn charge_pattern(&mut self, p: &Pat, depth: usize, span: Span) -> R<()> {
         self.budget.node(span, depth)?;
         if let Pat::Ctor(constructor, fields) = p {
-            if let Ctor::Variant(name) = constructor {
+            if let Ctor::Variant(name) | Ctor::Sum(name) = constructor {
                 self.budget.text(name, span)?;
             }
             for f in fields {
@@ -520,8 +549,30 @@ impl Check<'_, '_, '_> {
         }
         Ok(())
     }
+    fn sum_members(&mut self, ty: &TypeRef) -> R<Vec<TypeRef>> {
+        self.budget.ty(ty)?;
+        let mut todo = vec![ty];
+        let mut members = Vec::new();
+        while let Some(member) = todo.pop() {
+            if let TypeKind::Union(parts) = &group(member).kind {
+                todo.extend(parts);
+            } else {
+                self.budget.ty(member)?;
+                members.push(member.clone());
+            }
+        }
+        Ok(members)
+    }
     fn constructors(&mut self, ty: &TypeRef) -> R<Vec<Ctor>> {
         Ok(match &group(ty).kind {
+            TypeKind::Union(_) => {
+                let members = self.sum_members(ty)?;
+                let mut constructors = Vec::new();
+                for member in members {
+                    constructors.push(Ctor::Sum(type_key(&member, self.budget)?));
+                }
+                constructors
+            }
             TypeKind::Tuple(_) => vec![Ctor::Tuple],
             TypeKind::Named { path, .. } if path.as_slice() == ["bool"] => {
                 vec![Ctor::Bool(false), Ctor::Bool(true)]
@@ -546,6 +597,14 @@ impl Check<'_, '_, '_> {
                     self.budget.ty(f)?;
                 }
                 Ok(fields.clone())
+            }
+            (Ctor::Sum(key), TypeKind::Union(_)) => {
+                for member in self.sum_members(ty)? {
+                    if &type_key(&member, self.budget)? == key {
+                        return Ok(vec![member]);
+                    }
+                }
+                Err(error(ty.span, "anonymous coverage constructor is absent"))
             }
             (Ctor::Variant(v), _) => self.enum_fields(ty, v, None),
             _ => Ok(vec![]),
@@ -642,9 +701,10 @@ fn specialize(rows: &[Vec<Pat>], c: &Ctor, arity: usize) -> Vec<Vec<Pat>> {
         })
         .collect()
 }
-fn integer_value(text: &str, ty: &TypeRef, span: Span, pointer_width: u16) -> R<i128> {
-    let (actual, value) = checked_integer(text, Some(ty), false, span, pointer_width)?;
-    if type_key_bounded(&actual)? != type_key_bounded(ty)? {
+fn integer_value(text: &str, ty: &TypeRef, span: Span, budget: &mut Budget<'_>) -> R<i128> {
+    let (actual, value) =
+        checked_integer(text, Some(ty), false, span, budget.target_pointer_width)?;
+    if type_key_bounded(&actual, budget)? != type_key_bounded(ty, budget)? {
         return Err(error(
             span,
             "generic integer pattern suffix disagrees with its type",

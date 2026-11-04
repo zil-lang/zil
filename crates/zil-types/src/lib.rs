@@ -1475,6 +1475,28 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
+            && !matches!(
+                &e.kind,
+                CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
+            )
+        {
+            let work = inference::type_snapshot_work(sum, e.span, self.limits)?;
+            self.closures.snapshot(work.saturating_mul(2), e.span)?;
+            let (value, actual) = self.expr_raw(e, None)?;
+            let Some(variant) = enums::anonymous_injection(&actual, sum, e.span)? else {
+                return Ok((value, actual));
+            };
+            let result = self.value(
+                InstructionKind::MakeVariant {
+                    variant,
+                    fields: vec![value],
+                },
+                sum.clone(),
+                e.span,
+            )?;
+            return Ok((result, sum.clone()));
+        }
         if let Some(union @ Type::ErrorUnion { .. }) = expected
             && !matches!(
                 &e.kind,

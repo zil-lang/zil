@@ -109,3 +109,72 @@ U64/Usize. Add their existing natural x64 8/8 representation to those private
 tables; actual Type identity and ordinary tag/payload behavior remain unchanged.
 The mixed source is retained as the machine regression, rather than claiming a
 scalar-only conversion test covers aggregate storage.
+
+## Anonymous structural tagged sums
+
+Represent `A|B` using existing raw `Type::Enum` with reserved family marker
+`@anonymous-sum:v1`, and variants `Member0`, `Member1`, ... containing exactly
+one complete resolved member Type each. The marker is not a compressed identity:
+Eq/Ord/Wire/interface keys retain all payload Types. Resolve aliases/nominal and
+phantom identities first, flatten directly nested marked sums, prepay complete
+shape comparison/sorting work, sort actual Type values and reject duplicate
+members. Independent Analyze/Verify validate the canonical shape and strict
+full-Type ordering after bounded raw-type admission. Different member sets with
+the same marker must remain different cache/type/layout candidates.
+
+Only an already determined expected sum admits injection of a unique exact
+actual member Type. Infer an unconstrained literal normally before comparing;
+never try numeric conversions or backtrack over members. Equal sum values keep
+their tag. Lower injection to the existing ordinary MakeVariant and retain all
+Copy/owned active-payload, source, borrow, move and cleanup checks. Both ordinary
+and closure/source inference prepasses obey the same exact-type relation.
+
+`TypeName(binding)` selects the full resolved member identity; imported names
+and aliases naming tuple/array/generic members are ordinary type resolution.
+Private alias-pattern metadata can carry the full Type into existing Core
+Variant data; it grants no safety authority. Coverage and Copy/owned observation
+and unpacking consume the selected real variant index. No public runtime opcode
+or raw union reinterpretation is introduced.
+
+Type-valued CT uses root-approved `CtTypeNode::AnonymousSum(Vec<TypeNodeId>)`
+(tag15) and `CtTypeConstructor::AnonymousSum` (tag11). Raw Type DAGs and generated
+AST remain untrusted: independently check arity, bounded full identities,
+flatten/canonical order and duplicates. Complete Type reification returns an
+ordinary AST Union; scalar/Copy CT values reify a full Core Ascribed sum with
+only the active payload, letting ordinary injection recreate the tag. Do not
+resolve a structural sum through a nominal namespace or index it by marker name.
+
+Required real controls include reordered/nested/aliased sums, nominal and phantom
+members with equal layouts, exact literal injection/rejection, exhaustive and
+wildcard patterns, CT/Wire/cache identity, ordinary closures/helpers, large
+Copy and active owned cleanup/borrow behavior, nearest raw canonical violations,
+N/N−1/fresh bounds and Clang/API O0/O2. Unused invalid definitions reject; no
+implicit heap/RC/lock, larger budgets or raw Type permissions are introduced.
+
+### Follow-up: every generic structural key pays its own work
+
+Independent review of f01e61bcc replayed all source/CT/native controls but found
+that alias normalization prepayment did not cover later generic-instance and
+coverage key construction. The recursive Union renderer could flatten, copy
+and compare complete long keys without debiting those operations at each call.
+Thread the existing expansion Budget through bounded unification/key entry
+points. For requests whose existing AST walk recorded anonymous sums, compute
+an allocation-free bounded key layout, including nested constructor keys,
+flattened member counts, copied string bytes and worst-case full comparisons,
+and reserve that work before rendering or sorting. No-Union requests retain
+the original path and fees. Alias sorting remains a separate paid operation;
+it is not a transferable credit for a later key construction. Retain real
+long-common-prefix members nested inside generic/tuple/sum types and exact
+warm/fresh N/N-1 controls, alongside inherited float/UInt budget neighbors.
+
+## Integrated scalar, associated and borrowed-code identity
+
+The combined341/342/344 tree prepays complete anonymous-member keys for typed
+scalar const arguments, internal MetaEval carriers and symbolic/radix array
+lengths without allocating during layout. Associated equation lookup passes the
+same Budget; its later substitution renderer is separately prepaid. Requests
+without an anonymous sum retain their existing key charges. The CT canonical
+borrowed-code key preserves the full parameter/result graph and joint lifetime
+contract, including its remap and temporary accounting. Combined actual source
+controls cover const specialization, associated projections and a borrowed code
+member round-tripped through a computed Type, with native O0/O2 on both backends.

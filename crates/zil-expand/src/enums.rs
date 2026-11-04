@@ -114,6 +114,29 @@ impl Expander<'_> {
             s::PatternKind::Tuple(fields) => {
                 CorePatternKind::Tuple(fields.iter().map(|p| self.pattern(p)).collect())
             }
+            s::PatternKind::Constructor { path, arguments } if path.len() == 1 => {
+                CorePatternKind::Variant {
+                    ty: if let Some(member) = self
+                        .member_patterns
+                        .and_then(|members| members.get(&path[0]))
+                    {
+                        if let Err(error) = self.enum_meter(|meter| meter.ty(member)) {
+                            self.diagnostics.push(error);
+                        }
+                        type_ref(member)
+                    } else {
+                        type_ref(&s::TypeRef {
+                            kind: s::TypeKind::Named {
+                                path: path.clone(),
+                                args: Vec::new(),
+                            },
+                            span: pattern.span,
+                        })
+                    },
+                    variant: "@type-member".into(),
+                    fields: arguments.iter().map(|p| self.pattern(p)).collect(),
+                }
+            }
             s::PatternKind::Constructor { path, arguments } if path.len() >= 2 => {
                 CorePatternKind::Variant {
                     ty: Type::Named(path[..path.len() - 1].join(".")),

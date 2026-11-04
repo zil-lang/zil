@@ -445,6 +445,22 @@ pub(super) fn same_return(
             return Err(error(span, "error union payload matches both sides"));
         }
     }
+    if let TypeKind::Union(members) = &group(expected).kind {
+        fn matches(actual: &str, members: &[TypeRef], budget: &mut Budget<'_>) -> R<usize> {
+            let mut found = 0;
+            for member in members {
+                if let TypeKind::Union(nested) = &group(member).kind {
+                    found += matches(actual, nested, budget)?;
+                } else if actual == type_key(member, budget)? {
+                    found += 1;
+                }
+            }
+            Ok(found)
+        }
+        if matches(&actual_key, members, budget)? == 1 {
+            return Ok(());
+        }
+    }
     same(actual, expected, span, budget)
 }
 fn substituted_type(
@@ -636,7 +652,7 @@ pub(super) fn dependent(ty: &TypeRef, vars: &BTreeSet<String>) -> bool {
         TypeKind::Reference { inner, .. } | TypeKind::Group(inner) | TypeKind::Optional(inner) => {
             dependent(inner, vars)
         }
-        TypeKind::Tuple(ts) => ts.iter().any(|t| dependent(t, vars)),
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => ts.iter().any(|t| dependent(t, vars)),
         TypeKind::Array { element, .. } => dependent(element, vars),
         TypeKind::Error { error, result } => dependent(error, vars) || dependent(result, vars),
         TypeKind::Function { params, result }
@@ -661,7 +677,7 @@ fn known_copy(
         TypeKind::Reference { mutable: true, .. } => false,
         // Opaque callable bounds expose an invocation interface, not Copy.
         TypeKind::Impl(_) => false,
-        TypeKind::Tuple(ts) => {
+        TypeKind::Tuple(ts) | TypeKind::Union(ts) => {
             for t in ts {
                 if !known_copy(t, vars, nominals)? {
                     return Some(false);

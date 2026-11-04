@@ -209,11 +209,12 @@ fn specialize_products_prepared<'a>(
     let (normalized, names_budget) =
         aliases::normalize_with_budget(module, names_budget).map_err(|e| vec![e])?;
     if let Some(normalized) = normalized {
-        if normalized
-            .module
-            .items
-            .iter()
-            .all(|item| params(item).is_empty())
+        if normalized.pattern_types.is_empty()
+            && normalized
+                .module
+                .items
+                .iter()
+                .all(|item| params(item).is_empty())
             && !has_defaults
             && !has_impl_recipes
             && !normalized
@@ -314,6 +315,8 @@ struct Engine<'a> {
     realized_references: Vec<(trait_instances::Reference, TypeRef)>,
     impl_definitions: BTreeMap<(usize, usize), String>,
     instance_types: BTreeMap<String, TypeRef>,
+    anonymous_function: Option<String>,
+    anonymous_substitutions: BTreeMap<String, BTreeMap<String, TypeRef>>,
     state_families: BTreeMap<(String, Vec<Option<String>>), usize>,
     pending: VecDeque<Item>,
     limits: &'a Limits,
@@ -393,6 +396,8 @@ impl<'a> Engine<'a> {
             realized_references: Vec::new(),
             impl_definitions: BTreeMap::new(),
             instance_types: BTreeMap::new(),
+            anonymous_function: None,
+            anonymous_substitutions: BTreeMap::new(),
             state_families: BTreeMap::new(),
             pending: VecDeque::new(),
             limits,
@@ -891,6 +896,13 @@ impl<'a> Engine<'a> {
         if let Some(arguments) = product_arguments {
             self.record_product(template, &generated, arguments, product_scope, span)?;
         }
+        if self.budget.has_anonymous_sums() && matches!(instance.kind, ItemKind::Function(_)) {
+            self.budget.text(&generated, span)?;
+            self.budget.node(span, 0)?;
+            // Transfer the already bounded substitution map; no second clone.
+            self.anonymous_substitutions
+                .insert(generated.clone(), substitution);
+        }
         self.pending.push_back(instance);
         Ok(store_templates::Instantiation::Eager(generated))
     }
@@ -962,6 +974,11 @@ impl<'a> Engine<'a> {
     fn item(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                let saved_anonymous = self.anonymous_function.take();
+                if self.anonymous_substitutions.contains_key(&f.name) {
+                    self.budget.text(&f.name, f.span)?;
+                    self.anonymous_function = Some(f.name.clone());
+                }
                 let store_parameter = store_templates::parameter(f);
                 if let Some(parameter) = store_parameter {
                     self.budget.node(parameter.span, 0)?;
@@ -1056,6 +1073,7 @@ impl<'a> Engine<'a> {
                 self.callable_pair = saved_pair;
                 self.store_parameter = saved_store;
                 self.product_owner = saved_product_owner;
+                self.anonymous_function = saved_anonymous;
             }
             ItemKind::Aggregate(a) => {
                 let saved = (
@@ -1700,6 +1718,9 @@ impl<'a> Engine<'a> {
         depth: usize,
     ) -> R<Option<TypeRef>> {
         self.tick(e.span, depth)?;
+        let anonymous_context =
+            expected.filter(|ty| matches!(&grouped(ty).kind, TypeKind::Union(_)));
+        let expected = expected.filter(|ty| !matches!(&grouped(ty).kind, TypeKind::Union(_)));
         // A surrounding E!T admits either exact payload or the whole union.
         // It therefore cannot constrain a generic result variable to E!T
         // before argument inference determines the expression's own type.
@@ -2471,7 +2492,7 @@ impl<'a> Engine<'a> {
                         matches!(&grouped(payload).kind,TypeKind::Named{path,..} if path.as_slice()==[name]))
                         .or(error_context)
                 } else {
-                    expected.or(ty.as_ref())
+                    anonymous_context.or(expected).or(ty.as_ref())
                 };
                 self.expr_expected(else_value, env, alternative, depth + 1)?;
                 ty
@@ -2716,6 +2737,11 @@ fn original_type_observed(
                 .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
                 .collect::<R<_>>()?,
         ),
+        TypeKind::Union(ts) => TypeKind::Union(
+            ts.iter()
+                .map(|t| original_type_observed(t, instances, budget, depth + 1, binder, dependent))
+                .collect::<R<_>>()?,
+        ),
         TypeKind::Array { element, length } => TypeKind::Array {
             element: Box::new(original_type_observed(
                 element,
@@ -2840,9 +2866,17 @@ fn bind(pattern: &Pattern, ty: Option<TypeRef>, env: &mut Env) {
 }
 fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     budget.ty(ty)?;
-    type_key_bounded(ty)
+    type_key_bounded(ty, budget)
 }
-fn type_key_bounded(ty: &TypeRef) -> R<String> {
+fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
+    // The profile is recorded during the existing bounded AST walk. Requests
+    // without anonymous sums retain their original key fees and traversal.
+    if budget.has_anonymous_sums() {
+        type_keys::prepay(ty, budget)?;
+    }
+    render_type_key(ty)
+}
+fn render_type_key(ty: &TypeRef) -> R<String> {
     Ok(match &ty.kind {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
             "()".into()
@@ -2851,21 +2885,45 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
             let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
-                    GenericArg::Type(t) => type_key_bounded(t)?,
+                    GenericArg::Type(t) => render_type_key(t)?,
                     GenericArg::Const(e) => format!("#{}", consts::key(e)?),
                 };
                 key.push_str(&format!("<{argument}>"));
             }
             key
         }
-        TypeKind::Group(t) => return type_key_bounded(t),
+        TypeKind::Group(t) => return render_type_key(t),
         TypeKind::Reference { mutable, inner, .. } => {
-            format!("R{mutable}<{}>", type_key_bounded(inner)?)
+            format!("R{mutable}<{}>", render_type_key(inner)?)
+        }
+        TypeKind::Union(ts) => {
+            fn members(ty: &TypeRef, out: &mut Vec<String>) -> R<()> {
+                if let TypeKind::Union(parts) = &grouped(ty).kind {
+                    for part in parts {
+                        members(part, out)?;
+                    }
+                } else {
+                    out.push(render_type_key(ty)?);
+                }
+                Ok(())
+            }
+            let mut keys = Vec::new();
+            for member in ts {
+                members(member, &mut keys)?;
+            }
+            keys.sort();
+            format!(
+                "U{}:{}",
+                keys.len(),
+                keys.iter()
+                    .map(|k| format!("{}:{k}", k.len()))
+                    .collect::<String>()
+            )
         }
         TypeKind::Tuple(ts) => format!(
             "({})",
             ts.iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(",")
         ),
@@ -2875,20 +2933,20 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
         } => format!(
             "A{}<{}>",
             consts::length_key(length, &BTreeMap::new())?,
-            type_key_bounded(element)?
+            render_type_key(element)?
         ),
         TypeKind::MetaEval(expression) => format!("#{}", consts::key(expression)?),
         TypeKind::Array {
             element,
             length: None,
-        } => format!("S<{}>", type_key_bounded(element)?),
+        } => format!("S<{}>", render_type_key(element)?),
         TypeKind::Optional(t) => {
-            format!("?{}", type_key_bounded(t)?)
+            format!("?{}", render_type_key(t)?)
         }
         TypeKind::Error { error, result } => format!(
             "E<{}><{}>",
-            type_key_bounded(error)?,
-            type_key_bounded(result)?
+            render_type_key(error)?,
+            render_type_key(result)?
         ),
         TypeKind::ForeignFunction {
             abi,
@@ -2900,19 +2958,19 @@ fn type_key_bounded(ty: &TypeRef) -> R<String> {
             abi,
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            render_type_key(result)?
         ),
         TypeKind::Function { params, result } => format!(
             "F({})->{}",
             params
                 .iter()
-                .map(type_key_bounded)
+                .map(render_type_key)
                 .collect::<R<Vec<_>>>()?
                 .join(","),
-            type_key_bounded(result)?
+            render_type_key(result)?
         ),
         _ => {
             return Err(unsupported(
@@ -2932,7 +2990,7 @@ fn unify(
 ) -> R<()> {
     budget.ty(pattern)?;
     budget.ty(actual)?;
-    unify_bounded(pattern, actual, variables, found, span)
+    unify_bounded(pattern, actual, variables, found, span, budget)
 }
 fn unify_argument(
     pattern: &TypeRef,
@@ -2974,9 +3032,9 @@ fn unify_argument(
                 "shared reference cannot grant exclusive access",
             ));
         }
-        return unify_bounded(expected, actual, variables, found, span);
+        return unify_bounded(expected, actual, variables, found, span, budget);
     }
-    unify_bounded(pattern, actual, variables, found, span)
+    unify_bounded(pattern, actual, variables, found, span, budget)
 }
 // Only an independently complete parameter union can select an injection.
 // Missing variables still use ordinary whole-type unification, never two
@@ -2989,7 +3047,10 @@ fn context_argument(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
-    if !matches!(grouped(pattern).kind, TypeKind::Error { .. }) {
+    if !matches!(
+        grouped(pattern).kind,
+        TypeKind::Error { .. } | TypeKind::Union(_)
+    ) {
         return Ok(false);
     }
     if context_unresolved(pattern, variables, found, budget)? {
@@ -3024,7 +3085,11 @@ fn independent_input(
     budget: &mut Budget<'_>,
 ) -> R<bool> {
     budget.ty(pattern)?;
-    if matches!(grouped(pattern).kind, TypeKind::Error { .. }) != union_pass {
+    if matches!(
+        grouped(pattern).kind,
+        TypeKind::Error { .. } | TypeKind::Union(_)
+    ) != union_pass
+    {
         return Ok(false);
     }
     if union_pass {
@@ -3039,12 +3104,13 @@ fn unify_bounded(
     variables: &BTreeSet<String>,
     found: &mut BTreeMap<String, TypeRef>,
     span: Span,
+    budget: &mut Budget<'_>,
 ) -> R<()> {
     if let TypeKind::Group(t) = &pattern.kind {
-        return unify_bounded(t, actual, variables, found, span);
+        return unify_bounded(t, actual, variables, found, span, budget);
     }
     if let TypeKind::Group(t) = &actual.kind {
-        return unify_bounded(pattern, t, variables, found, span);
+        return unify_bounded(pattern, t, variables, found, span, budget);
     }
     if let TypeKind::Named { path, args } = &pattern.kind
         && path.len() == 1
@@ -3052,7 +3118,7 @@ fn unify_bounded(
         && variables.contains(&path[0])
     {
         if let Some(prior) = found.get(&path[0]) {
-            if type_key_bounded(prior)? != type_key_bounded(actual)? {
+            if type_key_bounded(prior, budget)? != type_key_bounded(actual, budget)? {
                 return Err(error(span, "conflicting generic argument constraints"));
             }
         } else {
@@ -3071,8 +3137,8 @@ fn unify_bounded(
                 result: y,
             },
         ) => {
-            unify_bounded(a, b, variables, found, span)?;
-            unify_bounded(x, y, variables, found, span)
+            unify_bounded(a, b, variables, found, span, budget)?;
+            unify_bounded(x, y, variables, found, span, budget)
         }
         (TypeKind::Named { path: a, args: x }, TypeKind::Named { path: b, args: y })
             if a == b && x.len() == y.len() =>
@@ -3081,7 +3147,7 @@ fn unify_bounded(
                 let (GenericArg::Type(a), GenericArg::Type(b)) = (a, b) else {
                     return Err(unsupported(span, "const generic unification"));
                 };
-                unify_bounded(a, b, variables, found, span)?;
+                unify_bounded(a, b, variables, found, span, budget)?;
             }
             Ok(())
         }
@@ -3096,10 +3162,10 @@ fn unify_bounded(
                 inner: y,
                 ..
             },
-        ) if a == b => unify_bounded(x, y, variables, found, span),
+        ) if a == b => unify_bounded(x, y, variables, found, span, budget),
         (TypeKind::Tuple(a), TypeKind::Tuple(b)) if a.len() == b.len() => {
             for (a, b) in a.iter().zip(b) {
-                unify_bounded(a, b, variables, found, span)?;
+                unify_bounded(a, b, variables, found, span, budget)?;
             }
             Ok(())
         }
@@ -3113,7 +3179,7 @@ fn unify_bounded(
                 length: Some(y),
             },
         ) if consts::length_key(x, found)? == consts::length_key(y, &BTreeMap::new())? => {
-            unify_bounded(a, b, variables, found, span)
+            unify_bounded(a, b, variables, found, span, budget)
         }
         (
             TypeKind::Array {
@@ -3124,8 +3190,8 @@ fn unify_bounded(
                 element: b,
                 length: None,
             },
-        ) => unify_bounded(a, b, variables, found, span),
-        _ if type_key_bounded(pattern)? == type_key_bounded(actual)? => Ok(()),
+        ) => unify_bounded(a, b, variables, found, span, budget),
+        _ if type_key_bounded(pattern, budget)? == type_key_bounded(actual, budget)? => Ok(()),
         _ => Err(error(
             span,
             "generic parameter does not match argument type",
@@ -3226,7 +3292,7 @@ fn substitution_name<'a>(path: &'a [String]) -> Cow<'a, str> {
 impl Substitution<'_> {
     fn ty(&self, ty: &mut TypeRef) {
         if trait_bounds::associated::parts(ty).is_some()
-            && let Ok(key) = trait_bounds::associated::equation_key(ty)
+            && let Ok(key) = trait_bounds::associated::equation_key_prepaid(ty)
             && let Some(value) = self.substitutions.get(&key)
         {
             let span = ty.span;
@@ -3542,3 +3608,6 @@ impl Substitution<'_> {
 #[path = "generic_check.rs"]
 mod check;
 use check::validate_parametric;
+
+#[path = "generic_type_keys.rs"]
+mod type_keys;

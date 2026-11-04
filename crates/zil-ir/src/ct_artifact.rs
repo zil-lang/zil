@@ -161,6 +161,9 @@ pub enum CtTypeNode {
         error: CtTypeNodeId,
         result: CtTypeNodeId,
     },
+    /// Canonical structural tagged sum of complete member type identities.
+    /// Raw nodes confer no constructor, copy, ownership or access authority.
+    AnonymousSum(Vec<CtTypeNodeId>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeArgument {
@@ -424,6 +427,7 @@ pub enum CtTypeConstructor {
     Desc,
     OwnedStore,
     ErrorUnion,
+    AnonymousSum,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CtSyntaxBuilder {

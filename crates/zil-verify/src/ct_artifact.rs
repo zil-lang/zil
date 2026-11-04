@@ -1306,6 +1306,12 @@ fn check_instruction(
                 T::Tuple => arguments
                     .iter()
                     .all(|id| value(*id).ok() == Some(&CtTy::Type)),
+                T::AnonymousSum => {
+                    arguments.len() >= 2
+                        && arguments
+                            .iter()
+                            .all(|id| value(*id).ok() == Some(&CtTy::Type))
+                }
                 T::BorrowedFunctionPointer { life } => {
                     let mut dense = 0;
                     let canonical = life.parameter_lives.iter().flatten().all(|tag| {

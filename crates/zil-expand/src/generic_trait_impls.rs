@@ -157,7 +157,7 @@ impl<'a> Engine<'a> {
                         &mut self.budget,
                         member.span,
                     )?;
-                    let key = trait_bounds::associated::equation_key(&projected)?;
+                    let key = trait_bounds::associated::equation_key(&projected, &mut self.budget)?;
                     self.budget.text(&key, member.span)?;
                     let value = &equations[&key];
                     let mut substitutions = BTreeMap::new();

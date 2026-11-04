@@ -2805,6 +2805,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         depth: usize,
         write: bool,
     ) -> R<Term> {
+        if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
+            && !matches!(
+                &expression.kind,
+                CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
+            )
+        {
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            let term = self.expr_raw(expression, None, depth, write)?;
+            let variable = self.scalar(&term, expression.span)?;
+            let actual = self.graph.injection_type(variable, expression.span)?;
+            enums::anonymous_injection(&actual, sum, expression.span)?;
+            return self.known_term(sum, expression.span);
+        }
         if let Some(union @ Type::ErrorUnion { .. }) = expected
             && !matches!(
                 &expression.kind,

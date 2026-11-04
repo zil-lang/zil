@@ -911,7 +911,7 @@ impl Graph {
         );
         Ok(())
     }
-    fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
+    pub(super) fn reserve_type(&self, ty: &Type, depth: usize, span: Span) -> R<()> {
         self.spend(span)?;
         if depth > self.depth_limit {
             return Err(limit("closure aggregate type depth exceeded", span));
@@ -2858,6 +2858,21 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         expected: Option<&Type>,
         depth: usize,
     ) -> R<LocalType> {
+        if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
+            && !matches!(
+                &expression.kind,
+                CoreExprKind::If { .. } | CoreExprKind::Sequence { .. }
+            )
+        {
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            self.graph.reserve_type(sum, 0, expression.span)?;
+            let value = self.expr_raw(expression, None, depth)?;
+            let actual = self
+                .graph
+                .injection_type(value.scalar(expression.span)?, expression.span)?;
+            enums::anonymous_injection(&actual, sum, expression.span)?;
+            return self.known(sum, expression.span);
+        }
         if let Some(union @ Type::ErrorUnion { .. }) = expected
             && !matches!(
                 &expression.kind,

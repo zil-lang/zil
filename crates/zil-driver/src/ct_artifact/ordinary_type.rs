@@ -106,6 +106,24 @@ pub(super) fn checked_type(
                     return Err(error("nominal layout shape has not completed"));
                 }
             }
+            CtTypeNode::AnonymousSum(items) => {
+                let mut members = Vec::new();
+                for id in items {
+                    let member = node(ty, *id, snapshot, index, depth + 1, max_depth, budget)?;
+                    if let Type::Enum { name, variants } = member {
+                        if name == "@anonymous-sum:v1" {
+                            for (_, fields) in variants {
+                                members.extend(fields);
+                            }
+                        } else {
+                            members.push(Type::Enum { name, variants });
+                        }
+                    } else {
+                        members.push(member);
+                    }
+                }
+                anonymous_sum(members, budget, max_depth)?
+            }
             CtTypeNode::Tuple(items) => Type::Tuple(
                 items
                     .iter()
@@ -250,4 +268,94 @@ pub(super) fn checked_type(
         })
     }
     node(ty, ty.root, snapshot, index, 0, max_depth, budget)
+}
+
+// This bridge sorts complete resolved runtime identities again: constructor
+// graph order is deliberately not an ordinary enum tag order.
+pub(super) fn anonymous_sum(
+    mut members: Vec<Type>,
+    budget: &mut zil_ct::CtExecutionBudget,
+    max_depth: usize,
+) -> CompileResult<Type> {
+    let mut work = 1u64;
+    for member in &members {
+        let mut pending = vec![(member, 0usize)];
+        let mut borrowed_code_scratch = 0u64;
+        while let Some((ty, depth)) = pending.pop() {
+            if depth > max_depth {
+                return Err(error("anonymous member identity exceeds depth"));
+            }
+            budget.reserve_analysis_work(1)?;
+            work = work.saturating_add(1);
+            match ty {
+                Type::Tuple(v) => pending.extend(v.iter().map(|t| (t, depth + 1))),
+                Type::Record { name, fields } | Type::Package { name, fields } => {
+                    work = work.saturating_add(name.len() as u64);
+                    for (name, t) in fields {
+                        work = work.saturating_add(name.len() as u64);
+                        pending.push((t, depth + 1));
+                    }
+                }
+                Type::Enum { name, variants } => {
+                    work = work.saturating_add(name.len() as u64);
+                    for (name, fields) in variants {
+                        work = work.saturating_add(name.len() as u64);
+                        pending.extend(fields.iter().map(|t| (t, depth + 1)));
+                    }
+                }
+                Type::Array { element, .. }
+                | Type::Slice { element }
+                | Type::OwnedStore { element }
+                | Type::Address { inner: element, .. }
+                | Type::Managed(element)
+                | Type::Desc(element) => pending.push((element, depth + 1)),
+                Type::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    let lives = (life.parameter_lives.len() as u64).saturating_add(3);
+                    budget.reserve_analysis_work(lives.saturating_add(parameters.len() as u64))?;
+                    work = work.saturating_add(lives);
+                    let scratch = (parameters.len() as u64)
+                        .saturating_add(1)
+                        .saturating_mul(16);
+                    budget.reserve_temporary_bytes(scratch)?;
+                    borrowed_code_scratch = borrowed_code_scratch.saturating_add(scratch);
+                    pending.extend(parameters.iter().map(|t| (t, depth + 1)));
+                    pending.push((result, depth + 1));
+                }
+                Type::FunctionPointer { parameters, result }
+                | Type::ForeignCallback { parameters, result } => {
+                    pending.extend(parameters.iter().map(|t| (t, depth + 1)));
+                    pending.push((result, depth + 1));
+                }
+                Type::ErrorUnion { error, result } => {
+                    pending.push((error, depth + 1));
+                    pending.push((result, depth + 1));
+                }
+                Type::Named(_) | Type::Unsupported(_) | Type::Opaque { .. } | Type::Closure(_) => {
+                    return Err(error("anonymous sum member is not complete"));
+                }
+                _ => {}
+            }
+        }
+        budget.release_temporary_bytes(borrowed_code_scratch);
+    }
+    budget.reserve_analysis_work(work.saturating_mul(members.len().saturating_add(2) as u64))?;
+    if members.len() < 2 {
+        return Err(error("anonymous sum needs two resolved members"));
+    }
+    members.sort();
+    if members.windows(2).any(|v| v[0] == v[1]) {
+        return Err(error("anonymous sum repeats a resolved member"));
+    }
+    Ok(Type::Enum {
+        name: "@anonymous-sum:v1".into(),
+        variants: members
+            .into_iter()
+            .enumerate()
+            .map(|(i, t)| (format!("Member{i}"), vec![t]))
+            .collect(),
+    })
 }
