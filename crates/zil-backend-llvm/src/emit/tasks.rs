@@ -391,6 +391,7 @@ fn awaited(op: &m::Op) -> Option<FunctionId> {
 }
 struct ChildFrame {
     worker: FunctionId,
+    result: m::Ty,
     frame: u32,
     active: u32,
 }
@@ -400,15 +401,23 @@ struct FramePlan {
     children: Vec<ChildFrame>,
     owners: Option<owners::OwnerFrame>,
 }
+struct AwaitHandoff<'a> {
+    child: &'a ChildFrame,
+    result_marker: Option<m::Inst>,
+}
 fn split_await(
     mut current: m::Block,
     instruction: &m::Inst,
-    child: &ChildFrame,
+    handoff: AwaitHandoff<'_>,
     site: usize,
     pieces: &mut Vec<m::Block>,
     resumes: &mut BTreeSet<usize>,
     parent_result: &m::Ty,
 ) -> m::Block {
+    let AwaitHandoff {
+        child,
+        result_marker,
+    } = handoff;
     let m::Op::Call { args, .. } = &instruction.op else {
         unreachable!("actual await marker is a call")
     };
@@ -441,7 +450,7 @@ fn split_await(
     call(
         &mut poll,
         Some(&format!("{prefix}.answer")),
-        result_ty(),
+        m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
         m::global(name(child.worker, "poll")),
         vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
     );
@@ -449,7 +458,10 @@ fn split_await(
         &mut poll,
         Some(&format!("{prefix}.tag")),
         m::Op::Extract {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
+            arg: m::Arg::new(
+                m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
+                loc(format!("{prefix}.answer")),
+            ),
             index: 0,
         },
     );
@@ -505,10 +517,20 @@ fn split_await(
         &mut ready,
         instruction.result.as_deref(),
         m::Op::Extract {
-            arg: m::Arg::new(result_ty(), loc(format!("{prefix}.answer"))),
+            arg: m::Arg::new(
+                m::Ty::Struct(vec![m::Ty::Int(32), child.result.clone()]),
+                loc(format!("{prefix}.answer")),
+            ),
             index: 1,
         },
     );
+    // Extract is spilled to the canonical parent slot by the ordinary frame
+    // rewriter before this exact Verify-derived result record becomes live.
+    // Child teardown therefore runs with the transferred result owned by the
+    // parent, not in an unrecorded transient interval.
+    if let Some(marker) = result_marker {
+        ready.push(marker);
+    }
     call(
         &mut ready,
         Some(&format!("{prefix}.closed")),
@@ -516,8 +538,8 @@ fn split_await(
         m::global(name(child.worker, "poll_close")),
         vec![m::Arg::new(m::Ty::Ptr, loc(&pointer))],
     );
-    // The first child lane independently admits only no-external scalar
-    // workers: close is synchronous. General owning/Pending close will retain
+    // The checked closed child/teardown graph proves synchronous close;
+    // the child result is self-contained. General Pending close will retain
     // this moved result in the parent's PendingExit responsibility instead.
     cond(
         &mut ready,
@@ -684,6 +706,13 @@ fn plan_frame(
             if let Some(worker) = awaited(&instruction.op) {
                 plan_frame(worker, machines, plans, path, meter, verified)?;
                 let child = &plans[&worker];
+                // Prepay each later child-result clone in the poll call and
+                // aggregate extraction before constructing its machine type.
+                let result = &machines[&worker].signature.result;
+                for _ in 0..8 {
+                    reserve_frame_type(result, meter, 0)?;
+                }
+                let result = result.clone();
                 for field in &child.fields {
                     reserve_frame_type(field, meter, 0)?;
                 }
@@ -693,6 +722,7 @@ fn plan_frame(
                 plan.fields.push(m::Ty::Int(1));
                 plan.children.push(ChildFrame {
                     worker,
+                    result,
                     frame,
                     active,
                 });
@@ -777,7 +807,8 @@ fn lower_worker(
     let mut resumes = BTreeSet::from([0]);
     for b in original {
         let mut current = block(&b.name, vec![]);
-        for i in &b.instructions {
+        let mut original_instructions = b.instructions.iter().peekable();
+        while let Some(i) = original_instructions.next() {
             if matches!(&i.op, m::Op::Call { callee: m::Val::Global(n), .. } if n == MARKER) {
                 let next = format!("task.resume.{}", pieces.len());
                 // The resume pc is its exact position in the final block table.
@@ -805,10 +836,42 @@ fn lower_worker(
                 pieces.push(current);
                 current = block(&next, vec![]);
             } else if awaited(&i.op).is_some() {
+                let mut result_marker = None;
+                if let Some(plan) = verified.task_ownership(id) {
+                    meter.spend(plan.owners().len().saturating_add(512))?;
+                    let output = i
+                        .result
+                        .as_deref()
+                        .and_then(|name| name.strip_prefix("v."))
+                        .and_then(|id| id.parse::<u32>().ok())
+                        .map(ValueId);
+                    if let Some(owner) = output.and_then(|out| plan.owner_for_value(out)) {
+                        let m::Event::Instruction(expected) =
+                            owners::marker(zil_verify::TaskOwnerAction::Link(owner))
+                        else {
+                            unreachable!("owner marker instruction")
+                        };
+                        if !original_instructions
+                            .peek()
+                            .is_some_and(|actual| actual.op == expected.op)
+                        {
+                            return invalid(
+                                "E-CODEGEN-TASK",
+                                "owned Await result lacks its exact verified handoff marker",
+                                None,
+                            );
+                        }
+                        original_instructions.next();
+                        result_marker = Some(expected);
+                    }
+                }
                 current = split_await(
                     current,
                     i,
-                    &children[child_site],
+                    AwaitHandoff {
+                        child: &children[child_site],
+                        result_marker,
+                    },
                     child_site,
                     &mut pieces,
                     &mut resumes,

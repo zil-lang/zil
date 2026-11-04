@@ -224,7 +224,7 @@ pub(super) fn profile(
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || !(f.result_mode == PassingMode::Infer && f.return_type == Type::I32
-            || f.result_mode == PassingMode::Give
+            || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
                 && matches!(f.return_type, Type::Managed(_))
                 && result_type(&f.return_type, budget)?)
         || module.resources.iter().any(|r| r.teardown == Some(f.id))
@@ -296,15 +296,22 @@ pub(super) fn profile(
                     function,
                     arguments,
                 } => {
-                    budget.spend(arguments.len(), "actual owning task profile")?;
-                    if arguments.len() != 1
-                        || value_type(f, arguments[0], Some(i.span))? != &Type::I32
-                    {
-                        return Err(reject(
-                            "E-VERIFY-TASK",
-                            Some(i.span),
-                            "owned parent currently requires scalar child inputs",
-                        ));
+                    budget.spend(arguments.len().saturating_add(1), "child actual signature")?;
+                    let target = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| fail(i.span, "child target absent"))?;
+                    if arguments.len() != target.parameters.len() {
+                        return Err(fail(i.span, "child actual arity differs"));
+                    }
+                    for (arg, param) in arguments.iter().zip(&target.parameters) {
+                        let actual = value_type(f, *arg, Some(i.span))?;
+                        let wanted = local_type(target, *param, Some(i.span))?;
+                        budget.type_work(actual, false, "child actual input")?;
+                        budget.type_work(wanted, false, "child signature input")?;
+                        if actual != wanted {
+                            return Err(fail(i.span, "child actual input type differs"));
+                        }
                     }
                     children.push(*function);
                 }

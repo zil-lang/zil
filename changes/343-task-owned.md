@@ -41,9 +41,35 @@ separate: explicit dispose calls are not a lexical cancellation oracle.
 
 Current admitted owning payloads are finite inline scalar-record resources;
 complete tuple responsibility and one-owned-field Package storage compose with
-that lane. General partial products, owning child arguments/results, borrowed
+that lane. General partial products, borrowed
 frame ports, user defers, external wakers, actual Pending close and public owning
 SABI remain follow-on work. Synchronous default Drop is justified by the checked
 actual closed child/teardown profile, not by an unchecked producer flag. This
 checkpoint makes no Transfer/Share, general Mutex, cross-thread retained
 registration or product-performance claim.
+
+Owned static child continuation follow-up: `task_await` retains the actual
+concrete worker parameter and result types, including Managed<R>, through the
+existing SuspendCall125 path. Arguments are prepared once using ordinary staged
+pre-call cleanup and committed once to the embedded child. Pending resumes only
+that child's poll PC. Ready transfers its self-contained result once, then closes
+and destroys the child before continuing; each actual teardown graph must prove
+synchronous close. Sequential Await admits at most one active direct child per
+parent; owning values returned by earlier completed children remain parent debts.
+No borrowed child result, concurrent sibling handle, external waker, or Pending
+close is admitted by this extension. These remain implementation obligations.
+
+This follow-up also admits actual Create-mode owning results; ordinary resource
+freshness independently proves that returned values were created. Merely changing
+a Give worker's result mode to Create rejects in the actual resource gate. A
+Direct owning worker may have both an ordinary call body and a task adapter.
+Native loop reuse, actual argument/body invocation counts, two owning argument
+transfers, first-child result retention, and later-argument failure are controls.
+
+| Existing comparison goal | This follow-up's evidence and limit |
+| --- | --- |
+| Rust-class safety | Both kernels rebuild full actual child types, ownership and closed effects; six malformed raw/Wire neighbors reject. Borrowed results and external roots remain unimplemented. |
+| Runtime and memory | Child frames are embedded in the one allocated parent frame. Actual fault observation distinguishes parent allocation failure and proves no per-Await allocation. No Rust latency/RSS comparison was run. |
+| Expression and maintenance | The same concrete Managed<T> crosses ordinary calls, task creation, Await, loop-site reuse and ordinary Poll<T>. General results/defers and full framework maintenance remain open. |
+| Compile cost | Actual result-width and owner-action growth use the existing shared budget with N/N−1/fresh controls. Default limits are unchanged; no Rust compile-cost advantage is claimed. |
+| Concrete gain | Previously unavailable owning static child composition now executes on both native backends. Product gates and all remaining task343 obligations are unchanged. |

@@ -128,12 +128,18 @@ fn dispatch() -> Raw {
 
     let mut raw = Raw {
         module: TypedModule {
+            dyn_declarations: Vec::new(),
+            dyn_interfaces: Vec::new(),
+            dyn_vtables: Vec::new(),
+            life_declarations: Vec::new(),
+            life_instances: Vec::new(),
             schema_version: SCHEMA_VERSION,
             module_id: ModuleId(0),
             source_fingerprint: Fingerprint::of(b"owned callback raw and wire"),
             target: TargetProfile::host_llvm(),
             functions: vec![],
             closures: vec![ClosureDefinition {
+                storage_life: None,
                 id: ClosureId(0),
                 function: FunctionId(1),
                 captures: vec![],
@@ -246,6 +252,7 @@ fn owning_result_does_not_expand_shared_product_or_store_capture_profiles() {
     raw.module.closures[0].captures = vec![stored_event()];
     raw.module.closures[0].result = Type::I32;
     raw.module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(2),
         captures: vec![env()],
@@ -638,6 +645,7 @@ fn closure_body_private_slot_can_discharge_without_a_forwarding_call_raw_wire() 
     body.blocks[0].terminator = Terminator::Return(Some(ValueId(3)));
     body.environment = Some(ClosureId(1));
     raw.module.closures.push(ClosureDefinition {
+        storage_life: None,
         id: ClosureId(1),
         function: FunctionId(2),
         captures: vec![],
