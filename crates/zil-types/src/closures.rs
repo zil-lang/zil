@@ -744,17 +744,19 @@ pub(super) fn value_signature(parameters: &[Type], result: &Type) -> bool {
     supported_signature(parameters, result)
         || (parameters.iter().all(owned_signature_value) && owned_signature_value(result))
 }
-pub(super) const UNIT: u8 = 1;
-pub(super) const BOOL: u8 = 2;
-pub(super) const I32: u8 = 4;
-pub(super) const I64: u8 = 8;
-pub(super) const U8: u8 = 32;
-pub(super) const U16: u8 = 64;
-pub(super) const HANDLE: u8 = 128;
-pub(super) const INTEGER: u8 = U8 | U16 | I32 | I64;
-pub(super) const SCALAR: u8 = UNIT | BOOL | INTEGER | HANDLE;
-const AGGREGATE: u8 = 16;
-pub(super) const VALUE: u8 = SCALAR | AGGREGATE;
+pub(super) const UNIT: u16 = 1;
+pub(super) const BOOL: u16 = 2;
+pub(super) const I32: u16 = 4;
+pub(super) const I64: u16 = 8;
+pub(super) const U8: u16 = 32;
+pub(super) const U16: u16 = 64;
+pub(super) const HANDLE: u16 = 128;
+pub(super) const U64: u16 = 256;
+pub(super) const USIZE: u16 = 512;
+pub(super) const INTEGER: u16 = U8 | U16 | U64 | USIZE | I32 | I64;
+pub(super) const SCALAR: u16 = UNIT | BOOL | INTEGER | HANDLE;
+const AGGREGATE: u16 = 16;
+pub(super) const VALUE: u16 = SCALAR | AGGREGATE;
 
 #[derive(Clone)]
 enum Shape {
@@ -783,7 +785,7 @@ pub(super) enum Projection {
 struct Node {
     parent: Variable,
     rank: u8,
-    domain: u8,
+    domain: u16,
     literal: bool,
     concrete: Option<Type>,
     shape: Option<Shape>,
@@ -975,7 +977,7 @@ impl Graph {
         matches!(node.shape, Some(Shape::Slice { .. }))
             || matches!(node.concrete, Some(Type::Slice { .. }))
     }
-    pub(super) fn fresh(&mut self, domain: u8, literal: bool) -> Variable {
+    pub(super) fn fresh(&mut self, domain: u16, literal: bool) -> Variable {
         let variable = self.nodes.len();
         self.nodes.push(Node {
             parent: variable,
@@ -993,7 +995,7 @@ impl Graph {
         }
         variable
     }
-    pub(super) fn constrain(&mut self, variable: Variable, domain: u8, span: Span) -> R<()> {
+    pub(super) fn constrain(&mut self, variable: Variable, domain: u16, span: Span) -> R<()> {
         self.spend(span)?;
         let root = self.root(variable);
         let narrowed = self.nodes[root].domain & domain;
@@ -1026,6 +1028,8 @@ impl Graph {
             Type::ForeignHandle => HANDLE,
             Type::I32 => I32,
             Type::I64 => I64,
+            Type::U64 => U64,
+            Type::Usize => USIZE,
             ty if self.symbolic_store_type(ty) => AGGREGATE,
             ty if self.source_callback_package(ty) => AGGREGATE,
             ty if *ty == Type::ByteBuffer
@@ -1513,6 +1517,8 @@ impl Graph {
             HANDLE => Some(Type::ForeignHandle),
             I32 => Some(Type::I32),
             I64 => Some(Type::I64),
+            U64 => Some(Type::U64),
+            USIZE => Some(Type::Usize),
             AGGREGATE => {
                 if let Some(ty) = &node.concrete {
                     self.reserve_type(ty, depth, Span::default())?;
@@ -2818,7 +2824,9 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     !text.ends_with("u8")
                         && !text.ends_with("u16")
                         && !text.ends_with("i32")
-                        && !text.ends_with("i64"),
+                        && !text.ends_with("i64")
+                        && !text.ends_with("u64")
+                        && !text.ends_with("usize"),
                 );
                 if text.ends_with("u8") {
                     self.graph.bind(variable, &Type::U8, span)?;
@@ -2831,6 +2839,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 if text.ends_with("i64") {
                     self.graph.bind(variable, &Type::I64, span)?;
+                }
+                if text.ends_with("u64") {
+                    self.graph.bind(variable, &Type::U64, span)?;
+                }
+                if text.ends_with("usize") {
+                    self.graph.bind(variable, &Type::Usize, span)?;
                 }
                 Ok(LocalType::Scalar(variable))
             }

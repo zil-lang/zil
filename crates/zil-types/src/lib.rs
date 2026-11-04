@@ -1356,6 +1356,8 @@ impl<'a, 'c> Builder<'a, 'c> {
                 Type::U16 => Constant::U16(1),
                 Type::I32 => Constant::I32(1),
                 Type::I64 => Constant::I64(1),
+                Type::U64 => Constant::U64(1),
+                Type::Usize => Constant::Usize(1),
                 _ => unreachable!("integer range type checked above"),
             };
             let (one, _) = self.constant(one, span)?;
@@ -2180,6 +2182,8 @@ impl<'a, 'c> Builder<'a, 'c> {
             CoreExprKind::Integer(n) if n.ends_with("u8") => Some(Type::U8),
             CoreExprKind::Integer(n) if n.ends_with("u16") => Some(Type::U16),
             CoreExprKind::Integer(n) if n.ends_with("i64") => Some(Type::I64),
+            CoreExprKind::Integer(n) if n.ends_with("u64") => Some(Type::U64),
+            CoreExprKind::Integer(n) if n.ends_with("usize") => Some(Type::Usize),
             CoreExprKind::Integer(n) if n.ends_with("i32") => Some(Type::I32),
             CoreExprKind::Unary {
                 op: UnaryOp::Not, ..
@@ -2969,6 +2973,8 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         ("u16", Type::U16),
         ("i32", Type::I32),
         ("i64", Type::I64),
+        ("u64", Type::U64),
+        ("usize", Type::Usize),
     ] {
         if let Some(v) = clean.strip_suffix(suffix) {
             digits = v;
@@ -2980,6 +2986,8 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         Some(Type::U8) => Type::U8,
         Some(Type::U16) => Type::U16,
         Some(Type::I64) => Type::I64,
+        Some(Type::U64) => Type::U64,
+        Some(Type::Usize) => Type::Usize,
         _ => Type::I32,
     });
     let (radix, digits) = if let Some(s) = digits.strip_prefix("0x") {
@@ -3007,6 +3015,8 @@ fn integer(text: &str, expected: Option<&Type>, negative: bool, span: Span) -> R
         Type::I64 => i64::try_from(value)
             .map(Constant::I64)
             .map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit i64")),
+        Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit u64")),
+        Type::Usize => u64::try_from(value).map(Constant::Usize).map_err(|_| error("E-INTEGER-RANGE", span, "integer does not fit usize")),
         _ => unreachable!(),
     }
 }

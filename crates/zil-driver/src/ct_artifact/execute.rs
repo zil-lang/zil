@@ -222,7 +222,7 @@ impl<'a> Environment<'a> {
         })?;
         let input_tokens = self.empty_input(span)?;
         let selected_limits = self.remaining_limits();
-        let mut expected = compiler::compile(CompileRequest { modules: &modules,
+        let mut expected = compiler::compile(CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
             source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
             input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }).map_err(|mut errors| {
                 for error in &mut errors {
@@ -291,6 +291,7 @@ impl<'a> Environment<'a> {
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
         let expected = compiler::compile(CompileRequest {
+            target_pointer_width: self.target.pointer_width,
             modules: &modules,
             source_fingerprint: self.source_fingerprint,
             entry,

@@ -480,6 +480,8 @@ fn charge_type(
         | Type::Bool
         | Type::I32
         | Type::I64
+        | Type::U64
+        | Type::Usize
         | Type::U8
         | Type::U16
         | Type::ByteBuffer

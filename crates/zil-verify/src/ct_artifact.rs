@@ -199,6 +199,9 @@ fn preflight(raw: &CtArtifactProgram, limits: &Limits) -> Check<()> {
     if raw.schema_version != CT_ARTIFACT_SCHEMA_VERSION {
         return Err(reject(None, "unknown CT artifact schema"));
     }
+    if !matches!(raw.target_pointer_width, 32 | 64) {
+        return Err(reject(None, "unsupported CT artifact target pointer width"));
+    }
     let b = raw.budget;
     if b.max_steps == 0
         || b.max_steps > limits.max_ct_steps
@@ -292,13 +295,15 @@ fn constant_type(value: &Constant) -> Option<CtScalarTy> {
         Constant::U16(_) => Some(CtScalarTy::U16),
         Constant::I32(_) => Some(CtScalarTy::I32),
         Constant::I64(_) => Some(CtScalarTy::I64),
+        Constant::U64(_) => Some(CtScalarTy::U64),
+        Constant::Usize(_) => Some(CtScalarTy::Usize),
         _ => None,
     }
 }
 fn integer(ty: &CtTy) -> bool {
     matches!(
         scalar(ty),
-        Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::I32 | CtScalarTy::I64)
+        Some(CtScalarTy::U8 | CtScalarTy::U16 | CtScalarTy::U64 | CtScalarTy::Usize | CtScalarTy::I32 | CtScalarTy::I64)
     )
 }
 fn index_type(ty: &CtTy) -> bool {
@@ -307,6 +312,7 @@ fn index_type(ty: &CtTy) -> bool {
 fn check_constants(raw: &CtArtifactProgram) -> Check<()> {
     for c in &raw.constants {
         match c {
+            CtConstant::Scalar(Constant::Usize(v)) if raw.target_pointer_width == 32 && *v > u64::from(u32::MAX) => return Err(reject(None, "usize constant exceeds the selected32-bit target")),
             CtConstant::Scalar(s) if constant_type(s).is_some() => {}
             CtConstant::Text(t) if t.len() <= raw.budget.max_temporary_bytes as usize => {}
             _ => {
@@ -1519,6 +1525,7 @@ mod tests {
         let span = Span::default();
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            target_pointer_width: 64,
             source_fingerprint: Fingerprint::ZERO,
             functions: vec![CtFunction {
                 id: CtFunctionId(0),

@@ -64,7 +64,7 @@ pub(super) fn validate(program: &CoreProgram, limits: &Limits) -> Option<Compile
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+        Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16
     )
 }
 
@@ -191,6 +191,8 @@ impl Walker {
                 | Constant::Bool(_)
                 | Constant::I32(_)
                 | Constant::I64(_)
+                | Constant::U64(_)
+                | Constant::Usize(_)
                 | Constant::U8(_)
                 | Constant::U16(_),
             ) => {}

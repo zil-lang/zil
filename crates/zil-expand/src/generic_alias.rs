@@ -11,7 +11,7 @@ pub(super) struct Normalized {
 pub(super) fn reserved_declaration_name(name: &str) -> bool {
     matches!(
         name,
-        "u8" | "u16" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+        "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
     )
 }
 

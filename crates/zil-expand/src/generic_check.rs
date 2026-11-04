@@ -452,7 +452,7 @@ fn substituted_type(
     Ok(result)
 }
 pub(super) fn integer(ty: &TypeRef) -> bool {
-    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "i32" | "i64")))
+    matches!(&group(ty).kind, TypeKind::Named { path, args } if args.is_empty() && matches!(path.as_slice(), [name] if matches!(name.as_str(), "u8" | "u16" | "u64" | "usize" | "i32" | "i64")))
 }
 // An unused template cannot erase an out-of-range literal or an explicit
 // suffix mismatch. Concrete instances still enter ordinary Types and Verify.

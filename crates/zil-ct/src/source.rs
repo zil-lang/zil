@@ -459,7 +459,7 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 => Ok(true),
+        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::U64 | Type::Usize => Ok(true),
         Type::Named(n) => {
             *work = work.checked_sub(n.len()).ok_or_else(limit)?;
             Ok(true)
@@ -628,7 +628,7 @@ fn unchanged_shape(core: &CoreModule, limits: &Limits) -> Option<()> {
     fn scalar(ty: &Type) -> bool {
         matches!(
             ty,
-            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U8 | Type::U16
+            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::U8 | Type::U16
         )
     }
     enum Node<'a> {
@@ -1454,6 +1454,7 @@ impl<'a> Walker<'a> {
                 }
             }
             CorePatternKind::Integer(text) => self.text(text, Some(pattern.span))?,
+            CorePatternKind::Reference { pattern, .. } => self.bind_pattern(pattern, depth + 1)?,
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) => {}
         }
         Ok(())
@@ -2240,6 +2241,8 @@ fn scalar_hints(
             CoreExprKind::Integer(text) if text.ends_with("u16") => Some(Type::U16),
             CoreExprKind::Integer(text) if text.ends_with("i32") => Some(Type::I32),
             CoreExprKind::Integer(text) if text.ends_with("i64") => Some(Type::I64),
+            CoreExprKind::Integer(text) if text.ends_with("u64") => Some(Type::U64),
+            CoreExprKind::Integer(text) if text.ends_with("usize") => Some(Type::Usize),
             CoreExprKind::Bool(_)
             | CoreExprKind::Unary {
                 op: UnaryOp::Not, ..
@@ -2447,6 +2450,10 @@ fn integer(
         (s, Type::I32)
     } else if let Some(s) = clean.strip_suffix("i64") {
         (s, Type::I64)
+    } else if let Some(s) = clean.strip_suffix("u64") {
+        (s, Type::U64)
+    } else if let Some(s) = clean.strip_suffix("usize") {
+        (s, Type::Usize)
     } else if let Some(s) = clean.strip_suffix("u16") {
         (s, Type::U16)
     } else if let Some(s) = clean.strip_suffix("u8") {
@@ -2458,6 +2465,10 @@ fn integer(
                 Type::U8
             } else if expected == Some(&Type::U16) {
                 Type::U16
+            } else if expected == Some(&Type::U64) {
+                Type::U64
+            } else if expected == Some(&Type::Usize) {
+                Type::Usize
             } else if expected == Some(&Type::I64) {
                 Type::I64
             } else {
@@ -2492,6 +2503,8 @@ fn integer(
         Type::U8 => u8::try_from(value).map(Constant::U8).map_err(|_| error()),
         Type::U16 => u16::try_from(value).map(Constant::U16).map_err(|_| error()),
         Type::I64 => i64::try_from(value).map(Constant::I64).map_err(|_| error()),
+        Type::U64 => u64::try_from(value).map(Constant::U64).map_err(|_| error()),
+        Type::Usize => u64::try_from(value).map(Constant::Usize).map_err(|_| error()),
         _ => i32::try_from(value).map(Constant::I32).map_err(|_| error()),
     }
 }

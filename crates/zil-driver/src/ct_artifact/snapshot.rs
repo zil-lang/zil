@@ -170,6 +170,8 @@ fn builtin(name: &str) -> bool {
             | "u16"
             | "i32"
             | "i64"
+            | "u64"
+            | "usize"
             | "ByteBuffer"
             | "ForeignHandle"
             | "CWideString"

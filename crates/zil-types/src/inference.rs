@@ -1,7 +1,7 @@
 //! A bounded source constraint pass, before CT evaluates any integer. Its output
 //! is still raw Core: neither capture legality nor executable safety is granted.
 use super::closures::{
-    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, UNIT, VALUE, Variable,
+    BOOL, Graph, I32, I64, INTEGER, Projection, SCALAR, U8, U16, U64, USIZE, UNIT, VALUE, Variable,
 };
 use super::*;
 use std::borrow::Cow;
@@ -1961,7 +1961,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         self.applied_value_term(&signature.result, name, &actual, span)
     }
 
-    fn fresh(&mut self, domain: u8, literal: bool, span: Span) -> R<Variable> {
+    fn fresh(&mut self, domain: u16, literal: bool, span: Span) -> R<Variable> {
         self.budget.work(1, span)?;
         if self.graph.len() >= self.budget.limits.max_nodes {
             return Err(Diagnostic::limit(
@@ -2823,6 +2823,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     U8
                 } else if text.ends_with("u16") {
                     U16
+                } else if text.ends_with("u64") {
+                    U64
+                } else if text.ends_with("usize") {
+                    USIZE
                 } else if text.ends_with("i64") {
                     I64
                 } else if text.ends_with("i32") {
@@ -4392,12 +4396,16 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     && !text.ends_with("u16")
                     && !text.ends_with("i32")
                     && !text.ends_with("i64")
+                    && !text.ends_with("u64")
+                    && !text.ends_with("usize")
                 {
                     let ty = self.resolved(self.literal_types[&index], value.span)?;
                     text.push_str(match ty {
                         Type::U8 => "u8",
                         Type::U16 => "u16",
                         Type::I64 => "i64",
+                        Type::U64 => "u64",
+                        Type::Usize => "usize",
                         _ => "i32",
                     });
                 }
