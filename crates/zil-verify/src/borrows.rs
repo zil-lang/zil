@@ -188,7 +188,7 @@ fn reverse(live: &mut [bool], instruction: &Instruction, value_count: usize) {
     }
 }
 fn replacement_schedule(module:&TypedModule,f:&TypedFunction,graph:&FunctionGraph,budget:&mut Budget)->Check<Option<(crate::place_replacements::Inventory,crate::place_replacements::Schedule)>> {
-    if !budget.replacements { return Ok(None) }
+    if !budget.replacements || f.foreign.is_some() { return Ok(None) }
     let inventory=crate::place_replacements::Inventory::reconstruct(module,f,budget)?;
     let schedule=inventory.schedule(f,graph,budget)?;
     Ok(Some((inventory,schedule)))

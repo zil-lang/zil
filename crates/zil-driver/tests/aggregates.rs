@@ -216,6 +216,13 @@ fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
     ] {
         review329_native_output(&[("main", text)], b"AB42\n");
     }
+    review329_native_output(
+        &[("main", include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"))],
+        b"A42\n",
+    );
+    let read_old = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+        .replace("R{code:66}", "R{code:target.owner.code+1}");
+    review329_native_output(&[("main", &read_old)], b"AB42\n");
     for text in [
         include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
         include_str!(
@@ -229,6 +236,66 @@ fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
             "{}",
             report.to_json()
         );
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
+    let input = source("resource R{code:i32}package P{manages owner:R;n:i32}fn read(n:&i32)->i32{return *n}fn touch(p:&mut P)->i32{p.n=66;return p.n}fn replace(target:&mut P){target.owner=R{code:read(&target.n)}}fn result()->i32{var p=P{owner:R{code:65},n:66};replace(&mut p);return 42}");
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    let touch = typed.functions.iter().find(|f| f.name == "touch").unwrap().id;
+    for mode in 0..5 {
+        let mut raw = typed.clone();
+        let f = raw.functions.iter_mut().find(|f| f.name == "replace").unwrap();
+        let parent = f.blocks.iter().flat_map(|b| &b.instructions).find_map(|i| match i.kind {
+            InstructionKind::ReservePlaceAddress { address, .. } => Some(address), _ => None,
+        }).unwrap();
+        if mode == 4 {
+            let argument = f.blocks.iter().flat_map(|b| &b.instructions).find_map(|i| match &i.kind {
+                InstructionKind::Call { arguments, .. } => Some(arguments[0]), _ => None,
+            }).unwrap();
+            f.values[argument.0 as usize] = f.values[parent.0 as usize].clone();
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                if i.result == Some(argument) {
+                    i.kind = InstructionKind::ReborrowAddress { address: parent, mutable: true };
+                } else if matches!(i.kind, InstructionKind::Call { .. }) {
+                    i.kind = InstructionKind::Call { function: touch, arguments: vec![argument] };
+                }
+            }
+        } else if mode == 3 {
+            let Type::Address { mutable, .. } = &mut f.locals[f.parameters[0].0 as usize].ty else { panic!("actual parent") };
+            *mutable = false;
+        } else {
+            let b = f.blocks.iter_mut().find(|b| b.instructions.iter().any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))).unwrap();
+            let commit = b.instructions.iter().position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. })).unwrap();
+            if mode == 0 {
+                b.instructions.retain(|i| !matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }));
+            } else if mode == 1 {
+                let duplicate = b.instructions[commit].clone();
+                b.instructions.insert(commit + 1, duplicate);
+            } else {
+                let InstructionKind::CommitPlaceReplace { reservation, .. } = b.instructions[commit].kind else { unreachable!() };
+                b.instructions[commit].kind = InstructionKind::AbortPlaceReservation { reservation };
+                // An aborted preparation does not consume the staged new debt.
+            }
+        }
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let errors = zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(errors.iter().any(|e| e.category == ResultCategory::SafeReject), "mode {mode}: {errors:?}");
+        if mode == 4 {
+            assert!(errors.iter().any(|e| e.code == "E-BORROW-REPLACEMENT-PIN"), "{errors:?}");
+        }
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(), "mode {mode}");
     }
 }
 

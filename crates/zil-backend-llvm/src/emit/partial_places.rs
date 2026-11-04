@@ -255,7 +255,7 @@ impl FunctionEmitter<'_> {
         );
         Ok((next, p))
     }
-    fn actual_place(
+    pub(super) fn actual_place(
         &mut self,
         root: &Type,
         ptr: &str,
