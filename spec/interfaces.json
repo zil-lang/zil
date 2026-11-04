@@ -294,7 +294,9 @@
       "CtScalarTy": "U64 tag6, Usize tag7; CT artifact/provider/dependency v2 domains",
       "CorePattern": "Reference { mutable:bool, pattern:Box<CorePattern> } preserves real place and active-variant responsibility",
       "Option": "T? == sealed hygienic Option<T>, canonical None/Some full-T identity using actual Enum consumers; no new runtime permission",
-      "compatibility": "Typed domainV35/Wire35; old versions reject. Raw variants grant no numeric/borrow permission; all consumers independently validate. Floating reserved tags28/29 are not admitted until their published contract/consumers."
+      "compatibility": "Typed domainV35/Wire35; old versions reject. Raw variants grant no numeric/borrow permission; all consumers independently validate. Floating reserved tags28/29 are not admitted until their published contract/consumers.",
+      "CtArtifactProgram.target_pointer_width": "u16 in canonical CTprogramWire/fingerprint; independent verifier accepts only32/64 and checks actual usize values against selected target, never hostdefault",
+      "BorrowVariantLocal": "Typed opcode106 {local,path:Vec<VariantProjection>,mutable}; real active Enum place only, actual parent loan and tag invalidation checked independently."
     },
     "terminal_generic_loans_342": {
       "authority": "_zil_design.md §18.1 terminal342",
@@ -320,6 +322,56 @@
         "SeqCst"
       ],
       "responsibility": "Actual root/capture/worker graph rebuilt separately; only sync ops access payload; stable native cell held until all joined children finish. No implicit shared WriteDesc permission. CT execution refuses."
+    },
+    "terminal_float_union_344": {
+      "authority": "_zil_design.md §§2.4,15.2",
+      "state": "ContractToImplement",
+      "schema_version": 35,
+      "wire_version": 35,
+      "ct_schema_version": 2,
+      "Type": "F32 tag28 / F64 tag29; IEEE binary32/64",
+      "Constant": "F32 rawu32 tag11 / F64 rawu64 tag12, exact little-endian bits",
+      "CtScalarTy": "F32 tag8 / F64 tag9",
+      "Core": "Float(String) spelling; NumericConvert carries numeric source/target syntax before operand type is known. Types emits existing ConvertInteger for integer-to-integer, opcode98 ConvertNumber only with at least one floating endpoint.",
+      "Typed": "ConvertNumber opcode98; target exact Type, independently guard float-to-int finite/integral/range before potentially poison conversion",
+      "union": "Canonical hygienic tagged structural Sum via existing Enum, exact member identity/no conversion search, ordinary borrow/move/cleanup",
+      "machine": "IEEE nofastmath/noimplicitFMA, gradualunderflow/signedzero; actual LLVMAPI andtext consumers; CT same target semantics",
+      "C_ABI": "Explicit scalar f32/f64 and existing POD leaves use real target float/double calling convention and 4/4,8/8 layout; no implicit ForeignCallback or worker whitelist widening."
+    },
+    "terminal_borrowed_function_pointer_342": {
+      "authority": "_zil_design.md §18.1 higherranked342",
+      "state": "ContractToImplement",
+      "schema_version": 35,
+      "wire_version": 35,
+      "Type": "BorrowedFunctionPointer {parameters:Vec<Type>,result:Box<Type>,life:FunctionLifeContract} tag31",
+      "contract": "FunctionLifeContract {binder_count:u32,parameter_lives:Vec<Option<u32>>,result_life:Option<u32>}, canonicaldense indices no lexical names/Span",
+      "responsibility": "Independent target full signature/actualreturnroot subset check, actual mutable authority; each indirectcall fresh actualargs/parents/simultaneouswindows; no proof-bit or fixedenvironment capture",
+      "ABI": "Thin Direct static codepointer; no foreign/env/teardown/Suspend authority",
+      "CT": "CtTypeNode::BorrowedFunctionPointer {parameters:Vec<CtTypeNodeId>,result:CtTypeNodeId,life:FunctionLifeContract}, CT node tag14; bounded canonical DAG, lossless reflection/materialization.",
+      "elision": "Plain borrowed fn signature maps actual address inputs to one fresh upper-bound binder; explicit for-life can narrow; actual authority and simultaneous argument windows remain independent."
+    },
+    "terminal_task_343": {
+      "authority": "_zil_design.md §12.1.1",
+      "state": "ContractToImplement",
+      "schema_version": 35,
+      "wire_version": 35,
+      "Type": "TaskI32 tag33, sealed Managed/Desc owner; operations require exact exclusive AddressMut(Managed(TaskI32))",
+      "instructions": {
+        "99": "TaskStart {worker,argument}",
+        "100": "TaskYield",
+        "101": "TaskValid {task}",
+        "102": "TaskPoll {task}",
+        "103": "TaskRequestCancel {task}",
+        "104": "TaskPollClose {task}",
+        "105": "TaskFinishDestroy {task}"
+      },
+      "responsibility": "Actual persistent frame and five SABI entries; Ready once, sticky cancel, Closed before destroy. Independent reachable graph proves no external users for restricted default-close path, never a proof bit. Direct entry to Suspend rejected."
+    },
+    "terminal_source_stdlib_345": {
+      "authority": "_zil_design.md §15.1",
+      "state": "ContractToImplement",
+      "representation": "Ordinary bundled ZIL SourceUnits and exact reserved module bytes; ordinary compilation and request budget",
+      "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege"
     }
   },
   "schemas": [
