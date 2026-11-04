@@ -2885,6 +2885,75 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn owned_fixed_heads_require_actual_resource_definitions() {
+        let m = fixture::captured_owned_fixed(false);
+        let limits = Limits::default();
+        let mut accepted = Vec::new();
+        for mode in 0..7 {
+            let mut raw = m.clone();
+            match mode {
+                0 => {
+                    raw.resources[0].name = "Other".into();
+                    let Type::Record { name, .. } = &mut raw.resources[0].payload else {
+                        unreachable!()
+                    };
+                    *name = "Other".into();
+                }
+                1 => raw.resources.clear(),
+                2 => raw.resources.push(raw.resources[0].clone()),
+                3 => {
+                    let mut local = raw.functions[1].locals[0].clone();
+                    local.id = LocalId(raw.functions[1].locals.len() as u32);
+                    local.name = "unused_other".into();
+                    local.ty = Type::Managed(Box::new(Type::Record {
+                        name: "Other".into(),
+                        fields: vec![("n".into(), Type::I32)],
+                    }));
+                    raw.functions[1].locals.push(local);
+                }
+                4 => {
+                    let Type::Record { fields, .. } = &mut raw.resources[0].payload else {
+                        unreachable!()
+                    };
+                    fields[0].1 = Type::I64;
+                }
+                5 => raw.resources[0].name = "Other".into(),
+                _ => raw.resources[0].teardown = Some(raw.functions[0].id),
+            }
+            let result = super::super::analyze(&raw, &limits);
+            eprintln!(
+                "resource identity neighbor {mode}: {:?}",
+                result.as_ref().err()
+            );
+            if result.is_ok() {
+                accepted.push(mode);
+            }
+        }
+        assert!(
+            accepted.is_empty(),
+            "unbound resource heads accepted: {accepted:?}"
+        );
+        let mut renamed = m.clone();
+        renamed.resources[0].name = "Renamed".into();
+        if let Type::Record { name, .. } = &mut renamed.resources[0].payload {
+            *name = "Renamed".into();
+        }
+        for ty in renamed
+            .functions
+            .iter_mut()
+            .flat_map(|f| f.locals.iter_mut().map(|l| &mut l.ty).chain(&mut f.values))
+            .chain(renamed.closures.iter_mut().flat_map(|d| &mut d.captures))
+        {
+            if let Type::Managed(payload) | Type::Desc(payload) = ty {
+                let Type::Record { name, .. } = payload.as_mut() else {
+                    unreachable!()
+                };
+                *name = "Renamed".into();
+            }
+        }
+        super::super::analyze(&renamed, &limits).unwrap();
+    }
     use fixture::{address, instruction, module};
     fn prove(module: &TypedModule) -> CompileResult<Vec<Facts>> {
         let limits = Limits::default();
