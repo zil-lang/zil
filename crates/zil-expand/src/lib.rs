@@ -81,7 +81,8 @@ fn sync_name(name: &str) -> bool {
     )
 }
 fn primitive_name(name: &str) -> bool {
-    sync_name(name)
+    matches!(name, "TaskI32" | "task_start" | "task_yield" | "task_valid" | "task_poll" | "task_request_cancel" | "task_poll_close" | "task_finish_destroy")
+        || sync_name(name)
         || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)

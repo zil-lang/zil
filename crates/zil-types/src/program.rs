@@ -408,6 +408,7 @@ pub(super) fn check_resolved_program_with_reuse(
     let (closures, synthesized) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
+    tasks::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     byte_buffer::add_definition(&functions, &mut resources, limits).map_err(|e| vec![e])?;
     dynamic_store::add_definitions(
         &functions,
@@ -528,6 +529,7 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
         Type::I64 => bytes.push(3),
         Type::U16 => bytes.push(16),
         Type::ByteBuffer => bytes.push(21),
+        Type::TaskI32 => bytes.push(33),
         Type::OwnedStore { element } => {
             bytes.push(22);
             type_identity(bytes, element, closures);
