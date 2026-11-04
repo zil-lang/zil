@@ -226,6 +226,10 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                // A direct owned field contributes no class/borrow position.
+                // Capture admission and the independent resource kernel still
+                // establish its finite payload, actual mode and responsibility.
+                || capture && matches!(target, Type::Managed(_))
                 || self.allow_callback
                     && self.inputs.is_none()
                     && matches!(target, Type::Closure(_)))

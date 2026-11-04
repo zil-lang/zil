@@ -45,19 +45,35 @@ pub(super) fn capture(t: &Type) -> bool {
         if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { storage, life }
             if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_)) && life.retained.is_empty()))
 }
+pub(super) fn resource_payload(t: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let Type::Record { fields, .. } = t else {
+        return Ok(false);
+    };
+    b.spend(
+        fields.len().saturating_add(1),
+        "class-free resource payload eligibility",
+    )?;
+    Ok(fields.iter().all(|(_, t)| scalar(t)))
+}
+pub(super) fn owned_capture(t: &Type, b: &mut Budget) -> CompileResult<bool> {
+    let Type::Managed(payload) = t else {
+        return Ok(false);
+    };
+    resource_payload(payload, b)
+}
 pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult<()> {
     b.spend(module.closures.len(), "qualified callback inventory")?;
     for d in &module.closures {
         b.spend(d.captures.len(), "qualified scalar capture inventory")?;
-        if !finite(module, d.id)
-            || !d.captures.iter().all(|t| {
-                if d.storage_life.is_some() {
-                    capture(t)
-                } else {
-                    scalar(t)
-                }
-            })
-        {
+        let mut admitted = finite(module, d.id);
+        for t in &d.captures {
+            admitted &= if d.storage_life.is_some() {
+                capture(t) || (d.kind == CallableKind::FnOnce && owned_capture(t, b)?)
+            } else {
+                scalar(t)
+            };
+        }
+        if !admitted {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "qualified callbacks require finite scalar/shared capture environments and scalar results",
