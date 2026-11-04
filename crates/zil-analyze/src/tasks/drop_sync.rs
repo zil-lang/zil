@@ -32,7 +32,8 @@ fn contains_kind(
     while let Some(t) = pending.pop() {
         budget.spend(1, "Task automatic Drop actual origins")?;
         match t {
-            Type::TaskI32 | Type::Task { .. } if !pollable => return Ok(true),
+            // Legacy TaskI32 has a separately checked NoExternal constructor invariant.
+            Type::Task { .. } if !pollable => return Ok(true),
             Type::AsyncRegistration { .. } if pollable => return Ok(true),
             Type::Task { result, .. } => pending.push(result),
             Type::AsyncRegistration { environment } | Type::Registration { environment } => {
@@ -73,6 +74,13 @@ fn contains_kind(
         }
     }
     Ok(false)
+}
+pub(crate) fn needs_proof(
+    module: &TypedModule,
+    t: &Type,
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    contains_kind(module, t, budget, false)
 }
 fn dependencies(
     module: &TypedModule,
@@ -227,6 +235,8 @@ fn require_origin(
                         workers: BTreeSet::from([*worker]),
                     },
                     InstructionKind::Load(local)
+                    | InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local }
                     | InstructionKind::TakeLocal { local }
                     | InstructionKind::TakePackageField { local, .. }
                     | InstructionKind::TakeOwnedArrayElement { local, .. }
@@ -237,7 +247,9 @@ fn require_origin(
                         )?;
                         locals[local.0 as usize].clone()
                     }
-                    InstructionKind::RegistrationStart {
+                    InstructionKind::ReborrowAddress { address: value, .. }
+                    | InstructionKind::DescribeAddress { address: value }
+                    | InstructionKind::RegistrationStart {
                         callback: value, ..
                     }
                     | InstructionKind::AsyncRegistrationStart {
@@ -301,7 +313,27 @@ fn require_origin(
             "Task automatic Drop has no complete synchronous worker origin",
         ));
     }
-    let mut pending = origins.workers.iter().copied().collect::<Vec<_>>();
+    require_workers(
+        module,
+        origins.workers.iter().copied().collect(),
+        budget,
+        span,
+    )
+}
+pub(crate) fn require_worker(
+    module: &TypedModule,
+    worker: FunctionId,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<()> {
+    require_workers(module, vec![worker], budget, span)
+}
+fn require_workers(
+    module: &TypedModule,
+    mut pending: Vec<FunctionId>,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<()> {
     let mut seen = BTreeSet::new();
     while let Some(worker) = pending.pop() {
         budget.spend(
@@ -313,7 +345,7 @@ fn require_origin(
         }
         let Some(target) = module.functions.get(worker.0 as usize) else {
             return Err(fail(
-                span.unwrap_or(f.span),
+                span.unwrap_or_default(),
                 "Task automatic Drop worker absent",
             ));
         };
@@ -326,7 +358,7 @@ fn require_origin(
             dependencies(module, ty, budget, &mut pending)?;
             if contains_kind(module, ty, budget, true)? {
                 return Err(fail(
-                    span.unwrap_or(f.span),
+                    span.unwrap_or_default(),
                     "pollable Task automatic Drop requires asynchronous continuation",
                 ));
             }
@@ -338,18 +370,27 @@ fn require_origin(
                 match i.kind {
                     InstructionKind::AsyncRegistrationStart { .. } => {
                         return Err(fail(
-                            span.unwrap_or(f.span),
+                            span.unwrap_or_default(),
                             "pollable Task automatic Drop requires asynchronous continuation",
                         ));
                     }
                     InstructionKind::SuspendCall { function, .. }
                     | InstructionKind::Call { function, .. }
+                    | InstructionKind::ForeignCall { function, .. }
+                    | InstructionKind::FunctionRef { function }
+                    | InstructionKind::ForeignFunctionRef { function }
                     | InstructionKind::TaskCreate {
                         worker: function, ..
                     }
                     | InstructionKind::TaskStart {
                         worker: function, ..
                     } => pending.push(function),
+                    InstructionKind::CallIndirect { .. } | InstructionKind::CallDynSlot { .. } => {
+                        return Err(fail(
+                            span.unwrap_or_default(),
+                            "synchronous Task close has no finite actual indirect target graph",
+                        ));
+                    }
                     _ => {}
                 }
             }
