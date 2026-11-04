@@ -828,6 +828,16 @@ SABI 保留 init/poll/request_cancel/poll_close/finish_destroy。poll/poll_close
 
 机器ABI产物须绑定已核输入、实际目标/DataLayout、工具及代码生成配置，记录实际符号/签名与帧字段偏移、大小、对齐、机器类型及完整类型身份。首条布局只接受明确支持的Linux x64目标和ptr/i1/i8/i16/i32/i64及普通非packed结构；实际LLVM DataLayout和C sizeof/offsetof交叉核对。不能使用Rust宿主sizeof推测目标，也不能把缓存descriptor当作独立安全证明。
 
+### 12.1.2 明确Suspend子调用与实际帧责任（343接续）
+
+公开未核调用选择为CallKind Direct=0、Suspend=1。CoreFunction.call_kind允许None由正文推导；TypedFunction记录最终选择。显式contract的effects子句含suspend选择Suspend，不含suspend选择Direct；无effects子句保持正文推导，resume(local)明确选择本地Suspend且不得与Direct上界矛盾。不新增effects(direct)关键字。选择是固定接口上界，显式Suspend的无挂起实现合法，但该声明仍使用Suspend接口；单纯被task_start引用的无挂起Direct worker仍保留可普通调用的Direct正文和另行生成的任务adapter。Analyze和Verify分别从完整可达CFG、实际callee、间接槽及Cleanup重建效果并核其不超过选择；原始字段不能制造执行根/帧/权限。普通Call、薄指针、FFI、同步回调、线程worker和Scalar导出不能绕过Suspend边界；旧普通F/薄指针合同继续Direct，效果泛型须声明关系，不能靠具体化暗改ABI。选择进入源码/增量/接口/cache和机器身份。
+
+SuspendCall{function,arguments}以实际SSA结果槽表示恢复结果，opcode125；普通源码task_await(static_worker,args...)只在合法Suspend执行根内使用。实参按源序准备一次，部分失败责任由父保持，child初始化提交时一次转入；父在Await重poll只恢复同一实例，不能重算实参或重建child。同一站点循环复用须前实例完全结算；相同worker不同活实例不合并。无环静态子帧按实际并存布局嵌入父稳定帧，有环要求显式BoxTask/arena/调用者存储边界，不隐式逐child堆装箱。参数借用在Pending、取消及draining期间由真实child帧持续持有，不能在源Call的SSA末用处提前结束。
+
+普通名义Poll<T>使用Pending、Ready(T)、Complete、Cancelled、Invalid，只有Ready持有且转交一次T；其它tag不得读取载荷。借child帧的结果须保留实际child/root直至loan结束，未实现该责任前拒绝相应签名，不把Ready直接当作可destroy。PendingExit保存真实退出原因及已准备结果责任，原位置仍核return读取/移动；cancel先通知实际活child，按既有创建序推进drain，主体异常优先，未观察结果按实际flag清理。poll_close允许真实Pending；Closed要求child、全部外部users/waker/no-future、结果与loan全部结清。Direct AutoDrop不挂起，只可消费已Closed或两核证明关闭必同步完成的实例；一般关闭由可推进的执行根/父帧接管，不以遇Pending后abort或遗忘handle替代。TaskI32外部ABI1保留，拥有T的外部SABI须另定完整参数/结果PassingMode、布局与版本符号，不能悄改ABI1。
+
+联合公共Typed/Wire37保留342的调用局部life字段和callable contract5，并增加函数CallKind字节与SuspendCall125；Typed域为V37，旧Wire版本拒绝。此为接续消费者合同，公共登记、表示或单纯可解码不等于能力已实现。
+
 ### 12.2 异常与待退出状态
 
 **不能先展开一个直接调用栈，再声称其局部缓冲已经转移给异步 draining。**
