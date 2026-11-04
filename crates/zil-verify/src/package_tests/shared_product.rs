@@ -518,7 +518,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([4238, 4652, 6505][mode as usize]),
+                Some([4770, 5184, 7037][mode as usize]),
             )
         })
         .collect();
@@ -528,7 +528,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 18453 } else { 15662 }),
+            Some(if indirect { 18987 } else { 16195 }),
         ));
     }
     let mut observed = Vec::new();

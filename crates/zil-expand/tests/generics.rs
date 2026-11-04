@@ -1,3 +1,5 @@
+#[path = "../test-support/budget_boundary.rs"]
+mod budget_boundary;
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 
@@ -130,6 +132,8 @@ fn generic_error_union_templates_preserve_symbolic_and_actual_checks() {
 
 #[test]
 fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
+    let mut measured = Vec::new();
+    let mut recorded = Vec::new();
     // Pre322 work/nodes: binding880/301, argument871/290, independent1440/457.
     // Full type-position lifetime validation now pays from the same Budget.
     // Migration and unchanged source controls: changes/322-budget-migration-by324.md.
@@ -157,6 +161,14 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let expected = zil_expand::expand(&source, &parsed).unwrap();
         for (work, amount) in [(true, steps), (false, nodes)] {
+            recorded.push(amount);
+            let amount = budget_boundary::minimum(work, |limits| {
+                zil_expand::expand_with_map_limits(&source, &parsed, limits)
+            });
+            measured.push(amount);
+            eprintln!(
+                "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work={work} N={amount}"
+            );
             let mut limits = zil_base::Limits::default();
             if work {
                 limits.max_analysis_steps = amount
@@ -185,6 +197,10 @@ fn generic_error_union_contexts_have_exact_prepaid_boundaries() {
             );
         }
     }
+    assert_eq!(
+        measured, recorded,
+        "exact current retained Expand boundaries"
+    );
 }
 
 #[test]
@@ -229,6 +245,8 @@ fn generic_enum_error_context_uses_one_complete_nominal_type() {
 
 #[test]
 fn generic_enum_error_context_prepays_new_work() {
+    let mut measured = Vec::new();
+    let mut recorded = Vec::new();
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -240,6 +258,14 @@ fn generic_enum_error_context_prepays_new_work() {
     // Same frozen source: pre322 work624/nodes242; the paid full-AST life
     // validation now yields work782/nodes310 without resetting the remainder.
     for (work, amount) in [(true, 782), (false, 310)] {
+        recorded.push(amount);
+        let amount = budget_boundary::minimum(work, |limits| {
+            zil_expand::expand_with_map_limits(&source, &parsed, limits)
+        });
+        measured.push(amount);
+        eprintln!(
+            "retained Expand generic_enum_error_context_prepays_new_work work={work} N={amount}"
+        );
         let mut limits = zil_base::Limits::default();
         if work {
             limits.max_analysis_steps = amount
@@ -265,6 +291,10 @@ fn generic_enum_error_context_prepays_new_work() {
                 .all(|e| e.category == ResultCategory::ResourceLimit)
         );
     }
+    assert_eq!(
+        measured, recorded,
+        "exact current retained Expand boundaries"
+    );
 }
 
 #[test]
@@ -490,6 +520,8 @@ fn relay(give mark:Mark)->Mark contract{result(give)}{return give mark}
 
 #[test]
 fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() {
+    let mut measured = Vec::new();
+    let mut recorded = Vec::new();
     let scalar = "fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{return f(2)}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
     let owned = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F,p:P)->i32{return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;let r=R{n:3};let p=P{r:give r};return run(&mut f,p)}";
     let local = "resource R{n:i32}package P{manages r:R}fn consume(p:P)->i32{return p.r.n}fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{let r=R{n:3};let p=P{r:give r};return f(consume(p))}fn main()->i32{var f=(x:i32)->i32=>x+1;return run(&mut f)}";
@@ -501,6 +533,14 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
         let expected = zil_expand::expand(&source, &parsed).unwrap();
         for (check_work, amount) in [(true, work), (false, nodes)] {
+            recorded.push(amount);
+            let amount = budget_boundary::minimum(check_work, |limits| {
+                zil_expand::expand_with_map_limits(&source, &parsed, limits)
+            });
+            measured.push(amount);
+            eprintln!(
+                "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work={check_work} N={amount}"
+            );
             let mut limits = zil_base::Limits::default();
             if check_work {
                 limits.max_analysis_steps = amount;
@@ -529,6 +569,10 @@ fn concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries() 
             );
         }
     }
+    assert_eq!(
+        measured, recorded,
+        "exact current retained Expand boundaries"
+    );
 }
 
 #[test]

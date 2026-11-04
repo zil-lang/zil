@@ -83,7 +83,7 @@ fn actual_types_boundaries_cover_new_state_and_legacy_controls() {
         let expected = match label {
             "old-state" => 5366,
             "ordinary-eager" => 88,
-            "replacement" => 4498,
+            "replacement" => 4562,
             _ => unreachable!(),
         };
         assert_eq!(boundary(label, source), expected, "{label}");

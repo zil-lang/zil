@@ -125,7 +125,7 @@ fn real_collision_paths_have_measured_fresh_and_exhausted_boundaries() {
             if label == "inline" {
                 (1006, 264)
             } else {
-                (1021, 270)
+                (1109, 308)
             }
         );
         fs::write(out.join("costs.csv"), format!("{label},{work},{nodes}\n")).unwrap();

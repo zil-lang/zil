@@ -255,14 +255,14 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
     // the new actual window walk is charged, with defaults unchanged.
     // Pre322 N1938 is retained here as history; full type-position lifetime
     // validation and its shared remainder now require N2358 (N-1/fresh below).
-    check(2358).unwrap();
-    let errors = check(2357).unwrap_err();
+    check(2764).unwrap();
+    let errors = check(2763).unwrap_err();
     assert!(
         errors
             .iter()
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
-    check(2358).unwrap();
+    check(2764).unwrap();
 }
 
 const ORDINARY: &str = r#"

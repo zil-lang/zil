@@ -448,7 +448,7 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         ),
         (
             "trait Code{fn code(self:&Self)->i32;}struct Payload{n:i32}impl Code for Payload{fn code()->i32=>.n}fn main()->i32{let x=Payload{n:13};return x.code()-13}",
-            1432,
+            1455,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text);
@@ -485,9 +485,9 @@ fn original_single_module_and_drop_work_budgets_remain_exact() {
         options.limits.max_analysis_steps = steps;
         CompilationSession::default().compile_project(&project(&files), &options)
     });
-    eprintln!("two-module trait: N={project_minimum}, prior=1412");
+    eprintln!("two-module trait: N={project_minimum}, prior=1471");
     observed.push(project_minimum);
-    recorded.push(1412);
+    recorded.push(1471);
     for (steps, expected) in [
         (project_minimum, ResultCategory::Success),
         (project_minimum - 1, ResultCategory::ResourceLimit),

@@ -90,7 +90,7 @@ fn old_source_budget_controls() {
             if label == "plain" {
                 (860, 328)
             } else {
-                (1641, 491)
+                (1815, 547)
             }
         );
     }

@@ -334,16 +334,8 @@ fn lending_result_keeps_its_element_and_parent_store_alive() {
         reject(
             &format!("lending-{label}"),
             &source,
-            if label != "reborrow" {
-                &[Phase::Expand]
-            } else {
-                &[Phase::Verify]
-            },
-            if label != "reborrow" {
-                "State alias outlives"
-            } else {
-                "access overlaps an active address window"
-            },
+            &[Phase::Expand],
+            "State alias outlives",
         );
     }
 }

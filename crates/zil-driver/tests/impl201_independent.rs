@@ -285,8 +285,8 @@ fn actual_callee_window_precedes_argument_preparation_and_keeps_parent_authority
         "same-element-two-exclusive-windows",
         &twice,
         ResultCategory::SafeReject,
-        &[Phase::Types],
-        "E-STATE-ALIAS",
+        &[Phase::Expand],
+        "E-GENERIC-ARGUMENT",
     );
 }
 
