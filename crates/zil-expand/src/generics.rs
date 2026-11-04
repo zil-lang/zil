@@ -797,6 +797,7 @@ impl<'a> Engine<'a> {
                 }
             }
         }
+        self.prepare_stored_headers()?;
         let mut output_origins = origins::Origins::default();
         while let Some(origins::Pending {
             mut item,
@@ -1237,7 +1238,12 @@ impl<'a> Engine<'a> {
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
-                self.stored_signature(f)?;
+                if self.stored_signature(f)? {
+                    self.budget.function_snapshot(f)?;
+                    self.budget.text(&f.name, f.span)?;
+                    self.signatures
+                        .insert(f.name.clone(), Cow::Owned(f.clone()));
+                }
                 let saved_anonymous = self.anonymous_function.take();
                 if self.anonymous_substitutions.contains_key(&f.name) {
                     self.budget.text(&f.name, f.span)?;
@@ -1339,6 +1345,17 @@ impl<'a> Engine<'a> {
                 self.store_parameter = saved_store;
                 self.product_owner = saved_product_owner;
                 self.anonymous_function = saved_anonymous;
+                if self.stored_nominals {
+                    for name in self.products.storage.functions.keys() {
+                        self.budget.text(name, f.span)?;
+                        self.budget.text(&f.name, f.span)?;
+                    }
+                    if self.products.storage.functions.contains_key(&f.name) {
+                        f.generics.retain(|parameter| {
+                            !matches!(parameter.kind, GenericParamKind::Lifetime)
+                        });
+                    }
+                }
             }
             ItemKind::Aggregate(a) => {
                 let saved = (

@@ -205,6 +205,9 @@ impl<'a> Budget<'a> {
     pub(crate) fn item(&mut self, item: &Item) -> R<()> {
         self.item_at(item, 0, None)
     }
+    pub(crate) fn function_snapshot(&mut self, function: &Function) -> R<()> {
+        self.function(function, 0, None)
+    }
     pub(crate) fn substituted_item(
         &mut self,
         item: &Item,

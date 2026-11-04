@@ -11,8 +11,53 @@ pub(super) fn has_life(item: &Item) -> bool {
 }
 
 impl Engine<'_> {
+    pub(super) fn prepare_stored_headers(&mut self) -> R<()> {
+        if !self.stored_nominals {
+            return Ok(());
+        }
+        let mut original = std::mem::take(&mut self.pending);
+        let mut ready = VecDeque::new();
+        while let Some(mut pending) = original.pop_front() {
+            if let ItemKind::Function(function) = &mut pending.item.kind {
+                self.life_scope.clear();
+                for parameter in &function.generics {
+                    self.budget.node(parameter.span, 0)?;
+                    if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                        self.budget.text(&parameter.name, parameter.span)?;
+                        self.life_scope.push(parameter.name.clone());
+                    }
+                }
+                self.with_origin(pending.origin, |engine| {
+                    if engine.stored_signature(function)? {
+                        engine.budget.function_snapshot(function)?;
+                        engine.budget.text(&function.name, function.span)?;
+                        engine
+                            .signatures
+                            .insert(function.name.clone(), Cow::Owned(function.clone()));
+                    }
+                    Ok(())
+                })?;
+            }
+            self.budget.node(pending.item.span, 0)?;
+            ready.push_back(pending);
+        }
+        self.life_scope.clear();
+        // Header specialization creates ordinary physical declaration items.
+        // They share the same pending ledger and are not silently discarded.
+        ready.append(&mut self.pending);
+        self.pending = ready;
+        Ok(())
+    }
+
     pub(super) fn stored_signature(&mut self, function: &mut Function) -> R<bool> {
         if !self.stored_nominals {
+            return Ok(false);
+        }
+        for name in self.products.storage.functions.keys() {
+            self.budget.text(name, function.span)?;
+            self.budget.text(&function.name, function.span)?;
+        }
+        if self.products.storage.functions.contains_key(&function.name) {
             return Ok(false);
         }
         let mut occurrences = Vec::new();
@@ -79,10 +124,8 @@ impl Engine<'_> {
         if let Some(result) = &mut function.return_type {
             erase(result);
         }
-        // The source scope remains in Engine until the body has been visited.
-        function
-            .generics
-            .retain(|parameter| !matches!(parameter.kind, GenericParamKind::Lifetime));
+        // Retain the source scope until the body is specialized, even when a
+        // caller appears before this definition. Only emitted Core is erased.
         Ok(true)
     }
 
@@ -350,7 +393,9 @@ impl Engine<'_> {
                     lives.push((formal.name.clone(), life));
                 }
                 (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                    self.closed_stored_actual(ty, depth + 1)?;
                     self.ty(ty, depth + 1)?;
+                    self.closed_stored_actual(ty, depth + 1)?;
                     self.budget.ty(ty)?;
                     let key = type_key(ty, &mut self.budget)?;
                     keys.push(key);
@@ -440,5 +485,79 @@ impl Engine<'_> {
             self.enqueue(instance, Some(origin))?;
         }
         Ok((generated, classes))
+    }
+
+    fn closed_stored_actual(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        match &ty.kind {
+            TypeKind::Reference { .. } => {
+                return Err(unsupported(
+                    ty.span,
+                    "borrowed Type actual requires its joint scoped metadata relation",
+                ));
+            }
+            TypeKind::Named { path, args } => {
+                for part in path {
+                    self.budget.text(part, ty.span)?;
+                }
+                if path.len() == 1 {
+                    for instance in &self.products.storage.instances {
+                        self.budget.node(ty.span, depth)?;
+                        if let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
+                            && let zil_ir::Type::Record { name, .. } = storage.as_ref()
+                        {
+                            self.budget.text(name, ty.span)?;
+                            self.budget.text(&path[0], ty.span)?;
+                            if name == &path[0] {
+                                return Err(unsupported(
+                                    ty.span,
+                                    "qualified nominal Type actual requires joint class substitution",
+                                ));
+                            }
+                        }
+                    }
+                }
+                for arg in args {
+                    self.budget.node(ty.span, depth)?;
+                    match arg {
+                        GenericArg::Lifetime(_) => {
+                            return Err(unsupported(
+                                ty.span,
+                                "lifetime-bearing Type actual requires joint class substitution",
+                            ));
+                        }
+                        GenericArg::Type(inner) => self.closed_stored_actual(inner, depth + 1)?,
+                        GenericArg::Const(value) => {
+                            self.budget.const_expression_depth(value, depth + 1)?
+                        }
+                    }
+                }
+            }
+            TypeKind::Group(inner) | TypeKind::Optional(inner) => {
+                self.closed_stored_actual(inner, depth + 1)?
+            }
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
+                for field in fields {
+                    self.closed_stored_actual(field, depth + 1)?;
+                }
+            }
+            TypeKind::Array { element, .. } => self.closed_stored_actual(element, depth + 1)?,
+            TypeKind::Error { error, result } => {
+                self.closed_stored_actual(error, depth + 1)?;
+                self.closed_stored_actual(result, depth + 1)?;
+            }
+            // This owns its invocation relation. The earlier lexical walker
+            // rejects references to a lifetime outside this ForLifetime scope.
+            TypeKind::ForLifetime { .. } => self.budget.ty_depth(ty, depth)?,
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for parameter in params {
+                    self.closed_stored_actual(parameter, depth + 1)?;
+                }
+                self.closed_stored_actual(result, depth + 1)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 }

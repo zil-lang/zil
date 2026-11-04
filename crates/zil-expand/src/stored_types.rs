@@ -223,7 +223,7 @@ pub(super) fn contract(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<StorageLifeContract> {
-    let mut fixed = Vec::new();
+    let mut grounded = Vec::new();
     for occurrence in &occurrences {
         spend(
             budget,
@@ -237,12 +237,13 @@ pub(super) fn contract(
             ) {
                 return Err(invalid(span, "a result cannot introduce a fixed lifetime"));
             }
-            spend(budget, span, fixed.len().saturating_add(1))?;
-            if !fixed.contains(&occurrence.life) {
-                fixed.push(occurrence.life);
+            spend(budget, span, grounded.len().saturating_add(1))?;
+            if !grounded.contains(&occurrence.life) {
+                grounded.push(occurrence.life);
             }
         }
     }
+    let mut fixed = Vec::new();
     let mut invocation = Vec::new();
     let mut bindings: Vec<StorageLifeBinding> = Vec::new();
     for occurrence in occurrences {
@@ -266,12 +267,20 @@ pub(super) fn contract(
         spend(
             budget,
             span,
-            fixed
+            grounded
                 .len()
+                .saturating_add(fixed.len())
                 .saturating_add(invocation.len())
                 .saturating_add(1),
         )?;
-        let binder = if let Some(index) = fixed.iter().position(|life| *life == occurrence.life) {
+        let binder = if grounded.contains(&occurrence.life) {
+            let index = fixed
+                .iter()
+                .position(|life| *life == occurrence.life)
+                .unwrap_or_else(|| {
+                    fixed.push(occurrence.life);
+                    fixed.len() - 1
+                });
             StorageBinder::Fixed(
                 u32::try_from(index).map_err(|_| invalid(span, "fixed binder overflow"))?,
             )
@@ -503,6 +512,12 @@ pub(super) fn instantiate(
             }
         }
     }
+    // Canonical traversal starts at the full ordered nominal actuals, including
+    // phantom classes, and only then visits physical leaves. Field order cannot
+    // accidentally rename nominal lifetime positions.
+    for (_, actual) in lifetime_arguments {
+        shape.class(*actual, span)?;
+    }
     let mut fields = Vec::new();
     for (index, field) in aggregate.fields.iter().enumerate() {
         shape.budget.text(&field.name, field.span)?;
@@ -574,11 +589,28 @@ fn main() -> i32 {
 }
 "#;
 
+    fn expand_text(text: &str) -> CompileResult<CoreModule> {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "stored-view.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result()?;
+        let aliases = BTreeMap::new();
+        let context = source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &aliases,
+            declarations: source_context::DeclarationPlacement::Original,
+        };
+        Ok(expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            context,
+        )?
+        .core)
+    }
+
     #[test]
     fn source_view_factory_and_helper_keep_scoped_relations() {
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "stored-view.zil", VIEW);
-        let syntax = zil_syntax::parse(&source).into_result().unwrap();
-        let core = expand(&source, &syntax).unwrap();
+        let core = expand_text(VIEW).unwrap();
         assert_eq!(core.life_declarations.len(), 1);
         assert_eq!(core.life_instances.len(), 1);
         let Type::BorrowedStorage { life, .. } = &core.life_instances[0].ty else {
@@ -620,5 +652,123 @@ fn main() -> i32 {
             .find(|binding| binding.position.base == StorageBase::Result)
             .unwrap();
         assert_eq!(result.binder, StorageBinder::Fixed(0));
+    }
+
+    #[test]
+    fn stored_source_headers_are_available_before_callee_bodies() {
+        let source = VIEW.replace("fn main() -> i32 {", "fn entry() -> i32 {");
+        let cut = source.find("fn entry").unwrap();
+        let reordered = format!("{}\n{}", &source[cut..], &source[..cut]);
+        let core = expand_text(&reordered).unwrap();
+        assert_eq!(core.life_instances.len(), 1);
+        assert!(
+            core.functions
+                .iter()
+                .find(|f| f.name == "read")
+                .unwrap()
+                .storage_life
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn full_nominal_ordinals_seed_phantom_and_reversed_field_classes() {
+        for (a, b, p) in [("a", "b", "p"), ("renamed", "other", "phantom")] {
+            let source = format!(
+                r#"
+struct Pair<life {p}, T: Copy, life {a}, life {b}> {{ second: &'{b} i64, first: &'{a} i64 }}
+fn make<life {p}, life {a}, life {b}>(unused: &'{p} i64, x: &'{a} i64, y: &'{b} i64) -> Pair<'{p}, i64, '{a}, '{b}> {{
+ return Pair::<'{p}, i64, '{a}, '{b}> {{ second: y, first: x }};
+}}
+fn same<life {a}>(x: &'{a} i64) -> Pair<'{a}, i64, '{a}, '{a}> {{
+ return Pair::<'{a}, i64, '{a}, '{a}> {{ second: x, first: x }};
+}}
+"#
+            );
+            let core = expand_text(&source).unwrap();
+            assert_eq!(core.life_declarations.len(), 1);
+            assert_eq!(core.life_instances.len(), 2);
+            let shapes: Vec<_> = core
+                .life_instances
+                .iter()
+                .map(|instance| {
+                    let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                        panic!("missing shape");
+                    };
+                    life
+                })
+                .collect();
+            let split = shapes.iter().find(|life| life.binder_count == 3).unwrap();
+            assert_eq!(
+                split
+                    .nominal_arguments
+                    .iter()
+                    .map(|row| (row.argument, row.binder))
+                    .collect::<Vec<_>>(),
+                [(0, 0), (2, 1), (3, 2)]
+            );
+            assert_eq!(
+                split
+                    .slots
+                    .iter()
+                    .map(|slot| slot.binder)
+                    .collect::<Vec<_>>(),
+                [2, 1]
+            );
+            let shared = shapes.iter().find(|life| life.binder_count == 1).unwrap();
+            assert!(shared.nominal_arguments.iter().all(|row| row.binder == 0));
+            assert!(shared.slots.iter().all(|row| row.binder == 0));
+        }
+    }
+
+    #[test]
+    fn earlier_reference_to_fixed_input_preserves_full_binding_order() {
+        let core = expand_text(
+            r#"
+struct View<life a> { p: &'a i64 }
+fn first<life a, life b>(x: &'b i64, va: View<'a>, vb: View<'b>) -> &'b i64 { return x; }
+"#,
+        )
+        .unwrap();
+        let contract = core.functions[0].storage_life.as_ref().unwrap();
+        assert_eq!(
+            (
+                contract.fixed_binder_count,
+                contract.invocation_binder_count
+            ),
+            (2, 0)
+        );
+        assert_eq!(
+            contract
+                .bindings
+                .iter()
+                .map(|row| row.binder)
+                .collect::<Vec<_>>(),
+            [
+                StorageBinder::Fixed(0),
+                StorageBinder::Fixed(1),
+                StorageBinder::Fixed(0),
+                StorageBinder::Fixed(0)
+            ]
+        );
+    }
+
+    #[test]
+    fn borrowed_type_actuals_cannot_lose_joint_context() {
+        let plain = r#"
+struct Phantom<life a, T> { p: &'a i64 }
+fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
+ return Phantom::<'a, ACTUAL> { p: x };
+}
+"#;
+        expand_text(&plain.replace("ACTUAL", "i64")).unwrap();
+        for actual in ["&'a i64", "&'b i64"] {
+            let errors = expand_text(&plain.replace("ACTUAL", actual)).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.category == zil_base::ResultCategory::Unsupported)
+            );
+        }
     }
 }
