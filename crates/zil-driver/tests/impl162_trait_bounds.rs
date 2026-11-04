@@ -15,6 +15,34 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_kernel_boundary() {
+    let files = [
+        ("main", "import a;import b;fn left(x:&dyn a.Read)->i32{return x.read()}fn right(x:&dyn b.Read)->i32{return x.read()}fn main(){}"),
+        ("a", "pub trait Read{fn read(self:&Self)->i32;}pub struct Meter{n:i32}impl Read for Meter{fn read(self:&Self)->i32{return self.n}}"),
+        ("b", "pub trait Read{fn read(self:&Self)->i32{return 9}}pub struct Meter{n:i32}impl Read for Meter{}"),
+    ];
+    let directory = std::env::temp_dir().join(format!("zil-dyn-source341-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+    let report = compile_project(&project(&files), &CompileOptions {
+        stop_after: Stage::Core, emit_dir: Some(directory.join("core")),
+        ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
+    assert_eq!(dump.matches("DynInterface {").count(), 2, "{dump}");
+    assert_eq!(dump.matches("CoreDynVtable {").count(), 2, "{dump}");
+    assert!(dump.contains("\"a\"") && dump.contains("\"b\""), "{dump}");
+    let output = directory.join("must-not-build");
+    let report = compile_project(&project(&files), &CompileOptions {
+        stop_after: Stage::Build, output: Some(output.clone()),
+        ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
+    assert!(report.commands.is_empty());
+    assert!(!output.exists());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
     let original = include_str!(
         "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
