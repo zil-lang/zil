@@ -208,7 +208,7 @@ impl<'a> Budget<'a> {
     fn ty(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
         self.depth(depth, span)?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.ty(field, depth + 1, span)?;
                 }
@@ -230,7 +230,7 @@ impl<'a> Budget<'a> {
             "CT source temporary type bytes exhausted",
         )?;
         match ty {
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.copy_ty(field, depth + 1, span)?;
                 }
@@ -267,6 +267,7 @@ struct Compiler<'a> {
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
+    metadata_bindings: Vec<(String, CtTypeRef)>,
     symbolic: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
@@ -310,6 +311,7 @@ impl<'a> Compiler<'a> {
             generic_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
+            metadata_bindings: Vec::new(),
             symbolic: Vec::new(),
             checking_generics: false,
             checked_generics: Vec::new(),
@@ -720,3 +722,12 @@ pub(crate) fn uses_ct_domain(
 ) -> R<bool> {
     selection::uses(modules, module, expression, parameters, limits)
 }
+
+#[path = "compiler_metadata.rs"]
+pub(super) mod metadata;
+
+#[path = "compiler_data.rs"]
+mod data;
+
+#[path = "compiler_type_value.rs"]
+mod type_value;

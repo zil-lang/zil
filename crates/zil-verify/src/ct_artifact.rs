@@ -5,6 +5,9 @@ use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, Phase, Span};
 use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 
+#[path = "ct_artifact_identity.rs"]
+mod identity;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CtSymbolUsage {
     FunctionDefinition,
@@ -140,6 +143,7 @@ pub fn verify_ct_artifact_metered(
     );
     meter.charge(initial_work.max(1), None)?;
     preflight(&raw, limits)?;
+    check_type_metadata(&raw, limits, meter)?;
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
@@ -161,9 +165,6 @@ pub fn verify_ct_artifact_metered(
                 "CT record schema is not an authenticated pure declaration",
             ));
         }
-        for ty in &schema.fields {
-            check_ty(ty, &raw, limits, meter)?;
-        }
     }
     for schema in &raw.enum_schemas {
         if schema.origin != CtSchemaOrigin::UserPure
@@ -174,12 +175,8 @@ pub fn verify_ct_artifact_metered(
                 "CT enum schema is not an authenticated pure declaration",
             ));
         }
-        for variant in &schema.variants {
-            for ty in variant {
-                check_ty(ty, &raw, limits, meter)?;
-            }
-        }
     }
+    identity::check_instances(&raw, limits, meter)?;
     for (index, function) in raw.functions.iter().enumerate() {
         if function.id.0 as usize != index {
             return Err(reject(
@@ -502,29 +499,72 @@ fn check_templates(raw: &CtArtifactProgram, authority: &impl CtArtifactAuthority
     Ok(())
 }
 
+fn push_type_children<'a>(
+    stack: &mut Vec<(&'a CtTy, usize)>,
+    children: &'a [CtTy],
+    depth: usize,
+    visited: usize,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    if !children.is_empty()
+        && (depth >= limits.max_call_depth
+            || children.len()
+                > limits
+                    .max_nodes
+                    .saturating_sub(visited.saturating_add(stack.len())))
+    {
+        return Err(limit(None, "CT type pending shape exceeds quota"));
+    }
+    // Each child prepays its original node charge before the pending vector grows.
+    meter.charge(children.len(), None)?;
+    stack.extend(children.iter().map(|ty| (ty, depth + 1)));
+    Ok(())
+}
+
 fn check_ty(
     ty: &CtTy,
     raw: &CtArtifactProgram,
     limits: &Limits,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
+    meter.charge(1, None)?;
     let mut stack = vec![(ty, 0usize)];
     let mut visited = 0usize;
     while let Some((item, depth)) = stack.pop() {
-        meter.charge(1, None)?;
         visited = visited.saturating_add(1);
         if depth > limits.max_call_depth || visited > limits.max_nodes {
             return Err(limit(None, "CT type shape budget exceeded"));
         }
         match item {
-            CtTy::Tuple(items) => stack.extend(items.iter().map(|t| (t, depth + 1))),
+            CtTy::AnonymousSum(members) => {
+                identity::check_members(members, raw, limits, meter)?;
+                push_type_children(&mut stack, members, depth, visited, limits, meter)?;
+            }
+            CtTy::Tuple(items) => {
+                push_type_children(&mut stack, items, depth, visited, limits, meter)?
+            }
             CtTy::Array { element, length } => {
                 if *length as usize > limits.max_nodes {
                     return Err(limit(None, "CT array length exceeds node quota"));
                 }
-                stack.push((element, depth + 1));
+                push_type_children(
+                    &mut stack,
+                    std::slice::from_ref(element.as_ref()),
+                    depth,
+                    visited,
+                    limits,
+                    meter,
+                )?;
             }
-            CtTy::List(element) => stack.push((element, depth + 1)),
+            CtTy::List(element) => push_type_children(
+                &mut stack,
+                std::slice::from_ref(element.as_ref()),
+                depth,
+                visited,
+                limits,
+                meter,
+            )?,
             CtTy::Record(id) if id.0 as usize >= raw.record_schemas.len() => {
                 return Err(reject(None, "CT record type ID is out of range"));
             }
@@ -532,6 +572,48 @@ fn check_ty(
                 return Err(reject(None, "CT enum type ID is out of range"));
             }
             _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn check_type_metadata(
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    for schema in &raw.record_schemas {
+        for ty in &schema.fields {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
+    }
+    for schema in &raw.enum_schemas {
+        for ty in schema.variants.iter().flatten() {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
+    }
+    identity::check_argument_graphs(raw, limits, meter)?;
+    for function in &raw.functions {
+        check_ty(&function.result_type, raw, limits, meter)?;
+        for ty in function
+            .parameter_types
+            .iter()
+            .chain(&function.locals)
+            .chain(&function.values)
+        {
+            check_ty(ty, raw, limits, meter)?;
+        }
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::MakeAnonymousSum { members, .. } = &instruction.kind {
+                identity::check_members(members, raw, limits, meter)?;
+                for member in members {
+                    check_ty(member, raw, limits, meter)?;
+                }
+            }
         }
     }
     Ok(())
@@ -603,7 +685,7 @@ fn predecessors(function: &CtFunction) -> Check<Vec<Vec<usize>>> {
 fn check_function(
     raw: &CtArtifactProgram,
     function: &CtFunction,
-    limits: &Limits,
+    _limits: &Limits,
     authority: &impl CtArtifactAuthority,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
@@ -621,15 +703,6 @@ fn check_function(
                 "CT parameter local is missing or has wrong type",
             ));
         }
-    }
-    check_ty(&function.result_type, raw, limits, meter)?;
-    for ty in function
-        .parameter_types
-        .iter()
-        .chain(&function.locals)
-        .chain(&function.values)
-    {
-        check_ty(ty, raw, limits, meter)?;
     }
     let preds = predecessors(function)?;
     let blocks = function.blocks.len();
@@ -874,6 +947,7 @@ fn check_locals(
 fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
     match kind {
         CtInstructionKind::Store { value, .. }
+        | CtInstructionKind::MakeAnonymousSum { payload: value, .. }
         | CtInstructionKind::ConvertInteger { value, .. }
         | CtInstructionKind::ConvertNumber { value, .. }
         | CtInstructionKind::Length(value)
@@ -1131,6 +1205,20 @@ fn check_instruction(
             }
             CtTy::Enum(*schema)
         }
+        K::MakeAnonymousSum {
+            members,
+            active,
+            payload,
+        } => {
+            let member = members
+                .get(*active as usize)
+                .ok_or_else(|| reject(span, "CT anonymous active member is out of range"))?;
+            expect(
+                member == value(*payload)?,
+                "CT anonymous payload type differs from active member",
+            )?;
+            CtTy::AnonymousSum(members.clone())
+        }
         K::Length(id) => {
             expect(
                 matches!(
@@ -1143,7 +1231,7 @@ fn check_instruction(
         }
         K::VariantTag(id) => {
             expect(
-                matches!(value(*id)?, CtTy::Enum(_)),
+                matches!(value(*id)?, CtTy::Enum(_) | CtTy::AnonymousSum(_)),
                 "CT variant tag needs enum",
             )?;
             CtTy::Scalar(CtScalarTy::I32)
@@ -1153,15 +1241,25 @@ fn check_instruction(
             variant,
             field,
         } => {
-            let CtTy::Enum(schema) = value(*input)? else {
-                return Err(reject(span, "CT variant projection needs enum"));
-            };
-            raw.enum_schemas
-                .get(schema.0 as usize)
-                .and_then(|s| s.variants.get(*variant as usize))
-                .and_then(|v| v.get(*field as usize))
-                .cloned()
-                .ok_or_else(|| reject(span, "CT variant field is out of range"))?
+            match value(*input)? {
+                CtTy::Enum(schema) => raw
+                    .enum_schemas
+                    .get(schema.0 as usize)
+                    .and_then(|s| s.variants.get(*variant as usize))
+                    .and_then(|v| v.get(*field as usize))
+                    .cloned()
+                    .ok_or_else(|| reject(span, "CT variant field is out of range"))?,
+                CtTy::AnonymousSum(members) if *field == 0 => members
+                    .get(*variant as usize)
+                    .cloned()
+                    .ok_or_else(|| reject(span, "CT anonymous member is out of range"))?,
+                _ => {
+                    return Err(reject(
+                        span,
+                        "CT variant projection needs a valid enum or sum field",
+                    ));
+                }
+            }
         }
         K::Extract { aggregate, index } => {
             expect(
@@ -1821,6 +1919,7 @@ mod tests {
         let mut p = raw();
         p.record_schemas.push(CtRecordSchema {
             name: symbol(),
+            arguments: Vec::new(),
             fields: vec![CtTy::Type],
             origin: CtSchemaOrigin::BuiltinQuery,
         });

@@ -262,6 +262,10 @@ impl Check<'_, '_, '_> {
     fn alias_origins(&mut self, expression: &Expr, state: &State, depth: usize) -> R<Vec<Origin>> {
         self.budget.node(expression.span, depth)?;
         match &expression.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.budget.ty(ty)?;
+                self.alias_origins(value, state, depth + 1)
+            }
             ExprKind::Group(inner) => self.alias_origins(inner, state, depth + 1),
             ExprKind::Name(name) => {
                 self.budget.text(name, expression.span)?;

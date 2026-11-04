@@ -90,6 +90,7 @@ impl Builder<'_, '_> {
                 }
                 match &mut instruction.kind {
                     CtInstructionKind::Store { value, .. }
+                    | CtInstructionKind::MakeAnonymousSum { payload: value, .. }
                     | CtInstructionKind::ConvertInteger { value, .. }
                     | CtInstructionKind::ConvertNumber { value, .. }
                     | CtInstructionKind::Length(value)

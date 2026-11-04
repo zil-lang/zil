@@ -331,6 +331,10 @@ impl<'a> Renamer<'a> {
         let span = expression.span;
         self.budget.node(span, depth)?;
         match &mut expression.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(ty, depth + 1)?;
+                self.expression(value, depth + 1)?;
+            }
             s::ExprKind::Name(name) => self.reference(name, span)?,
             s::ExprKind::Literal(_) | s::ExprKind::ReceiverMember(_) => {}
             s::ExprKind::Group(value)

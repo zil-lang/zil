@@ -242,6 +242,59 @@ impl<'a> Compiler<'a> {
         self.budget.depth(depth, ty.span)?;
         Ok(match &ty.kind {
             s::TypeKind::Group(inner) => self.ty(module, inner, depth + 1)?,
+            s::TypeKind::Union(parts) => {
+                let mut members = Vec::new();
+                for part in parts {
+                    self.budget.node(part.span)?;
+                    members.push(self.ty(module, part, depth + 1)?);
+                }
+                if self.checking_generics {
+                    let mut flat = Vec::new();
+                    for member in members {
+                        if let CtTy::AnonymousSum(parts) = member {
+                            flat.extend(parts)
+                        } else {
+                            flat.push(member)
+                        }
+                    }
+                    for member in &flat {
+                        for _ in 0..flat.len().saturating_add(2) {
+                            self.budget.ty(member, 0, ty.span)?;
+                        }
+                    }
+                    flat.sort_by(metadata::symbolic_order);
+                    if flat.len() < 2 || flat.windows(2).any(|v| v[0] == v[1]) {
+                        return Err(error(ty.span, "anonymous sum repeats a complete member"));
+                    }
+                    CtTy::AnonymousSum(flat)
+                } else {
+                    let mut meter = zil_ct::CtExecutionBudget::new(self.budget.declared());
+                    let result = zil_ct::canonical_artifact_sum(
+                        members,
+                        &self.records,
+                        &self.enums,
+                        &mut meter,
+                    );
+                    let usage = meter.usage();
+                    Budget::take(
+                        &mut self.budget.nodes,
+                        usize::try_from(usage.generated_nodes).unwrap_or(usize::MAX),
+                        ty.span,
+                        "CT sum identity nodes exhausted",
+                    )?;
+                    self.budget.work(
+                        usize::try_from(usage.analysis_work).unwrap_or(usize::MAX),
+                        ty.span,
+                    )?;
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        usize::try_from(usage.peak_temporary_bytes).unwrap_or(usize::MAX),
+                        ty.span,
+                        "CT sum identity bytes exhausted",
+                    )?;
+                    result?
+                }
+            }
             s::TypeKind::Tuple(fields) if fields.is_empty() => CtTy::Scalar(CtScalarTy::Unit),
             s::TypeKind::Tuple(fields) => {
                 let mut out = Vec::new();
@@ -263,6 +316,12 @@ impl<'a> Compiler<'a> {
             }
             s::TypeKind::Named { path, args } => {
                 if path.len() == 1 {
+                    if let Some(metadata) = self.metadata_binding(&path[0], ty.span)? {
+                        if !args.is_empty() {
+                            return Err(error(ty.span, "CT metadata binder takes no arguments"));
+                        }
+                        return self.metadata_data_type(&metadata, depth + 1, ty.span);
+                    }
                     if let Some(actual) = self.binding(&path[0], ty.span)? {
                         if !args.is_empty() {
                             return Err(error(ty.span, "CT type binder takes no type arguments"));
@@ -332,12 +391,24 @@ impl<'a> Compiler<'a> {
                         })?;
                         self.enter_alias(owner, item.span, ty.span)?;
                         let old = std::mem::take(&mut self.bindings);
+                        let old_metadata = std::mem::take(&mut self.metadata_bindings);
                         let result = self.ty(owner, actual, depth + 1);
                         self.bindings = old;
+                        self.metadata_bindings = old_metadata;
                         self.active_aliases.pop();
                         result?
                     }
                     s::ItemKind::Aggregate(a) => {
+                        if !self.checking_generics {
+                            let arguments = self.source_nominal_arguments(
+                                module,
+                                &a.generics,
+                                args,
+                                ty.span,
+                                depth + 1,
+                            )?;
+                            return self.closed_nominal(owner, item, arguments, depth + 1, ty.span);
+                        }
                         if a.kind != s::AggregateKind::Struct {
                             return Err(forbidden(
                                 ty.span,
@@ -379,10 +450,18 @@ impl<'a> Compiler<'a> {
                         self.budget.node(ty.span)?;
                         let id = CtRecordSchemaId(self.records.len() as u32);
                         let name = self.symbol(owner, item.span)?;
+                        let mut schema_arguments = Vec::new();
+                        if !self.checking_generics {
+                            for argument in &arguments {
+                                let graph = self.metadata_data(argument, ty.span, depth + 1)?;
+                                schema_arguments.push(CtSchemaArgument::Type(graph));
+                            }
+                        }
                         self.record_sources.push((owner, a));
                         self.record_arguments.push(arguments);
                         self.records.push(CtRecordSchema {
                             name,
+                            arguments: schema_arguments,
                             fields: Vec::new(),
                             origin: CtSchemaOrigin::UserPure,
                         });
@@ -403,6 +482,16 @@ impl<'a> Compiler<'a> {
                         CtTy::Record(id)
                     }
                     s::ItemKind::Enum(e) => {
+                        if !self.checking_generics {
+                            let arguments = self.source_nominal_arguments(
+                                module,
+                                &e.generics,
+                                args,
+                                ty.span,
+                                depth + 1,
+                            )?;
+                            return self.closed_nominal(owner, item, arguments, depth + 1, ty.span);
+                        }
                         if !e.generics.is_empty() || !args.is_empty() {
                             return Err(error(ty.span, "CT enum requires a concrete instance"));
                         }
@@ -418,6 +507,7 @@ impl<'a> Compiler<'a> {
                         self.enum_sources.push((owner, e));
                         self.enums.push(CtEnumSchema {
                             name,
+                            arguments: Vec::new(),
                             variants: Vec::new(),
                             origin: CtSchemaOrigin::UserPure,
                         });
@@ -468,7 +558,7 @@ impl<'a> Compiler<'a> {
             }
         })
     }
-    fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
+    pub(super) fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
         self.budget.work(1, expression.span)?;
         if let s::ExprKind::Literal(s::Literal::Integer(text)) = &expression.kind {
             self.budget.text(text, expression.span)?;

@@ -187,6 +187,19 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 super::super::foreign::callback_type_formation(ty, Some(&BTreeSet::new()))?;
                 Ok(true)
             }
+            TypeKind::ForLifetime { .. } => {
+                // A retained invocation relation belongs to a Copy code pointer;
+                // its address parameters are signature metadata, never fields.
+                type_keys::prepay(ty, self.budget)?;
+                match super::super::lifetimes::pointer_type(ty) {
+                    zil_ir::Type::BorrowedFunctionPointer { .. }
+                    | zil_ir::Type::FunctionPointer { .. } => Ok(true),
+                    _ => Err(error(
+                        ty.span,
+                        "Copy borrowed code requires a complete function signature",
+                    )),
+                }
+            }
             TypeKind::Function { params, result } => {
                 for ty in params {
                     self.copy(ty)?;

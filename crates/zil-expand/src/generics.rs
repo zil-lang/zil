@@ -1982,6 +1982,7 @@ impl<'a> Engine<'a> {
             store_success_context,
         };
         let result = match &mut e.kind {
+            ExprKind::Ascribed { .. } => return self.expr_variant_ascribed(e, env, depth),
             ExprKind::Literal(Literal::Integer(text)) => {
                 if let Some(ty) = expected.filter(|ty| check::integer(ty)) {
                     self.budget.ty(ty)?;
@@ -2340,7 +2341,7 @@ fn type_key(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
 fn type_key_bounded(ty: &TypeRef, budget: &mut Budget<'_>) -> R<String> {
     // The profile is recorded during the existing bounded AST walk. Requests
     // without anonymous sums retain their original key fees and traversal.
-    if budget.has_anonymous_sums() {
+    if budget.has_anonymous_sums() || budget.has_borrowed_keys() {
         type_keys::prepay(ty, budget)?;
     }
     render_type_key(ty)
@@ -2362,6 +2363,7 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
             key
         }
         TypeKind::Group(t) => return render_type_key(t),
+        TypeKind::ForLifetime { .. } => return render_borrowed_type_key(ty),
         TypeKind::Reference { mutable, inner, .. } => {
             format!("R{mutable}<{}>", render_type_key(inner)?)
         }
@@ -2449,6 +2451,61 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
         }
     })
 }
+/// Complete source identity for the canonical joint invocation relation.
+/// The key planner prepays binder lookup, remapping and every rendered byte.
+fn render_borrowed_type_key(ty: &TypeRef) -> R<String> {
+    let mut names = Vec::new();
+    let mut inner = ty;
+    while let TypeKind::ForLifetime {
+        lifetime,
+        inner: next,
+    } = &inner.kind
+    {
+        names.push(lifetime.as_str());
+        inner = next;
+    }
+    let TypeKind::Function { params, result } = &inner.kind else {
+        return Err(error(
+            ty.span,
+            "borrowed code key requires a function signature",
+        ));
+    };
+    let mut remap = vec![None; names.len()];
+    let mut count = 0u32;
+    let mut label = |ty: &TypeRef| {
+        let TypeKind::Reference {
+            lifetime: Some(name),
+            ..
+        } = &grouped(ty).kind
+        else {
+            return None;
+        };
+        let old = names.iter().rposition(|candidate| *candidate == name)?;
+        let dense = *remap[old].get_or_insert_with(|| {
+            let next = count;
+            count += 1;
+            next
+        });
+        Some(dense)
+    };
+    let parameters: Vec<_> = params.iter().map(&mut label).collect();
+    let result_life = label(result);
+    if count == 0 {
+        return render_type_key(inner);
+    }
+    let tag = |life: Option<u32>| life.map_or_else(|| "_".to_owned(), |n| n.to_string());
+    let mut key = format!("B{count}[");
+    for life in parameters {
+        key.push_str(&tag(life));
+        key.push(',');
+    }
+    key.push_str("]>");
+    key.push_str(&tag(result_life));
+    key.push(':');
+    key.push_str(&render_type_key(inner)?);
+    Ok(key)
+}
+
 fn unify(
     pattern: &TypeRef,
     actual: &TypeRef,
@@ -3002,6 +3059,10 @@ impl Substitution<'_> {
             return;
         }
         match &mut e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty);
+                self.expr(value);
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)

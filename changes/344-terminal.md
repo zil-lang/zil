@@ -167,6 +167,55 @@ it is not a transferable credit for a later key construction. Retain real
 long-common-prefix members nested inside generic/tuple/sum types and exact
 warm/fresh N/N-1 controls, alongside inherited float/UInt budget neighbors.
 
+### CT artifact value sums and nominal arguments (schema 3)
+
+Root publishes the schema3 contract separately from the reviewed Type-stage
+candidate. Add structural CtTy/CtValue AnonymousSum forms and exact injection
+with the existing CT tag/field consumers. Descriptors preserve every inactive
+member and select active payload by complete identity, never a schema-table ID
+or runtime-layout coincidence. Source inference defaults uncontextual literals
+normally; no numeric trial injection is introduced.
+
+Both nominal schema tables retain ordered Type and Scalar instance arguments,
+including phantom arguments. Source production binds the actual declaration and
+all arguments; independent CT admission checks well-formed pure arguments,
+acyclic identity graphs, canonical sums and unique full nominal instance keys.
+The execution/value validator checks the active descriptor and payload; each
+AST/runtime bridge reconstructs the full sum and maps by complete active member
+Type. Raw type/value metadata supplies no nominal, syntax or runtime authority.
+
+Schema/domain3 explicitly invalidates previous v2 artifacts and values. Preserve
+v2 frozen bytes as rejection controls rather than changing their contents or
+calling a header edit an authenticated migration. Charge constructor/schema
+argument walks, complete-key comparisons, every generated descriptor/copy and
+materialization on the passed request ledgers before allocation; generated AST
+still goes through ordinary Types/Analyze/Verify. Keep the completed Type-stage
+receipts separate from these initially incomplete value consumers.
+
+CT3 raw admission bounds all nested value-type metadata before calling frozen
+artifact authentication, whose equality comparison must not recurse through an
+unbounded candidate. Move the existing shape checks before authentication
+without duplicating their old node charges; newly represented schema arguments
+and anonymous descriptors add paid identity work. Full nominal keys include the
+symbol and every ordered Type/Scalar argument. Repeated full instances and
+identity cycles reject independently; lexicographic comparisons and key buffers
+are paid before copying or comparing. Ordinary zero-argument, non-sum shapes
+retain their existing shape-walk charges.
+
+The root corrected CT3 Type schema arguments to CtTypeRef, since a phantom
+ordinary fn pointer is legal metadata while its pointer value cannot execute in
+CT. Normalize every argument graph through the bounded constructor graph model;
+admission independently requires canonical postorder structure and full keys,
+including all signature and eventual BFP lifetime relations. New metadata-only
+bindings must remain separate from serializable CtTy data bindings. No pointer
+CT value, fake nominal schema, or free lifetime spelling becomes authority.
+
+A retained actual CT-source negative exposes another pending producer defect:
+Left.V matched by Right.V currently selects the variant by its final name. The
+source matcher must resolve the complete owner instance before selecting a tag;
+nearest Left.V and mismatched Right.V sources stay separate. This checkpoint
+contains raw VM/metadata consumers; the source Sum/value/reification bridge and
+phantom callable source positives are still unfinished.
 ## Integrated scalar, associated and borrowed-code identity
 
 The combined341/342/344 tree prepays complete anonymous-member keys for typed
@@ -229,3 +278,37 @@ These bounded shapes establish this regression fix, not a theorem for all input.
 ### CT3完整名义实参的公共元数据修正
 
 普通phantom函数指针参数可形成合法类型，但CtSchemaArgument::Type(CtTy)不能表达其完整身份。根集成方将尚未验收的CT3合同修正为Type(CtTypeRef)，复用同一规范有界TypeDAG；Scalar编码不变。实际CT字段和值继续只接受CtTy纯值，不生成运行时指针。两种元数据表示不并存，声明实例的全部有序参数、关系、图规范及来源须由独立核验证；当前生产CT2与历史v2字节不改写为新v3。344随后实现元数据绑定和可序列化值绑定的区分并保留phantom FP正反例。
+
+### CT3 source-value WIP checkpoint after root37 composition
+
+The retained `artifact-values.zil` now executes the verified CT artifact lane,
+reifies both active nominal members with the complete anonymous Sum type, and
+passes ordinary Verify plus Clang/LLVM API O0/O2 native execution with result42.
+Generated-only AST Ascribed nodes carry both the whole sum and each active
+payload's full type; they enter the ordinary Expand/Types/Analyze/Verify path.
+The source enum matcher independently resolves the complete owner instance:
+nearest Left.V passes and the retained wrong-owner Right.V candidate rejects
+E-CT-SOURCE. The exact two-test command and output are recorded in
+`/tmp/344-ct3-source-bridge-second.log`; this is a construction checkpoint, not
+acceptance of all CT3 source metadata. Phantom fn/BFP argument binding, complete
+visitor/accounting controls, and final composition replay remain unfinished.
+
+CT3 closed nominal production now stores complete canonical Type graphs in its
+instance cache and separates them from pure field-value types. Actual source
+controls retain phantom fn and higher-rank borrowed-fn arguments through CT
+execution and ordinary native compilation; the latter exposed and corrects a
+missing complete higher-rank generic key and Copy-code-pointer case. The key
+records the canonical joint invocation relation, preserving alpha equivalence
+and different input/result relationships. Its planner prepays binder-name
+lookup, remap storage and full output before allocation; old requests without
+higher-rank keys or anonymous sums retain their key fees. Signature addresses
+remain metadata, and physical CT pointer fields still reject.
+
+The next source checkpoint adds generic enum tuple/unit reification with full
+owner arguments and active payload mapping. Four CT3 aggregate tests pass with
+native controls (Sum42, phantom fn7, phantom borrowed-fn42, generic enum42),
+while the existing generic CT compiler target passes16 focused regressions.
+Source reification pays complete generated type and clone traversal, including
+const expressions; intermediate Type graphs release their own temporary charge.
+Generic CT function specialization of metadata-only arguments, scalar nominal
+arguments, and the final independent raw/budget/source review remain pending.

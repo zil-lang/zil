@@ -12,6 +12,7 @@ pub(crate) struct Budget<'a> {
     enum_header: Option<Span>,
     primitive_binders: bool,
     anonymous_sums: bool,
+    borrowed_keys: bool,
     generic_methods: bool,
 }
 impl<'a> Budget<'a> {
@@ -26,6 +27,7 @@ impl<'a> Budget<'a> {
             enum_header: None,
             primitive_binders: false,
             anonymous_sums: false,
+            borrowed_keys: false,
             generic_methods: false,
         }
     }
@@ -59,6 +61,9 @@ impl<'a> Budget<'a> {
             self.primitive_binders = true;
         }
         Ok(())
+    }
+    pub(crate) fn has_borrowed_keys(&self) -> bool {
+        self.borrowed_keys
     }
     pub(crate) fn has_anonymous_sums(&self) -> bool {
         self.anonymous_sums
@@ -260,6 +265,7 @@ impl<'a> Budget<'a> {
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?
             }
             TypeKind::ForLifetime { lifetime, inner } => {
+                self.borrowed_keys = true;
                 self.text(lifetime, ty.span)?;
                 self.ty_context(inner, depth + 1, substitutions, slice_element)?;
             }
@@ -789,6 +795,7 @@ impl<'a> Budget<'a> {
             self.text("self", e.span)?;
         }
         match &e.kind {
+            ExprKind::Ascribed { .. } => self.expr_ascribed(e, depth, subs),
             ExprKind::Literal(..) => self.expr_literal(e, depth, subs),
             ExprKind::Name(..) | ExprKind::ReceiverMember(..) => self.expr_name(e, depth, subs),
             ExprKind::Group(..)
@@ -812,6 +819,18 @@ impl<'a> Budget<'a> {
                 self.expr_syntax(e, depth, subs)
             }
         }
+    }
+    fn expr_ascribed(
+        &mut self,
+        e: &Expr,
+        depth: usize,
+        subs: Option<&BTreeMap<String, TypeRef>>,
+    ) -> R<()> {
+        let ExprKind::Ascribed { ty, value } = &e.kind else {
+            unreachable!("budget expression dispatch")
+        };
+        self.ty_at(ty, depth + 1, subs)?;
+        self.expr(value, depth + 1, subs)
     }
     fn expr_literal(
         &mut self,

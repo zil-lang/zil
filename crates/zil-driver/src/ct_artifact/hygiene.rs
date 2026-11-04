@@ -280,6 +280,10 @@ impl Renamer<'_> {
     fn expr(&mut self, expr: &mut s::Expr) -> CompileResult<()> {
         match &mut expr.kind {
             s::ExprKind::Name(name) => self.reference(name, expr.span),
+            s::ExprKind::Ascribed { ty, value } => {
+                self.ty(ty)?;
+                self.expr(value)
+            }
             s::ExprKind::Group(value)
             | s::ExprKind::Try(value)
             | s::ExprKind::Unary { operand: value, .. } => self.expr(value),

@@ -1232,6 +1232,10 @@ impl Visitor<'_, '_, '_> {
             return Ok(());
         }
         match &mut e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty, types, depth + 1)?;
+                self.expr(value, types, values, depth + 1)?;
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)

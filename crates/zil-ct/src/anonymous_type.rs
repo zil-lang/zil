@@ -198,6 +198,22 @@ pub fn canonicalize_anonymous_type(
     reference: &CtTypeRef,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<CtTypeRef> {
+    canonical_type_key_mode(reference, budget, false).map(|(ty, _)| ty)
+}
+
+/// Full structural key and normalized graph. Both outputs remain charged until
+/// their caller drops them; this supplies data identity, never source access.
+pub(crate) fn canonical_type_key(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
+    canonical_type_key_mode(reference, budget, true)
+}
+fn canonical_type_key_mode(
+    reference: &CtTypeRef,
+    budget: &mut CtExecutionBudget,
+    keep_key: bool,
+) -> CompileResult<(CtTypeRef, Vec<u8>)> {
     if reference.root.0 as usize >= reference.nodes.len() {
         return Err(bad("CT type root is outside its graph"));
     }
@@ -402,8 +418,12 @@ pub fn canonicalize_anonymous_type(
         let result = canonical.swap_remove(reference.root.0 as usize);
         let output_bytes = add(16, mul(result.ty.nodes.len() as u64, 64)?)?;
         // Keep precisely the VM's returned Type-value charge after scratch dies.
-        budget.reserve_temporary_bytes(output_bytes)?;
-        Ok(result.ty)
+        budget.reserve_temporary_bytes(add(
+            output_bytes,
+            if keep_key { result.key.len() as u64 } else { 0 },
+        )?)?;
+        let key = if keep_key { result.key } else { Vec::new() };
+        Ok((result.ty, key))
     })();
     drop(canonical);
     budget.release_temporary_bytes(charged);

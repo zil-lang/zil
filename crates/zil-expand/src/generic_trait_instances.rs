@@ -843,6 +843,10 @@ impl CallRewrite<'_> {
             ExprKind::Name(name) if name == "self" && self.receiver.is_some() => {
                 *name = self.receiver.unwrap().to_owned();
             }
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty);
+                self.expr(value);
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)
