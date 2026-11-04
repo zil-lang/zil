@@ -735,7 +735,8 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
             validate_type(element, depth + 1, span, budget)?;
             budget.inside_store = previous;
         }
-        Type::Address { inner, .. }
+        Type::Registration { environment: inner }
+        | Type::Address { inner, .. }
         | Type::Slice { element: inner }
         | Type::Managed(inner)
         | Type::Desc(inner)
@@ -1095,6 +1096,7 @@ enum Term {
     /// Only the finite payload participates in the Copy constraint graph.
     /// The bool distinguishes a carrier expression from a descriptor.
     Resource(Variable, bool),
+    Registration(Rc<Term>, bool),
     Closure(usize),
     ClosureArray {
         element: usize,
@@ -1457,6 +1459,13 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if let Some(environment) = registration::environment(ty) {
+            let source = self.known_term(environment, span)?;
+            return Ok(Term::Registration(
+                Rc::new(source),
+                matches!(ty, Type::Managed(_)),
+            ));
+        }
         if self.helper_environments.len() > 1
             && let Type::Package { fields, .. } = ty
         {
@@ -2031,6 +2040,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Term::Registration(environment, owned) = term {
+            let Some(wanted) = registration::environment(ty) else {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "registration carrier differs from expected type",
+                ));
+            };
+            if matches!(ty, Type::Managed(_)) && !owned {
+                return Err(error(
+                    "E-TYPE-MISMATCH",
+                    span,
+                    "registration descriptor does not own its environment",
+                ));
+            }
+            let target = self.known_term(wanted, span)?;
+            return self.unify(environment, &target, span);
+        }
         if let Term::ValueStore(element, owned) = term
             && let Some(wanted) = dynamic_store::element(ty)
         {
@@ -2114,6 +2141,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             return self.graph.unify(a, b, span);
         }
         match (left, right) {
+            (Term::Registration(a, am), Term::Registration(b, bm)) if am == bm => {
+                self.unify(a, b, span)
+            }
             (Term::ValueStore(a, _), Term::ValueStore(b, _)) => self.unify(a, b, span),
             (Term::ValueStore(a, _), Term::Resource(..)) => {
                 let b = self.value_store_element(right, span)?;
@@ -2233,6 +2263,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Term::Scalar(_)
                 | Term::Address(..)
                 | Term::Resource(..)
+                | Term::Registration(..)
                 | Term::Closure(_)
                 | Term::ClosureArray { .. }
                 | Term::ClosurePackage { .. }
@@ -2326,6 +2357,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             }
             return Ok(match binding.term {
+                Term::Registration(environment, _) => Term::Registration(environment, false),
                 Term::Resource(variable, _) => Term::Resource(variable, false),
                 Term::ValueStore(element, _) => Term::ValueStore(element, false),
                 other => other,
@@ -2955,6 +2987,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     };
                     return match self.scopes.iter().rev().find_map(|s| s.get(name)) {
                         Some(Binding {
+                            term: Term::Registration(environment, true),
+                            ..
+                        }) => Ok(Term::Registration(environment.clone(), true)),
+                        Some(Binding {
                             term: Term::ValueStore(element, true),
                             ..
                         }) => Ok(Term::ValueStore(element.clone(), true)),
@@ -3374,6 +3410,86 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     return self
                         .known_term(&Type::Tuple(vec![Type::Bool, Type::I32, Type::I32]), span);
                 }
+                if let Some(name) = registration::primitive(callee) {
+                    self.budget.node(depth + 1, callee.span)?;
+                    self.expression_index += 1;
+                    if name == "c_register" {
+                        let [register, close, callback] = arguments.as_slice() else {
+                            return Err(error(
+                                "E-CALL-ARITY",
+                                span,
+                                "c_register requires three arguments",
+                            ));
+                        };
+                        for (expression, role) in [
+                            (register, ScopedCallbackRole::Register),
+                            (close, ScopedCallbackRole::Close),
+                        ] {
+                            let Term::Function(signature) =
+                                self.expr(expression, depth + 1, false)?
+                            else {
+                                return Err(error(
+                                    "E-FFI-REGISTRATION",
+                                    span,
+                                    "registration role requires static foreign function",
+                                ));
+                            };
+                            if signature.scoped_callback != Some(role) {
+                                return Err(error(
+                                    "E-FFI-REGISTRATION",
+                                    span,
+                                    "registration role differs from actual declaration",
+                                ));
+                            }
+                        }
+                        let previous = self.callable_hint.replace((vec![Type::I32], Type::I32));
+                        let source = self.expr(callback, depth + 1, false)?;
+                        self.callable_hint = previous;
+                        let Term::Closure(id) = source else {
+                            return Err(error(
+                                "E-REGISTRATION-CALLBACK",
+                                span,
+                                "registration requires concrete F",
+                            ));
+                        };
+                        if self.closures[id].parameters.len() != 1 {
+                            return Err(error(
+                                "E-REGISTRATION-CALLBACK",
+                                span,
+                                "callback signature is (i32)->i32",
+                            ));
+                        }
+                        self.graph
+                            .bind(self.closures[id].parameters[0], &Type::I32, span)?;
+                        self.graph
+                            .bind(self.closures[id].result, &Type::I32, span)?;
+                        return Ok(Term::Registration(Rc::new(Term::Closure(id)), true));
+                    }
+                    let [argument] = arguments.as_slice() else {
+                        return Err(error(
+                            "E-CALL-ARITY",
+                            span,
+                            "registration operation requires one carrier",
+                        ));
+                    };
+                    let actual = self.expr(argument, depth + 1, false)?;
+                    if !matches!(actual,Term::Registration(_,owned) if name=="registration_valid" || owned)
+                    {
+                        return Err(error(
+                            "E-REGISTRATION-CARRIER",
+                            span,
+                            "registration close requires actual owner, valid requires descriptor",
+                        ));
+                    }
+                    return self.known_term(
+                        if name == "registration_valid" {
+                            &Type::Bool
+                        } else {
+                            &Type::Unit
+                        },
+                        span,
+                    );
+                }
                 if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
                     self.budget.node(depth + 1, callee.span)?;
                     self.expression_index += 1;
@@ -3589,6 +3705,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                 self.bind_term(&value, ty, argument.span)?;
                             }
                         }
+                        if registration::environment(&signature.result).is_some()
+                            && let Some(environment) = state_environment
+                        {
+                            return Ok(Term::Registration(
+                                Rc::new(Term::Closure(environment)),
+                                matches!(signature.result, Type::Managed(_)),
+                            ));
+                        }
                         if forwarding::signature(&signature).is_some() {
                             return Ok(Term::Closure(
                                 state_environment
@@ -3662,6 +3786,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                                     self.expr_expected(argument, Some(ty), depth + 1, false)?;
                                 self.bind_term(&value, ty, argument.span)?;
                             }
+                        }
+                        if registration::environment(&signature.result).is_some()
+                            && let Some(environment) = state_environment
+                        {
+                            return Ok(Term::Registration(
+                                Rc::new(Term::Closure(environment)),
+                                matches!(signature.result, Type::Managed(_)),
+                            ));
                         }
                         if forwarding::signature(&signature).is_some() {
                             return Ok(Term::Closure(

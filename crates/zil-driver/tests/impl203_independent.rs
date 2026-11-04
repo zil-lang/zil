@@ -520,6 +520,7 @@ fn unused_raw_state_headers_validate_every_binding_and_real_field_selector() {
                 bound: CoreTypeBound::StoreElement,
             }),
             12 => f.callable_parameters.push(CoreCallableParameter {
+                closed_environment: false,
                 index: 0,
                 generic_index: 0,
                 generic_name: "ReviewF".into(),
@@ -1232,6 +1233,7 @@ fn unused_raw_state_value_helper_transfer_cannot_leave_the_source_usable() {
         helper.name = "review_value_helper".into();
         helper.state_parameters.clear();
         helper.callable_parameters = vec![CoreCallableParameter {
+            closed_environment: false,
             index: 0,
             generic_index: 0,
             generic_name: "ReviewH".into(),

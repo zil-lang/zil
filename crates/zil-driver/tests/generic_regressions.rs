@@ -3335,3 +3335,509 @@ fn task343_external_five_entry_sabi_and_physical_layout() {
         }
     }
 }
+
+#[test]
+fn registration343_returned_generic_owner_reaches_both_kernels() {
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn registration343_returned_stable_owner_native_and_failures() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/343/registration-observer.c");
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for two in [false, true] {
+                let fixture = if two {
+                    fixture.with_file_name("registration-two-observer.c")
+                } else {
+                    fixture.clone()
+                };
+                let dir = std::env::temp_dir().join(format!(
+                    "zil343-registration-{}-{backend:?}-{optimization:?}-{two}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let observer = dir.join("observer.o");
+                let c = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(&fixture)
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(c.status.success(), "{c:?}");
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                for default_drop in [false, true] {
+                    let text = if two {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-two.zil"
+                        )
+                    } else {
+                        include_str!(
+                            "../../../tests/language-readiness/terminal/343/registration-return.zil"
+                        )
+                    };
+                    let text = if default_drop {
+                        text.replace("registration_close(give owner);", "")
+                            .replace("registration_close(give first);", "")
+                            .replace("registration_close(give second);", "")
+                    } else {
+                        text.to_owned()
+                    };
+                    let project = zil_driver::ProjectSources {
+                        root: ModuleId(0),
+                        modules: vec![source(&text)],
+                        paths: Default::default(),
+                    };
+                    let report = zil_driver::compile_project(
+                        &project,
+                        &CompileOptions {
+                            backend,
+                            optimization,
+                            clang: Some(wrapper.clone()),
+                            stop_after: Stage::Build,
+                            output: Some(dir.join("program")),
+                            emit_dir: Some(dir.join("artifacts")),
+                            ..CompileOptions::default()
+                        },
+                    );
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                    assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                    for failure in [
+                        None,
+                        Some("ZIL343_REG_ALLOC_FAIL"),
+                        Some("ZIL343_REG_INSTALL_FAIL"),
+                    ] {
+                        if two && failure.is_some() {
+                            continue;
+                        }
+                        let mut command = Command::new(&report.artifacts["executable"]);
+                        if let Some(failure) = failure {
+                            command.env(failure, "1");
+                        }
+                        let result = command.output().unwrap();
+                        assert_eq!(
+                            result.status.code(),
+                            Some(if failure.is_some() { 3 } else { 0 }),
+                            "{backend:?} {optimization:?} default_drop={default_drop} failure={failure:?}: {result:?}"
+                        );
+                    }
+                }
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn registration343_source_definition_moves_and_closed_environment_rejects() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let unused = original.split("fn main").next().unwrap().to_owned() + "fn main() {}";
+    let neighbors=[
+        unused.replace(" + ClosedEnvironment",""),
+        original.replace("let owner=install(f)","let owner=#(c_register(registration_register,registration_close_backend,f))"),
+        format!("trait ClosedEnvironment {{}}\n{unused}"),
+        format!("struct Fake{{value:i32}} impl ClosedEnvironment for Fake {{}}\n{unused}"),
+        unused.replace("FnMut(i32)->i32 + ClosedEnvironment","FnOnce(i32)->i32 + ClosedEnvironment"),
+        original.replace("let f=move(value:i32)","let f=(value:i32)"),
+        original.replace("if !registration_valid(owner)","let duplicate=owner; registration_close(give duplicate); if !registration_valid(owner)"),
+        original.replace("registration_close(give owner);","registration_close(give owner); registration_close(give owner);"),
+        original.replace("registration_close(give owner);","let view=owner; registration_close(give owner); registration_valid(view);"),
+        original.replace("registration_close(give owner);","registration_close(owner);"),
+        original.replace("return c_register(registration_register,registration_close_backend,f)","return c_register(registration_close_backend,registration_register,f)"),
+        original.replace("unsafe { return c_register","{ return c_register"),
+        original.replace("fn main()->i32 {","fn main()->i32 { let c_register=1;"),
+        original.replace("c_register(registration_register,registration_close_backend,f)","c_register(registration_register,registration_close_backend,f); return c_register(registration_register,registration_close_backend,f)"),
+    ];
+    for (index, text) in neighbors.into_iter().enumerate() {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "neighbor{index}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "neighbor{index}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn registration343_raw_wire_and_exact_kernel_budgets() {
+    use zil_ir::{InstructionKind as I, Type};
+    let src = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/registration-return.zil"
+    ));
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut missing_bound = core.clone();
+    missing_bound
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "install")
+        .unwrap()
+        .callable_parameters[0]
+        .closed_environment = false;
+    assert!(zil_types::check(&missing_bound, &target, &limits).is_err());
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    let (decoded, claim) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(decoded, typed);
+    let checked = zil_verify::verify_module(decoded, claim, &target, &limits).unwrap();
+    assert!(checked.uses_retained_registration());
+    zil_lower::lower(&checked).unwrap();
+    let start = typed
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, I::RegistrationStart { .. }))
+        })
+        .unwrap();
+    let main = typed
+        .functions
+        .iter()
+        .position(|f| f.name == "main")
+        .unwrap();
+    let resource = typed
+        .resources
+        .iter()
+        .position(|r| matches!(r.payload, Type::Registration { .. }))
+        .unwrap();
+    for variant in 0..14 {
+        let mut forged = typed.clone();
+        match variant {
+            0 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                if let I::RegistrationStart {
+                    register, close, ..
+                } = &mut i.kind
+                {
+                    *register = *close;
+                }
+            }
+            1 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                if let I::RegistrationStart { region, .. } = &mut i.kind {
+                    *region = u32::MAX;
+                }
+            }
+            2 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                let I::RegistrationStart { callback, .. } = i.kind else {
+                    unreachable!()
+                };
+                forged.functions[start].values[callback.0 as usize] = Type::I32;
+            }
+            3 => forged.resources[resource].name = "@builtin:Registration:forged".into(),
+            4 => {
+                let mut duplicate = forged.resources[resource].clone();
+                duplicate.name.push_str(":shadow");
+                forged.resources.push(duplicate);
+            }
+            5 => {
+                let i = forged.functions[start]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap();
+                i.kind = I::MakeManaged { fields: vec![] };
+            }
+            6 => {
+                let i = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationValid { .. }))
+                    .unwrap();
+                let I::RegistrationValid { registration } = i.kind else {
+                    unreachable!()
+                };
+                i.kind = I::ReadDesc {
+                    desc: registration,
+                    index: 0,
+                };
+                let v = i.result.unwrap();
+                forged.functions[main].values[v.0 as usize] = Type::I32;
+            }
+            7 => {
+                let desc = forged.functions[main]
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| {
+                        if let I::RegistrationValid { registration } = i.kind {
+                            Some(registration)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                let i = forged.functions[main]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    .unwrap();
+                i.kind = I::RegistrationClose { registration: desc };
+            }
+            8 => forged.resources[resource].teardown = Some(zil_ir::FunctionId(main as u32)),
+            9 => {
+                let Type::Registration { environment } = &forged.resources[resource].payload else {
+                    unreachable!()
+                };
+                let Type::Closure(id) = environment.as_ref() else {
+                    unreachable!()
+                };
+                forged.closures[id.0 as usize].captures[0] = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                };
+            }
+            10 => {
+                let f = &mut forged.functions[main];
+                let b = f
+                    .blocks
+                    .iter_mut()
+                    .find(|b| {
+                        b.instructions
+                            .iter()
+                            .any(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    })
+                    .unwrap();
+                let n = b
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, I::RegistrationClose { .. }))
+                    .unwrap();
+                let extra = b.instructions[n].clone();
+                b.instructions.insert(n, extra);
+            }
+            11 => {
+                let Type::Registration { environment } = &mut forged.resources[resource].payload
+                else {
+                    unreachable!()
+                };
+                **environment = Type::ForeignHandle;
+            }
+            12 => {
+                let parameter = forged.functions[start].parameters[0];
+                let inner = forged.functions[start].locals[parameter.0 as usize]
+                    .ty
+                    .clone();
+                forged.functions[start].locals[parameter.0 as usize].ty = Type::Address {
+                    mutable: true,
+                    inner: Box::new(inner),
+                };
+            }
+            13 => {
+                let f = &mut forged.functions[start];
+                let original = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    .unwrap()
+                    .clone();
+                let old = original.result.unwrap();
+                let second = zil_ir::ValueId(f.values.len() as u32);
+                f.values.push(f.values[old.0 as usize].clone());
+                let unit = zil_ir::ValueId(f.values.len() as u32);
+                f.values.push(Type::Unit);
+                for b in &mut f.blocks {
+                    if let Some(at) = b
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, I::RegistrationStart { .. }))
+                    {
+                        let mut duplicate = original.clone();
+                        duplicate.result = Some(second);
+                        b.instructions.insert(at + 1, duplicate);
+                        b.instructions.insert(
+                            at + 2,
+                            zil_ir::Instruction {
+                                result: Some(unit),
+                                kind: I::RegistrationClose { registration: old },
+                                span: original.span,
+                            },
+                        );
+                    }
+                    if b.terminator == zil_ir::Terminator::Return(Some(old)) {
+                        b.terminator = zil_ir::Terminator::Return(Some(second));
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::SafeReject,
+            "Analyze raw{variant}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for decoded in [false, true] {
+            let (input, claim) = if decoded {
+                zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
+            } else {
+                (forged.clone(), claim.clone())
+            };
+            let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "Verify raw{variant} decoded={decoded}: {errors:?}"
+            );
+        }
+    }
+    for verify in [false, true] {
+        let accepts = |steps| {
+            let budget = Limits {
+                max_analysis_steps: steps,
+                ..limits.clone()
+            };
+            if verify {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &budget).map(|_| ())
+            } else {
+                zil_analyze::analyze(&typed, &budget).map(|_| ())
+            }
+        };
+        let (mut low, mut high) = (0, limits.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if accepts(mid).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        accepts(low).unwrap();
+        assert_eq!(
+            accepts(low - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        accepts(low).unwrap();
+        eprintln!("registration343 exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn registration343_copy_instances_and_return_branch_neighbors() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let declarations = original.split("fn install").next().unwrap();
+    let copy = format!(
+        "{declarations}\nfn main()->i32 {{let base=37;let f=move(x:i32)->i32=>x+base;unsafe{{let first=c_register(registration_register,registration_close_backend,f);let second=c_register(registration_register,registration_close_backend,f);registration_close(give first);registration_close(give second);}}return 0}}"
+    );
+    let branch=original.replace("(f:F)->Registration<F>","(f:F,choice:bool)->Registration<F>").replace("unsafe { return c_register(registration_register,registration_close_backend,f) }","unsafe { if choice { return c_register(registration_register,registration_close_backend,f) } return c_register(registration_register,registration_close_backend,f) }").replace("install(f)","install(f,true)");
+    for text in [copy, branch] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn registration343_source_library_preserves_actual_returned_environment() {
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+    let helper = original
+        .split("fn install")
+        .nth(1)
+        .unwrap()
+        .split("fn main")
+        .next()
+        .unwrap();
+    let roles = original.lines().take(2).collect::<Vec<_>>().join("\n");
+    let library = format!("{roles}\npub fn install{helper}");
+    let prefix = original
+        .split("fn install")
+        .next()
+        .unwrap()
+        .lines()
+        .skip(2)
+        .collect::<Vec<_>>()
+        .join("\n");
+    let main = original.split("fn main").nth(1).unwrap();
+    let caller = format!("import registrar\n{prefix}\nfn main{main}")
+        .replace("install(f)", "registrar.install(f)");
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(&caller),
+            SourceUnit::new(FileId(1), ModuleId(1), "registrar.zil", &library),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["registrar".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(&project, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+}
