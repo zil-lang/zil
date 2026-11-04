@@ -574,22 +574,17 @@ fn check_type_metadata(
         for ty in &schema.fields {
             check_ty(ty, raw, limits, meter)?;
         }
-        for argument in &schema.arguments {
-            if let CtSchemaArgument::Type(ty) = argument {
-                check_ty(ty, raw, limits, meter)?;
-            }
-        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
     }
     for schema in &raw.enum_schemas {
         for ty in schema.variants.iter().flatten() {
             check_ty(ty, raw, limits, meter)?;
         }
-        for argument in &schema.arguments {
-            if let CtSchemaArgument::Type(ty) = argument {
-                check_ty(ty, raw, limits, meter)?;
-            }
-        }
+        // Complete metadata graphs are checked by the independent identity
+        // admission before authentication below; data fields remain CtTy.
     }
+    identity::check_argument_graphs(raw, limits, meter)?;
     for function in &raw.functions {
         check_ty(&function.result_type, raw, limits, meter)?;
         for ty in function

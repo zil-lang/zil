@@ -2410,8 +2410,14 @@ mod tests {
             p.record_schemas.push(CtRecordSchema {
                 name: owner.clone(),
                 arguments: vec![
-                    CtSchemaArgument::Type(CtTy::Scalar(CtScalarTy::I32)),
-                    CtSchemaArgument::Type(CtTy::Scalar(phantom)),
+                    CtSchemaArgument::Type(CtTypeRef {
+                        nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+                        root: CtTypeNodeId(0),
+                    }),
+                    CtSchemaArgument::Type(CtTypeRef {
+                        nodes: vec![CtTypeNode::Primitive(phantom)],
+                        root: CtTypeNodeId(0),
+                    }),
                     CtSchemaArgument::Scalar(Constant::I32(n)),
                 ],
                 fields: vec![CtTy::Scalar(CtScalarTy::I32)],
@@ -2457,8 +2463,10 @@ mod tests {
                 .contains("duplicated")
         );
         let mut cycle = p.clone();
-        cycle.record_schemas[0].arguments[0] =
-            CtSchemaArgument::Type(CtTy::Record(CtRecordSchemaId(0)));
+        cycle.record_schemas[0].arguments[0] = CtSchemaArgument::Type(CtTypeRef {
+            nodes: vec![CtTypeNode::Tuple(vec![CtTypeNodeId(0)])],
+            root: CtTypeNodeId(0),
+        });
         assert!(
             verify_ct_artifact(cycle, &limits, &authority).unwrap_err()[0]
                 .message

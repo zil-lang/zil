@@ -185,7 +185,7 @@ impl Keys<'_> {
         id: u32,
         symbol: &CtSymbolId,
         args: &[CtSchemaArgument],
-        depth: usize,
+        _depth: usize,
     ) -> CompileResult<()> {
         self.budget
             .reserve_analysis_work(self.visiting.len() as u64 + args.len() as u64 + 1)?;
@@ -206,7 +206,26 @@ impl Keys<'_> {
             match arg {
                 CtSchemaArgument::Type(ty) => {
                     self.bytes(out, &[0])?;
-                    self.child(out, ty, depth + 1)?;
+                    let (canonical, key) =
+                        crate::anonymous_type::canonical_type_key(ty, self.budget)?;
+                    self.budget.reserve_analysis_work(
+                        (ty.nodes.len() as u64)
+                            .saturating_add(canonical.nodes.len() as u64)
+                            .saturating_add(key.len() as u64),
+                    )?;
+                    let same = ty == &canonical;
+                    let copied = if same {
+                        self.number(out, key.len() as u64)
+                            .and_then(|()| self.bytes(out, &key))
+                    } else {
+                        Err(bad("nominal type argument graph is not canonical"))
+                    };
+                    self.budget.release_temporary_bytes(
+                        16u64
+                            .saturating_add((canonical.nodes.len() as u64).saturating_mul(64))
+                            .saturating_add(key.len() as u64),
+                    );
+                    copied?;
                 }
                 CtSchemaArgument::Scalar(c) => {
                     self.bytes(out, &[1])?;
