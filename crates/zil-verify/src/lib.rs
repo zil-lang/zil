@@ -96,6 +96,8 @@ pub struct VerifiedModule {
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
+    task_exports: BTreeSet<FunctionId>,
+    task_input_fingerprint: Fingerprint,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -117,6 +119,12 @@ enum VerifiedInputs {
     },
 }
 impl VerifiedInputs {
+    fn program(&self) -> Option<&TypedProgram> {
+        match self {
+            Self::SharedProgram { program, .. } => Some(program),
+            _ => None,
+        }
+    }
     fn module(&self) -> &TypedModule {
         match self {
             Self::Owned { module, .. } => module,
@@ -133,8 +141,8 @@ impl VerifiedInputs {
 }
 impl fmt::Debug for VerifiedModule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Preserve the existing view, including for a shared program owner:
-        // its interfaces are not checked or exposed by this module wrapper.
+        // Preserve the existing module view. Scalar interfaces remain raw;
+        // checked task interfaces have their own explicit accessor.
         f.debug_struct("VerifiedModule")
             .field("module", self.module())
             .field("plan", self.plan())
@@ -164,8 +172,21 @@ impl VerifiedModule {
     pub fn is_suspend(&self, id: FunctionId) -> bool {
         self.suspend_functions.contains(&id)
     }
+    pub fn is_task_export(&self, id: FunctionId) -> bool {
+        self.task_exports.contains(&id)
+    }
+    pub fn task_abi_input_fingerprint(&self) -> Fingerprint {
+        self.task_input_fingerprint
+    }
     pub fn uses_scalar_tasks(&self) -> bool {
         self.uses_scalar_tasks
+    }
+    /// These semantic exports were independently bound to this exact immutable
+    /// program and its actual closed Suspend workers on the current request.
+    pub fn task_interfaces(&self) -> &[TaskInterface] {
+        self.inputs
+            .program()
+            .map_or(&[], |program| &program.task_interfaces)
     }
     pub fn uses_owned_sum_extension(&self) -> bool {
         self.uses_owned_sum_extension
@@ -249,6 +270,7 @@ struct Budget {
     tasks: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
+    task_exports: BTreeSet<FunctionId>,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -265,6 +287,7 @@ impl Budget {
             tasks: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
+            task_exports: BTreeSet::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -338,10 +361,9 @@ pub fn verify_shared_module(
     )
 }
 
-/// Check only the module embedded in an immutable shared raw program. This
-/// grants the same module-only authority as verify_module: program interfaces
-/// and root mappings remain untrusted and are not exposed by VerifiedModule.
-/// The complete module checks run on every call with the current target/limits.
+/// Check the embedded module and the independent semantic task export boundary.
+/// Scalar interfaces and root mappings remain untrusted. All checks execute on
+/// every call with the current target and cumulative request budget.
 pub fn verify_shared_program_module(
     program: Arc<TypedProgram>,
     plan: Arc<CandidatePlan>,
@@ -360,7 +382,13 @@ fn verify_inputs(
     expected_target: &TargetProfile,
     limits: &Limits,
 ) -> CompileResult<VerifiedModule> {
-    match check_module(inputs.module(), inputs.plan(), expected_target, limits) {
+    match check_module(
+        inputs.module(),
+        inputs.plan(),
+        expected_target,
+        limits,
+        inputs.program(),
+    ) {
         Ok(checked) => Ok(VerifiedModule {
             inputs,
             fingerprint: checked.fingerprint,
@@ -369,6 +397,8 @@ fn verify_inputs(
             uses_scalar_tasks: checked.uses_scalar_tasks,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
+            task_exports: checked.task_exports,
+            task_input_fingerprint: checked.task_input_fingerprint,
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -422,12 +452,15 @@ struct CheckedModule {
     uses_scalar_tasks: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
+    task_exports: BTreeSet<FunctionId>,
+    task_input_fingerprint: Fingerprint,
 }
 fn check_module(
     module: &TypedModule,
     plan: &CandidatePlan,
     expected_target: &TargetProfile,
     limits: &Limits,
+    program: Option<&TypedProgram>,
 ) -> Check<CheckedModule> {
     if module.schema_version != SCHEMA_VERSION || plan.schema_version != SCHEMA_VERSION {
         return Err(reject(
@@ -678,6 +711,11 @@ fn check_module(
         graphs.push(graph);
     }
     tasks::module(module, &mut budget)?;
+    let mut task_input_fingerprint = fingerprint;
+    if let Some(program) = program {
+        tasks::interfaces(program, &mut budget)?;
+        task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
+    }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
     borrows::check_module(module, plan, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
@@ -687,6 +725,8 @@ fn check_module(
         uses_scalar_tasks: budget.tasks,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
+        task_exports: budget.task_exports,
+        task_input_fingerprint,
     })
 }
 

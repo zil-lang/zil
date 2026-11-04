@@ -165,3 +165,43 @@ The retained original source and a tenth raw/decoded-Wire mutation exercise this
 case. Its ordinary non-Suspend static callback neighbor is accepted and builds
 on both backends at O0/O2. The first candidate is superseded by this correction;
 its passing tests alone did not establish that boundary.
+
+## Public scalar task SABI continuation
+
+The public semantic `TaskInterface` is separate from `ScalarInterface`: it names
+the actual worker, source name, parameter/result type and mode, and ABI version.
+It contains no frame layout or no-external-users permission. Types routes a
+yielding public definition to this interface; Analyze and Verify independently
+rebuild its closed scalar worker profile. A forged scalar export cannot grant a
+Direct entry to the same worker. Only independently checked semantic exports may
+request external linkage for the five generated SABI entry points.
+
+The backend publishes a separate physical artifact derived from the actual
+lowered frame and five machine functions, bound to current verified input,
+target and codegen identity. External poll uses a packed i64 (high32=status,
+low32=result bits), with explicit wrappers around the internal tuple-returning
+poll. This avoids assuming that an LLVM aggregate return is the C aggregate ABI.
+The raw external caller must own the frame, serialize activation operations,
+close before destroy, and honor the one-shot Ready transition.
+
+The public checkpoint executes a genuine external C caller against all five
+entries on LLVM API and Clang at O0/O2, including cancellation at each suspension,
+one-shot signed results, null allocation and exactly-once free. C implements only
+the caller and allocator observation. Its `sizeof`, `_Alignof` and `offsetof`
+probe agrees with the artifact's actual lowered fields, and both native tools
+report the frozen Linux x64 DataLayout. Unsupported target/type layouts reject
+before an artifact is produced; Rust host layout is never used.
+
+Seven independent public metadata mutations reject in Analyze and Verify,
+including a forged ScalarInterface. The original module and decoded Wire module
+are each checked with the raw semantic export candidate. Explicitly selecting a
+yielding worker as an executable Direct entry also rejects. Public metadata has
+its own paid N/N−1/fresh-N boundaries (Analyze 1955, Verify 1414). The semantic
+cache stores candidates and re-verifies task exports after cold/warm replay;
+LLVM object cache hits preserve the actual ABI artifact, while changed checked
+arithmetic changes both frame and codegen identities.
+
+This checkpoint completes the bounded public scalar SABI lane. General owned
+spills, retained registration, callback/waker admission, no-future/drain, generic
+Mutex<T>/Transfer/Share and native Windows remain task343 continuation work.
+Matched Rust runtime/RSS/compile-cost and maintenance comparisons remain unmeasured.

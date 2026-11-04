@@ -240,3 +240,108 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     }
     Ok(())
 }
+
+/// Independent semantic SABI binding. The fields remain raw data; successful
+/// checking exposes only the matching immutable program snapshot to lowering.
+pub(super) fn interfaces(program: &TypedProgram, budget: &mut Budget) -> Check<()> {
+    if program.task_interfaces.is_empty() && !budget.tasks {
+        return Ok(());
+    }
+    let module = &program.module;
+    budget.spend(program.task_interfaces.len())?;
+    let mut seen_modules = BTreeSet::new();
+    let mut seen_workers = BTreeSet::new();
+    for interface in &program.task_interfaces {
+        budget.spend(
+            seen_modules
+                .len()
+                .saturating_add(interface.exports.len())
+                .saturating_add(1),
+        )?;
+        if !seen_modules.insert(interface.module) {
+            return Err(reject(
+                "E-VERIFY-TASK-INTERFACE",
+                None,
+                "duplicate semantic task interface module",
+            ));
+        }
+        let mut names = BTreeSet::new();
+        for export in &interface.exports {
+            budget.spend(
+                export
+                    .name
+                    .len()
+                    .saturating_add(names.len())
+                    .saturating_add(seen_workers.len())
+                    .saturating_add(1),
+            )?;
+            if export.abi_version != 1
+                || export.name.is_empty()
+                || export.parameter != (PassingMode::Infer, Type::I32)
+                || export.result != (PassingMode::Infer, Type::I32)
+                || !names.insert(export.name.as_str())
+                || !seen_workers.insert(export.worker)
+                || !budget.suspend_functions.contains(&export.worker)
+            {
+                return Err(reject(
+                    "E-VERIFY-TASK-INTERFACE",
+                    None,
+                    "semantic export must name a unique actual Suspend scalar SABI v1 worker",
+                ));
+            }
+            profile(module, export.worker, budget, None)?;
+            // Module checking inventoried TaskYield even in unused definitions.
+            if !budget.task_workers.contains(&export.worker) {
+                return Err(reject(
+                    "E-VERIFY-TASK-INTERFACE",
+                    None,
+                    "task export has no independently checked worker",
+                ));
+            }
+            budget.spend(budget.task_exports.len().saturating_add(1))?;
+            budget.task_exports.insert(export.worker);
+        }
+    }
+    for interface in &program.interfaces {
+        for export in &interface.exports {
+            budget.spend(budget.suspend_functions.len().saturating_add(1))?;
+            if budget.suspend_functions.contains(&export.function) {
+                return Err(reject(
+                    "E-VERIFY-TASK-DIRECT-EXPORT",
+                    None,
+                    "actual Suspend worker cannot acquire a scalar Direct export",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn interface_fingerprint(
+    program: &TypedProgram,
+    module: Fingerprint,
+    budget: &mut Budget,
+) -> Check<Fingerprint> {
+    if program.task_interfaces.is_empty() {
+        return Ok(module);
+    }
+    let mut hash = zil_base::FingerprintBuilder::new();
+    hash.update(b"ZIL-VERIFIED-TASK-SEMANTICS-v1\0");
+    hash.update(&module.0);
+    budget.spend(program.task_interfaces.len())?;
+    hash.update(&(program.task_interfaces.len() as u64).to_le_bytes());
+    for interface in &program.task_interfaces {
+        hash.update(&interface.module.0.to_le_bytes());
+        hash.update(&(interface.exports.len() as u64).to_le_bytes());
+        for export in &interface.exports {
+            budget.spend(export.name.len().saturating_add(16))?;
+            hash.update(&(export.name.len() as u64).to_le_bytes());
+            hash.update(export.name.as_bytes());
+            hash.update(&export.worker.0.to_le_bytes());
+            hash.update(&export.abi_version.to_le_bytes());
+            // interfaces() already checked exact Infer i32 -> Infer i32.
+            hash.update(b"infer:i32->infer:i32\0");
+        }
+    }
+    Ok(hash.digest())
+}

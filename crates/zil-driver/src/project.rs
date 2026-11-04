@@ -826,6 +826,9 @@ impl CompilationSession {
         artifacts.dump_lazy(report, options, "interfaces", |_| {
             format!("{:#?}", typed.interfaces)
         })?;
+        artifacts.dump_lazy(report, options, "task-interfaces", |_| {
+            format!("{:#?}", typed.task_interfaces)
+        })?;
         if options.stop_after == Stage::Types {
             return Ok(());
         }
