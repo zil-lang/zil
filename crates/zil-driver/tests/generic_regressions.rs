@@ -4327,3 +4327,94 @@ let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
         }
     }
 }
+
+#[test]
+fn terminal343_scalar_library_helpers_keep_sealed_identity() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let main = source(include_str!(
+        "../../../tests/language-readiness/terminal/343/sync-probes/library/main.zil"
+    ));
+    let library = include_str!(
+        "../../../tests/language-readiness/terminal/343/sync-probes/library/sync_ops.zil"
+    );
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            main,
+            SourceUnit::new(FileId(1), ModuleId(1), "sync_ops.zil", library),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["sync_ops".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(&project, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let mut fingerprints = vec![];
+    for cell in ["AtomicI32", "MutexI32"] {
+        let src = source(&format!(
+            "pub fn observe(cell:&{cell})->i32 {{return 0}} fn main(){{}}"
+        ));
+        let ast = zil_syntax::parse(&src).into_result().unwrap();
+        let core = zil_expand::expand(&src, &ast).unwrap();
+        let export = core.functions[0].id;
+        let typed = zil_types::check_program(
+            &zil_ir::CoreProgram {
+                root: ModuleId(0),
+                source_fingerprint: core.source_fingerprint,
+                modules: vec![zil_ir::ProgramModule {
+                    core,
+                    imports: vec![],
+                    exports: vec![export],
+                }],
+            },
+            &zil_base::TargetProfile::default(),
+            &Limits::default(),
+        )
+        .unwrap();
+        fingerprints.push(typed.interfaces[0].signature_fingerprint);
+    }
+    assert_ne!(fingerprints[0], fingerprints[1]);
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil343-sync-library-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let report = zil_driver::compile_project(
+                &project,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let native = report.native_codegen.as_ref().unwrap();
+            assert_eq!(native.backend, backend);
+            assert!(native.fallback.is_none());
+            let actual = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                actual.status.code(),
+                Some(0),
+                "{backend:?} {optimization:?}: {actual:?}"
+            );
+            std::fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}

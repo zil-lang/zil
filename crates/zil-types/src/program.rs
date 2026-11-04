@@ -569,6 +569,13 @@ fn type_identity(bytes: &mut Vec<u8>, ty: &Type, closures: &[ClosureDefinition])
             type_identity(bytes, environment, closures);
         }
         Type::TaskI32 => bytes.push(33),
+        Type::SyncCell(kind) => bytes.extend_from_slice(&[
+            30,
+            match kind {
+                SyncCellKind::MutexI32 => 0,
+                SyncCellKind::AtomicI32 => 1,
+            },
+        ]),
         Type::OwnedStore { element } => {
             bytes.push(22);
             type_identity(bytes, element, closures);

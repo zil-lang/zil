@@ -454,3 +454,15 @@ parent/result responsibilities in the established scope order. User defers,
 borrowed frame results and heterogeneous error conversions require their full
 actual ownership/effect contracts before admission. This proposal does not
 publish unchecked producer cleanup/effect bits or claim those paths complete.
+
+### Scalar synchronization library identity correction
+
+The original-source library probe exports an ordinary helper taking
+`&AtomicI32` or `&MutexI32`, then calls it from the existing real thread scope.
+Those argument shapes are already admitted, but the Types scalar-interface
+identity walker lacked the sealed SyncCell leaf and panicked. Add the existing
+kind-bearing tag30 identity to this private interface walker; retain the exact
+kind and all ordinary source/root/operation checks. No schema, access grant or
+general Transfer/Share claim follows. The regression must exercise both cell
+kinds through imported public helpers, both native backends, and distinguish
+their signature identities when names and remaining signatures are the same.
