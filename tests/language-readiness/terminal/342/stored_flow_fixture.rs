@@ -1288,6 +1288,9 @@ pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedMod
             instruction(
                 Some(3),
                 match kind {
+                    CallableKind::FunctionPointer => {
+                        unreachable!("model requires actual environment")
+                    }
                     CallableKind::Fn => InstructionKind::CallClosureShared {
                         callee: LocalId(2),
                         arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
