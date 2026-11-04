@@ -833,12 +833,22 @@ impl Visitor<'_, '_, '_> {
         let generics = match &item.kind {
             ItemKind::Impl(i) => i.generics.as_slice(),
             ItemKind::Trait(t) => t.generics.as_slice(),
-            ItemKind::Extern { function, .. } => function.generics.as_slice(),
+            ItemKind::Function(function) | ItemKind::Extern { function, .. } => {
+                function.generics.as_slice()
+            }
             _ => params(item),
         };
+        let life_depth = self.resolver.life_scope.len();
         for g in generics {
             if matches!(g.kind, GenericParamKind::Type(_)) {
                 types.insert(g.name.clone());
+            } else if matches!(g.kind, GenericParamKind::Lifetime) {
+                // The alias target was checked in its own definition scope.
+                // Its actual argument here belongs to this real enclosing item,
+                // not an empty module scope or the target's local class0.
+                self.resolver.budget.node(g.span, depth)?;
+                self.resolver.budget.text(&g.name, g.span)?;
+                self.resolver.life_scope.push(g.name.clone());
             }
         }
         match &mut item.kind {
@@ -927,6 +937,7 @@ impl Visitor<'_, '_, '_> {
             }
             _ => {}
         }
+        self.resolver.life_scope.truncate(life_depth);
         Ok(())
     }
     fn block(&mut self, b: &mut Block, types: &Names, values: &Names, depth: usize) -> R<()> {
