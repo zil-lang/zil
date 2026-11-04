@@ -68,5 +68,6 @@ ck('grammar references defined nonterminals',names<=defs|terminal,','.join(sorte
 ck('grammar # alternatives present',all(x in g for x in ['Attribute =','MetaEval =','MetaBlock =','MetaEmit =','GenericParameter =']))
 ck('input hashes correspond mounted inputs',all(not (Path('/mnt/data')/n).exists() or hashlib.sha256((Path('/mnt/data')/n).read_bytes()).hexdigest()==v for n,v in load('data/input-hashes.json').items()))
 report={'scope':'Document/data/engineering-record reference integrity only; does not read the live goal board or check all development branches. Not compiler semantic acceptance','live_plan_checked':False,'development_branches_checked':False,'goal_implementation_notes':contracts['goal_implementation_notes'](R),'total':len(checks),'passed':sum(c['pass'] for c in checks),'checks':checks}
+(R/'evidence').mkdir(parents=True, exist_ok=True)
 (R/'evidence/document-checks.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n');print(json.dumps(report,ensure_ascii=False,indent=2))
 sys.exit(0 if report['total']==report['passed'] else 1)

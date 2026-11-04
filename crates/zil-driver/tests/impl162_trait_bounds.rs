@@ -15,6 +15,324 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn g231_self_associated_constants_effective_and_default_checks() {
+    for text in [
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const B:i32=Self.A+1;const A:i32;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}struct Q{}impl C for Q{const A:i32=99;}impl C for P{const A:i32=41;}fn main()->i32{return P.B+Q.B-142}",
+        "trait C{const A:i32=Self.B+1;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.A+P.B-83}",
+        "trait C{const A:i32;const B:i32;}struct P{}impl C for P{const A:i32=41;const B:i32=Self.A+1;}fn main()->i32{return P.B-42}",
+        "fn add(x:i32)->i32{return x+1}trait C{const A:i32;const B:i32=add(Self.A);}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}fn main(){}",
+        "trait C{const A:i32=Self.B;const B:i32=Self.A;}fn main(){}",
+        "trait C{const A:bool;const B:bool=!Self.A;}struct P{}impl C for P{const A:bool=false;}fn main()->i32{if P.B{return 0}return 1}",
+        "trait C{const A:i64;const B:i64=Self.A+3;}struct P{}impl C for P{const A:i64=-2;}fn main()->i32{return i32(P.B)-1}",
+        "trait C{const A:f64;const B:f64=Self.A+1.0f64;}struct P{}impl C for P{const A:f64=41.0f64;}fn main()->i32{return i32(P.B)-42}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for (text, code) in [
+        (
+            "trait C{const A:i32=Self.B;const B:i32=Self.A;}struct P{}impl C for P{}fn main(){}",
+            "E-CT-ASSOCIATED-CYCLE",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=2147483647;}fn main(){}",
+            "E-CT-ARITHMETIC",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=2147483647;const B:i32=0;}fn main(){}",
+            "E-CT-ARITHMETIC",
+        ),
+        (
+            "trait C{const A:i32;const B:i32=Self.Missing+1;}fn main(){}",
+            "",
+        ),
+        ("trait C{const A:bool;const B:i32=Self.A+1;}fn main(){}", ""),
+        (
+            "extern \"C\" fn forbidden()->i32;fn impure()->i32{unsafe{return forbidden()}}trait C{const A:i32;const B:i32=Self.A+impure();}fn main(){}",
+            "",
+        ),
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{text}: {}",
+            report.to_json()
+        );
+        if !code.is_empty() {
+            assert!(
+                report.diagnostics.iter().any(|d| d.code == code),
+                "{text}: {}",
+                report.to_json()
+            );
+        }
+    }
+    // Standalone Expand is a definition/consumption stage, not a CT executor.
+    let pending = "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main(){}";
+    let unit = source(pending);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let errors = zil_expand::expand(&unit, &ast).unwrap_err();
+    assert_eq!(
+        errors[0].category,
+        ResultCategory::Unsupported,
+        "{errors:?}"
+    );
+    assert!(
+        errors[0]
+            .message
+            .contains("Source Driver verified CT materialization"),
+        "{errors:?}"
+    );
+    // Exact old composition fence; the literal control fails on the baseline too.
+    for value in ["42", "Self.A+1"] {
+        let text = format!(
+            "resource R{{n:i32}}impl Drop for R{{fn drop(self:Self){{}}}}trait C{{const A:i32;const B:i32={value};}}struct P{{}}impl C for P{{const A:i32=41;}}fn main()->i32{{let r=R{{n:1}};return P.B-42}}"
+        );
+        let report = check(&text);
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message == "generic bound Drop is not a declared nominal trait"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn g231_generated_self_default_impls_require_completed_ct_jobs() {
+    for text in [
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}#emit quote<ItemList>{impl C for P{const A:i32=2147483647;const B:i32=0;}};fn main(){}",
+        "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}#for(i in 0..1){impl C for P{const A:i32=2147483647;const B:i32=0;}}fn main(){}",
+    ] {
+        let report = check(text);
+        eprintln!(
+            "G2.3.1 generation nearest status={:?} phase={:?} diagnostics={:?}",
+            report.status, report.phase, report.diagnostics
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
+    }
+    let closed = check(
+        "trait C{const A:i32;const B:i32=42;}struct P{}#emit quote<ItemList>{impl C for P{const A:i32=41;const B:i32=0;}};fn main(){}",
+    );
+    assert_eq!(
+        closed.status,
+        ResultCategory::Success,
+        "{}",
+        closed.to_json()
+    );
+}
+
+#[test]
+fn g231_self_associated_identity_budgets_and_machine_values() {
+    use zil_driver::CompilationSession;
+    let original =
+        include_str!("../../../tests/language-readiness/terminal/341/associated-constant-self.zil");
+    let unit = source(original);
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let options = |n: usize| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                "steps" => options.limits.max_ct_steps = n as u64,
+                "bytes" => options.limits.max_source_bytes = n,
+                _ => unreachable!(),
+            }
+            options
+        };
+        let limits = Limits::default();
+        let (mut low, mut high) = (
+            1,
+            match ledger {
+                "work" => limits.max_analysis_steps,
+                "nodes" => limits.max_nodes,
+                "steps" => limits.max_ct_steps as usize,
+                "bytes" => limits.max_source_bytes,
+                _ => unreachable!(),
+            },
+        );
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{ledger} n={n}: {}", report.to_json()),
+            }
+        }
+        let mut session = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                session.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(
+                    report.status,
+                    expected,
+                    "{ledger} N={low}: {}",
+                    report.to_json()
+                );
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!("G2.3.1 {ledger} N={low}; N-1/cold/warm/fresh agree");
+    }
+    native_both(&[("main", original)]);
+    let mut session = CompilationSession::default();
+    for text in [
+        original.to_owned(),
+        original
+            .replace("const B:i32=70", "const B:i32=80")
+            .replace("first::<Q>()!=70", "first::<Q>()!=80"),
+        original
+            .replace("const A:i32=40", "const A:i32=41")
+            .replace("first::<P>()!=41", "first::<P>()!=42"),
+        original.to_owned(),
+    ] {
+        let dir = std::env::temp_dir().join(format!(
+            "g231-warm-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let executable = dir.join("program");
+        let report = session.compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: zil_driver::NativeBackend::Clang,
+                optimization: Optimization::O0,
+                output: Some(executable.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.verification_runs >= 1, "{}", report.to_json());
+        let output = Command::new(&executable).output().unwrap();
+        assert_eq!(output.status.code(), Some(0), "{text}: {output:?}");
+        fs::remove_dir_all(dir).unwrap();
+    }
+    for width in [32, 64] {
+        let report = compile_source(
+            &source(
+                "trait C{const A:usize;const B:usize=Self.A+1usize;}struct P{}impl C for P{const A:usize=4294967295usize;}fn main(){}",
+            ),
+            &CompileOptions {
+                target: zil_base::TargetProfile {
+                    pointer_width: width,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            if width == 32 {
+                ResultCategory::SafeReject
+            } else {
+                ResultCategory::Success
+            },
+            "{}",
+            report.to_json()
+        );
+    }
+    let owners = [
+        (
+            "main",
+            "import a;import b;fn main()->i32{if a.read()!=41{return 1}if b.read()!=92{return 2}return 0}",
+        ),
+        (
+            "a",
+            "fn inc(x:i32)->i32{return x+1}trait C{const A:i32;const B:i32=inc(Self.A);}trait Flag{const A:bool;const B:bool=!Self.A;}struct P{}impl C for P{const A:i32=40;}impl Flag for P{const A:bool=false;}fn flag<T:Flag>()->bool{return T.B}fn number<T:C>()->i32{return T.B}pub fn read()->i32{if flag::<P>(){return number::<P>()}return 0}",
+        ),
+        (
+            "b",
+            "fn inc(x:i32)->i32{return x+2}trait C{const A:i32;const B:i32=inc(Self.A);}trait Float{const X:f64;const Y:f64=Self.X+1.0f64;}struct P{}impl C for P{const A:i32=90;}impl Float for P{const X:f64=41.0f64;}pub fn read()->i32{if P.Y!=42.0f64{return 0}return P.B}",
+        ),
+    ];
+    let owned = compile_project(&project(&owners), &CompileOptions::default());
+    assert_eq!(owned.status, ResultCategory::Success, "{}", owned.to_json());
+    native_both(&owners);
+    let outside = compile_project(
+        &project(&[
+            (
+                "main",
+                "import api;struct P{}impl api.C for P{const A:i32=41;}fn main(){}",
+            ),
+            ("api", "pub trait C{const A:i32;const B:i32=Self.A+1;}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        outside.status,
+        ResultCategory::Unsupported,
+        "{}",
+        outside.to_json()
+    );
+    assert!(
+        outside
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("cross-module constant witness")),
+        "{}",
+        outside.to_json()
+    );
+    let closed = compile_project(
+        &project(&[
+            (
+                "main",
+                "import api;struct P{}impl api.C for P{const A:i32=41;}fn main()->i32{return P.B-42}",
+            ),
+            ("api", "pub trait C{const A:i32;const B:i32=42;}"),
+        ]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        closed.status,
+        ResultCategory::Success,
+        "{}",
+        closed.to_json()
+    );
+}
+
+#[test]
 fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_kernel_boundary() {
     let files = [
         (
