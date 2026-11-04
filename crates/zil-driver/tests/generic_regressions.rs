@@ -5881,6 +5881,16 @@ fn g3326_captured_source_native_full_results_and_budget() {
                 low = mid + 1;
             }
         }
+        assert_eq!(
+            low,
+            match case {
+                "fn" => 24_224,
+                "fnmut-two-calls" => 34_804,
+                "fnonce" => 36_926,
+                _ => unreachable!(),
+            },
+            "{case} actual Source work changed"
+        );
         assert_eq!(check(low).status, ResultCategory::Success);
         let short = check(low - 1);
         assert_eq!(short.status, ResultCategory::ResourceLimit);
@@ -5933,4 +5943,102 @@ fn g3326_captured_source_native_full_results_and_budget() {
             }
         }
     }
+}
+
+#[test]
+fn g333_owned_fixed_source_resource_identity_is_independent() {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let text = g3326_captured_sources().pop().unwrap().1;
+    let input = source(&text);
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let aliases = Default::default();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(raw.closures[0].kind, zil_ir::CallableKind::FnOnce);
+    assert!(matches!(
+        raw.closures[0].captures[0],
+        zil_ir::Type::Managed(_)
+    ));
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    for mode in 0..4 {
+        let mut forged = raw.clone();
+        match mode {
+            0 => {
+                forged.resources[0].name = "Other".into();
+                let zil_ir::Type::Record { name, .. } = &mut forged.resources[0].payload else {
+                    unreachable!()
+                };
+                *name = "Other".into();
+            }
+            1 => forged.resources.clear(),
+            2 => forged.resources.push(forged.resources[0].clone()),
+            _ => {
+                let mut local = forged.functions[0].locals[0].clone();
+                local.id = zil_ir::LocalId(forged.functions[0].locals.len() as u32);
+                local.name = "unused_other".into();
+                local.ty = zil_ir::Type::Managed(Box::new(zil_ir::Type::Record {
+                    name: "Other".into(),
+                    fields: vec![("n".into(), zil_ir::Type::I32)],
+                }));
+                forged.functions[0].locals.push(local);
+            }
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|d| if mode == 1 {
+                d.category == ResultCategory::Unsupported
+            } else {
+                d.code == "E-ANALYZE-IR" && d.message.contains("resource")
+            }),
+            "Source-derived Analyze neighbor {mode}: {errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&forged, &plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(forged, plan.clone(), &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                "Source-derived Verify neighbor {mode}: {errors:?}"
+            );
+        }
+    }
+    let wrong = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-wrong-class.zil"
+    );
+    let report = compile_source(
+        &source(wrong),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual retained classes"))
+    );
 }
