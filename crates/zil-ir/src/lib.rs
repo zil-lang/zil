@@ -26,6 +26,15 @@ identity!(
     FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
 );
 
+/// Canonical invocation-local address relation for an environment-free code
+/// pointer. Numeric binders describe no runtime object or access authority.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FunctionLifeContract {
+    pub binder_count: u32,
+    pub parameter_lives: Vec<Option<u32>>,
+    pub result_life: Option<u32>,
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -96,6 +105,13 @@ pub enum Type {
     FunctionPointer {
         parameters: Vec<Type>,
         result: Box<Type>,
+    },
+    /// Thin code pointer with a fresh address relation at every invocation.
+    /// Its target, complete signature and actual return sources remain untrusted.
+    BorrowedFunctionPointer {
+        parameters: Vec<Type>,
+        result: Box<Type>,
+        life: FunctionLifeContract,
     },
     Closure(ClosureId),
     Opaque {
@@ -177,6 +193,9 @@ impl Type {
             Self::FunctionPointer { parameters, result } => {
                 parameters.iter().all(Self::is_copy_value) && result.is_copy_value()
             }
+            // Copying the code address never copies its invocation payload.
+            // Signature and relation eligibility must be validated separately.
+            Self::BorrowedFunctionPointer { .. } => true,
             _ => false,
         }
     }
@@ -1733,7 +1752,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V34\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V35\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -1897,6 +1916,30 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_len(b, parameters.len());
             for t in parameters {
                 encode_type(b, t);
+            }
+            encode_type(b, result);
+        }
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            b.push(31);
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for tag in &life.parameter_lives {
+                b.push(u8::from(tag.is_some()));
+                if let Some(tag) = tag {
+                    encode_u32(b, *tag);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(tag) = life.result_life {
+                encode_u32(b, tag);
+            }
+            encode_len(b, parameters.len());
+            for ty in parameters {
+                encode_type(b, ty);
             }
             encode_type(b, result);
         }
