@@ -1,0 +1,87 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "31dcb57b972f100adb0d2c78d02b83a62d50f0de",
+  "scope": "Root composition of isolated anonymous Type/key-budget correction with unsigned const/associated-type and canonical borrowed-function-pointer consumers. No CT3 Sum-value or full-language acceptance.",
+  "source_identity": {
+    "algorithm": "SHA256 over exact Git production Rust blobs in Python pathlib.Path component order: path UTF8 + NUL + file bytes + NUL. Independently computed by reviewer.",
+    "selection": "crates/**/src/**/*.rs",
+    "count": 330,
+    "sha256": "eacb437755db5d7a29b2f36dc5fcc06c61f6970b30d23b85d7cbbb1b65a27bcb"
+  },
+  "selected_source_sha256": {
+    "crates/zil-driver/tests/aggregates.rs": "6a8ec071ca1bf931ffd7103a830bf554eb9335a6549f5fd7becafc936bbb99fa",
+    "crates/zil-expand/src/generic_type_keys.rs": "08a01c03cfe0925dd83f51466ce893fcea007920a91ad517fc1ee21f332ada17",
+    "crates/zil-ct/src/anonymous_type.rs": "31967214d9a78023edc8f49434e31d76f7b02f7ef62ef25e06db69c1bd3b2570",
+    "crates/zil-ct/src/ct_artifact.rs": "3f457d231537d3b0a4a5d5486bd5fda40e9cc5489beec396630a6f7d569075b2",
+    "tests/language-readiness/terminal/344/anonymous/aliases.zil": "c168a00d5bace9d9a33a5a2ed874cb261eb0ca7b108cec74ffdc5dfab99ead9e",
+    "tests/language-readiness/terminal/344/anonymous/basic.zil": "01fb4b568282c73c422d0a793ab2cdfcf2ad0241d12ad0baec3b43e23d9916b0",
+    "tests/language-readiness/terminal/344/anonymous/ct-types.zil": "c4782062af8579d6a3f09a3aecb679228652f0f037be189a9a79317b05dd5703",
+    "tests/language-readiness/terminal/344/anonymous/float-enum.zil": "3b91a1a9f0142739c1109192e60d99e54ba690ff35c6b9b217ce37919d2877ad",
+    "tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil": "526a0d1ce7b705e57d8f8d85ec80e3094fa47ad37fed8c5d1a97eddbff3d5768",
+    "tests/language-readiness/terminal/344/anonymous/phantom.zil": "2d0db2340184c0e227fb64cd59146d5b89c43e9744dea4db97f39768e0a5b419"
+  },
+  "retained_harnesses": {
+    "/workspace/.zil-env/terminal-20261104/reviewer-retained/root31dcb-aggregates": "b6aabcde354e1db1e75066064b0da1d522da69da2574c229a72fd898e85b0c5d",
+    "/workspace/.zil-env/terminal-20261104/reviewer-retained/root31dcb-expand": "ae8df885baa3a1bb722d23a26359a7cbe2f96938aa0ca7e9121dd74e5f28430d",
+    "/workspace/.zil-env/terminal-20261104/reviewer-retained/root31dcb-ct": "cc1610dcb265074de22bb459520f857d25f19b9075f15de62a4c715fa6e635ff"
+  },
+  "binding": "Root supplied exact source31dcb and the three final harness digests; reviewer copied before target reuse and SHA-checked each. Reviewer independently inspected exact Git blobs and computed the production/source manifests; did not rebuild all production crates.",
+  "independent_execution": [
+    {
+      "harness": "root31dcb-aggregates",
+      "filter": "anonymous_sum",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 94,
+      "seconds": 2.42
+    },
+    {
+      "harness": "root31dcb-expand",
+      "filter": "type_keys",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 9,
+      "seconds": 0.0
+    },
+    {
+      "harness": "root31dcb-ct",
+      "filter": "anonymous_type",
+      "passed": 5,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 38,
+      "seconds": 0.0
+    }
+  ],
+  "native": "Existing nine anonymous source variants plus three new compositions, each Clang/LLVM API O0/O2: 48 native executions. Each build asserts actual selected backend and no fallback; execution returns expected42.",
+  "new_controls": [
+    "Actual anonymous Sum source through generic u64 MAX const argument without erasing full scalar identity.",
+    "Actual Box<anonymous Sum> generic associated type read, declared Copy qualification and trait dispatch.",
+    "Actual anonymous Sum containing implicit borrowed function pointer; CT Type selector preserves canonical member order and executes the real indirect call.",
+    "Type-key planner exact rendered lengths and N/N-1/fresh boundaries for typed/radix scalar arguments, symbolic array lengths and internal MetaEval carriers.",
+    "CT anonymous graph recanonicalization preserves two distinct complete BFP lifetime relations, all parameter/result child identities and mutable modes; equal relation duplicate rejects; N/N-1/fresh controls."
+  ],
+  "source_review": [
+    "Scalar identity planner scans integer radix/underscores and typed suffixes without allocating before fees, retaining the old const renderer validation and target domain checks. Name/Bool/Group/MetaEval and symbolic length output sizes match the actual renderer.",
+    "Associated equation_key takes the shared Budget and reaches bounded rendering. The budgetless equation_key_prepaid is used by the subsequent Substitution walk only; Budget::substituted_type/item prepays both the first lookup and this repeated structural key/format work. No candidate equation becomes solver evidence.",
+    "BFP CT traversal/remapping includes all children and a clone of FunctionLifeContract. Full canonical key carries binder_count, each optional parameter label and result label. Additional relation clone bytes/work are prepaid, including reconstruction through parent graph copies.",
+    "No-Union path keeps the legacy renderer and fees. New Union normalization, nested key rendering/unification and associated key reuse remain under one request balance."
+  ],
+  "exact_budgets": {
+    "anonymous_source": 8627,
+    "nested_generic_long_prefix_source": 713220,
+    "nested_key_unit": 7041,
+    "controls": "N accepts; N-1 ResourceLimit; fresh N identical; source warm/fresh cache paths agree and active queries return0."
+  },
+  "historical_failures": "Root first anonymous11 replay passed; its first new composite source accidentally reused a binding name and failed. Root corrected that source before exact31dcb; reviewer reran the final entire12-test filter successfully. No retroactive claim about the failed first source.",
+  "limitations": [
+    "Explicit ForLifetime source generic-key forms are still rejected by both renderer and planner; the implicit Handler and full CT BFP relation controls do not claim general HRTB storage/type argument completion.",
+    "General anonymous owning/partial-move/lending combinations and artifact CT3 Sum values remain active.",
+    "Only listed focused tests independently replayed; no full workspace, Clippy, native Windows or Rust product-cost comparison.",
+    "341 associated constants d9d418218 is a separate reviewed source and is not silently included in31dcb."
+  ],
+  "full_language_and_ZUI": "NotSatisfied"
+}

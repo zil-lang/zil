@@ -85,5 +85,22 @@
     "Anonymous owning cleanup, generalized borrow/partial-move composition and wider reliability obligations remain open.",
     "Integration must extend full-type planners/remappers for newer public BFP/life and associated-constant source forms present only on other branches.",
     "Author Clippy not independently rerun. No full-workspace, native-Windows, Rust cost comparison or terminal-language acceptance."
-  ]
+  ],
+  "build_construction_supplement": {
+    "basis": "Author disclosed cross-worktree Cargo mtime reuse hazard after the isolated candidate. Reviewer read and hashed the actual logs; changed-node tests independently executed in the retained candidate.",
+    "logs_sha256": {
+      "/tmp/key-typefix344.log": "e67387ae684b813105eeed779517831df481f491515e1dd9efeca55b62e6fd0c",
+      "/tmp/key-source344.log": "b06df21c41ef3116d986028459198fd5cd3d0d7155c2ab716b7987224030938c",
+      "/tmp/key-unit344c.log": "0def6c9fa2480798b094facd863dd5beb7fff2e3cb06b626e42af00661731a98",
+      "/tmp/ct3-check344.log": "49fb9556381d0d99186e6933cb82979d4249dbc85bbd977ea5c339010151bdb3",
+      "/tmp/ct3-fresh-check344.log": "4596a864579801a16d4396dc5d8069a0496c48347581a2c96c7a5b0a23d08f45"
+    },
+    "observed": [
+      "First fresh isolated worktree check rebuilds base/IR/syntax/Expand at zil-344-typefix and exposes two missing Budget caller compile errors.",
+      "First successful isolated source harness build explicitly compiles all driver dependencies from zil-344-typefix and runs anonymous11 including long-prefixN709861.",
+      "Final corrected key-unit build explicitly recompiles zil-expand at zil-344-typefix and runs N7041.",
+      "Final aggregate rebuild/replay after final array inspection correction was streamed tool output, not a retained log file; no invented final log path. Exact final harness identity and reviewer replays remain in this receipt.",
+      "Later primary344 CT3 pass reused stale schema2 metadata and is discarded. Refreshing source mtimes exposes expected missing MakeAnonymousSum compiler errors. Neither log is CT3 acceptance."
+    ]
+  }
 }
