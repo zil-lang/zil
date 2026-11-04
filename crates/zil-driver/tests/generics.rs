@@ -2811,7 +2811,7 @@ fn g3_3_2_context_clone_preflight_and_warm_scalar_orphan_stay_closed() {
             "{mutation}: {error:?}"
         );
     }
-    let scalar = g3_3_2_source_core("fn main()->i32{return 42}");
+    let scalar = g3_3_2_source_core("fn main()->i32{let a=40;let b=1;let c=a+b;return c+1}");
     let mut program = zil_ir::CoreProgram {
         root: scalar.module_id,
         source_fingerprint: scalar.source_fingerprint,
@@ -2822,13 +2822,18 @@ fn g3_3_2_context_clone_preflight_and_warm_scalar_orphan_stay_closed() {
         }],
     };
     let mut session = zil_types::FunctionSession::default();
-    for _ in 0..2 {
+    for round in 0..2 {
         let prepared = zil_types::infer_program_for_ct(&program, &limits)
             .unwrap()
             .into_prepared();
         session
             .check_prepared_program(&prepared, &target, &limits)
             .unwrap();
+        if round == 0 {
+            assert_eq!(session.last_stats().executed_functions, 1);
+        } else {
+            assert_eq!(session.last_stats().reused_functions, 1);
+        }
     }
     let mut orphan = core.closure_life_contexts[0].clone();
     orphan.creator = program.modules[0].core.functions[0].id;
