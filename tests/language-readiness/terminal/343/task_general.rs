@@ -1,6 +1,14 @@
-//! General Task38 source consumers; scalar worker admission remains explicit.
+//! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
+fn closed_task_shape() -> zil_ir::RetainedLifeShape {
+    zil_ir::RetainedLifeShape {
+        binder_count: 0,
+        ports: vec![],
+        retained: vec![],
+        nominal_arguments: vec![],
+    }
+}
 #[test]
 fn general_task343_native_ordinary_poll_and_once_ready() {
     use zil_driver::{NativeBackend, Optimization, Stage};
@@ -112,6 +120,7 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
                 if let Type::ErrorUnion { result, .. } = &mut f.values[out.0 as usize] {
                     **result = Type::Managed(Box::new(Type::Task {
                         result: Box::new(Type::Bool),
+                        retained_life: closed_task_shape(),
                     }));
                 }
             }
@@ -215,6 +224,51 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
                         .contains("general owning task result lowering")
                 );
             }
+        }
+    }
+}
+
+#[test]
+fn general_task343_retained_context_cannot_enter_closed_frame_profile() {
+    use zil_ir::{LifeDeclarationId, NominalLifeArgument, RetainedBorrowPort,
+        StorageRetainedBinding, StoredBorrowMode, Type};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let typed = zil_types::check(&expand(SOURCE, &limits).unwrap().core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for case in 0..4 {
+        let mut raw = typed.clone();
+        let payload = &mut raw.resources.iter_mut().find(|r| matches!(r.payload, Type::Task { .. })).unwrap().payload;
+        let Type::Task { retained_life, .. } = payload else { unreachable!() };
+        match case {
+            0 => retained_life.binder_count = 1,
+            1 => retained_life.ports.push(RetainedBorrowPort {
+                leaf: Type::I32, mode: StoredBorrowMode::SharedAddress, binder: 0,
+            }),
+            2 => retained_life.retained.push(StorageRetainedBinding {
+                path: vec![], class: 0, binder: 0,
+            }),
+            3 => retained_life.nominal_arguments.push(NominalLifeArgument {
+                path: vec![], declaration: LifeDeclarationId {
+                    module: zil_base::ModuleId(0), declaration: zil_base::NodeId(0), compiler: false,
+                }, argument: 0, binder: 0,
+            }),
+            _ => unreachable!(),
+        }
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-UNSUPPORTED", "case {case}: {errors:?}");
+        assert!(errors[0].message.contains("borrowed Task"), "{errors:?}");
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        for wire in [false, true] {
+            let input = if wire {
+                zil_ir::wire::decode_module_candidate(
+                    &zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap(), &limits,
+                ).unwrap().0
+            } else { raw.clone() };
+            let errors = zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
+            assert_eq!(errors[0].code, "E-UNSUPPORTED", "case {case}, wire={wire}: {errors:?}");
+            assert!(errors[0].message.contains("borrowed Task"), "{errors:?}");
         }
     }
 }
@@ -479,6 +533,7 @@ fn general_task343_generated_ascribed_and_sequence_head_hints_preserve_types() {
                 mutable: true,
                 inner: Box::new(Type::Managed(Box::new(Type::Task {
                     result: Box::new(if wrong { Type::Bool } else { Type::I32 }),
+                    retained_life: closed_task_shape(),
                 }))),
             };
             arguments[0].kind = E::Ascribed {
