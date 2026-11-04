@@ -1180,6 +1180,7 @@ fn transfer(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
@@ -2081,6 +2082,7 @@ fn actual_instructions(
                         | InstructionKind::WriteAddress { .. }
                         | InstructionKind::SliceLength { .. }
                         | InstructionKind::MakeAggregate { .. }
+                        | InstructionKind::ExtractField { .. }
                         | InstructionKind::Call { .. }
                         | InstructionKind::Unary { .. }
                         | InstructionKind::Binary { .. }
@@ -2131,6 +2133,24 @@ fn actual_instructions(
                 super::stored_callables::types(module, f, i, b)?;
             }
             match &i.kind {
+                InstructionKind::ExtractField { aggregate, index } => {
+                    let ty = value_type(f, *aggregate)?;
+                    b.type_work(ty, false, "stored profile ordinary Copy field extraction")?;
+                    let child = match ty {
+                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                        Type::Tuple(fields) => fields.get(*index as usize),
+                        _ => None,
+                    }
+                    .ok_or_else(|| failure("Copy extraction has no actual inline field"))?;
+                    if !ty.is_copy_value() || !super::stored_callables::scalar(child) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
+                            Some(i.span),
+                        )]);
+                    }
+                    result(child, b)?;
+                }
                 InstructionKind::ConvertInteger { value, target }
                 | InstructionKind::ConvertNumber { value, target } => {
                     if !value_type(f, *value)?.is_numeric() || !target.is_numeric() {

@@ -453,6 +453,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                             | InstructionKind::WriteAddress { .. }
                             | InstructionKind::SliceLength { .. }
                             | InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::ExtractField { .. }
                             | InstructionKind::Call { .. }
                             | InstructionKind::Unary { .. }
                             | InstructionKind::Binary { .. }
@@ -476,6 +477,25 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 }
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
+                }
+                if let InstructionKind::ExtractField { aggregate, index } = &i.kind {
+                    let ty = vt(f, *aggregate)?;
+                    type_work(ty, limits, b)?;
+                    let field = match ty {
+                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                        Type::Tuple(fields) => fields.get(*index as usize),
+                        _ => None,
+                    }
+                    .ok_or_else(|| err("actual Copy extraction field is absent"))?;
+                    if !ty.is_copy_value() || !super::stored_callables::scalar(field) {
+                        return Err(unsupported(
+                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
+                            Some(i.span),
+                        ));
+                    }
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(field) {
+                        return Err(err("Copy extraction result differs from the actual field"));
+                    }
                 }
             }
         }
@@ -1106,6 +1126,7 @@ fn step(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }

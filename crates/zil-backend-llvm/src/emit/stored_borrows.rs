@@ -309,6 +309,7 @@ pub(super) fn reserve_binding(
                         captures.len().saturating_add(1)
                     }
                     InstructionKind::FunctionRef { .. } => 1,
+                    InstructionKind::ExtractField { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
@@ -363,7 +364,8 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         } => std::iter::once(*callee)
             .chain(arguments.iter().copied())
             .collect(),
-        InstructionKind::Store { value, .. }
+        InstructionKind::ExtractField { aggregate: value, .. }
+        | InstructionKind::Store { value, .. }
         | InstructionKind::Unary { operand: value, .. }
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::ConvertNumber { value, .. } => vec![*value],

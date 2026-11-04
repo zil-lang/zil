@@ -165,3 +165,32 @@ pass separately, including raw/Wire wrong-role and exclusive-alias neighbors.
 This is author integration evidence, pending independent review and the common
 terminal acceptance. Captures, enclosing Fixed, FnMut/FnOnce qualified roles,
 lending results and general CT5 scope consumers remain unfinished.
+
+### Shared-tree regression recovery
+
+Composed aggregates exposed an earlier Task-owning integration regression:
+0bccd16e8 removed the existing built-in Option payload exception together with
+the Task Poll shortcut. Option<Package> consequently entered the legacy Copy
+classifier and rejected eight previously admitted source controls. Restore only
+the original sealed Option exception; ordinary Types and both ownership kernels
+still prove its actual payload. Keep the Task/ordinary generic enum checks.
+
+The old invocation-scoped phantom Code source now reaches ordinary analysis;
+its stored-profile dispatcher omitted scalar field extraction from a complete
+ordinary Copy record/tuple. Admit that existing physical operation only after
+each kernel independently checks the actual Copy aggregate, selected scalar
+field and exact result type, paying the traversed shape first. No qualified
+carrier, address field, owning field or callable result gains this transfer.
+LLVM reserves its actual aggregate operand. Replace the old pending-source
+assertion only after the original source passes both kernels and native profiles.
+
+The composed correction passes the complete existing aggregates149,
+cross_function_borrows84, generic_regressions83 and generics33 targets, zero
+ignored/filtered. Both CT5 source controls execute Clang/API O0/O2; the original
+invocation-scoped phantom Code now outputs42, and its ordinary runtime variant
+independently rejects wrong extraction indices/results in Analyze and raw/Wire
+Verify. Stored-flow kernel13/12 and their unchanged N/N−1/fresh boundaries pass.
+Combined Driver/library/four-target Clippy passes with only the pre-existing
+dead_code allowance. The previous140-pass/9-fail aggregate run remains recorded
+as a real integration failure. No independent or full-workspace acceptance is
+claimed by these author integration checks.
