@@ -15,6 +15,8 @@ use zil_base::{
 };
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{GeneratedSyntax, ParseResult, ast as s};
+#[path = "associated_constants.rs"]
+mod associated_constants;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -1183,9 +1185,11 @@ impl Materializer<'_, '_> {
                 }
             }
             s::ItemKind::Trait(t) => {
+                self.associated_constants(module, &mut t.members, &t.generics, owner)?;
                 self.items(module, &mut t.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Impl(i) => {
+                self.associated_constants(module, &mut i.members, &i.generics, owner)?;
                 self.items(module, &mut i.members, Some(owner), depth + 1, false)?
             }
             s::ItemKind::Import(_) | s::ItemKind::Meta(_) => {}

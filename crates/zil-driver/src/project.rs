@@ -87,6 +87,7 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
                     token.text(&source.text),
                     "Type" | "Syntax" | "Ident" | "quote" | "splice" | "emit"
                 )
+                || token.text(&source.text) == "const"
         })
 }
 

@@ -73,7 +73,10 @@ impl<'a> Expander<'a> {
         let mut valid = true;
         for member in &t.members {
             self.unexecuted_attributes(&member.attributes, "trait member");
-            if matches!(member.kind, s::ItemKind::TypeAlias(_)) {
+            if matches!(
+                member.kind,
+                s::ItemKind::TypeAlias(_) | s::ItemKind::Const(_)
+            ) {
                 continue;
             }
             let s::ItemKind::Function(f) = &member.kind else {
@@ -321,7 +324,7 @@ impl<'a> Expander<'a> {
                 || declaration
                     .members
                     .iter()
-                    .any(|m| matches!(m.kind, s::ItemKind::TypeAlias(_)))
+                    .any(|m| matches!(m.kind, s::ItemKind::TypeAlias(_) | s::ItemKind::Const(_)))
             {
                 let mut found = None;
                 for source in declarations.iter().copied().chain(std::iter::once(module)) {

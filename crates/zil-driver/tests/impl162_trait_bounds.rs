@@ -15,6 +15,166 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
+    use zil_syntax::ast::ItemKind;
+    let unit = source(include_str!(
+        "../../../tests/language-readiness/terminal/341/associated-constants.zil"
+    ));
+    let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let shared = ast.items[0].span;
+    for item in &mut ast.items {
+        let members = match &mut item.kind {
+            ItemKind::Trait(declaration) => &mut declaration.members,
+            ItemKind::Impl(implementation) => &mut implementation.members,
+            _ => continue,
+        };
+        item.span = shared;
+        for member in members {
+            member.span = shared;
+            match &mut member.kind {
+                ItemKind::Const(constant) => {
+                    if let Some(value) = &mut constant.value {
+                        value.span = shared;
+                    }
+                    if let Some(ty) = &mut constant.ty {
+                        ty.span = shared;
+                    }
+                }
+                ItemKind::Function(function) => function.span = shared,
+                _ => {}
+            }
+        }
+    }
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+    let verified = zil_verify::verify_module(
+        typed.clone(),
+        plan.clone(),
+        &typed.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    native_verified(&verified);
+}
+
+#[test]
+fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
+    for width in [32, 64] {
+        let mut target = zil_base::TargetProfile::default();
+        target.pointer_width = width;
+        for text in [
+            "trait C{const N:usize=4294967296usize;}fn main(){}",
+            "trait C{const N:(((usize)))=(((4294967295usize+1usize)));}fn main(){}",
+        ] {
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    target: target.clone(),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                if width == 32 {
+                    ResultCategory::SafeReject
+                } else {
+                    ResultCategory::Success
+                },
+                "{text}: {}",
+                report.to_json()
+            );
+        }
+    }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/341/associated-constants.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/341/associated-constant-computed.zil"
+        ),
+        "fn calculate(x:i32)->i32{return x*7}trait C{const N:i32=calculate(1);}struct P{}impl C for P{}fn get<T:C>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:i64;}struct P{}impl C for P{const N:i64=3000000000+7;}fn get<T:C>()->i64{return T.N}fn main()->i32{return i32(get::<P>()-3000000007)}",
+        "trait C{const N:u64=18446744073709551615u64-1u64;}struct P{}impl C for P{}fn main()->i32{if P.N==18446744073709551614u64{return 0}return 1}",
+        "trait C{const N:i32=7;}struct P{}impl C for P{}fn get<T:C>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:i32;}fn unused<T:C>()->i32{return T.N+1}fn main(){}",
+        "trait C{const N:i32;}struct P{N:i32}impl C for P{const N:i32=1;}fn get<T:C>()->i32{let T=P{N:7};return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:i32;}struct T{}struct P{}impl C for T{const N:i32=1;}impl C for P{const N:i32=7;}fn get<T:C>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait Base{const N:i32;}trait Child:Base{}struct P{}impl Base for P{const N:i32=7;}impl Child for P{}fn get<T:Child>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;}fn main()->i32{return P.N-7}",
+        "trait C{const N:i32;}struct Box<T:Copy>{value:T}impl<T:Copy> C for Box<T>{const N:i32=7;}fn get<T:Copy>(x:T)->i32{return Box::<T>.N}fn main()->i32{return get(true)-7}",
+        "trait C{type Item:Copy;const N:Self.Item;}struct P{}impl C for P{type Item=i32;const N:i32=7;}fn get<T:C>()->T.Item{return T.N}fn main()->i32{return get::<P>()-7}",
+        "trait C{const N:f64=7.0f64;}struct P{}impl C for P{}fn get<T:C>()->f64{return T.N}fn main()->i32{return i32(get::<P>())-7}",
+        "trait C{const N:i32;}struct P{N:i32}impl C for P{const N:i32=1;}fn get<T:C>(T:P)->i32{return T.N}fn main()->i32{return get::<P>(P{N:7})-7}",
+    ] {
+        let report = check(text);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "trait C{const N:i32;}struct P{}impl C for P{}fn main(){}",
+        "trait C{const N:i32=1/0;}struct P{}impl C for P{const N:i32=7;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=2147483647+1;}fn main(){}",
+        "extern \"C\" fn forbidden()->i32;trait C{const N:i32=forbidden();}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:bool=true;}fn main(){}",
+        "trait C{const N:i32=true;}struct P{}impl C for P{const N:i32=7;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=true;}fn main(){}",
+        "trait C{const N:i32;const N:i32;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;const N:i32=8;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const M:i32=7;}fn main(){}",
+        "trait C{const N:Missing;}fn main(){}",
+        "struct Box<T:Copy>{value:T}resource R{n:i32}trait C{const N:Box<R>;}fn main(){}",
+        "trait C{const N:i32;}struct P{}impl C for P{const N:i32=7;}fn get<T:C>()->i32{let T=true;return T.N}fn main(){}",
+        "trait C{const N:bool;}fn bad<T:C>()->i32{return T.N+1}fn main(){}",
+        "trait C{const N:i32;}fn bad<T>()->i32{return T.N}fn main(){}",
+        "trait A{const N:i32;}trait B{const N:i32;}fn bad<T:A+B>()->i32{return T.N}fn main(){}",
+    ] {
+        let report = check(text);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    let directory = std::env::temp_dir().join(format!(
+        "341-constant-reject-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&directory).unwrap();
+    let executable = directory.join("must-not-exist");
+    let rejected = compile_source(
+        &source("trait C{const N:i32=1/0;}fn main(){}"),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(executable.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    assert_eq!(rejected.phase, Phase::Ct, "{}", rejected.to_json());
+    assert!(rejected.commands.is_empty());
+    assert!(rejected.native_codegen.is_none());
+    assert!(!executable.exists());
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
     for text in [
         include_str!(
@@ -188,32 +348,7 @@ fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_c
     .unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
-    let lir = zil_lower::lower(&verified).unwrap();
-    let mut backends = vec![zil_driver::NativeBackend::Clang];
-    if cfg!(feature = "llvm-api") {
-        backends.push(zil_driver::NativeBackend::LlvmApi);
-    }
-    for backend in backends {
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = std::env::temp_dir().join(format!(
-                "341-shared-span-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            fs::create_dir_all(&dir).unwrap();
-            let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
-            options.backend = backend;
-            options.optimization = optimization;
-            let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
-            assert_eq!(artifact.codegen.backend, backend);
-            assert!(artifact.codegen.fallback.is_none());
-            let output = Command::new(&artifact.executable).output().unwrap();
-            assert_eq!(output.status.code(), Some(0), "{output:?}");
-            assert!(output.stdout.is_empty());
-            assert!(output.stderr.is_empty());
-            fs::remove_dir_all(dir).unwrap();
-        }
-    }
+    native_verified(&verified);
 }
 
 #[test]
@@ -481,58 +616,85 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     let ct_source = include_str!(
         "../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"
     );
-    for text in [unsigned_source, ct_source] {
+    let associated_constants_source =
+        include_str!("../../../tests/language-readiness/terminal/341/associated-constants.zil");
+    let computed_constants_source = include_str!(
+        "../../../tests/language-readiness/terminal/341/associated-constant-computed.zil"
+    );
+    for text in [
+        unsigned_source,
+        ct_source,
+        associated_constants_source,
+        computed_constants_source,
+    ] {
         native_both(&[("main", text)]);
     }
     // Recover the actual CT-materialized raw candidate from the existing trusted
     // frontend cache, then replay both independent verifier entry points.
-    let ct_cache = std::env::temp_dir().join(format!(
-        "zil-341-ct-wire-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let ct_options = CompileOptions {
-        semantic_cache: Some(ct_cache.clone()),
-        ..CompileOptions::default()
-    };
-    let ct_report = compile_source(&source(ct_source), &ct_options);
-    assert_eq!(
-        ct_report.status,
-        ResultCategory::Success,
-        "{}",
-        ct_report.to_json()
-    );
-    let ct_store = ct_cache.join("semantic-v4");
-    let mut replayed = 0;
-    for entry in fs::read_dir(&ct_store).unwrap() {
-        let path = entry.unwrap().path();
-        if path
-            .extension()
-            .is_none_or(|extension| extension != "candidate")
-        {
-            continue;
-        }
-        let key =
-            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
-        let zil_db::CacheRead::Candidate(payload) =
-            zil_db::ArtifactCache::with_limit(&ct_store, Limits::default().max_source_bytes)
-                .inspect_candidate(key)
-                .unwrap()
-        else {
-            panic!("actual CT raw cache candidate absent")
+    for ct_source in [ct_source, computed_constants_source] {
+        let ct_cache = std::env::temp_dir().join(format!(
+            "zil-341-ct-wire-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let ct_options = CompileOptions {
+            semantic_cache: Some(ct_cache.clone()),
+            ..CompileOptions::default()
         };
-        assert_eq!(&payload[..8], b"ZILSEM04");
-        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
-        let bytes = &payload[12..12 + length];
-        let (typed, plan) =
-            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
-        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
-        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
-        replayed += 1;
+        let ct_report = compile_source(&source(ct_source), &ct_options);
+        assert_eq!(
+            ct_report.status,
+            ResultCategory::Success,
+            "{}",
+            ct_report.to_json()
+        );
+        let ct_store = ct_cache.join("semantic-v3");
+        let mut replayed = 0;
+        for entry in fs::read_dir(&ct_store).unwrap() {
+            let path = entry.unwrap().path();
+            if path
+                .extension()
+                .is_none_or(|extension| extension != "candidate")
+            {
+                continue;
+            }
+            let key = zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap())
+                .unwrap();
+            let zil_db::CacheRead::Candidate(payload) =
+                zil_db::ArtifactCache::with_limit(&ct_store, Limits::default().max_source_bytes)
+                    .inspect_candidate(key)
+                    .unwrap()
+            else {
+                panic!("actual CT raw cache candidate absent")
+            };
+            assert_eq!(&payload[..8], b"ZILSEM04");
+            let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+            let bytes = &payload[12..12 + length];
+            let (typed, plan) =
+                zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+            zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default())
+                .unwrap();
+            zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+            replayed += 1;
+        }
+        assert!(replayed > 0);
+        fs::remove_dir_all(ct_cache).unwrap();
     }
-    assert!(replayed > 0);
-    fs::remove_dir_all(ct_cache).unwrap();
-    for text in [unsigned_source] {
+    native_both(&[
+        (
+            "main",
+            "import rules;import model;fn main()->i32{return rules.get::<model.P>()-7}",
+        ),
+        (
+            "rules",
+            "fn default_value()->i32{return 7}pub trait C{const N:i32=default_value();}pub fn get<T:C>()->i32{return T.N}",
+        ),
+        (
+            "model",
+            "import rules;pub struct P{}fn default_value()->i32{return 99}impl rules.C for P{}",
+        ),
+    ]);
+    for text in [unsigned_source, associated_constants_source] {
         let unit = source(text);
         let ast = zil_syntax::parse(&unit).into_result().unwrap();
         let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -750,6 +912,8 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("symbolic-trait-arguments", symbolic_source),
         ("associated-types", associated_source),
         ("unsigned-const", unsigned_source),
+        ("associated-constants", associated_constants_source),
+        ("associated-constant-computed", computed_constants_source),
         ("ct-generic-type-syntax-reflection", ct_source),
     ] {
         let unit = source(text);
@@ -1975,6 +2139,34 @@ fn project(files: &[(&str, &str)]) -> ProjectSources {
 }
 fn native(files: &[(&str, &str)]) {
     native_backend(files, zil_driver::NativeBackend::default());
+}
+fn native_verified(verified: &zil_verify::VerifiedModule) {
+    let lir = zil_lower::lower(verified).unwrap();
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "341-shared-span-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+            options.backend = backend;
+            options.optimization = optimization;
+            let artifact = zil_backend_llvm::build(verified, &lir, &options).unwrap();
+            assert_eq!(artifact.codegen.backend, backend);
+            assert!(artifact.codegen.fallback.is_none());
+            let output = Command::new(&artifact.executable).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert!(output.stdout.is_empty());
+            assert!(output.stderr.is_empty());
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
 }
 fn native_both(files: &[(&str, &str)]) {
     native_backend(files, zil_driver::NativeBackend::Clang);
