@@ -3078,8 +3078,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::TakeTupleField { .. }
         | InstructionKind::TakeVariantField { .. } => ([None, None], &[]),
 
-        InstructionKind::PlaceTagAddress {address,..}
-        | InstructionKind::BorrowPlaceAddress {address,..}
+        InstructionKind::PlaceTagAddress { address, .. }
+        | InstructionKind::BorrowPlaceAddress { address, .. }
         | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
         InstructionKind::Constant(_)

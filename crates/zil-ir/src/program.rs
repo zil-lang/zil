@@ -19,6 +19,8 @@ pub struct ProgramModule {
 pub struct CoreProgram {
     pub root: ModuleId,
     pub source_fingerprint: Fingerprint,
+    /// Each module carries its complete dyn/declaration inventory. Raw source
+    /// module IDs remain lookup/relocation data, never stable semantic names.
     pub modules: Vec<ProgramModule>,
 }
 
@@ -61,6 +63,10 @@ pub struct FunctionResultOrigins {
 pub struct TypedProgram {
     /// Raw semantic Suspend exports; never a physical frame-layout assertion.
     pub task_interfaces: Vec<TaskInterface>,
+    /// Unified callable CFG plus all source-module dyn/life inventories. Every
+    /// CoreDynEntry resolves through the same actual (module,NodeId)->FunctionId
+    /// map as ordinary calls. All slots and cleanup entries must relocate; a
+    /// missing/private/nonmatching entry rejects, never defaults to function0.
     pub module: TypedModule,
     pub interfaces: Vec<ScalarInterface>,
     pub root_functions: Vec<ScalarFunction>,

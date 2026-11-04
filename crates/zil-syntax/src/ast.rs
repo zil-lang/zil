@@ -137,6 +137,8 @@ pub enum TypeKind {
     Dyn {
         path: Vec<String>,
         args: Vec<GenericArg>,
+        /// Explicit closed binding/finite slot list; never inferred from uses.
+        bindings: Vec<DynBinding>,
     },
     ForLifetime {
         lifetime: String,
@@ -146,6 +148,28 @@ pub enum TypeKind {
     MetaEval(Box<Expr>),
     MetaSplice(Box<Expr>),
     MetaBlock(Block),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct DynBinding {
+    pub kind: DynBindingKind,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum DynBindingKind {
+    Type {
+        member: Vec<String>,
+        value: TypeRef,
+    },
+    Constant {
+        member: Vec<String>,
+        ty: TypeRef,
+        value: Expr,
+    },
+    Method {
+        member: Vec<String>,
+        arguments: Vec<GenericArg>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -419,7 +443,10 @@ pub enum ExprKind {
     Group(Box<Expr>),
     /// Generated value type context. Source parsing does not create this form;
     /// ordinary expansion and semantic kernels still check the full candidate.
-    Ascribed { ty: TypeRef, value: Box<Expr> },
+    Ascribed {
+        ty: TypeRef,
+        value: Box<Expr>,
+    },
     Tuple(Vec<Expr>),
     Array(Vec<Expr>),
     Unary {

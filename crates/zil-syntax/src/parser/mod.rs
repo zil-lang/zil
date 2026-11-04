@@ -459,6 +459,32 @@ mod tests {
         );
     }
     #[test]
+    fn dyn_alias_bindings_are_explicit_and_do_not_consume_function_bodies() {
+        let result = parse_text(
+            "type Reader = dyn Read<bool> { type Item = i32; const COUNT:usize = 3; fn pick::<i32>; fn pick::<bool>; };\nfn read_it(x:&dyn Read)->&dyn Read { return x }",
+        );
+        assert!(result.is_ok(), "{:?}", result.diagnostics);
+        let ItemKind::TypeAlias(alias) = &result.module.items[0].kind else {
+            panic!()
+        };
+        let TypeKind::Dyn { bindings, .. } = &alias.value.as_ref().unwrap().kind else {
+            panic!()
+        };
+        assert_eq!(bindings.len(), 4);
+        assert!(matches!(bindings[0].kind, DynBindingKind::Type { .. }));
+        assert!(matches!(bindings[1].kind, DynBindingKind::Constant { .. }));
+        assert!(matches!(bindings[2].kind, DynBindingKind::Method { .. }));
+        let ItemKind::Function(function) = &result.module.items[1].kind else {
+            panic!()
+        };
+        assert!(matches!(function.body, FunctionBody::Block(_)));
+        rejected(
+            "type Reader=dyn Read { fn pick::<i32> {} };",
+            "E-PARSE-TERMINATOR",
+        );
+        rejected("type Reader=dyn Read { let x=3; };", "E-PARSE-DYN-BINDING");
+    }
+    #[test]
     fn malformed_source_recovers_to_later_item() {
         let result = parse_text("fn broken(x i32) {}\nfn good() -> i32 => 7");
         assert!(!result.is_ok());

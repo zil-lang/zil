@@ -145,7 +145,11 @@ impl Parser<'_> {
         } else if self.eat_word("dyn") {
             let path = self.qualified_kind(QuoteNameNamespace::Type)?;
             let args = self.nominal_type_args(&path)?;
-            TypeKind::Dyn { path, args }
+            TypeKind::Dyn {
+                path,
+                args,
+                bindings: Vec::new(),
+            }
         } else if self.eat_word("for") {
             self.expect(Symbol::Lt)?;
             let lifetime = self.scoped(true, |p| {

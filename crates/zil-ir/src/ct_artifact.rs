@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 3;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v3";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v3";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v3";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 4;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v4";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v4";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v4";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -89,6 +89,15 @@ pub enum CtTy {
     AnonymousSum(Vec<CtTy>),
 }
 
+/// Numeric scope reference inside the enclosing complete CtTypeRef or schema
+/// life_context. The owner is a real binder-owning type node. This is a semantic
+/// backreference, NEVER a physical type child/cycle/layout edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CtLifetimeArgument {
+    pub owner: CtTypeNodeId,
+    pub binder: crate::StorageBinder,
+}
+
 /// Public user schemas are pure data. Built-in query result schemas are not
 /// constructible through MakeRecord/MakeVariant; verifier checks their origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,11 +106,20 @@ pub enum CtSchemaArgument {
     /// borrowed-function lifetime relations. This never represents a runtime
     /// pointer value or grants declaration access/construction authority.
     Type(CtTypeRef),
+    /// Required for EVERY type actual when schema.life_context is Some.
+    /// This ID belongs only to that one joint context, never a local Type graph.
+    TypeInContext(CtTypeNodeId),
     Scalar(Constant),
+    Lifetime(CtLifetimeArgument),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtRecordSchema {
     pub name: CtSymbolId,
+    /// One JOINT closed type/lifetime context for the entire application.
+    /// None iff no argument (including nested/phantom arguments) uses a life.
+    /// Root identifies this exact nominal application under its retained scope.
+    /// All argument values must match the corresponding context projections.
+    pub life_context: Option<CtTypeRef>,
     /// Complete actual arguments in declaration parameter order, including
     /// phantom arguments. Data alone grants no declaration access or bounds.
     pub arguments: Vec<CtSchemaArgument>,
@@ -111,6 +129,11 @@ pub struct CtRecordSchema {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtEnumSchema {
     pub name: CtSymbolId,
+    /// One JOINT closed type/lifetime context for the entire application.
+    /// None iff no argument (including nested/phantom arguments) uses a life.
+    /// Root identifies this exact nominal application under its retained scope.
+    /// All argument values must match the corresponding context projections.
+    pub life_context: Option<CtTypeRef>,
     pub arguments: Vec<CtSchemaArgument>,
     pub variants: Vec<Vec<CtTy>>,
     pub origin: CtSchemaOrigin,
@@ -138,7 +161,7 @@ pub struct CtTypeRef {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
-    /// One actual storage DAG edge plus complete untrusted leaf relation.
+    /// One actual storage DAG edge; relation metadata creates no physical edge.
     BorrowedStorage {
         storage: CtTypeNodeId,
         life: crate::StorageLifeShape,
@@ -193,6 +216,7 @@ pub enum CtTypeNode {
 pub enum CtTypeArgument {
     Type(CtTypeNodeId),
     Scalar(Constant),
+    Lifetime(CtLifetimeArgument),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
