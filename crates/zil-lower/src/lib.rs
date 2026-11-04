@@ -58,6 +58,9 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
     }
     let use_sum_extension = verified.uses_owned_sum_extension();
     let mut sum_budget = owned_sums::Budget::new(verified.limits());
+    // Reserve the complete new callable relation before LIR retains/clones it.
+    // This budget is also consumed by ordinary owning/stored lowering below.
+    sum_budget.callable_metadata(module)?;
     for closure in &module.closures {
         for ty in &closure.captures {
             if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))

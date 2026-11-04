@@ -1,0 +1,152 @@
+{
+  "task": 343,
+  "source_commit": "25f78b1aa7859ea842bb5afb155cfcd0484ce1da",
+  "schema": "Typed/Wire39; no public change",
+  "status": "author freeze; independent review pending",
+  "spec_authority_commit": "f5a72c0231210e5637d546e96782f8ea1df5c57d",
+  "spec_hash": "429301da76ad6538cbbf9509fea5bbef514612f7b8edc14cddf348c4ccc5a167",
+  "normative_hash": "da26a34d89fbf3dd945430d0a44075e0e3ba4ee02d93273161ecf4505d700479",
+  "scope": "Actual inline Managed scalar-record arguments/results through static SuspendCall; ordinary staged preparation, embedded stable child frames, PC0 owners, repeat-poll same instance, loop reuse, canonical parent Ready handoff before child teardown, closed synchronous actual child/Drop graph.",
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api task343 -- --nocapture",
+      "result": "28 passed;0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/owned-child-final-task.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api child343 -- --nocapture",
+      "result": "10 passed;0 failed (4 overlap with task343 filter)",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/owned-child-final-child.log"
+    },
+    {
+      "command": "cargo test -p zil-backend-llvm --lib --features llvm-api child343_actual -- --nocapture",
+      "result": "1 passed;0 failed; N7298",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/owned-child-final-frame.log"
+    },
+    {
+      "command": "cargo clippy -p zil-verify -p zil-backend-llvm -p zil-types --lib --tests --features llvm-api -- -D warnings",
+      "result": "pass",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/owned-child-final-clippy.log"
+    }
+  ],
+  "new_native": {
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "fallback": "asserted absent",
+    "success_processes": 112,
+    "actual_fault_processes": 4,
+    "breakdown": "96 = 4 original-source fixtures \u00d76 poll/cancel phases \u00d74 configs; 12 = created Ready once + ordinary constructor later-arg failure + Direct owning call/adapter composition \u00d74 configs; 4 success/4 faults = real calloc wrapper on owning child parent frame.",
+    "observations": [
+      "result cancellation A at all6 stages",
+      "sequential earlier result/current child: BA,AB,AB,BA,BA,BA",
+      "args/body each once: BA,IJBA,IJBA,IJBA,IJBA,IJBA",
+      "3 loop child instances at one physical Await site: empty,A,A,A,A,A",
+      "created result PPPRA; fifth poll Complete transfers no T",
+      "ordinary TaskCreate later-arg failure AB",
+      "Direct owning call plus task adapter BA",
+      "one parent allocation success AIJBAF; real allocation failure ABA with exit1, no free of null; no child allocation"
+    ]
+  },
+  "new_raw": {
+    "mutations": 6,
+    "paths": [
+      "independent Analyze",
+      "raw Verify with original actual plan fingerprint rebound",
+      "decoded Wire Verify with same rebound claim"
+    ],
+    "expected": "duplicate transferred owned arg and forged result Create reject E-VERIFY-RESOURCE; wrong actual argument type, ordinary Call to Suspend, hidden child Yield behind Direct and hidden parent Await behind Direct reject E-VERIFY-TASK. Exact diagnostics asserted, not PLAN-IDENTITY.",
+    "note": "Analyze rejects each malformed input; Verify labels explicitly identify rebound original-plan controls, not fresh Analyze acceptance."
+  },
+  "budget": {
+    "source_result_widths": [
+      8,
+      16
+    ],
+    "Analyze_N": [
+      25805,
+      38542
+    ],
+    "Verify_N": [
+      60762,
+      103457
+    ],
+    "Codegen_N": [
+      289202,
+      345526
+    ],
+    "controls": "All N success/N-1 ResourceLimit/fresh N success; Codegen boundary explicitly asserts Codegen phase. Source-derived real typed/verified module and actual machine emission, not a model runtime.",
+    "legacy_owning_kernel_N": [
+      14767,
+      30066
+    ],
+    "legacy_wide_marker_Codegen_N": [
+      682330,
+      1349075
+    ],
+    "legacy_scalar_general_N": [
+      12358,
+      35130
+    ],
+    "legacy_scalar_child_N": [
+      23789,
+      133974
+    ],
+    "legacy_internal_scalar_N": [
+      26286,
+      142765
+    ],
+    "legacy_public_semantic_N": [
+      2107,
+      1601
+    ],
+    "actual_frame_plan_N": 7298
+  },
+  "retained_harnesses": [
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "sha256": "dcfd8af3f78ec51c5c9e9e5754990c776334e9dfea5ca9bb6dc78182a353922b"
+    },
+    {
+      "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/zil_backend_llvm-171cb4df5a70aaaf",
+      "sha256": "30a68a549c226636b777849690a08d8f9b1d87ab9f975ebbd63d1950cccdeff3"
+    }
+  ],
+  "files_sha256": {
+    "crates/zil-analyze/src/resources.rs": "91acd81bbc0208dba72be29505d420884cc011a4bc7f120afc8984dba1d81b57",
+    "crates/zil-analyze/src/tasks/owned.rs": "28b4353cdfdbeefa433e61d740f168d9082f7b2a972930e4259cfe02922cfa16",
+    "crates/zil-backend-llvm/src/emit/tasks.rs": "88d7853522a11554388e7e42d7e76b54449142145f64f8e111e28d7784224db4",
+    "crates/zil-types/src/tasks.rs": "49e1b6f2b4b3554be6af43a3aa12572fd12081a00b830955469b54b8e8f9483e",
+    "crates/zil-verify/src/resources.rs": "09b90c5e3db53c54f5798e62a2a1b4cb382f7a5dae8ff6bdc5279c853122ccf5",
+    "crates/zil-verify/src/tasks/owned.rs": "554a4710bf2391763e8adcbc1b94383def403ee5c3725dce540f14da5ec132e1",
+    "tests/language-readiness/terminal/343/task-owned-child-created.zil": "dc8adc7572e0856ef1002f6cccb33a0a0a78e0842a2b212064251f24c9d4d207",
+    "tests/language-readiness/terminal/343/task-owned-child-direct.zil": "7a5254150f84e2a60fa33440cd92fbb7c3e80af8a9427b024cf778985e570816",
+    "tests/language-readiness/terminal/343/task-owned-child-inputs.zil": "4489c43d39fa98955a445f28b54690d3369eb999dbc845aa51c57a51fc373ad0",
+    "tests/language-readiness/terminal/343/task-owned-child-loop.zil": "07ea71468a74f34fa2503c9a07bb24f6517483321bc93214d1d9fdac75ae1ba6",
+    "tests/language-readiness/terminal/343/task-owned-child-sequential.zil": "6acc37db0d215f8b20c9d05ffab4f5c7c4c9e7b01471e3e0eb52f60bf47c45d2",
+    "tests/language-readiness/terminal/343/task-owned-child-wide-16.zil": "b74c21d4568c60e9dc4e0c0ed0334e7545d0f7a7043c3cab2c6645711498c915",
+    "tests/language-readiness/terminal/343/task-owned-child-wide-8.zil": "706877609146f9580066fba288684566eda41edd83882e15ef4d66f8b75ca3d8",
+    "tests/language-readiness/terminal/343/task-owned-child.zil": "4c34154bc068888e1963160ad46cb7acb82bd6c6f14c2ce13e2379d1e7aade4b",
+    "tests/language-readiness/terminal/343/task-owned-create-argument-failure.zil": "c8ac67c2bd654b154bd6767a54828013dcb4ef30002fa21d1b366b928ac9f26c",
+    "tests/language-readiness/terminal/343/task_general.rs": "656126778d8ae864c74687a013872ae07c70c3b87bb8aa0f36eda5d116b1811c"
+  },
+  "runtime_read_observers": {
+    "tests/language-readiness/terminal/343/task-general-observer.c": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac",
+    "tests/language-readiness/terminal/343/task-observer.c": "60db744913fdbcf06893e7079963636cff97f8e0c532285bd9c68afd46b5660f",
+    "tests/language-readiness/terminal/343/task-export-caller.c": "a13c9e0b32c28cfdeacfff42bde5b0aeb5fb607b175ee4a15acf7f3bbc230d1a",
+    "tests/language-readiness/terminal/343/task-child-export-caller.c": "89b5c77a797b34e9865213765411a6b7440efd49964afc08bd0bda16621799f6"
+  },
+  "integration_note": "Five Verify test-only empty storage_life/callable literals copied narrowly from root11a4f33bd so lib+tests Clippy compiles on historical authorbase; root already owns those migrations. Function order-only365f094f2 is a separate prerequisite.",
+  "limits": [
+    "At most one active direct child per parent; no concurrent sibling handles or general creation-order drain claim.",
+    "Actual child results/inputs are self-contained closed inline Managed records. No borrowed Task/child/frame port or address input admission.",
+    "Worker ErrorUnion/general owned Sum/Unit results and recoverable later-child-argument ? path still require full result-profile continuation; ordinary constructor failure AB is not relabeled that path.",
+    "No external users/wakers, asynchronous Pending close/PendingExit, user defers, general partial products/tickets or owning public SABI are claimed.",
+    "Mutex<T>/Guard/TransferShare/CAS/native Windows and task343 product obligations remain open."
+  ]
+}

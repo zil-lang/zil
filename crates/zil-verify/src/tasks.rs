@@ -183,20 +183,24 @@ pub(super) fn instruction(
             ref arguments,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
-            if arguments.len() != 1 || value_type(f, arguments[0], span)? != &Type::I32 {
+            let target = module.functions.get(function.0 as usize).ok_or_else(bad)?;
+            if arguments.len() != target.parameters.len() {
                 return Err(bad());
             }
-            let target = module.functions.get(function.0 as usize).ok_or_else(bad)?;
-            if target.parameters.len() != 1
-                || local_type(target, target.parameters[0], span)? != &Type::I32
-                || target.return_type != Type::I32
-            {
-                return Err(bad());
+            for (argument, parameter) in arguments.iter().zip(&target.parameters) {
+                let actual = value_type(f, *argument, span)?;
+                let wanted = local_type(target, *parameter, span)?;
+                resources::charge_payload(actual, budget)?;
+                resources::charge_payload(wanted, budget)?;
+                if actual != wanted {
+                    return Err(bad());
+                }
             }
             profile(module, function, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(function);
-            Type::I32
+            resources::charge_payload(&target.return_type, budget)?;
+            target.return_type.clone()
         }
         InstructionKind::TaskYield => {
             profile(module, f.id, budget, span)?;

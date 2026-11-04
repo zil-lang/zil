@@ -690,6 +690,7 @@ pub(crate) fn compile_scoped(
     Ok((
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
+            ambient_life_scopes: Vec::new(),
             target_pointer_width: request.target_pointer_width,
             source_fingerprint: request.source_fingerprint,
             functions: compiler

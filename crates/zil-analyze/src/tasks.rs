@@ -402,27 +402,27 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         ref arguments,
                     } => {
                         suspend[index] = true;
-                        budget.spend(arguments.len().saturating_add(1), "child call inputs")?;
-                        if arguments.len() != 1
-                            || arguments.iter().any(|v| ty(*v).ok() != Some(&Type::I32))
-                        {
-                            return Err(fail(
-                                i.span,
-                                "static child call requires exact actual i32 input",
-                            ));
-                        }
+                        budget
+                            .spend(arguments.len().saturating_add(1), "actual child arguments")?;
                         let target = module
                             .functions
                             .get(function.0 as usize)
                             .ok_or_else(|| fail(i.span, "child absent"))?;
-                        if target.parameters.len() != 1
-                            || target.locals[target.parameters[0].0 as usize].ty != Type::I32
-                            || target.return_type != Type::I32
-                        {
-                            return Err(fail(i.span, "child signature requires scalar adapter"));
+                        if arguments.len() != target.parameters.len() {
+                            return Err(fail(i.span, "child argument count differs"));
+                        }
+                        for (argument, parameter) in arguments.iter().zip(&target.parameters) {
+                            let actual = ty(*argument)?;
+                            let wanted = &target.locals[parameter.0 as usize].ty;
+                            budget.type_work(actual, false, "actual child input")?;
+                            budget.type_work(wanted, false, "child signature input")?;
+                            if actual != wanted {
+                                return Err(fail(i.span, "child input type differs"));
+                            }
                         }
                         worker(module, function, budget, i.span)?;
-                        Some(Type::I32)
+                        budget.type_work(&target.return_type, false, "actual child result")?;
+                        Some(target.return_type.clone())
                     }
                     InstructionKind::TaskYield => {
                         suspend[index] = true;

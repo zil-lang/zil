@@ -446,6 +446,64 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    pub(super) fn snapshot_helper(
+        &mut self,
+        function: &CoreFunction,
+        copies: usize,
+    ) -> R<(usize, bool)> {
+        let allowance = self
+            .work_left
+            .checked_div(copies)
+            .ok_or_else(|| limit("invalid helper snapshot multiplier", function.span))?;
+        let (work, shapes) = inference::helper_snapshot_work(
+            function,
+            &Limits {
+                max_analysis_steps: allowance,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(copies), function.span)?;
+        Ok((work, shapes))
+    }
+
+    pub(super) fn snapshot_signature(
+        &mut self,
+        name: &str,
+        signature: &Signature,
+        span: Span,
+    ) -> R<()> {
+        let work = inference::signature_snapshot_work(
+            name,
+            signature,
+            span,
+            &Limits {
+                max_analysis_steps: self.work_left / 2,
+                ..self.limits.clone()
+            },
+        )?;
+        self.snapshot(work.saturating_mul(2), span)
+    }
+
+    pub(super) fn snapshot_capture(
+        &mut self,
+        closure: ClosureId,
+        index: usize,
+        span: Span,
+    ) -> R<()> {
+        let capture = self
+            .pending
+            .get(closure.0 as usize)
+            .and_then(|p| p.captures.get(index))
+            .ok_or_else(|| {
+                error(
+                    "E-CLOSURE-INFERENCE",
+                    span,
+                    "missing actual capture snapshot",
+                )
+            })?;
+        inference::charge_type_snapshot(&capture.ty, span, &self.limits, &mut self.work_left, 2)
+    }
+
     pub(super) fn borrowed_task_result(
         &self,
         id: ClosureId,
@@ -3424,7 +3482,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         if let Some(name) = tasks::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
             self.graph.spend_count(12, span)?;
-            if name == "task_create" {
+            if matches!(name, "task_create" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -3455,7 +3513,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for _ in 0..4 {
                     self.graph.reserve_type(&signature.result, 0, span)?;
                 }
-                return self.known(&tasks::create_type(&signature.result), span);
+                return self.known(
+                    &if name == "task_await" {
+                        signature.result
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
             }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);

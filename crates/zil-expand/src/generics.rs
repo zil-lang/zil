@@ -293,6 +293,7 @@ fn specialize_products_prepared<'a>(
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
             && !names_budget.needs_source_identity()
+            && !names_budget.has_borrowed_keys()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -318,6 +319,7 @@ fn specialize_products_prepared<'a>(
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
         && !names_budget.needs_source_identity()
+        && !names_budget.has_borrowed_keys()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -769,6 +771,7 @@ impl<'a> Engine<'a> {
         self.products.trait_instances = self.traits.has_instances;
         self.products.record_variants = self.budget.has_enum_profiles();
         self.products.protected_binders = self.budget.has_primitive_binders();
+        self.products.borrowed_signatures = self.budget.has_borrowed_keys();
         self.collect_products(module)?;
         let mut result = Module {
             id: module.id,

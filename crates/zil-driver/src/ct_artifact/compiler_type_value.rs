@@ -98,9 +98,7 @@ impl Builder<'_, '_> {
                     arguments.push(self.metadata_type_value(graph, *id, depth + 1, span)?.id);
                 }
                 if let CtTypeNode::BorrowedFunctionPointer { life, .. } = node {
-                    self.compiler
-                        .budget
-                        .work(life.parameter_lives.len(), span)?;
+                    self.compiler.budget.signature_metadata(life, span)?;
                     CtTypeConstructor::BorrowedFunctionPointer { life: life.clone() }
                 } else {
                     CtTypeConstructor::FunctionPointer
