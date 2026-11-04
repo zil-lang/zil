@@ -83,5 +83,11 @@
     "Current combined main has BorrowedFunctionPointer and other new Type/CtTypeNode shapes absent from this source base; integration must extend full-identity/remap/accounting consumers, without treating a wildcard as a complete key walk.",
     "Inherited float/UInt controls and author Clippy were not independently repeated in this review.",
     "No full-workspace, native-Windows, same-semantics Rust comparison or terminal-language acceptance."
-  ]
+  ],
+  "followup": {
+    "source_commit": "8c17d9aa16001e35b11ac17e6a96d58bf2d2ef26",
+    "status": "ResolvedBySeparateExactCandidate",
+    "review": "docs/validation/review344-anonymous-corrected-terminal-architecture.json",
+    "history": "Original f01 ChangesRequested and original passing executions are unchanged."
+  }
 }
