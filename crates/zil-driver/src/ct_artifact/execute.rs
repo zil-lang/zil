@@ -287,6 +287,28 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<CtValue> {
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false)
+            .map(|output| output.value)
+    }
+    pub(super) fn evaluate_data(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+    ) -> CompileResult<EvaluatedData> {
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true)
+    }
+    fn evaluate_data_impl(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+        retain_context: bool,
+    ) -> CompileResult<EvaluatedData> {
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
@@ -336,6 +358,12 @@ impl<'a> Environment<'a> {
                     .map(|function| function.blocks.len() as u64 * 96)
                     .sum::<u64>(),
             );
+        let schema_bytes = value_context::schema_copy_cost(
+            &expected.record_schemas,
+            &expected.enum_schemas,
+            &mut self.budget,
+        )?;
+        let copied_bytes = copied_bytes.saturating_add(schema_bytes);
         self.budget.reserve_temporary_bytes(copied_bytes)?;
         let raw = expected.clone();
         let authority = FrozenAuthority {
@@ -383,7 +411,26 @@ impl<'a> Environment<'a> {
                 },
             )?;
         self.budget.release_temporary_bytes(copied_bytes);
-        Ok(value)
+        let result_ty =
+            &verified.program().functions[verified.program().entry.0 as usize].result_type;
+        let context = if retain_context
+            && matches!(
+                result_ty,
+                CtTy::Record(_)
+                    | CtTy::Enum(_)
+                    | CtTy::AnonymousSum(_)
+                    | CtTy::Tuple(_)
+                    | CtTy::Array { .. }
+                    | CtTy::List(_)
+            ) {
+            Some(value_context::ValueContext::capture(
+                verified.program(),
+                &mut self.budget,
+            )?)
+        } else {
+            None
+        };
+        Ok(EvaluatedData { value, context })
     }
 
     pub(super) fn empty_input(&self, span: Span) -> CompileResult<CtInputTable> {
@@ -1497,4 +1544,11 @@ mod tests {
             "equal child nodes must share one canonical DAG identity"
         );
     }
+}
+
+#[path = "value_context.rs"]
+pub(super) mod value_context;
+pub(super) struct EvaluatedData {
+    pub value: CtValue,
+    pub context: Option<value_context::ValueContext>,
 }

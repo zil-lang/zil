@@ -18,6 +18,7 @@ impl Identity<'_, '_> {
                 CtTypeNode::Nominal { arguments, .. } => arguments.len(),
                 CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.len(),
                 CtTypeNode::FunctionPointer { parameters, .. }
+                | CtTypeNode::BorrowedFunctionPointer { parameters, .. }
                 | CtTypeNode::ForeignCallback { parameters, .. } => {
                     parameters.len().saturating_add(1)
                 }
@@ -34,6 +35,9 @@ impl Identity<'_, '_> {
                     .collect(),
                 CtTypeNode::Tuple(v) | CtTypeNode::AnonymousSum(v) => v.clone(),
                 CtTypeNode::FunctionPointer { parameters, result }
+                | CtTypeNode::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }
                 | CtTypeNode::ForeignCallback { parameters, result } => {
                     parameters.iter().copied().chain([*result]).collect()
                 }
@@ -89,6 +93,7 @@ impl Identity<'_, '_> {
                 CtTypeNode::ForeignCallback { .. } => 11,
                 CtTypeNode::Opaque { .. } => 12,
                 CtTypeNode::ErrorUnion { .. } => 13,
+                CtTypeNode::BorrowedFunctionPointer { .. } => 14,
                 CtTypeNode::AnonymousSum(_) => 15,
             };
             self.put(&mut key, &[tag])?;
@@ -112,6 +117,13 @@ impl Identity<'_, '_> {
                             }
                         }
                     }
+                }
+                CtTypeNode::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    self.graph_life(&ty.nodes, parameters, *result, life, &mut key)?;
                 }
                 CtTypeNode::Opaque { identity } => self.graph_symbol(&mut key, identity)?,
                 CtTypeNode::Array { length, .. } => self.number(&mut key, u64::from(*length))?,
@@ -158,6 +170,79 @@ impl Identity<'_, '_> {
             ));
         }
         Ok(keys.pop().expect("nonempty metadata graph"))
+    }
+    fn graph_life(
+        &mut self,
+        nodes: &[CtTypeNode],
+        parameters: &[CtTypeNodeId],
+        result: CtTypeNodeId,
+        life: &zil_ir::FunctionLifeContract,
+        out: &mut Vec<u8>,
+    ) -> Check<()> {
+        self.reserve(
+            life.parameter_lives
+                .len()
+                .saturating_mul(16)
+                .saturating_add(32),
+        )?;
+        if life.parameter_lives.len() != parameters.len() || life.binder_count == 0 {
+            return Err(reject(
+                None,
+                "invalid borrowed-code metadata lifetime arity",
+            ));
+        }
+        let mut dense = 0u32;
+        for (id, label) in parameters.iter().zip(&life.parameter_lives) {
+            match &nodes[id.0 as usize] {
+                CtTypeNode::Address { .. } => {
+                    let tag = label.ok_or_else(|| {
+                        reject(None, "borrowed-code metadata address lacks lifetime")
+                    })?;
+                    if tag > dense || tag >= life.binder_count {
+                        return Err(reject(None, "borrowed-code lifetime map is not canonical"));
+                    }
+                    if tag == dense {
+                        dense += 1;
+                    }
+                }
+                _ if label.is_none() => {}
+                _ => return Err(reject(None, "borrowed-code scalar has an address lifetime")),
+            }
+        }
+        if dense != life.binder_count {
+            return Err(reject(
+                None,
+                "borrowed-code metadata has an unused lifetime binder",
+            ));
+        }
+        match &nodes[result.0 as usize] {
+            CtTypeNode::Address { mutable, .. } => {
+                let tag = life
+                    .result_life
+                    .ok_or_else(|| reject(None, "borrowed-code metadata result lacks lifetime"))?;
+                if tag>=dense || !parameters.iter().zip(&life.parameter_lives).any(|(id,label)|*label==Some(tag)&&matches!(&nodes[id.0 as usize],CtTypeNode::Address{mutable:authority,..}if !mutable||*authority)){return Err(reject(None,"borrowed-code metadata result is ungrounded"));}
+            }
+            _ if life.result_life.is_none() => {}
+            _ => {
+                return Err(reject(
+                    None,
+                    "borrowed-code metadata value result has lifetime",
+                ));
+            }
+        }
+        self.number(out, u64::from(life.binder_count))?;
+        self.number(out, life.parameter_lives.len() as u64)?;
+        for label in &life.parameter_lives {
+            self.put(out, &[u8::from(label.is_some())])?;
+            if let Some(label) = label {
+                self.number(out, u64::from(*label))?;
+            }
+        }
+        self.put(out, &[u8::from(life.result_life.is_some())])?;
+        if let Some(label) = life.result_life {
+            self.number(out, u64::from(label))?;
+        }
+        Ok(())
     }
     fn graph_symbol(&mut self, out: &mut Vec<u8>, symbol: &CtSymbolId) -> Check<()> {
         self.number(out, u64::from(symbol.module.0))?;

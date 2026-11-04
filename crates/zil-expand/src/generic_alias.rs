@@ -842,6 +842,10 @@ impl Visitor<'_, '_, '_> {
     fn expr(&mut self, e: &mut Expr, types: &Names, values: &Names, depth: usize) -> R<()> {
         self.resolver.budget.node(e.span, depth)?;
         match &mut e.kind {
+            ExprKind::Ascribed { ty, value } => {
+                self.ty(ty, types, depth + 1)?;
+                self.expr(value, types, values, depth + 1)?;
+            }
             ExprKind::Group(x)
             | ExprKind::Try(x)
             | ExprKind::MetaEval(x)

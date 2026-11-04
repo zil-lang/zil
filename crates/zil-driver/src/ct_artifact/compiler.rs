@@ -267,6 +267,7 @@ struct Compiler<'a> {
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     pending: VecDeque<(usize, Vec<CtTy>, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
+    metadata_bindings: Vec<(String, CtTypeRef)>,
     symbolic: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
@@ -310,6 +311,7 @@ impl<'a> Compiler<'a> {
             generic_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
+            metadata_bindings: Vec::new(),
             symbolic: Vec::new(),
             checking_generics: false,
             checked_generics: Vec::new(),
@@ -720,3 +722,6 @@ pub(crate) fn uses_ct_domain(
 ) -> R<bool> {
     selection::uses(modules, module, expression, parameters, limits)
 }
+
+#[path = "compiler_metadata.rs"]
+pub(super) mod metadata;

@@ -1408,6 +1408,14 @@ impl Expander<'_> {
     }
     fn expr_expected(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                let ty = self.type_ref(ty);
+                let value = self.expr_expected(value, Some(&ty));
+                CoreExprKind::Ascribed {
+                    ty,
+                    value: Box::new(value),
+                }
+            }
             s::ExprKind::Literal(l) => match l {
                 s::Literal::Integer(v) => CoreExprKind::Integer(v.clone()),
                 s::Literal::Float(v) if v.starts_with("@bits:") => {

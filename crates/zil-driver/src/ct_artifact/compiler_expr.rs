@@ -102,12 +102,55 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
+        if let Some(CtTy::AnonymousSum(members)) = expected
+            && !matches!(e.kind, s::ExprKind::If { .. } | s::ExprKind::MetaBlock(_))
+        {
+            let value = self.expr_raw(e, None, depth)?;
+            self.compiler.budget.ty(&value.ty, 0, e.span)?;
+            let expected = expected.expect("sum context");
+            self.compiler.budget.ty(expected, 0, e.span)?;
+            if &value.ty == expected {
+                return Ok(value);
+            }
+            let mut active = None;
+            for (index, member) in members.iter().enumerate() {
+                self.compiler.budget.ty(member, 0, e.span)?;
+                self.compiler.budget.ty(&value.ty, 0, e.span)?;
+                if member == &value.ty {
+                    if active.replace(index as u32).is_some() {
+                        return Err(error(e.span, "ambiguous CT sum injection"));
+                    }
+                }
+            }
+            let active = active
+                .ok_or_else(|| error(e.span, "CT sum injection requires an exact member type"))?;
+            for member in members {
+                self.compiler.budget.copy_ty(member, 0, e.span)?;
+            }
+            self.compiler.budget.copy_ty(expected, 0, e.span)?;
+            return self.emit(
+                CtInstructionKind::MakeAnonymousSum {
+                    members: members.clone(),
+                    active,
+                    payload: value.id,
+                },
+                expected.clone(),
+                e.span,
+            );
+        }
+        self.expr_raw(e, expected, depth)
+    }
+    fn expr_raw(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, e.span)?;
         if let Some(ty) = expected {
             self.compiler.budget.ty(ty, 0, e.span)?;
         }
         let span = e.span;
         let value = match &e.kind {
+            s::ExprKind::Ascribed { ty, value } => {
+                let ty = self.compiler.ty(self.module, ty, depth + 1)?;
+                self.expr(value, Some(&ty), depth + 1)?
+            }
             s::ExprKind::Literal(s::Literal::Bool(v)) => self.constant(
                 CtConstant::Scalar(Constant::Bool(*v)),
                 CtTy::Scalar(CtScalarTy::Bool),
