@@ -10,12 +10,13 @@ pub(super) fn has_life(item: &Item) -> bool {
     matches!(&item.kind, ItemKind::Aggregate(a) if a.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)))
 }
 
-impl Engine<'_> {
+impl<'a> Engine<'a> {
     pub(super) fn stored_lookup_fee(&mut self, entries: usize, bytes: usize, span: Span) -> R<()> {
         self.budget.identity_work(
             entries
                 .checked_ilog2()
                 .map_or(1, |n| n as usize + 2)
+                .saturating_mul(12)
                 .saturating_mul(bytes.saturating_add(1)),
             span,
         )
@@ -34,6 +35,31 @@ impl Engine<'_> {
         } else {
             Ok(false)
         }
+    }
+
+    pub(super) fn record_declaration(
+        &mut self,
+        name: &str,
+        span: Span,
+    ) -> R<Option<(&'a Item, bool)>> {
+        if self.stored_nominals {
+            self.stored_lookup_fee(self.templates.len(), name.len(), span)?;
+        }
+        let Some(item) = self.templates.get(name).copied() else {
+            return Ok(None);
+        };
+        let ItemKind::Aggregate(aggregate) = &item.kind else {
+            return Ok(None);
+        };
+        let stored = if self.stored_nominals {
+            for _ in &aggregate.generics {
+                self.budget.node(span, 0)?;
+            }
+            has_life(item)
+        } else {
+            false
+        };
+        Ok(Some((item, stored)))
     }
     pub(super) fn prepare_stored_headers(&mut self) -> R<()> {
         if !self.stored_nominals {

@@ -370,17 +370,14 @@ impl Engine<'_> {
             if let Some(t) = ty
                 && let ExprKind::TypeApply { callee, arguments } = &mut t.kind
                 && let ExprKind::Name(template) = &callee.kind
-                && matches!(
-                    self.templates.get(template).map(|x| &x.kind),
-                    Some(ItemKind::Aggregate(_))
-                )
+                && let Some((declaration, stored)) = self.record_declaration(template, e.span)?
             {
-                if self.stored_nominals && self.stored_declaration(template, e.span)? {
+                if stored {
                     let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
                     t.kind = ExprKind::Name(name);
                 } else {
                     let mut types = Vec::new();
-                    let declaration = self.templates.get(template).copied();
+                    let declaration = Some(declaration);
                     for (index, arg) in arguments.iter_mut().enumerate() {
                         let parameter = declaration.and_then(|item| {
                             params(item)
