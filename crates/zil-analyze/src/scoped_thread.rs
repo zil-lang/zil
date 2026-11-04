@@ -16,7 +16,7 @@ fn scalar(ty: &Type) -> bool {
     )
 }
 fn shared_i32(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
+    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
 }
 
 fn worker(
@@ -152,11 +152,11 @@ fn worker(
                     }
                 }
                 match &instruction.kind {
+                    InstructionKind::SyncI32 { .. } if shared => {
+                        sync_instruction(module, function, instruction, budget)?
+                    }
                     InstructionKind::ReadAddress { address } if shared => {
-                        if !function
-                            .values
-                            .get(address.0 as usize)
-                            .is_some_and(shared_i32)
+                        if !matches!(function.values.get(address.0 as usize), Some(Type::Address { mutable: false, inner }) if **inner == Type::I32)
                             || instruction
                                 .result
                                 .and_then(|id| function.values.get(id.0 as usize))
@@ -176,10 +176,10 @@ fn worker(
                             .values
                             .get(address.0 as usize)
                             .is_some_and(shared_i32)
-                            || !instruction
+                            || instruction
                                 .result
                                 .and_then(|id| function.values.get(id.0 as usize))
-                                .is_some_and(shared_i32)
+                                != function.values.get(address.0 as usize)
                         {
                             return Err(reject(
                                 instruction.span,
@@ -190,10 +190,7 @@ fn worker(
                     InstructionKind::BorrowLocal { local } if shared => {
                         if function.locals.get(local.0 as usize).map(|local| &local.ty)
                             != Some(&Type::I32)
-                            || !instruction
-                                .result
-                                .and_then(|id| function.values.get(id.0 as usize))
-                                .is_some_and(shared_i32)
+                            || !matches!(instruction.result.and_then(|id| function.values.get(id.0 as usize)), Some(Type::Address { mutable: false, inner }) if **inner == Type::I32)
                         {
                             return Err(reject(
                                 instruction.span,
@@ -302,6 +299,13 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             budget.spend(1, "thread operation block inventory")?;
             for instruction in &block.instructions {
                 budget.spend(1, "thread operation instruction inventory")?;
+                if matches!(
+                    instruction.kind,
+                    InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. }
+                ) {
+                    sync_instruction(module, caller, instruction, budget)?;
+                    continue;
+                }
                 let InstructionKind::WithScopedThread {
                     worker: entry,
                     argument,
@@ -426,9 +430,167 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     budget.spend(1, "shared thread caller insertion")?;
                     budget.shared_thread_functions.insert(caller.id);
                 }
+                let actual_worker = module
+                    .functions
+                    .get(entry.0 as usize)
+                    .ok_or_else(|| reject(instruction.span, "thread actual worker is absent"))?;
+                budget.spend(
+                    actual_worker.parameters.len().saturating_add(1),
+                    "thread exact payload kind comparison",
+                )?;
+                if actual_worker.parameters.len() != 1
+                    || actual_worker
+                        .parameters
+                        .first()
+                        .and_then(|id| actual_worker.locals.get(id.0 as usize))
+                        .map(|local| &local.ty)
+                        != payload
+                {
+                    return Err(reject(
+                        instruction.span,
+                        "thread payload differs from exact worker parameter type",
+                    ));
+                }
                 worker(module, entry, budget, instruction.span, shared)?;
             }
         }
+    }
+    Ok(())
+}
+
+fn sync_instruction(
+    module: &TypedModule,
+    caller: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    use zil_ir::{AtomicOrdering as O, SyncCellKind as K, SyncI32Op as P};
+    budget.spend(5, "sealed cell actual signature")?;
+    let ty = |value: ValueId| {
+        caller
+            .values
+            .get(value.0 as usize)
+            .ok_or_else(|| reject(instruction.span, "sealed cell operand is absent"))
+    };
+    match instruction.kind {
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = ty(address)?
+            else {
+                return Err(reject(
+                    instruction.span,
+                    "cell operation requires actual shared sealed address",
+                ));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(reject(
+                    instruction.span,
+                    "ordinary payload cannot grant cell operation permission",
+                ));
+            };
+            if value.is_none() != (op == P::Load)
+                || value
+                    .is_some_and(|value| caller.values.get(value.0 as usize) != Some(&Type::I32))
+                || (*kind == K::MutexI32 && ordering != O::SeqCst)
+                || (op == P::Load && matches!(ordering, O::Release | O::AcqRel))
+                || (op == P::Store && matches!(ordering, O::Acquire | O::AcqRel))
+            {
+                return Err(reject(
+                    instruction.span,
+                    "cell value operand or ordering differs from actual operation",
+                ));
+            }
+            let expected = if op == P::Store {
+                Type::Unit
+            } else {
+                Type::I32
+            };
+            if instruction
+                .result
+                .and_then(|value| caller.values.get(value.0 as usize))
+                != Some(&expected)
+            {
+                return Err(reject(
+                    instruction.span,
+                    "cell operation result has incorrect actual type",
+                ));
+            }
+        }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            if ty(initial)? != &Type::I32 {
+                return Err(reject(
+                    instruction.span,
+                    "cell initializer must be an actual i32",
+                ));
+            }
+            let Type::Closure(id) = ty(body)? else {
+                return Err(reject(
+                    instruction.span,
+                    "cell body requires an actual concrete closure",
+                ));
+            };
+            let definition = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| reject(instruction.span, "cell body closure is absent"))?;
+            budget.spend(
+                definition
+                    .parameters
+                    .len()
+                    .saturating_add(definition.lending_captures.len())
+                    .saturating_add(4),
+                "cell actual body signature and cleanup",
+            )?;
+            let expected = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::SyncCell(kind)),
+            };
+            let entry = module
+                .functions
+                .get(definition.function.0 as usize)
+                .ok_or_else(|| reject(instruction.span, "cell body actual entry is absent"))?;
+            if definition.id != *id
+                || definition.parameters.as_slice() != [expected.clone()]
+                || definition.result != Type::I32
+                || !definition.lending_captures.is_empty()
+                || !matches!(
+                    definition.kind,
+                    CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+                )
+                || entry.environment != Some(*id)
+                || entry.foreign.is_some()
+                || entry.parameters.len() != 1
+                || entry.return_type != Type::I32
+                || entry.result_mode != PassingMode::Infer
+                || entry
+                    .parameters
+                    .first()
+                    .and_then(|id| entry.locals.get(id.0 as usize))
+                    .map(|local| &local.ty)
+                    != Some(&expected)
+                || instruction
+                    .result
+                    .and_then(|id| caller.values.get(id.0 as usize))
+                    != Some(&Type::Tuple(vec![Type::Bool, Type::I32]))
+            {
+                return Err(reject(
+                    instruction.span,
+                    "cell scope differs from actual closure entry or cleanup boundary",
+                ));
+            }
+        }
+        _ => return Err(reject(instruction.span, "not a sealed cell operation")),
     }
     Ok(())
 }

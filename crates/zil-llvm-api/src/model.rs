@@ -354,6 +354,47 @@ impl Signature {
                 .all(|(a, b)| a.ty == b.ty && a.attrs == b.attrs)
     }
 }
+/// Actual LLVM memory orders. Ordinary Load/Store remain non-atomic.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AtomicOrdering {
+    Relaxed,
+    Acquire,
+    Release,
+    AcqRel,
+    SeqCst,
+}
+impl AtomicOrdering {
+    pub fn spelling(self) -> &'static str {
+        match self {
+            Self::Relaxed => "monotonic",
+            Self::Acquire => "acquire",
+            Self::Release => "release",
+            Self::AcqRel => "acq_rel",
+            Self::SeqCst => "seq_cst",
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AtomicRmwOp {
+    Exchange,
+    Add,
+    Subtract,
+    And,
+    Or,
+    Xor,
+}
+impl AtomicRmwOp {
+    pub fn spelling(self) -> &'static str {
+        match self {
+            Self::Exchange => "xchg",
+            Self::Add => "add",
+            Self::Subtract => "sub",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Xor => "xor",
+        }
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Op {
     Alloca {
@@ -369,6 +410,25 @@ pub enum Op {
         arg: Arg,
         ptr: Val,
         align: u32,
+    },
+    AtomicLoad {
+        ty: Ty,
+        ptr: Val,
+        align: u32,
+        ordering: AtomicOrdering,
+    },
+    AtomicStore {
+        arg: Arg,
+        ptr: Val,
+        align: u32,
+        ordering: AtomicOrdering,
+    },
+    AtomicRmw {
+        operation: AtomicRmwOp,
+        arg: Arg,
+        ptr: Val,
+        align: u32,
+        ordering: AtomicOrdering,
     },
     Binary {
         opcode: String,
@@ -441,8 +501,10 @@ impl Op {
             Self::Alloca { .. } | Self::Branch(_) | Self::Unreachable | Self::Return(None) => {
                 (None, None, &[], &[])
             }
-            Self::Load { ptr, .. } => (Some(ptr), None, &[], &[]),
-            Self::Store { arg, ptr, .. } => (Some(&arg.value), Some(ptr), &[], &[]),
+            Self::Load { ptr, .. } | Self::AtomicLoad { ptr, .. } => (Some(ptr), None, &[], &[]),
+            Self::Store { arg, ptr, .. }
+            | Self::AtomicStore { arg, ptr, .. }
+            | Self::AtomicRmw { arg, ptr, .. } => (Some(&arg.value), Some(ptr), &[], &[]),
             Self::Binary { left, right, .. } | Self::Compare { left, right, .. } => {
                 (Some(left), Some(right), &[], &[])
             }
@@ -912,6 +974,46 @@ fn write_inst(s: &mut String, instruction: &Inst) {
             write_argument(s, arg);
             s.push_str(", ptr ");
             write_value(s, ptr);
+            write_alignment(s, *align);
+        }
+        Op::AtomicLoad {
+            ty,
+            ptr,
+            align,
+            ordering,
+        } => {
+            s.push_str("load atomic ");
+            write_type(s, ty);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            write!(s, " {}", ordering.spelling()).unwrap();
+            write_alignment(s, *align);
+        }
+        Op::AtomicStore {
+            arg,
+            ptr,
+            align,
+            ordering,
+        } => {
+            s.push_str("store atomic ");
+            write_argument(s, arg);
+            s.push_str(", ptr ");
+            write_value(s, ptr);
+            write!(s, " {}", ordering.spelling()).unwrap();
+            write_alignment(s, *align);
+        }
+        Op::AtomicRmw {
+            operation,
+            arg,
+            ptr,
+            align,
+            ordering,
+        } => {
+            write!(s, "atomicrmw {} ptr ", operation.spelling()).unwrap();
+            write_value(s, ptr);
+            s.push_str(", ");
+            write_argument(s, arg);
+            write!(s, " {}", ordering.spelling()).unwrap();
             write_alignment(s, *align);
         }
         Op::Binary {

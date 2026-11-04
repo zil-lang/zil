@@ -181,6 +181,7 @@ fn shared_thread_window(
         return Ok(());
     };
     if !matches!(&f.values[argument.0 as usize], Type::Address { mutable: false, inner } if **inner == Type::I32)
+        && !f.values[argument.0 as usize].is_shared_sync_cell_address()
     {
         return Ok(());
     }
@@ -206,11 +207,13 @@ fn shared_thread_window(
         let supported = match root {
             Root::Local(_) => ty == Some(&Type::I32),
             Root::Parameter(_) => {
-                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                    || ty.is_some_and(Type::is_shared_sync_cell_address))
             }
             Root::Capture(_) => {
                 ty == Some(&Type::I32)
-                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                    || (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                        || ty.is_some_and(Type::is_shared_sync_cell_address))
             }
             _ => false,
         };
@@ -1750,6 +1753,7 @@ fn product_may_store_write(
                         InstructionKind::CallClosure { callee, .. }
                         | InstructionKind::CallClosureOnce { callee, .. }
                         | InstructionKind::WithScopedThread { body: callee, .. }
+                        | InstructionKind::WithSyncCell { body: callee, .. }
                         | InstructionKind::CallClosureBorrowed { callee, .. } => {
                             Some(&function.values[callee.0 as usize])
                         }
@@ -2266,6 +2270,7 @@ fn parameter_product_windows(
                     InstructionKind::CallClosure { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. } => {
                         Some(&f.values[callee.0 as usize])
                     }

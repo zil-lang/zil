@@ -415,6 +415,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         InstructionKind::WithScopedThread { argument, body, .. } => {
             (Some(*argument), Some(*body), &[])
         }
+        InstructionKind::WithSyncCell { initial, body, .. } => (Some(*initial), Some(*body), &[]),
+        InstructionKind::SyncI32 { address, value, .. } => (Some(*address), *value, &[]),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             (Some(*callback), Some(*body), &[])
         }
@@ -2401,14 +2403,14 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     let operands = match i.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             [Some((callback, false)), Some((body, true))]
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
-                            [None, Some((body, true))]
-                        }
+                        InstructionKind::WithScopedThread { body, .. }
+                        | InstructionKind::WithSyncCell { body, .. } => [None, Some((body, true))],
                         _ => unreachable!(),
                     };
                     for (value, consume) in operands.into_iter().flatten() {
@@ -2838,6 +2840,7 @@ fn effect_consumers(
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::WithForeignCallback { body: callee, .. } => {
                         let ty = function
                             .values

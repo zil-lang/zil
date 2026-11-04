@@ -26,6 +26,27 @@ identity!(
     FunctionId, LocalId, ValueId, BlockId, PlaceId, ClosureId, OriginId, ScopeId
 );
 
+/// Sealed native cell kind; this raw tag grants no permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncCellKind {
+    MutexI32 = 0,
+    AtomicI32 = 1,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SyncI32Op {
+    Load = 0,
+    Store = 1,
+    FetchAdd = 2,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AtomicOrdering {
+    Relaxed = 0,
+    Acquire = 1,
+    Release = 2,
+    AcqRel = 3,
+    SeqCst = 4,
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -49,6 +70,8 @@ pub enum Type {
     },
     /// An opaque external token, never a ZIL address or an ownership proof.
     ForeignHandle,
+    /// Opaque native payload, only available behind a checked shared address.
+    SyncCell(SyncCellKind),
     /// Readonly static UTF-16 plus NUL, or null. No foreign return admission.
     CWideString,
     /// Static C ABI code only; deliberately distinct from FunctionPointer.
@@ -132,17 +155,22 @@ impl Type {
     /// Scalars or one shared address layer to a finite Copy value or the exact
     /// shared user-resource head shape. This does not establish loan authority.
     pub fn is_scalar_or_shared_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_shared_package_address()
             || matches!(self, Self::Address { mutable: false, inner } if inner.is_address_pointee())
     }
     /// One address layer; admission is not a permission proof.
     pub fn is_scalar_or_address(&self) -> bool {
-        self.is_b0_scalar()
+        self.is_shared_sync_cell_address()
+            || self.is_b0_scalar()
             || self.is_shared_resource_head_address()
             || self.is_package_address()
             || matches!(self, Self::Address { inner, .. } if inner.is_address_pointee())
+    }
+    pub fn is_shared_sync_cell_address(&self) -> bool {
+        matches!(self, Self::Address { mutable: false, inner } if matches!(inner.as_ref(), Self::SyncCell(_)))
     }
     /// Structural eligibility only; each checker separately proves sources,
     /// bounds, liveness, permissions and the supported target profile.
@@ -227,6 +255,11 @@ impl Type {
             Self::ByteBuffer => "ByteBuffer".into(),
             Self::OwnedStore { element } => format!("Store<{}>", element.name()),
             Self::ForeignHandle => "c_handle".into(),
+            Self::SyncCell(kind) => match kind {
+                SyncCellKind::MutexI32 => "MutexI32",
+                SyncCellKind::AtomicI32 => "AtomicI32",
+            }
+            .into(),
             Self::CWideString => "c_wstr".into(),
             other => format!("{other:?}"),
         }
@@ -1340,6 +1373,19 @@ pub enum InstructionKind {
         argument: ValueId,
         body: ValueId,
     },
+    /// Stable scoped native cell. Body is consumed once, or dropped on init failure.
+    WithSyncCell {
+        kind: SyncCellKind,
+        initial: ValueId,
+        body: ValueId,
+    },
+    /// Dedicated cell operation; ordinary payload access is never authorized.
+    SyncI32 {
+        op: SyncI32Op,
+        address: ValueId,
+        value: Option<ValueId>,
+        ordering: AtomicOrdering,
+    },
     /// A real, environment-free function address with its exact Copy signature.
     FunctionRef {
         function: FunctionId,
@@ -1851,6 +1897,10 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             encode_type(b, element);
         }
         Type::ForeignHandle => b.push(20),
+        Type::SyncCell(kind) => {
+            b.push(30);
+            b.push(*kind as u8);
+        }
         Type::CWideString => b.push(21),
         Type::ForeignCallback { parameters, result } => {
             b.push(22);
@@ -2385,6 +2435,31 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, worker.0);
             encode_u32(b, argument.0);
             encode_u32(b, body.0);
+        }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            b.push(96);
+            b.push(*kind as u8);
+            encode_u32(b, initial.0);
+            encode_u32(b, body.0);
+        }
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            b.push(97);
+            b.push(*op as u8);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
         }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
