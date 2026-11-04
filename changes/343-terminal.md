@@ -215,3 +215,7 @@ A retained adversarial machine neighbor combines a 65536-byte initializer,
 nested aggregate/array signature types and long type/global/function/operand
 names; its N/N−1/fresh-N boundary is 257884. This is machine-level accounting
 evidence, separate from the source-to-native SABI tests.
+
+## 集成 Float×Task 的固定原子身份计费
+
+Task machine identity walker 在与 Float 实现合并时显式处理 F32/F64 类型及原始位常量；这些固定大小原子仍由每节点16费用覆盖，不增加默认额度，不跳过Hash前预付。原字节/类型/长名累积反例及N−1门保持。

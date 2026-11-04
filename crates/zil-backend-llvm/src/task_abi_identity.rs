@@ -19,7 +19,7 @@ fn ty(t: &m::Ty, left: &mut usize, depth: usize) -> CompileResult<()> {
         ));
     }
     match t {
-        m::Ty::Void | m::Ty::Int(_) | m::Ty::Ptr => Ok(()),
+        m::Ty::Void | m::Ty::Int(_) | m::Ty::F32 | m::Ty::F64 | m::Ty::Ptr => Ok(()),
         m::Ty::Named(s) => text(s, left),
         m::Ty::Array(_, t) => ty(t, left, depth + 1),
         m::Ty::Struct(ts) => {
@@ -41,6 +41,8 @@ fn value(v: &m::Val, left: &mut usize, depth: usize) -> CompileResult<()> {
         m::Val::Local(s) | m::Val::Global(s) | m::Val::Invalid(s) => text(s, left),
         m::Val::Bytes(b) => spend(left, b.len().saturating_mul(2)),
         m::Val::Int(_)
+        | m::Val::F32(_)
+        | m::Val::F64(_)
         | m::Val::Bool(_)
         | m::Val::Null
         | m::Val::Zero
@@ -359,6 +361,44 @@ mod tests {
             ResultCategory::ResourceLimit
         );
         assert_eq!(hash(n).unwrap().0, fingerprint);
+        // Floating constants are fixed-size raw-bit atoms, including NaN payloads.
+        // Their charge is bounded, but their complete bits still change identity.
+        let mut floating = small.clone();
+        for (ty, value) in [
+            (m::Ty::F32, m::Val::F32(0x7fc0_0001)),
+            (m::Ty::F64, m::Val::F64(0x7ff8_0000_0000_0001)),
+        ] {
+            floating.items.push(m::Item::Global(m::Global {
+                name: "float_constant".into(),
+                linkage: m::Linkage::Private,
+                ty,
+                initializer: Some(value),
+                constant: true,
+                unnamed_addr: true,
+                alignment: 8,
+            }));
+        }
+        let float_n = cost(&floating);
+        let paid_hash = |module: &m::Module, budget| {
+            let mut left = budget;
+            prepay(module, &mut left)?;
+            let mut h = FingerprintBuilder::new();
+            module.hash(&mut h);
+            Ok::<_, Vec<zil_base::Diagnostic>>((h.digest(), left))
+        };
+        let before = paid_hash(&floating, float_n).unwrap();
+        assert_eq!(before.1, 0);
+        assert_eq!(paid_hash(&floating, float_n).unwrap(), before);
+        assert_eq!(
+            paid_hash(&floating, float_n - 1).unwrap_err()[0].category,
+            ResultCategory::ResourceLimit
+        );
+        let Some(m::Item::Global(global)) = floating.items.last_mut() else {
+            panic!("actual floating initializer")
+        };
+        global.initializer = Some(m::Val::F64(0x7ff8_0000_0000_0002));
+        assert_eq!(cost(&floating), float_n);
+        assert_ne!(paid_hash(&floating, float_n).unwrap().0, before.0);
         eprintln!("task343 actual machine identity N={n}");
     }
 }
