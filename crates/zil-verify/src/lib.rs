@@ -1981,7 +1981,9 @@ fn check_instruction(
         InstructionKind::WithScopedThread { .. } => {
             scoped_thread::instruction(module, function, instruction, budget)?
         }
-        InstructionKind::WithSyncCell { .. } | InstructionKind::SyncI32 { .. } => {
+        InstructionKind::WithSyncCell { .. }
+        | InstructionKind::SyncI32 { .. }
+        | InstructionKind::SyncI32CompareExchange { .. } => {
             scoped_thread::sync_instruction(module, function, instruction, budget)?
         }
         InstructionKind::WithForeignCallback { .. } => {
@@ -3243,6 +3245,15 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         }
         InstructionKind::WithSyncCell { initial, body, .. } => ([Some(*initial), Some(*body)], &[]),
         InstructionKind::SyncI32 { address, value, .. } => ([Some(*address), *value], &[]),
+        InstructionKind::SyncI32CompareExchange {
+            address,
+            expected,
+            desired,
+            ..
+        } => (
+            [Some(*address), Some(*expected)],
+            std::slice::from_ref(desired),
+        ),
         InstructionKind::WithForeignCallback { callback, body, .. } => {
             ([Some(*callback), Some(*body)], &[])
         }

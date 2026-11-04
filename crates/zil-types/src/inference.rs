@@ -3978,6 +3978,24 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 span,
             );
         }
+        if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            if arguments.len() != 3 {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    span,
+                    "atomic_compare_exchange requires three arguments",
+                ));
+            }
+            let address = scoped_thread::sync_address(SyncCellKind::AtomicI32);
+            for (index, argument) in arguments.iter().enumerate() {
+                let wanted = if index == 0 { &address } else { &Type::I32 };
+                let term = self.expr_expected(argument, Some(wanted), depth + 1, false)?;
+                self.bind_term(&term, wanted, argument.span)?;
+            }
+            return self.known_term(&Type::Tuple(vec![Type::I32, Type::Bool]), span);
+        }
         if let CoreExprKind::Name(name) = &callee.kind
             && let Some((kind, op)) = scoped_thread::sync_primitive(name)
         {

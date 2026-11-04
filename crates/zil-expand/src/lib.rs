@@ -86,6 +86,7 @@ fn sync_name(name: &str) -> bool {
             | "atomic_load"
             | "atomic_store"
             | "atomic_fetch_add"
+            | "atomic_compare_exchange"
     )
 }
 fn task_name(name: &str) -> bool {

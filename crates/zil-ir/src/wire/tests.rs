@@ -1108,3 +1108,72 @@ fn suspend_call_and_function_kind_are_complete_raw_transport_identity() {
     huge[10..14].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(Reader::new(&huge, &limits).unwrap().instruction().is_err());
 }
+
+#[test]
+fn strong_compare_exchange_transport_preserves_both_orders_and_all_operands() {
+    let limits = Limits::default();
+    let orders = [
+        AtomicOrdering::Relaxed,
+        AtomicOrdering::Acquire,
+        AtomicOrdering::Release,
+        AtomicOrdering::AcqRel,
+        AtomicOrdering::SeqCst,
+    ];
+    let mut identities = std::collections::BTreeSet::new();
+    for success in orders {
+        for failure in orders {
+            let instruction = Instruction {
+                result: Some(ValueId(7)),
+                kind: InstructionKind::SyncI32CompareExchange {
+                    address: ValueId(1),
+                    expected: ValueId(2),
+                    desired: ValueId(3),
+                    success,
+                    failure,
+                },
+                span: Span::default(),
+            };
+            let mut writer = Writer::new(&limits);
+            writer.instruction(&instruction).unwrap();
+            let bytes = writer.output;
+            assert_eq!(bytes[5], 133);
+            let mut reader = Reader::new(&bytes, &limits).unwrap();
+            assert_eq!(reader.instruction().unwrap(), instruction);
+            reader.finish().unwrap();
+            // All25 enum pairs transport as untrusted data. The independent
+            // kernels must reject the16 incompatible pairs before execution.
+            let mut identity = Vec::new();
+            crate::encode_instruction(&mut identity, &instruction.kind);
+            assert!(identities.insert(identity));
+            for end in 0..bytes.len() {
+                assert!(
+                    Reader::new(&bytes[..end], &limits)
+                        .and_then(|mut r| r.instruction())
+                        .is_err()
+                );
+            }
+            for offset in [18, 19] {
+                let mut bad = bytes.clone();
+                bad[offset] = 255;
+                let error = Reader::new(&bad, &limits)
+                    .unwrap()
+                    .instruction()
+                    .unwrap_err();
+                assert_eq!(error.code, "E-WIRE-OPCODE");
+            }
+            for (address, expected, desired) in [(9, 2, 3), (1, 9, 3), (1, 2, 9)] {
+                let changed = InstructionKind::SyncI32CompareExchange {
+                    address: ValueId(address),
+                    expected: ValueId(expected),
+                    desired: ValueId(desired),
+                    success,
+                    failure,
+                };
+                let mut identity = Vec::new();
+                crate::encode_instruction(&mut identity, &changed);
+                assert!(identities.insert(identity));
+            }
+        }
+    }
+    assert_eq!(identities.len(), 100);
+}
