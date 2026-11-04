@@ -59,7 +59,8 @@ fn byte_buffer_name(name: &str) -> bool {
 fn owned_store_name(name: &str) -> bool {
     matches!(
         name,
-        "Store"
+        "Managed"
+            | "Store"
             | "StoreElement"
             | "store_new"
             | "store_reserve"
@@ -164,7 +165,7 @@ fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
             Phase::Expand,
             "E-OWNED-STORE-NAME",
             Some(span),
-            "Store and bare owned storage primitives cannot be rebound",
+            "Managed, Store and bare owned storage primitives cannot be rebound",
         )
     } else if byte_buffer_name(name) {
         Diagnostic::error(
@@ -1717,6 +1718,18 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
+            if let [s::GenericArg::Type(resource)] = args.as_slice() {
+                match type_ref(resource) {
+                    Type::Managed(_) | Type::Desc(_) => Type::Unsupported(
+                        "Managed requires an actual resource, not another carrier".into(),
+                    ),
+                    resource => Type::Managed(Box::new(resource)),
+                }
+            } else {
+                Type::Unsupported("Managed requires one actual resource type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Task"] => {
             if let [s::GenericArg::Type(result)] = args.as_slice() {
                 Type::Desc(Box::new(Type::Task {
