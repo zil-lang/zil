@@ -373,10 +373,10 @@ pub(super) fn phantom() -> TypedModule {
     let Type::BorrowedStorage { storage, life } = &mut m.life_instances[0].ty else {
         unreachable!()
     };
-    *storage = Box::new(Type::Record {
+    **storage = Type::Record {
         name: "Phantom".into(),
         fields: vec![("number".into(), Type::I32)],
-    });
+    };
     life.slots.clear();
     let phantom = m.life_instances[0].ty.clone();
     m.life_declarations[0].identity.declaration_path = vec!["Phantom".into()];
