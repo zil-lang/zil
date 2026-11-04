@@ -1783,7 +1783,7 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn expr_direct_call(
         &mut self,
-        signature: Signature,
+        signature: &Signature,
         arguments: &[CoreExpr],
         expected: Option<&Type>,
         span: Span,
@@ -1807,13 +1807,13 @@ impl<'a, 'c> Builder<'a, 'c> {
                 values.push(self.stage_argument(v, &actual, a.span)?)
             }
             let values = self.commit_arguments(values, span)?;
-            let call = self.direct_call(&signature, values, span)?;
+            let call = self.direct_call(signature, values, span)?;
             if signature.result == Type::Unit {
                 self.emit(call, None, span)?;
                 self.constant(Constant::Unit, span)?
             } else {
                 let id = self.value(call, signature.result.clone(), span)?;
-                (id, signature.result)
+                (id, signature.result.clone())
             }
         };
         if let Some(expected) = expected {
@@ -1910,12 +1910,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                 member,
                 owner,
             } = &callee.kind
-                && let Some(signature) = self.method_signature(object, member).cloned()
+                && let Some(signature) = self.method_signature(object, member)
             {
                 return self.method_call(
                     object,
                     arguments,
-                    &signature,
+                    signature,
                     owner.as_ref(),
                     expected,
                     e.span,
@@ -1932,7 +1932,10 @@ impl<'a, 'c> Builder<'a, 'c> {
             if !direct {
                 return self.call_closure(callee, arguments, expected, e.span);
             }
-            let signature = self.resolve_callee(callee)?.clone();
+            // Declaration tables outlive this builder. Keep their signature
+            // borrowed across recursive arguments instead of retaining another
+            // complete signature snapshot in every host call frame.
+            let signature = self.resolve_callee(callee)?;
             if signature.type_parameter.is_some() {
                 return self.call_inferred_type_template(signature, arguments, expected, e.span);
             }
@@ -1946,7 +1949,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 ));
             }
             if !signature.callable.is_empty() {
-                return self.call_helper(&signature, arguments, expected, e.span);
+                return self.call_helper(signature, arguments, expected, e.span);
             }
             self.expr_direct_call(signature, arguments, expected, e.span)
         }
