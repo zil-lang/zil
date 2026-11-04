@@ -85,7 +85,13 @@ pub(super) fn check_definitions(
                 "lending capture indices must be sorted, unique and within the actual environment",
             ));
         }
-        if matches!(closure.result, Type::Address { .. }) {
+        let invocation = if matches!(closure.result,Type::Address{..}) && closure.lending_captures.is_empty() {
+            budget.spend(closure.parameters.len())?;
+            borrowed_fp::invocation(&closure.parameters,&closure.result)
+        } else {false};
+        budget.borrowed_function_pointers |= invocation;
+        budget.invocation_callbacks |= invocation;
+        if matches!(closure.result, Type::Address { .. }) && !invocation {
             if !lending_result(&closure.result)
                 || !matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 || closure.lending_captures.is_empty()
@@ -258,7 +264,7 @@ pub(super) fn check_definitions(
         if !owning_signature {
             for ty in &closure.parameters {
                 if let Type::Address { inner, .. } = ty
-                    && closure.result.is_copy_value()
+                    && (closure.result.is_copy_value() || invocation)
                 {
                     // Raw type preflight already bounded this tree. Verify the
                     // actual finite element shape, not a producer signature bit.
@@ -267,7 +273,7 @@ pub(super) fn check_definitions(
                     check_type(ty, None)?;
                 }
             }
-            if lending_result(&closure.result) {
+            if lending_result(&closure.result) || invocation {
                 check_local_type(&closure.result, None, module, budget)?;
             } else {
                 check_type(&closure.result, None)?;

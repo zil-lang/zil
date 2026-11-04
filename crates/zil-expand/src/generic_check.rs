@@ -49,7 +49,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     // separately checked against actual parameter origins below.
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
-    let callable = callable::template(function)?;
+    let callable = callable::template(function, budget)?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
     let owned_dispatch = function.generics.len() == 1 && callable.as_ref().is_some_and(|bounds| {
         !bounds.owned_state && !bounds.owned_factory && bounds.state_bindings.is_empty()
@@ -95,7 +95,9 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         dependencies.register(&function.name, function.span, budget)?;
     }
     let definition_bound_context = supplied_bounds.is_some();
+    let higher_rank=callable.as_ref().is_some_and(|scope|scope.bindings().any(|bound|bound.life.is_some()));
     let mut check = Check {
+        higher_rank,
         variables,
         definition_bound_context,
         callable,
@@ -622,6 +624,7 @@ struct Check<'s, 'b, 'l> {
     variables: BTreeSet<String>,
     definition_bound_context: bool,
     callable: Option<callable::CallableTemplates>,
+    higher_rank: bool,
     owned_dispatch: bool,
     definition: &'s str,
     dependencies: &'b mut helper_graph::Dependencies,
@@ -706,6 +709,29 @@ impl Check<'_, '_, '_> {
                     },
                     _ => None,
                 };
+                if self.higher_rank && let Some(local)=target.and_then(|name|state.locals.get(name)) && let Some(scope)=&self.callable {
+                    for bound in scope.bindings() { self.budget.text(&bound.generic_name,expression.span)?; self.budget.ty(&local.ty)?; }
+                }
+                if self.higher_rank && let Some(bound) = target.and_then(|name| state.locals.get(name)).and_then(|local|
+                    self.callable.as_ref().and_then(|scope| scope.bindings().find(|bound|
+                        callable::parameter_mode(&local.ty, &bound.generic_name).is_some())))
+                    && let Some(life) = &bound.life {
+                    self.budget.node(expression.span, 0)?;
+                    let mut allowed=Vec::new();
+                    for (index, parameter) in bound.parameters.iter().enumerate() {
+                        self.budget.node(parameter.span,0)?;
+                        if life.result_life.is_some() && life.parameter_lives[index]==life.result_life
+                            && matches!(group(parameter).kind,TypeKind::Reference{mutable,..}
+                                if !matches!(group(&bound.result).kind,TypeKind::Reference{mutable:true,..}) || mutable) {
+                            allowed.push(index);
+                        }
+                    }
+                    let mut roots=BTreeSet::new();
+                    for index in allowed { for root in self.life_expression(&arguments[index].value,state)? {
+                        self.budget.node(expression.span,0)?; roots.insert(root);
+                    } }
+                    return Ok(roots);
+                }
                 let function = target.and_then(|name| self.signatures.get(name)).ok_or_else(||
                     unsupported(expression.span, "generic borrowed return requires a static helper with an explicit life relation"))?;
                 self.budget.node(callee.span, 0)?;
@@ -3126,7 +3152,7 @@ impl Check<'_, '_, '_> {
                     .signatures
                     .get(target)
                     .ok_or_else(|| error(e.span, "unknown function in parametric body"))?;
-                if self.callable.is_some() && callable::template(function)?.is_some() {
+                if self.callable.is_some() && callable::template(function, self.budget)?.is_some() {
                     self.dependencies.edge(
                         self.definition,
                         &function.name,
@@ -3266,16 +3292,28 @@ impl Check<'_, '_, '_> {
                 if variables.iter().any(|name| !found.contains_key(name)) {
                     return Err(error(e.span, "unconstrained nested generic argument"));
                 }
-                let callable = callable::template(function)?;
+                let callable = callable::template(function, self.budget)?;
                 if let Some(callees) = &callable {
                     for callee in callees.bindings() {
                         self.budget.node(e.span, 0)?;
                         let actual = &found[&callee.generic_name];
+                        if callee.life.is_some() && let Some(bounds)=&self.callable {
+                            for bound in bounds.bindings() {self.budget.ty(actual)?; self.budget.text(&bound.generic_name,e.span)?;}
+                        }
                         let caller = self.callable.as_ref().and_then(|bounds| {
                             bounds.bindings().find(|caller| {
                                 callable::parameter_mode(actual, &caller.generic_name) == Some(None)
                             })
                         });
+                        if let Some(wanted)=&callee.life {
+                            let available=caller.and_then(|caller|caller.life.as_ref()).ok_or_else(||error(e.span,"nested higher-rank helper requires its declared universal invocation relation"))?;
+                            self.budget.node(e.span,0)?;
+                            for _ in available.parameter_lives.iter().chain(&wanted.parameter_lives) {self.budget.node(e.span,0)?;}
+                            if available.parameter_lives.len()!=wanted.parameter_lives.len()
+                                || (available.result_life.is_some() && available.parameter_lives.iter().zip(&wanted.parameter_lives).any(|(actual,expected)|*actual==available.result_life && *expected!=wanted.result_life)) {
+                                return Err(error(e.span,"forwarded callback return relation is wider than the requested invocation bound"));
+                            }
+                        }
                         let (kind, parameters, result) = if let Some(caller) = caller {
                             if !callees.owned_state
                                 && !callees.forwarded

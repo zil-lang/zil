@@ -362,6 +362,7 @@ fn borrowed_environment_calls_delegate_the_position_without_writing_its_dependen
         );
         helper.0.callable_contract = Some(CallableParameterContract {
             roles: vec![CallableRole {
+                life: None,
                 parameter: 0,
                 closure: ClosureId(0),
                 kind: CallableKind::FnMut,

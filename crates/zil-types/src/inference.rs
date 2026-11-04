@@ -148,6 +148,7 @@ pub(super) fn type_snapshot_work(ty: &Type, span: Span, limits: &Limits) -> R<us
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    if let Some(life)=&bound.life { budget.work(borrowed_fp::metadata_work(life),span)?; borrowed_fp::relation(&bound.parameters,&bound.result,life,span)?; }
     budget.work(
         bound
             .generic_name
@@ -4086,7 +4087,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 if return_type.as_ref().is_some_and(|t| {
                     !(t.is_copy_value()
                         || lending::supported_result(t)
-                        || (matches!(expected, Some(Type::BorrowedFunctionPointer { .. })) && matches!(t, Type::Address { inner, .. } if inner.is_address_pointee()))
+                        || matches!(t, Type::Address { inner, .. } if inner.is_address_pointee())
                         || closures::owned_signature_head(t))
                 }) || parameters.iter().any(|p| {
                     p.ty.as_ref().is_some_and(|t| {

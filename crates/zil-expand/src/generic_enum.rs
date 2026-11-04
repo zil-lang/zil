@@ -647,7 +647,7 @@ impl Engine<'_> {
             })
             .collect::<R<Vec<_>>>()?;
         Ok(Some(CallHints {
-            callable: callable::template(f)?.map_or_else(Vec::new, |bounds| {
+            callable: callable::template(f, &mut self.budget)?.map_or_else(Vec::new, |bounds| {
                 bounds.roles.into_iter().map(|role| role.index).collect()
             }),
             parameters,

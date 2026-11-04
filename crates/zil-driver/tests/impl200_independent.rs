@@ -797,6 +797,7 @@ fn raw_extra_descriptions_addresses_and_fake_empty_contracts_do_not_gain_authori
         roles: [0, 3]
             .into_iter()
             .map(|parameter| CallableRole {
+                life: None,
                 parameter,
                 closure,
                 kind: CallableKind::FnMut,
