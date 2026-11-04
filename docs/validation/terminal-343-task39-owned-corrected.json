@@ -1,0 +1,66 @@
+{
+  "task": 343,
+  "source_commit": "af9bc5bf93ca9e20abf53752b8af70d858ef373e",
+  "semantic_ancestor": "0bccd16e8",
+  "prior_receipt": "18d0480a3",
+  "status": "corrected author freeze; independent review pending",
+  "spec_authority_commit": "bc0982f729de4f2eee91ab7911e9c404dc1728bd",
+  "spec_hash": "f5d65080c2ab85bb74da6420a4d4486be68189ebaf38d5b9e08b049722bbc968",
+  "normative_hash": "4abaa204cb4b81b53eac4263edf4fe2b3daf2ca2e844b1548047d07245dddea9",
+  "correction": "Reserve each actual before/after owner marker from the immutable verified action vectors before FunctionEmitter; later frame planning is not credited to earlier construction.",
+  "tests": [
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api task343 -- --nocapture",
+      "result": "24 passed;0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task-owned-corrected-replay.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions --features llvm-api child343 -- --nocapture",
+      "result": "6 passed;0 failed",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task-owned-corrected-child.log"
+    },
+    {
+      "command": "cargo clippy -p zil-verify -p zil-backend-llvm -p zil-types --lib --features llvm-api -- -D warnings",
+      "result": "pass",
+      "log": "/workspace/.zil-env/terminal-20261104/tmp343/task-owned-corrected-clippy.log"
+    }
+  ],
+  "wide_control": {
+    "selector": "general_task343::owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary",
+    "actual_original_source_widths": [
+      8,
+      16
+    ],
+    "actual_largest_before_vector": "asserted >=width on a real verified owning call site",
+    "Codegen_N": [
+      682274,
+      1348963
+    ],
+    "controls": "N success, N-1 ResourceLimit explicitly from Codegen, fresh N success. Full Types/Analyze/Verify/Lower precede actual backend emission. Planning/compilation control only; no model-as-runtime claim."
+  },
+  "semantic_evidence": "Unchanged current native72 successes +4 owning allocation successes/4actual allocation failures, raw4\u00d73, lexical ABC/BADCABDC and prepared AB. See prior receipt for all source/native cases and limits.",
+  "retained_harness": {
+    "path": "/workspace/.zil-env/terminal-20261104/target343/debug/deps/generic_regressions-6ecdb24ac684ead8",
+    "sha256": "f2122eab5e5748ecf94a1a31b9417d35e91591069531ce756a2b2d1e1f7c0a65"
+  },
+  "files_sha256": {
+    "crates/zil-backend-llvm/src/emit/tasks.rs": "a6640dbbf1c3327a5bff787db2769c37bf6837aa9a3172ee3e7b9f9b8cb0e2e2",
+    "crates/zil-verify/src/resources/task_frames.rs": "242e51a254a7a367d3050fc38102f40e9d2becafc7114b2597faeafa84137eeb",
+    "tests/language-readiness/terminal/343/task-owned-wide-16.zil": "17d939bdab5300945fb074812342ea8a55c8bbc04035de3fa7b5fe9016644d97",
+    "tests/language-readiness/terminal/343/task-owned-wide-8.zil": "7bb032f7efa110b52138cf4803c4ab11d5ac79457679ced59d84bf8fdda8414a",
+    "tests/language-readiness/terminal/343/task_general.rs": "301a84e395fcf67a9b63fdde69c62aec97e944097ed6700022ea4ed72de97767"
+  },
+  "runtime_read_observers": {
+    "tests/language-readiness/terminal/343/task-child-export-caller.c": "89b5c77a797b34e9865213765411a6b7440efd49964afc08bd0bda16621799f6",
+    "tests/language-readiness/terminal/343/task-export-caller.c": "a13c9e0b32c28cfdeacfff42bde5b0aeb5fb607b175ee4a15acf7f3bbc230d1a",
+    "tests/language-readiness/terminal/343/task-general-observer.c": "d8739edf7efb8a4aef82f6f7ae6364921cd0fbf0f98bd311ef1a638e5783aaac",
+    "tests/language-readiness/terminal/343/task-observer.c": "60db744913fdbcf06893e7079963636cff97f8e0c532285bd9c68afd46b5660f"
+  },
+  "limits": [
+    "Linux x64 closed owning inline scalar-record resources, complete tuples and one-owned-field Package storage.",
+    "No external frame dependencies; nonempty retained shape, incoming borrowed storage, unsupported partial products/tickets/defers still reject.",
+    "Synchronous close only after actual entire closed worker/child/Drop graph checking; no active-count quiescence shortcut.",
+    "Owning child parameter/result continuation, actual PendingExit/external wakers/drain, borrowed Task ports, public owning SABI, general Mutex/Guard/Transfer/Share/CAS continue separately.",
+    "No product/performance superiority claim."
+  ]
+}

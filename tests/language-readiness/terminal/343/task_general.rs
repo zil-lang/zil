@@ -992,3 +992,78 @@ fn owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind() {
         report.to_json()
     );
 }
+
+#[test]
+fn owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
+    let defaults = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut growth = vec![];
+    for (width, text) in [
+        (8, include_str!("task-owned-wide-8.zil")),
+        (16, include_str!("task-owned-wide-16.zil")),
+    ] {
+        let typed =
+            zil_types::check(&expand(text, &defaults).unwrap().core, &target, &defaults).unwrap();
+        let plan = zil_analyze::analyze(&typed, &defaults).unwrap();
+        let verified =
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &defaults).unwrap();
+        let worker = typed
+            .functions
+            .iter()
+            .find(|f| f.name == "worker")
+            .unwrap()
+            .id;
+        let ownership = verified.task_ownership(worker).unwrap();
+        assert!(
+            ownership
+                .actions()
+                .any(|actions| actions.before().len() >= width)
+        );
+        let run = |n| {
+            let limits = Limits {
+                max_analysis_steps: n,
+                ..defaults.clone()
+            };
+            let verified =
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)?;
+            let lir = zil_lower::lower(&verified)?;
+            zil_backend_llvm::emit_with_options(
+                &verified,
+                &lir,
+                &zil_backend_llvm::EmitOptions {
+                    entry: zil_backend_llvm::EntryPoint::Main,
+                },
+            )
+            .map(|_| ())
+        };
+        let (mut lo, mut hi) = (1, defaults.max_analysis_steps);
+        run(hi).unwrap();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if run(mid).is_ok() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        run(lo).unwrap();
+        let errors = run(lo - 1).unwrap_err();
+        assert_eq!(
+            errors[0].category,
+            ResultCategory::ResourceLimit,
+            "{errors:?}"
+        );
+        assert_eq!(
+            errors[0].phase,
+            zil_base::Phase::Codegen,
+            "boundary must belong to actual backend work: {errors:?}"
+        );
+        run(lo).unwrap();
+        growth.push(lo);
+        eprintln!("owned Task343 actual wide markers width={width} Codegen N={lo}");
+    }
+    assert!(
+        growth[1] > growth[0] + 4096,
+        "actual marker growth must be paid: {growth:?}"
+    );
+}
