@@ -17,8 +17,9 @@ pub(super) type Plan = BTreeMap<ValueId, Slot>;
 pub(super) fn plan(
     lir: &LirView<'_>,
     limits: &Limits,
+    remaining_work: usize,
 ) -> CompileResult<super::large_copy_abi::Plans> {
-    let mut work = limits.max_analysis_steps;
+    let mut work = remaining_work;
     let mut plans = BTreeMap::new();
     for function in lir.functions {
         let mut values = Plan::new();

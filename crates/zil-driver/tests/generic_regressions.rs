@@ -353,6 +353,26 @@ fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
 }
 
 #[test]
+fn ordinary_package_address_call_inside_closure_keeps_contextual_signature() {
+    let text = "resource R{n:i32}package P{manages r:R;n:i32}fn bump(p:&mut P,n:i32){p.n+=n}fn result()->i32{let f=()->i32=>{var p=P{r:R{n:1},n:20};bump(&mut p,22);return p.n};return f()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let denied = text.replace("bump(&mut p,22)", "bump(&p,22)");
+    let report = compile_source(&source(&denied), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn recovery317_component_source_and_nearest_rejections() {
     let report =

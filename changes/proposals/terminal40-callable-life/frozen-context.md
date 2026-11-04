@@ -34,6 +34,18 @@ A standalone graph with no artifact/value context rejects nonempty ambient mappi
 5. `EvaluatedData`/`ValueContext` retains the complete authenticated ambient table alongside returned schema graphs. `materialize_value` reifies through the actual enclosing owner/full-ordinal map; it does not choose a lifetime spelling by index alone. The final ordinary source/type/kernel pipeline rechecks all resulting relations and access independently.
 6. Semantic cache/Type/schema keys encode resolved stable declaration identity, binder-site identity, mode Definition/Instantiated and complete actual argument identities, including their joint ambient references. Raw ModuleId/NodeId/table ordinal is relocation only. Existing SourceIdentityContext explicit or closed-snapshot namespace supplies the stable source identity according to its already checked contract.
 
+## Contextual value identity consumer
+
+The existing `ct_wire::value_fingerprint_with_usage` encodes only raw `CtValue`. It remains a structural transport digest: equal graph-local ambient index0 bytes can refer to different actual scopes. It cannot be reused as semantic query/cache identity for an open value.
+
+The minimal PRIVATE consumer accepts `value: &CtValue`, the actual record/enum schema tables, the raw artifact ambient table, `frozen: &FrozenInvocationContext`, and the caller's live `CtExecutionBudget`. The frozen context supplies paid resolvers for raw symbols to authentic package/logical-module/declaration/member/generation identity, binder sites to actual lexical rows/full parameter kinds, and instances to Definition or the complete actual ordered Type/Const/Lifetime vector. A new authority hash is not an input substitute.
+
+Encode the referenced semantic closure: schema IDs select actual complete schema rows and their joint life_context; graph-local owners are canonicalized by occurrence; ambient references encode the resolved actual owner instance and original full Lifetime ordinal. Raw scope/module/symbol/schema numbers are relocation only. Missing, ambiguous or cyclic context fails closed. Repeated references may use bounded canonical backreferences only after their full actual identities are resolved; independent Fixed freshening is forbidden.
+
+Keep two identity layers clear. A semantic value/type key contains the referenced declaration/binder/actual/schema meaning; a query/dependency/cache key additionally binds the real frozen snapshot, requester/visibility and target context. An Explicit package's unchanged nominal identity must not acquire unrelated whole-source-edit instability. ClosedSnapshot already intentionally includes its original source snapshot. Target-dependent type/value meaning still includes the selected target where required.
+
+`ValueContext` carries the complete authenticated ambient context through result reification. Context-free export of ambient-bearing values must fail, or export the complete table together with the raw value for reauthentication. A bare structural digest is not sufficient. Retain controls where two tables each use raw scope0 but resolve to different owners/actual vectors: raw structural bytes may agree while semantic keys differ. Relocating the same actual referenced table preserves the semantic key; sharing one actual binder twice remains equal.
+
 There is no visibility, borrow, construction, Transfer or cleanup authority in these metadata records. Freeze/authentication proves actual provenance; actual roots and runtime permissions remain separate.
 
 ## Minimal production change sites

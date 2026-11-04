@@ -336,7 +336,7 @@ impl Resolver<'_, '_> {
                     *ty = self.instantiate(&path[0], args, variables, ty.span, depth)?;
                     return Ok(());
                 }
-                let arity = if path[0] == "Store" {
+                let arity = if matches!(path[0].as_str(), "Store" | "Managed") {
                     1
                 } else if variables.contains(&path[0])
                     || matches!(

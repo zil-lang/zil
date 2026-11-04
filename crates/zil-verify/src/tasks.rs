@@ -1,5 +1,6 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+mod owned;
 
 fn empty_context() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
@@ -81,7 +82,9 @@ pub(super) fn carrier(
     };
     require_closed_context(payload, span)?;
     resources::charge_payload(payload, budget)?;
-    if matches!(payload.as_ref(),Type::Task{result, ..} if **result!=Type::I32) {
+    if let Type::Task { result, .. } = payload.as_ref()
+        && !owned::result_type(result, budget)?
+    {
         return Err(unsupported(
             "general owning task result lowering is not yet admitted by this frame profile",
             span,
@@ -158,6 +161,13 @@ pub(super) fn instruction(
             ty
         }
         InstructionKind::TaskStart { worker, argument } => {
+            let target = module.functions.get(worker.0 as usize).ok_or_else(bad)?;
+            if target.parameters.len() != 1
+                || local_type(target, target.parameters[0], span)? != &Type::I32
+                || target.return_type != Type::I32
+            {
+                return Err(bad());
+            }
             if value_type(f, argument, span)? != &Type::I32 {
                 return Err(bad());
             }
@@ -173,13 +183,24 @@ pub(super) fn instruction(
             ref arguments,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
-            if arguments.len() != 1 || value_type(f, arguments[0], span)? != &Type::I32 {
+            let target = module.functions.get(function.0 as usize).ok_or_else(bad)?;
+            if arguments.len() != target.parameters.len() {
                 return Err(bad());
+            }
+            for (argument, parameter) in arguments.iter().zip(&target.parameters) {
+                let actual = value_type(f, *argument, span)?;
+                let wanted = local_type(target, *parameter, span)?;
+                resources::charge_payload(actual, budget)?;
+                resources::charge_payload(wanted, budget)?;
+                if actual != wanted {
+                    return Err(bad());
+                }
             }
             profile(module, function, budget, span)?;
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(function);
-            Type::I32
+            resources::charge_payload(&target.return_type, budget)?;
+            target.return_type.clone()
         }
         InstructionKind::TaskYield => {
             profile(module, f.id, budget, span)?;
@@ -251,10 +272,16 @@ fn profile_one(
     budget.spend(
         f.locals
             .len()
-            .saturating_add(f.values.len())
+            .saturating_mul(2)
+            .saturating_add(f.values.len().saturating_mul(2))
             .saturating_add(module.resources.len())
             .saturating_add(1),
     )?;
+    if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
+        || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+    {
+        return owned::profile(module, f, budget, span);
+    }
     let scalar = |t: &Type| {
         matches!(
             t,

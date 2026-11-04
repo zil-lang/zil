@@ -598,10 +598,10 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<Self> {
         closures.block(f.span)?;
         if let Some(contract) = &f.storage_life {
-            let work = contract.bindings.iter().fold(1usize, |n, row| {
-                n.saturating_add(row.position.path.len()).saturating_add(1)
-            });
-            closures.snapshot(work, f.span)?;
+            closures.snapshot(contract.bindings.len().saturating_add(1), f.span)?;
+            for row in &contract.bindings {
+                closures.snapshot(row.position.path.len(), f.span)?;
+            }
         }
         let first_closure = closures.pending.len();
         let mut b = Self {

@@ -6,6 +6,63 @@ mod fixture {
     include!("stored_flow_fixture.rs");
 }
 
+#[test]
+fn terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/342/stored_view.zil");
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    let temp = Temp::new();
+    for backend in backends {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let report = zil_driver::compile_path(
+                &path,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join("stored-view")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            execute(&report.artifacts["executable"], 42);
+            let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+            if let Some(retained) = std::env::var_os("ZIL342_RETAIN_NATIVE") {
+                let retained = PathBuf::from(retained);
+                fs::create_dir_all(&retained).unwrap();
+                let stem = format!("view-{backend:?}-{optimization:?}");
+                fs::write(retained.join(format!("{stem}.ll")), &llvm).unwrap();
+                fs::copy(
+                    &report.artifacts["executable"],
+                    retained.join(format!("{stem}.bin")),
+                )
+                .unwrap();
+                fs::write(retained.join(format!("{stem}.json")), report.to_json()).unwrap();
+                for key in ["typed", "core", "lir", "typed_ir", "core_ir", "lir_ir"] {
+                    if let Some(artifact) = report.artifacts.get(key) {
+                        fs::copy(artifact, retained.join(format!("{stem}-{key}.txt"))).unwrap();
+                    }
+                }
+            }
+            assert!(
+                llvm.contains("{ ptr }")
+                    && llvm.contains("getelementptr")
+                    && llvm.contains("load ptr, ptr"),
+                "{llvm}"
+            );
+        }
+    }
+}
+
 fn candidate(module: &TypedModule) -> CandidatePlan {
     zil_analyze::analyze(module, &Limits::default()).unwrap()
 }
@@ -89,6 +146,36 @@ fn reject(module: &TypedModule, mut plan: CandidatePlan, text: &str) {
 fn terminal342_physical_shared_targets_survive_carrier_end_and_forward_calls() {
     let module = fixture::module();
     let plan = accept(&module);
+    let verified = zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let lir = zil_lower::lower(&verified).unwrap();
+    let llvm = zil_backend_llvm::emit(&verified, &lir).unwrap();
+    assert!(llvm.contains("getelementptr") && llvm.contains("load ptr, ptr"));
+    let mut erased = lir.clone();
+    erased.functions[1].storage_life = None;
+    assert!(
+        zil_backend_llvm::emit(&verified, &erased)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-CODEGEN-UNBOUND-LIR")
+    );
+    let mut replaced = lir;
+    replaced.functions[1].blocks[0].instructions[1].kind = InstructionKind::LoadStoredBorrow {
+        storage: ValueId(0),
+        path: vec![zil_ir::PlaceProjection::Field(1)],
+        mode: zil_ir::StoredBorrowLoad::CopyShared,
+    };
+    assert!(
+        zil_backend_llvm::emit(&verified, &replaced)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.code == "E-CODEGEN-UNBOUND-LIR")
+    );
     assert_eq!(
         plan.functions[3].holds[4].roots,
         vec![HoldRoot::Local(LocalId(0))]

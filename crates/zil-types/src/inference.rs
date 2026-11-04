@@ -965,6 +965,7 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
     budget.work(signature.parameters.len(), span)?;
     let admitted = |ty: &Type| {
         ty.is_copy_value()
+            || ty.is_scalar_or_address()
             || closures::signature_parameter(ty)
             || resources::supported(ty)
             || errors::owned(ty)
@@ -3825,7 +3826,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;
             self.budget.work(12, span)?;
-            if name == "task_create" {
+            if matches!(name, "task_create" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -3859,7 +3860,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &mut self.budget.work,
                     4,
                 )?;
-                return self.known_term(&tasks::create_type(&signature.result), span);
+                return self.known_term(
+                    &if name == "task_await" {
+                        signature.result.clone()
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
             }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);

@@ -76,6 +76,9 @@ mod resource_closure_tests;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
+pub use resources::task_frames::{
+    TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
+};
 mod retained;
 #[cfg(test)]
 mod retained_tests;
@@ -104,8 +107,10 @@ pub struct VerifiedModule {
     suspend_functions: BTreeSet<FunctionId>,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
+    task_ownership: Arc<std::collections::BTreeMap<FunctionId, TaskOwnership>>,
 }
 
 // Keep the owned entry allocation-free. Shared entries retain the exact raw
@@ -177,6 +182,11 @@ impl VerifiedModule {
     pub fn task_worker_ids(&self) -> &BTreeSet<FunctionId> {
         &self.task_workers
     }
+    /// Canonical frame obligations derived from this snapshot's actual checked
+    /// resource transfer. Raw IR and candidate plans cannot supply these rows.
+    pub fn task_ownership(&self, id: FunctionId) -> Option<&TaskOwnership> {
+        self.task_ownership.get(&id)
+    }
     pub fn is_suspend(&self, id: FunctionId) -> bool {
         self.suspend_functions.contains(&id)
     }
@@ -193,6 +203,11 @@ impl VerifiedModule {
     /// program and its actual closed Suspend workers on the current request.
     pub fn uses_retained_registration(&self) -> bool {
         self.uses_retained_registration
+    }
+    /// Enables downstream work reservation for the actual checked profile.
+    /// Layout and instructions must still bind to this immutable module.
+    pub fn uses_stored_borrows(&self) -> bool {
+        self.uses_stored_borrows
     }
     pub fn task_interfaces(&self) -> &[TaskInterface] {
         self.inputs
@@ -283,6 +298,7 @@ struct Budget {
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
+    task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
     limits: Limits,
     sum_functions: Vec<bool>,
     function_count: usize,
@@ -307,6 +323,7 @@ impl Budget {
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
+            task_ownership: std::collections::BTreeMap::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
             function_count: 0,
@@ -421,10 +438,12 @@ fn verify_inputs(
             uses_owned_sum_extension: checked.uses_owned_sum_extension,
             uses_scalar_tasks: checked.uses_scalar_tasks,
             uses_retained_registration: checked.uses_retained_registration,
+            uses_stored_borrows: checked.uses_stored_borrows,
             task_workers: checked.task_workers,
             suspend_functions: checked.suspend_functions,
             task_exports: checked.task_exports,
             task_input_fingerprint: checked.task_input_fingerprint,
+            task_ownership: Arc::new(checked.task_ownership),
         }),
         Err(diagnostic) => Err(vec![diagnostic]),
     }
@@ -477,10 +496,12 @@ struct CheckedModule {
     uses_owned_sum_extension: bool,
     uses_scalar_tasks: bool,
     uses_retained_registration: bool,
+    uses_stored_borrows: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
     task_input_fingerprint: Fingerprint,
+    task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
 }
 fn check_module(
     module: &TypedModule,
@@ -787,10 +808,12 @@ fn check_module(
         uses_owned_sum_extension: budget.sums,
         uses_scalar_tasks: budget.tasks,
         uses_retained_registration: budget.registrations,
+        uses_stored_borrows: budget.stored_borrows,
         task_workers: budget.task_workers,
         suspend_functions: budget.suspend_functions,
         task_exports: budget.task_exports,
         task_input_fingerprint,
+        task_ownership: budget.task_ownership,
     })
 }
 
