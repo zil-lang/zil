@@ -1323,7 +1323,7 @@ Core/Typed函数、ClosureDefinition及ScalarFunction保留完整storage_life关
 
 Task<T>的结果类型不代表隐藏frame依赖；Create后尚未首次poll的入口PC0也保留全部实参/捕获/子frame依赖。仅有result类型而缺少retained shape的Task公共形状不许可借入frame导出或线程转移，除非独立证明没有外部frame依赖；一般借入Task需真实可检查的固定port及完整类型关系后继续开放。request_cancel或Ready不提前释放保留依赖，只有实际关闭排空才归还；Ready转出的借用继续保护实际目标和父链。storage签名单独增加行不能为无port的Task创造可检查的隐藏环境权限。
 
-存储关系的共同固定域包含三类不同事实：`slots`只对应物理Address/Desc叶；`retained`把嵌套qualified载体的每个固定类映射一次；`nominal_arguments`保留完整名义实参中每个life位置，包括无物理字段的phantom。多个port共享一个类时只映射该类一次，不能逐port重新新鲜化。规范顺序来自实际声明及完整实参：先名义life实际位置，再物理叶及嵌套载体的规范类；嵌套载体在边界停止物理展平。所有实际类和出现位置恰好覆盖，冗余、缺项、冲突映射拒绝。只有phantom出现的类有意义，空物理slots不能擦除此类；phantom本身不产生目标根、loan或任何访问权限。
+存储关系的共同固定域包含三类不同事实：`slots`只对应物理Address/Desc叶；`retained`把嵌套qualified载体的每个固定类映射一次；`nominal_arguments`保留完整名义实参中每个life位置，包括无物理字段的phantom。多个port共享一个类时只映射该类一次，不能逐port重新新鲜化。规范顺序来自实际声明及完整实参：每个名义构造器先按完整实参序号访问其直接life实参，再按Type实参序号递归TypeArgument元数据，子名义构造器重复同一顺序；其后按真实布局访问物理叶及嵌套载体的规范类。嵌套载体在边界停止物理展平。所有实际类和出现位置恰好覆盖，冗余、缺项、冲突映射拒绝。只有phantom出现的类有意义，空物理slots不能擦除此类；phantom本身不产生目标根、loan或任何访问权限。
 
 `LifeTypeProjection`的TypeArgument/Pointee/Element/Parameter/Result/Port/AssociatedType只遍历真实语义构造及完整名义/签名信息，不是物理路径。`Pair<life a,life b>{d:&'a dyn Reader<'b>,p:&'b i32}`保留d的外层地址类a和其interface类映射b，不能合并成单一d来源；`Phantom<Tag<'b>>`通过真实完整TypeArgument及名义life位置保留b。尚不能完整表达的任意类型实参内借用不得擦除或猜测，须补齐消费者后开放。
 
