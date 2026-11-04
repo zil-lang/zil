@@ -103,3 +103,9 @@ root8981全仓发现impl187原source与raw/Wire反例错误通过。隔离342-ca
 隔离实际结果：按root指令采用340提供的实际Window区间补丁，Verify真实符号义务不再被coarse身份抹掉；临时诊断输出全部移除。原impl187完整24测试在修正后先独立通过，新增nested helper后完整25/0；同次aggregates89/0，含340真实Address Enum/tuple兄弟字段、raw权限反例及reference N18127/N−1/fresh保持。新的nested正例O0/O2真实Clang执行exit0；最近同源source在原Verify阶段E-BORROW-CONFLICT，raw及decodedWire同样拒绝。原反例未迁移预期。双后端新profile、完整语言、HRTB及产品四目标不由本回归修复升级；本条是原有限安全义务恢复，没有运行/RSS/编译或维护收益比较。精简收据terminal-342-capturefix.json，不自行全量；root全仓来源与作者限定回放分账。
 
 同两个既有目标的Clippy offline/-D warnings通过；精确源码/原测试与新增最近邻/harness摘要作为独审输入，未扩大声明范围。
+
+## 后续独立提案：实际 mutable 嵌套 Product head
+
+真实345 ui_input Composition 的普通字段 text:std.string.String，经 &mut Composition 的 `string.clear(&mut session.text)` 被Types既有shared-only子Product门拒绝。保留源/API，不展开String或改成按值借出；当前Types和两个核已接受实际Address<Package>签名及父来源/贷款。本步只把实际mutable父地址投影到已逐层资格核验的有限子Product，Verify独立核子Product完整真实类型，不能升级shared父权限或替换拥有责任。沿既有AddressField/DescribeAddress与实际父窗口，不新增opcode或登记许可。以普通嵌套Text/String完整机器正例、shared伪造raw/Wire、活view撞clear/父替换反例检查。未泛化到存储Address/Desc叶，不替代随后固定life位置合同。
+
+实际mutable嵌套Product补丁验证：新增 `nested_product.zil` 使用真实std.string.String及原API调用形状，双后端/O0/O2四次exit0。现有AddressField父loan/实际resource来源足以覆盖此有限投影，Analyze无需新增许可；Verify对子Package完整实际类型独立资格核验。raw/decodedWire将begin的实际参数/重借改shared后两核拒绝；shared源请求mutable、活view跨begin、活view跨parent替换均拒绝。完整既有十目标68/35/10/9/7/18/14/10/37/4通过，Clippy cross llvm-api -D warnings通过，旧记录phaseN全部不变。当前342没有UInt及新std.ui_input loader，完整原345 ui_input由root合成树重放，本文不冒称已经执行原UI。统一stored Address/Desc life仍后续实现。

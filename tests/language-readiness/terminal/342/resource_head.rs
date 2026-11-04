@@ -382,3 +382,112 @@ fn terminal342_actual_borrowed_head_failure_restores_and_releases_owned_buffer()
         }
     }
 }
+
+#[test]
+fn terminal342_mutable_nested_product_retains_actual_parent_and_head_modes() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/342/nested_product.zil");
+    let temp = Temp::new();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = zil_driver::compile_path(
+                &path,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join("nested-product")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let mut child = Command::new(&report.artifacts["executable"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while child.try_wait().unwrap().is_none() {
+                if Instant::now() >= deadline {
+                    child.kill().unwrap();
+                    let _ = child.wait();
+                    panic!("nested Product executable exceeded five seconds");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let output = child.wait_with_output().unwrap();
+            assert!(output.status.success(), "{output:?}");
+            assert!(output.stderr.is_empty(), "{output:?}");
+        }
+    }
+    let text = "package Text{manages data:ByteBuffer}package Composition{text:Text;active:bool}fn clear(text:&mut Text){bytes_truncate(text.data,0)}fn begin(session:&mut Composition){clear(&mut session.text);session.active=true}fn result()->i64{return 42}";
+    let module = typed(text);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let mut changed = module.clone();
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "begin")
+        .unwrap();
+    for ty in f
+        .locals
+        .iter_mut()
+        .map(|l| &mut l.ty)
+        .chain(f.values.iter_mut())
+    {
+        if let zil_ir::Type::Address { mutable, .. } = ty {
+            *mutable = false;
+        }
+    }
+    for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::ReborrowAddress { mutable, .. } = &mut i.kind {
+            *mutable = false;
+        }
+    }
+    assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
+    let mut fake = plan;
+    fake.module_fingerprint = changed.fingerprint();
+    assert!(
+        zil_verify::verify_module(
+            changed.clone(),
+            fake.clone(),
+            &changed.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &fake, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).is_err());
+    for body in [
+        "fn bad(session:&Composition){clear(&mut session.text)}fn main(){}",
+        "fn view(session:&Composition)->&[u8]{return bytes_view(session.text.data)}fn bad(session:&mut Composition)->i64{let v=view(&*session);begin(session);return v.len()}fn main(){}",
+        "fn view(session:&Composition)->&[u8]{return bytes_view(session.text.data)}fn bad(session:&mut Composition,other:Composition)->i64{let v=view(&*session);*session=other;return v.len()}fn main(){}",
+    ] {
+        let report = compile_source(
+            &source(&format!("{text}{body}")),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}

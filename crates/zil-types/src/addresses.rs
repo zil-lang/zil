@@ -375,29 +375,35 @@ impl Builder<'_, '_> {
                 // This new owning-child address path retains the full field
                 // type. Reserve its snapshots before field() clones it or the
                 // finite Product qualifier traverses its descendants.
-                if !mutable
-                    && let Type::Package { fields, .. } = inner.as_ref()
-                    && let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
-                    && matches!(field, Type::Package { .. } | Type::Managed(_))
-                {
-                    let work = inference::type_snapshot_work(field, e.span, self.limits)?;
-                    self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                if let Type::Package { fields, .. } = inner.as_ref() {
+                    if mutable {
+                        self.closures.snapshot(
+                            fields.len().saturating_mul(member.len().saturating_add(1)),
+                            e.span,
+                        )?;
+                    }
+                    if let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
+                        && matches!(field, Type::Package { .. } | Type::Managed(_))
+                    {
+                        let work = inference::type_snapshot_work(field, e.span, self.limits)?;
+                        self.closures.snapshot(work.saturating_mul(2), e.span)?;
+                    }
                 }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
-                let shared_owned = (matches!(&field, Type::Managed(_))
+                let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
+                    || packages::product::supported(&field)
                     || !mutable
-                        && (packages::product::supported(&field)
-                            || matches!(&field, Type::Managed(payload)
-                            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
+                        && matches!(&field, Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
                 if matches!(inner.as_ref(), Type::Package { .. })
                     && !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
-                    && !shared_owned
+                    && !borrowed_owned
                 {
                     return Err(unsupported(
                         e.span,
-                        "Package windows only project finite Copy or concrete callback fields, or shared finite Product/resource heads",
+                        "Package windows only project finite Copy, concrete callback fields or qualified Product/resource heads",
                     ));
                 }
                 if matches!(field, Type::Closure(_)) {
