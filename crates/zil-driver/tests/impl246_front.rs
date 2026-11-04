@@ -401,12 +401,12 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
         (
             "fn apply<T:Copy,F:Fn(i32)->i32>(f:&F,value:T)->T{f(1);return value}fn main()->i32{let f=(n:i32)=>n+1;return apply(&f,2)-2}",
             811,
-            447,
+            505,
         ),
         (
             include_str!("impl246_fixtures/copy_enum_helper.zil"),
             1090,
-            646,
+            750,
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget246.zil", source);

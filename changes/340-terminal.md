@@ -86,3 +86,8 @@ Sum16/0及borrow23/0；既有impl187原24/0；相关五个库Clippy通过。mixe
 实际拥有字段replace继续施工。当前ErrorUnion两侧只证明真实剩余清理，不能
 冒充直接解构已完成。精确阶段独审另行绑定；与主树Wire37/HRTB/Task/float组合
 的验收由root执行。Rust四目标与突破的实证/未测区分见terminal-340收据。
+
+
+### 统一基线的实际Store元素兄弟字段窗口
+
+root37全量重放保留了impl201两个原反例的新Success：借入实际callback字段期间只写同一State的独立Copy value字段，以及callback返回其实际环境bytes期间写该value字段。主规范4.4澄清只有两核从同一元素和已核布局/路径证明不相交区间才分离字段访问；粗Store结构依赖、真实parent loan、回调重入和lending环境保护不缩短。动态index/同型/字段名/符号capture仍不制造apart。先完成原源native与samecallback/raw最近反例独审，再迁原期待；不删除reserve/pop/recall等旧相交反例。
