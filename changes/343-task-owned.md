@@ -73,3 +73,16 @@ transfers, first-child result retention, and later-argument failure are controls
 | Expression and maintenance | The same concrete Managed<T> crosses ordinary calls, task creation, Await, loop-site reuse and ordinary Poll<T>. General results/defers and full framework maintenance remain open. |
 | Compile cost | Actual result-width and owner-action growth use the existing shared budget with N/N−1/fresh controls. Default limits are unchanged; no Rust compile-cost advantage is claimed. |
 | Concrete gain | Previously unavailable owning static child composition now executes on both native backends. Product gates and all remaining task343 obligations are unchanged. |
+
+The next closed-data result step admits Unit and recursively finite Copy
+Tuple/Record/Enum/ErrorUnion data, including the original later-child-argument
+recoverable-error program. Inputs and all saved storage still exclude external
+addresses and hidden dependencies. Owning ErrorUnion payloads remain a separate
+canonical debt-mapping obligation, rather than inheriting Copy admission.
+
+A Unit worker's native Direct body still returns void. Its private task poll uses
+an i8 zero carrier so persistent structs never contain LLVM void; ordinary
+source Poll<Unit>.Ready carries Unit, with no invented owning value or public
+ABI1 change. Unit arguments have no physical call argument. Pending/error tags
+never expose a source payload. Implicit owning-input cleanup runs on both Unit
+completion and ordinary error return before the child/parent can become Closed.

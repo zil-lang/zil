@@ -279,6 +279,24 @@ fn profile_one(
     )?;
     if f.locals.iter().any(|l| matches!(l.ty, Type::Managed(_)))
         || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
+        || f.return_type != Type::I32
+        || f.parameters.len() != 1
+        || f.locals.iter().any(|l| {
+            matches!(
+                l.ty,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.values.iter().any(|t| {
+            matches!(
+                t,
+                Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Tuple(_) | Type::Record { .. }
+            )
+        })
+        || f.blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::SuspendCall { .. }))
     {
         return owned::profile(module, f, budget, span);
     }

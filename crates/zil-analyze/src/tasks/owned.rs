@@ -41,6 +41,16 @@ fn record(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
                 budget.spend(fields.len(), "actual owning task profile")?;
                 pending.extend(fields.iter().map(|(_, t)| t));
             }
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
             _ => return Ok(false),
         }
     }
@@ -53,7 +63,7 @@ pub(super) fn result_type(t: &Type, budget: &mut Budget) -> CompileResult<bool> 
     if let Type::Managed(payload) = t {
         return record(payload, budget);
     }
-    Ok(false)
+    record(t, budget)
 }
 fn package(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     let Type::Package { fields, .. } = t else {
@@ -92,7 +102,7 @@ fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.spend(1, "actual frame storage constructor")?;
     match t {
         Type::Managed(p) | Type::Desc(p) => record(p, budget),
-        Type::Record { .. } => record(t, budget),
+        Type::Record { .. } | Type::Enum { .. } | Type::ErrorUnion { .. } => record(t, budget),
         Type::Package { .. } => package(t, budget),
         Type::Tuple(_) => tuple(t, budget),
         Type::Address { inner, .. } => storage(inner, budget),
@@ -127,7 +137,7 @@ fn cleanup(
             || f.environment.is_some()
             || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
-            || !scalar(&f.return_type)
+            || !record(&f.return_type, budget)?
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -136,9 +146,10 @@ fn cleanup(
             ));
         }
         if f.foreign.is_some() {
-            if f.parameters
-                .iter()
-                .any(|p| !scalar(&f.locals[p.0 as usize].ty))
+            if !scalar(&f.return_type)
+                || f.parameters
+                    .iter()
+                    .any(|p| !scalar(&f.locals[p.0 as usize].ty))
                 || f.foreign
                     .as_ref()
                     .is_some_and(|x| x.scoped_callback.is_some())
@@ -198,7 +209,13 @@ fn cleanup(
                     | InstructionKind::DescribeLocal { .. }
                     | InstructionKind::Unary { .. }
                     | InstructionKind::Binary { .. }
-                    | InstructionKind::ConvertInteger { .. } => {}
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::MakeVariant { .. }
+                    | InstructionKind::VariantTag { .. }
+                    | InstructionKind::ReadVariant { .. }
+                    | InstructionKind::MakeErrorUnion { .. }
+                    | InstructionKind::ErrorTag { .. }
+                    | InstructionKind::ReadErrorUnion { .. } => {}
                     _ => {
                         return Err(reject(
                             "E-VERIFY-TASK",
@@ -223,7 +240,7 @@ pub(super) fn profile(
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
-        || !(f.result_mode == PassingMode::Infer && f.return_type == Type::I32
+        || !(f.result_mode == PassingMode::Infer && record(&f.return_type, budget)?
             || matches!(f.result_mode, PassingMode::Give | PassingMode::Create)
                 && matches!(f.return_type, Type::Managed(_))
                 && result_type(&f.return_type, budget)?)
@@ -237,7 +254,7 @@ pub(super) fn profile(
     }
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
-            && !scalar(local_type(f, *parameter, span)?)
+            && !record(local_type(f, *parameter, span)?, budget)?
         {
             return Err(reject(
                 "E-VERIFY-TASK",
@@ -346,7 +363,13 @@ pub(super) fn profile(
                 | InstructionKind::DropPackage { .. }
                 | InstructionKind::TakePackageField { .. }
                 | InstructionKind::StorePackageField { .. }
-                | InstructionKind::DropPackageField { .. } => {}
+                | InstructionKind::DropPackageField { .. }
+                | InstructionKind::MakeVariant { .. }
+                | InstructionKind::VariantTag { .. }
+                | InstructionKind::ReadVariant { .. }
+                | InstructionKind::MakeErrorUnion { .. }
+                | InstructionKind::ErrorTag { .. }
+                | InstructionKind::ReadErrorUnion { .. } => {}
                 _ => {
                     return Err(reject(
                         "E-VERIFY-TASK",
