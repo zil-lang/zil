@@ -182,10 +182,21 @@ impl Builder<'_, '_> {
                     desc,
                 ))
             }
-            Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Managed(_)) && supported(&inner) => {
-                let Type::Managed(payload) = *inner else { unreachable!() };
-                let desc=Type::Desc(payload);
-                Ok((self.value(InstructionKind::DescribeAddress { address:value },desc.clone(),span)?,desc))
+            Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Managed(_)) && supported(&inner) =>
+            {
+                let Type::Managed(payload) = *inner else {
+                    unreachable!()
+                };
+                let desc = Type::Desc(payload);
+                Ok((
+                    self.value(
+                        InstructionKind::DescribeAddress { address: value },
+                        desc.clone(),
+                        span,
+                    )?,
+                    desc,
+                ))
             }
             Type::Desc(_) => Ok((value, ty)),
             _ => Err(error(
