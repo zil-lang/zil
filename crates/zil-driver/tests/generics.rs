@@ -2531,3 +2531,60 @@ fn g3_3_1_repeated_host_headers_prepay_each_method_before_the_existing_fence() {
     }
     assert!(boundaries[1] > boundaries[0]);
 }
+
+#[test]
+fn g10_1_8_nested_source_classes_keep_default_stack_and_compatibility() {
+    const CHILD: &str = "ZIL_G10_1_8_CLASS_CHILD";
+    if let Ok(actual) = std::env::var(CHILD) {
+        std::thread::spawn(move || {
+            for depth in [32, 96] {
+                let initializer = format!("{}Phantom::<'{actual}>{{n:42}}{}", "(".repeat(depth), ")".repeat(depth));
+                let text = format!("struct Phantom<life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{let x:Phantom<'a>={initializer};return x.n}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}");
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(report.status, ResultCategory::Success, "{depth}: {}", report.to_json());
+                    assert_eq!(report.verification_runs, 1);
+                } else {
+                    assert_eq!(report.status, ResultCategory::SafeReject, "{depth}: {}", report.to_json());
+                    assert_eq!(report.phase, Phase::Expand);
+                    assert!(report.diagnostics.iter().any(|d| d.message.contains("source annotation cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+                }
+            }
+            for left in [false, true] {
+                let payload = format!("((()->i32=>{{let x:Phantom<'a>=Phantom::<'{actual}>{{n:41}};return x.n}})())");
+                let binary = if left { format!("{payload}+1") } else { format!("1+{payload}") };
+                let text = format!("struct Phantom<life s>{{n:i32}}fn value<life a,life b>(pa:&'a i32,pb:&'b i32)->i32{{return {binary}}}fn main()->i32{{let a=0;let b=0;return value(&a,&b)}}");
+                let report = compile_source(&source(&text), &CompileOptions::default());
+                if actual == "a" {
+                    assert_eq!(report.status, ResultCategory::Success, "binary left={left}: {}", report.to_json());
+                    assert_eq!(report.verification_runs, 1);
+                } else {
+                    assert_eq!(report.status, ResultCategory::SafeReject, "binary left={left}: {}", report.to_json());
+                    assert_eq!(report.phase, Phase::Expand);
+                    assert!(report.diagnostics.iter().any(|d| d.message.contains("source annotation cannot equate distinct declared lifetime classes")), "{}", report.to_json());
+                }
+            }
+        }).join().unwrap();
+        return;
+    }
+    for actual in ["a", "b"] {
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "g10_1_8_nested_source_classes_keep_default_stack_and_compatibility",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env_remove("RUST_MIN_STACK")
+            .env_remove("LD_PRELOAD")
+            .env(CHILD, actual)
+            .output()
+            .unwrap();
+        assert!(
+            child.status.success(),
+            "{actual}: {} {}",
+            String::from_utf8_lossy(&child.stdout),
+            String::from_utf8_lossy(&child.stderr)
+        );
+    }
+}
