@@ -1,0 +1,22 @@
+{
+  "status": "PassLimitedAccountingCorrection",
+  "source_commit": "0b4827a4dc0597393fbfc293444c9ff662092566",
+  "fix_commit": "6f27d38a99b1939b27ff47a31511e43716299bdb",
+  "scope": "ErrorUnion definition-time member-disjointness traversal work; integrated root39 Expand unit harness.",
+  "execution_kind": "Independent replay of exact retained root-built harness; not independent rebuild.",
+  "source_manifest": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root39-expand0b-source-binding.json",
+  "source_manifest_sha256": "70550a15e7f2459c4a9547fccde5331a37ec6652be985d48daffbe1ce68f1f85",
+  "harness": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root39-expand0b",
+  "harness_sha256": "01d66f85671c1c4f246bea9522b94a8ea4d140ac82f7faad4b5c8f97b3ef44f9",
+  "log": "/workspace/.zil-env/terminal-20261104/reviewer-retained/root39-expand0b.log",
+  "log_sha256": "9b26848908f771eb14e44116355dd8d1d1c8ce82be32841b2539f9d758fd80c6",
+  "passed": 15,
+  "failed": 0,
+  "focused_evidence": "terminal340_error_member_budget wide/grouped/long-prefix helper: exact N, N-1 ResourceLimit, fresh retry, remaining3 consumes to0; actual N preserved in log.",
+  "closed_finding": "Entire actual TypeRef inputs prepaid before grouping/associated scans; key-byte\u00d7bounded-search work reserved before binder lookup; every const/life/type argument pair visits the same live ledger.",
+  "limits": [
+    "This closes only the accounting finding from019f; it does not close the independently reproduced unused generic reference-pattern origin defect.",
+    "No attribution of dirty340 origin changes to this exact root harness.",
+    "No whole-language/native/product gate conclusion."
+  ]
+}
