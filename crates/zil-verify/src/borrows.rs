@@ -681,6 +681,13 @@ fn reconstruct(
                         {
                             roots_join(&mut row, &values[callee.0 as usize], budget)?;
                         }
+                        InstructionKind::CallIndirect { callee, arguments } => {
+                            for index in borrowed_fp::inputs(&f.values[callee.0 as usize], budget)?
+                            {
+                                let argument = arguments[index];
+                                roots_join(&mut row, &values[argument.0 as usize], budget)?;
+                            }
+                        }
                         InstructionKind::Call {
                             function,
                             arguments,
@@ -875,6 +882,47 @@ pub(super) fn check_module(
 ) -> Check<()> {
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, budget)?;
+    if budget.borrowed_function_pointers {
+        budget.spend(module.functions.len())?;
+        for function in &module.functions {
+            budget.spend(function.blocks.len())?;
+            for block in &function.blocks {
+                budget.spend(block.instructions.len())?;
+                for instruction in &block.instructions {
+                    let InstructionKind::FunctionRef { function: target } = instruction.kind else {
+                        continue;
+                    };
+                    let Some(pointer @ Type::BorrowedFunctionPointer { .. }) = instruction
+                        .result
+                        .and_then(|id| function.values.get(id.0 as usize))
+                    else {
+                        continue;
+                    };
+                    let allowed = borrowed_fp::inputs(pointer, budget)?;
+                    let target_function = &module.functions[target.0 as usize];
+                    if !matches!(target_function.return_type, Type::Address { .. }) {
+                        continue;
+                    }
+                    budget.spend(target_function.blocks.len())?;
+                    for (block, reachable) in target_function
+                        .blocks
+                        .iter()
+                        .zip(&graphs[target.0 as usize].reachable)
+                    {
+                        if *reachable && let Terminator::Return(Some(value)) = block.terminator {
+                            let roots = &facts[target.0 as usize].values[value.0 as usize];
+                            budget.spend(
+                                roots.len().saturating_mul(allowed.len().saturating_add(1)),
+                            )?;
+                            if roots.is_empty() || roots.iter().any(|root| !matches!(root, Root::Parameter(index) if allowed.contains(&(*index as usize)))) {
+                                return Err(reject("E-VERIFY-FUNCTION-LIFE", Some(instruction.span), "actual pointer target return exceeds the declared input relation"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Public Hold remains an address dependency claim. Weak descriptions are
     // independently reconstructed above for effects and responsibility, and
     // must not be promoted to strong holds when publishing or checking it.

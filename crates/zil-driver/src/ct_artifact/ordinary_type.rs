@@ -18,6 +18,7 @@ pub(super) fn checked_type(
     snapshot: &ShapeSnapshot,
     index: &SourceIndex,
     max_depth: usize,
+    budget: &mut zil_ct::CtExecutionBudget,
 ) -> CompileResult<Type> {
     fn node(
         ty: &CtTypeRef,
@@ -26,7 +27,10 @@ pub(super) fn checked_type(
         index: &SourceIndex,
         depth: usize,
         max_depth: usize,
+        budget: &mut zil_ct::CtExecutionBudget,
     ) -> CompileResult<Type> {
+        budget.reserve_analysis_work(1)?;
+        budget.reserve_temporary_bytes(64)?;
         if depth > max_depth {
             return Err(error("CT type layout dependency is too deep"));
         }
@@ -101,19 +105,43 @@ pub(super) fn checked_type(
             CtTypeNode::Tuple(items) => Type::Tuple(
                 items
                     .iter()
-                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth))
+                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth, budget))
                     .collect::<CompileResult<Vec<_>>>()?,
             ),
             CtTypeNode::Array { element, length } => Type::Array {
-                element: Box::new(node(ty, *element, snapshot, index, depth + 1, max_depth)?),
+                element: Box::new(node(
+                    ty,
+                    *element,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
                 length: *length,
             },
             CtTypeNode::Slice(element) => Type::Slice {
-                element: Box::new(node(ty, *element, snapshot, index, depth + 1, max_depth)?),
+                element: Box::new(node(
+                    ty,
+                    *element,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
             CtTypeNode::Address { mutable, inner } => Type::Address {
                 mutable: *mutable,
-                inner: Box::new(node(ty, *inner, snapshot, index, depth + 1, max_depth)?),
+                inner: Box::new(node(
+                    ty,
+                    *inner,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
             CtTypeNode::Managed(inner) => Type::Managed(Box::new(node(
                 ty,
@@ -122,6 +150,7 @@ pub(super) fn checked_type(
                 index,
                 depth + 1,
                 max_depth,
+                budget,
             )?)),
             CtTypeNode::Desc(inner) => Type::Desc(Box::new(node(
                 ty,
@@ -130,30 +159,91 @@ pub(super) fn checked_type(
                 index,
                 depth + 1,
                 max_depth,
+                budget,
             )?)),
             CtTypeNode::OwnedStore(element) => Type::OwnedStore {
-                element: Box::new(node(ty, *element, snapshot, index, depth + 1, max_depth)?),
+                element: Box::new(node(
+                    ty,
+                    *element,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters,
+                result,
+                life,
+            } => {
+                budget.reserve_analysis_work(
+                    (life.binder_count as u64).saturating_add(life.parameter_lives.len() as u64),
+                )?;
+                budget.reserve_temporary_bytes(
+                    (life.parameter_lives.len() as u64).saturating_mul(8),
+                )?;
+                Type::BorrowedFunctionPointer {
+                    parameters: parameters
+                        .iter()
+                        .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth, budget))
+                        .collect::<CompileResult<Vec<_>>>()?,
+                    result: Box::new(node(
+                        ty,
+                        *result,
+                        snapshot,
+                        index,
+                        depth + 1,
+                        max_depth,
+                        budget,
+                    )?),
+                    life: life.clone(),
+                }
+            }
             CtTypeNode::FunctionPointer { parameters, result } => Type::FunctionPointer {
                 parameters: parameters
                     .iter()
-                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth))
+                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth, budget))
                     .collect::<CompileResult<Vec<_>>>()?,
-                result: Box::new(node(ty, *result, snapshot, index, depth + 1, max_depth)?),
+                result: Box::new(node(
+                    ty,
+                    *result,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
             CtTypeNode::ForeignCallback { parameters, result } => Type::ForeignCallback {
                 parameters: parameters
                     .iter()
-                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth))
+                    .map(|id| node(ty, *id, snapshot, index, depth + 1, max_depth, budget))
                     .collect::<CompileResult<Vec<_>>>()?,
-                result: Box::new(node(ty, *result, snapshot, index, depth + 1, max_depth)?),
+                result: Box::new(node(
+                    ty,
+                    *result,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
             CtTypeNode::ErrorUnion { error: e, result } => Type::ErrorUnion {
-                error: Box::new(node(ty, *e, snapshot, index, depth + 1, max_depth)?),
-                result: Box::new(node(ty, *result, snapshot, index, depth + 1, max_depth)?),
+                error: Box::new(node(ty, *e, snapshot, index, depth + 1, max_depth, budget)?),
+                result: Box::new(node(
+                    ty,
+                    *result,
+                    snapshot,
+                    index,
+                    depth + 1,
+                    max_depth,
+                    budget,
+                )?),
             },
             CtTypeNode::Opaque { .. } => return Err(error("opaque type layout is not visible")),
         })
     }
-    node(ty, ty.root, snapshot, index, 0, max_depth)
+    node(ty, ty.root, snapshot, index, 0, max_depth, budget)
 }

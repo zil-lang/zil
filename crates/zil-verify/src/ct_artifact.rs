@@ -123,7 +123,19 @@ pub fn verify_ct_artifact_metered(
             n.saturating_add(f.blocks.len())
                 .saturating_add(f.locals.len())
                 .saturating_add(f.values.len())
-                .saturating_add(f.blocks.iter().map(|b| b.instructions.len()).sum::<usize>())
+                .saturating_add(f.blocks.iter().flat_map(|b| &b.instructions).fold(
+                    0usize,
+                    |n, i| {
+                        n.saturating_add(2).saturating_add(match &i.kind {
+                            CtInstructionKind::TypeConstruct {
+                                constructor: CtTypeConstructor::BorrowedFunctionPointer { life },
+                                ..
+                            } => (life.binder_count as usize)
+                                .saturating_add(life.parameter_lives.len().saturating_mul(2)),
+                            _ => 0,
+                        })
+                    },
+                ))
         },
     );
     meter.charge(initial_work.max(1), None)?;
@@ -1251,6 +1263,26 @@ fn check_instruction(
                 T::Tuple => arguments
                     .iter()
                     .all(|id| value(*id).ok() == Some(&CtTy::Type)),
+                T::BorrowedFunctionPointer { life } => {
+                    let mut dense = 0;
+                    let canonical = life.parameter_lives.iter().flatten().all(|tag| {
+                        if *tag > dense || *tag >= life.binder_count {
+                            return false;
+                        }
+                        if *tag == dense {
+                            dense += 1;
+                        }
+                        true
+                    });
+                    canonical
+                        && dense == life.binder_count
+                        && dense > 0
+                        && life.result_life.is_none_or(|tag| tag < dense)
+                        && arguments.len() == life.parameter_lives.len().saturating_add(1)
+                        && arguments
+                            .iter()
+                            .all(|id| value(*id).ok() == Some(&CtTy::Type))
+                }
                 T::FunctionPointer => {
                     !arguments.is_empty()
                         && arguments

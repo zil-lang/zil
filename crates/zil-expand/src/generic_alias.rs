@@ -81,6 +81,7 @@ pub(super) fn normalize_with_budget<'a>(
     let bound = super::super::modules::protect_alias_binders(protected.as_ref(), &mut budget)?;
     let module = bound.as_ref();
     let mut resolver = Resolver {
+        life_scope: Vec::new(),
         definitions: BTreeMap::new(),
         nominals: BTreeMap::new(),
         resolved: BTreeMap::new(),
@@ -161,6 +162,7 @@ struct Alias {
     target: TypeRef,
 }
 struct Resolver<'s, 'l> {
+    life_scope: Vec<String>,
     definitions: BTreeMap<String, &'s TypeAlias>,
     nominals: BTreeMap<String, usize>,
     resolved: BTreeMap<String, Alias>,
@@ -288,8 +290,13 @@ impl Resolver<'_, '_> {
             TypeKind::Reference {
                 lifetime, inner, ..
             } => {
-                if lifetime.is_some() {
-                    return Err(unsupported(ty.span, "explicit alias lifetime"));
+                if let Some(lifetime) = lifetime {
+                    for _ in 0..self.life_scope.len().saturating_add(1) {
+                        self.budget.text(lifetime, ty.span)?;
+                    }
+                    if !self.life_scope.contains(lifetime) {
+                        return Err(unsupported(ty.span, "explicit alias lifetime"));
+                    }
                 }
                 self.target(inner, variables, depth + 1)?;
             }
@@ -310,6 +317,13 @@ impl Resolver<'_, '_> {
                     self.target(t, variables, depth + 1)?;
                 }
                 self.target(result, variables, depth + 1)?;
+            }
+            TypeKind::ForLifetime { lifetime, inner } => {
+                self.budget.text(lifetime, ty.span)?;
+                self.life_scope.push(lifetime.clone());
+                let result = self.target(inner, variables, depth + 1);
+                self.life_scope.pop();
+                result?;
             }
             TypeKind::Error { error, result } => {
                 self.target(error, variables, depth + 1)?;

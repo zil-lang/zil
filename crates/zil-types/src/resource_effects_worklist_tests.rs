@@ -104,6 +104,7 @@ fn table(core: &CoreModule) -> BTreeMap<String, Signature> {
             (
                 f.name.clone(),
                 Signature {
+                    life: None,
                     id: Some(FunctionId(i as u32)),
                     callable: Vec::new(),
                     state_parameter: None,
