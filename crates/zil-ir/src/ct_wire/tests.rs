@@ -4,6 +4,7 @@ use zil_base::{Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 fn program() -> CtArtifactProgram {
     CtArtifactProgram {
+        ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
@@ -539,7 +540,7 @@ fn over_depth_type_rejects_before_worker_stack_growth() {
 }
 
 #[test]
-fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_three() {
+fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_migration() {
     // Preserve original schema1 bytes as old-domain rejection controls.
     // Re-signed bytes below test unchanged payload layout only; they grant no
     // artifact/source authentication or migration permission.
@@ -608,6 +609,8 @@ fn iterative_recursive_variants_preserve_frozen_payload_bytes_in_schema_three() 
     current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current[12..16].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current.splice(16..16, 64u16.to_le_bytes());
+    // CT5 adds an empty artifact-wide ambient scope table after source identity.
+    current.splice(50..50, 0u32.to_le_bytes());
     resign(&mut current, CT_ARTIFACT_FINGERPRINT_DOMAIN);
     assert_eq!(fresh, current);
     assert_eq!(decode_program(&current, &limits), Ok(p));

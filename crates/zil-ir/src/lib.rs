@@ -207,18 +207,104 @@ pub struct StorageLifeBinding {
     pub position: StoragePosition,
     pub binder: StorageBinder,
 }
+/// Selects one persistent semantic class of an actual qualified type. This is
+/// not an access selector, target root, loan, GEP or retained permission port.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SignatureLifeClass {
+    pub base: StorageBase,
+    pub path: Vec<LifeTypeProjection>,
+    pub class: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SignatureLifeClassBinding {
+    pub position: SignatureLifeClass,
+    pub binder: StorageBinder,
+}
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StorageLifeContract {
     pub fixed_binder_count: u32,
     pub invocation_binder_count: u32,
     pub bindings: Vec<StorageLifeBinding>,
+    pub classes: Vec<SignatureLifeClassBinding>,
 }
 impl StorageLifeContract {
+    /// Lossless raw embedding of a legacy outer-address relation. Callers must
+    /// prepay the input/output traversal; this does not validate the signature.
+    pub fn from_flat(life: FunctionLifeContract) -> Option<Self> {
+        if life.parameter_lives.len() > u32::MAX as usize {
+            return None;
+        }
+        let mut bindings = Vec::with_capacity(life.parameter_lives.len().saturating_add(1));
+        for (index, binder) in life.parameter_lives.into_iter().enumerate() {
+            if let Some(binder) = binder {
+                bindings.push(StorageLifeBinding {
+                    position: StoragePosition {
+                        base: StorageBase::Parameter(index as u32),
+                        path: Vec::new(),
+                    },
+                    binder: StorageBinder::Invocation(binder),
+                });
+            }
+        }
+        if let Some(binder) = life.result_life {
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Result,
+                    path: Vec::new(),
+                },
+                binder: StorageBinder::Invocation(binder),
+            });
+        }
+        Some(Self {
+            fixed_binder_count: 0,
+            invocation_binder_count: life.binder_count,
+            bindings,
+            classes: Vec::new(),
+        })
+    }
+    /// Exact raw outer-address projection, for consumers with that explicit
+    /// limited profile. Rich classes, Fixed domains, captures and nonempty paths
+    /// cannot disappear through this adapter. The caller bounds/prepays output
+    /// arity and independently checks the actual complete signature afterward.
+    pub fn to_flat(&self, parameters: usize) -> Option<FunctionLifeContract> {
+        if self.fixed_binder_count != 0
+            || !self.classes.is_empty()
+            || parameters > u32::MAX as usize
+        {
+            return None;
+        }
+        let mut parameter_lives = vec![None; parameters];
+        let mut result_life = None;
+        for binding in &self.bindings {
+            if !binding.position.path.is_empty() {
+                return None;
+            }
+            let StorageBinder::Invocation(index) = binding.binder else {
+                return None;
+            };
+            if index >= self.invocation_binder_count {
+                return None;
+            }
+            let slot = match binding.position.base {
+                StorageBase::Parameter(index) => parameter_lives.get_mut(index as usize)?,
+                StorageBase::Result => &mut result_life,
+                StorageBase::Capture(_) => return None,
+            };
+            if slot.replace(index).is_some() {
+                return None;
+            }
+        }
+        Some(FunctionLifeContract {
+            binder_count: self.invocation_binder_count,
+            parameter_lives,
+            result_life,
+        })
+    }
     /// Complete untrusted relation identity. Validate and prepay every row and
     /// selector before hashing; this fingerprint grants no borrowing authority.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-STORAGE-LIFE-CONTRACT-1\0");
+        bytes.extend_from_slice(b"ZIL-STORAGE-LIFE-CONTRACT-2\0");
         encode_required_storage_contract(&mut bytes, self);
         bytes.finish()
     }
@@ -288,7 +374,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V39\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V40\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -400,7 +486,7 @@ pub enum Type {
     BorrowedFunctionPointer {
         parameters: Vec<Type>,
         result: Box<Type>,
-        life: FunctionLifeContract,
+        life: StorageLifeContract,
     },
     Closure(ClosureId),
     Opaque {
@@ -417,7 +503,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V39\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V40\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -792,7 +878,7 @@ pub struct CoreCallableReturn {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
     /// Invocation-local raw binder relation; fixed environment Hold is separate.
-    pub life: Option<FunctionLifeContract>,
+    pub life: Option<StorageLifeContract>,
     pub index: u32,
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
@@ -1196,7 +1282,7 @@ pub struct CallableParameterContract {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableRole {
     /// Untrusted invocation-local relation; actual closure CFG roots are independently checked.
-    pub life: Option<FunctionLifeContract>,
+    pub life: Option<StorageLifeContract>,
     pub parameter: u32,
     pub closure: ClosureId,
     /// Requested bound mode; the concrete closure may support an adaptation.
@@ -2412,7 +2498,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V39\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V40\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2674,25 +2760,28 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
         encode_storage_position(b, &binding.position);
         encode_storage_binder(b, &binding.binder);
     }
+    encode_len(b, contract.classes.len());
+    for binding in &contract.classes {
+        match binding.position.base {
+            StorageBase::Parameter(i) => {
+                b.push(0);
+                encode_u32(b, i);
+            }
+            StorageBase::Capture(i) => {
+                b.push(1);
+                encode_u32(b, i);
+            }
+            StorageBase::Result => b.push(2),
+        }
+        encode_life_type_path(b, &binding.position.path);
+        encode_u32(b, binding.position.class);
+        encode_storage_binder(b, &binding.binder);
+    }
 }
 fn encode_storage_contract(b: &mut impl FingerprintSink, contract: &Option<StorageLifeContract>) {
     b.push(u8::from(contract.is_some()));
     if let Some(contract) = contract {
         encode_required_storage_contract(b, contract);
-    }
-}
-fn encode_function_life(b: &mut impl FingerprintSink, life: &FunctionLifeContract) {
-    encode_u32(b, life.binder_count);
-    encode_len(b, life.parameter_lives.len());
-    for tag in &life.parameter_lives {
-        b.push(u8::from(tag.is_some()));
-        if let Some(tag) = tag {
-            encode_u32(b, *tag);
-        }
-    }
-    b.push(u8::from(life.result_life.is_some()));
-    if let Some(tag) = life.result_life {
-        encode_u32(b, tag);
     }
 }
 fn encode_retained_port_binding(b: &mut impl FingerprintSink, binding: &RetainedPortBinding) {
@@ -2877,7 +2966,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             life,
         } => {
             b.push(31);
-            encode_function_life(b, life);
+            encode_required_storage_contract(b, life);
             encode_len(b, parameters.len());
             for ty in parameters {
                 encode_type(b, ty);
@@ -3962,7 +4051,7 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
 
 /// Deterministic binding for a raw callable relation, not a verification token.
 pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-CONTRACT-5\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-CONTRACT-6\0".to_vec();
     encode_callable_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -4005,18 +4094,7 @@ fn encode_callable_contract(b: &mut impl FingerprintSink, c: &CallableParameterC
         b.push(callable_kind_tag(role.kind));
         b.push(u8::from(role.life.is_some()));
         if let Some(life) = &role.life {
-            encode_u32(b, life.binder_count);
-            encode_len(b, life.parameter_lives.len());
-            for tag in &life.parameter_lives {
-                b.push(u8::from(tag.is_some()));
-                if let Some(tag) = tag {
-                    encode_u32(b, *tag);
-                }
-            }
-            b.push(u8::from(life.result_life.is_some()));
-            if let Some(tag) = life.result_life {
-                encode_u32(b, tag);
-            }
+            encode_required_storage_contract(b, life);
         }
         for indices in [&role.hold, &role.call, &role.writes] {
             encode_len(b, indices.len());

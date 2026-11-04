@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 4;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v4";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v4";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v4";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 5;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v5";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v5";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v5";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -158,6 +158,40 @@ pub enum CtBuiltinType {
 pub struct CtTypeRef {
     pub nodes: Vec<CtTypeNode>,
     pub root: CtTypeNodeId,
+    /// Free Fixed classes refer to the same authenticated invocation namespace
+    /// as the complete artifact/value context. Empty does not invent forall.
+    pub ambient_classes: Vec<CtAmbientClassBinding>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CtAmbientScopeId(pub u32);
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CtAmbientLifeReference {
+    pub scope: CtAmbientScopeId,
+    /// Original full generic ordinal, including intervening Type/Const kinds.
+    pub parameter: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtScopeActual {
+    Type(CtTypeRef),
+    Scalar(crate::Constant),
+    Lifetime(CtAmbientLifeReference),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtScopeInstance {
+    Definition,
+    Instantiated(Vec<CtScopeActual>),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtAmbientLifeScope {
+    pub declaration: CtSymbolId,
+    pub binder_site: Vec<u32>,
+    pub instance: CtScopeInstance,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CtAmbientClassBinding {
+    pub owner: CtTypeNodeId,
+    pub class: u32,
+    pub source: CtAmbientLifeReference,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CtTypeNode {
@@ -185,7 +219,7 @@ pub enum CtTypeNode {
     BorrowedFunctionPointer {
         parameters: Vec<CtTypeNodeId>,
         result: CtTypeNodeId,
-        life: crate::FunctionLifeContract,
+        life: crate::StorageLifeContract,
     },
     Address {
         mutable: bool,
@@ -472,7 +506,7 @@ pub enum CtTypeConstructor {
     },
     /// Raw invocation relation; children remain actual Type arguments.
     BorrowedFunctionPointer {
-        life: crate::FunctionLifeContract,
+        life: crate::StorageLifeContract,
     },
     Array,
     Tuple,
@@ -716,6 +750,7 @@ pub struct CtArtifactProgram {
     /// Selected target width, never the host VM pointer width.
     pub target_pointer_width: u16,
     pub source_fingerprint: Fingerprint,
+    pub ambient_life_scopes: Vec<CtAmbientLifeScope>,
     pub functions: Vec<CtFunction>,
     pub entry: CtFunctionId,
     pub constants: Vec<CtConstant>,

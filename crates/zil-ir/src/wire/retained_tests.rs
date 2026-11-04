@@ -2,9 +2,9 @@
 use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
-fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 39);
-    assert_eq!(wire::WIRE_VERSION, 39);
+fn common_retained40_and_ct5_transport_preserves_context_and_budgets() {
+    assert_eq!(SCHEMA_VERSION, 40);
+    assert_eq!(wire::WIRE_VERSION, 40);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
@@ -53,6 +53,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         inner: Box::new(stored.clone()),
     };
     let contract = StorageLifeContract {
+        classes: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 1,
         bindings: vec![
@@ -224,12 +225,8 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         },
         result_mode: PassingMode::Infer,
         call_kind: CallKind::Direct,
-        invocation_life: Some(FunctionLifeContract {
-            binder_count: 1,
-            parameter_lives: vec![Some(0), Some(0)],
-            result_life: Some(0),
-        }),
         storage_life: Some(StorageLifeContract {
+        classes: Vec::new(),
             fixed_binder_count: 1,
             invocation_binder_count: 1,
             bindings: vec![StorageLifeBinding {
@@ -566,8 +563,9 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 4);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 5);
     let value = CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
@@ -627,6 +625,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         }
         assert!(wire::encode_module_candidate(&long, &plan, &Limits::default()).is_err());
         let mut long = CtValue::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I64),
                 CtTypeNode::BorrowedStorage {
@@ -656,6 +655,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         generation_path: None,
     };
     let context = CtTypeRef {
+            ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
             CtTypeNode::Address {
@@ -693,6 +693,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         name: symbol.clone(),
         life_context: None,
         arguments: vec![CtSchemaArgument::Type(CtTypeRef {
+            ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
         })],
@@ -732,7 +733,8 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
-        schema_version: 4,
+        ambient_life_scopes: Vec::new(),
+        schema_version: CT_ARTIFACT_VERSION,
         target_pointer_width: 64,
         source_fingerprint: Fingerprint::ZERO,
         functions: vec![function],
@@ -858,7 +860,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&3u32.to_le_bytes());
     let n = old.len() - 32;
     let mut hash = zil_base::FingerprintBuilder::new();
-    hash.update(b"zil/ct-artifact/v4");
+    hash.update(CT_ARTIFACT_FINGERPRINT_DOMAIN);
     hash.update(&old[..n]);
     old[n..].copy_from_slice(&hash.digest().0);
     assert_eq!(
@@ -866,7 +868,7 @@ fn common_retained39_and_ct4_transport_preserves_context_and_budgets() {
         ct_wire::WireError::BadVersion
     );
     println!(
-        "runtime39 full nominal inventory/retained metadata and CT4 joint numeric scopes/constructor12/node16 roundtrip; encoder N{} decoder N{} with N-1 Limit; old versions and long raw paths reject; data only, no kernel authority",
+        "runtime40 full nominal inventory/retained metadata and CT5 joint numeric scopes/constructor12/node16 roundtrip; encoder N{} decoder N{} with N-1 Limit; old versions and long raw paths reject; data only, no kernel authority",
         usage.work, used.work
     );
 }
