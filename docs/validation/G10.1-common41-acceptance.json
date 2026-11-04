@@ -1,0 +1,220 @@
+{
+  "task": "G10.1",
+  "decision": "AcceptLimitedCommon41ForIntegration",
+  "integrator": "/root",
+  "tested_source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+  "main_before": "4c775ec09d00818deffe06c4dd30ab4c540af524",
+  "scope": [
+    "Recovered C40 finite Option/owning Task and life/callable/CT consumers",
+    "Managed field replacement including local Store elements, genuine parent provenance and failure cleanup",
+    "Qualified scalar-capture Fn/FnMut/FnOnce roles with actual ownership/access",
+    "CT member and subvalue source contexts; actual source nominal life-class constraints",
+    "Source strong CAS through independent kernels/Wire and native backends",
+    "Default-worker stack repairs preserving complete checks, source order, quotas and original depths"
+  ],
+  "independent_reviews": "Precise author/non-author commits and bounded results retained in docs/validation/G*.json; no parent Goal completion inferred",
+  "default": {
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "source_after": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 546.53,
+    "groups": 422,
+    "passed": 4617,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "ca06840a80b25a6c940b923bfd629562e82e42ba287d875dc8a92b51b1accee1",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14672706512
+  },
+  "reference": {
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "source_after": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast",
+      "--no-default-features"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 308.62,
+    "groups": 422,
+    "passed": 4505,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "5ce802bf1d209ca8d631a9f59ce46e286569ce1b1e0a6b4f217c0504a2dca156",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14004777240
+  },
+  "format_and_default_strict_clippy": {
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "fmt_exit": 0,
+    "clippy_exit": 0
+  },
+  "text_and_reference_strict_clippy": {
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "text_reference_exit": 0,
+    "text_passed": 70,
+    "text_failed": 0,
+    "reference_clippy_exit": 0,
+    "log_sha256": {
+      "text-reference.log": "de6dbb95360b9d6606f074146a9e4fc30f239ecee08dd47a41a2c444c9885ec3",
+      "reference-clippy.log": "afeae9285655a58481c35bc494a2a024cca83d2c010c59bfa28752ca05a76c05"
+    }
+  },
+  "engineering": {
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "results": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0a4354fca059250942ab7c88d11cf667084829857e61b3cf25c22b5e85957b2f"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G10.1-run-stack8/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "29ca83b12b917a984e2f12c28688e64b860a082ab288b35a8e7d75aee84f88ee"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "525296d37a7d89f6c44e79d47caed3aac6098559f22ce7fc7c5cc4e0158a224f"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "941ae3e6cfc942c8ea0b042ef151441a51da56b6d41cdae4e5d96ca817385ca8"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e45b533cde56c3c802fe93b54f57685458df96a4fadf9bae65b41c3d11d25dbb"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "bc7892a77f2a11ee64ac228a099bf33bb40646b638b09b260ce1ce3428b7d675"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "c3b0f3c6b46bed15527cad4dc040337c02db7c432023895b535cb677783f3d85"
+      }
+    ]
+  },
+  "release_consumer": {
+    "status": "Pass",
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4",
+    "cli_sha256": "180ea3a59fc95f2f4aa93d814d0296152c2ae7caee16fe3f23040872d50f36b0",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+    "commands": 145,
+    "builds": 16,
+    "observations": 128,
+    "summary_sha256": "612e36063be8b3e410244a5dd11656308ad8dcb899aa2b0fdff887322fdc05a6",
+    "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb"
+  },
+  "historical_failures": [
+    "8477 incomplete failed attempt and disk interruption retained",
+    "532415 full run4587/15 retained; corrections independently reviewed before this complete rerun",
+    "fe69 composed source-life stack failure retained; G10.1.8 corrected and independently replayed",
+    "Reference318875 attempt1 stopped during linking with exhausted workspace; zero tests, exit101; same-source rerun passed after only lossless generated-text compression and inactive Cargo cache reclamation"
+  ],
+  "reference_interruption": {
+    "classification": "InfrastructureFailureDuringLink",
+    "actual_exit_code": 101,
+    "tests_executed": 0,
+    "cause": "Workspace exhausted during reference test binary linking; lld/cc output failure; no source or tests changed. Completed default generated text losslessly compressed, released review Cargo caches reclaimed, exact same source retried.",
+    "source": "318875a451c5eb53b5392d869f975ec96e2963b4"
+  },
+  "github_ci": {
+    "status": "NotStartedBillingOrSpendingLimitFailure",
+    "is_pass": false,
+    "local_gate_substitution": "All applicable workspace/reference/toolchain/consumer gates above executed in the managed environment; no required-check/admin bypass authorized or used"
+  },
+  "not_completed": [
+    "G1.3.2 cross-helper instance invalidation and its borrowed-closure correction",
+    "G3.3 captured enclosing Fixed context",
+    "G4.4 complete actual argument vectors/generated lifetime scopes",
+    "Schema42 asynchronous consumer combined acceptance",
+    "General dyn/state/lending/concurrency, complete library/ZUI, native Windows and Rust comparative product gates"
+  ],
+  "post_gate_change_scope": "This acceptance record and Rust-goal reflection only; production source, tests, tools, normative inputs, Cargo and lock unchanged from tested_source."
+}
