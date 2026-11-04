@@ -20,14 +20,31 @@ impl Origins {
         Ok(*self != old)
     }
 }
-fn contains_task(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+fn contains_task(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(t, false, "Task automatic Drop actual type")?;
     let mut pending = vec![t];
+    let mut closures = BTreeSet::new();
     while let Some(t) = pending.pop() {
         budget.spend(1, "Task automatic Drop actual origins")?;
         match t {
             Type::TaskI32 | Type::Task { .. } => return Ok(true),
             Type::Managed(p) | Type::Desc(p) | Type::Address { inner: p, .. } => pending.push(p),
+            Type::Closure(id) => {
+                budget.spend(
+                    closures.len().saturating_add(1),
+                    "Task actual capture roots",
+                )?;
+                if closures.insert(*id) {
+                    let Some(closure) = module.closures.get(id.0 as usize) else {
+                        return Ok(true);
+                    };
+                    for capture in &closure.captures {
+                        budget.type_work(capture, false, "Task actual capture root")?;
+                        pending.push(capture);
+                    }
+                }
+            }
+            Type::Array { element, .. } => pending.push(element),
             Type::Tuple(ts) => pending.extend(ts),
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 pending.extend(fields.iter().map(|(_, t)| t))
@@ -53,6 +70,10 @@ pub(crate) fn require(
     budget: &mut Budget,
     span: Option<zil_base::Span>,
 ) -> CompileResult<()> {
+    let ty = local_type(f, local, span)?;
+    if !contains_task(module, ty, budget)? {
+        return Ok(());
+    }
     budget.spend(
         f.values
             .len()
@@ -64,20 +85,31 @@ pub(crate) fn require(
     let mut locals = vec![Origins::default(); f.locals.len()];
     let mut relevant = Vec::with_capacity(f.values.len());
     for t in &f.values {
-        relevant.push(contains_task(t, budget)?);
+        relevant.push(contains_task(module, t, budget)?);
     }
     for p in &f.parameters {
-        if contains_task(&f.locals[p.0 as usize].ty, budget)? {
+        if contains_task(module, &f.locals[p.0 as usize].ty, budget)? {
             locals[p.0 as usize].unknown = true;
         }
     }
     loop {
         let mut changed = false;
+        budget.spend(f.blocks.len(),"Task Drop actual graph")?;
         for block in &f.blocks {
             for i in &block.instructions {
                 budget.spend(1, "Task automatic Drop actual origins")?;
-                if let InstructionKind::Store { local, value } = i.kind {
+                if let InstructionKind::Store { local, value }
+                | InstructionKind::StorePackageField { local, value, .. }
+                | InstructionKind::StoreOwnedArrayElement { local, value, .. } = i.kind
+                {
                     changed |= locals[local.0 as usize].add(&values[value.0 as usize], budget)?;
+                }
+                if let InstructionKind::UnpackTuple { local, fields } = &i.kind {
+                    for field in fields {
+                        budget.spend(locals[local.0 as usize].workers.len().saturating_add(1),"Task Drop actual graph")?;
+                        let origin = locals[local.0 as usize].clone();
+                        changed |= locals[field.0 as usize].add(&origin, budget)?;
+                    }
                 }
                 let Some(out) = i.result else { continue };
                 if !relevant[out.0 as usize] {
@@ -89,7 +121,11 @@ pub(crate) fn require(
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
                     },
-                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
+                    InstructionKind::Load(local)
+                    | InstructionKind::TakeLocal { local }
+                    | InstructionKind::TakePackageField { local, .. }
+                    | InstructionKind::TakeOwnedArrayElement { local, .. }
+                    | InstructionKind::ReadVariantLocal { local, .. } => {
                         budget.spend(
                             locals[local.0 as usize].workers.len().saturating_add(1),
                             "Task automatic Drop actual origins",
@@ -114,7 +150,13 @@ pub(crate) fn require(
                         values[value.0 as usize].clone()
                     }
                     InstructionKind::MakeAggregate { fields }
-                    | InstructionKind::MakeVariant { fields, .. } => {
+                    | InstructionKind::MakeVariant { fields, .. }
+                    | InstructionKind::MakeOwnedTuple { fields }
+                    | InstructionKind::MakePackage { fields }
+                    | InstructionKind::MakeOwnedArray { elements: fields }
+                    | InstructionKind::MakeClosure {
+                        captures: fields, ..
+                    } => {
                         let mut origin = Origins::default();
                         for value in fields {
                             origin.add(&values[value.0 as usize], budget)?;
@@ -160,6 +202,7 @@ pub(crate) fn require(
                 "Task automatic Drop worker absent",
             ));
         };
+        budget.spend(target.blocks.len(),"Task Drop actual graph")?;
         for block in &target.blocks {
             for i in &block.instructions {
                 budget.spend(1, "Task automatic Drop actual origins")?;
