@@ -83,24 +83,16 @@ pub(super) fn field(ty: &Type) -> bool {
 }
 
 pub(super) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
-    let work = inference::type_snapshot_work(
+    inference::charge_type_snapshot(
         ty,
         span,
         &Limits {
-            max_analysis_steps: *remaining,
             max_call_depth: depth_limit,
             ..Limits::default()
         },
+        remaining,
+        3,
     )?;
-    *remaining = remaining
-        .checked_sub(work.saturating_mul(3))
-        .ok_or_else(|| {
-            Diagnostic::limit(
-                Phase::Types,
-                "ordinary Sum admission work exceeded",
-                Some(span),
-            )
-        })?;
     if !value(ty) {
         return Err(unsupported(
             span,

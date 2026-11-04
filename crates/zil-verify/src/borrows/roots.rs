@@ -694,6 +694,7 @@ pub(super) fn mixed_address_roots(
             Ok(match *root {
                 Root::Local(l) => Root::Projection(l, start, end),
                 Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+                Root::Capture(c) => Root::Window(HoldRoot::Capture(c), start, end),
                 Root::Projection(l, offset, limit_end) => {
                     let a = offset
                         .checked_add(start)
