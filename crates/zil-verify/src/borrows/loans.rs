@@ -509,7 +509,8 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::MakePackage { fields: elements } => (None, elements),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::WithForeignCallback { body, .. }
-        | InstructionKind::WithScopedThread { body, .. } => (Some(body), &[]),
+        | InstructionKind::WithScopedThread { body, .. }
+        | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::CallClosure { arguments, .. }
@@ -812,6 +813,7 @@ pub(super) fn check(
                         };
                     (&flow.values[body.0 as usize], arguments)
                 }
+                InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
                 _ => (&empty, &[]),
@@ -839,6 +841,7 @@ pub(super) fn check(
                 InstructionKind::CallClosure { .. }
                     | InstructionKind::CallClosureOnce { .. }
                     | InstructionKind::WithScopedThread { .. }
+                    | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::CallClosureShared { .. }
                     | InstructionKind::CallClosureMut { .. }
                     | InstructionKind::CallClosureBorrowed { .. }
@@ -892,11 +895,11 @@ pub(super) fn check(
                         let stable = match root {
                             Root::Local(_) => ty == Some(&Type::I32),
                             Root::Parameter(_) => {
-                                matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32) || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             Root::Capture(_) => {
                                 ty == Some(&Type::I32)
-                                    || matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32)
+                                    || (matches!(ty, Some(Type::Address { inner, .. }) if **inner == Type::I32) || ty.is_some_and(Type::is_shared_sync_cell_address))
                             }
                             _ => false,
                         };

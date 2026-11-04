@@ -2210,3 +2210,124 @@ fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn terminal343_sealed_sync_scope_source_reaches_independent_kernel() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn terminal343_sealed_sync_native_contention() {
+    use std::{fs, process::Command, sync::atomic::{AtomicU64, Ordering}};
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature="llvm-api") { backends.push(NativeBackend::LlvmApi); }
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+    ] {
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!("zil343-source-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed)));
+                fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(&source(text), &CompileOptions {
+                    backend:*backend, optimization, stop_after:Stage::Build,
+                    output:Some(dir.join("program")), ..CompileOptions::default()
+                });
+                assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+                assert_eq!(report.verification_runs, 1);
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend,*backend);
+                assert!(codegen.fallback.is_none());
+                let actual = Command::new(&report.artifacts["executable"]).output().unwrap();
+                assert_eq!(actual.status.code(),Some(0),"{backend:?} {optimization:?}: {actual:?}");
+                fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+#[cfg(target_os="linux")]
+fn terminal343_sealed_sync_source_and_raw_boundaries() {
+    use zil_ir::{InstructionKind as I, SyncCellKind as K, SyncI32Op as P, AtomicOrdering as O, Type};
+    for text in [
+        "fn main()->i32 {let value=7;return atomic_load(&value)}",
+        "fn unused(cell:&AtomicI32)->i32 {return mutex_load(cell)} fn main()->i32=>0",
+        "fn main()->i32 {let atomic_load=7;return atomic_load}",
+        "fn worker(cell:&MutexI32)->i32=>mutex_load(cell) fn main()->i32 {let r=atomic_scope(0,(cell:&AtomicI32)->i32=>{let t=thread_scope(worker,cell,()->i32=>0);return t.1});return r.1}",
+    ] {
+        let report=compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status,ResultCategory::SafeReject,"{}",report.to_json());
+    }
+    let src=source(include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"));
+    let ast=zil_syntax::parse(&src).into_result().unwrap();
+    let core=zil_expand::expand(&src,&ast).unwrap();
+    let target=zil_base::TargetProfile::default();
+    let limits=Limits::default();
+    let typed=zil_types::check(&core,&target,&limits).unwrap();
+    let plan=zil_analyze::analyze(&typed,&limits).unwrap();
+    let bytes=zil_ir::wire::encode_module_candidate(&typed,&plan,&limits).unwrap();
+    let(decoded,claim)=zil_ir::wire::decode_module_candidate(&bytes,&limits).unwrap();
+    assert_eq!(decoded,typed);
+    let verified=zil_verify::verify_module(decoded,claim,&target,&limits).unwrap();
+    zil_lower::lower(&verified).unwrap();
+    let worker=typed.functions.iter().position(|f| f.name=="worker").unwrap();
+    for variant in 0..6 {
+        let mut forged=typed.clone();
+        match variant {
+            0|1|2|4 => {
+                let function=&mut forged.functions[worker];
+                let integer=zil_ir::ValueId(function.values.iter().position(|ty| *ty==Type::I32).unwrap() as u32);
+                let instruction=function.blocks.iter_mut().flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind,I::SyncI32 {..})).unwrap();
+                if let I::SyncI32 {op,address,value,ordering}=&mut instruction.kind {
+                    match variant {
+                        0=>*address=integer,
+                        1=>{*op=P::Load;*ordering=O::Release;*value=None},
+                        2=>{*op=P::Load;*value=Some(integer)},
+                        4=>{let address=*address;instruction.kind=I::ReadAddress {address}},
+                        _=>unreachable!(),
+                    }
+                }
+            }
+            3=>{
+                let instruction=forged.functions.iter_mut().flat_map(|f| &mut f.blocks).flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind,I::WithSyncCell {..})).unwrap();
+                if let I::WithSyncCell{kind,..}=&mut instruction.kind {*kind=K::MutexI32}
+            }
+            5=>{
+                let instruction=forged.functions[worker].blocks.iter_mut().flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind,I::SyncI32 {..})).unwrap();
+                let I::SyncI32{address,..}=instruction.kind else{unreachable!()};
+                let result=instruction.result.unwrap();
+                instruction.kind=I::ReborrowAddress{address,mutable:false};
+                forged.functions[worker].values[result.0 as usize]=Type::Address{mutable:false,inner:Box::new(Type::SyncCell(K::MutexI32))};
+            }
+            _=>unreachable!(),
+        }
+        let analyzed=zil_analyze::analyze(&forged,&limits).unwrap_err();
+        assert_eq!(analyzed[0].category,ResultCategory::SafeReject,"raw Analyze {variant}: {analyzed:?}");
+        let mut claim=plan.clone();claim.module_fingerprint=forged.fingerprint();
+        let encoded=zil_ir::wire::encode_module_candidate(&forged,&claim,&limits).unwrap();
+        for wire in [false,true] {
+            let (input,claim)=if wire {zil_ir::wire::decode_module_candidate(&encoded,&limits).unwrap()} else {(forged.clone(),claim.clone())};
+            let errors=zil_verify::verify_module(input,claim,&target,&limits).unwrap_err();
+            assert_eq!(errors[0].category,ResultCategory::SafeReject,"Verify {variant} wire={wire}: {errors:?}");
+        }
+    }
+    thread332_budget(&typed,&plan);
+}

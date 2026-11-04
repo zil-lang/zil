@@ -195,7 +195,8 @@ fn actual_call(
             (values[callee.0 as usize], CallableKind::Fn, false)
         }
         InstructionKind::CallClosureOnce { callee, .. }
-        | InstructionKind::WithScopedThread { body: callee, .. } => {
+        | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. } => {
             (values[callee.0 as usize], CallableKind::FnOnce, false)
         }
         InstructionKind::CallClosureShared { callee, .. } => {

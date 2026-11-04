@@ -12,7 +12,7 @@ fn scalar(ty: &Type) -> bool {
     )
 }
 fn shared_i32(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32)
+    matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
 }
 
 fn worker_graph(
@@ -88,8 +88,11 @@ fn worker_graph(
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 match &instruction.kind {
+                    InstructionKind::SyncI32 { .. } if shared => {
+                        sync_instruction(module, function, instruction, budget)?;
+                    }
                     InstructionKind::ReadAddress { address } if shared => {
-                        if !shared_i32(value_type(function, *address, span)?)
+                        if !matches!(value_type(function, *address, span)?, Type::Address { mutable: false, inner } if **inner == Type::I32)
                             || instruction
                                 .result
                                 .map(|id| value_type(function, id, span))
@@ -107,11 +110,7 @@ fn worker_graph(
                         mutable: false,
                     } if shared => {
                         if !shared_i32(value_type(function, *address, span)?)
-                            || !instruction
-                                .result
-                                .map(|id| value_type(function, id, span))
-                                .transpose()?
-                                .is_some_and(shared_i32)
+                            || instruction.result.map(|id| value_type(function, id, span)).transpose()? != Some(value_type(function, *address, span)?)
                         {
                             return Err(invalid(
                                 span,
@@ -121,11 +120,7 @@ fn worker_graph(
                     }
                     InstructionKind::BorrowLocal { local } if shared => {
                         if local_type(function, *local, span)? != &Type::I32
-                            || !instruction
-                                .result
-                                .map(|id| value_type(function, id, span))
-                                .transpose()?
-                                .is_some_and(shared_i32)
+                            || !matches!(instruction.result.map(|id| value_type(function, id, span)).transpose()?, Some(Type::Address { mutable: false, inner }) if **inner == Type::I32)
                         {
                             return Err(invalid(
                                 span,
@@ -290,6 +285,71 @@ pub(super) fn instruction(
             "thread body must admit one consuming zero-argument i32 call",
         ));
     }
+    let actual_worker = module.functions.get(worker.0 as usize).ok_or_else(|| invalid(span, "thread actual worker is absent"))?;
+    budget.spend(actual_worker.parameters.len().saturating_add(1))?;
+    if actual_worker.parameters.len() != 1 || local_type(actual_worker, actual_worker.parameters[0], span)? != payload {
+        return Err(invalid(span, "thread payload differs from exact worker parameter type"));
+    }
     worker_graph(module, worker, budget, span, shared)?;
     Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32, Type::I32])))
+}
+
+/// Reconstruct sealed cell operations without trusting source constructor names.
+pub(super) fn sync_instruction(module: &TypedModule, caller: &TypedFunction, instruction: &Instruction, budget: &mut Budget) -> Check<Option<Type>> {
+    let span = Some(instruction.span);
+    budget.spend(4)?;
+    if module.target.triple != "x86_64-unknown-linux-gnu" || !module.target.is_supported_x64_llvm() {
+        return Err(unsupported("sealed cell runtime requires Linux x64", span));
+    }
+    match instruction.kind {
+        InstructionKind::SyncI32 { op, address, value, ordering } => {
+            let Type::Address { mutable: false, inner } = value_type(caller, address, span)? else {
+                return Err(invalid(span, "cell operation requires actual shared sealed address"));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(invalid(span, "ordinary payload is not a sealed synchronization cell"));
+            };
+            if (op == zil_ir::SyncI32Op::Load) != value.is_none() {
+                return Err(invalid(span, "cell operation has wrong value operand presence"));
+            }
+            if let Some(value) = value
+                && value_type(caller, value, span)? != &Type::I32 {
+                return Err(invalid(span, "cell write requires an actual i32 value"));
+            }
+            use zil_ir::{AtomicOrdering as O, SyncCellKind as K, SyncI32Op as P};
+            if (*kind == K::MutexI32 && ordering != O::SeqCst)
+                || (op == P::Load && matches!(ordering, O::Release | O::AcqRel))
+                || (op == P::Store && matches!(ordering, O::Acquire | O::AcqRel)) {
+                return Err(invalid(span, "invalid memory ordering for actual cell operation"));
+            }
+            Ok(Some(if op == P::Store { Type::Unit } else { Type::I32 }))
+        }
+        InstructionKind::WithSyncCell { kind, initial, body } => {
+            if value_type(caller, initial, span)? != &Type::I32 {
+                return Err(invalid(span, "cell scope initializer is not i32"));
+            }
+            let Type::Closure(id) = value_type(caller, body, span)? else {
+                return Err(invalid(span, "cell scope body is not an actual concrete closure"));
+            };
+            let definition = closures::definition(module, *id, span)?;
+            budget.spend(definition.parameters.len().saturating_add(definition.lending_captures.len()).saturating_add(4))?;
+            let parameter = Type::Address { mutable: false, inner: Box::new(Type::SyncCell(kind)) };
+            let entry = module.functions.get(definition.function.0 as usize)
+                .ok_or_else(|| invalid(span, "cell scope actual body entry is absent"))?;
+            if definition.parameters.as_slice() != [parameter.clone()]
+                || definition.result != Type::I32
+                || !definition.lending_captures.is_empty()
+                || !closures::supports(definition.kind, CallableKind::FnOnce)
+                || entry.environment != Some(*id)
+                || entry.foreign.is_some()
+                || entry.parameters.len() != 1
+                || entry.return_type != Type::I32
+                || entry.result_mode != PassingMode::Infer
+                || local_type(entry, entry.parameters[0], span)? != &parameter {
+                return Err(invalid(span, "cell scope actual closure signature or cleanup boundary differs"));
+            }
+            Ok(Some(Type::Tuple(vec![Type::Bool, Type::I32])))
+        }
+        _ => Err(invalid(span, "instruction is not a sealed cell operation")),
+    }
 }

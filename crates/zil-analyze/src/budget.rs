@@ -174,6 +174,7 @@ impl Budget {
                 self.spend(name.len(), context)?;
             }
             Type::ByteBuffer
+            | Type::SyncCell(_)
             | Type::Unit
             | Type::Bool
             | Type::U8
@@ -288,6 +289,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
             )])
         }
     } else if crate::dynamic_store::is_carrier(ty)
+        || ty.is_shared_sync_cell_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
         || ty.is_shared_resource_head_address()
         || ty.is_package_address()
@@ -735,6 +737,7 @@ pub(super) fn preflight(
             budget.owned_callbacks.insert(closure.id);
         }
         for ty in &closure.parameters {
+            if ty.is_shared_sync_cell_address() { continue; }
             if owned_signature {
                 super::owned_callbacks::data(module, ty, budget)?;
                 continue;
@@ -944,6 +947,20 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::WithSyncCell { initial, body, .. } => {
+                        budget.input(3, "sealed cell scope operands")?;
+                        if initial.0 as usize >= function.values.len() || body.0 as usize >= function.values.len() {
+                            return Err(bad("sealed cell scope operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
+                    InstructionKind::SyncI32 { address, value, .. } => {
+                        budget.input(3, "sealed cell operation operands")?;
+                        if address.0 as usize >= function.values.len() || value.is_some_and(|value| value.0 as usize >= function.values.len()) {
+                            return Err(bad("sealed cell operation operand outside actual tables"));
+                        }
+                        budget.scoped_threads = true;
+                    }
                     InstructionKind::WithScopedThread {
                         worker,
                         argument,

@@ -529,7 +529,7 @@ pub(super) fn hint_type(
             Ok(false)
         }
         // Ineligible hints still have all their child shapes bounded above.
-        Type::ByteBuffer | Type::ForeignHandle | Type::CWideString | Type::Closure(_) => Ok(false),
+        Type::ByteBuffer | Type::ForeignHandle | Type::CWideString | Type::Closure(_) | Type::SyncCell(_) => Ok(false),
     }
 }
 

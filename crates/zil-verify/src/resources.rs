@@ -1666,13 +1666,14 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::WithForeignCallback { .. }
-                | InstructionKind::WithScopedThread { .. } => {
+                | InstructionKind::WithScopedThread { .. }
+                | InstructionKind::WithSyncCell { .. } => {
                     // Even registration failure consumes and cleans the prepared body.
                     let (callbacks, body) = match &instruction.kind {
                         InstructionKind::WithForeignCallback { callback, body, .. } => {
                             ([Some(callback), Some(body)], body)
                         }
-                        InstructionKind::WithScopedThread { body, .. } => {
+                        InstructionKind::WithScopedThread { body, .. } | InstructionKind::WithSyncCell { body, .. } => {
                             ([None, Some(body)], body)
                         }
                         _ => unreachable!(),
@@ -2120,6 +2121,7 @@ fn effect_dependents(
                     InstructionKind::CallClosureBorrowed { callee, .. }
                     | InstructionKind::CallClosureOnce { callee, .. }
                     | InstructionKind::WithScopedThread { body: callee, .. }
+                    | InstructionKind::WithSyncCell { body: callee, .. }
                     | InstructionKind::CallClosure { callee, .. } => {
                         let ty = function.values.get(callee.0 as usize).ok_or_else(|| {
                             bad(instruction.span, "resource effect closure value is absent")
