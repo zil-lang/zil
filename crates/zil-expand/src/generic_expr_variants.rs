@@ -460,26 +460,20 @@ impl Engine<'_> {
             for index in 0..params.len() {
                 if recording.is_none()
                     && let Some(t) = &params[index].ty
-                {
-                    if let Err(error) = rich_pointer::reject_fixed_closure(
+                    && let Err(error) = rich_pointer::reject_fixed_closure(
                         t,
                         &self.products.storage.instances,
                         &mut self.budget,
-                    ) {
-                        if error.category != zil_base::ResultCategory::Unsupported
-                            || !error
-                                .message
-                                .contains("genuine enclosing definition context")
-                        {
-                            return Err(error);
-                        }
-                        recording = Some(self.start_closure_context(
-                            params,
-                            return_type,
-                            env.closure_depth,
-                            e.span,
-                        )?);
+                    )
+                {
+                    if error.category != zil_base::ResultCategory::Unsupported
+                        || !error.message.contains("genuine enclosing definition context")
+                    {
+                        return Err(error);
                     }
+                    recording = Some(self.start_closure_context(
+                        params, return_type, env.closure_depth, e.span,
+                    )?);
                 }
                 let param = &mut params[index];
                 if let Some(t) = &mut param.ty {
@@ -487,28 +481,20 @@ impl Engine<'_> {
                 }
                 inner.insert(param.name.clone(), param.ty.clone());
             }
-            if let Some(t) = return_type {
-                if recording.is_none() {
-                    if let Err(error) = rich_pointer::reject_fixed_closure(
-                        t,
-                        &self.products.storage.instances,
-                        &mut self.budget,
-                    ) {
-                        if error.category != zil_base::ResultCategory::Unsupported
-                            || !error
-                                .message
-                                .contains("genuine enclosing definition context")
-                        {
-                            return Err(error);
-                        }
-                        recording = Some(self.start_closure_context(
-                            params,
-                            return_type,
-                            env.closure_depth,
-                            e.span,
-                        )?);
-                    }
+            if let Some(t) = return_type
+                && recording.is_none()
+                && let Err(error) = rich_pointer::reject_fixed_closure(
+                    t, &self.products.storage.instances, &mut self.budget,
+                )
+            {
+                if error.category != zil_base::ResultCategory::Unsupported
+                    || !error.message.contains("genuine enclosing definition context")
+                {
+                    return Err(error);
                 }
+                recording = Some(self.start_closure_context(
+                    params, return_type, env.closure_depth, e.span,
+                )?);
             }
             if let Some(t) = return_type {
                 self.ty(t, depth + 1)?;
