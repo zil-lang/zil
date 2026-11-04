@@ -187,6 +187,19 @@ fn reverse(live: &mut [bool], instruction: &Instruction, value_count: usize) {
         live[operand.0 as usize] = true;
     }
 }
+fn replacement_schedule(module:&TypedModule,f:&TypedFunction,graph:&FunctionGraph,budget:&mut Budget)->Check<Option<(crate::place_replacements::Inventory,crate::place_replacements::Schedule)>> {
+    if !budget.replacements { return Ok(None) }
+    let inventory=crate::place_replacements::Inventory::reconstruct(module,f,budget)?;
+    let schedule=inventory.schedule(f,graph,budget)?;
+    Ok(Some((inventory,schedule)))
+}
+fn retain_replacement_values(live:&mut[bool],schedule:Option<&crate::place_replacements::Schedule>,block:usize,position:usize,budget:&mut Budget)->Check<()> {
+    if let Some(schedule)=schedule {
+        let row=&schedule.retained[block][position];budget.spend(row.len())?;
+        for value in row {live[value.0 as usize]=true;}
+    }
+    Ok(())
+}
 fn term_use(live: &mut [bool], terminator: &Terminator) {
     match terminator {
         Terminator::Return(Some(value))
@@ -214,6 +227,8 @@ fn check(
     } = graph;
     let values = &facts.values;
     let inputs = &facts.inputs;
+    let replacements=replacement_schedule(module,f,graph,budget)?;
+    let schedule=replacements.as_ref().map(|(_,s)|s);
     let m = f.locals.len();
     let v = f.values.len();
     let n = f.blocks.len();
@@ -287,9 +302,10 @@ fn check(
             }
             live_out[b].clone_from(&live);
             term_use(&mut live, &f.blocks[b].terminator);
-            for instruction in f.blocks[b].instructions.iter().rev() {
+            for (position,instruction) in f.blocks[b].instructions.iter().enumerate().rev() {
                 budget.spend(1 + instruction_operands(&instruction.kind).count())?;
                 reverse(&mut live, instruction, v);
+                retain_replacement_values(&mut live,schedule,b,position,budget)?;
             }
             budget.spend(width)?;
             if live != live_in[b] {
@@ -378,6 +394,7 @@ fn check(
         for (i, instruction) in block.instructions.iter().enumerate().rev() {
             after[i] = live.clone();
             reverse(&mut live, instruction, v);
+            retain_replacement_values(&mut live,schedule,b,i,budget)?;
         }
         state_cost(&inputs[b], budget)?;
         let mut locals = inputs[b].clone();
@@ -385,7 +402,9 @@ fn check(
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
             let span = Some(instruction.span);
-            for operand in instruction_operands(&instruction.kind) {
+            let hidden=schedule.map_or(&[][..],|s|s.retained[b][i].as_slice());
+            budget.spend(hidden.len())?;
+            for operand in instruction_operands(&instruction.kind).chain(hidden.iter().copied()) {
                 let held = &values[operand.0 as usize];
                 budget.spend(held.len())?;
                 if held.iter().any(|root| {
