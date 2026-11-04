@@ -1,0 +1,283 @@
+{
+  "task": "G10.1.5 tail increment",
+  "reviewer": "/root/g1_3",
+  "implementation_author": "/root/g10_1_review",
+  "verdict": "PassLimited",
+  "reviewed_commit": "6b753633ac6cf4c26515a279e3eaf09b6f2f0e10",
+  "source_commit": "7dd939902ca0cbdbe12c1478d41b6a575d51bd93",
+  "source_parent": "9219764dec7b5fc3ce7d39540c4bc28d7121b2da",
+  "previous_review": {
+    "commit": "9219764dec7b5fc3ce7d39540c4bc28d7121b2da",
+    "receipt": "/tmp/zil-G10.1.5-review.json",
+    "sha256": "a70d9df6ad41190ffd01b1082616f07626899b346372ea2eba97e08b57b20e91",
+    "scope_reuse": "Prior unchanged non-tail production reasoning is retained at its original SHA; prior 30 tests are not relabeled as re-executed on this increment."
+  },
+  "change_scope": "Only 8 production lines in generic_rich_pointer::reject_fixed_closure::Check::ty; affected existing budget constants/comments and evidence. No authored/root source edits by reviewer.",
+  "proof": {
+    "old_query_information": "Check contains only budget and instances. With empty instances and Named.args empty, neither written life argument test nor instance match can reject. Named has no recursive child in ct_selection::walk_type, which only charges node/path text.",
+    "normal_checks": "Both annotation call sites still execute Engine::ty(t,depth+1) and normal closure body immediately after this query. The guard does not apply to args, nonempty instance tables, other type constructors or closed Code root scopes.",
+    "successor": "New source_life::validate belongs to an independent walk and is untouched; combined root successor integration is not claimed here.",
+    "remaining_work": "Residual +1 per enum/union/resource source, +3 State, +2 driver246 are actual source-life generic-list scans; old node thresholds restored. OrdinaryStore returns to historical3360 without modifying its assertion. No default-limit increase."
+  },
+  "binding": {
+    "worktree_clean": true,
+    "source_file_sha256_verified": {
+      ".task/G10.1.5.md": "9bc899513a72388838c1aa2609f3823d149962ec1c019138322c112696fe4ed1",
+      "changes/G10.1.5-budget-regressions.md": "6f06a7ee086860601f98198029be9ab6839b7b4c8c918a39a4db40fb5575a883",
+      "crates/zil-driver/tests/impl200_independent.rs": "4cd4beb4ab63a46d3b8d06f319e2ab0d4eccc1c500d11716d7acaa67c805b72e",
+      "crates/zil-driver/tests/impl246_front.rs": "68ac7da0627e0b077ccc1260340d95c7b81c34214f0d79b6fc14dca49500ec2f",
+      "crates/zil-expand/src/generic_rich_pointer.rs": "f8814f19508c38915c71973e4aed98007f0dc5da32fc60b4c1aa60d880078325",
+      "crates/zil-expand/tests/generics.rs": "124fd4c3516ffa47594eef734272f7b1bf0d5f2879d7bb12ee13650ada36497d",
+      "crates/zil-expand/tests/impl202_store_templates.rs": "f2149742576187f0b0b3f7c664114ecfb804926d1d1dd00f4e6d071b88ee7532"
+    },
+    "production_diff_paths": [
+      "crates/zil-expand/src/generic_rich_pointer.rs"
+    ],
+    "fixture_default_schema_lock_changes": [],
+    "changed_test_quoted_literals_identical": true
+  },
+  "independent_execution": {
+    "setup": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target340; TMPDIR=/workspace/.zil-env/G10.1.5-tail-review-tmp; RUST_MIN_STACK removed for replays",
+    "build_commands": [
+      "cargo test --locked --offline -j2 -p zil-expand --test generics --test impl202_store_templates --no-run --message-format=json",
+      "cargo test --locked --offline -j2 -p zil-driver --test impl200_independent --test impl246_front --test generics --test impl229_where_copy --no-run --message-format=json"
+    ],
+    "builds_exit": 0,
+    "artifacts": {
+      "zil-expand:generics": {
+        "path": "/workspace/.zil-env/target340/debug/deps/generics-970e5ee4b46beadd",
+        "sha256": "de090890bf5a78be645fcb1a9eb4578270a96fe76e1edc94cd6862a499250804"
+      },
+      "zil-expand:impl202_store_templates": {
+        "path": "/workspace/.zil-env/target340/debug/deps/impl202_store_templates-33f2e591ad538da5",
+        "sha256": "bcb7ccc5ee6c9d70dcb54d4b14ebc8045192aad605fe33d1aeda4af15282bf18"
+      },
+      "zil-driver:impl229_where_copy": {
+        "path": "/workspace/.zil-env/target340/debug/deps/impl229_where_copy-73667bbed232dc9f",
+        "sha256": "4817b0feead15edc6295f225054cd331323537a4d34e76d8ae8fbabaa1035d87"
+      },
+      "zil-driver:impl200_independent": {
+        "path": "/workspace/.zil-env/target340/debug/deps/impl200_independent-ddcbe83ca42a207a",
+        "sha256": "0f0def09dc24d2b09dbe686d199c64b9de41109036938e9ecc242ed89dab6a58"
+      },
+      "zil-driver:impl246_front": {
+        "path": "/workspace/.zil-env/target340/debug/deps/impl246_front-0314ea77ecc4d260",
+        "sha256": "8fc6b8f3325ca679a80964095ac806504802cc5164975ef949ef3b715507edda"
+      },
+      "zil-driver:generics": {
+        "path": "/workspace/.zil-env/target340/debug/deps/generics-7073136d5057c2f4",
+        "sha256": "e4dff5bbabf3fee5ca7911ec34529725a4c864f045e84d3a683108266edd9d94"
+      }
+    },
+    "replay_command": "<matching package:target binary> <filter> --exact --nocapture",
+    "selected_replays": [
+      {
+        "package": "zil-expand",
+        "target": "generics",
+        "filter": "generic_enum_error_context_prepays_new_work",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "7e241631aa54c3d26b65d0890c981c075a7244cfd6ede67d33818760acb3c6bb"
+      },
+      {
+        "package": "zil-expand",
+        "target": "generics",
+        "filter": "concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "2e3195495e9da620fb8d1ae3f2a60f32b2baafa3f8d0bfc7ae0f26856e4d6d40"
+      },
+      {
+        "package": "zil-expand",
+        "target": "generics",
+        "filter": "generic_error_union_contexts_have_exact_prepaid_boundaries",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "ef43ca6d1ce42141ce25f1cc4fe685c73e6e5024ce5de9dee3739c59a8b13167"
+      },
+      {
+        "package": "zil-expand",
+        "target": "impl202_store_templates",
+        "filter": "legacy_single_field_state_preserves_exact_expand_budget",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "1a981dcce9b11855fea967c8b9f0bd56dff5148f5c7bcb62a05d69a4327d0b05"
+      },
+      {
+        "package": "zil-expand",
+        "target": "impl202_store_templates",
+        "filter": "ordinary_store_calls_stay_eager_with_a_measured_exact_budget",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "d69824f95f8f181d273bfc246a01ab585fac993e59ae5e8690591fd5ee817323"
+      },
+      {
+        "package": "zil-driver",
+        "target": "impl229_where_copy",
+        "filter": "where_aliases_and_specialization_share_exact_fresh_and_warm_limits",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "6661826c860eecd416312fa1df279af340151cea162ddc594567353a826300ea"
+      },
+      {
+        "package": "zil-driver",
+        "target": "impl200_independent",
+        "filter": "legacy_single_field_state_has_fresh_exact_expand_budget_measurement",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "842443a4c99c69f24fa69fcb393639181697e17e9c5741d9c86ed782195518a2"
+      },
+      {
+        "package": "zil-driver",
+        "target": "impl246_front",
+        "filter": "registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "fba739e52f182e5375d4788845fbbcd5d56f19b4dc8e930075304006bb7ef6c7"
+      },
+      {
+        "package": "zil-driver",
+        "target": "generics",
+        "filter": "terminal_explicit_stored_closure_annotations_require_their_context",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "dc4385cfa3ec61805ce4e23e028bfefe0000eb477f1a3bcb18e26326b7f695bd"
+      },
+      {
+        "package": "zil-driver",
+        "target": "generics",
+        "filter": "terminal_qualified_callable_helper_retains_its_own_input_relation",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "1c4e0f3bebabde81660613ad81f98a710891678ff2a2d6fa35ac9aba521863b7"
+      },
+      {
+        "package": "zil-driver",
+        "target": "generics",
+        "filter": "terminal_static_function_value_keeps_qualified_input_classes",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "c9535d21a54c4289720c3e4d49cc05e04c2eb475498009888f3455c65669225a"
+      },
+      {
+        "package": "zil-driver",
+        "target": "generics",
+        "filter": "g3_3_qualified_environment_raw_and_wire_neighbors",
+        "exit": 0,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "sha256": "6a93b18b58d09ed70bf81573d2029b00c88c00e57f3c08cbc899dbe981887842"
+      }
+    ],
+    "passed": 12,
+    "failed": 0,
+    "minima": {
+      "enum_error_work_nodes": [
+        978,
+        412
+      ],
+      "union_binding_work_nodes": [
+        1276,
+        496
+      ],
+      "union_argument_work_nodes": [
+        1206,
+        456
+      ],
+      "union_independent_work_nodes": [
+        1813,
+        638
+      ],
+      "resource_scalar_work_nodes": [
+        510,
+        279
+      ],
+      "resource_owned_work_nodes": [
+        977,
+        530
+      ],
+      "resource_local_work_nodes": [
+        974,
+        531
+      ],
+      "legacy_state_expand": 2769,
+      "ordinary_store_expand": 3360,
+      "driver246_expand_types": [
+        [
+          813,
+          506
+        ],
+        [
+          1092,
+          782
+        ]
+      ]
+    },
+    "boundary_checks": "Existing exact N/N-1 ResourceLimit, repeated Core equality/fresh parsed syntax kept; unchanged where session test independently covers warm/fresh exhausted retry.",
+    "clippy": {
+      "command": "cargo clippy --locked --offline -j2 -p zil-expand --lib -- -D warnings",
+      "exit": 0
+    },
+    "fmt": {
+      "changed_rust_files": 5,
+      "exit": 0
+    },
+    "additional_source_checks": [
+      {
+        "label": "unknown_plain_annotation",
+        "status": "Unsupported",
+        "phase": "types",
+        "diagnostic_codes": [
+          "E-UNSUPPORTED"
+        ]
+      },
+      {
+        "label": "bad_plain_annotation_body",
+        "status": "SafeReject",
+        "phase": "types",
+        "diagnostic_codes": [
+          "E-TYPE-MISMATCH"
+        ]
+      },
+      {
+        "label": "valid_plain_annotation",
+        "status": "Success",
+        "phase": "verify",
+        "diagnostic_codes": []
+      }
+    ]
+  },
+  "historical_failures": {
+    "full532415": "/workspace/.zil-env/G10.1-run-532415/workspace.log",
+    "source921": "Author tail receipt preserves its 4 failures and unchanged ordinaryStore pass; not relabeled as a prior pass."
+  },
+  "limits": [
+    "Increment-only independent review; no new full workspace/reference gates.",
+    "Prior Rust runtime/RSS/compiler/maintenance product comparisons remain unmeasured.",
+    "Independent probes distinguish ordinary Unknown annotation Unsupported from wrong-body SafeReject; neither gained acceptance."
+  ],
+  "blocking_findings": []
+}
