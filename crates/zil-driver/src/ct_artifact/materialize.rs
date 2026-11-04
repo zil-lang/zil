@@ -511,6 +511,9 @@ impl Materializer<'_, '_> {
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
             CtTypeNode::BorrowedStorage { storage, .. } => {
+                self.environment
+                    .budget
+                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
                 if !self.data_source_scopes.iter().any(|s| s.owner == id) {
                     return Err(category(
                         "stored-borrow Type has no genuine scoped source handle",
