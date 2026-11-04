@@ -171,6 +171,41 @@ pub(crate) fn at_type<'a>(
     }
     Ok(ty)
 }
+/// Consume only an actual current edge observation reconstructed by this
+/// kernel. The declaration/path alone never narrows a candidate arm set.
+pub(super) fn refine_actual_error_arm(
+    state: &mut State,
+    local: LocalId,
+    tag: u32,
+    equal: bool,
+    b: &mut Budget,
+) -> Check<()> {
+    if tag > 1 || state.initialized[local.0 as usize] != 2 {
+        return Ok(());
+    }
+    let value = &mut state.locals[local.0 as usize];
+    value.cost(b)?; // includes a possible Arc copy before mutation
+    let Content::Sum(arms, _) = value.as_ref() else {
+        return Err(invalid(
+            "actual error tag observation has no ErrorUnion content",
+        ));
+    };
+    b.spend(arms.len().saturating_mul(2))?;
+    // Runtime tag is is_error(0/1); this kernel's Content convention is
+    // error=0/success=1. Keep its independent convention explicit.
+    let selected = if tag == 0 { 1 } else { 0 };
+    let keep = |key: u32| (key == selected) == equal;
+    if !arms.keys().any(|key| keep(*key)) {
+        // Preserve the existing conservative treatment of unreachable CFG
+        // edges. Never turn a missing/empty alternative into initialized data.
+        return Ok(());
+    }
+    let Content::Sum(arms, _) = Arc::make_mut(value) else {
+        unreachable!()
+    };
+    arms.retain(|key, _| keep(*key));
+    Ok(())
+}
 fn selected<'a>(
     value: &'a Content,
     path: &[PlaceProjection],

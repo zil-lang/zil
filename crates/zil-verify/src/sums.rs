@@ -1015,6 +1015,7 @@ struct Flow<'a> {
     summaries: &'a [Content],
     partial: bool,
     place_meta: Option<partial_places::Meta>,
+    address_replacement_tags: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
 
@@ -1104,8 +1105,14 @@ impl Flow<'_> {
         Ok(())
     }
     fn edge(&self, state: &mut State, block: usize, next: usize, budget: &mut Budget) -> Check<()> {
-        if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
-            meta.edge(p, &self.f.blocks[block].terminator, next, budget)?;
+        if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial)
+            && let Some((local, path, tag, equal)) =
+                meta.edge(p, &self.f.blocks[block].terminator, next, budget)?
+            && self.address_replacement_tags
+            && path.is_empty()
+            && matches!(self.f.locals[local.0 as usize].ty, Type::ErrorUnion { .. })
+        {
+            replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
         }
         let Terminator::Branch {
             condition,
@@ -1834,11 +1841,18 @@ fn run_with_replacements(
         )?);
     }
     let mut partial = false;
+    let mut address_tag = false;
+    let mut address_replacement = false;
     let mut definitions = vec![None; f.values.len()];
     let mut observers = vec![None; f.values.len()];
     for (b, block) in f.blocks.iter().enumerate() {
         for (i, instruction) in block.instructions.iter().enumerate() {
             budget.spend(1)?;
+            address_tag |= matches!(instruction.kind, InstructionKind::PlaceTagAddress { .. });
+            address_replacement |= matches!(
+                instruction.kind,
+                InstructionKind::ReservePlaceAddress { .. }
+            );
             partial |= matches!(
                 instruction.kind,
                 InstructionKind::BorrowPlaceLocal { .. }
@@ -1856,6 +1870,8 @@ fn run_with_replacements(
             }
         }
     }
+    let address_replacement_tags = address_tag && address_replacement;
+    partial |= address_replacement_tags;
     if partial {
         state.partial = Some(partial_places::State::default());
     }
@@ -1867,6 +1883,7 @@ fn run_with_replacements(
         summaries,
         partial,
         replacements,
+        address_replacement_tags,
         place_meta: if partial {
             Some(partial_places::Meta::new(f, budget)?)
         } else {
