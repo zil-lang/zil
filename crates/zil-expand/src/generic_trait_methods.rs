@@ -839,6 +839,7 @@ impl Engine<'_> {
         if let Some(explicit) = explicit {
             for argument in explicit {
                 match argument {
+                    GenericArg::Lifetime(name) => self.budget.text(name, expression.span)?,
                     GenericArg::Type(ty) => self.budget.ty(ty)?,
                     GenericArg::Const(value) => self.budget.const_expression(value)?,
                 };

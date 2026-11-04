@@ -105,7 +105,8 @@ pub(super) fn add_definitions(
                         spend(left, found.len().saturating_add(32))?;
                         found.insert(*id, t.clone());
                     }
-                    Type::Managed(t)
+                    Type::BorrowedStorage { storage: t, .. }
+                | Type::Managed(t)
                     | Type::Desc(t)
                     | Type::Address { inner: t, .. }
                     | Type::Opaque { hidden: t, .. }
@@ -340,7 +341,8 @@ pub(super) fn closed_environment(
                     pay(&mut work, 1)?;
                     pending.push(*id)
                 }
-                Type::Managed(t)
+                Type::BorrowedStorage { storage: t, .. }
+                | Type::Managed(t)
                 | Type::Registration { environment: t }
                 | Type::Opaque { hidden: t, .. }
                 | Type::OwnedStore { element: t }

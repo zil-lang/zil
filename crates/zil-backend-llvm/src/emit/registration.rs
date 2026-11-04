@@ -678,7 +678,8 @@ pub(super) fn reserve_function(
                         | Type::ByteBuffer
                         | Type::OwnedStore { .. }
                 ) => {}
-            Type::Managed(t)
+            Type::BorrowedStorage { storage: t, .. }
+            | Type::Managed(t)
             | Type::Desc(t)
             | Type::Address { inner: t, .. }
             | Type::Registration { environment: t }

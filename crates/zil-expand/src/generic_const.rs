@@ -64,6 +64,7 @@ pub(super) fn argument(
     budget: &mut Budget<'_>,
 ) -> R<TypeRef> {
     match arg {
+        GenericArg::Lifetime(_) => Err(unsupported(Span::default(), "lifetime argument requires a scoped storage application")),
         GenericArg::Const(e) => carrier(e, budget),
         GenericArg::Type(ty)
             if parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_))) =>
@@ -298,6 +299,7 @@ pub(super) fn definition<'a>(
                 }
                 for arg in args {
                     match arg {
+                        GenericArg::Lifetime(name) => self.text(name, ty.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
                                 self.parameters.iter().any(|p| {
@@ -322,6 +324,7 @@ pub(super) fn definition<'a>(
                 self.expression(callee, depth + 1)?;
                 for argument in arguments {
                     match argument {
+                        GenericArg::Lifetime(name) => self.text(name, expression.span)?,
                         GenericArg::Type(ty)
                             if trait_bounds::plain(ty).is_some_and(|name| {
                                 self.parameters.iter().any(|p| {

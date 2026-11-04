@@ -1687,6 +1687,9 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+            return Err(unsupported("stored-borrow instruction consumer is not yet implemented", span));
+        }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
         | InstructionKind::RegistrationClose { .. } => {
@@ -3016,6 +3019,8 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::LoadStoredBorrow { storage, .. } => ([Some(*storage), None], &[]),
+        InstructionKind::StoreStoredBorrow { storage, value, .. } => ([Some(*storage), Some(*value)], &[]),
         InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),

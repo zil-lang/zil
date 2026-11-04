@@ -240,6 +240,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
     fn ty(&mut self, ty: &Type, depth: usize, slice_pointee: bool) -> CompileResult<()> {
         self.node(depth)?;
         match ty {
+            Type::BorrowedStorage { storage, .. } => self.ty(storage, depth + 1, false)?,
             Type::Named(name) | Type::Unsupported(name) => {
                 self.text(name)?;
                 return Err(vec![Diagnostic::unsupported(

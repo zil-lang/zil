@@ -144,6 +144,7 @@ fn argument<V: Visitor + ?Sized>(
     depth: usize,
 ) -> CompileResult<()> {
     match a {
+        s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
     }

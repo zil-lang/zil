@@ -203,6 +203,7 @@ fn shape(ty: &TypeRef, budget: &mut Budget<'_>, depth: usize) -> R<Shape> {
             }
             for arg in args {
                 let child = match arg {
+                    GenericArg::Lifetime(_) => return Err(unsupported(ty.span, "lifetime instance identity requires scoped canonical storage relation")),
                     GenericArg::Type(child) => shape(child, budget, depth + 1)?,
                     GenericArg::Const(expression) => {
                         scalar_shape(expression, true, budget, depth + 1)?.finish(1, 0, ty.span)?

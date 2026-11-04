@@ -63,6 +63,7 @@ fn attributes<V: Visitor + ?Sized>(
 }
 fn argument<V: Visitor + ?Sized>(v: &mut V, a: &s::GenericArg, depth: usize) -> CompileResult<()> {
     match a {
+        s::GenericArg::Lifetime(name) => v.text(name, Span::default()),
         s::GenericArg::Type(t) => v.ty(t, depth),
         s::GenericArg::Const(e) => v.expression(e, depth),
     }
@@ -766,6 +767,14 @@ pub(crate) fn member_owner_type_cost(
                 for ty in types {
                     core_shape(v, ty, span, depth + 1)?;
                 }
+            }
+            Type::BorrowedStorage { storage: inner, life } => {
+                for _ in 0..life.binder_count { v.node(span, depth + 1)?; }
+                for slot in &life.slots {
+                    v.node(span, depth + 1)?;
+                    for _ in &slot.path { v.node(span, depth + 2)?; }
+                }
+                core_shape(v, inner, span, depth + 1)?;
             }
             Type::Managed(inner)
             | Type::Desc(inner)

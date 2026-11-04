@@ -877,6 +877,7 @@ impl Visitor<'_, '_, '_> {
                     self.expr(callee, types, values, depth + 1)?;
                     for arg in arguments {
                         match arg {
+                            GenericArg::Lifetime(name) => self.resolver.budget.text(name, e.span)?,
                             GenericArg::Type(t) => self.ty(t, types, depth + 1)?,
                             GenericArg::Const(x) => self.expr(x, types, values, depth + 1)?,
                         }

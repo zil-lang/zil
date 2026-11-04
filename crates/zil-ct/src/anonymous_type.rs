@@ -54,6 +54,7 @@ pub(crate) fn remap(
     mut map: impl FnMut(CtTypeNodeId) -> CompileResult<CtTypeNodeId>,
 ) -> CompileResult<CtTypeNode> {
     Ok(match node {
+        CtTypeNode::BorrowedStorage { .. } => return Err(vec![Diagnostic::unsupported(Phase::Ct, "stored-borrow CT remapping is not yet implemented", None)]),
         CtTypeNode::Primitive(s) => CtTypeNode::Primitive(*s),
         CtTypeNode::Builtin(s) => CtTypeNode::Builtin(*s),
         CtTypeNode::Opaque { identity } => CtTypeNode::Opaque {
@@ -328,6 +329,7 @@ pub fn canonicalize_anonymous_type(
                 budget,
             };
             let tag = match node {
+                CtTypeNode::BorrowedStorage { .. } => return Err(vec![Diagnostic::unsupported(Phase::Ct, "stored-borrow CT identity is not yet implemented", None)]),
                 CtTypeNode::Primitive(_) => 0,
                 CtTypeNode::Builtin(_) => 1,
                 CtTypeNode::Nominal { .. } => 2,

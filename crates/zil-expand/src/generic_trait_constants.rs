@@ -50,6 +50,7 @@ pub(crate) fn host_expression(
     }
     for argument in args {
         match argument {
+            GenericArg::Lifetime(name) => budget.text(name, expression.span)?,
             GenericArg::Type(ty) => budget.ty(ty)?,
             GenericArg::Const(value) => budget.const_expression(value)?,
         }

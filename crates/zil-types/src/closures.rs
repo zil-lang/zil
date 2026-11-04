@@ -683,6 +683,7 @@ impl State {
                 )
             })?;
             definitions.push(ClosureDefinition {
+                storage_life: None,
                 lending_captures: Vec::new(),
                 id: pending.id,
                 function: pending.function,

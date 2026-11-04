@@ -1446,6 +1446,9 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+                return invalid("E-CODEGEN-STORAGE", "stored-borrow instruction consumer is not yet implemented", Some(instruction.span));
+            }
             InstructionKind::RegistrationStart { .. }
             | InstructionKind::RegistrationValid { .. }
             | InstructionKind::RegistrationClose { .. } => {

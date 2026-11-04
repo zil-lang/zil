@@ -680,6 +680,7 @@ fn type_ref_valid(reference: &CtTypeRef, raw: &CtArtifactProgram, anonymous: &mu
     for (index, node) in reference.nodes.iter().enumerate() {
         let child = |id: CtTypeNodeId| (id.0 as usize) < index;
         let good = match node {
+            CtTypeNode::BorrowedStorage { .. } => false,
             CtTypeNode::Primitive(_) | CtTypeNode::Builtin(_) | CtTypeNode::Opaque { .. } => true,
             CtTypeNode::Nominal { arguments, .. } => arguments.iter().all(|a| match a {
                 CtTypeArgument::Type(id) => child(*id),
@@ -849,6 +850,7 @@ fn construct_type(
     }
     let last = u32::try_from(nodes.len()).map_err(|_| limit("CT type node count overflow"))?;
     let node = match kind {
+        CtTypeConstructor::BorrowedStorage { .. } => return Err(error("stored-borrow CT constructor is not yet implemented")),
         CtTypeConstructor::Array => {
             let length = u32::try_from(int(&args[1]))
                 .map_err(|_| error("CT array type length is outside u32"))?;
