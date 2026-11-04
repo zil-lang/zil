@@ -269,6 +269,10 @@ pub(super) fn reserve_binding(
                 let n = match &i.kind {
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::MakeAggregate { fields: arguments } => arguments.len(),
+                    InstructionKind::CallIndirect { arguments, .. } => {
+                        arguments.len().saturating_add(1)
+                    }
+                    InstructionKind::FunctionRef { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
