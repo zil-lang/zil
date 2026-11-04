@@ -1699,6 +1699,22 @@ fn g3_3_qualified_inline_environment_modes() {
             report.to_json()
         );
         terminal_native_profiles(&text, "result", 42);
+        if kind == "FnMut" {
+            // The environment is exclusive; its two shared input leaves may
+            // still name the same actual n. They do not inherit receiver mode.
+            let shared = text
+                .replace("Tag<life s>{n:i32}", "Tag<life s>{p:&'s i32}")
+                .replace("Tag::<'s>{n:*x}", "Tag::<'s>{p:x}")
+                .replace("p.n+*q", "*p.p+*q");
+            let report = compile_source(&source(&shared), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            terminal_native_profiles(&shared, "result", 42);
+        }
     }
 }
 
@@ -1730,6 +1746,75 @@ fn g3_3_qualified_environment_raw_and_wire_neighbors() {
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    // Whole request thresholds include the real environment and role walks.
+    for phase in ["Analyze", "Verify", "Source-through-Lower"] {
+        let run = |steps| {
+            let limits = Limits {
+                max_analysis_steps: steps,
+                ..Limits::default()
+            };
+            match phase {
+                "Analyze" => zil_analyze::analyze(&typed, &limits)
+                    .map(|_| ())
+                    .map_err(|e| e[0].category),
+                "Verify" => {
+                    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                        .map(|_| ())
+                        .map_err(|e| e[0].category)
+                }
+                _ => {
+                    let report = compile_source(
+                        &source(text),
+                        &CompileOptions {
+                            stop_after: Stage::Lower,
+                            limits,
+                            ..Default::default()
+                        },
+                    );
+                    if report.status == ResultCategory::Success {
+                        Ok(())
+                    } else {
+                        Err(report.status)
+                    }
+                }
+            }
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(()) => high = mid,
+                Err(ResultCategory::ResourceLimit) => low = mid + 1,
+                Err(error) => panic!("{phase} unexpected boundary result {error:?}"),
+            }
+        }
+        assert_eq!(run(low), Ok(()));
+        assert_eq!(run(low - 1), Err(ResultCategory::ResourceLimit));
+        assert_eq!(run(low), Ok(()));
+        if phase == "Source-through-Lower" {
+            let mut session = zil_driver::CompilationSession::default();
+            for (steps, expected) in [
+                (low, ResultCategory::Success),
+                (low - 1, ResultCategory::ResourceLimit),
+                (low, ResultCategory::Success),
+            ] {
+                let report = session.compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Lower,
+                        limits: Limits {
+                            max_analysis_steps: steps,
+                            ..Limits::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                assert_eq!(session.active_query_count(), 0);
+            }
+        }
+        eprintln!("G3.3 qualified scalar FnMut {phase} whole request N={low}/N-1/fresh");
+    }
     assert_eq!(typed.closures.len(), 1);
     assert_eq!(typed.closures[0].captures, vec![Type::I32]);
     assert_eq!(typed.closures[0].kind, CallableKind::FnMut);
@@ -1826,4 +1911,195 @@ fn g3_3_qualified_environment_raw_and_wire_neighbors() {
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+}
+
+#[test]
+fn g3_3_once_consumption_is_proved_after_source_in_raw_and_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    use zil_ir::{CallableKind, InstructionKind, Type, ValueId};
+    let text = "struct Tag<life s>{n:i32} fn invoke<life s,F:for<life a>for<life b>FnOnce(&'a Tag<'b>,&'b i32)->i32>(f:F,p:&Tag<'s>,q:&'s i32)->i32{return f(p,q)} fn apply<life s>(x:&'s i32)->i32{let v:Tag<'s>=Tag::<'s>{n:*x};var marker=0;let f=move (p,q)=>{marker=marker+1;return p.n+*q+marker};return invoke(f,&v,x)-1} fn main()->i32{let n=21;return apply(&n)}";
+    let unit = source(text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let (limits, target, aliases) = (
+        Limits::default(),
+        TargetProfile::default(),
+        Default::default(),
+    );
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let core = zil_types::infer_source_closures(&core, &limits).unwrap();
+    let adapted = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(adapted.closures[0].kind, CallableKind::FnMut);
+    let check = |module: &zil_ir::TypedModule| {
+        let plan = zil_analyze::analyze(module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(module, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        plan
+    };
+    let adapted_plan = check(&adapted);
+    // The same real FnMut environment is consumed through its declared Once
+    // parameter. Permit the claimed trace to match the forged two actual calls;
+    // the independent per-role allowance still must reject it.
+    let mut twice = adapted.clone();
+    let helper = twice
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap();
+    let new_value = ValueId(helper.values.len() as u32);
+    helper.values.push(Type::I32);
+    let original = helper
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+        .unwrap()
+        .clone();
+    let mut duplicate = original;
+    duplicate.result = Some(new_value);
+    helper.blocks[0].instructions.push(duplicate);
+    let zil_ir::CallableTraces::Finite(traces) =
+        &mut helper.callable_contract.as_mut().unwrap().traces
+    else {
+        panic!("expected finite source helper")
+    };
+    for trace in traces {
+        trace.calls.push(trace.calls[0]);
+    }
+    let helper_index = helper.id.0 as usize;
+    let mut candidate = adapted_plan.clone();
+    candidate.module_fingerprint = twice.fingerprint();
+    candidate.functions[helper_index]
+        .holds
+        .push(zil_ir::ValueHold {
+            value: new_value,
+            roots: vec![],
+        });
+    assert!(zil_analyze::analyze(&twice, &limits).is_err());
+    assert!(zil_verify::verify_module(twice.clone(), candidate.clone(), &target, &limits).is_err());
+    let bytes = zil_ir::wire::encode_module_candidate(&twice, &candidate, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+
+    // A concrete Once definition needs a responsibility ledger even when its
+    // actual inline fields are scalars. Derive it from this real source entry;
+    // use TakeLocal for its now non-Copy environments and call the actual entry
+    // directly at the former helper site, so no helper role can mask the test.
+    let mut actual = adapted.clone();
+    actual.closures[0].kind = CallableKind::FnOnce;
+    let helper_id = actual
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let mut direct_site = None;
+    for f in &mut actual.functions {
+        for block in &mut f.blocks {
+            for i in &mut block.instructions {
+                if let InstructionKind::Load(local) = i.kind
+                    && matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
+                {
+                    if f.callable_contract.is_some() {
+                        // The source callee pre-evaluation Load is unused;
+                        // the actual Once call already has its own Take.
+                        i.kind = InstructionKind::Constant(zil_ir::Constant::I32(0));
+                        f.values[i.result.unwrap().0 as usize] = Type::I32;
+                    } else {
+                        i.kind = InstructionKind::TakeLocal { local };
+                    }
+                }
+                if let InstructionKind::Call {
+                    function,
+                    arguments,
+                } = &i.kind
+                    && *function == helper_id
+                {
+                    i.kind = InstructionKind::CallClosureOnce {
+                        callee: arguments[0],
+                        arguments: arguments[1..].to_vec(),
+                    };
+                    direct_site = Some((f.id, block.id));
+                }
+            }
+        }
+    }
+    let actual_plan = check(&actual);
+    let (function, block) = direct_site.unwrap();
+    assert!(
+        actual.functions[function.0 as usize]
+            .callable_contract
+            .is_none()
+    );
+    for mutation in ["same SSA consumed twice", "non-Copy Load"] {
+        let mut wrong = actual.clone();
+        let f = &mut wrong.functions[function.0 as usize];
+        let mut candidate = actual_plan.clone();
+        if mutation == "same SSA consumed twice" {
+            let mut copy = f.blocks[block.0 as usize]
+                .instructions
+                .iter()
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap()
+                .clone();
+            let v = ValueId(f.values.len() as u32);
+            f.values.push(Type::I32);
+            copy.result = Some(v);
+            let position = f.blocks[block.0 as usize]
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap();
+            f.blocks[block.0 as usize]
+                .instructions
+                .insert(position + 1, copy);
+            candidate.functions[function.0 as usize]
+                .holds
+                .push(zil_ir::ValueHold {
+                    value: v,
+                    roots: vec![],
+                });
+        } else {
+            let i=f.blocks.iter_mut().flat_map(|b|&mut b.instructions).find(|i|matches!(i.kind,InstructionKind::TakeLocal{local}if matches!(f.locals[local.0 as usize].ty,Type::Closure(_)))).unwrap();
+            let InstructionKind::TakeLocal { local } = i.kind else {
+                unreachable!()
+            };
+            i.kind = InstructionKind::Load(local);
+        }
+        candidate.module_fingerprint = wrong.fingerprint();
+        let errors = zil_analyze::analyze(&wrong, &limits).unwrap_err();
+        eprintln!("G3.3 actual Once {mutation}: Analyze {}", errors[0].message);
+        let reason = if mutation == "same SSA consumed twice" {
+            "call uses consumed environment"
+        } else {
+            "Load cannot copy an owned carrier"
+        };
+        assert!(
+            errors.iter().any(|e| e.message.contains(reason)),
+            "{errors:?}"
+        );
+        let verified =
+            zil_verify::verify_module(wrong.clone(), candidate.clone(), &target, &limits)
+                .unwrap_err();
+        eprintln!(
+            "G3.3 actual Once {mutation}: Verify {}",
+            verified[0].message
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&wrong, &candidate, &limits).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        assert_eq!(decoded[0].code, verified[0].code);
+        assert_eq!(decoded[0].message, verified[0].message);
+    }
 }

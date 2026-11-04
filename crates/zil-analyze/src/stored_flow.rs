@@ -2027,6 +2027,17 @@ pub(super) fn infer(
     }
     super::stored_callables::roles(module, graphs, b)?;
     let facts = derive(module, graphs, b)?;
+    // A scalar capture has no destructor, but a concrete FnOnce environment
+    // still has one actual consumption obligation. The stored dispatcher must
+    // not bypass the independent SSA/local responsibility ledger.
+    fee(b, module.closures.len())?;
+    if module
+        .closures
+        .iter()
+        .any(|d| d.kind == CallableKind::FnOnce)
+    {
+        super::resources::check_module(module, graphs, b)?;
+    }
     let mut result = Vec::new();
     fee(b, facts.len())?;
     for function in facts {

@@ -1666,16 +1666,7 @@ fn windows(
                         for (_, p) in &actual.leaves {
                             permission_work(p, b)?;
                             b.spend(1)?;
-                            all.push((
-                                p.clone(),
-                                matches!(
-                                    i.kind,
-                                    InstructionKind::CallClosureBorrowed {
-                                        kind: CallableKind::FnMut,
-                                        ..
-                                    }
-                                ),
-                            ));
+                            all.push((p.clone(), false));
                         }
                         if let Some((_, shape)) = addressed(vt(f, *argument)?) {
                             for slot in &shape.slots {
