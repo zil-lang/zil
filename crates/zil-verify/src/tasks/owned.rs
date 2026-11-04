@@ -187,6 +187,7 @@ fn cleanup(
                     | InstructionKind::Unary { .. }
                     | InstructionKind::Binary { .. }
                     | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::MakeAggregate { .. }
                     | InstructionKind::MakeVariant { .. }
                     | InstructionKind::VariantTag { .. }
                     | InstructionKind::ReadVariant { .. }
@@ -348,6 +349,7 @@ pub(super) fn profile(
                 | InstructionKind::TakePackageField { .. }
                 | InstructionKind::StorePackageField { .. }
                 | InstructionKind::DropPackageField { .. }
+                | InstructionKind::MakeAggregate { .. }
                 | InstructionKind::MakeVariant { .. }
                 | InstructionKind::VariantTag { .. }
                 | InstructionKind::ReadVariant { .. }

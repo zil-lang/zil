@@ -112,6 +112,76 @@ pub(super) fn reserve_owner_actions(
             ),
     )
 }
+pub(super) fn reserve_copy_frame(
+    function: &TypedFunction,
+    meter: &Meter,
+    limits: &zil_base::Limits,
+) -> CompileResult<()> {
+    fn structured(t: &Type) -> bool {
+        matches!(
+            t,
+            Type::Managed(_)
+                | Type::Package { .. }
+                | Type::Record { .. }
+                | Type::Tuple(_)
+                | Type::Enum { .. }
+                | Type::ErrorUnion { .. }
+        )
+    }
+    meter.spend(
+        function
+            .locals
+            .len()
+            .saturating_add(function.values.len())
+            .saturating_add(1),
+    )?;
+    if !structured(&function.return_type)
+        && !function.locals.iter().any(|l| structured(&l.ty))
+        && !function.values.iter().any(structured)
+    {
+        return Ok(());
+    }
+    meter.spend(function.blocks.len())?;
+    for block in &function.blocks {
+        meter.spend(block.instructions.len())?;
+    }
+    let before = meter.remaining();
+    let mut left = before;
+    let reserved: CompileResult<()> = (|| {
+        for ty in std::iter::once(&function.return_type)
+            .chain(function.locals.iter().map(|l| &l.ty))
+            .chain(&function.values)
+        {
+            if structured(ty) {
+                for _ in 0..16 {
+                    copy_aggregates::reserve_enum_metadata(ty, &mut left, 0, limits)?;
+                }
+            }
+        }
+        for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let Some(output) = instruction.result {
+                let ty = &function.values[output.0 as usize];
+                if structured(ty) {
+                    let copies = match &instruction.kind {
+                        InstructionKind::MakeAggregate { fields }
+                        | InstructionKind::MakeManaged { fields }
+                        | InstructionKind::MakePackage { fields }
+                        | InstructionKind::MakeVariant { fields, .. } => {
+                            fields.len().saturating_add(16)
+                        }
+                        _ => 16,
+                    };
+                    for _ in 0..copies {
+                        copy_aggregates::reserve_enum_metadata(ty, &mut left, 0, limits)?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    })();
+    meter.spend(before - left)?;
+    reserved
+}
 pub(super) fn reserve_bridges(function: &TypedFunction, meter: &Meter) -> CompileResult<()> {
     meter.spend(function.blocks.len())?;
     for block in &function.blocks {
@@ -692,7 +762,7 @@ fn plan_frame(
             "actual Suspend child machine is absent",
         )]
     })?;
-    if verified.is_some_and(|v| v.task_ownership(id).is_some()) {
+    if verified.is_some() {
         let before = meter.remaining();
         let mut left = before;
         let reservation: CompileResult<()> = (|| {

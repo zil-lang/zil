@@ -103,6 +103,10 @@ fn worker_one(
         || f.values.iter().any(|t| matches!(t, Type::Managed(_)))
         || f.return_type != Type::I32
         || f.parameters.len() != 1
+        || f.parameters
+            .first()
+            .and_then(|p| f.locals.get(p.0 as usize))
+            .is_none_or(|l| l.ty != Type::I32)
         || f.locals.iter().any(|l| {
             matches!(
                 l.ty,
@@ -378,7 +382,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             return Err(fail(i.span, "task_create input count differs"));
                         }
                         for (v, p) in arguments.iter().zip(&target.parameters) {
-                            if ty(*v)? != &target.locals[p.0 as usize].ty {
+                            let actual = ty(*v)?;
+                            let wanted = &target.locals[p.0 as usize].ty;
+                            budget.type_work(actual, false, "task initial actual input")?;
+                            budget.type_work(wanted, false, "task initial signature input")?;
+                            if actual != wanted {
                                 return Err(fail(i.span, "task_create actual input type differs"));
                             }
                         }
