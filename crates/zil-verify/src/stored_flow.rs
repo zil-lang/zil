@@ -435,6 +435,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
             for i in &block.instructions {
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
+                    && !super::stored_callables::instruction(module, f, i)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -472,6 +473,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
+                }
+                if super::stored_callables::instruction(module, f, i) {
+                    super::stored_callables::types(module, f, i, b)?;
                 }
             }
         }
@@ -1087,6 +1091,7 @@ fn step(
                 }
             }
         }
+        _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::WriteAddress { address, .. } => {
@@ -1584,8 +1589,34 @@ fn windows(
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, false, &active, &solution.loans, requirements, b)?;
                 }
-                InstructionKind::CallIndirect { arguments, .. } => {
+                InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. }
+                | InstructionKind::CallClosureShared { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
+                    match &i.kind {
+                        InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            let p = pointer(*callee)?;
+                            permission_work(p, b)?;
+                            b.spend(1)?;
+                            all.push((p.clone(), false));
+                        }
+                        InstructionKind::CallClosureShared { callee, .. } => {
+                            b.spend(2)?;
+                            all.push((
+                                Permission {
+                                    sources: vec![Source {
+                                        base: HoldRoot::Local(*callee),
+                                        leaf: vec![],
+                                        inline: vec![],
+                                    }],
+                                    loans: vec![],
+                                },
+                                false,
+                            ));
+                        }
+                        _ => {}
+                    }
+
                     for argument in arguments {
                         let actual = &solution.values[argument.0 as usize];
                         if let Type::Address { mutable, .. } = vt(f, *argument)? {
@@ -1736,17 +1767,16 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    if !module.resources.is_empty() || !module.closures.is_empty() {
+    if !module.resources.is_empty() {
         return Err(unsupported(
             "owned/closure storage needs its common retained integration",
             None,
         ));
     }
+    super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if f.foreign.is_some()
-            || f.environment.is_some()
-            || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -1754,6 +1784,15 @@ pub(super) fn check(
                 "stored profile requires ordinary direct function bodies",
                 Some(f.span),
             ));
+        }
+        if let Some(id) = f.environment {
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| err("callback function environment is absent"))?;
+            if !super::stored_callables::finite(module, id) || d.function != f.id {
+                return Err(err("callback function is not the actual finite entry"));
+            }
         }
         for ty in f
             .locals
@@ -1763,7 +1802,8 @@ pub(super) fn check(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
-            if !(qualified(ty).is_some()
+            if !(super::stored_callables::value(module, ty)
+                || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value())
@@ -1776,6 +1816,7 @@ pub(super) fn check(
         }
     }
     b.spend(module.functions.len().saturating_mul(2))?;
+    super::stored_callables::roles(module, graphs, b)?;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
     loop {

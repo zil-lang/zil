@@ -226,7 +226,7 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    super::signature_life::relation(&d.parameters, &d.result, life)?;
+    super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
     check_with(module, f, reachable, b, Some(life))
 }
 fn check_with(

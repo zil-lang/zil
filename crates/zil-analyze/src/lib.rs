@@ -119,6 +119,10 @@ fn analyze_budgeted(
         });
     }
     if budget.stored_borrows {
+        if !module.closures.is_empty() {
+            stored_callables::definitions(module, budget)?;
+            helpers::check(module, budget)?;
+        }
         for f in &module.functions {
             stored_flow::header(f, budget)?;
         }

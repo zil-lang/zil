@@ -708,6 +708,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         // change any callback role, invocation signature or helper result.
         if function.parameters.iter().any(|p| {
             !candidates.iter().any(|(_, local)| p == local)
+                && !(budget.stored_borrows && (matches!(&function.locals[p.0 as usize].ty,Type::BorrowedStorage{..}) || matches!(&function.locals[p.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))))
                 && !function.locals[p.0 as usize].ty.is_copy_value()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()

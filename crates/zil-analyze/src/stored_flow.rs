@@ -1165,6 +1165,7 @@ fn transfer(
                 ));
             }
         }
+        _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
         InstructionKind::WriteAddress { address, .. } => {
@@ -1603,8 +1604,34 @@ fn windows(
                     address,
                     mutable: true,
                 } => use_permission(pointer(*address)?, true, &current, loans, apart, b)?,
-                InstructionKind::CallIndirect { arguments, .. } => {
+                InstructionKind::CallIndirect { arguments, .. }
+                | InstructionKind::CallClosureBorrowed { arguments, .. }
+                | InstructionKind::CallClosureShared { arguments, .. } => {
                     let mut all: Vec<(Permission, bool)> = Vec::new();
+                    match &i.kind {
+                        InstructionKind::CallClosureBorrowed { callee, .. } => {
+                            let mut p = Permission::default();
+                            union(&mut p, pointer(*callee)?, b)?;
+                            fee(b, 1)?;
+                            all.push((p, false));
+                        }
+                        InstructionKind::CallClosureShared { callee, .. } => {
+                            fee(b, 2)?;
+                            all.push((
+                                Permission {
+                                    targets: BTreeSet::from([Target {
+                                        base: HoldRoot::Local(*callee),
+                                        stored: vec![],
+                                        place: vec![],
+                                    }]),
+                                    loans: Loans::new(),
+                                },
+                                false,
+                            ));
+                        }
+                        _ => {}
+                    }
+
                     for argument in arguments {
                         let actual = &values[argument.0 as usize];
                         if let Type::Address { mutable, .. } = value_type(f, *argument)? {
@@ -1927,17 +1954,16 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    if !module.resources.is_empty() || !module.closures.is_empty() {
+    if !module.resources.is_empty() {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "owned/closure storage integration requires the common retained carrier consumer",
             None,
         )]);
     }
+    super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         if f.foreign.is_some()
-            || f.environment.is_some()
-            || f.callable_contract.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -1947,6 +1973,15 @@ pub(super) fn infer(
                 Some(f.span),
             )]);
         }
+        if let Some(id) = f.environment {
+            let d = module
+                .closures
+                .get(id.0 as usize)
+                .ok_or_else(|| failure("callback function environment is absent"))?;
+            if !super::stored_callables::finite(module, id) || d.function != f.id {
+                return Err(failure("callback function is not the actual finite entry"));
+            }
+        }
         for ty in f
             .locals
             .iter()
@@ -1955,7 +1990,8 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
-            if !(carrier(ty).is_some()
+            if !(super::stored_callables::value(module, ty)
+                || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value())
@@ -1970,6 +2006,7 @@ pub(super) fn infer(
         actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
+    super::stored_callables::roles(module, graphs, b)?;
     let facts = derive(module, graphs, b)?;
     let mut result = Vec::new();
     fee(b, facts.len())?;
@@ -2025,6 +2062,7 @@ fn actual_instructions(
         for i in &block.instructions {
             fee(b, 1)?;
             if !super::class_flow::pointer_instruction(f, i)
+                && !super::stored_callables::instruction(module, f, i)
                 && !matches!(
                     &i.kind,
                     InstructionKind::Constant(_)
@@ -2087,6 +2125,9 @@ fn actual_instructions(
             };
             if super::class_flow::pointer_instruction(f, i) {
                 super::class_flow::pointer_types(module, f, i, b)?;
+            }
+            if super::stored_callables::instruction(module, f, i) {
+                super::stored_callables::types(module, f, i, b)?;
             }
             match &i.kind {
                 InstructionKind::ConvertInteger { value, target }
