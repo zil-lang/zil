@@ -4799,20 +4799,16 @@ fn async_registration841_task_queued_cancel_native() {
             ));
             fs::create_dir_all(&dir).unwrap();
             let observer = dir.join("host.o");
-            let c = Command::new(&clang)
-                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
-                .arg(
-                    Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../tests/language-readiness/async-registration/queued-host.c"),
-                )
-                .arg("-o")
-                .arg(&observer)
-                .output()
-                .unwrap();
-            assert!(c.status.success(), "{c:?}");
             let wrapper = dir.join("link.sh");
             fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let early_async = include_str!(
+                "../../../tests/language-readiness/async-registration/queued-export.zil"
+            )
+            .replace(
+                "task_yield();",
+                "task_yield();async_registration_finish_destroy(give owner);",
+            );
             for (mode, text) in [
                 (
                     "cancel",
@@ -4832,9 +4828,34 @@ fn async_registration841_task_queued_cancel_native() {
                         "../../../tests/language-readiness/async-registration/queued-result.zil"
                     ),
                 ),
+                (
+                    "export",
+                    include_str!(
+                        "../../../tests/language-readiness/async-registration/queued-export.zil"
+                    ),
+                ),
+                ("early_async", early_async.as_str()),
             ] {
-                let report = compile_source(
-                    &source(text),
+                let c = Command::new(&clang)
+                    .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                    .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join(
+                        if mode == "export" || mode == "early_async" {
+                            "../../tests/language-readiness/async-registration/queued-export-host.c"
+                        } else {
+                            "../../tests/language-readiness/async-registration/queued-host.c"
+                        },
+                    ))
+                    .arg("-o")
+                    .arg(&observer)
+                    .output()
+                    .unwrap();
+                assert!(c.status.success(), "{c:?}");
+                let report = zil_driver::compile_project(
+                    &zil_driver::ProjectSources {
+                        root: ModuleId(0),
+                        modules: vec![source(text)],
+                        paths: Default::default(),
+                    },
                     &CompileOptions {
                         backend,
                         optimization,
@@ -4853,23 +4874,74 @@ fn async_registration841_task_queued_cancel_native() {
                 );
                 assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
                 assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-                let mut command = Command::new(&report.artifacts["executable"]);
-                if mode != "cancel" {
-                    command.env("ZIL_ASYNC_NORMAL", "1");
+                let runs: Vec<Option<(&str, &str)>> = if mode == "export" {
+                    vec![
+                        None,
+                        Some(("ZIL_ASYNC_EXPORT_RETURN", "1")),
+                        Some(("ZIL_ASYNC_ALLOC_FAIL", "1")),
+                        Some(("ZIL_ASYNC_ALLOC_FAIL", "2")),
+                        Some(("ZIL_ASYNC_INSTALL_FAIL", "1")),
+                        Some(("ZIL_ASYNC_INVALID_DRAIN", "1")),
+                        Some(("ZIL_ASYNC_EARLY_TASK_FINISH", "1")),
+                    ]
+                } else {
+                    vec![None]
+                };
+                for failure in runs {
+                    let mut command = Command::new(&report.artifacts["executable"]);
+                    if mode == "return" || mode == "result" {
+                        command.env("ZIL_ASYNC_NORMAL", "1");
+                    }
+                    if mode == "result" {
+                        command.env("ZIL_ASYNC_RESULT", "1");
+                    }
+                    if let Some((key, value)) = failure {
+                        command.env(key, value);
+                    }
+                    let traps = mode == "early_async"
+                        || failure.is_some_and(|(key, _)| {
+                            key == "ZIL_ASYNC_INVALID_DRAIN" || key == "ZIL_ASYNC_EARLY_TASK_FINISH"
+                        });
+                    if mode == "early_async" {
+                        command.env("ZIL_ASYNC_EARLY_ASYNC_FINISH", "1");
+                    }
+                    if traps {
+                        command.env("ZIL_ASYNC_TRACE", "1");
+                    }
+                    let actual = command.output().unwrap();
+                    if traps {
+                        assert_eq!(
+                            actual.status.code(),
+                            None,
+                            "{backend:?} {optimization:?} mode={mode} failure={failure:?}: {actual:?}"
+                        );
+                        assert!(
+                            !actual.stdout.contains(&b'F') && !actual.stdout.contains(&b'D'),
+                            "no free or environment Drop before Closed: {actual:?}"
+                        );
+                        assert!(
+                            String::from_utf8_lossy(&actual.stdout).contains("live=2 drops=0"),
+                            "{actual:?}"
+                        );
+                    } else {
+                        assert_eq!(
+                            actual.status.code(),
+                            Some(0),
+                            "{backend:?} {optimization:?} mode={mode} failure={failure:?}: {actual:?}"
+                        );
+                        let expected = match failure {
+                            Some(("ZIL_ASYNC_ALLOC_FAIL", "1")) => {
+                                "task allocation failure; no installed source\n"
+                            }
+                            Some(("ZIL_ASYNC_ALLOC_FAIL", "2"))
+                            | Some(("ZIL_ASYNC_INSTALL_FAIL", _)) => {
+                                "registration failure; owned environment dropped exactly once\n"
+                            }
+                            _ => "queued late entry rejected; no-future before two frees\n",
+                        };
+                        assert_eq!(actual.stdout, expected.as_bytes(), "{actual:?}");
+                    }
                 }
-                if mode == "result" {
-                    command.env("ZIL_ASYNC_RESULT", "1");
-                }
-                let actual = command.output().unwrap();
-                assert_eq!(
-                    actual.status.code(),
-                    Some(0),
-                    "{backend:?} {optimization:?}: {actual:?}"
-                );
-                assert_eq!(
-                    actual.stdout,
-                    b"queued late entry rejected; no-future before two frees\n"
-                );
             }
             fs::remove_dir_all(dir).unwrap();
         }
