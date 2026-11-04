@@ -7748,7 +7748,7 @@ fn terminal340_owner_replacement_error_arm_actual_mutable_alias() {
     for text in [text.as_str(), unknown, relay.as_str(), read_old.as_str()] {
         let temp = Temp::new();
         let report = compile_source(
-            &source(&text),
+            &source(text),
             &CompileOptions {
                 emit_dir: Some(temp.0.clone()),
                 ..CompileOptions::default()
@@ -7761,7 +7761,7 @@ fn terminal340_owner_replacement_error_arm_actual_mutable_alias() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        review329_native_output(&[("main", &text)], b"AB42\n");
+        review329_native_output(&[("main", text)], b"AB42\n");
     }
 }
 
