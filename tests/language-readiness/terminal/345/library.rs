@@ -234,6 +234,14 @@ fn ordinary_store_remove_transfers_and_cleans_actual_owners() {
         "{}",
         denied.to_json()
     );
+    assert!(
+        matches!(
+            denied.phase,
+            zil_base::Phase::Analyze | zil_base::Phase::Verify
+        ),
+        "{}",
+        denied.to_json()
+    );
 }
 
 #[cfg(unix)]
