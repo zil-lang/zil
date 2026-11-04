@@ -130,6 +130,12 @@ pub enum CtTypeNode {
         parameters: Vec<CtTypeNodeId>,
         result: CtTypeNodeId,
     },
+    /// Invocation-local relation only; every safety consumer checks actual roots.
+    BorrowedFunctionPointer {
+        parameters: Vec<CtTypeNodeId>,
+        result: CtTypeNodeId,
+        life: crate::FunctionLifeContract,
+    },
     Address {
         mutable: bool,
         inner: CtTypeNodeId,

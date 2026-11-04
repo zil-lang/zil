@@ -1,7 +1,7 @@
 //! Bounded, canonical CT-only wire. Field codecs below use explicit
 //! schema-order tags; no Debug/serde layout or runtime Wire31 dependency.
 use crate::ct_artifact::*;
-use crate::{BinaryOp, Constant, UnaryOp};
+use crate::{BinaryOp, Constant, FunctionLifeContract, UnaryOp};
 use zil_base::{FileId, Fingerprint, FingerprintBuilder, Limits, ModuleId, NodeId, Span};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1309,6 +1309,29 @@ impl Wire for CtTypeRef {
     }
 }
 
+impl Wire for FunctionLifeContract {
+    fn encode(&self, e: &mut Encoder) -> Result<()> {
+        e.descend(|e| {
+            // Binder count is bounded before spending or allocating map data.
+            e.nodes(self.binder_count as usize)?;
+            self.binder_count.encode(e)?;
+            self.parameter_lives.encode(e)?;
+            self.result_life.encode(e)
+        })
+    }
+    fn decode(d: &mut Decoder<'_>) -> Result<Self> {
+        d.descend(|d| {
+            let binder_count = u32::decode(d)?;
+            d.nodes(binder_count as usize)?;
+            Ok(Self {
+                binder_count,
+                parameter_lives: Vec::<Option<u32>>::decode(d)?,
+                result_life: Option::<u32>::decode(d)?,
+            })
+        })
+    }
+}
+
 impl Wire for CtTypeNode {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| {
@@ -1339,6 +1362,16 @@ impl Wire for CtTypeNode {
                     5u8.encode(e)?;
                     parameters.encode(e)?;
                     result.encode(e)?;
+                }
+                Self::BorrowedFunctionPointer {
+                    parameters,
+                    result,
+                    life,
+                } => {
+                    14u8.encode(e)?;
+                    parameters.encode(e)?;
+                    result.encode(e)?;
+                    life.encode(e)?;
                 }
                 Self::Address { mutable, inner } => {
                     6u8.encode(e)?;
@@ -1395,6 +1428,11 @@ impl Wire for CtTypeNode {
             5 => Ok(Self::FunctionPointer {
                 parameters: <Vec<CtTypeNodeId> as Wire>::decode(d)?,
                 result: <CtTypeNodeId as Wire>::decode(d)?,
+            }),
+            14 => Ok(Self::BorrowedFunctionPointer {
+                parameters: Vec::<CtTypeNodeId>::decode(d)?,
+                result: CtTypeNodeId::decode(d)?,
+                life: FunctionLifeContract::decode(d)?,
             }),
             6 => Ok(Self::Address {
                 mutable: <bool as Wire>::decode(d)?,
