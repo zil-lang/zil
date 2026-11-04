@@ -21,6 +21,7 @@ mod holds;
 mod incremental;
 mod lifetimes;
 mod owned_callbacks;
+mod registration;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
@@ -108,6 +109,7 @@ fn analyze_budgeted(
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
     tasks::check(module, budget)?;
+    registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {
         scopes::check(module, function, package, budget)?;
     }

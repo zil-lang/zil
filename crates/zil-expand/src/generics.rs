@@ -42,7 +42,10 @@ pub(super) mod trait_instances;
 mod where_copy;
 
 fn check_nominal_name(name: &str, span: Span) -> R<()> {
-    if super::byte_buffer_name(name) || super::owned_store_name(name) {
+    if super::byte_buffer_name(name)
+        || super::owned_store_name(name)
+        || super::registration_name(name)
+    {
         return Err(super::primitive_name_error(name, span));
     }
     if copy::reserved_name(name) {
@@ -86,7 +89,7 @@ pub(super) fn specialize_products<'a>(
             && implementation
                 .trait_type
                 .as_ref()
-                .is_some_and(stores::is_bound)
+                .is_some_and(|bound| stores::is_bound(bound) || callable::closed_bound(bound))
         {
             return Err(vec![error(
                 item.span,
@@ -119,7 +122,10 @@ pub(super) fn specialize_products<'a>(
                 continue;
             }
             names_budget.node(param.span, 0).map_err(|e| vec![e])?;
-            if super::byte_buffer_name(&param.name) || super::owned_store_name(&param.name) {
+            if super::byte_buffer_name(&param.name)
+                || super::owned_store_name(&param.name)
+                || super::registration_name(&param.name)
+            {
                 return Err(vec![super::primitive_name_error(&param.name, param.span)]);
             }
         }

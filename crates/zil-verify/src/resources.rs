@@ -44,6 +44,9 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
         budget.spend(2)?;
         match ty {
             Type::Array { element, .. }
+            | Type::Registration {
+                environment: element,
+            }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
             | Type::Managed(element)
@@ -97,6 +100,9 @@ pub(super) fn check_type_for(
     };
     if matches!(inner.as_ref(), Type::OwnedStore { .. }) {
         return dynamic_store::check_carrier(module, ty, span, budget);
+    }
+    if matches!(inner.as_ref(), Type::Registration { .. }) {
+        return registration::carrier(module, ty, span, budget);
     }
     if inner.as_ref() == &Type::TaskI32 {
         return tasks::carrier(module, ty, span, budget);
@@ -158,6 +164,24 @@ pub(super) fn check_definitions(
                     "Store definition must be unique",
                 ));
             }
+            continue;
+        }
+        if matches!(resource.payload, Type::Registration { .. })
+            || resource.name.starts_with(registration::PREFIX)
+        {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-REGISTRATION",
+                    None,
+                    "registration definition must be unique",
+                ));
+            }
+            registration::carrier(
+                module,
+                &Type::Managed(Box::new(resource.payload.clone())),
+                None,
+                budget,
+            )?;
             continue;
         }
         if resource.payload == Type::TaskI32 || resource.name == TASK_I32_RESOURCE_NAME {
@@ -1071,6 +1095,10 @@ impl Transfer<'_> {
                         )?;
                     }
                 }
+                InstructionKind::RegistrationStart { callback, .. } => {
+                    self.consume(state, *callback, span, validate)?;
+                    fresh_result = Some(FRESH);
+                }
                 InstructionKind::OwnedStoreNew { .. }
                 | InstructionKind::MakeManaged { .. }
                 | InstructionKind::ByteBufferNew
@@ -1776,7 +1804,8 @@ impl Transfer<'_> {
                         fresh_result = Some(INPUT);
                     }
                 }
-                InstructionKind::TaskFinishDestroy { task } => {
+                InstructionKind::RegistrationClose { registration: task }
+                | InstructionKind::TaskFinishDestroy { task } => {
                     self.consume(state, *task, span, validate)?;
                 }
                 InstructionKind::Call {

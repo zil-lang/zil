@@ -215,3 +215,35 @@ A retained adversarial machine neighbor combines a 65536-byte initializer,
 nested aggregate/array signature types and long type/global/function/operand
 names; its N/N−1/fresh-N boundary is 257884. This is machine-level accounting
 evidence, separate from the source-to-native SABI tests.
+
+## Returned same-thread Registration construction
+
+The first retained route uses the existing explicit unsafe Register/Close roles:
+register-null means every raw entry/access has ended and none can begin; strong
+Close returns only after the same condition. A site-specific stable allocation
+stores the actual concrete F, backend handle, close-code pointer and one atomic
+Busy/Closing word. FnMut admission owns Busy only on old=0; rejected old=2 owns
+and clears only the Busy it just set, while old=1/3 never clears another entry.
+Closing is monotone. The word checks F exclusion and reentry; it never proves
+that pre-atomic/rejected raw entries have ended. Only the actual strong backend
+return permits environment destruction and free. This route is same-thread and
+non-Transfer; asynchronous/no-future-only backends cannot reuse the shortcut.
+
+`Registration<F>` retains the actual F type under the ordinary Managed/Desc
+ownership category. `c_register` consumes F using ordinary callable rules;
+allocation and null-install failures each destroy that actual environment once
+and return a defined null owner. `registration_valid` reads the nullable head
+through its actual descriptor, and explicit/default close use the same consuming
+strong-close path. The returned helper source must survive stack clobbering and
+then accept callbacks. Raw descriptors do not expose frame bytes.
+
+Unused generic installation definitions explicitly require
+`F: FnMut(i32)->i32 + ClosedEnvironment`. The bound is a raw compiler-sealed
+requirement; Types and both kernels separately walk actual capture/ownership
+graphs. Captured loan/data addresses or descriptors reject, including inside
+owned containers; code pointer signature addresses are not stored capture data.
+The owning registration factory is derived from actual Managed Registration
+return, matching concrete F input and create/give responsibility. It does not
+reuse a synchronous finite callback trace for callbacks occurring after return.
+All new inventories and frame/helper construction debit the existing remaining
+request budget; fixed helper reservations include actual nested capture work.
