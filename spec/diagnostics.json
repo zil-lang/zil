@@ -982,6 +982,24 @@
       ]
     },
     {
+      "code": "E-TASK-ABI",
+      "phases": [
+        "analyze"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
+      "code": "E-TASK-WORKER",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
       "code": "E-THREAD-BODY",
       "phases": [
         "types"
@@ -1133,6 +1151,24 @@
       ]
     },
     {
+      "code": "E-VERIFY-HEAD-ACCESS",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS"
+      ]
+    },
+    {
+      "code": "E-VERIFY-HEAD-PERMISSION",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ACCESS"
+      ]
+    },
+    {
       "code": "E-VERIFY-HOLD",
       "phases": [
         "verify"
@@ -1212,6 +1248,33 @@
       "requirements": [
         "ZIL-MODES",
         "ZIL-CLEANUP"
+      ]
+    },
+    {
+      "code": "E-VERIFY-TASK",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
+      "code": "E-VERIFY-TASK-DIRECT-EXPORT",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
+      ]
+    },
+    {
+      "code": "E-VERIFY-TASK-INTERFACE",
+      "phases": [
+        "verify"
+      ],
+      "requirements": [
+        "ZIL-ASYNC"
       ]
     },
     {

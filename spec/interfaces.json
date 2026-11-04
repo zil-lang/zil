@@ -412,7 +412,7 @@
       "state": "ContractToImplement",
       "Type": "Registration {environment:Box<Type>} tag32; actual concrete closure, Managed owning root and read Desc",
       "instructions": {
-        "111": "RegistrationStart {actual register,close,callback}",
+        "111": "RegistrationStart {register:FunctionId,close:FunctionId,callback:ValueId,region:u32}; region denotes explicit unsafe invocation, not retained lifetime",
         "112": "RegistrationValid {registration}",
         "113": "RegistrationClose {registration}; consumes actual Managed root"
       },
@@ -423,15 +423,37 @@
       "authority": "_zil_design.md §15.2",
       "state": "ContractToImplement",
       "Type": "existing structural Type::Tuple",
-      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1; bounded nonempty actual path",
+      "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1 | ErrorArm(bool is_error) tag2; bounded actual mixed path",
       "instructions": {
         "114": "MakeOwnedTuple {fields:Vec<ValueId>}",
         "115": "UnpackTuple {local,fields:Vec<LocalId>}",
         "116": "DropTuple {local}",
         "117": "TakeTupleField {local,path:Vec<PlaceProjection>}",
-        "118": "TakeVariantField {local,path:Vec<PlaceProjection>}"
+        "118": "TakeVariantField {local,path}; actual Enum/ErrorUnion root, exact active initialized subtree",
+        "119": "BorrowPlaceLocal {local,path,mutable}; nonempty path, actual precise initialized child interval",
+        "120": "PlaceTagLocal {local,path}; empty allowed, final live Enum/ErrorUnion header; i32 Enum ordinal/ErrorUnion0success1error"
       },
-      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness"
+      "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness; test all pattern discriminants before borrow/move, mixed ancestors checked and paid, partial live parent header grants no payload/whole replacement authority"
+    },
+    "terminal_higher_ranked_callable_342": {
+      "authority": "_zil_design.md §18.1",
+      "state": "ContractToImplement",
+      "Core": "CoreCallableParameter.life: Option<FunctionLifeContract>, invocation-local required bound",
+      "Typed": "CallableRole.life: Option<FunctionLifeContract>; fixed environment Hold remains separate",
+      "schema_version": 36,
+      "wire_version": 36,
+      "fingerprint": "Typed domainV36 and callable contract5; unchanged type identityV35/return contract3/CT2 retained",
+      "responsibility": "Unused definition and actual concrete CFG each checked; fresh actual roots per invocation, canonical full relation, simultaneous windows, no fixed capture masquerading as fresh input",
+      "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
+    },
+    "terminal_ct_anonymous_value_344": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "schema_version": 3,
+      "domains": "artifact/provider/dependencies and standalone function/value v3; old v2 rejected",
+      "nominal_identity": "CtRecordSchema/CtEnumSchema.arguments:Vec<CtSchemaArgument Type(CtTy)|Scalar(Constant)> in complete declaration order including phantom/const",
+      "transport": "CtTy::AnonymousSum tag16, CtValue::AnonymousSum{members,active,payload} tag16, MakeAnonymousSum opcode37",
+      "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
     }
   },
   "schemas": [
