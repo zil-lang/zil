@@ -352,6 +352,9 @@ pub(super) enum Root {
     OwnedCapture(u32),
     BorrowedCapture(u32),
     StoreParent(StoreParentRoot),
+    // Private effect only: an actual Commit ends an old Store field instance.
+    // This is never an ordinary write row or a runtime description origin.
+    InvalidatedStore(StoreParentRoot),
 }
 
 // Actual Store carrier descriptions remain distinct from descriptions derived
@@ -397,7 +400,7 @@ impl Root {
             Self::BorrowedCapture(value) => {
                 Self::StoreParent(StoreParentRoot::BorrowedCapture(value))
             }
-            Self::StoreParent(_) => unreachable!(),
+            Self::StoreParent(_) | Self::InvalidatedStore(_) => unreachable!(),
         }
     }
 }
@@ -875,6 +878,12 @@ fn description_live(
             Root::OwnedCapture(index) => slots.capture_debt[*index as usize],
             Root::Parameter(_) | Root::BorrowedCapture(_) => None,
             Root::StoreParent(_) => unreachable!(),
+            Root::InvalidatedStore(_) => {
+                return Err(bad(
+                    span,
+                    "effect marker is not a resource description origin",
+                ));
+            }
         };
         if let Some(slot) = slot
             && state.debt[slot] != LIVE
@@ -2644,6 +2653,7 @@ pub(super) fn check_module(
             module,
             graphs,
             &sum_proofs.replacement_writes,
+            &sum_proofs.replacement_targets,
             budget,
         )?)
     } else {

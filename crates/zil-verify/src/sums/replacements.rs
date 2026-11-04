@@ -14,6 +14,7 @@ pub(super) struct Context<'a> {
     places: &'a [Inventory],
     summaries: &'a [Rows],
     written: RefCell<Rows>,
+    store_calls: &'a RefCell<BTreeSet<usize>>,
 }
 fn invalid(text: &str) -> Diagnostic {
     bad(None, text)
@@ -320,10 +321,9 @@ impl Context<'_> {
             let incoming = flow.instantiate(payload, arguments, state, b)?;
             for target in targets {
                 if matches!(target.base, actual::Base::Element(_)) {
-                    return Err(unsupported(
-                        "Store field replacement through a helper needs its resource description summary bridge",
-                        None,
-                    ));
+                    let mut needed = self.store_calls.borrow_mut();
+                    b.spend(needed.len().saturating_add(1))?;
+                    needed.insert(entry);
                 }
                 self.apply(flow, state, &target, &incoming, validate, b)?;
             }
@@ -486,6 +486,7 @@ pub(super) fn check(
     let mut places = Vec::with_capacity(module.functions.len());
     let mut result = Vec::with_capacity(module.functions.len());
     let mut effects = vec![Rows::new(); module.functions.len()];
+    let store_calls = RefCell::new(BTreeSet::new());
     for (f, graph) in module.functions.iter().zip(graphs) {
         let inventory = Inventory::reconstruct(module, f, b)?;
         if f.foreign.is_none() {
@@ -506,6 +507,7 @@ pub(super) fn check(
                 places: &places,
                 summaries: &effects,
                 written: RefCell::new(Rows::new()),
+                store_calls: &store_calls,
             };
             let (found, _) =
                 run_with_replacements(module, f, graph, &result, false, b, Some(&context))?;
@@ -531,13 +533,19 @@ pub(super) fn check(
             places: &places,
             summaries: &effects,
             written: RefCell::new(Rows::new()),
+            store_calls: &store_calls,
         };
         rows.push(run_with_replacements(module, f, graph, &result, true, b, Some(&context))?.1);
     }
     b.spend(effects.len())?;
     let mut replacement_writes = Vec::with_capacity(effects.len());
-    for effect in effects {
+    let needed = store_calls.into_inner();
+    let mut replacement_targets = BTreeMap::new();
+    for (entry, effect) in effects.into_iter().enumerate() {
         let mut writes = BTreeSet::new();
+        let mut targets = Vec::new();
+        b.spend(needed.len())?;
+        let transfer = needed.contains(&entry);
         b.spend(effect.len())?;
         for (target, _) in effect {
             let root = match target.base {
@@ -550,13 +558,22 @@ pub(super) fn check(
             if let Some(root) = root {
                 lookup(b, writes.len())?;
                 writes.insert(root);
+                if transfer {
+                    b.spend(1)?;
+                    targets.push(target);
+                }
             }
         }
         replacement_writes.push(writes);
+        if !targets.is_empty() {
+            b.spend(replacement_targets.len().saturating_add(1))?;
+            replacement_targets.insert(entry, targets);
+        }
     }
     Ok(Proofs {
         rows,
         replacement_writes,
+        replacement_targets,
     })
 }
 
