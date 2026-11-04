@@ -232,7 +232,17 @@ pub fn expand_with_map_limits(
     module: &s::Module,
     limits: &Limits,
 ) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target(source, module, limits, &zil_base::TargetProfile::default())
+}
+
+pub fn expand_with_map_limits_target(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let mut lower_limits = products.trait_limits(limits);
     let mut expanded = expand_inner(
@@ -269,7 +279,24 @@ pub fn expand_program_module_with_limits(
     imports: Vec<CoreImport>,
     limits: &Limits,
 ) -> CompileResult<(ProgramModule, SourceMap)> {
+    expand_program_module_with_limits_target(
+        source,
+        module,
+        imports,
+        limits,
+        &zil_base::TargetProfile::default(),
+    )
+}
+
+pub fn expand_program_module_with_limits_target(
+    source: &SourceUnit,
+    module: &s::Module,
+    imports: Vec<CoreImport>,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<(ProgramModule, SourceMap)> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = generics::specialize_products(module, limits, &mut products)?;
     let module = &specialized;
     let mut lower_limits = products.trait_limits(limits);
@@ -412,7 +439,24 @@ pub fn expand_program_with_limits(
     imports: &[Vec<CoreImport>],
     limits: &Limits,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target(
+        sources,
+        syntax,
+        imports,
+        limits,
+        &zil_base::TargetProfile::default(),
+    )
+}
+
+pub fn expand_program_with_limits_target(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
+    products.target_pointer_width = Some(target.pointer_width);
     let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());

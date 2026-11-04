@@ -442,6 +442,33 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     .unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    for width in [32, 64] {
+        let mut target = zil_base::TargetProfile::default();
+        target.pointer_width = width;
+        let report = compile_project(
+            &project(&[
+                (
+                    "main",
+                    "import model;fn main(){model.value::<4294967296>()}",
+                ),
+                ("model", "pub fn value<#N:usize>(){}"),
+            ]),
+            &CompileOptions {
+                target,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            if width == 32 {
+                ResultCategory::SafeReject
+            } else {
+                ResultCategory::Success
+            },
+            "{}",
+            report.to_json()
+        );
+    }
     native_both(&[("main", super_source)]);
     native_both(&[("main", impl_source)]);
     native_both(&[("main", symbolic_source)]);
@@ -449,6 +476,84 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
     );
     native_both(&[("main", associated_source)]);
+    let unsigned_source =
+        include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+    let ct_source = include_str!(
+        "../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"
+    );
+    for text in [unsigned_source, ct_source] {
+        native_both(&[("main", text)]);
+    }
+    // Recover the actual CT-materialized raw candidate from the existing trusted
+    // frontend cache, then replay both independent verifier entry points.
+    let ct_cache = std::env::temp_dir().join(format!(
+        "zil-341-ct-wire-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let ct_options = CompileOptions {
+        semantic_cache: Some(ct_cache.clone()),
+        ..CompileOptions::default()
+    };
+    let ct_report = compile_source(&source(ct_source), &ct_options);
+    assert_eq!(
+        ct_report.status,
+        ResultCategory::Success,
+        "{}",
+        ct_report.to_json()
+    );
+    let ct_store = ct_cache.join("semantic-v3");
+    let mut replayed = 0;
+    for entry in fs::read_dir(&ct_store).unwrap() {
+        let path = entry.unwrap().path();
+        if path
+            .extension()
+            .is_none_or(|extension| extension != "candidate")
+        {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&ct_store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("actual CT raw cache candidate absent")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM03");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        replayed += 1;
+    }
+    assert!(replayed > 0);
+    fs::remove_dir_all(ct_cache).unwrap();
+    for text in [unsigned_source] {
+        let unit = source(text);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &ast).unwrap();
+        let typed = zil_types::check(
+            &core,
+            &zil_base::TargetProfile::default(),
+            &Limits::default(),
+        )
+        .unwrap();
+        let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+        zil_verify::verify_module(
+            typed.clone(),
+            plan.clone(),
+            &typed.target,
+            &Limits::default(),
+        )
+        .unwrap();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    }
     native_both(&[
         (
             "main",
@@ -644,6 +749,8 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("generic-impl", impl_source),
         ("symbolic-trait-arguments", symbolic_source),
         ("associated-types", associated_source),
+        ("unsigned-const", unsigned_source),
+        ("ct-generic-type-syntax-reflection", ct_source),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {

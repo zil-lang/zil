@@ -89,6 +89,7 @@ fn specialize_products_prepared<'a>(
     products: &mut products::Products,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
     let mut has_defaults = false;

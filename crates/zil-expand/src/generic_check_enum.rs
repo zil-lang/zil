@@ -6,7 +6,7 @@ use super::*;
 enum Ctor {
     Tuple,
     Bool(bool),
-    Integer(i64),
+    Integer(i128),
     Variant(String),
     Opaque,
 }
@@ -272,7 +272,15 @@ impl Check<'_, '_, '_> {
             PatternKind::Literal(Literal::Integer(v))
                 if integer(ty) && !dependent(ty, &self.variables) =>
             {
-                Pat::Ctor(Ctor::Integer(integer_value(v, ty, p.span)?), vec![])
+                Pat::Ctor(
+                    Ctor::Integer(integer_value(
+                        v,
+                        ty,
+                        p.span,
+                        self.budget.target_pointer_width,
+                    )?),
+                    vec![],
+                )
             }
             PatternKind::Tuple(ps) => {
                 let TypeKind::Tuple(ts) = &group(ty).kind else {
@@ -634,8 +642,8 @@ fn specialize(rows: &[Vec<Pat>], c: &Ctor, arity: usize) -> Vec<Vec<Pat>> {
         })
         .collect()
 }
-fn integer_value(text: &str, ty: &TypeRef, span: Span) -> R<i64> {
-    let (actual, value) = checked_integer(text, Some(ty), false, span)?;
+fn integer_value(text: &str, ty: &TypeRef, span: Span, pointer_width: u16) -> R<i128> {
+    let (actual, value) = checked_integer(text, Some(ty), false, span, pointer_width)?;
     if type_key_bounded(&actual)? != type_key_bounded(ty)? {
         return Err(error(
             span,

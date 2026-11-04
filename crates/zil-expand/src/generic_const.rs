@@ -33,7 +33,7 @@ pub(super) fn symbolic_parameter<'a>(
 
 pub(super) fn domain(ty: &TypeRef) -> R<&str> {
     match trait_bounds::plain(ty) {
-        Some(name @ ("bool" | "u8" | "u16" | "i32" | "i64")) => Ok(name),
+        Some(name @ ("bool" | "u8" | "u16" | "u64" | "usize" | "i32" | "i64")) => Ok(name),
         _ => Err(unsupported(
             ty.span,
             "const parameter requires a supported target scalar domain",
@@ -140,6 +140,12 @@ pub(super) fn normalize(
             let max = match domain {
                 "u8" => u8::MAX as u128,
                 "u16" => u16::MAX as u128,
+                "u64" => u64::MAX as u128,
+                "usize" => match budget.target_pointer_width {
+                    32 => u32::MAX as u128,
+                    64 => u64::MAX as u128,
+                    _ => return Err(unsupported(actual.span, "const usize target width")),
+                },
                 "i32" => i32::MAX as u128,
                 "i64" => i64::MAX as u128,
                 _ => unreachable!(),

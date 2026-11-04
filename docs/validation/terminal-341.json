@@ -1,18 +1,19 @@
 {
   "task": "341",
   "status": "MilestoneInProgress",
-  "scope": "Typed scalar const functions, supertraits, first-order nominal impl recipes and symbolic trait arguments; bound-supported associated types with committed equation normalization. Associated constants, broader projections and generic methods remain active work",
+  "scope": "Target-width scalar const functions, supertraits, first-order nominal impl recipes, symbolic trait arguments and bound-supported associated types; actual ordinary generic Type/Syntax return and concrete generic-record CT/reflection evidence. Associated constants and generic methods remain active work",
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "commands": [
     "cargo check -p zil-expand --quiet",
     "cargo test -p zil-driver --test generics --test impl162_trait_bounds -- --nocapture",
     "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds -- --nocapture",
-    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture"
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test generics --test impl162_trait_bounds terminal341 -- --nocapture # target-width unsigned and actual CT bridge checkpoint"
   ],
   "observed": {
-    "targeted_feature_tests_passed": 11,
+    "targeted_feature_tests_passed": 13,
     "existing_test_targets_with_llvm_api": {
-      "generics": 19,
+      "generics": 21,
       "impl162_trait_bounds": 54,
       "failed": 0,
       "ignored": 0,
@@ -26,20 +27,20 @@
     "generated_ast_shared_span_control": "Pass, declaration-scoped const ordinals remain distinct",
     "typed_analyze_verify": "Pass",
     "wire_independent_verify": "Pass",
-    "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; symbolic trait arguments local/project; associated types local/project",
-    "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback; symbolic trait arguments local/project; associated types local/project",
-    "expand_const_exact_steps": 1262,
+    "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; symbolic trait arguments local/project; associated types local/project; unsigned const and CT generic Type/Syntax/reflection fixture",
+    "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback; symbolic trait arguments local/project; associated types local/project; unsigned const and CT generic Type/Syntax/reflection fixture",
+    "expand_const_exact_steps": 1371,
     "request_supertrait": {
-      "work": 3322,
-      "nodes": 864
+      "work": 3711,
+      "nodes": 1101
     },
     "request_const_match_shadow": {
       "work": 2414,
-      "nodes": 823
+      "nodes": 911
     },
     "N_minus_1": "ResourceLimit for every listed ledger",
     "cold_warm_fresh_N": "Pass",
-    "persisted_cache": "Hit with verification_runs=1 for all five retained sources including associated types; cold/warm/fresh N match and N-1 ResourceLimit for listed work/node ledgers",
+    "persisted_cache": "Hit with verification_runs=1 for all seven retained sources; exact work/node N/N-1 cold/warm/fresh and persisted controls pass",
     "active_repeated_supertrait_cycles": "SafeReject",
     "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
     "old_controls": {
@@ -47,42 +48,52 @@
       "old_unbound_work": 319,
       "primitive_binder_work": 1850
     },
-    "expand_generic_impl_exact_steps": 5418,
+    "expand_generic_impl_exact_steps": 5899,
     "request_generic_impl": {
       "work": 6271,
-      "nodes": 1811
+      "nodes": 2075
     },
     "generic_impls": "Pass: nominal applied heads, inline and direct/applied where premises, concrete/generic superclass proof, unused method definitions, overlap and unconstrained binders, ordered fixed trait instances, function constructor matching/coherence, project foreign-trait/local-Self and foreign-trait/foreign-outer-Self rejection",
     "impl_cycles": "Repeated active goal SafeReject; nonrepeating growing where subject ResourceLimit at work12000; unused generic conditional definitions checked under their declared bounds",
     "trait_dispatch_shared_span": "Pass: two receiver expressions and distinct impl/item/member/function nodes share source Span; raw AST -> Types/Analyze/Verify/Wire and actual Clang/LLVM API O0/O2 through downstream static dispatch publication",
     "supertrait_argument_formation": "Pass: unknown actual, non-Copy actual with Copy premise and nested Box<R> failure; nearest ordinary struct and Self from declared Copy premise success",
     "request_symbolic_trait_arguments": {
-      "work": 9226,
-      "nodes": 2390
+      "work": 9806,
+      "nodes": 2748
     },
     "symbolic_trait_arguments": "Pass: declared symbolic arguments, forwarding, same Self with bool/i32 trait applications from one generic impl and distinct native signatures, project-module composition, unused invalid bodies",
     "recipe_admission": "Unused unknown trait and generic builtin Drop impls reject before recipe filtering; retained nearest local-trait positive reaches native code",
     "request_associated_types": {
-      "work": 25808,
-      "nodes": 4375
+      "work": 26385,
+      "nodes": 4694
     },
     "associated_types": "Pass: opaque declared-bound projections; required/default equations, unused Copy and nominal-argument formation, acyclic/circular equations, nested impl dependency composition, same-spelled trait/impl binders, aliases and nominal shadow, generic forwarding/inference and overridden default definition checks. One actual Self has distinct bool/i32 trait applications and associated machine signatures.",
-    "associated_proof_boundary": "Source candidate Self.Item premise cannot be proved by its own equation; concrete normalization shares active goals with premise solving and reads equations only after a Witness is returned. Definition-local equation maps never enter candidate evidence."
+    "associated_proof_boundary": "Source candidate Self.Item premise cannot be proved by its own equation; concrete normalization shares active goals with premise solving and reads equations only after a Witness is returned. Definition-local equation maps never enter candidate evidence.",
+    "request_unsigned_const": {
+      "work": 3201,
+      "nodes": 870
+    },
+    "request_ct_generic_type_syntax_reflection": {
+      "work": 258043,
+      "nodes": 63574
+    },
+    "unsigned_const": "Full u64/usize bits survive forwarding and definition integer/pattern checking. Explicit 32-bit frontend accepts usize MAX, rejects MAX+1 suffixed/unsuffixed erased arguments and unused generic integer/pattern bodies; source/project target plumbing exercised. Windows-x64 Verify positive retained.",
+    "ct_generic_bridges": "Actual ordinary generic Type result, generic record field reflection through a generic Type-return function, generic Syntax<Expr> from a concrete scalar field, generic Syntax<Type> with complete nominal/phantom arguments. Scalar-only syntax.literal cannot be justified by Copy alone; unused invalid body and changed phantom argument reject.",
+    "ct_raw_wire": "Pass: actual CT-materialized candidate recovered from the existing trusted frontend cache, decoded and replayed through raw and byte verifier entry points"
   },
   "remaining": [
-    "Target usize/u64 const domains await shared type consumer integration",
     "General verified CT expression arguments and const inference",
     "Aggregate/enum/trait const parameter consumers and mixed lifetime/const support",
     "Associated constants, qualified/applied/nested source projection forms, richer associated equalities and generic associated items",
     "Blanket/primitive/enum impls, richer symbolic trait-parameter obligations and broader local-trait/foreign-Self ownership cases",
     "Generic methods and remaining generic supertrait argument composition",
     "Independent review of the latest exact source milestone",
-    "Ordinary generic Type/Syntax-return and full concrete generic-record CT/reflection bridge probes requested by root; existing CT compiler and concrete native selectors do not establish full completion"
+    "Broader Type/Syntax combinations beyond the explicit generic Type/Syntax/reflection fixture remain subject to actual-source checks; generic const CT functions and general const expressions are still pending"
   ],
   "rust_goals": {
-    "safety": "Unused generic impl methods are checked under declared inline/where bounds; candidates prove their premise trees before materialization, dispatch uses declaration-local expression ordinals; actual downstream Types/Analyze/Verify/Wire replayed",
+    "safety": "Unused generic impl methods are checked under declared inline/where bounds; candidates prove their premise trees before materialization, dispatch uses declaration-local expression ordinals; actual downstream Types/Analyze/Verify/Wire replayed; target-width usize arguments reject before specialization can erase them; unused generic literal/pattern range and scalar-only Syntax API obligations checked",
     "runtime_memory": "Existing static calls and fixed arrays reach native code; no runtime dictionary introduced; Rust runtime/RSS comparison NotRun",
-    "expression_maintenance": "Nominal generic impls and conditional bounds now compose with existing static methods; associated/generic-method framework use remains incomplete and full Rust maintenance comparison NotRun",
+    "expression_maintenance": "Actual generic Type and Syntax return functions and generic-record reflection compose in one source fixture; associated constants/generic methods remain incomplete. Full Rust maintenance comparison NotRun",
     "compile_cost": "Request limits unchanged; exact N/N-1/fresh boundary measured; Rust compile-cost comparison NotRun",
     "breakthrough": "Incremental source expressiveness only; product-gates conjunction and terminal completion remain unestablished"
   },
@@ -93,15 +104,15 @@
     "executable_sha256": "1c9cc35d00c2d1468dbe6046322d957b9ae34faf17618984f864c2852f9cd7e9"
   },
   "identity": {
-    "production_rust_path_nul_bytes_nul_sha256": "997c1c76f6ee102f3a51caa76ec300896ed6991e4a6cee4dec2ac077eceb988f",
-    "test_rust_path_nul_bytes_nul_sha256": "237907ff152aa787df2cc866d338d1fc12af5b17bad5beb45e795d518d15f6e6",
+    "production_rust_path_nul_bytes_nul_sha256": "ef50abe4c201b2a5e061af2a2087466d195e0b4d79b99866c4569595be957338",
+    "test_rust_path_nul_bytes_nul_sha256": "ee1668e11ade0fd3cd7f0257f7fb59d781c56268393d95dde7e76b4b2a2fef1c",
     "executables": {
-      "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "24b13f6f49723b03f29c1bf594bc3f7e67bbd4dae3d960d6fa1facbcf6748f60",
-      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "3b99f0bd9e7b612eda03c5b5ca110901a1b08da5fa6cacb484c272b2e756c224"
+      "/workspace/.zil-env/target341/debug/deps/generics-ba4159fc2009dbc9": "ef945df2ad1049e984dbf1be274a5a97bd5cc66f29e56a1879547d06ef49f9f3",
+      "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-114d8b728f7714b2": "83e608243aca232eac84e24c375e7d18d47b6910df7a0f101910acd31bd8ef56"
     },
     "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
     "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
-    "production_file_count": 308,
+    "production_file_count": 323,
     "test_selection": [
       "crates/zil-driver/tests/generics.rs",
       "crates/zil-driver/tests/impl162_trait_bounds.rs"
@@ -149,5 +160,95 @@
     "identity": "Independent production/test/harness hashes matched",
     "scope": "Paid one-pass symbolic bound detection and shadow scans; associated construction was excluded"
   },
-  "associated_milestone_limitations": "This is a clean review checkpoint for the admitted associated type forms, not terminal completion. Source discovery reuses the paid trait feature inventory; unused unbounded/non-Copy equations, missing or ambiguous projection bounds and exact cycles reject. Native, Wire and budgets were actually exercised; independent review pending."
+  "associated_milestone_limitations": "Associated checkpoint fffdbb111 independently PassLimited; current unsigned/CT evidence source awaits independent review. Associated constants, generic methods and remaining projection forms are not complete.",
+  "associated_frozen_fffdbb111": {
+    "identity": {
+      "production_rust_path_nul_bytes_nul_sha256": "997c1c76f6ee102f3a51caa76ec300896ed6991e4a6cee4dec2ac077eceb988f",
+      "test_rust_path_nul_bytes_nul_sha256": "237907ff152aa787df2cc866d338d1fc12af5b17bad5beb45e795d518d15f6e6",
+      "executables": {
+        "/workspace/.zil-env/target341/debug/deps/generics-8025851e8331e13d": "24b13f6f49723b03f29c1bf594bc3f7e67bbd4dae3d960d6fa1facbcf6748f60",
+        "/workspace/.zil-env/target341/debug/deps/impl162_trait_bounds-44929739f53f8de1": "3b99f0bd9e7b612eda03c5b5ca110901a1b08da5fa6cacb484c272b2e756c224"
+      },
+      "algorithm": "SHA-256 of repository-relative paths sorted by Python pathlib.Path component order, each UTF-8 path + NUL + exact file bytes + NUL",
+      "production_selection": "crates/**/src/**/*.rs; all files, not only changed files",
+      "production_file_count": 308,
+      "test_selection": [
+        "crates/zil-driver/tests/generics.rs",
+        "crates/zil-driver/tests/impl162_trait_bounds.rs"
+      ]
+    },
+    "observed": {
+      "targeted_feature_tests_passed": 11,
+      "existing_test_targets_with_llvm_api": {
+        "generics": 19,
+        "impl162_trait_bounds": 54,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      "const_source_positive_cases": 12,
+      "const_source_negative_cases": 14,
+      "supertrait_source_positive_cases": 7,
+      "supertrait_source_negative_cases": 5,
+      "unused_invalid_definitions_rejected": true,
+      "generated_ast_shared_span_control": "Pass, declaration-scoped const ordinals remain distinct",
+      "typed_analyze_verify": "Pass",
+      "wire_independent_verify": "Pass",
+      "clang_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; symbolic trait arguments local/project; associated types local/project",
+      "llvm_api_native_O0_O2": "Pass, const/supertrait local/project; generic nominal impl local/project; ordered fixed trait instances and raw shared-span dispatch; no fallback; symbolic trait arguments local/project; associated types local/project",
+      "expand_const_exact_steps": 1262,
+      "request_supertrait": {
+        "work": 3322,
+        "nodes": 864
+      },
+      "request_const_match_shadow": {
+        "work": 2414,
+        "nodes": 823
+      },
+      "N_minus_1": "ResourceLimit for every listed ledger",
+      "cold_warm_fresh_N": "Pass",
+      "persisted_cache": "Hit with verification_runs=1 for all five retained sources including associated types; cold/warm/fresh N match and N-1 ResourceLimit for listed work/node ledgers",
+      "active_repeated_supertrait_cycles": "SafeReject",
+      "nonrepeating_supertrait_growth": "ResourceLimit under work 4000",
+      "old_controls": {
+        "copy_record_work": 863,
+        "old_unbound_work": 319,
+        "primitive_binder_work": 1850
+      },
+      "expand_generic_impl_exact_steps": 5418,
+      "request_generic_impl": {
+        "work": 6271,
+        "nodes": 1811
+      },
+      "generic_impls": "Pass: nominal applied heads, inline and direct/applied where premises, concrete/generic superclass proof, unused method definitions, overlap and unconstrained binders, ordered fixed trait instances, function constructor matching/coherence, project foreign-trait/local-Self and foreign-trait/foreign-outer-Self rejection",
+      "impl_cycles": "Repeated active goal SafeReject; nonrepeating growing where subject ResourceLimit at work12000; unused generic conditional definitions checked under their declared bounds",
+      "trait_dispatch_shared_span": "Pass: two receiver expressions and distinct impl/item/member/function nodes share source Span; raw AST -> Types/Analyze/Verify/Wire and actual Clang/LLVM API O0/O2 through downstream static dispatch publication",
+      "supertrait_argument_formation": "Pass: unknown actual, non-Copy actual with Copy premise and nested Box<R> failure; nearest ordinary struct and Self from declared Copy premise success",
+      "request_symbolic_trait_arguments": {
+        "work": 9226,
+        "nodes": 2390
+      },
+      "symbolic_trait_arguments": "Pass: declared symbolic arguments, forwarding, same Self with bool/i32 trait applications from one generic impl and distinct native signatures, project-module composition, unused invalid bodies",
+      "recipe_admission": "Unused unknown trait and generic builtin Drop impls reject before recipe filtering; retained nearest local-trait positive reaches native code",
+      "request_associated_types": {
+        "work": 25808,
+        "nodes": 4375
+      },
+      "associated_types": "Pass: opaque declared-bound projections; required/default equations, unused Copy and nominal-argument formation, acyclic/circular equations, nested impl dependency composition, same-spelled trait/impl binders, aliases and nominal shadow, generic forwarding/inference and overridden default definition checks. One actual Self has distinct bool/i32 trait applications and associated machine signatures.",
+      "associated_proof_boundary": "Source candidate Self.Item premise cannot be proved by its own equation; concrete normalization shares active goals with premise solving and reads equations only after a Witness is returned. Definition-local equation maps never enter candidate evidence."
+    },
+    "review": {
+      "status": "PassLimited",
+      "commit": "d2b9558c6",
+      "focused_tests": 11,
+      "binding": "Independent production/test/harness hashes matched"
+    }
+  },
+  "review_fffdbb111": {
+    "status": "PassLimited",
+    "review_commit": "d2b9558c6",
+    "exact_targeted_tests_passed": 11,
+    "identity": "Independent production308-file/test/harness hashes matched"
+  },
+  "integrated_base": "4bfd212de merges complete e953fd381 numeric/lifetime/task base; original integrated19+54 passed; current21+54 passed and final13 focused controls passed after the cache-to-Wire assertion was added"
 }

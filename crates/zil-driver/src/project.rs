@@ -616,11 +616,12 @@ impl CompilationSession {
                 }
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
-                for (module, map) in zil_expand::expand_program_with_limits(
+                for (module, map) in zil_expand::expand_program_with_limits_target(
                     &project.modules,
                     syntax,
                     &runtime_imports,
                     &options.limits,
+                    &options.target,
                 )? {
                     modules.push(module);
                     maps.push(map);

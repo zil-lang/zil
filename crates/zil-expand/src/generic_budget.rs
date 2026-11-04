@@ -3,6 +3,7 @@
 use super::*;
 
 pub(crate) struct Budget<'a> {
+    pub(crate) target_pointer_width: u16,
     limits: &'a Limits,
     nodes: usize,
     work: usize,
@@ -13,6 +14,7 @@ pub(crate) struct Budget<'a> {
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
         Self {
+            target_pointer_width: 64,
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
