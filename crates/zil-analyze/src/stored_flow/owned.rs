@@ -15,7 +15,34 @@ pub(super) fn data(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
 }
 
-fn value(ty: &Type, b: &mut Budget) -> CompileResult<()> {
+// Nominal identity checks an actual definition; it grants no target or loan.
+fn registered(module: &TypedModule, payload: &Type, b: &mut Budget) -> CompileResult<()> {
+    let Type::Record { name, .. } = payload else {
+        return Err(failure("resource head has no nominal record payload"));
+    };
+    fee(b, module.resources.len())?;
+    for definition in &module.resources {
+        fee(b, name.len().saturating_add(definition.name.len()))?;
+        if *name == definition.name {
+            b.type_work(payload, false, "actual resource head payload comparison")?;
+            b.type_work(
+                &definition.payload,
+                false,
+                "actual resource definition comparison",
+            )?;
+            return if *payload == definition.payload {
+                Ok(())
+            } else {
+                Err(failure(
+                    "resource head differs from its actual definition payload",
+                ))
+            };
+        }
+    }
+    Err(failure("resource head has no actual resource definition"))
+}
+
+fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<()> {
     fee(b, 1)?;
     let mut pending = vec![(ty, true, 0usize)];
     while let Some((ty, top, depth)) = pending.pop() {
@@ -28,7 +55,9 @@ fn value(ty: &Type, b: &mut Budget) -> CompileResult<()> {
             )]);
         }
         match ty {
-            Type::Managed(_) | Type::Desc(_) if top && data(ty, b)? => {}
+            Type::Managed(payload) | Type::Desc(payload) if top && data(ty, b)? => {
+                registered(module, payload, b)?;
+            }
             Type::Closure(_) if top => {}
             Type::Address { inner, .. } if top && matches!(inner.as_ref(), Type::Closure(_)) => {}
             Type::Managed(_)
@@ -124,12 +153,50 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         ));
     }
     fee(b, module.resources.len())?;
-    for r in &module.resources {
+    for (index, r) in module.resources.iter().enumerate() {
         b.type_work(&r.payload, true, "bounded resource definition payload")?;
         if !super::super::stored_callables::resource_payload(&r.payload, b)? {
             return Err(closed(
                 "owned Fixed requires class-free scalar-field resource payloads",
             ));
+        }
+        let Type::Record { name, .. } = &r.payload else {
+            unreachable!()
+        };
+        fee(b, name.len().saturating_add(r.name.len()))?;
+        if *name != r.name {
+            return Err(failure(
+                "resource definition name differs from its actual payload",
+            ));
+        }
+        fee(b, index)?;
+        for previous in &module.resources[..index] {
+            fee(b, previous.name.len().saturating_add(r.name.len()))?;
+            if previous.name == r.name {
+                return Err(failure("resource definition name is not unique"));
+            }
+        }
+        if r.teardown.is_some() {
+            return Err(closed(
+                "owned Fixed with user-defined Drop is outside this profile",
+            ));
+        }
+    }
+    for d in &module.closures {
+        fee(
+            b,
+            d.captures
+                .len()
+                .saturating_add(d.parameters.len())
+                .saturating_add(1),
+        )?;
+        for ty in d
+            .captures
+            .iter()
+            .chain(&d.parameters)
+            .chain(std::iter::once(&d.result))
+        {
+            value(module, ty, b)?;
         }
     }
     for f in &module.functions {
@@ -139,13 +206,11 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
                 "owned Fixed resource result transfer is outside this profile",
             ));
         }
-        fee(b, module.resources.len())?;
-        let teardown = module.resources.iter().any(|r| r.teardown == Some(f.id));
         for p in &f.parameters {
             let ty = &f.locals[p.0 as usize].ty;
-            if matches!(ty, Type::Managed(_)) || matches!(ty, Type::Desc(_)) && !teardown {
+            if matches!(ty, Type::Managed(_) | Type::Desc(_)) {
                 return Err(closed(
-                    "owned Fixed permits resource description parameters only at actual teardown entries",
+                    "owned Fixed resource parameter transfer is outside this profile",
                 ));
             }
         }
@@ -156,7 +221,7 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
             .chain(&f.values)
             .chain(std::iter::once(&f.return_type))
         {
-            value(ty, b)?;
+            value(module, ty, b)?;
         }
     }
     Ok(true)
