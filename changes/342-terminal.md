@@ -93,3 +93,13 @@ Rust四目标：有限共享限制/实际父链与两核raw/Wire反例增加安�
 独审近邻实际复现：新增thread_scope raw alias变体在976原候选Analyze错误通过，保留首次失败日志342-head-scope-first.log。修正后同一个既有测试依次检查普通helper、thread_scope body、c_with_callback body的实际相异输入通过，raw caller把两输入改同源后Analyze/Verify/decodedWire均拒绝。两个scope的body均按真实零参数签名处理，捕获环境独立代换；未虚构callback为body参数。新增thread_scope相异实际buffer源在Clang/API × O0/O2四次打印42，总本里程碑32次native。最终完整cross57/0，十目标Clippy -D warnings通过，N296/391/15016/19227不变；其余九目标前次完整结果仍绑定976，修正不宣称已经重跑它们。独立review8e58 BFP已PassLimited 9e740be05，head当前修正候选重新提交复核。
 
 组合343：真实WithSyncCell body环境须进入两个头权限求证器和Analyze头loan调用代换；密封cell入参无普通资源头来源，捕获描述仍保留实际写/分离义务。原始alias变异曾在Mutex scope被Analyze错误接受；补入实际环境后，Mutex/Atomic的不同buffer正例及同一buffer别名反例分别走Analyze、Verify和Wire，另核共享头模式不能经scope环境洗成可写。
+
+
+### 集成全仓回归提案：保留symbolic capture的真实Apart
+
+root8981全仓发现impl187原source与raw/Wire反例错误通过。隔离342-capturefix按原源复现，未改运行中root或HRTB WIP。直接f()路径仍有Capture0/Capture1义务；经call(&f)转成ParameterCapture(0,0)/ParameterCapture(0,1)时，新inline优化以coarse均Parameter0且intersects=false丢弃义务。但这是两个外部目标占位，不是同一实际inline存储的相异字段。按340提供的补丁，仅两个实际Root::Window在同origin且区间数值不相交时保留apart豁免，其余symbolic根继续caller代换。原impl187字节和阶段预期保持，并加nested helper原生正例及source/raw/Wire最近同源反例；新增判断仍在既有pair计费内，无新默认额度。
+
+
+隔离实际结果：按root指令采用340提供的实际Window区间补丁，Verify真实符号义务不再被coarse身份抹掉；临时诊断输出全部移除。原impl187完整24测试在修正后先独立通过，新增nested helper后完整25/0；同次aggregates89/0，含340真实Address Enum/tuple兄弟字段、raw权限反例及reference N18127/N−1/fresh保持。新的nested正例O0/O2真实Clang执行exit0；最近同源source在原Verify阶段E-BORROW-CONFLICT，raw及decodedWire同样拒绝。原反例未迁移预期。双后端新profile、完整语言、HRTB及产品四目标不由本回归修复升级；本条是原有限安全义务恢复，没有运行/RSS/编译或维护收益比较。精简收据terminal-342-capturefix.json，不自行全量；root全仓来源与作者限定回放分账。
+
+同两个既有目标的Clippy offline/-D warnings通过；精确源码/原测试与新增最近邻/harness摘要作为独审输入，未扩大声明范围。
