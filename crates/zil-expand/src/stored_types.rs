@@ -437,7 +437,17 @@ pub(super) fn contract(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<StorageLifeContract> {
-    let mut grounded = Vec::new();
+    contract_with_sources(occurrences, Vec::new(), budget, span).map(|(contract, _, _)| contract)
+}
+
+/// Retain the inverse of the actual occurrence-to-binder construction. This
+/// is producer provenance, never reconstructed from a generated type spelling.
+pub(super) fn contract_with_sources(
+    occurrences: Vec<Occurrence>,
+    mut grounded: Vec<LexicalLife>,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<(StorageLifeContract, Vec<LexicalLife>, Vec<LexicalLife>)> {
     for occurrence in &occurrences {
         spend(
             budget,
@@ -541,14 +551,14 @@ pub(super) fn contract(
             }
         }
     }
-    Ok(StorageLifeContract {
+    Ok((StorageLifeContract {
         fixed_binder_count: u32::try_from(fixed.len())
             .map_err(|_| invalid(span, "fixed binder overflow"))?,
         invocation_binder_count: u32::try_from(invocation.len())
             .map_err(|_| invalid(span, "invocation binder overflow"))?,
         bindings,
         classes,
-    })
+    }, fixed, invocation))
 }
 
 fn invalid(span: Span, message: &str) -> Diagnostic {
