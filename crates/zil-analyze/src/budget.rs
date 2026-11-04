@@ -928,12 +928,9 @@ pub(super) fn preflight(
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
-        if closure.storage_life.is_some() {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "stored-borrow closure contract consumer is not yet implemented",
-                None,
-            )]);
+        if let Some(life) = &closure.storage_life {
+            super::signature_life::charge(life, budget)?;
+            budget.stored_borrows = true;
         }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
@@ -983,6 +980,21 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
+            if closure.storage_life.is_some() {
+                if !super::stored_callables::capture(ty) {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "capture-grounded Fixed requires scalar/shared Address captures",
+                        None,
+                    )]);
+                }
+                if let Type::Address { inner, .. } = ty
+                    && matches!(inner.as_ref(), Type::BorrowedStorage { .. })
+                {
+                    super::stored_flow::qualification(module, inner, limits, budget)?;
+                    continue;
+                }
+            }
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
                 budget.shared_product_capture = true;
@@ -1119,7 +1131,7 @@ pub(super) fn preflight(
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
         if function.storage_life.is_some() {
-            super::stored_flow::header(function, budget)?;
+            super::stored_flow::header(module, function, budget)?;
             budget.stored_borrows = true;
         }
         if function.id.0 as usize != function_index {

@@ -9,6 +9,45 @@ pub(super) fn relation(
     life: &StorageLifeContract,
     span: Span,
 ) -> R<()> {
+    relation_inner(parameters, None, result, life, span)
+}
+
+pub(super) fn capture_relation(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    life: &StorageLifeContract,
+    span: Span,
+) -> R<()> {
+    let scalar = |ty: &Type| {
+        matches!(
+            ty,
+            Type::Unit
+                | Type::Bool
+                | Type::I32
+                | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::U8
+                | Type::U16
+                | Type::F32
+                | Type::F64
+        )
+    };
+    if !scalar(result) || parameters.iter().any(|ty| matches!(ty, Type::Address { mutable: true, .. }))
+        || captures.iter().any(|ty| !(scalar(ty) || matches!(ty, Type::Address { mutable: false, inner } if scalar(inner) || matches!(inner.as_ref(), Type::BorrowedStorage { .. })))) {
+        return Err(unsupported(span, "captured Fixed requires scalar result and shared finite environment"));
+    }
+    relation_inner(parameters, Some(captures), result, life, span)
+}
+
+fn relation_inner(
+    parameters: &[Type],
+    captures: Option<&[Type]>,
+    result: &Type,
+    life: &StorageLifeContract,
+    span: Span,
+) -> R<()> {
     struct Check<'a> {
         life: &'a StorageLifeContract,
         binding: usize,
@@ -21,6 +60,7 @@ pub(super) fn relation(
         mutable_fixed: Vec<bool>,
         mutable_invocation: Vec<bool>,
         span: Span,
+        captured: bool,
     }
     impl Check<'_> {
         fn invalid(&self, message: &str) -> Diagnostic {
@@ -63,7 +103,11 @@ pub(super) fn relation(
             }
             self.binding += 1;
             let binder = row.binder;
-            self.binder(binder, result, false)?;
+            let capture = matches!(base, StorageBase::Capture(_));
+            if capture && !matches!(binder, StorageBinder::Fixed(_)) {
+                return Err(self.invalid("captured Address must retain a Fixed environment class"));
+            }
+            self.binder(binder, result, capture)?;
             let allowed = match binder {
                 StorageBinder::Fixed(index) => &mut self.mutable_fixed[index as usize],
                 StorageBinder::Invocation(index) => &mut self.mutable_invocation[index as usize],
@@ -90,7 +134,8 @@ pub(super) fn relation(
             };
             // This source/native lane has already checked the actual shared
             // Record shape. Other owning/nested/opaque lanes remain explicit.
-            if !matches!(storage.as_ref(), Type::Record { .. })
+            if !(matches!(storage.as_ref(), Type::Record { .. })
+                || self.captured && matches!(storage.as_ref(), Type::Tuple(_)))
                 || !life.retained.is_empty()
                 || life
                     .slots
@@ -122,7 +167,11 @@ pub(super) fn relation(
                     ));
                 }
                 self.class += 1;
-                self.binder(row.binder, result, !result)?;
+                let capture = matches!(base, StorageBase::Capture(_));
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                    return Err(self.invalid("captured qualified class must be Fixed"));
+                }
+                self.binder(row.binder, result, capture || !self.captured && !result)?;
             }
             Ok(true)
         }
@@ -154,7 +203,7 @@ pub(super) fn relation(
     let declared =
         (life.fixed_binder_count as usize).checked_add(life.invocation_binder_count as usize);
     let occurrences = life.bindings.len().checked_add(life.classes.len());
-    if life.fixed_binder_count as usize > life.classes.len()
+    if captures.is_none() && life.fixed_binder_count as usize > life.classes.len()
         || declared
             .zip(occurrences)
             .is_none_or(|(declared, occurrences)| declared > occurrences)
@@ -179,11 +228,19 @@ pub(super) fn relation(
         mutable_fixed: vec![false; life.fixed_binder_count as usize],
         mutable_invocation: vec![false; life.invocation_binder_count as usize],
         span,
+        captured: captures.is_some(),
     };
     for (index, parameter) in parameters.iter().enumerate() {
         let ordinal = u32::try_from(index)
             .map_err(|_| check.invalid("callable parameter ordinal overflow"))?;
         check.ty(parameter, StorageBase::Parameter(ordinal), false)?;
+    }
+    if let Some(captures) = captures {
+        for (index, capture) in captures.iter().enumerate() {
+            let ordinal =
+                u32::try_from(index).map_err(|_| check.invalid("capture ordinal overflow"))?;
+            check.ty(capture, StorageBase::Capture(ordinal), false)?;
+        }
     }
     check.input_fixed = check.next_fixed;
     check.input_invocation = check.next_invocation;
@@ -243,6 +300,61 @@ mod tests {
             binder: StorageBinder::Invocation(u32::from(second_class)),
         });
         life
+    }
+    #[test]
+    fn capture_relation_is_joint_and_cannot_invent_or_freshen_fixed() {
+        let ty = Type::Address {
+            mutable: false,
+            inner: Box::new(phantom()),
+        };
+        let mut life = contract(false);
+        life.fixed_binder_count = 2;
+        life.invocation_binder_count = 1;
+        life.bindings[1].position.base = StorageBase::Capture(0);
+        life.bindings[1].binder = StorageBinder::Fixed(1);
+        life.classes[0].binder = StorageBinder::Fixed(0);
+        let mut capture = life.classes[0].clone();
+        capture.position.base = StorageBase::Capture(0);
+        life.classes.push(capture);
+        capture_relation(
+            std::slice::from_ref(&ty),
+            std::slice::from_ref(&ty),
+            &Type::I32,
+            &life,
+            Span::default(),
+        )
+        .unwrap();
+        for mutation in 0..5 {
+            let mut invalid = life.clone();
+            match mutation {
+                0 => invalid.bindings[1].binder = StorageBinder::Invocation(0),
+                1 => invalid.classes[1].binder = StorageBinder::Invocation(0),
+                2 => invalid.classes[1].position.class = 1,
+                3 => invalid.bindings.swap(0, 1),
+                _ => invalid.classes[1].position.path = vec![],
+            }
+            assert!(
+                capture_relation(
+                    std::slice::from_ref(&ty),
+                    std::slice::from_ref(&ty),
+                    &Type::I32,
+                    &invalid,
+                    Span::default()
+                )
+                .is_err(),
+                "mutation {mutation}"
+            );
+        }
+        assert!(
+            capture_relation(
+                std::slice::from_ref(&ty),
+                &[],
+                &Type::I32,
+                &life,
+                Span::default()
+            )
+            .is_err()
+        );
     }
     #[test]
     fn static_function_abstraction_keeps_distinct_domains_and_joint_occurrence_order() {

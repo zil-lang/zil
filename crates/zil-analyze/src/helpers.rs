@@ -782,7 +782,39 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     &definition.result,
                     budget,
                 )?;
-                super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
+                if let Some(actual) = &definition.storage_life {
+                    crate::signature_life::charge(actual, budget)?;
+                    if actual != life {
+                        return Err(bad(
+                            "Fixed helper role needs the complete actual capture relation",
+                        ));
+                    }
+                    super::signature_life::capture_relation(
+                        &definition.parameters,
+                        &definition.captures,
+                        &definition.result,
+                        life,
+                    )?;
+                    budget.spend(
+                        function.parameters.len(),
+                        "captured Fixed helper shared arguments",
+                    )?;
+                    if function.parameters.iter().any(|p| {
+                        p != local
+                            && matches!(
+                                function.locals[p.0 as usize].ty,
+                                Type::Address { mutable: true, .. }
+                            )
+                    }) {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "captured Fixed helper exclusive arguments need capture target summary substitution",
+                            None,
+                        )]);
+                    }
+                } else {
+                    super::borrowed_fp::relation(&definition.parameters, &definition.result, life)?;
+                }
             }
             if !(returned
                 || (role.life.is_some() && matches!(&function.return_type, Type::Address { .. }))

@@ -23,13 +23,15 @@ struct Permission {
 struct Value {
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
+    held: Permission,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct State {
     locals: BTreeMap<LocalId, Value>,
     /// External addressed carriers have real cells too. Parameter position is
     /// not their target identity; each leaf starts with a symbolic target.
-    external: BTreeMap<u32, BTreeMap<Path, Permission>>,
+    external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
+    captures: BTreeMap<u32, Value>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
@@ -92,6 +94,7 @@ fn union(to: &mut Permission, from: &Permission, b: &mut Budget) -> CompileResul
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= union(&mut to.held, &from.held, b)?;
     for (path, value) in &from.slots {
         ordered(b, to.slots.len(), path.len())?;
         fee(b, path.len().saturating_add(1))?;
@@ -111,6 +114,10 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
     }
+    for (index, value) in &s.captures {
+        ordered(b, out.captures.len(), 0)?;
+        out.captures.insert(*index, snapshot(value, b)?);
+    }
     for (index, slots) in &s.external {
         let mut charged = Value::default();
         for (path, value) in slots {
@@ -125,7 +132,9 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
     fee(b, s.locals.len().saturating_add(s.external.len()))?;
-    for value in s.locals.values() {
+    for value in s.locals.values().chain(s.captures.values()) {
+        target_work(&value.held.targets, b)?;
+        fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
         fee(b, value.pointer.loans.len())?;
         for (path, permission) in &value.slots {
@@ -201,6 +210,10 @@ fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()
     for (local, value) in &from.locals {
         ordered(b, to.locals.len(), 0)?;
         merge(to.locals.entry(*local).or_default(), value, b)?;
+    }
+    for (index, value) in &from.captures {
+        ordered(b, to.captures.len(), 0)?;
+        merge(to.captures.entry(*index).or_default(), value, b)?;
     }
     for (index, slots) in &from.external {
         ordered(b, to.external.len(), 0)?;
@@ -606,7 +619,7 @@ fn binding(
     Err(failure("signature omits actual qualified local class"))
 }
 
-pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
+pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -621,7 +634,11 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
             .chain(std::iter::once(&f.return_type))
         {
             fee(b, 1)?;
-            if f.environment.is_none() && (carrier(ty).is_some() || pointed_carrier(ty).is_some()) {
+            if f.environment.is_none()
+                && (carrier(ty).is_some()
+                    || pointed_carrier(ty).is_some()
+                    || super::stored_callables::fixed_value(module, ty))
+            {
                 return Err(failure("stored signature requires complete class relation"));
             }
         }
@@ -629,7 +646,7 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
     };
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
-    if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
+    if f.reference_return_bound.is_some() || f.foreign.is_some() {
         return Err(failure(
             "stored signature contradicts another active profile",
         ));
@@ -641,11 +658,30 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
         parameters.push(ty.clone());
     }
     b.type_work(&f.return_type, true, "stored signature result relation")?;
+    if let Some(id) = f.environment {
+        let d = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| failure("captured entry definition is absent"))?;
+        super::signature_life::charge(c, b)?;
+        if d.storage_life.as_ref() != Some(c) {
+            return Err(failure(
+                "captured entry relation differs from actual definition",
+            ));
+        }
+        return super::signature_life::capture_relation(
+            &parameters,
+            &d.captures,
+            &f.return_type,
+            c,
+        );
+    }
     super::signature_life::function_relation(
         &parameters,
         &f.return_type,
         c,
         f.callable_contract.is_some(),
+        &module.closures,
     )?;
     Ok(())
 }
@@ -812,69 +848,101 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 
-fn seed(f: &TypedFunction, loans: &mut Vec<Loan>, b: &mut Budget) -> CompileResult<State> {
-    let mut state = State::default();
-    for (index, local) in f.parameters.iter().enumerate() {
-        fee(b, 1)?;
-        let ty = &f.locals[local.0 as usize].ty;
-        let mut value = Value::default();
-        if let Type::Address { mutable, .. } = ty {
+fn seed_value(
+    ty: &Type,
+    base: HoldRoot,
+    state: &mut State,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<Value> {
+    let mut value = Value::default();
+    if let Type::Address { mutable, .. } = ty {
+        let target = Target {
+            base: base,
+            stored: Vec::new(),
+            place: Vec::new(),
+        };
+        let id = loans.len();
+        fee(b, 2)?;
+        loans.push(Loan {
+            targets: BTreeSet::from([target.clone()]),
+            parents: Loans::new(),
+            mutable: *mutable,
+        });
+        value.pointer = Permission {
+            targets: BTreeSet::from([target]),
+            loans: Loans::from([id]),
+        };
+    }
+    let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
+    if let Some((_, life)) = qualified {
+        let mut slots = BTreeMap::new();
+        for decl in &life.slots {
+            fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
             let target = Target {
-                base: HoldRoot::Parameter(index as u32),
-                stored: Vec::new(),
+                base: base,
+                stored: decl.path.clone(),
                 place: Vec::new(),
             };
             let id = loans.len();
-            fee(b, 2)?;
             loans.push(Loan {
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
-                mutable: *mutable,
+                mutable: false,
             });
-            value.pointer = Permission {
-                targets: BTreeSet::from([target]),
-                loans: Loans::from([id]),
-            };
+            ordered(b, slots.len(), decl.path.len())?;
+            slots.insert(
+                decl.path.clone(),
+                Permission {
+                    targets: BTreeSet::from([target]),
+                    loans: Loans::from([id]),
+                },
+            );
         }
-        let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
-        if let Some((_, life)) = qualified {
-            let mut slots = BTreeMap::new();
-            for decl in &life.slots {
-                fee(b, decl.path.len().saturating_mul(3).saturating_add(3))?;
-                let target = Target {
-                    base: HoldRoot::Parameter(index as u32),
-                    stored: decl.path.clone(),
-                    place: Vec::new(),
-                };
-                let id = loans.len();
-                loans.push(Loan {
-                    targets: BTreeSet::from([target.clone()]),
-                    parents: Loans::new(),
-                    mutable: false,
-                });
-                ordered(b, slots.len(), decl.path.len())?;
-                slots.insert(
-                    decl.path.clone(),
-                    Permission {
-                        targets: BTreeSet::from([target]),
-                        loans: Loans::from([id]),
-                    },
-                );
+        if pointed_carrier(ty).is_some() {
+            let mut copy = Value::default();
+            for (path, permission) in &slots {
+                ordered(b, copy.slots.len(), path.len())?;
+                fee(b, path.len())?;
+                union(copy.slots.entry(path.clone()).or_default(), permission, b)?;
             }
-            if pointed_carrier(ty).is_some() {
-                let mut copy = Value::default();
-                for (path, permission) in &slots {
-                    ordered(b, copy.slots.len(), path.len())?;
-                    fee(b, path.len())?;
-                    union(copy.slots.entry(path.clone()).or_default(), permission, b)?;
-                }
-                ordered(b, state.external.len(), 0)?;
-                state.external.insert(index as u32, copy.slots);
-            }
-            value.slots = slots;
+            ordered(b, state.external.len(), 0)?;
+            state.external.insert(base, copy.slots);
         }
+        value.slots = slots;
+    }
+    Ok(value)
+}
+fn seed(
+    module: &TypedModule,
+    f: &TypedFunction,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<State> {
+    let mut state = State::default();
+    for (index, local) in f.parameters.iter().enumerate() {
+        fee(b, 1)?;
+        let value = seed_value(
+            &f.locals[local.0 as usize].ty,
+            HoldRoot::Parameter(index as u32),
+            &mut state,
+            loans,
+            b,
+        )?;
         ordered(b, state.locals.len(), 0)?;
         state.locals.insert(*local, value);
+    }
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        && d.storage_life.is_some()
+    {
+        for (index, ty) in d.captures.iter().enumerate() {
+            fee(b, 1)?;
+            let value = seed_value(ty, HoldRoot::Capture(index as u32), &mut state, loans, b)?;
+            ordered(b, state.captures.len(), 0)?;
+            state.captures.insert(index as u32, value);
+        }
     }
     Ok(state)
 }
@@ -904,19 +972,12 @@ fn select(
                 };
                 &value.slots
             }
-            HoldRoot::Parameter(index) => {
+            HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
                 ordered(b, state.external.len(), 0)?;
                 state
                     .external
-                    .get(&index)
+                    .get(&root.base)
                     .ok_or_else(|| failure("external carrier has no actual slot facts"))?
-            }
-            HoldRoot::Capture(_) => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "captured stored carrier facts are not yet implemented",
-                    None,
-                )]);
             }
         };
         ordered(b, slots.len(), path.len())?;
@@ -930,6 +991,7 @@ fn select(
 fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     let mut permission = Permission::default();
     union(&mut permission, &value.pointer, b)?;
+    union(&mut permission, &value.held, b)?;
     for leaf in value.slots.values() {
         union(&mut permission, leaf, b)?;
     }
@@ -1027,9 +1089,19 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             state.locals.insert(*local, snapshot(get(*value)?, b)?);
         }
+        InstructionKind::TakeLocal { local } => {
+            ordered(b, state.locals.len(), 0)?;
+            out = snapshot(
+                state
+                    .locals
+                    .get(local)
+                    .ok_or_else(|| failure("move of unavailable environment"))?,
+                b,
+            )?;
+            state.locals.remove(local);
+        }
         InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
-        | InstructionKind::TakeLocal { local }
         | InstructionKind::DropClosure { local } => {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
@@ -1041,6 +1113,11 @@ fn transfer(
                 stored: Vec::new(),
                 place: Vec::new(),
             });
+            if super::stored_callables::value(module, &f.locals[local.0 as usize].ty)
+                && let Some(held) = state.locals.get(local)
+            {
+                union(&mut out.held, &held.held, b)?;
+            }
             if carrier(&f.locals[local.0 as usize].ty).is_some() {
                 ordered(b, state.locals.len(), 0)?;
                 let held = state
@@ -1081,6 +1158,7 @@ fn transfer(
         | InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
+            union(&mut out.held, &get(*address)?.held, b)?;
         }
         InstructionKind::MakeAggregate { fields } => {
             let ty = value_type(
@@ -1167,6 +1245,33 @@ fn transfer(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+        }
+        InstructionKind::MakeClosure { closure, captures }
+            if module.closures[closure.0 as usize].storage_life.is_some() =>
+        {
+            for capture in captures {
+                let actual = get(*capture)?;
+                union(&mut out.held, &actual.pointer, b)?;
+                for leaf in actual.slots.values() {
+                    union(&mut out.held, leaf, b)?;
+                }
+                if let Some((_, shape)) = pointed_carrier(value_type(f, *capture)?) {
+                    for slot in &shape.slots {
+                        let leaf = select(state, &actual.pointer, &slot.path, b)?;
+                        union(&mut out.held, &leaf, b)?;
+                    }
+                }
+            }
+        }
+        InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
+            ordered(b, state.captures.len(), 0)?;
+            out = snapshot(
+                state
+                    .captures
+                    .get(index)
+                    .ok_or_else(|| failure("actual environment capture is absent"))?,
+                b,
+            )?;
         }
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
@@ -1405,9 +1510,16 @@ fn active(
         };
         if let Some(value) = value {
             union(&mut direct, &value.pointer, b)?;
+            union(&mut direct, &value.held, b)?;
             for leaf in value.slots.values() {
                 union(&mut direct, leaf, b)?;
             }
+        }
+    }
+    for value in state.captures.values() {
+        union(&mut direct, &value.pointer, b)?;
+        for leaf in value.slots.values() {
+            union(&mut direct, leaf, b)?;
         }
     }
     ancestry(&direct.loans, loans, b)
@@ -1428,7 +1540,11 @@ fn reverse(
         | InstructionKind::StorageDead(local) => live[f.values.len() + local.0 as usize] = false,
         InstructionKind::Load(local)
         | InstructionKind::BorrowLocal { local }
-        | InstructionKind::BorrowLocalMut { local } => {
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::DropClosure { local }
+        | InstructionKind::CallClosureShared { callee: local, .. }
+        | InstructionKind::CallClosureMut { callee: local, .. } => {
             live[f.values.len() + local.0 as usize] = true
         }
         _ => {}
@@ -1651,6 +1767,26 @@ fn windows(
                         _ => {}
                     }
 
+                    let receiver_held = match &i.kind {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. } => {
+                            state.locals.get(callee).map(|v| &v.held)
+                        }
+                        InstructionKind::CallClosure { callee, .. }
+                        | InstructionKind::CallClosureBorrowed { callee, .. }
+                        | InstructionKind::CallClosureOnce { callee, .. } => {
+                            Some(&values[callee.0 as usize].held)
+                        }
+                        _ => None,
+                    };
+                    if let Some(held) = receiver_held
+                        && !held.targets.is_empty()
+                    {
+                        let mut p = Permission::default();
+                        union(&mut p, held, b)?;
+                        fee(b, 1)?;
+                        all.push((p, false));
+                    }
                     for argument in arguments {
                         let actual = &values[argument.0 as usize];
                         if let Type::Address { mutable, .. } = value_type(f, *argument)? {
@@ -1702,6 +1838,9 @@ fn windows(
                         for leaf in actual.slots.values() {
                             use_permission(leaf, false, &current, loans, apart, b)?;
                         }
+                        if !actual.held.targets.is_empty() {
+                            use_permission(&actual.held, false, &current, loans, apart, b)?;
+                        }
                         for other in &arguments[..a] {
                             let right = &values[other.0 as usize];
                             let write = matches!(
@@ -1722,7 +1861,11 @@ fn windows(
                                 value_type(f, *argument)?,
                                 Type::Address { mutable: true, .. }
                             ) {
-                                for leaf in right.slots.values() {
+                                for leaf in right
+                                    .slots
+                                    .values()
+                                    .chain((!right.held.targets.is_empty()).then_some(&right.held))
+                                {
                                     for x in &actual.pointer.targets {
                                         for y in &leaf.targets {
                                             separate(x, y, apart, b)?;
@@ -1732,7 +1875,9 @@ fn windows(
                             }
                             if matches!(value_type(f, *other)?, Type::Address { mutable: true, .. })
                             {
-                                for leaf in actual.slots.values() {
+                                for leaf in actual.slots.values().chain(
+                                    (!actual.held.targets.is_empty()).then_some(&actual.held),
+                                ) {
                                     for x in &leaf.targets {
                                         for y in &right.pointer.targets {
                                             separate(x, y, apart, b)?;
@@ -1796,7 +1941,7 @@ pub(super) fn derive(
             }
             fee(b, loan_count.saturating_mul(4))?;
             let mut loans = vec![Loan::default(); loan_count];
-            let entry = seed(f, &mut loans, b)?;
+            let entry = seed(module, f, &mut loans, b)?;
             let mut values = vec![Value::default(); f.values.len()];
             let mut outputs = vec![State::default(); f.blocks.len()];
             loop {
@@ -2021,6 +2166,13 @@ pub(super) fn infer(
                     Some(f.span),
                 )]);
             }
+        }
+        if super::stored_callables::fixed_value(module, &f.return_type) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "captured Fixed environment escape needs its retained result target transfer",
+                Some(f.span),
+            )]);
         }
         actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
@@ -2498,13 +2650,67 @@ mod tests {
         let mut b = Budget::new(&limits);
         inventory(module, &limits, &mut b)?;
         for f in &module.functions {
-            header(f, &mut b)?;
+            header(module, f, &mut b)?;
         }
         derive(
             module,
             &vec![(vec![vec![]], vec![true]); module.functions.len()],
             &mut b,
         )
+    }
+    #[test]
+    fn captured_fixed_instances_and_helpers_keep_receiver_context() {
+        for mode in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            for make in [
+                fixture::captured_fixed_instances,
+                fixture::captured_fixed_helper,
+            ] {
+                super::super::analyze(&make(mode, false), &Limits::default()).unwrap();
+                let error =
+                    super::super::analyze(&make(mode, true), &Limits::default()).unwrap_err();
+                assert!(
+                    error
+                        .iter()
+                        .any(|d| d.message.contains("actual retained classes")),
+                    "{mode:?}: {error:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn captured_fixed_keeps_actual_parent_alive() {
+        super::super::analyze(
+            &fixture::captured_fixed_parent_end(false),
+            &Limits::default(),
+        )
+        .unwrap();
+        let error = super::super::analyze(
+            &fixture::captured_fixed_parent_end(true),
+            &Limits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("live access overlaps")),
+            "{error:?}"
+        );
+    }
+    #[test]
+    fn captured_fixed_uses_actual_environment_in_all_three_modes() {
+        for mode in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
+            super::super::analyze(&fixture::captured_fixed(mode, false), &Limits::default())
+                .unwrap();
+            let error =
+                super::super::analyze(&fixture::captured_fixed(mode, true), &Limits::default())
+                    .unwrap_err();
+            assert!(
+                error
+                    .iter()
+                    .any(|d| d.message.contains("actual retained classes")),
+                "{mode:?}: {error:?}"
+            );
+        }
     }
     #[test]
     fn qualified_role_proofs_share_the_actual_request_allowance() {
