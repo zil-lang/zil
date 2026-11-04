@@ -48,6 +48,7 @@ mod scoped_thread;
 mod state_origins;
 mod store_templates;
 mod tuple_bindings;
+mod reference_patterns;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;

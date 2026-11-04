@@ -309,6 +309,18 @@ fn terminal340_option_source_identity_and_negative_neighbors() {
     }
 }
 
+#[test]
+fn terminal340_reference_places_native() {
+    for text in [
+        "fn result()->i32{let n=42;let ref p=n;return *p}",
+        "fn result()->i32{var n=20;let ref mut p=n;*p+=22;return n}",
+        "fn result()->i32{var pair=(20,22);let(ref x,ref y)=pair;return *x+*y}",
+        "fn result()->i32{let value:i32?=Option.Some(42);match value{Option.Some(ref p)=>{return *p},Option.None()=>{return 0}}}",
+        "fn result()->i32{var value:i32?=Option.Some(20);match value{Option.Some(ref mut p)=>{*p+=22;return *p},Option.None()=>{return 0}}}",
+        "enum E{Pair(i32,i32),None}fn result()->i32{var value=E.Pair(20,22);match value{E.Pair(ref mut a,ref mut b)=>{*a+=*b;return *a},E.None()=>{return 0}}}",
+    ] { review329_native(&[("main",text)],42); }
+}
+
 fn review329_project(files: &[(&str, &str)]) -> zil_driver::ProjectSources {
     zil_driver::ProjectSources {
         root: ModuleId(0),

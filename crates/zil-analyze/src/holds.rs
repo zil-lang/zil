@@ -598,7 +598,8 @@ fn scoped_transition(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. } => Some(local),
-        InstructionKind::BorrowPackageField { local, .. }
+        InstructionKind::BorrowVariantLocal { local, .. }
+        | InstructionKind::BorrowPackageField { local, .. }
         | InstructionKind::ReadPackageField { local, .. }
         | InstructionKind::TakePackageField { local, .. }
         | InstructionKind::StorePackageField { local, .. }
@@ -1297,6 +1298,10 @@ fn infer_with_private(
                     }
                     InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                         found.insert(Root::Local(*local));
+                    }
+                    InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                        budget.spend(path.len().saturating_add(1), "payload borrow root")?;
+                        found.insert(path.first().map_or(Root::Local(*local), |p| Root::Field(*local,p.index)));
                     }
                     InstructionKind::BorrowPackageField { local, index, .. } => {
                         // The checked instruction borrows this actual inline

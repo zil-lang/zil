@@ -103,6 +103,9 @@ impl Expander<'_> {
                 CorePatternKind::Name(name.clone())
             }
             s::PatternKind::Wildcard => CorePatternKind::Wildcard,
+            s::PatternKind::Reference { mutable, pattern } => CorePatternKind::Reference {
+                mutable: *mutable, pattern: Box::new(self.pattern(pattern)),
+            },
             s::PatternKind::Literal(s::Literal::Integer(value)) => {
                 CorePatternKind::Integer(value.clone())
             }

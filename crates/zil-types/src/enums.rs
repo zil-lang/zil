@@ -209,6 +209,7 @@ impl Coverage<'_> {
                 Pattern::Any
             }
             CorePatternKind::Wildcard => Pattern::Any,
+            CorePatternKind::Reference { pattern, .. } => self.pattern(pattern, ty, names, depth + 1)?,
             CorePatternKind::Bool(value) if *ty == Type::Bool => {
                 Pattern::Constructor(Constructor::Bool(*value), Vec::new())
             }
@@ -488,6 +489,9 @@ impl Builder<'_, '_> {
         arms: &[CoreMatchArm],
         span: Span,
     ) -> R<()> {
+        if arms.iter().any(|a| reference_patterns::has_reference(&a.pattern)) {
+            return self.reference_match(expression, arms, span);
+        }
         if self
             .known_type(expression)
             .as_ref()

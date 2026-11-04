@@ -1846,6 +1846,9 @@ impl FunctionEmitter<'_> {
             InstructionKind::VariantTagLocal { local, path } => {
                 self.variant_tag_local(instruction, *local, path)?
             }
+            InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                self.borrow_variant_local(instruction, *local, path)?
+            }
             InstructionKind::ReadVariantLocal { local, path } => {
                 self.read_variant_local(instruction, *local, path)?
             }

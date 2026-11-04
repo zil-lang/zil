@@ -129,6 +129,16 @@ impl FunctionEmitter<'_> {
         let (ty, pointer) = self.variant_local_pointer(local, path)?;
         self.enum_tag_at(&ty, &pointer, value(result(instruction)?))
     }
+    pub(super) fn borrow_variant_local(
+        &mut self, instruction: &Instruction, local: LocalId, path: &[VariantProjection],
+    ) -> CompileResult<()> {
+        let (_, pointer) = self.variant_local_pointer(local, path)?;
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(value(result(instruction)?))),
+            m::Op::Gep { ty: m::Ty::Int(8), ptr: m::val(pointer), indices: vec![m::Arg::new(m::Ty::Int(32),0)] },
+        )));
+        Ok(())
+    }
     pub(super) fn read_variant_local(
         &mut self,
         instruction: &Instruction,

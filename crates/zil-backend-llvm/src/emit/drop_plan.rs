@@ -591,7 +591,8 @@ pub(super) fn functions(
                 budget.pay(0, 1)?;
                 match &instruction.kind {
                     InstructionKind::VariantTagLocal { local, path }
-                    | InstructionKind::ReadVariantLocal { local, path } => {
+                    | InstructionKind::ReadVariantLocal { local, path }
+                    | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                         let ty = &f.locals[local.0 as usize].ty;
                         for _ in 0..=path.len() {
                             budget.tree(ty, 0)?;

@@ -67,6 +67,7 @@ pub(super) fn check(
                 instruction.kind,
                 InstructionKind::VariantTagLocal { .. }
                     | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
                     | InstructionKind::UnpackVariant { .. }
                     | InstructionKind::DropEnum { .. }
                     | InstructionKind::MakePackage { .. }
@@ -262,6 +263,7 @@ pub(super) fn check(
                 }
                 InstructionKind::VariantTagLocal { local, .. }
                 | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::Load(local)
                 | InstructionKind::RegisterDefer { local, .. }

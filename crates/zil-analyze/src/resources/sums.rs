@@ -787,10 +787,21 @@ impl Plan {
                 );
             }
             InstructionKind::VariantTagLocal { local, path }
-            | InstructionKind::ReadVariantLocal { local, path } => {
+            | InstructionKind::ReadVariantLocal { local, path }
+            | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                 let ty = projection(&f.locals[local.0 as usize].ty, path, budget)?;
                 let tag = matches!(i.kind, InstructionKind::VariantTagLocal { .. });
-                let expected = if tag {
+                let borrowed = matches!(i.kind, InstructionKind::BorrowVariantLocal { .. });
+                let borrowed_ty;
+                let expected = if borrowed {
+                    let InstructionKind::BorrowVariantLocal { mutable, .. } = i.kind else { unreachable!() };
+                    if path.is_empty() || !ty.is_copy_value() || (mutable && (!ty.is_b0_scalar() || !f.locals[local.0 as usize].mutable)) {
+                        return Err(error("payload borrow requires finite Copy and actual mutable authority"));
+                    }
+                    budget.type_work(ty, true, "Sum payload address type")?;
+                    borrowed_ty = Type::Address { mutable, inner: Box::new(ty.clone()) };
+                    &borrowed_ty
+                } else if tag {
                     if !matches!(ty, Type::Enum { .. }) {
                         return Err(error("tag endpoint is not Enum"));
                     }

@@ -207,6 +207,17 @@ pub(super) fn check_instruction(
                 Ok(Some(ty.clone()))
             }
         }
+        InstructionKind::BorrowVariantLocal { local, path, mutable } => {
+            if path.is_empty() || path.len() > limits.max_call_depth {
+                return Err(bad(span, "payload borrow requires a nonempty bounded Enum path"));
+            }
+            let ty = projected_type(f, *local, path, span, budget)?;
+            resources::charge_payload(ty, budget)?;
+            if !ty.is_copy_value() || (*mutable && (!ty.is_b0_scalar() || !f.locals[local.0 as usize].mutable)) {
+                return Err(bad(span, "payload borrow requires finite Copy and actual mutable authority"));
+            }
+            Ok(Some(Type::Address { mutable: *mutable, inner: Box::new(ty.clone()) }))
+        }
         InstructionKind::UnpackVariant {
             local,
             variant,
@@ -903,7 +914,8 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::VariantTagLocal { local, path }
-                | InstructionKind::ReadVariantLocal { local, path } => {
+                | InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::BorrowVariantLocal { local, path, .. } => {
                     self.selected(
                         state,
                         *local,

@@ -506,6 +506,12 @@ impl Engine<'_> {
                 }
                 env.insert(name.clone(), ty.cloned());
             }
+            PatternKind::Reference { mutable, pattern } => {
+                let address = ty.map(|inner| TypeRef { kind: TypeKind::Reference {
+                    lifetime: None, mutable: *mutable, inner: Box::new(inner.clone()),
+                }, span: pattern.span });
+                self.enum_pattern(pattern, address.as_ref(), env, depth + 1)?;
+            }
             PatternKind::Tuple(patterns) => {
                 let types = ty.and_then(|ty| match &grouped(ty).kind {
                     TypeKind::Tuple(fields) => Some(fields.as_slice()),

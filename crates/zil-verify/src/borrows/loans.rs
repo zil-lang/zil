@@ -184,7 +184,8 @@ fn reconstruct(
                         | InstructionKind::OwnedStoreBorrow { .. }
                         | InstructionKind::OwnedStoreBorrowMut { .. }
                         | InstructionKind::BorrowOwnedArrayElement { .. }
-                        | InstructionKind::BorrowPackageField { .. } => {
+                        | InstructionKind::BorrowPackageField { .. }
+                        | InstructionKind::BorrowVariantLocal { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -970,6 +971,17 @@ pub(super) fn check(
                 InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
+                InstructionKind::BorrowVariantLocal { local, path, mutable } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root=path.first().map_or(Root::Local(*local),|p|Root::Field(*local,p.index));
+                    access.check(&empty,&[root],*mutable,budget)?;
+                }
+                InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::VariantTagLocal { local, path } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root=path.first().map_or(Root::Local(*local),|p|Root::Field(*local,p.index));
+                    access.check(&empty,&[root],false,budget)?;
+                }
                 InstructionKind::BorrowPackageField {
                     local,
                     index,
@@ -983,6 +995,9 @@ pub(super) fn check(
                     access.check(&empty, &[root], false, budget)?;
                 }
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackVariant { local, .. }
+                | InstructionKind::TakeLocal { local }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }

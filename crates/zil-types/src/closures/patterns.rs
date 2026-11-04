@@ -53,7 +53,11 @@ impl Graph {
                 bindings.push((name.clone(), value, pattern.span));
             }
             CorePatternKind::Wildcard => {}
-            CorePatternKind::Reference { .. } => return Err(unsupported(pattern.span, "reference patterns require place-based lowering")),
+            CorePatternKind::Reference { mutable, pattern: inner } => {
+                let address = self.pattern_variable(pattern.span)?;
+                self.address(address, value, Some(*mutable), pattern.span)?;
+                self.pattern_constraints(inner, address, names, bindings, depth + 1)?;
+            }
             CorePatternKind::Bool(_) => self.bind(value, &Type::Bool, pattern.span)?,
             CorePatternKind::Integer(text) => {
                 self.spend_count(text.len(), pattern.span)?;
