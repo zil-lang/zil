@@ -324,13 +324,14 @@ pub(super) fn substitute_type(
 impl Builder<'_, '_> {
     pub(super) fn call_inferred_type_template(
         &mut self,
-        mut signature: Signature,
+        signature: &Signature,
         arguments: &[CoreExpr],
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let work = inference::signature_snapshot_work("", &signature, span, self.limits)?;
+        let work = inference::signature_snapshot_work("", signature, span, self.limits)?;
         self.closures.snapshot(work, span)?;
+        let mut signature = signature.clone();
         let name = signature
             .type_parameter
             .as_ref()

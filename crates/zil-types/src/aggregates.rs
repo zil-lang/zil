@@ -1741,8 +1741,12 @@ pub(super) fn resolve_type_method<'a>(
     }
 }
 
-impl Builder<'_, '_> {
-    pub(super) fn method_signature(&self, object: &CoreExpr, member: &str) -> Option<&Signature> {
+impl<'a> Builder<'a, '_> {
+    pub(super) fn method_signature(
+        &self,
+        object: &CoreExpr,
+        member: &str,
+    ) -> Option<&'a Signature> {
         let ty = self.known_type(object)?;
         let ty = match ty {
             Type::Address { inner, .. } => match *inner {
