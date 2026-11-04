@@ -158,6 +158,23 @@ fn write_inst(s: &mut String, i: &Inst) {
                 ordering.spelling()
             )
         }
+        Op::AtomicCompareExchange {
+            expected,
+            desired,
+            ptr,
+            align,
+            success,
+            failure,
+            ..
+        } => {
+            write!(
+                s,
+                "cmpxchg ptr {ptr}, {expected}, {} {desired} {} {}, align {align}",
+                expected.ty,
+                success.spelling(),
+                failure.spelling()
+            )
+        }
         Op::Binary {
             opcode,
             ty,

@@ -80,6 +80,17 @@ unsafe extern "C" {
         single_thread: c_int,
     ) -> Handle;
 
+    fn LLVMBuildAtomicCmpXchg(
+        builder: Handle,
+        pointer: Handle,
+        expected: Handle,
+        desired: Handle,
+        success: c_int,
+        failure: c_int,
+        single_thread: c_int,
+    ) -> Handle;
+    fn LLVMSetWeak(instruction: Handle, weak: c_int);
+
     fn LLVMBuildFAdd(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFSub(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFMul(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
@@ -420,6 +431,31 @@ impl<'a> Construction<'a> {
                     // instructions synchronize actual worker threads.
                     let inst =
                         LLVMBuildAtomicRMW(b, operation, p, v, atomic_ordering(*ordering), 0);
+                    LLVMSetAlignment(inst, *align);
+                    inst
+                }
+                m::Op::AtomicCompareExchange {
+                    expected,
+                    desired,
+                    ptr,
+                    align,
+                    success,
+                    failure,
+                    ..
+                } => {
+                    let expected_value = self.value(&expected.value, &expected.ty)?;
+                    let desired_value = self.value(desired, &expected.ty)?;
+                    let pointer = self.value(ptr, &m::Ty::Ptr)?;
+                    let inst = LLVMBuildAtomicCmpXchg(
+                        b,
+                        pointer,
+                        expected_value,
+                        desired_value,
+                        atomic_ordering(*success),
+                        atomic_ordering(*failure),
+                        0,
+                    );
+                    LLVMSetWeak(inst, 0);
                     LLVMSetAlignment(inst, *align);
                     inst
                 }

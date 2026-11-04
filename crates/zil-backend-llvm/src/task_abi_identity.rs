@@ -118,6 +118,20 @@ fn op(o: &m::Op, left: &mut usize) -> CompileResult<()> {
             arg(a, left, 0)?;
             value(ptr, left, 0)
         }
+        m::Op::AtomicCompareExchange {
+            result,
+            expected,
+            desired,
+            ptr,
+            align: _,
+            success: _,
+            failure: _,
+        } => {
+            ty(result, left, 0)?;
+            arg(expected, left, 0)?;
+            value(desired, left, 0)?;
+            value(ptr, left, 0)
+        }
         m::Op::Binary {
             opcode: s,
             ty: t,
