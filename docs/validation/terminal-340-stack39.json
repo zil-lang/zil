@@ -1,0 +1,147 @@
+{
+  "task": "340 (root-directed common39 reliability prerequisite)",
+  "status": "ScopedAuthorPassPendingIndependentReview",
+  "source_parent": "d2fe57d36",
+  "original_failure": "Exact accepted03fa and diagnostic capture WIP independently overflow unchanged default worker conversion source at96 after32/64 pass. Historical failure preserved; no full old-source pass claimed.",
+  "changes": "344 supplied the tiny feature/syntax guard around generic method provider/witness implementation. That alone still failed. A second tiny numeric-conversion dispatcher keeps ordinary CallArguments and Task primitive state out of conversion recursion; the existing conversion handler and paid visits remain. Bare/grouped reserved numeric callee cannot be a trait Member or other primitive category. Other calls keep original order in a non-inlined helper.",
+  "commands": [
+    "cargo test -p zil-driver --features llvm-api --test aggregates -- --nocapture",
+    "cargo test -p zil-driver --features llvm-api --test generics terminal341_generic_methods -- --nocapture",
+    "cargo test -p zil-expand --lib",
+    "cargo clippy -p zil-expand --lib -- -D clippy::all"
+  ],
+  "gates": {
+    "aggregates": "143/0 (includes terminal34050, original default-worker5 modes and new unrelated-method/grouped-numeric control)",
+    "generic_methods": "2/0 (positive10 source cases and unused invalid6 controls)",
+    "expand_lib": "21/0",
+    "expand_clippy_all": "Pass with7 preexisting unfinished dyn-catalog dead-code warnings; -D warnings not claimed",
+    "full_workspace": "NotRun"
+  },
+  "unchanged_original_control": {
+    "modes": [
+      "plain",
+      "generic",
+      "conversion",
+      "f32",
+      "f64"
+    ],
+    "success_depths": [
+      32,
+      64,
+      96,
+      112,
+      124
+    ],
+    "parse_resource_limit_depth": 126,
+    "plain96_nodes_boundary": 2348,
+    "plain96_depth_boundary": 197,
+    "retry": "Original N/N-1/N fresh/warm assertions unchanged",
+    "stack": "ordinary default worker stack unchanged; acceptance has no preload or alternate stack"
+  },
+  "budgets": "All existing terminal340 source/kernel/Wire measured Ns unchanged from d2fe; capture source68065/Analyze66078/Verify+Wire68065. No limit changes.",
+  "source_binding": {
+    "algorithm": "Sorted unique paths; UTF8(path), NUL, lowercase SHA256(file), LF -> SHA256.",
+    "production_selector": "git ls-files filtered by (path.endswith('.rs') and '/src/' in path) or path.endswith('Cargo.toml') or path == 'Cargo.lock'",
+    "production": {
+      "count": 419,
+      "sha256": "5f5f27f1210e5da07cd5f38c29ec859b338240b5e8c346b2d92294b1f3aa0d7b"
+    },
+    "test_selector": "Exactly the two Rust targets plus every static literal include_str! path resolved relative to those files.",
+    "tests": {
+      "count": 74,
+      "sha256": "123572b4eb3ba446483393bb7e7cb57c2416713276857a94c93b2a6bc2b843e1"
+    },
+    "test_paths": [
+      "crates/zil-driver/tests/aggregates.rs",
+      "crates/zil-driver/tests/generics.rs",
+      "examples/aggregates/arrays.zil",
+      "examples/aggregates/main.zil",
+      "tests/generic-error-enum/annotated.zil",
+      "tests/generic-error-enum/concrete.zil",
+      "tests/generic-error-enum/direct.zil",
+      "tests/generic-error-enum/helper.zil",
+      "tests/generic-error-enum/unique-context-if.zil",
+      "tests/generic-error-enum/unique-context.zil",
+      "tests/language-readiness/batch336/component.zil",
+      "tests/language-readiness/codegen-pending/ct3-phantom-fn-metadata.zil",
+      "tests/language-readiness/codegen-pending/ct3-wrong-enum-owner.zil",
+      "tests/language-readiness/codegen-pending/large-array-a18-by-value.zil",
+      "tests/language-readiness/codegen-pending/large-array-a18-function-pointer.zil",
+      "tests/language-readiness/codegen-pending/large-array-a18-return.zil",
+      "tests/language-readiness/codegen-pending/large-array-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture-var.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a12.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-empty-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-enum-fnptr-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-error-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-enum-error-error-fnptr-a18.zil",
+      "tests/language-readiness/codegen-pending/large-copy-version-carriers.zil",
+      "tests/language-readiness/pending/ct-type-generic-function.zil",
+      "tests/language-readiness/pending/ct-type-generic-record.zil",
+      "tests/language-readiness/pending/runtime-tuple-binding.zil",
+      "tests/language-readiness/recovery/review318-generic-tuple-gap.zil",
+      "tests/language-readiness/terminal/340/addressed.zil",
+      "tests/language-readiness/terminal/340/captured-owning-base-open.zil",
+      "tests/language-readiness/terminal/340/captured-owning-base.zil",
+      "tests/language-readiness/terminal/340/captured-owning-result.zil",
+      "tests/language-readiness/terminal/340/error-arms.zil",
+      "tests/language-readiness/terminal/340/mixed-address.zil",
+      "tests/language-readiness/terminal/340/mixed-long-prefix.zil",
+      "tests/language-readiness/terminal/340/mixed.zil",
+      "tests/language-readiness/terminal/340/option.zil",
+      "tests/language-readiness/terminal/340/owned-tuples.zil",
+      "tests/language-readiness/terminal/340/reference.zil",
+      "tests/language-readiness/terminal/340/unsigned.zil",
+      "tests/language-readiness/terminal/341/const-array-machine.zil",
+      "tests/language-readiness/terminal/341/const-functions.zil",
+      "tests/language-readiness/terminal/341/const-shadow-length-invalid.zil",
+      "tests/language-readiness/terminal/341/const-unsigned.zil",
+      "tests/language-readiness/terminal/341/const-unused-invalid.zil",
+      "tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil",
+      "tests/language-readiness/terminal/341/generic-methods.zil",
+      "tests/language-readiness/terminal/344/anonymous/aliases.zil",
+      "tests/language-readiness/terminal/344/anonymous/artifact-values.zil",
+      "tests/language-readiness/terminal/344/anonymous/basic.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-composite-callable-metadata.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-enum-owner-legal.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-generic-callable-arguments.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-generic-enum-values.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-member-order-permutation.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-scalar-nominal-arguments.zil",
+      "tests/language-readiness/terminal/344/anonymous/ct-types.zil",
+      "tests/language-readiness/terminal/344/anonymous/float-enum.zil",
+      "tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil",
+      "tests/language-readiness/terminal/344/anonymous/phantom-bfp-alpha.zil",
+      "tests/language-readiness/terminal/344/anonymous/phantom-bfp-metadata.zil",
+      "tests/language-readiness/terminal/344/anonymous/phantom.zil",
+      "tests/language-readiness/terminal/344/depth20.zil",
+      "tests/language-readiness/terminal/344/depth32.zil",
+      "tests/language-readiness/terminal/344/depth48.zil",
+      "tests/language-readiness/terminal/344/floats/aggregate-closure.zil",
+      "tests/language-readiness/terminal/344/floats/c-abi.zil",
+      "tests/language-readiness/terminal/344/floats/ct-artifact.zil",
+      "tests/language-readiness/terminal/344/floats/ieee-native.zil",
+      "tests/language-readiness/terminal/344/floats/unsigned-boundaries.zil",
+      "tests/language-readiness/terminal/344/projection32.zil",
+      "tests/language-readiness/terminal/344/projection48.zil"
+    ]
+  },
+  "retained_executables": {
+    "aggregates": {
+      "path": "/workspace/.zil-env/target340/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "c998b3543355555eb63871cb6e7d54a2577a076b68f2ec97f3606bfdbc2cf8a1"
+    },
+    "generics": {
+      "path": "/workspace/.zil-env/target340/debug/deps/generics-ba4159fc2009dbc9",
+      "sha256": "b999ef4e8cbec2f148d350a3e58a9aba68841238289b30da7480e6962d5f2195"
+    },
+    "expand": {
+      "path": "/workspace/.zil-env/target340/debug/deps/zil_expand-f102b30535c7baef",
+      "sha256": "c4f10bb771c33e19211da932c725db098e097a13047bf522851b7119591906c3"
+    }
+  },
+  "rust_goals": "Safety: source acceptance/error/fees preserved, existing independent-kernel controls replay. Runtime/memory: changes only compiler frame placement, no generated runtime representation/allocation change. Expression/maintenance: original ordinary nesting and unrelated generic declarations coexist on the default API worker; no source annotation workaround. Compile cost: unchanged quotas and exact boundaries; no same-semantic Rust compile or RSS comparison. Breakthrough: real API reliability restored for common39 ordinary numeric composition without raising stack or source depth.",
+  "remaining": "Captured-address independent review and callable-parameter slot generalization, reservations121-124, Product-root selective moves and physical CT ErrorUnion remain separate unfinished task340 work."
+}

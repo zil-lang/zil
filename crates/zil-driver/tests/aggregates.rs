@@ -6420,6 +6420,40 @@ fn anonymous_sum_const_associated_and_borrowed_code_compositions() {
 }
 
 #[test]
+fn nested_conversions_with_unrelated_generic_methods_keep_default_stack() {
+    if std::env::var_os("ZIL_340_METHOD_STACK_CHILD").is_some() {
+        std::thread::spawn(|| {
+            let prefix="struct P{}trait Echo{fn echo<T:Copy>(self:&Self,x:T)->T{return x}}impl Echo for P{}";
+            for (callee, depth) in [("i32",32),("i32",96),("i32",124),("((i32))",32)] {
+                let expression=format!("{}0{}",format!("{callee}(").repeat(depth),")".repeat(depth));
+                let text=format!("{prefix}fn result()->i32{{return {expression}}}");
+                let report=compile_source(&source(&text),&CompileOptions::default());
+                assert_eq!(report.status,ResultCategory::Success,"{callee}/{depth}: {}",report.to_json());
+                assert_eq!(report.verification_runs,1);
+            }
+        }).join().unwrap();
+        return;
+    }
+    let child = Command::new("timeout")
+        .args(["-s", "KILL", "90s"])
+        .arg(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "nested_conversions_with_unrelated_generic_methods_keep_default_stack",
+            "--nocapture",
+        ])
+        .env("ZIL_340_METHOD_STACK_CHILD", "1")
+        .output()
+        .unwrap();
+    assert!(
+        child.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&child.stdout),
+        String::from_utf8_lossy(&child.stderr)
+    );
+}
+
+#[test]
 fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
     if let Ok(mode) = std::env::var("ZIL_344_NESTED_CHILD") {
         std::thread::spawn(move || {
