@@ -129,3 +129,11 @@ Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及
 真实345 ui_input Composition 的普通字段 text:std.string.String，经 &mut Composition 的 `string.clear(&mut session.text)` 被Types既有shared-only子Product门拒绝。保留源/API，不展开String或改成按值借出；当前Types和两个核已接受实际Address<Package>签名及父来源/贷款。本步只把实际mutable父地址投影到已逐层资格核验的有限子Product，Verify独立核子Product完整真实类型，不能升级shared父权限或替换拥有责任。沿既有AddressField/DescribeAddress与实际父窗口，不新增opcode或登记许可。以普通嵌套Text/String完整机器正例、shared伪造raw/Wire、活view撞clear/父替换反例检查。未泛化到存储Address/Desc叶，不替代随后固定life位置合同。
 
 实际mutable嵌套Product补丁验证：新增 `nested_product.zil` 使用真实std.string.String及原API调用形状，双后端/O0/O2四次exit0。现有AddressField父loan/实际resource来源足以覆盖此有限投影，Analyze无需新增许可；Verify对子Package完整实际类型独立资格核验。raw/decodedWire将begin的实际参数/重借改shared后两核拒绝；shared源请求mutable、活view跨begin、活view跨parent替换均拒绝。完整既有十目标68/35/10/9/7/18/14/10/37/4通过，Clippy cross llvm-api -D warnings通过，旧记录phaseN全部不变。当前342没有UInt及新std.ui_input loader，完整原345 ui_input由root合成树重放，本文不冒称已经执行原UI。统一stored Address/Desc life仍后续实现。
+
+### 独审 HRTB 实际签名重复遍历收费修正提案
+
+13677独审重放10/0和64native，但发现每个role的relation递归pointee资格/Copy判断及实际result类型比较未逐次预费完整形状；普通raw preflight只支付自身遍历，不能重复抵扣。两个核各自先从同一剩余台账预费参数/结果完整树，再进行关系/比较；Types validate_bound同样在推断操作前支付本次资格判断。调用固定点只用浅Address-result触发实际完整证明，不反复递归判断pointee；仍按实际声明位置核根和权限。增加deep/wide Copy pointee的实际源、N/N−1/fresh及raw/Wire控制，记录新费用，不升默认上限。
+
+独审费用修正实际完成：每个role和实际callback返回证明先付参数/结果完整形状，再做递归资格与实际签名比较；Types validate_bound同样前置支付，callable_snapshot先做本地深度/工作验证再支付额外relation遍历，尤其覆盖早于state header核验的raw混合入口。调用固定点只用浅shape触发，两个核的普通closure header仍独立付费并限制结果为原有限Copy/slice pointee；新增无role的Package结果raw/Wire在该门拒绝，不扩大profile。
+
+新增32字段+8层pointee正例经两个role重复使用同一ClosureId，Types/Analyze/Verify N15796/31925/72533；raw与Wire N−1 ResourceLimit、freshN同值。新增raw混合header的32层/16深度限制及256字段/128工作额度在递归资格判断前都返回Types ResourceLimit。当前HRTB STORAGE阶段N1514/530/11724/12330（相对13677为Types+4、两核各+24），其它既有控制N保持，默认限额不变。最终既有十目标70/35/10/9/7/18/14/10/37/4零失败；同十目标Clippy-Dwarnings通过，Types32/Verify344单位通过。Analyze限定122通过、2个已记录v34冻结fixture因版本不适用明确排除，原两项E-WIRE-VERSION失败记录仍保留。当前focused HRTB12项包含64native，无新增机器profile重复计数。修正待独立精确源码复核。

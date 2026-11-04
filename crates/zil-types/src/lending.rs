@@ -144,7 +144,9 @@ fn sources(
                     && tracked(&f.values[result.0 as usize])
                 {
                     if let Some((definition, arguments)) =
-                        borrowed_fp::invocation_call(module, f, &instruction.kind)
+                        borrowed_fp::invocation_call(module, f, &instruction.kind, |n| {
+                            work.spend(n, instruction.span)
+                        })?
                     {
                         for source in &summaries[definition.function.0 as usize] {
                             work.spend(1, instruction.span)?;
@@ -305,8 +307,8 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
         if !matches!(closure.result, Type::Address { .. }) {
             continue;
         }
+        work.spend(closure.parameters.len(), f.span)?;
         if borrowed_fp::invocation(&closure.parameters, &closure.result) {
-            work.spend(closure.parameters.len(), f.span)?;
             let mutable = matches!(closure.result, Type::Address { mutable: true, .. });
             let roots = &summaries[closure.function.0 as usize];
             work.spend(roots.len(), f.span)?;

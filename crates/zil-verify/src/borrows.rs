@@ -1105,8 +1105,7 @@ pub(super) fn check_module(
                 }
                 let invocation = function.environment.is_some_and(|id| {
                     let d = &module.closures[id.0 as usize];
-                    d.lending_captures.is_empty()
-                        && borrowed_fp::invocation(&d.parameters, &d.result)
+                    d.lending_captures.is_empty() && matches!(d.result, Type::Address { .. })
                 });
                 if function.environment.is_some() && !invocation {
                     budget.spend(roots.len().saturating_add(1))?;
@@ -1513,6 +1512,7 @@ fn check_callback_return(
     life: Option<&FunctionLifeContract>,
     budget: &mut Budget,
 ) -> Check<()> {
+    borrowed_fp::signature_work(&d.parameters, &d.result, budget)?;
     if let Some(life) = life {
         budget.spend(
             (life.binder_count as usize)

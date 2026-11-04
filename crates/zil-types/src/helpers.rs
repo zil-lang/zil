@@ -125,7 +125,7 @@ pub(super) fn validate_template(
         }
     }
     let invocation_result = bounds.iter().any(|b| b.life.is_some())
-        && matches!(function.return_type,Type::Address{inner:ref p,..} if p.is_address_pointee());
+        && matches!(function.return_type, Type::Address { .. });
     let owned_state = callable_fields::template(function);
     // Only a new non-Copy data signature enters this branch; legacy helper
     // accounting and every existing State/lending profile stay unchanged.
@@ -679,6 +679,14 @@ impl Builder<'_, '_> {
         if let Some(life) = &bound.life {
             self.closures
                 .snapshot(borrowed_fp::metadata_work(life), span)?;
+            for ty in bound
+                .parameters
+                .iter()
+                .chain(std::iter::once(&bound.result))
+            {
+                let work = inference::type_snapshot_work(ty, span, self.limits)?;
+                self.closures.snapshot(work.saturating_mul(2), span)?;
+            }
             borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
         }
         if owned_state {

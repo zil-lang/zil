@@ -169,7 +169,7 @@ pub(super) fn targets(
 /// A concrete call returns only invocation input storage in this profile.
 /// This classifier triggers a full actual-return proof; it grants no origins.
 pub(super) fn invocation(parameters: &[Type], result: &Type) -> bool {
-    matches!(result,Type::Address{inner,..} if inner.is_address_pointee())
+    matches!(result, Type::Address { .. })
         && parameters.iter().any(|p| matches!(p, Type::Address { .. }))
 }
 
@@ -197,7 +197,18 @@ pub(super) fn invocation_call<'a>(
     };
     let Type::Closure(id) = ty else { return None };
     let d = module.closures.get(id.0 as usize)?;
-    (d.lending_captures.is_empty() && invocation(&d.parameters, &d.result)).then_some((d, args))
+    (d.lending_captures.is_empty() && matches!(d.result, Type::Address { .. })).then_some((d, args))
+}
+
+pub(super) fn signature_work(
+    parameters: &[Type],
+    result: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for ty in parameters.iter().chain(std::iter::once(result)) {
+        budget.type_work(ty, true, "callback relation and exact actual signature")?;
+    }
+    Ok(())
 }
 
 fn callback_returns(
@@ -212,6 +223,7 @@ fn callback_returns(
         closure.parameters.len().saturating_mul(3).saturating_add(1),
         "callback invocation return source set",
     )?;
+    signature_work(&closure.parameters, &closure.result, budget)?;
     if let Some(life) = life {
         budget.spend(work(life), "callback declared invocation relation")?;
         relation(&closure.parameters, &closure.result, life)?;
@@ -242,7 +254,6 @@ fn callback_returns(
         return Err(bad("invocation callback actual complete signature differs"));
     }
     for (p, ty) in f.parameters.iter().zip(&closure.parameters) {
-        budget.type_work(ty, true, "callback actual parameter mode")?;
         if f.locals.get(p.0 as usize).map(|l| &l.ty) != Some(ty) {
             return Err(bad("invocation callback actual parameter differs"));
         }

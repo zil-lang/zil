@@ -4,7 +4,7 @@
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress; finite HRTB callback invocation relations",
   "tests": {
-    "cross_function_borrows": 68,
+    "cross_function_borrows": 70,
     "generic_regressions": 35,
     "impl033": 10,
     "impl099_owned_bytes": 9,
@@ -79,9 +79,9 @@
     ],
     "342_hrtb_storage_phase_n": [
       1514,
-      526,
-      11700,
-      12306
+      530,
+      11724,
+      12330
     ]
   },
   "native_342_mixed_mutable": {
@@ -114,7 +114,8 @@
   "independent_review": {
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
     "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
-    "resource_heads": "PassLimited 4365536a4 exact ec1d9e904; root SyncCell followup separately reviewed58ab47a4d"
+    "resource_heads": "PassLimited 4365536a4 exact ec1d9e904; root SyncCell followup separately reviewed58ab47a4d",
+    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -377,7 +378,7 @@
         "sha256": "9de5d44d0e55ba734ee09eb4d1cff57a68d2ff801b7505e7d422d4b2b7bdc7d3"
       }
     ],
-    "independent_review": "Pending exact clean HRTB candidate",
+    "independent_review": "PassLimited d5b3b25e6 exact13677, fee finding retained for corrected candidate",
     "integration_obligations": [
       "root WithSyncCell actual body/head/capture/effects repair",
       "343 actual Suspend exclusion for ordinary and borrowed FunctionRef",
@@ -443,6 +444,88 @@
       "342-nested-product-complete.log": "717eada0c6bf2540c0a6ef7c3598012c80b00763a133d594b127a2974d0b94f8",
       "342-nested-product-clippy.log": "428f12c918c35fc0a58a04249565e15da60186d58bef501d3aca78487ed21937"
     },
-    "independent_review": "Pending exact clean followup"
+    "independent_review": "PassLimited8808a1fa6 exact00c7dcafb"
+  },
+  "higher_rank_signature_fee_correction": {
+    "status": "AuthorScopedPass",
+    "base_commit": "00c7dcafb",
+    "scope": "Independent per-role actual signature prepayment; shallow fixed-point invocation trigger plus paid original finite header admission; raw mixed Core depth/work ordering",
+    "production_files": 351,
+    "production_sha256": "eb7453da08420c8e4451bb479455be7f24c27baab9359ad11cee4f0c738e2e1d",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "test_file": "tests/language-readiness/terminal/342/higher_rank.rs",
+    "test_sha256": "899770f3284a437509b07c14b87a7061b767547f855939f1b2d08c25ffa38681",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "4930f2be53be4fd89107c5145fc7c3c1c0a8fac5ade89110549b526a71103ac7",
+    "final_exact_ten_driver_targets": [
+      70,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "focused_hrtb": {
+      "passed": 12,
+      "failed": 0,
+      "native_profiles": 64
+    },
+    "phase_n": {
+      "hrtb_storage": [
+        1514,
+        530,
+        11724,
+        12330
+      ],
+      "deep_wide_pointee_types_analyze_verify": [
+        15796,
+        31925,
+        72533
+      ]
+    },
+    "n_minus_one_resource_limit": true,
+    "fresh_n_equal": true,
+    "decoded_wire_exact_n_equal": true,
+    "default_limits_changed": false,
+    "old_known_controls_unchanged": true,
+    "new_raw_controls": [
+      "no-role ordinary invocation result Package fails finite pointee header boundary in Analyze/Verify/decodedWire",
+      "raw mixed State/callable deep32 against max_call_depth16 ResourceLimit before eligibility",
+      "raw mixed State/callable wide256 against max_analysis_steps128 ResourceLimit before eligibility"
+    ],
+    "unit_consumers": {
+      "zil_types": {
+        "passed": 32,
+        "failed": 0
+      },
+      "zil_verify": {
+        "passed": 344,
+        "failed": 0
+      },
+      "zil_analyze": {
+        "passed": 122,
+        "failed": 0,
+        "filtered": 2,
+        "reason": "Previously recorded frozenWire34 fixtures mismatch current36; parent-owned unified fixture migration, explicit scoped exclusion, not counted passed"
+      }
+    },
+    "clippy": "exact ten existing driver targets llvm-api -D warnings Pass",
+    "logs": {
+      "342-hrtb-signature-fees-first.log": "63d3c7b62f4bbd405bf6d499db8762bf6b84394bcf6c1ef2a3c955d6912c201e",
+      "342-hrtb-signature-deep.log": "944a67e764018044de2c109c05734203ee759c339bd0ec97f31d8d734d179720",
+      "342-hrtb-signature-final.log": "4633b55ee56f00c0d85f0f4d3284f48c5d2a8c294ac03a0e9d640e6f7251142b",
+      "342-hrtb-signature-raw-final.log": "fc0f9650436341eea947f950bb16f9f106f831f4196946262dc9a45f9d6dfeda",
+      "342-hrtb-signature-clippy.log": "447266249386c19f7ee4d1fda884f6543426faf1ab017bfff7d91d222f940116",
+      "342-hrtb-signature-cross-final.log": "e852c6473fac478b89793ad6610494046fa4cfebc76471779fd4b945309d92c5",
+      "342-hrtb-signature-types-verify.log": "c21c535a5f1c3ad5da1daea71a3bce4a8b390ac53e82bd51baebefef6d6480c0",
+      "342-hrtb-signature-analyze-scoped.log": "cf9afc6c0d1787266a4bafb6b41908c466b284278b5dd04a31a2502b526e4c5e",
+      "342-hrtb-signature-exact.log": "682428150348c4092c876da4cf3b3ca3373d5f9fd231def3097caffd085d37ee"
+    },
+    "independent_review": "Pending exact corrected candidate; original13677 PassLimited d5b3b25e6 retained open signature-fee finding",
+    "formal_full_suite": "NotRunByImplementationAuthor"
   }
 }
