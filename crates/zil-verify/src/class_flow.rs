@@ -15,6 +15,7 @@ struct Ports {
 struct Equations {
     representative: Vec<usize>,
     rigid: Vec<Option<usize>>,
+    grounded: Option<Vec<bool>>,
     next_rigid: usize,
 }
 impl Equations {
@@ -22,6 +23,10 @@ impl Equations {
         b.spend(3)?;
         let id = self.representative.len();
         self.representative.push(id);
+        if let Some(grounded) = &mut self.grounded {
+            b.spend(1)?;
+            grounded.push(rigid);
+        }
         self.rigid.push(if rigid {
             let label = self.next_rigid;
             self.next_rigid += 1;
@@ -54,6 +59,24 @@ impl Equations {
             }
         }
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
+        if let Some(grounded) = &mut self.grounded {
+            b.spend(1)?;
+            grounded[a] |= grounded[z];
+        }
+        Ok(())
+    }
+    fn track_grounding(&mut self, b: &mut Budget) -> Check<()> {
+        if self.grounded.is_none() {
+            b.spend(self.rigid.len())?;
+            self.grounded = Some(self.rigid.iter().map(Option::is_some).collect());
+        }
+        Ok(())
+    }
+    fn ground_address(&mut self, port: Option<usize>, b: &mut Budget) -> Check<()> {
+        if let (Some(grounded), Some(port)) = (&mut self.grounded, port) {
+            b.spend(1)?;
+            grounded[self.representative[port]] = true;
+        }
         Ok(())
     }
     fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<Ports> {
@@ -69,6 +92,9 @@ impl Equations {
         };
         let environment = matches!(ty, Type::Closure(id)
             if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()));
+        if environment {
+            self.track_grounding(b)?;
+        }
         let count = match ty {
             Type::BorrowedStorage { life, .. } => life.binder_count as usize,
             Type::Closure(id) => module
@@ -93,6 +119,16 @@ impl Equations {
         b.spend(fixed.len())?;
         for slot in fixed {
             let root = self.representative[*slot];
+            if !self
+                .grounded
+                .as_ref()
+                .is_some_and(|grounded| grounded[root])
+            {
+                return Err(unsupported(
+                    "captured Fixed has no independently established source class",
+                    None,
+                ));
+            }
             if self.rigid[root].is_none() {
                 self.rigid[root] = Some(self.next_rigid);
                 self.next_rigid += 1;
@@ -272,6 +308,7 @@ fn check_with(
     let mut e = Equations {
         representative: Vec::new(),
         rigid: Vec::new(),
+        grounded: None,
         next_rigid: 0,
     };
     b.spend(f.values.len().saturating_add(f.locals.len()))?;
@@ -346,6 +383,7 @@ fn check_with(
         && d.storage_life.is_some()
     {
         environments = true;
+        e.track_grounding(b)?;
         b.spend(d.captures.len())?;
         let vars = header
             .as_ref()
@@ -436,7 +474,7 @@ fn check_with(
                             e.freeze(fixed, b)?;
                         }
                     }
-                    InstructionKind::Load(local) => {
+                    InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                         if let Some(out) = out {
                             e.copy(out, &locals[local.0 as usize], b)?;
                         }
@@ -447,6 +485,7 @@ fn check_with(
                     InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local } => {
                         if let Some(out) = out {
+                            e.ground_address(out.outer, b)?;
                             let stored = &locals[local.0 as usize];
                             b.spend(out.classes.len().saturating_add(stored.classes.len()))?;
                             if out.classes.len() != stored.classes.len() {

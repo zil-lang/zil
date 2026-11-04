@@ -434,7 +434,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                         life,
                         b,
                     )?;
-                } else if needs {
+                } else if needs || d.storage_life.is_some() {
                     return Err(bad(
                         "qualified role omits its complete semantic class relation",
                     ));
