@@ -1,0 +1,24 @@
+{
+  "task": "G3.3.2.1",
+  "stage": "RequestLocalSyntaxTransportScaffoldingOnly",
+  "source_admission_changed": false,
+  "guard": "Nonempty raw marker currently requires a matching source elaboration ledger and is refused by Lower until the producer is connected. Existing captured-Fixed source guard stays.",
+  "semantic_equality": "Syntax PartialEq ignores marker indices; actual ledger consumers must compare raw_index and validate owner/use counts.",
+  "checks": {
+    "expand_cargo_check": 0,
+    "syntax_formatting_tests": {
+      "passed": 5,
+      "failed": 0
+    },
+    "fmt": 0
+  },
+  "logs": {
+    "marker-check.log": "e6f5a0037cb02282ce020f3d03722cbc4437445310dad09fe726aa88afe6b956",
+    "marker-formatting.log": "5495b68e596227cc28c0744c9245ca9549180e914580c7430b1f94aff0b36556",
+    "marker-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "not_claimed": [
+    "No Core/Typed context producer or identity codec publication yet",
+    "No source captured-Fixed acceptance or whole-language acceptance"
+  ]
+}

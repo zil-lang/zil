@@ -1815,11 +1815,19 @@ impl Expander<'_> {
     fn lower_expr_closure(&mut self, e: &s::Expr, expected: Option<&Type>) -> CoreExpr {
         let kind = match &e.kind {
             s::ExprKind::Closure {
+                context,
                 move_capture,
                 params,
                 return_type,
                 body,
             } => {
+                if context.raw_index().is_some() {
+                    self.unsupported(
+                        "closure context requires its matching source elaboration ledger",
+                        e.span,
+                    );
+                    return self.expr_node(CoreExprKind::Unit, e.span);
+                }
                 let parameters = params
                     .iter()
                     .map(|p| {
