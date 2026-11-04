@@ -468,6 +468,29 @@
       },
       "responsibility": "Inputs initialized once; actual distinct stable child instance survives Pending, argument loans and partial/owned cleanup. Creation-order PendingExit drain; Direct Drop cannot suspend. No implicit recursion heap. Full actual layout/callee/Drop/effect identities prepaid and cache-bound.",
       "selection": "Explicit effects containing suspend or any resume(local|transfer) selects Suspend; explicit effects without suspend selects Direct and conflicts with resume. No effects clause derives from body. Transfer unsupported until separately checked; static Direct targets use adapters and retain ordinary bodies."
+    },
+    "terminal_owned_task_343": {
+      "authority": "_zil_design.md §12.1.3",
+      "state": "ContractToImplement",
+      "schema_version": 38,
+      "wire_version": 38,
+      "fingerprint": "TypedV38; complete Task result Type tag34; callable contract5, Type identityV35 and scalar TaskI32 ABI1 retained",
+      "Type": "Task{result:Box<Type>} tag34 only Managed/Desc and exact AddressMut(Managed(Task<T>)); no bare payload, generic construction/access, Copy/Transfer/Share or close proof",
+      "Core": "CoreAggregateTypeRecipe::Task{result:Box<CoreAggregateTypeRecipe>}; preserve full actual T and actual family declaration identity",
+      "instruction": {
+        "128": "TaskCreate{worker:FunctionId,arguments:Vec<ValueId>}; ordinary TaskCreateError!Managed(Task<actual worker result>); transferred inputs cleaned once on Allocation; success non-null"
+      },
+      "ordinary_types": "Canonical std.task declarations through existing nominal Enum/family machinery: Poll<T>{Pending,Ready(T)}, TaskCreateError{Allocation}, TaskPollState{Complete,Cancelled,Invalid}; full T identity, ordinary moves/loans, no shape-derived authority",
+      "source": [
+        "task_create(static_worker,args...)->TaskCreateError!Task<T>",
+        "task_poll(&mut task)->TaskPollState!Poll<T>",
+        "task_request_cancel(&mut task)->Unit",
+        "task_poll_close(&mut task)->Poll<Unit>",
+        "task_finish_destroy(give task)->Unit"
+      ],
+      "compatibility": "task_start/TaskI32 nullable head, tuple five-state poll and Bool close remain explicit compatibility; general owning external SABI is not ABI1",
+      "responsibility": "Saved-PC canonical owner/live/partial/result slots; once-only input commit and Ready move; actual child creation-order PendingExit, parent loans retained through drain; Closed includes child/result/loan/external-user/no-future/drain settlement; Direct default Drop needs Closed or complete synchronous-close proof",
+      "accounting": "Single cumulative request ledger; full actual type/instance/layout/effect/cleanup/metadata/cache work paid before traversal or growth; no producer proof bits or default-limit increase"
     }
   },
   "schemas": [

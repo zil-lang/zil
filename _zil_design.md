@@ -834,9 +834,23 @@ SABI 保留 init/poll/request_cancel/poll_close/finish_destroy。poll/poll_close
 
 SuspendCall{function,arguments}以实际SSA结果槽表示恢复结果，opcode125；普通源码task_await(static_worker,args...)只在合法Suspend执行根内使用。静态Direct目标可经任务adapter调用而保留其普通Direct正文，不因被await引用改变目标选择；SuspendCall操作本身仍要求Suspend执行根。实参按源序准备一次，部分失败责任由父保持，child初始化提交时一次转入；父在Await重poll只恢复同一实例，不能重算实参或重建child。同一站点循环复用须前实例完全结算；相同worker不同活实例不合并。无环静态子帧按实际并存布局嵌入父稳定帧，有环要求显式BoxTask/arena/调用者存储边界，不隐式逐child堆装箱。参数借用在Pending、取消及draining期间由真实child帧持续持有，不能在源Call的SSA末用处提前结束。
 
-普通名义Poll<T>使用Pending、Ready(T)、Complete、Cancelled、Invalid，只有Ready持有且转交一次T；其它tag不得读取载荷。借child帧的结果须保留实际child/root直至loan结束，未实现该责任前拒绝相应签名，不把Ready直接当作可destroy。PendingExit保存真实退出原因及已准备结果责任，原位置仍核return读取/移动；cancel先通知实际活child，按既有创建序推进drain，主体异常优先，未观察结果按实际flag清理。poll_close允许真实Pending；Closed要求child、全部外部users/waker/no-future、结果与loan全部结清。Direct AutoDrop不挂起，只可消费已Closed或两核证明关闭必同步完成的实例；一般关闭由可推进的执行根/父帧接管，不以遇Pending后abort或遗忘handle替代。TaskI32外部ABI1保留，拥有T的外部SABI须另定完整参数/结果PassingMode、布局与版本符号，不能悄改ABI1。
+一般拥有任务使用普通名义Poll<T>{Pending,Ready(T)}，只有Ready持有且转交一次T；一般task_poll返回TaskPollState!Poll<T>，普通名义TaskPollState为Complete、Cancelled、Invalid，不在这些状态伪造T。TaskI32的兼容二元组及外部ABI1仍保留原五tag；借child帧的结果须保留实际child/root直至loan结束，未实现该责任前拒绝相应签名，不把Ready直接当作可destroy。PendingExit保存真实退出原因及已准备结果责任，原位置仍核return读取/移动；cancel先通知实际活child，按既有创建序推进drain，主体异常优先，未观察结果按实际flag清理。poll_close允许真实Pending；Closed要求child、全部外部users/waker/no-future、结果与loan全部结清。Direct AutoDrop不挂起，只可消费已Closed或两核证明关闭必同步完成的实例；一般关闭由可推进的执行根/父帧接管，不以遇Pending后abort或遗忘handle替代。TaskI32外部ABI1保留，拥有T的外部SABI须另定完整参数/结果PassingMode、布局与版本符号，不能悄改ABI1。
 
 联合公共Typed/Wire37保留342的调用局部life字段和callable contract5，并增加函数CallKind字节与SuspendCall125；Typed域为V37，旧Wire版本拒绝。此为接续消费者合同，公共登记、表示或单纯可解码不等于能力已实现。
+
+### 12.1.3 一般拥有Task与普通轮询值（343接续）
+
+联合Typed/Wire38增加密封载荷Type::Task{result:Box<Type>}（tag34）、CoreAggregateTypeRecipe::Task{result}与TaskCreate{worker,arguments}（opcode128）；126/127留给独立的地址路径接口。完整实际T保留在类型、泛型family实参、Wire/指纹、布局与清理身份中。Task<T>只在Managed/Desc及精确AddressMut(Managed(Task<T>))头边界合法，不开放任意Managed pointee。泛型recipe、类型形状或声明不证明帧/关闭/Transfer/Share资格；普通MakeManaged、ReadDesc、WriteDesc不得制造或揭示任务帧。
+
+源码task_create(static_worker,args...)是一般执行根；task_start/TaskI32保留显式兼容通路。TaskCreate不改变实际worker的Direct/Suspend选择，Direct目标保留普通正文并另有任务adapter。实参按普通源序及转交规则求值一次；提交给构造器的实际责任不回滚。结果为普通TaskCreateError!Task<T>，TaskCreateError只有Allocation；分配失败准确清理所有已转交输入一次，并仅返回错误分支，成功持有完整初始化的非空任务。不得返回bool加未初始化拥有头。失败清理的实际Cleanup效果进入调用选择；若可能挂起，必须由合法Suspend/推进根保持稳定部分输入责任，Direct不隐藏阻塞，也不以abort冒充一般清理完成。
+
+std.task.Poll<T>{Pending,Ready(T)}、TaskCreateError{Allocation}、TaskPollState{Complete,Cancelled,Invalid}由编译器提供的标准模块声明经普通名义Enum/family规则解析、实例化，保持真实模块/声明身份及完整T实参；并非新特权Type或另一套loan许可。用户可用已持有值构造、匹配普通变体。同形用户Enum不因此成为任务接口类型，普通Enum也不能制造Task拥有责任。Task边界的两个核分别核实际规范名义身份、完整T、活分支与真实责任；源码名字、形状或producer标志均不能代替这些检查。
+
+一般task_poll(&mut task)返回TaskPollState!Poll<T>；成功的Pending没有T，成功的Ready一次转交实际T，错误Complete/Cancelled/Invalid没有虚假T。结果槽有独立live/部分责任标志；完成先存入一次，Ready移出才清除该责任。取消/关闭须清未转交结果，Ready后取消不回收调用者的T。Invalid仅为防御性无效状态，不授予构造无效任务的资格。若T借入实际任务/child帧，真实帧及root须保持到loan结束；ComputationComplete不等于Closed。
+
+一般task_request_cancel(&mut task)持久、幂等地请求取消；一般task_poll_close(&mut task)返回普通Poll<Unit>，Pending保留完整拥有头、child、部分输入/结果、借入及外部user根；仅Ready(Unit)表示Closed。重复驱动不能重复移出结果、unlink或清理。关闭先通知全部活child，再按实际创建序排空，保留它们仍借用的父存储；PendingExit保持真实Normal/Error/Cancel/Panic及其责任，主体异常优先。结果/loan、全部child和外部users/wakers及实际no-future/drain均结清后才能Closed。task_finish_destroy(give task)仅消费Closed拥有头，不能提前释放。仅Closed或两核完整实际child/teardown/allocator图证明关闭必同步完成时，Direct默认Drop才合法；其它情况由可推进的显式根/父帧持有，而非遇Pending后遗忘或abort。TaskI32的既有nullable/Bool兼容行为不变。
+
+每个实际保存PC都须覆盖所有拥有责任：规范帧槽与live/partial/result标志对应真实局部、prepared输入及未消费临时；SSA别名没有第二份Drop资格。普通位置/loan/清理顺序由两个核分别重建，不能读取CandidatePlan责任位当证明。内联静态child、循环站点复用、并存实例、失败准备和一次Ready均进入真实布局、方法/Drop及cache身份，所有新增遍历与增长预付同一余额。拥有T的外部SABI仍须独立的完整参数/结果PassingMode、实际布局、版本与符号；本组不把scalar ABI1或旧TaskInterface描述冒充一般拥有外部接口。
 
 ### 12.2 异常与待退出状态
 
