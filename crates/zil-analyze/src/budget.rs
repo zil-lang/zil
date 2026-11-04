@@ -202,6 +202,7 @@ impl Budget {
                 self.registrations = true;
                 self.type_work(environment, copy_check, context)?;
             }
+            Type::Task { result } => { self.tasks = true; self.type_work(result, copy_check, context)?; }
             Type::TaskI32 => {
                 self.tasks = true;
             }
@@ -332,7 +333,7 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         || crate::resources::head_address(ty)
         || ty.is_package_address()
         || matches!(ty, Type::Managed(inner) | Type::Desc(inner)
-            if **inner == Type::ByteBuffer || **inner == Type::TaskI32 || matches!(inner.as_ref(), Type::Registration { .. })
+            if **inner == Type::ByteBuffer || matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) || matches!(inner.as_ref(), Type::Registration { .. })
                 || (matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value()))
     {
         Ok(())
@@ -1206,7 +1207,8 @@ pub(super) fn preflight(
                             return Err(bad("Suspend child operand outside actual tables"));
                         }
                     }
-                    InstructionKind::TaskStart { .. }
+                    InstructionKind::TaskCreate { .. }
+                    | InstructionKind::TaskStart { .. }
                     | InstructionKind::TaskYield
                     | InstructionKind::TaskValid { .. }
                     | InstructionKind::TaskPoll { .. }

@@ -476,7 +476,7 @@ pub fn check(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(&functions, &mut resource_definitions, &mut remaining)
+    tasks::add_definition(&functions, &mut resource_definitions, &mut remaining, limits)
         .map_err(|e| vec![e])?;
     registration::add_definitions(&functions, &mut resource_definitions, &mut remaining)
         .map_err(|e| vec![e])?;

@@ -110,7 +110,7 @@ pub(super) fn check_type_for(
     if matches!(inner.as_ref(), Type::Registration { .. }) {
         return registration::carrier(module, ty, span, budget);
     }
-    if inner.as_ref() == &Type::TaskI32 {
+    if matches!(inner.as_ref(),Type::TaskI32|Type::Task{..}) {
         return tasks::carrier(module, ty, span, budget);
     }
     if inner.as_ref() == &Type::ByteBuffer {
@@ -188,6 +188,11 @@ pub(super) fn check_definitions(
                 None,
                 budget,
             )?;
+            continue;
+        }
+        if matches!(resource.payload,Type::Task{..}) || resource.name.starts_with(TASK_RESOURCE_NAME_PREFIX) {
+            if !names.insert(&resource.name) { return Err(reject("E-VERIFY-TASK",None,"task definition repeats")); }
+            tasks::carrier(module,&Type::Managed(Box::new(resource.payload.clone())),None,budget)?;
             continue;
         }
         if resource.payload == Type::TaskI32 || resource.name == TASK_I32_RESOURCE_NAME {
@@ -1131,6 +1136,11 @@ impl Transfer<'_> {
                             budget,
                         )?;
                     }
+                }
+                InstructionKind::TaskCreate { arguments, .. } => {
+                    budget.spend(arguments.len())?;
+                    for &v in arguments { self.consume(state,v,span,validate)?; }
+                    fresh_result=Some(FRESH);
                 }
                 InstructionKind::RegistrationStart { callback, .. } => {
                     self.consume(state, *callback, span, validate)?;

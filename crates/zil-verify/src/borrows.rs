@@ -14,7 +14,7 @@ type State = BTreeMap<LocalId, Roots>;
 
 fn tracked_desc(ty: &Type, descriptor_origins: bool) -> bool {
     matches!(ty, Type::Desc(inner)
-        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. }))
+        if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
 fn has_sources(
@@ -633,7 +633,7 @@ fn reconstruct(
                         match &instruction.kind {
                             InstructionKind::DescribeLocal { local }
                                 if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
-                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. })) =>
+                                if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
                             {
                                 row.push(Root::Local(*local));
                             }

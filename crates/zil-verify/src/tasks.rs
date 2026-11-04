@@ -1,5 +1,22 @@
 //! Independent scalar task ABI admission. No producer call-mode flag is trusted.
 use super::*;
+
+fn task_payload(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Managed(t)|Type::Desc(t)|Type::Address{inner:t,..}=>task_payload(t),
+        Type::TaskI32|Type::Task{..}=>Some(ty), _=>None,
+    }
+}
+fn task_create_type(result: &Type) -> Type {
+    Type::ErrorUnion {error:Box::new(Type::Enum{name:"@std.task:v1:TaskCreateError".into(),variants:vec![("Allocation".into(),vec![])]}),result:Box::new(Type::Managed(Box::new(Type::Task{result:Box::new(result.clone())})))}
+}
+fn task_poll_type(result: &Type) -> Type {
+    Type::Enum{name:format!("@std.task:v1:Poll:{}",result.fingerprint()),variants:vec![("Pending".into(),vec![]),("Ready".into(),vec![result.clone()])]}
+}
+fn task_poll_result(result: &Type) -> Type {
+    Type::ErrorUnion{error:Box::new(Type::Enum{name:"@std.task:v1:TaskPollState".into(),variants:["Complete","Cancelled","Invalid"].into_iter().map(|s|(s.into(),vec![])).collect()}),result:Box::new(task_poll_type(result))}
+}
+
 pub(super) fn carrier(
     module: &TypedModule,
     ty: &Type,
@@ -7,18 +24,14 @@ pub(super) fn carrier(
     budget: &mut Budget,
 ) -> Check<()> {
     budget.tasks = true;
-    budget.spend(module.resources.len())?;
+    let (Type::Managed(payload)|Type::Desc(payload))=ty else {return Err(reject("E-VERIFY-TASK",span,"task carrier requires actual owning or descriptor payload"));};
+    resources::charge_payload(payload,budget)?;
+    let name=match payload.as_ref(){Type::TaskI32=>TASK_I32_RESOURCE_NAME.into(),Type::Task{result}=>format!("{TASK_RESOURCE_NAME_PREFIX}{}",result.fingerprint()),_=>return Err(reject("E-VERIFY-TASK",span,"task payload absent"))};
+    budget.spend(module.resources.len().saturating_mul(2))?;
     if !module.target.is_supported_x64_llvm()
-        || !matches!(ty, Type::Managed(p) | Type::Desc(p) if **p == Type::TaskI32)
-        || !module.resources.iter().any(|r| {
-            r.name == TASK_I32_RESOURCE_NAME && r.payload == Type::TaskI32 && r.teardown.is_none()
-        })
-    {
-        return Err(reject(
-            "E-VERIFY-TASK",
-            span,
-            "task carrier requires canonical sealed native task definition",
-        ));
+        || module.resources.iter().filter(|r|r.payload==**payload).count()!=1
+        || !module.resources.iter().any(|r|r.name==name && r.payload==**payload && r.teardown.is_none()) {
+        return Err(reject("E-VERIFY-TASK",span,"task carrier requires its exact canonical sealed native definition"));
     }
     Ok(())
 }
@@ -39,6 +52,18 @@ pub(super) fn instruction(
         )
     };
     Ok(Some(match i.kind {
+        InstructionKind::TaskCreate { worker, ref arguments } => {
+            budget.spend(arguments.len().saturating_add(1))?;
+            profile(module,worker,budget,span)?;
+            let target=&module.functions[worker.0 as usize];
+            if arguments.len()!=target.parameters.len() {return Err(bad());}
+            for (v,p) in arguments.iter().zip(&target.parameters) {if value_type(f,*v,span)?!=local_type(target,*p,span)? {return Err(bad());}}
+            for _ in 0..4 {resources::charge_payload(&target.return_type,budget)?;}
+            budget.spend(budget.task_workers.len().saturating_add(1))?;budget.task_workers.insert(worker);
+            let ty=task_create_type(&target.return_type);
+            let Type::ErrorUnion{result,..}=&ty else {unreachable!()};carrier(module,result,span,budget)?;
+            ty
+        }
         InstructionKind::TaskStart { worker, argument } => {
             if value_type(f, argument, span)? != &Type::I32 {
                 return Err(bad());
@@ -71,7 +96,7 @@ pub(super) fn instruction(
         }
         InstructionKind::TaskValid { task } => {
             let ty = value_type(f, task, span)?;
-            if !matches!(ty, Type::Desc(p) if **p == Type::TaskI32) {
+            if !matches!(ty, Type::Desc(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) {
                 return Err(bad());
             }
             carrier(module, ty, span, budget)?;
@@ -79,7 +104,7 @@ pub(super) fn instruction(
         }
         InstructionKind::TaskFinishDestroy { task } => {
             let ty = value_type(f, task, span)?;
-            if !matches!(ty, Type::Managed(p) if **p == Type::TaskI32) {
+            if !matches!(ty, Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..})) {
                 return Err(bad());
             }
             carrier(module, ty, span, budget)?;
@@ -97,8 +122,8 @@ pub(super) fn instruction(
             };
             carrier(module, inner, span, budget)?;
             match i.kind {
-                InstructionKind::TaskPoll { .. } => Type::Tuple(vec![Type::I32, Type::I32]),
-                InstructionKind::TaskPollClose { .. } => Type::Bool,
+                InstructionKind::TaskPoll { .. } => match task_payload(ty) {Some(Type::Task{result})=>{for _ in 0..4 {resources::charge_payload(result,budget)?;} task_poll_result(result)},_=>Type::Tuple(vec![Type::I32,Type::I32])},
+                InstructionKind::TaskPollClose { .. } => if matches!(task_payload(ty),Some(Type::Task{..})){task_poll_type(&Type::Unit)}else{Type::Bool},
                 _ => Type::Unit,
             }
         }
